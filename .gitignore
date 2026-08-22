@@ -27,3 +27,6 @@ task0/sessions/
 
 # Demo seed session state (bearer token) — never commit
 .seed_session.json
+
+# Local debug/probe logs (repo root only)
+/*.log

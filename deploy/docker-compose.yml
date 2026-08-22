@@ -9,6 +9,9 @@ services:
       POSTGRES_DB: harness
     volumes:
       - pgdata:/var/lib/postgresql
+    # Survive Docker/host restarts: DB going away makes the backend crash-loop
+    # on DNS until manually restarted (seen 2026-08-22).
+    restart: unless-stopped
     # Dev convenience: host-side access for tests/tools. 5499 avoids clashing
     # with a local Postgres already on 5432 (loopback only either way).
     ports:

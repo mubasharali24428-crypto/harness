@@ -942,20 +942,23 @@ Carry these forward verbatim in STATUS.md updates.
 | ID | Item | Size | Blocking? |
 |----|------|------|-----------|
 | ~~H8~~ | WS ticket auth | DONE wave 2 | — |
-| H2r | Login ownership proof (OTP/OAuth flag) | 1–2 sessions | before public exposure |
+| ~~H2r~~ | Login ownership proof (OTP/OAuth flag) | DONE wave 3 | was before public exposure |
 | ~~F6r~~ | Seatbelt/Landlock confinement | DONE wave 3 | — |
 | ~~E-smtp~~ | SMTP delivery | DONE wave 4 | — |
 | ~~E-fe-otp~~ | OTP frontend | DONE wave 4 | — |
 | ~~M2~~ | streaming event types end-to-end | DONE wave 2 | — |
 | ~~E-rdg~~ | Engine fallback chain (`DSH_FALLBACK_MODELS`) | DONE wave 2 (S4 tests) | no |
-| E-s3 | Route fallback candidates through S3 catalog instead of env list | ½ session | no |
-| E-cat | Declarative provider catalog in S3 | ½ session | no |
-| E-codegen | pydantic→TS type generation, drop hand mirror | 1 session | drift risk grows |
-| M4 | `/health?deep=1` DB ping | trivial | no |
-| M5 | list_projects limit param | trivial | no |
-| CI | sh -n + compose config + probes nightly | ½ session | recommended |
+| ~~E-s3~~ | Route fallback candidates through S3 catalog instead of env list | DONE wave 4 (ctor > env > catalog) | no |
+| ~~E-cat~~ | Declarative provider catalog in S3 | DONE wave 4 | no |
+| ~~E-codegen~~ | pydantic→TS type generation, drop hand mirror | DONE wave 4 (--check gate) | — |
+| ~~M4~~ | `/health?deep=1` DB ping | DONE wave 2 (live-verified 2026-08-22) | no |
+| ~~M5~~ | list_projects limit param | DONE wave 2 | no |
+| ~~CI~~ | sh -n + compose config + probes nightly | DONE wave 4; nightly `17 6 * * *` green | — |
 | ~~E-seed~~ | seed_demo idempotency vs per-login team minting | fixed wave 5 (persisted session) | no |
 | ~~CI-S1HANG~~ | section1 pytest job hung forever on CI runners | FIXED wave 5b (see Appendix G) | was blocking CI |
+| RESUME | Checkpoint-aware engine resume (Appendix C FAQ: pause/restart re-executes goals) | 1–2 sessions | no |
+| OAUTH-CREDS | Real GITHUB_CLIENT_ID/SECRET in deploy env so Settings Connect goes live (code DONE wave 5; without creds :8002 503s NOT_CONFIGURED by design) | config-only | demo day |
+| DB-RESTART | db container had `restart:` policy missing — host restart left backend DNS-crash-looping | trivial, FIXED 2026-08-22 (`restart: unless-stopped`) | was ops |
 
 Definition of done for any new gap card added here: code + test proving the fix
 + entry in this ledger (or removal), updated in the SAME commit.
