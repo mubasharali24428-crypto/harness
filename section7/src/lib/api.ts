@@ -196,6 +196,23 @@ export async function fetchWsTicket(projectId: string, token: string): Promise<s
 }
 
 // ---------------------------------------------------------------------------
+// Section 1 — identity resources (projects)
+// ---------------------------------------------------------------------------
+
+export interface ProjectDto {
+  id: string;
+  name: string;
+  repoFullName: string | null;
+}
+
+export function listProjects(token: string): Promise<ProjectDto[]> {
+  return apiFetch<{ items: ProjectDto[]; nextCursor: number }>(
+    `${IDENTITY_BASE}/api/v1/projects?limit=100`,
+    token,
+  ).then((d) => d.items);
+}
+
+// ---------------------------------------------------------------------------
 // Section 6 — Meeting Area (ported from section9/lib/api.ts, live-proven shapes)
 // S6's routes take userId in the body by design (meeting participants are plain
 // strings, not session principals); the bearer token still authenticates the call.
