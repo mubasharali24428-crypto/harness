@@ -955,6 +955,7 @@ Carry these forward verbatim in STATUS.md updates.
 | M5 | list_projects limit param | trivial | no |
 | CI | sh -n + compose config + probes nightly | ½ session | recommended |
 | ~~E-seed~~ | seed_demo idempotency vs per-login team minting | fixed wave 5 (persisted session) | no |
+| ~~CI-S1HANG~~ | section1 pytest job hung forever on CI runners | FIXED wave 5b (see Appendix G) | was blocking CI |
 
 Definition of done for any new gap card added here: code + test proving the fix
 + entry in this ledger (or removal), updated in the SAME commit.
@@ -1113,3 +1114,40 @@ Known follow-ups (not defects): oauth_states/tickets are per-process memory —
 fine for the single-container deployment, move to the DB if services scale out
 horizontally; real client_id/secret still needed from the operator for the
 actual exhibition login.
+
+## Appendix G — CI-S1HANG: section1 pytest job hung forever on runners
+
+**Severity:** HIGH (blocked every green CI run since wave 4).
+**Evidence:** runs 32575662470 / 32580323874 cancelled at exactly the
+timeout-minutes=15 ceiling with zero pytest output; all other jobs passed.
+Local macOS suite: 48 passed in ~1s. Predates wave-5 OAuth work.
+
+**Diagnosis chain (each step reproducible):**
+1. Downloaded concluded-run logs via `gh api .../actions/runs/<id>/logs`:
+   the pytest step started but never printed (stdout block-buffering made
+   "no dots" ambiguous; not proof of pre-test hang).
+2. Reproduced under `docker run python:3.13` with `-o faulthandler_timeout`:
+   stack dump pinned `test_ws_auth.py` and showed the main thread joined in
+   anyio portal teardown while a worker thread sat in `run_forever`.
+3. Bisect: each WS test PASSED alone (0.16s); the FILE hung, wedge point
+   moving between tests → race, not deterministic.
+4. Env-var trace inside project_ws pinned the stall to the first DB await.
+
+**Root cause:** cross-loop aiosqlite. The async `db` fixture's engine opened
+pooled connections on pytest-asyncio's loop; starlette TestClient ran app
+code on its anyio portal loop. When project_ws checked out a connection
+born on the dead fixture loop, the aiosqlite worker raised
+"Event loop is closed" handing results back and that await never completed.
+Whichever pooled connection was checked out decided pass vs hang.
+
+**Fix:** test-side — rewrote test_ws_auth.py with MiniWs, a raw-ASGI WS
+driver running the app on the CURRENT asyncio loop (single-loop, no threads).
+Also asserted ticket/project mismatch = 4401 per _redeem_ticket semantics.
+App-side (b1fb041): project_ws now races a receive() watcher against
+queue.get() so silent/disconnected clients release their subscription
+instead of parking forever (real production leak, independent of tests).
+
+**Verify:** linux/python3.13 docker run of the full suite: 49 passed,
+exit 0. CI run 32584797390: SUCCESS in 37s.
+**Regression guard:** test_silent_client_disconnect_does_not_wedge_handler;
+any future TestClient-style threaded WS test should be rejected in review.
