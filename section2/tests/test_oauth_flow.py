@@ -155,3 +155,38 @@ async def test_connection_reports_connected_without_token(db, client):
 
 
 from harness_contracts import KeyVault  # noqa: E402  (used above)
+
+# ---------------------------------------------------------------- tickets
+# Browsers navigate; they cannot send Authorization headers on window.location.
+# The frontend mints a ONE-TIME start-ticket via fetch, then navigates.
+
+
+async def test_start_ticket_mints_and_drives_flow(db, client):
+    await _seed(db)
+    t = await client.post("/api/v1/github/oauth/start-ticket", headers=auth())
+    assert t.status_code == 200
+    ticket = t.json()["ticket"]
+
+    r = await client.get(
+        f"/api/v1/github/oauth/start?ticket={ticket}", follow_redirects=False
+    )
+    assert r.status_code in (301, 302, 303, 307)
+    assert r.headers["location"].startswith("https://github.com/login/oauth/authorize")
+    assert client.app.state.oauth_states  # state still bound server-side
+
+
+async def test_start_ticket_is_single_use(db, client):
+    await _seed(db)
+    ticket = (
+        await client.post("/api/v1/github/oauth/start-ticket", headers=auth())
+    ).json()["ticket"]
+    first = await client.get(f"/api/v1/github/oauth/start?ticket={ticket}")
+    assert first.status_code in (301, 302, 303, 307)
+    replay = await client.get(f"/api/v1/github/oauth/start?ticket={ticket}")
+    assert replay.status_code == 401
+
+
+async def test_start_ticket_requires_creds_too(db, anon_client):
+    await _seed(db)
+    r = await anon_client.post("/api/v1/github/oauth/start-ticket", headers=auth())
+    assert r.status_code == 503

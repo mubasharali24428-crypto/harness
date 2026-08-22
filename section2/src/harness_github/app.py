@@ -19,6 +19,7 @@ router = APIRouter(prefix=contracts.API_PREFIX)
 bearer_scheme = HTTPBearer(auto_error=False)
 
 OAUTH_STATE_TTL = 600
+START_TICKET_TTL = 60
 
 
 def make_app(session_factory, settings: Settings):
@@ -35,6 +36,7 @@ def make_app(session_factory, settings: Settings):
     app.state.vault = KeyVault(settings.master_key)
     app.state.transport = None  # injectable httpx transport for tests
     app.state.oauth_states: dict[str, tuple[str, float]] = {}  # state -> (user_id, expiry)
+    app.state.oauth_start_tickets: dict[str, tuple[str, float]] = {}
     get_principal = make_bearer_dep(session_factory)
     app.state.get_principal = get_principal
 
@@ -89,21 +91,51 @@ async def _start_principal(request: Request) -> Principal:
     return principal
 
 
-@router.get("/github/oauth/start")
-async def oauth_start(request: Request):
-    """Browser entry: 302 to GitHub's authorize URL with a CSRF state bound to
-    the session user. Requires a bearer session (navigation cannot send headers,
-    so the frontend mints this hop via fetch before redirecting)."""
+@router.post("/github/oauth/start-ticket")
+async def oauth_start_ticket(request: Request) -> dict:
+    """One-time 60s hop for browser navigation (no headers on window.location)."""
     settings: Settings = request.app.state.settings
     if not settings.github_client_id or not settings.github_client_secret:
         raise _not_configured()
     principal = await _start_principal(request)
+    import uuid as _uuid
+
+    ticket = _uuid.uuid4().hex
+    request.app.state.oauth_start_tickets[ticket] = (
+        principal.userId,
+        time.time() + START_TICKET_TTL,
+    )
+    return {"ticket": ticket}
+
+
+@router.get("/github/oauth/start")
+async def oauth_start(request: Request, ticket: str = ""):
+    """Browser entry: 302 to GitHub's authorize URL with a CSRF state bound to
+    the session user. Browsers cannot send Authorization headers on navigation,
+    so the frontend fetches a one-time start-ticket first; API clients may use
+    a bearer token directly."""
+    settings: Settings = request.app.state.settings
+    if not settings.github_client_id or not settings.github_client_secret:
+        raise _not_configured()
+
+    if ticket:
+        redeemed = request.app.state.oauth_start_tickets.pop(ticket, None)
+        if redeemed is None or redeemed[1] < time.time():
+            raise HTTPException(
+                status_code=401,
+                detail={
+                    "error": {"code": "INVALID_TICKET", "message": "unknown or expired ticket"}
+                },
+            )
+        user_id = redeemed[0]
+    else:
+        user_id = (await _start_principal(request)).userId
 
     from urllib.parse import quote
 
     state = uuid.uuid4().hex
     request.app.state.oauth_states[state] = (
-        principal.userId,
+        user_id,
         time.time() + OAUTH_STATE_TTL,
     )
     url = (
