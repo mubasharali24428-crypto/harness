@@ -37,15 +37,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      # harness-contracts is a path dependency (not on PyPI): install it first,
-      # mirroring how local venvs were built (editable install of contracts + section).
-      - name: Install contracts package
+      # harness-contracts is a path dependency (not on PyPI): install it into the
+      # section's own venv first, then the section itself — mirroring how local
+      # venvs were built (editable install of contracts + section).
+      - name: Install deps (contracts + section, shared venv)
         run: |
           python -m venv .venv
-          ./.venv/bin/pip install -q -e .
-        working-directory: contracts
-      - name: Install section deps
-        run: |
+          ./.venv/bin/pip install -q -e ../contracts
           ./.venv/bin/pip install -q -e ".[dev]" || ./.venv/bin/pip install -q -e .
         working-directory: ${{ matrix.section }}
       - name: ruff
