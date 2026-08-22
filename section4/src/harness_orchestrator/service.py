@@ -283,7 +283,14 @@ class OrchestratorService(Orchestrator):
         sm.start_execution()
 
         plan = self.planner.get_plan(plan_id)
+        self._spawn_execution(run_data, plan)
+
+    def _spawn_execution(self, run_data: dict[str, Any], plan: AgentPlan) -> None:
+        """Start one live engine task. Shared by start_execution and resume_agent
+        so a resumed run re-invokes the engine with the SAME session_id (= run_id);
+        the dsh SDK continues that session instead of starting a fresh one."""
         run_data["cancel_requested"] = False
+        run_data["_cancel_reason"] = None
         run_data["task"] = asyncio.create_task(self._execute(run_data, plan))
 
     async def _execute(self, run_data: dict[str, Any], plan: AgentPlan) -> None:
@@ -293,12 +300,15 @@ class OrchestratorService(Orchestrator):
                 self.engine.execute_goal, goal=plan.goal, session_id=run_id
             )
         except asyncio.CancelledError:
-            run_data["engine_result"] = {
-                "sessionId": run_id,
-                "engine": "cancelled",
-                "status": "cancelled",
-                "finalResponse": "Execution cancelled via pause/stop.",
-            }
+            # Pause keeps the run resumable: no terminal result written. Stop and
+            # other terminal cancellations record an honest 'cancelled' outcome.
+            if run_data.get("_cancel_reason") != "pause":
+                run_data["engine_result"] = {
+                    "sessionId": run_id,
+                    "engine": "cancelled",
+                    "status": "cancelled",
+                    "finalResponse": "Execution cancelled via pause/stop.",
+                }
             return
         except Exception as exc:  # noqa: BLE001 — surface engine failures to the UI
             run_data["engine_result"] = {
@@ -322,17 +332,47 @@ class OrchestratorService(Orchestrator):
     async def pause_agent(self, run_id: str) -> None:
         run_data = await self._ensure_run(run_id)
         sm: AgentStateMachine = run_data["state_machine"]
+        run_data["_cancel_reason"] = "pause"
         sm.pause(reason="user_requested")
         self._cancel_live_task(run_data)
 
     async def resume_agent(self, run_id: str) -> None:
+        """Resume a paused/blocked run by RE-SPAWNING the engine task.
+
+        The pre-fix version only flipped the state machine to EXECUTING while no
+        task existed — a state lie (Appendix C). Re-invoking execute_goal with
+        the same run_id as session_id is the checkpoint continuation: dsh resumes
+        its own session history rather than restarting the goal blind."""
         run_data = await self._ensure_run(run_id)
         sm: AgentStateMachine = run_data["state_machine"]
-        sm.resume()
+
+        live = run_data.get("task")
+        if live is not None and not live.done():
+            if not run_data.get("cancel_requested"):
+                return  # genuinely running — nothing to resurrect
+            # A just-cancelled task may not have processed its CancelledError
+            # yet (pause→resume in the same tick): let it finish dying, then
+            # respawn. Blocks only if the engine thread ignores cancellation,
+            # in which case waiting for the zombie leg is still correct.
+            try:
+                await live
+            except asyncio.CancelledError:
+                pass
+
+        plan_id = run_data.get("plan_id")
+        if not plan_id or not self.planner.is_approved(plan_id):
+            raise PlanNotApprovedError(f"Cannot resume run '{run_id}': Plan is not approved.")
+        plan = self.planner.get_plan(plan_id)
+
+        sm.resume()  # PAUSED/BLOCKED → EXECUTING (+ RESUMED event); no-op otherwise
+        if sm.state is not AgentState.EXECUTING:
+            return  # resume from IDLE/DONE/… is a no-op — nothing to resurrect
+        self._spawn_execution(run_data, plan)
 
     async def stop_agent(self, run_id: str) -> None:
         run_data = await self._ensure_run(run_id)
         sm: AgentStateMachine = run_data["state_machine"]
+        run_data["_cancel_reason"] = "stop"  # terminal: overwrites any earlier 'pause'
         sm.finish()
         self._cancel_live_task(run_data)
 
@@ -346,6 +386,7 @@ class OrchestratorService(Orchestrator):
         run_data = await self._ensure_run(run_id)
         run_data["human_edits"].append({"path": path, "content": content})
         sm: AgentStateMachine = run_data["state_machine"]
+        run_data["_cancel_reason"] = "pause"  # human edit pauses, keeps run resumable
         sm.submit_human_edit(path=path)
         self._cancel_live_task(run_data)
 
