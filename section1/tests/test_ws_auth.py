@@ -231,3 +231,23 @@ def test_token_path_still_works_during_transition(db):
     _seed_sync()
     with client.websocket_connect("/api/v1/ws/proj-1?token=goodtok") as ws:
         assert ws is not None
+
+
+# ================================================================
+# CI-hang regression guard: a client that connects and closes with no
+# events flowing must NOT wedge the server handler (it used to park on
+# queue.get() forever, hanging TestClient teardown on Linux).
+# ================================================================
+
+
+def test_silent_client_disconnect_does_not_wedge_handler(db):
+    _, client = _app_and_client(db)
+    _seed_sync()
+    for _ in range(3):
+        with client.websocket_connect("/api/v1/ws/proj-1?token=goodtok"):
+            pass  # open and immediately close; server must unwind cleanly
+
+    # The connection is reusable afterwards: handler released the subscription
+    # instead of leaking it, and a fresh client gets a normal session.
+    with client.websocket_connect("/api/v1/ws/proj-1?token=goodtok") as ws:
+        assert ws is not None

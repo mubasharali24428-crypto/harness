@@ -1,3 +1,4 @@
+import asyncio
 import secrets
 import time
 from collections import defaultdict, deque
@@ -431,13 +432,30 @@ async def project_ws(
     # buffered in the queue instead of lost. Duplicates from the overlap window are
     # removed client-side by seq dedup (section7 mergeEvents).
     queue = await bus.subscribe(project_id)
+
+    async def _watch_disconnect() -> None:
+        # A silent client never triggers a send, so receiving here is the ONLY way
+        # to observe its disconnect. Racing this against queue.get() is what lets
+        # the handler release dead subscriptions instead of parking forever.
+        while True:
+            await websocket.receive()
+
+    watcher = asyncio.ensure_future(_watch_disconnect())
     try:
         last_seq = int(afterSeq)
         for envelope in await bus.replay(project_id, last_seq):
             await websocket.send_json(envelope.model_dump())
             last_seq = max(last_seq, envelope.seq)
         while True:
-            envelope = await queue.get()
+            getter = asyncio.ensure_future(queue.get())
+            done, _pending = await asyncio.wait(
+                {getter, watcher}, return_when=asyncio.FIRST_COMPLETED
+            )
+            if watcher in done:
+                # Client disconnected (or sent anything — clients are read-only).
+                getter.cancel()
+                break
+            envelope = getter.result()
             # Overflow detection via bus-side flag ONLY. Never seq arithmetic:
             # agent_events.seq is table-global, so per-project jumps are normal
             # whenever other projects publish.
@@ -449,6 +467,7 @@ async def project_ws(
     except WebSocketDisconnect:
         pass
     finally:
+        watcher.cancel()
         await bus.unsubscribe(project_id, queue)
 
 
