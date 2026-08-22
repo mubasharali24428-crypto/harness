@@ -4,7 +4,7 @@ import { EventType } from "@contracts/events";
 import type { EventEnvelope } from "@contracts/events";
 
 function evt(seq: number): EventEnvelope {
-  return { type: EventType.EXECUTION_STARTED, payload: {}, ts: "t", seq, projectId: "p1", runId: null };
+  return { type: EventType.EXECUTION_STARTED, payload: {}, ts: "t", seq, projectId: "p1" };
 }
 
 describe("mergeEvents", () => {

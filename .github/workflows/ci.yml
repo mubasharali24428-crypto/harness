@@ -22,6 +22,8 @@ jobs:
         run: sh -n deploy/entrypoint.sh
       - name: compose file valid
         run: docker compose -f deploy/docker-compose.yml config -q
+      - name: TS contract mirror is current (E-codegen drift guard)
+        run: python3 contracts/ts/generate.py --check
 
   python-tests:
     name: pytest (${{ matrix.section }})

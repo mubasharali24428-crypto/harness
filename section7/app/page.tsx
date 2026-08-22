@@ -100,7 +100,7 @@ export default function CommandCenter() {
               {plan && (
                 <div className="status-line">
                   <span>est. cost</span>
-                  <span>${plan.estimatedCostUsd.toFixed(3)}</span>
+                  <span>${(plan.estimatedCostUsd ?? 0).toFixed(3)}</span>
                 </div>
               )}
             </>
@@ -114,17 +114,17 @@ export default function CommandCenter() {
           {plan ? (
             <>
               <ul>
-                {plan.steps.map((s) => (
+                {(plan.steps ?? []).map((s) => (
                   <li key={s}>{s}</li>
                 ))}
               </ul>
               <div className="status-line">
                 <span>est. cost</span>
-                <span>${plan.estimatedCostUsd.toFixed(3)}</span>
+                <span>${(plan.estimatedCostUsd ?? 0).toFixed(3)}</span>
               </div>
               <div className="status-line">
                 <span>forbidden paths</span>
-                <span>{plan.forbiddenPaths.join(", ") || "none"}</span>
+                <span>{(plan.forbiddenPaths ?? []).join(", ") || "none"}</span>
               </div>
             </>
           ) : (
