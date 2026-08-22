@@ -51,18 +51,38 @@ already taken → compose publishes PG on 127.0.0.1:**5499**.
 To run the platform with ownership enforcement on:
 `HARNESS_REQUIRE_OWNERSHIP=true docker compose -f deploy/docker-compose.yml up -d --build backend`
 
-## Wave 4 (latest) — frontend consolidation + OTP delivery groundwork
+## Wave 4 (latest) — ledger cleared: consolidation + E-smtp + E-cat + CI + E-codegen
 
 1. **S7/S9 consolidation DONE**: one frontend now. S7 gained S9's design system,
    AppShell, and pages (command center, meeting, review, login) wired to the real
    typed API layer (meeting/review/OTP clients added, TDD'd). S9 retired
    (`git rm`); deploy/frontend.Dockerfile + compose now build section7.
    Live: all four routes 200 on :3000 against the running stack.
-2. **E-fe-otp DONE (as part of login port)**: /login is flag-aware — legacy login
-   auto-switches to request→verify OTP flow on 403 OWNERSHIP_REQUIRED.
-   Verified live: OTP issued to container logs, verify-otp returned an admin session.
-3. Remaining ledger: E-smtp (real SMTP in the S1 notifier hook), E-cat, E-codegen,
-   CI gates.
+2. **E-fe-otp DONE**: /login is flag-aware — legacy login auto-switches to the
+   request→verify OTP flow on 403 OWNERSHIP_REQUIRED. Verified live end-to-end:
+   request → code in container logs → verify-otp → admin session on :8001.
+3. **E-smtp DONE**: `notifier.py` — SMTP via HARNESS_SMTP_* env (host/port/
+   user/pass/from/starttls), sync smtplib in a worker thread, delivery failures
+   logged never raised (enumeration-safety kept). No host configured → visible
+   dev log printer. 6 new tests; compose env-wired.
+4. **E-cat DONE**: S3 `catalog.py` — declarative provider catalog with env-var
+   indirection (names only), coverage asserted against the pricing catalog
+   (caught a missing qwen provider), local fallback candidates = zero-priced
+   models. GET /api/v1/models/catalog exposed; S4 engine consults it as
+   last-resort fallback chain (ctor > env > catalog).
+5. **CI gates DONE**: .github/workflows/ci.yml — sh -n entrypoint + compose
+   config + TS-mirror drift check, pytest+ruff matrix over all 8 Python
+   sections, tsc+vitest for section7, nightly real-PG probe job.
+6. **E-codegen DONE**: contracts/ts/generate.py — AST-based pydantic→TS mirror
+   generator; --check gate in CI makes hand-editing the mirror pointless.
+   Regenerated mirrors; optional fields handled; consumers updated.
+
+Test totals: 395 pytest (+4 PG integration) + 58 vitest green; ruff clean;
+tsc clean; next build green.
+
+Remaining known work: none from the GAP Part 10 ledger. Next candidates:
+checkpoint-aware resume (Appendix C), per-service containers if scale demands,
+real GitHub OAuth app for repo connection.
 
 To run the platform with ownership enforcement on:
 `HARNESS_REQUIRE_OWNERSHIP=true docker compose -f deploy/docker-compose.yml up -d --build backend`
