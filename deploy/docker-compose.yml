@@ -63,6 +63,11 @@ services:
       dockerfile: deploy/frontend.Dockerfile
     environment:
       NEXT_PUBLIC_API_PREFIX: /api/v1
+      NEXT_PUBLIC_IDENTITY_BASE_URL: http://localhost:8001
+      NEXT_PUBLIC_ORCHESTRATOR_BASE_URL: http://localhost:8004
+      NEXT_PUBLIC_MEETING_URL: http://localhost:8006
+      NEXT_PUBLIC_REVIEW_URL: http://localhost:8008
+      NEXT_PUBLIC_IDENTITY_WS_URL: ws://localhost:8001
     ports:
       - "3000:3000"
     restart: unless-stopped

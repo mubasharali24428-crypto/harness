@@ -1,4 +1,4 @@
-# STATUS — where the project stands (updated 2026-08-22, end of wave 3)
+# STATUS — where the project stands (updated 2026-08-22, end of wave 4)
 
 ## Working right now
 
@@ -51,10 +51,26 @@ already taken → compose publishes PG on 127.0.0.1:**5499**.
 To run the platform with ownership enforcement on:
 `HARNESS_REQUIRE_OWNERSHIP=true docker compose -f deploy/docker-compose.yml up -d --build backend`
 
+## Wave 4 (latest) — frontend consolidation + OTP delivery groundwork
+
+1. **S7/S9 consolidation DONE**: one frontend now. S7 gained S9's design system,
+   AppShell, and pages (command center, meeting, review, login) wired to the real
+   typed API layer (meeting/review/OTP clients added, TDD'd). S9 retired
+   (`git rm`); deploy/frontend.Dockerfile + compose now build section7.
+   Live: all four routes 200 on :3000 against the running stack.
+2. **E-fe-otp DONE (as part of login port)**: /login is flag-aware — legacy login
+   auto-switches to request→verify OTP flow on 403 OWNERSHIP_REQUIRED.
+   Verified live: OTP issued to container logs, verify-otp returned an admin session.
+3. Remaining ledger: E-smtp (real SMTP in the S1 notifier hook), E-cat, E-codegen,
+   CI gates.
+
+To run the platform with ownership enforcement on:
+`HARNESS_REQUIRE_OWNERSHIP=true docker compose -f deploy/docker-compose.yml up -d --build backend`
+
 ## Known gaps / next actions (GAP doc Part 10 ledger)
 
 1. **E-smtp**: wire real email delivery into the notifier hook before enabling
-   HARNESS_REQUIRE_OWNERSHIP publicly (+ E-fe-otp frontend UI for the flow).
+   HARNESS_REQUIRE_OWNERSHIP publicly (frontend UI already done — see wave 4).
 2. E-cat provider catalog via S3; E-codegen pydantic→TS contract generation;
    CI gates (sh -n, compose config, nightly security probes incl. the PG fanout
    test with HARNESS_TEST_PG=1).
