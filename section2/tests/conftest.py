@@ -141,7 +141,9 @@ async def seed_user_and_project(db):
     from sqlalchemy import text
 
     async with db() as s:
-        await s.execute(text("INSERT INTO users (id, email, name) VALUES ('u1','dev@x.com','D')"))
+        await s.execute(
+            text("INSERT INTO users (id, email, name, is_active) VALUES ('u1','dev@x.com','D',1)")
+        )
         await s.execute(text("INSERT INTO teams (id, name) VALUES ('t1','team')"))
         await s.execute(
             text(

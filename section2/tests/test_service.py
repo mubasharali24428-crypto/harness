@@ -119,22 +119,28 @@ async def test_full_agent_flow_end_to_end(db, client):
 async def test_oauth_flow_encrypted_never_echoed(db, client):
     await seed(db)
 
-    r = await client.post("/api/v1/github/oauth/url", headers=auth())
-    assert r.status_code == 200
-    state = r.json()["authorizeUrl"].split("state=")[-1]
+    started = await client.get(
+        "/api/v1/github/oauth/start", headers=auth(), follow_redirects=False
+    )
+    assert started.status_code in (301, 302, 303, 307)
+    from urllib.parse import parse_qs, urlparse
 
-    cb = await client.get(f"/api/v1/github/oauth/callback?code=abc&state={state}")
-    assert cb.status_code == 200
-    assert cb.json() == {"connected": True, "login": "founder-dev"}
-    assert "gho_fake_token_123" not in cb.text
+    state = parse_qs(urlparse(started.headers["location"]).query)["state"][0]
+    cb = await client.get(
+        f"/api/v1/github/oauth/callback?code=abc&state={state}", follow_redirects=False
+    )
+    # Browser lands on the settings page; the token must appear NOWHERE.
+    assert cb.headers["location"].startswith("http://localhost:3000/settings")
+    assert "gho_fake_token_123" not in cb.text and "gho_fake_token_123" not in str(cb.headers)
 
     async with db() as s:
         stored = (
             await s.execute(text("SELECT access_token_encrypted FROM github_connections"))
-        ).scalars().first()
-    assert stored and "gho_fake_token_123" not in stored
+        ).scalar()
+    assert stored != "gho_fake_token_123"
     assert KeyVault(MASTER_KEY).decrypt(stored) == "gho_fake_token_123"
 
+    # State is single-use: a replayed callback must be rejected outright.
     replay = await client.get(f"/api/v1/github/oauth/callback?code=abc&state={state}")
     assert replay.status_code == 400
 

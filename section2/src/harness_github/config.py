@@ -9,4 +9,6 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000"]
     github_client_id: str = ""
     github_client_secret: str = ""
-    github_redirect_uri: str = "http://localhost:8100/api/v1/github/oauth/callback"
+    github_redirect_uri: str = "http://localhost:8002/api/v1/github/oauth/callback"
+    # Where the browser lands after the OAuth callback completes or fails.
+    frontend_base: str = "http://localhost:3000"
