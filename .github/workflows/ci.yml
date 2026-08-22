@@ -16,6 +16,7 @@ jobs:
   static-gates:
     name: static gates (shell parse, compose config)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: entrypoint.sh parses (GAP-F1 regression guard)
@@ -28,6 +29,7 @@ jobs:
   python-tests:
     name: pytest (${{ matrix.section }})
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -56,6 +58,7 @@ jobs:
   frontend:
     name: vitest + tsc (section7)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -75,6 +78,7 @@ jobs:
   nightly-pg-probe:
     name: nightly real-PG integration probe
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     services:
       postgres:
