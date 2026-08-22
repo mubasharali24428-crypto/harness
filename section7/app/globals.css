@@ -213,6 +213,16 @@ h1 {
   padding: 8px;
 }
 
+.text-input {
+  width: 100%;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
 .btn {
   background: var(--panel-2);
   border: 1px solid var(--border);

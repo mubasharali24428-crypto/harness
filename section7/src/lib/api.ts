@@ -91,17 +91,6 @@ async function apiFetch<T>(url: string, token: string | null, init?: RequestInit
   return body as T;
 }
 
-export async function login(
-  email: string,
-  teamName?: string,
-  teamId?: string,
-): Promise<{ token: string; principal: Principal }> {
-  return apiFetch(`${IDENTITY_BASE}/api/v1/auth/login`, null, {
-    method: "POST",
-    body: JSON.stringify({ email, teamName: teamName || undefined, teamId: teamId || undefined }),
-  });
-}
-
 export function getRunStatus(runId: string, token: string): Promise<RunStatus> {
   return apiFetch(`${ORCHESTRATOR_BASE}/api/v1/orchestrator/runs/${runId}/status`, token);
 }
@@ -210,6 +199,47 @@ export function listProjects(token: string): Promise<ProjectDto[]> {
     `${IDENTITY_BASE}/api/v1/projects?limit=100`,
     token,
   ).then((d) => d.items);
+}
+
+// ---------------------------------------------------------------------------
+// Section 1 — auth (H2r ownership flow)
+// ---------------------------------------------------------------------------
+
+/** Legacy passwordless login. When the deployment sets HARNESS_REQUIRE_OWNERSHIP,
+ *  this returns 403 OWNERSHIP_REQUIRED and callers must fall back to the OTP flow. */
+export function login(
+  email: string,
+  teamName?: string,
+): Promise<{ token: string; principal: Principal }> {
+  return apiFetch(`${IDENTITY_BASE}/api/v1/auth/login`, null, {
+    method: "POST",
+    body: JSON.stringify({ email, teamName: teamName || undefined }),
+  });
+}
+
+export interface PrincipalDto {
+  userId: string;
+  teamId: string;
+  role: string;
+}
+
+/** H2r step 1: email a single-use 6-digit code (enumeration-safe — always ok:true). */
+export async function requestLoginOtp(email: string): Promise<void> {
+  await apiFetch(`${IDENTITY_BASE}/api/v1/auth/request-login`, null, {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+/** H2r step 2: swap code for a session; provisions identically to legacy login. */
+export function verifyLoginOtp(
+  email: string,
+  code: string,
+): Promise<{ token: string; principal: PrincipalDto }> {
+  return apiFetch(`${IDENTITY_BASE}/api/v1/auth/verify-otp`, null, {
+    method: "POST",
+    body: JSON.stringify({ email, code }),
+  });
 }
 
 // ---------------------------------------------------------------------------
