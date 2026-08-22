@@ -112,6 +112,10 @@ def make_app(session_factory, settings: Settings):
     app.state.settings = settings
     app.state.vault = KeyVault(settings.master_key)
     app.state.event_bus = EventBus(session_factory)
+    # E-smtp: SMTP when configured, visible dev log printer otherwise.
+    from .notifier import make_notifier
+
+    app.state.notifier = make_notifier(settings)
     register_append_only_guard()
 
     @app.get("/health")

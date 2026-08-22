@@ -13,3 +13,11 @@ class Settings(BaseSettings):
     require_ownership: bool = False
     otp_ttl_minutes: int = 10
     otp_max_attempts: int = 5
+
+    # E-smtp: OTP delivery. Empty smtp_host => dev log printer (visible in docker logs).
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "harness@noreply.local"
+    smtp_starttls: bool = True

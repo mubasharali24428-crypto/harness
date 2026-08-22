@@ -36,6 +36,12 @@ services:
       DSH_SESSION_ROOT: /tmp/harness-dsh/sessions
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      HARNESS_SMTP_HOST: ${HARNESS_SMTP_HOST:-}
+      HARNESS_SMTP_PORT: ${HARNESS_SMTP_PORT:-587}
+      HARNESS_SMTP_USERNAME: ${HARNESS_SMTP_USERNAME:-}
+      HARNESS_SMTP_PASSWORD: ${HARNESS_SMTP_PASSWORD:-}
+      HARNESS_SMTP_FROM: ${HARNESS_SMTP_FROM:-harness@noreply.local}
+      HARNESS_SMTP_STARTTLS: ${HARNESS_SMTP_STARTTLS:-true}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
