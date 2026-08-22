@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, status
 from harness_contracts.signatures import ModelCallOpts, ModelResult, ModelRole
 from pydantic import BaseModel, Field
 
+from harness_router.catalog import catalog
 from harness_router.config import MODEL_PRICING_CATALOG
 from harness_router.providers import InvalidApiKeyError, RateLimitExceededError
 from harness_router.service import ModelRouterService
@@ -74,6 +75,22 @@ def estimate_cost(req: EstimateCostRequest) -> dict[str, Any]:
 @router.get("", response_model=list[str], status_code=status.HTTP_200_OK)
 def list_models() -> list[str]:
     return _service.list_available_models()
+
+
+@router.get("/catalog", status_code=status.HTTP_200_OK)
+def provider_catalog() -> list[dict[str, Any]]:
+    """E-cat: declarative provider catalog (providers, env-var indirection,
+    models). No secrets — env var NAMES only."""
+    return [
+        {
+            "name": e.name,
+            "kind": e.kind,
+            "baseUrlEnv": e.base_url_env,
+            "apiKeyEnv": e.api_key_env,
+            "models": e.models,
+        }
+        for e in catalog.list_providers()
+    ]
 
 
 @router.post("/config", status_code=status.HTTP_200_OK)

@@ -36,7 +36,18 @@ class DeepSeekHarnessWrapper:
         self.base_url = base_url or os.environ.get("DEEPSEEK_BASE_URL", "")
         self.model = model or os.environ.get("DSH_MODEL", "deepseek-chat")
         env_fb = [m for m in os.environ.get("DSH_FALLBACK_MODELS", "").split(",") if m]
-        self.fallback_models = list(fallback_models) if fallback_models else env_fb
+        if fallback_models:
+            self.fallback_models = list(fallback_models)
+        elif env_fb:
+            self.fallback_models = env_fb
+        else:
+            # E-cat: consult the S3 declarative catalog as the last resort.
+            try:
+                from harness_router.catalog import catalog
+
+                self.fallback_models = catalog.local_fallback_candidates()
+            except ImportError:  # S3 not installed — engine must stand alone
+                self.fallback_models = []
 
     @property
     def live_mode(self) -> bool:
