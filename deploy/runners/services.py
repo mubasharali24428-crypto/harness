@@ -51,6 +51,11 @@ def base_settings(**kw):
         require_ownership: bool = False
         otp_ttl_minutes: int = 10
         otp_max_attempts: int = 5
+        # S2 GitHub OAuth knobs (deploy replaces section Settings wholesale).
+        github_client_id: str = ""
+        github_client_secret: str = ""
+        github_redirect_uri: str = "http://localhost:8002/api/v1/github/oauth/callback"
+        frontend_base: str = "http://localhost:3000"
 
     return S(**kw)
 

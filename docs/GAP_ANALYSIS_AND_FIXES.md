@@ -1,8 +1,9 @@
 # GAP ANALYSIS AND FIXES — AI Engineering Harness
 
-**Status:** Waves 1–3 complete (2026-08-22). Wave 1: all FATALs. Wave 2: H8 tickets,
-M2 streaming events, G-LIVE fanout. **Wave 3: H2r ownership-proof login (OTP) and
-F6r OS-level confinement — both verified live.**
+**Status:** Waves 1–5 complete (2026-08-22). Wave 1: all FATALs. Wave 2: H8 tickets,
+M2 streaming events, G-LIVE fanout. Wave 3: H2r OTP + F6r confinement. Wave 4:
+consolidation + E-smtp/E-cat/E-codegen/CI. Wave 5: real GitHub OAuth web flow
++ Settings UI + demo seeder.
 **Audience:** Coding agents (human or LLM) continuing this repo. Read Part 0 first,
 then jump to any gap card — each is self-contained.
 
@@ -943,8 +944,8 @@ Carry these forward verbatim in STATUS.md updates.
 | ~~H8~~ | WS ticket auth | DONE wave 2 | — |
 | H2r | Login ownership proof (OTP/OAuth flag) | 1–2 sessions | before public exposure |
 | ~~F6r~~ | Seatbelt/Landlock confinement | DONE wave 3 | — |
-| E-smtp | Real SMTP/ESP delivery for OTP codes (hook exists) | ½ session | before enabling flag publicly |
-| E-fe-otp | Frontend request/verify UI for OTP flow | 1 session | same |
+| ~~E-smtp~~ | SMTP delivery | DONE wave 4 | — |
+| ~~E-fe-otp~~ | OTP frontend | DONE wave 4 | — |
 | ~~M2~~ | streaming event types end-to-end | DONE wave 2 | — |
 | ~~E-rdg~~ | Engine fallback chain (`DSH_FALLBACK_MODELS`) | DONE wave 2 (S4 tests) | no |
 | E-s3 | Route fallback candidates through S3 catalog instead of env list | ½ session | no |
@@ -1093,3 +1094,21 @@ its TS mirror and mocks in the same commit.
 
 
 
+
+
+---
+
+## Appendix F — Wave 5 additions
+
+### FEAT-OAUTH — GitHub web application flow in S2
+Endpoints: `/oauth/start` (+one-time `/oauth/start-ticket` for browsers),
+`/oauth/callback` (CSRF state, exchange, KeyVault-encrypted store, granted
+scopes, redirect to `{frontend_base}/settings`), `/connection` (never echoes
+tokens). Compose maps GITHUB_* env onto HARNESS_GITHUB_*. Tests: 9 new
+(test_oauth_flow.py) + legacy test migrated. Live: NOT_CONFIGURED 503 envelope;
+fake-creds happy-path-to-error redirect chain verified.
+
+Known follow-ups (not defects): oauth_states/tickets are per-process memory —
+fine for the single-container deployment, move to the DB if services scale out
+horizontally; real client_id/secret still needed from the operator for the
+actual exhibition login.

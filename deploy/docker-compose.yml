@@ -36,6 +36,11 @@ services:
       DSH_SESSION_ROOT: /tmp/harness-dsh/sessions
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      # S2's Settings use the HARNESS_ prefix — map the well-known names across.
+      HARNESS_GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      HARNESS_GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      HARNESS_FRONTEND_BASE: ${FRONTEND_BASE:-http://localhost:3000}
+      HARNESS_GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:8002/api/v1/github/oauth/callback}
       HARNESS_SMTP_HOST: ${HARNESS_SMTP_HOST:-}
       HARNESS_SMTP_PORT: ${HARNESS_SMTP_PORT:-587}
       HARNESS_SMTP_USERNAME: ${HARNESS_SMTP_USERNAME:-}

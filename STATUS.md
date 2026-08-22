@@ -102,6 +102,32 @@ To run the platform with ownership enforcement on:
 - `EventBus.publish` flushes before commit — safe under any expire_on_commit.
 - deepseek-harness-sdk pinned 0.1.1rc1 (no 0.2.0 on PyPI). CORS env must be JSON.
 
+## Wave 5 — GitHub OAuth connect flow + exhibition demo readiness
+
+1. **S2 OAuth web flow DONE**: `GET /api/v1/github/oauth/start` (302 to
+   github.com/login/oauth/authorize, CSRF state bound to session user) and
+   `GET /api/v1/github/oauth/callback` (code→token exchange, single-use state,
+   token stored encrypted via KeyVault with granted scopes, browser redirected
+   to `{frontend_base}/settings?connected=<login>`, errors land as
+   `?error=<Exc>` — never a crash). `GET /api/v1/github/connection` returns
+   `{connected, login, scopes}` without the token. Legacy JSON `/oauth/url`
+   removed. Browsers can't send headers on navigation → one-time 60s
+   `/oauth/start-ticket` hop (same pattern as WS tickets).
+2. **Compose wiring fixed**: `GITHUB_CLIENT_ID/SECRET` were plumbed but S2's
+   Settings read `HARNESS_GITHUB_*` — mapped across (+ redirect/frontend base).
+3. **Frontend DONE**: `/settings` page (status card + Connect GitHub button
+   driving the ticket flow, ?connected/?error banners); AppShell gains Settings;
+   Working nav restored → latest project/run from localStorage, disabled when
+   either is missing.
+4. **seed_demo.py DONE**: idempotent REST-only seeding (login → find/create
+   demo-repo project → connect repo) printing ready-to-paste localStorage.
+   Verified twice against the live stack.
+
+Live proofs: NOT_CONFIGURED=503 envelope; fake-creds start→302 authorize URL,
+bogus-code callback→302 settings?error=HTTPStatusError (no crash);
+/settings=200; connection={connected:false}. Note: each seed run mints a fresh
+solo team (legacy login semantics) — projects dedupe per team.
+
 ## Session log (most recent first)
 
 - 2026-08-22 wave 3: H2r OTP ownership proof + F6r OS confinement, live-verified.
