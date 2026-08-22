@@ -34,7 +34,7 @@ made `row.seq` lazy-load outside greenlet after commit (flush-before-commit now)
 migration splitter needed $$-dollar-quote AND comment-line awareness; host 5432
 already taken → compose publishes PG on 127.0.0.1:**5499**.
 
-## Wave 3 (latest) — both public-exposure blockers closed
+## Wave 3 — both public-exposure blockers closed
 
 1. **H2r DONE**: `HARNESS_REQUIRE_OWNERSHIP` flag (default off for dev) gates the
    passwordless hole behind an OTP flow — request-login (enumeration-safe,
@@ -64,7 +64,9 @@ To run the platform with ownership enforcement on:
    response body. Unconfigured creds ⇒ clean 503 `NOT_CONFIGURED`. 10 new tests pin the
    flow incl. replay/unknown-state rejection and ciphertext-at-rest assertions.
    Compose maps GITHUB_CLIENT_ID/SECRET (+FRONTEND_BASE/GITHUB_REDIRECT_URI) onto S2's
-   HARNESS_ prefixed settings.
+   HARNESS_ prefixed settings; legacy JSON `/oauth/url` endpoint removed.
+   Runners base settings (deploy/runners/services.py) gained the S2 fields so the
+   shared settings class can't AttributeError on the new config.
 2. **Settings page DONE (S7)**: `/settings` with Connect GitHub button driving the
    ticket-hop flow, connected state (`@login`, scopes), error banner, URL-param cleanup;
    wired via `connectGithub()`/`getGithubConnection()` in src/lib/api.ts. Added to
@@ -85,7 +87,9 @@ Live proofs: :8002 start w/o creds → 503 NOT_CONFIGURED body; bogus callback s
 "already connected".
 
 Remaining known work: none from this task's scope. Ledger additions: E-seed recorded
-fixed-in-wave-5. Still open from earlier: M4/M5 trivia, E-s3, nightly probes (CI job).
+fixed-in-wave-5, Appendix F documents the OAuth design (per-process oauth state is
+fine single-container; move to DB if services scale out). Still open from earlier:
+M4/M5 trivia, E-s3, nightly probes (CI job).
 
 ## Wave 4 — ledger cleared: consolidation + E-smtp + E-cat + CI + E-codegen
 
@@ -137,32 +141,6 @@ To run the platform with ownership enforcement on:
 - Integration PG test: `HARNESS_TEST_PG=1 HARNESS_DATABASE_URL=postgresql+asyncpg://harness:harness@localhost:5499/harness ../section1/.venv/bin/python -m pytest integration/test_checkpoint1.py`.
 - `EventBus.publish` flushes before commit — safe under any expire_on_commit.
 - deepseek-harness-sdk pinned 0.1.1rc1 (no 0.2.0 on PyPI). CORS env must be JSON.
-
-## Wave 5 — GitHub OAuth connect flow + exhibition demo readiness
-
-1. **S2 OAuth web flow DONE**: `GET /api/v1/github/oauth/start` (302 to
-   github.com/login/oauth/authorize, CSRF state bound to session user) and
-   `GET /api/v1/github/oauth/callback` (code→token exchange, single-use state,
-   token stored encrypted via KeyVault with granted scopes, browser redirected
-   to `{frontend_base}/settings?connected=<login>`, errors land as
-   `?error=<Exc>` — never a crash). `GET /api/v1/github/connection` returns
-   `{connected, login, scopes}` without the token. Legacy JSON `/oauth/url`
-   removed. Browsers can't send headers on navigation → one-time 60s
-   `/oauth/start-ticket` hop (same pattern as WS tickets).
-2. **Compose wiring fixed**: `GITHUB_CLIENT_ID/SECRET` were plumbed but S2's
-   Settings read `HARNESS_GITHUB_*` — mapped across (+ redirect/frontend base).
-3. **Frontend DONE**: `/settings` page (status card + Connect GitHub button
-   driving the ticket flow, ?connected/?error banners); AppShell gains Settings;
-   Working nav restored → latest project/run from localStorage, disabled when
-   either is missing.
-4. **seed_demo.py DONE**: idempotent REST-only seeding (login → find/create
-   demo-repo project → connect repo) printing ready-to-paste localStorage.
-   Verified twice against the live stack.
-
-Live proofs: NOT_CONFIGURED=503 envelope; fake-creds start→302 authorize URL,
-bogus-code callback→302 settings?error=HTTPStatusError (no crash);
-/settings=200; connection={connected:false}. Note: each seed run mints a fresh
-solo team (legacy login semantics) — projects dedupe per team.
 
 ## Session log (most recent first)
 
