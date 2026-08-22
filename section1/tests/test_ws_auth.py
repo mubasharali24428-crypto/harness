@@ -1,13 +1,14 @@
+import asyncio
 import hashlib
-import sqlite3
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from starlette.testclient import TestClient
-from starlette.websockets import WebSocketDisconnect
 
 from harness_identity.app import make_app
 from harness_identity.config import Settings
@@ -15,6 +16,83 @@ from harness_identity.models import Base
 
 DB_DIR = Path("/tmp/opencode")
 DB_FILE = DB_DIR / "ws_auth_test.db"
+
+
+class WsRejected(AssertionError):
+    def __init__(self, code):
+        super().__init__(f"websocket rejected with close code {code}")
+        self.code = code
+
+
+class MiniWs:
+    """Drives a raw ASGI websocket session on the CURRENT asyncio loop.
+
+    Replaces starlette.testclient's threaded portal here: the portal ran app
+    code on a different event loop than the test's DB engine, and aiosqlite
+    pooled connections bound to the dead fixture loop wedged the handler
+    forever (the CI hang). Single-loop = deterministic.
+    """
+
+    def __init__(self, app, target: str):
+        parts = urlsplit(target)
+        self.scope = {
+            "type": "websocket",
+            "path": parts.path,
+            "query_string": parts.query.encode(),
+            "headers": [],
+            "subprotocols": [],
+            "server": ("testserver", 80),
+            "client": ("testclient", 123),
+        }
+        self.app = app
+        self._in: asyncio.Queue = asyncio.Queue()  # app <- client
+        self._out: asyncio.Queue = asyncio.Queue()  # app -> client
+        self._task: asyncio.Task | None = None
+        self.accepted = False
+        self.close_code: int | None = None
+
+    async def _from_client(self):
+        return await self._in.get()
+
+    async def _to_client(self, message: dict):
+        await self._out.put(message)
+
+    async def __aenter__(self) -> "MiniWs":
+        self._task = asyncio.ensure_future(self.app(self.scope, self._from_client, self._to_client))
+        await self._in.put({"type": "websocket.connect"})  # mandatory ASGI handshake
+        first = await asyncio.wait_for(self._out.get(), timeout=5)
+        if first["type"] == "websocket.accept":
+            self.accepted = True
+        elif first["type"] == "websocket.close":
+            self.close_code = first.get("code", 1000)
+        return self
+
+    async def recv_json(self, timeout: float = 5):
+        while True:
+            msg = await asyncio.wait_for(self._out.get(), timeout=timeout)
+            if msg["type"] == "websocket.send":
+                return json.loads(msg["text"])
+            if msg["type"] == "websocket.close":
+                self.close_code = msg.get("code", 1000)
+                raise WsRejected(self.close_code)
+
+    async def disconnect(self, code: int = 1000):
+        await self._in.put({"type": "websocket.disconnect", "code": code})
+
+    async def __aexit__(self, *exc) -> None:
+        if self.accepted and self.close_code is None:
+            await self._in.put({"type": "websocket.disconnect", "code": 1000})
+        if self._task is not None:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+
+
+def _expect_reject(ws: MiniWs, code: int):
+    assert not ws.accepted, "expected rejection but socket was accepted"
+    assert ws.close_code == code, f"expected close {code}, got {ws.close_code}"
 
 
 @pytest.fixture
@@ -38,7 +116,7 @@ async def db():
 
 
 def _seed_sync():
-    con = sqlite3.connect(DB_FILE)
+    con = __import__("sqlite3").connect(DB_FILE)
     later = (datetime.now(UTC) + timedelta(days=1)).isoformat()
     con.executescript(
         f"""
@@ -55,37 +133,43 @@ def _seed_sync():
     con.close()
 
 
-def _client(db):
+def _mk(db):
     app = make_app(db, Settings(master_key=b"test-master-key-0123456789abcdef", cors_origins=[]))
-    return TestClient(app)
+    return app
 
 
-def test_ws_rejects_unauthenticated_client(db):
-    client = _client(db)
-    with pytest.raises(WebSocketDisconnect):
-        with client.websocket_connect("/api/v1/ws/proj-1"):
-            pass
+def _http(app) -> AsyncClient:
+    return AsyncClient(transport=ASGITransport(app=app), base_url="http://t")
 
 
-def test_ws_rejects_bad_token(db):
-    client = _client(db)
-    with pytest.raises(WebSocketDisconnect):
-        with client.websocket_connect("/api/v1/ws/proj-1?token=bogus"):
-            pass
+# ================================================================
+# H8/F3 guards, single-loop edition
+# ================================================================
 
 
-def test_ws_accepts_valid_token(db):
+async def test_ws_rejects_unauthenticated_client(db):
+    app = _mk(db)
+    async with MiniWs(app, "/api/v1/ws/proj-1") as ws:
+        _expect_reject(ws, 4401)
+
+
+async def test_ws_rejects_bad_token(db):
+    app = _mk(db)
+    async with MiniWs(app, "/api/v1/ws/proj-1?token=bogus") as ws:
+        _expect_reject(ws, 4401)
+
+
+async def test_ws_accepts_valid_token(db):
     _seed_sync()
-    client = _client(db)
-    with client.websocket_connect("/api/v1/ws/proj-1?token=goodtok") as ws:
-        assert ws is not None
+    app = _mk(db)
+    async with MiniWs(app, "/api/v1/ws/proj-1?token=goodtok") as ws:
+        assert ws.accepted
 
 
-def test_ws_rejects_foreign_team_project(db):
+async def test_ws_rejects_foreign_team_project(db):
     """F3 regression guard: valid token, but project belongs to another team."""
-    import sqlite3 as _s
-
-    con = _s.connect(DB_FILE)
+    _seed_sync()
+    con = __import__("sqlite3").connect(DB_FILE)
     con.executescript(
         """
         INSERT INTO teams (id, name) VALUES ('t2','OTHER');
@@ -94,12 +178,9 @@ def test_ws_rejects_foreign_team_project(db):
     )
     con.commit()
     con.close()
-    client = _client(db)
-    from starlette.websockets import WebSocketDisconnect as WD
-
-    with pytest.raises(WD):
-        with client.websocket_connect("/api/v1/ws/proj-other?token=goodtok"):
-            pass
+    app = _mk(db)
+    async with MiniWs(app, "/api/v1/ws/proj-other?token=goodtok") as ws:
+        _expect_reject(ws, 4403)
 
 
 # ================================================================
@@ -107,35 +188,26 @@ def test_ws_rejects_foreign_team_project(db):
 # ================================================================
 
 
-def _app_and_client(db):
-    app = make_app(
-        db, Settings(master_key=b"test-master-key-0123456789abcdef", cors_origins=[])
-    )
-    return app, TestClient(app)
+async def _issue_ticket(app, project_id="proj-1", token="goodtok"):
+    async with _http(app) as c:
+        return await c.post(
+            "/api/v1/ws-ticket",
+            json={"projectId": project_id},
+            headers={"Authorization": f"Bearer {token}"},
+        )
 
 
-def _issue_ticket(client, project_id="proj-1", token="goodtok"):
-    r = client.post(
-        "/api/v1/ws-ticket",
-        json={"projectId": project_id},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    return r
-
-
-def test_ws_ticket_requires_auth(db):
-    _, client = _app_and_client(db)
+async def test_ws_ticket_requires_auth(db):
+    app = _mk(db)
     _seed_sync()
-    r = client.post("/api/v1/ws-ticket", json={"projectId": "proj-1"})
+    r = await _issue_ticket(app, token=None)  # type: ignore[arg-type]
     assert r.status_code == 401
 
 
-def test_ws_ticket_rejects_foreign_project(db):
+async def test_ws_ticket_rejects_foreign_project(db):
     """F3 guard extended to tickets: cannot mint a ticket for another team's project."""
-    import sqlite3 as _s
-
     _seed_sync()
-    con = _s.connect(DB_FILE)
+    con = __import__("sqlite3").connect(DB_FILE)
     con.executescript(
         """
         INSERT INTO teams (id, name) VALUES ('t2','OTHER');
@@ -144,44 +216,38 @@ def test_ws_ticket_rejects_foreign_project(db):
     )
     con.commit()
     con.close()
-    _, client = _app_and_client(db)
-    assert _issue_ticket(client, project_id="proj-other").status_code == 403
+    app = _mk(db)
+    r = await _issue_ticket(app, project_id="proj-other")
+    assert r.status_code == 403
 
 
-def test_ws_ticket_happy_path(db):
-    app, client = _app_and_client(db)
+async def test_ws_ticket_happy_path(db):
+    app = _mk(db)
     _seed_sync()
-    r = _issue_ticket(client)
+    r = await _issue_ticket(app)
     assert r.status_code == 200
     body = r.json()
     assert body["ticket"]
     assert body["expiresInSeconds"] > 0
-    with client.websocket_connect(
-        f"/api/v1/ws/proj-1?ticket={body['ticket']}"
-    ) as ws:
-        assert ws is not None
+    async with MiniWs(app, f"/api/v1/ws/proj-1?ticket={body['ticket']}") as ws:
+        assert ws.accepted
 
 
-def test_ws_ticket_is_single_use(db):
-    _, client = _app_and_client(db)
+async def test_ws_ticket_is_single_use(db):
+    app = _mk(db)
     _seed_sync()
-    ticket = _issue_ticket(client).json()["ticket"]
+    ticket = (await _issue_ticket(app)).json()["ticket"]
 
-    from starlette.websockets import WebSocketDisconnect as WD
-
-    # First use MUST succeed...
-    with client.websocket_connect(f"/api/v1/ws/proj-1?ticket={ticket}") as ws:
-        assert ws is not None
+    async with MiniWs(app, f"/api/v1/ws/proj-1?ticket={ticket}") as ws:
+        assert ws.accepted
     # ...and the replayed ticket MUST be rejected.
-    with pytest.raises(WD):
-        with client.websocket_connect(f"/api/v1/ws/proj-1?ticket={ticket}"):
-            pass
+    async with MiniWs(app, f"/api/v1/ws/proj-1?ticket={ticket}") as ws:
+        _expect_reject(ws, 4401)
 
 
-def test_ws_ticket_bound_to_project(db):
-    _, client = _app_and_client(db)
+async def test_ws_ticket_bound_to_project(db):
     _seed_sync()
-    con = _s.connect(DB_FILE) if (_s := __import__("sqlite3")) else None
+    con = __import__("sqlite3").connect(DB_FILE)
     con.executescript(
         """
         INSERT INTO teams (id, name) VALUES ('t2','OTHER');
@@ -190,47 +256,39 @@ def test_ws_ticket_bound_to_project(db):
     )
     con.commit()
     con.close()
-    ticket = _issue_ticket(client, project_id="proj-1").json()["ticket"]
+    app = _mk(db)
+    ticket = (await _issue_ticket(app, project_id="proj-1")).json()["ticket"]
 
-    from starlette.websockets import WebSocketDisconnect as WD
+    # Redemption pops the ticket; a project mismatch makes it return None, which
+    # surfaces as 4401 (invalid credentials) — NOT 4403 (which is reserved for
+    # valid-token-but-foreign-project).
+    async with MiniWs(app, f"/api/v1/ws/proj-other?ticket={ticket}") as ws:
+        _expect_reject(ws, 4401)
 
-    with pytest.raises(WD):
-        with client.websocket_connect(f"/api/v1/ws/proj-other?ticket={ticket}"):
-            pass
 
-
-def test_ws_ticket_unknown_rejected(db):
-    _, client = _app_and_client(db)
+async def test_ws_ticket_unknown_rejected(db):
+    app = _mk(db)
     _seed_sync()
-
-    from starlette.websockets import WebSocketDisconnect as WD
-
-    with pytest.raises(WD):
-        with client.websocket_connect("/api/v1/ws/proj-1?ticket=bogus"):
-            pass
+    async with MiniWs(app, "/api/v1/ws/proj-1?ticket=bogus") as ws:
+        _expect_reject(ws, 4401)
 
 
-def test_ws_ticket_expired_rejected(db):
-    from datetime import UTC, datetime, timedelta
-
-    app, client = _app_and_client(db)
+async def test_ws_ticket_expired_rejected(db):
+    app = _mk(db)
     _seed_sync()
-    ticket = _issue_ticket(client).json()["ticket"]
+    ticket = (await _issue_ticket(app)).json()["ticket"]
     store = app.state.ws_tickets
     store[ticket]["expires"] = datetime.now(UTC) - timedelta(seconds=1)
 
-    from starlette.websockets import WebSocketDisconnect as WD
-
-    with pytest.raises(WD):
-        with client.websocket_connect(f"/api/v1/ws/proj-1?ticket={ticket}"):
-            pass
+    async with MiniWs(app, f"/api/v1/ws/proj-1?ticket={ticket}") as ws:
+        _expect_reject(ws, 4401)
 
 
-def test_token_path_still_works_during_transition(db):
-    _, client = _app_and_client(db)
+async def test_token_path_still_works_during_transition(db):
+    app = _mk(db)
     _seed_sync()
-    with client.websocket_connect("/api/v1/ws/proj-1?token=goodtok") as ws:
-        assert ws is not None
+    async with MiniWs(app, "/api/v1/ws/proj-1?token=goodtok") as ws:
+        assert ws.accepted
 
 
 # ================================================================
@@ -240,14 +298,17 @@ def test_token_path_still_works_during_transition(db):
 # ================================================================
 
 
-def test_silent_client_disconnect_does_not_wedge_handler(db):
-    _, client = _app_and_client(db)
+async def test_silent_client_disconnect_does_not_wedge_handler(db):
+    app = _mk(db)
     _seed_sync()
     for _ in range(3):
-        with client.websocket_connect("/api/v1/ws/proj-1?token=goodtok"):
-            pass  # open and immediately close; server must unwind cleanly
+        async with MiniWs(app, "/api/v1/ws/proj-1?token=goodtok") as ws:
+            assert ws.accepted
+            await ws.disconnect()  # open and immediately drop; server unwinds cleanly
 
     # The connection is reusable afterwards: handler released the subscription
     # instead of leaking it, and a fresh client gets a normal session.
-    with client.websocket_connect("/api/v1/ws/proj-1?token=goodtok") as ws:
-        assert ws is not None
+    async with MiniWs(app, "/api/v1/ws/proj-1?token=goodtok") as ws:
+        assert ws.accepted
+
+
