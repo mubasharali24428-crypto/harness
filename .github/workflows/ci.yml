@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  schedule:
+    # Nightly security probe run (PG-backed integration tests included).
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  static-gates:
+    name: static gates (shell parse, compose config)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: entrypoint.sh parses (GAP-F1 regression guard)
+        run: sh -n deploy/entrypoint.sh
+      - name: compose file valid
+        run: docker compose -f deploy/docker-compose.yml config -q
+
+  python-tests:
+    name: pytest (${{ matrix.section }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        section: [section1, section2, section3, section4, section5, section6, section8, section10]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install section deps
+        run: |
+          python -m venv .venv
+          ./.venv/bin/pip install -q -e ".[dev]" || ./.venv/bin/pip install -q -e .
+        working-directory: ${{ matrix.section }}
+      - name: ruff
+        run: ./.venv/bin/ruff check src tests scripts || ./.venv/bin/ruff check src tests
+        working-directory: ${{ matrix.section }}
+      - name: pytest
+        run: ./.venv/bin/python -m pytest tests/ -q
+        working-directory: ${{ matrix.section }}
+
+  frontend:
+    name: vitest + tsc (section7)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: section7/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: section7
+      - name: tsc
+        run: npx tsc --noEmit
+        working-directory: section7
+      - name: vitest
+        run: npx vitest run
+        working-directory: section7
+
+  nightly-pg-probe:
+    name: nightly real-PG integration probe
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: harness
+          POSTGRES_PASSWORD: harness
+          POSTGRES_DB: harness
+        ports:
+          - 5499:5432
+        options: >-
+          --health-cmd "pg_isready -U harness"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install section1
+        run: |
+          python -m venv .venv
+          ./.venv/bin/pip install -q -e ".[dev]" || ./.venv/bin/pip install -q -e .
+        working-directory: section1
+      - name: Real-PG fanout + rehydration probes (G-LIVE regression guard)
+        run: |
+          HARNESS_TEST_PG=1 \
+          HARNESS_DATABASE_URL=postgresql+asyncpg://harness:harness@localhost:5499/harness \
+          ../section1/.venv/bin/python -m pytest test_checkpoint1.py -q
+        working-directory: integration
+      - name: S1 suite against real PG
+        run: |
+          HARNESS_TEST_PG=1 \
+          HARNESS_DATABASE_URL=postgresql+asyncpg://harness:harness@localhost:5499/harness \
+          ./.venv/bin/python -m pytest tests/ -q
+        working-directory: section1
