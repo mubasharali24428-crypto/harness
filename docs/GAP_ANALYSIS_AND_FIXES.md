@@ -956,7 +956,7 @@ Carry these forward verbatim in STATUS.md updates.
 | ~~CI~~ | sh -n + compose config + probes nightly | DONE wave 4; nightly `17 6 * * *` green | — |
 | ~~E-seed~~ | seed_demo idempotency vs per-login team minting | fixed wave 5 (persisted session) | no |
 | ~~CI-S1HANG~~ | section1 pytest job hung forever on CI runners | FIXED wave 5b (see Appendix G) | was blocking CI |
-| RESUME | Checkpoint-aware engine resume (Appendix C FAQ: pause/restart re-executes goals) | 1–2 sessions | no |
+| ~~RESUME~~ | Checkpoint-aware engine resume (Appendix C FAQ: pause/restart re-executes goals) | DONE 2026-08-22 (commit bce2b1c: resume respawns engine task, same session_id ⇒ dsh continues its session; 5 tests) | no |
 | OAUTH-CREDS | Real GITHUB_CLIENT_ID/SECRET in deploy env so Settings Connect goes live (code DONE wave 5; without creds :8002 503s NOT_CONFIGURED by design) | config-only | demo day |
 | DB-RESTART | db container had `restart:` policy missing — host restart left backend DNS-crash-looping | trivial, FIXED 2026-08-22 (`restart: unless-stopped`) | was ops |
 
@@ -1032,6 +1032,10 @@ execution is an explicit human action.
 The dsh SDK call is opaque blocking I/O in a thread; we quarantine its result on
 cancel. Auto-respawn would double-execute side effects. Roadmap: make execute_goal
 checkpoint-aware so resume continues rather than restarts.
+(Update 2026-08-22: half-shipped — `resume_agent` now re-spawns the engine task
+with the same run_id as dsh session_id, so an explicit human Resume CONTINUES the
+dsh session instead of restarting blind; see ledger RESUME / commit bce2b1c.
+Auto-resume on process restart is still deliberately manual.)
 
 **Q: Why JSON env for CORS origins?**
 pydantic-settings JSON-decodes complex fields; plain strings crash Settings

@@ -9,6 +9,27 @@
 - Live proofs today: ticket-auth WS delivering sandbox `terminal_output`
   cross-instance in 0.7s; orchestrator flow; restart rehydration.
 
+## Wave 6a (2026-08-22, later session) — checkpoint-aware resume + ops hygiene
+
+1. **RESUME DONE (S4)**: `resume_agent` previously flipped PAUSED→EXECUTING without
+   re-spawning any engine task — UI said "executing" over a dead run (Appendix C lie).
+   Now resume re-invokes `execute_goal` with the SAME run_id as dsh session_id, so an
+   explicit human Resume CONTINUES the dsh session instead of restarting blind.
+   Pause writes no terminal result (run stays resumable); stop stays terminal with an
+   honest `cancelled`; live-run double-spawn guarded; same-tick pause→resume race fixed
+   by awaiting the dying task. 5 new tests (`section4/tests/unit/test_resume.py`);
+   integration test_checkpoint1 re-run green (4/4).
+2. **Ops hygiene**: db service gained `restart: unless-stopped` (host restart had left
+   the backend DNS-crash-looping for hours); root-level debug logs gitignored;
+   Part 10 ledger synced with shipped reality (H2r/E-s3/E-cat/E-codegen/M4/M5/CI struck);
+   RESUME recorded done. Appendix C FAQ annotated.
+3. **Wave-6 planning doc committed** (docs/EXPANSION_PLAN.md) from the parallel
+   planning session; its D2 engine experiment was rolled back by that session before
+   handoff — tree verified clean, fallback-chain tests green again.
+
+Verified this session: stack healthy on all 7 ports + frontend; seed_demo idempotent;
+CI green (~36s runs); nightly probe schedule present.
+
 ## Wave 2 (this session) — read docs/GAP_ANALYSIS_AND_FIXES.md for full detail
 
 1. **H8 DONE**: one-time WS tickets (`POST /api/v1/ws-ticket`, 30s, project-
