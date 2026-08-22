@@ -25,7 +25,7 @@ DB_FILE = DB_DIR / "ownership_test.db"
 
 
 @pytest.fixture
-def db():
+async def db():
     DB_DIR.mkdir(parents=True, exist_ok=True)
     if DB_FILE.exists():
         DB_FILE.unlink()
@@ -33,9 +33,14 @@ def db():
     Base.metadata.create_all(sync)
     sync.dispose()
     eng = create_async_engine(f"sqlite+aiosqlite:///{DB_FILE}")
-    yield async_sessionmaker(eng, expire_on_commit=False)
-    if DB_FILE.exists():
-        DB_FILE.unlink()
+    try:
+        yield async_sessionmaker(eng, expire_on_commit=False)
+    finally:
+        # aiosqlite spawns a NON-daemon thread per engine; without dispose the
+        # pytest process can hang forever at exit (observed on Linux CI).
+        await eng.dispose()
+        if DB_FILE.exists():
+            DB_FILE.unlink()
 
 
 def _client(db, require_ownership=True):

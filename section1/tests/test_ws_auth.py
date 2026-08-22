@@ -18,7 +18,7 @@ DB_FILE = DB_DIR / "ws_auth_test.db"
 
 
 @pytest.fixture
-def db():
+async def db():
     DB_DIR.mkdir(parents=True, exist_ok=True)
     if DB_FILE.exists():
         DB_FILE.unlink()
@@ -28,9 +28,13 @@ def db():
     sync_engine.dispose()
 
     async_eng = create_async_engine(f"sqlite+aiosqlite:///{DB_FILE}")
-    yield async_sessionmaker(async_eng, expire_on_commit=False)
-    if DB_FILE.exists():
-        DB_FILE.unlink()
+    try:
+        yield async_sessionmaker(async_eng, expire_on_commit=False)
+    finally:
+        # Same aiosqlite non-daemon-thread hazard as test_ownership.py.
+        await async_eng.dispose()
+        if DB_FILE.exists():
+            DB_FILE.unlink()
 
 
 def _seed_sync():
