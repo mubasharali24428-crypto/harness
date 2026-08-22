@@ -24,3 +24,6 @@ next-env.d.ts
 # DSH runtime state
 task0/workspace/
 task0/sessions/
+
+# Demo seed session state (bearer token) — never commit
+.seed_session.json

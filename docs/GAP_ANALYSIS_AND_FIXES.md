@@ -954,6 +954,7 @@ Carry these forward verbatim in STATUS.md updates.
 | M4 | `/health?deep=1` DB ping | trivial | no |
 | M5 | list_projects limit param | trivial | no |
 | CI | sh -n + compose config + probes nightly | ½ session | recommended |
+| ~~E-seed~~ | seed_demo idempotency vs per-login team minting | fixed wave 5 (persisted session) | no |
 
 Definition of done for any new gap card added here: code + test proving the fix
 + entry in this ledger (or removal), updated in the SAME commit.

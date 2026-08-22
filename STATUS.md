@@ -51,7 +51,43 @@ already taken → compose publishes PG on 127.0.0.1:**5499**.
 To run the platform with ownership enforcement on:
 `HARNESS_REQUIRE_OWNERSHIP=true docker compose -f deploy/docker-compose.yml up -d --build backend`
 
-## Wave 4 (latest) — ledger cleared: consolidation + E-smtp + E-cat + CI + E-codegen
+## Wave 5 (latest) — GitHub OAuth connect flow + exhibition demo readiness
+
+1. **E-oauth DONE (S2)**: real GitHub web application flow — `GET /api/v1/github/oauth/start`
+   (302 to github.com/login/oauth/authorize, CSRF `state` bound server-side to the
+   session user), `GET /api/v1/github/oauth/callback` (code→token exchange, single-use
+   state, token encrypted at rest via KeyVault into `github_connections`, browser lands
+   on `{frontend_base}/settings?connected=<login>` or `?error=<ExcName>` — never a stack).
+   Browsers can't send Authorization headers on navigation, so a one-time
+   `POST /api/v1/github/oauth/start-ticket` (60s TTL) bridges fetch→redirect.
+   `GET /api/v1/github/connection` → `{connected, login, scopes}`; no token ever in a
+   response body. Unconfigured creds ⇒ clean 503 `NOT_CONFIGURED`. 10 new tests pin the
+   flow incl. replay/unknown-state rejection and ciphertext-at-rest assertions.
+   Compose maps GITHUB_CLIENT_ID/SECRET (+FRONTEND_BASE/GITHUB_REDIRECT_URI) onto S2's
+   HARNESS_ prefixed settings.
+2. **Settings page DONE (S7)**: `/settings` with Connect GitHub button driving the
+   ticket-hop flow, connected state (`@login`, scopes), error banner, URL-param cleanup;
+   wired via `connectGithub()`/`getGithubConnection()` in src/lib/api.ts. Added to
+   AppShell nav.
+3. **Working nav restored (S7)**: AppShell "Working" item re-added; links to
+   `/projects/{projectId}/runs/{runId}` from localStorage; disabled with tooltip when
+   either is missing.
+4. **Demo seed DONE**: deploy/seed_demo.py drives only the live REST API (session,
+   project match-by-name, repo connect upsert) and prints the localStorage lines for
+   DevTools. Idempotency fix: S1's passwordless login mints a NEW solo team (and an
+   auto-seeded `demo-repo` project) per call — the script now persists its session to
+   deploy/.seed_session.json (gitignored) and reuses it while valid, verified by two
+   consecutive runs converging on the same team/project.
+
+Test totals: 396 pytest + 58 vitest green; ruff clean; tsc clean; next build green.
+Live proofs: :8002 start w/o creds → 503 NOT_CONFIGURED body; bogus callback state →
+400 INVALID_STATE; unauth connection → 401; seed run twice → same team/project,
+"already connected".
+
+Remaining known work: none from this task's scope. Ledger additions: E-seed recorded
+fixed-in-wave-5. Still open from earlier: M4/M5 trivia, E-s3, nightly probes (CI job).
+
+## Wave 4 — ledger cleared: consolidation + E-smtp + E-cat + CI + E-codegen
 
 1. **S7/S9 consolidation DONE**: one frontend now. S7 gained S9's design system,
    AppShell, and pages (command center, meeting, review, login) wired to the real

@@ -8,8 +8,10 @@ environment the operator can reach:
     python3 deploy/seed_demo.py --identity http://localhost:8001 \
         --github http://localhost:8002 --email demo@harness.dev
 
-Safe to run twice: the demo project is matched by name and the repo connect is
-a same-value upsert. A fresh session is minted on every run.
+Safe to run twice: the demo session is persisted to deploy/.seed_session.json and
+reused while valid (a fresh login would mint a new team and orphan the old
+project), the demo project is matched by name, and the repo connect is a
+same-value upsert.
 
 Prints the exact browser localStorage keys the app consumes (see
 section7/src/lib/auth.ts) ready to paste into DevTools.
