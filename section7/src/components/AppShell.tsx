@@ -5,12 +5,13 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ProjectDto } from "@/lib/api";
 import { listProjects } from "@/lib/api";
-import { clearSession, getToken, getProjectId, setProjectId, loadSession } from "@/lib/auth";
+import { clearSession, getToken, getProjectId, getRunId, setProjectId, loadSession } from "@/lib/auth";
 
 const AREAS = [
   { href: "/", label: "Command Center" },
   { href: "/meeting", label: "Meeting" },
   { href: "/review", label: "Review" },
+  { href: "/settings", label: "Settings" },
 ];
 
 export default function AppShell({
@@ -24,6 +25,7 @@ export default function AppShell({
   const [projects, setProjects] = useState<ProjectDto[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [role, setRole] = useState<string>("viewer");
+  const [workingHref, setWorkingHref] = useState<string | null>(null);
 
   useEffect(() => {
     if (!getToken()) {
@@ -31,6 +33,10 @@ export default function AppShell({
       return;
     }
     setRole(loadSession()?.principal.role ?? "viewer");
+    // Goal 2: Working jumps to the latest project/run the browser remembers.
+    const pid = getProjectId();
+    const rid = getRunId();
+    if (pid && rid) setWorkingHref(`/projects/${pid}/runs/${rid}`);
     listProjects(getToken()!)
       .then((items) => {
         setProjects(items);
@@ -70,7 +76,33 @@ export default function AppShell({
           </select>
         </div>
         <nav>
-          {AREAS.map((a) => (
+          {AREAS.slice(0, 1).map((a) => (
+            <Link
+              key={a.href}
+              href={a.href}
+              className={`nav-item${active === a.href ? " active" : ""}`}
+            >
+              {a.label}
+            </Link>
+          ))}
+          {workingHref ? (
+            <Link
+              href={workingHref}
+              className={`nav-item${active.startsWith("/projects") ? " active" : ""}`}
+            >
+              Working
+            </Link>
+          ) : (
+            <span
+              aria-disabled
+              title="No run yet — start one from the Command Center"
+              className="nav-item"
+              style={{ opacity: 0.4, cursor: "not-allowed" }}
+            >
+              Working
+            </span>
+          )}
+          {AREAS.slice(1).map((a) => (
             <Link
               key={a.href}
               href={a.href}

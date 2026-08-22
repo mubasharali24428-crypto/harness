@@ -389,3 +389,29 @@ export function requestChanges(
     body: JSON.stringify({ comments, reviewer_user_id: reviewerUserId }),
   });
 }
+
+// ---------------------------------------------------------------- github (S2)
+
+export const GITHUB_BASE =
+  process.env.NEXT_PUBLIC_GITHUB_URL ?? "http://localhost:8002";
+
+export interface GithubConnection {
+  connected: boolean;
+  login: string | null;
+  scopes: string[];
+}
+
+export function getGithubConnection(token: string): Promise<GithubConnection> {
+  return apiFetch(`${GITHUB_BASE}/api/v1/github/connection`, token);
+}
+
+/** Mints a one-time start-ticket, then points the browser at /oauth/start.
+ *  Navigation cannot carry Authorization headers — the ticket is the hop. */
+export async function connectGithub(token: string): Promise<void> {
+  const { ticket } = await apiFetch<{ ticket: string }>(
+    `${GITHUB_BASE}/api/v1/github/oauth/start-ticket`,
+    token,
+    { method: "POST" },
+  );
+  window.location.href = `${GITHUB_BASE}/api/v1/github/oauth/start?ticket=${encodeURIComponent(ticket)}`;
+}
