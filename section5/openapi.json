@@ -1,0 +1,119 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Section 5: Sandbox Execution Service API",
+    "version": "0.1.0",
+    "description": "API fragment for sandbox execution, ephemeral task management, and diff application."
+  },
+  "paths": {
+    "/api/v1/sandbox/tasks": {
+      "post": {
+        "summary": "Create an ephemeral sandbox task container",
+        "operationId": "createTask",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["taskId", "repoRef", "branch"],
+                "properties": {
+                  "taskId": { "type": "string" },
+                  "repoRef": { "type": "string" },
+                  "branch": { "type": "string" },
+                  "forbiddenPaths": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Sandbox task handle created",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TaskHandle" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/sandbox/tasks/{taskId}/exec": {
+      "post": {
+        "summary": "Execute a command inside the sandbox container",
+        "operationId": "execCommand",
+        "parameters": [
+          { "name": "taskId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["command"],
+                "properties": {
+                  "command": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Structured execution results" },
+          "403": { "description": "Security policy violation" }
+        }
+      }
+    },
+    "/api/v1/sandbox/tasks/{taskId}/edits": {
+      "post": {
+        "summary": "Apply a unified diff to a file in the sandbox workspace",
+        "operationId": "applyEdit",
+        "parameters": [
+          { "name": "taskId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["path", "diff"],
+                "properties": {
+                  "path": { "type": "string" },
+                  "diff": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Diff successfully applied" },
+          "403": { "description": "Security policy violation" }
+        }
+      }
+    },
+    "/api/v1/sandbox/tasks/{taskId}/destroy": {
+      "post": {
+        "summary": "Tear down and destroy the sandbox task container",
+        "operationId": "destroyTask",
+        "parameters": [
+          { "name": "taskId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Task destroyed" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "TaskHandle": {
+        "type": "object",
+        "required": ["taskId", "containerId", "branch"],
+        "properties": {
+          "taskId": { "type": "string" },
+          "containerId": { "type": "string" },
+          "branch": { "type": "string" }
+        }
+      }
+    }
+  }
+}

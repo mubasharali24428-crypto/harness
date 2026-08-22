@@ -1,0 +1,10 @@
+{
+  "type": "plan_proposed",
+  "payload": {
+    "fixture": true
+  },
+  "ts": "2026-08-22T02:16:13.213922+00:00",
+  "seq": 7,
+  "projectId": "proj-golden",
+  "runId": "run-golden"
+}

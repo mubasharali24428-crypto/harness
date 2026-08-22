@@ -1,0 +1,14 @@
+{
+  "taskTitle": "Implement median_word_length",
+  "goal": "textstats.stats.median_word_length currently raises NotImplementedError. Implement it: median length of whitespace-separated words, 0 for empty input. The failing test tests/test_stats.py::test_median_word_length already exists and must pass.",
+  "steps": [
+    "Read src/textstats/stats.py and tests/test_stats.py",
+    "Implement median_word_length without modifying the tests",
+    "Run python -m pytest -q and python -m ruff check ."
+  ],
+  "tests": ["python -m pytest -q", "python -m ruff check ."],
+  "risks": ["Modifying tests or pyproject.toml instead of the implementation"],
+  "estimatedCostUsd": 0.01,
+  "forbiddenPaths": ["tests/test_stats.py", "pyproject.toml"],
+  "expectedResult": "All tests pass, lint is clean, only src/textstats/stats.py changed."
+}

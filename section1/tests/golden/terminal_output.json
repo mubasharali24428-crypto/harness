@@ -1,0 +1,10 @@
+{
+  "type": "terminal_output",
+  "payload": {
+    "fixture": true
+  },
+  "ts": "2026-08-22T07:46:04.590145+00:00",
+  "seq": 7,
+  "projectId": "proj-golden",
+  "runId": "run-golden"
+}

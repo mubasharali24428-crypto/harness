@@ -1,0 +1,449 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "harness-onboarding",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/steps": {
+      "get": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "Get Steps",
+        "operationId": "get_steps_api_v1_onboarding_steps_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Steps Api V1 Onboarding Steps Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/state": {
+      "get": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "Get State",
+        "operationId": "get_state_api_v1_onboarding_state_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get State Api V1 Onboarding State Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/security-checklist": {
+      "get": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "Get Security Checklist",
+        "operationId": "get_security_checklist_api_v1_onboarding_security_checklist_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Security Checklist Api V1 Onboarding Security Checklist Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/security-checklist/acknowledge": {
+      "post": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "Acknowledge Checklist",
+        "operationId": "acknowledge_checklist_api_v1_onboarding_security_checklist_acknowledge_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Acknowledge Checklist Api V1 Onboarding Security Checklist Acknowledge Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/telemetry-settings": {
+      "get": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "Get Telemetry Settings",
+        "operationId": "get_telemetry_settings_api_v1_onboarding_telemetry_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Telemetry Settings Api V1 Onboarding Telemetry Settings Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "Put Telemetry Settings",
+        "operationId": "put_telemetry_settings_api_v1_onboarding_telemetry_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelemetrySettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Put Telemetry Settings Api V1 Onboarding Telemetry Settings Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/telemetry/events": {
+      "post": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "Post Telemetry Event",
+        "operationId": "post_telemetry_event_api_v1_onboarding_telemetry_events_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelemetryEvent"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Post Telemetry Event Api V1 Onboarding Telemetry Events Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/guided-demo": {
+      "get": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "Get Guided Demo",
+        "operationId": "get_guided_demo_api_v1_onboarding_guided_demo_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Guided Demo Api V1 Onboarding Guided Demo Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/demo-repo/manifest": {
+      "get": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "Get Demo Repo Manifest",
+        "operationId": "get_demo_repo_manifest_api_v1_onboarding_demo_repo_manifest_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Demo Repo Manifest Api V1 Onboarding Demo Repo Manifest Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "TelemetryEvent": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "ts": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "TelemetryEvent"
+      },
+      "TelemetrySettingsUpdate": {
+        "properties": {
+          "baselineEnabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baselineenabled"
+          },
+          "errorLogs": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errorlogs"
+          },
+          "usageAnalytics": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usageanalytics"
+          },
+          "promptMetadata": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promptmetadata"
+          },
+          "codeMetadata": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Codemetadata"
+          },
+          "fullPromptText": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fullprompttext"
+          },
+          "fullCodeContent": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fullcodecontent"
+          },
+          "optInAcknowledged": {
+            "type": "boolean",
+            "title": "Optinacknowledged",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "TelemetrySettingsUpdate",
+        "description": "Full-content flags require optInAcknowledged=true in the same request."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Section 6: Meeting Area API",
+    "version": "0.1.0",
+    "description": "API fragment for meeting chat, AI participant, brief generation, and prompt versioning."
+  },
+  "paths": {
+    "/api/v1/meetings": {
+      "post": {
+        "summary": "Create a new meeting",
+        "operationId": "createMeeting",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["projectId", "title"],
+                "properties": {
+                  "projectId": { "type": "string" },
+                  "title": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "201": { "description": "Meeting created" } }
+      }
+    },
+    "/api/v1/meetings/{meetingId}/messages": {
+      "post": {
+        "summary": "Post a message to meeting chat",
+        "operationId": "postMessage",
+        "responses": { "201": { "description": "Message posted" } }
+      },
+      "get": {
+        "summary": "Get chat history",
+        "operationId": "getMessages",
+        "responses": { "200": { "description": "Chat history" } }
+      }
+    },
+    "/api/v1/meetings/{meetingId}/ai": {
+      "post": {
+        "summary": "Invoke AI participant",
+        "operationId": "invokeAI",
+        "responses": { "200": { "description": "AI response or not_invoked" } }
+      }
+    },
+    "/api/v1/meetings/{meetingId}/brief": {
+      "post": {
+        "summary": "Generate engineering brief from discussion",
+        "operationId": "generateBrief",
+        "responses": { "201": { "description": "Brief generated" } }
+      },
+      "get": {
+        "summary": "Get current brief",
+        "operationId": "getBrief",
+        "responses": { "200": { "description": "Current brief" } }
+      }
+    },
+    "/api/v1/meetings/{meetingId}/brief/{briefId}/approve": {
+      "post": {
+        "summary": "Approve engineering brief",
+        "operationId": "approveBrief",
+        "responses": { "200": { "description": "Brief approved" } }
+      }
+    }
+  }
+}

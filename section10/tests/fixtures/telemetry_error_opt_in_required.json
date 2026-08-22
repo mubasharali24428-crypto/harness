@@ -1,0 +1,11 @@
+{
+  "status": 400,
+  "body": {
+    "detail": {
+      "error": {
+        "code": "EXPLICIT_OPT_IN_REQUIRED",
+        "message": "full prompt/code collection requires explicit opt-in acknowledgment"
+      }
+    }
+  }
+}

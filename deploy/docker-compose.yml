@@ -1,0 +1,74 @@
+name: harness
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: harness
+      POSTGRES_PASSWORD: harness
+      POSTGRES_DB: harness
+    volumes:
+      - pgdata:/var/lib/postgresql
+    # Dev convenience: host-side access for tests/tools. 5499 avoids clashing
+    # with a local Postgres already on 5432 (loopback only either way).
+    ports:
+      - "127.0.0.1:5499:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U harness"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    environment:
+      HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@db:5432/harness
+      HARNESS_MASTER_KEY: ${HARNESS_MASTER_KEY:-dev-master-key-change-me-in-prod!}
+      HARNESS_ALLOW_DEV_MASTER_KEY: ${HARNESS_ALLOW_DEV_MASTER_KEY:-1}
+      HARNESS_CORS_ORIGINS: ${HARNESS_CORS_ORIGINS:-["http://localhost:3000"]}
+      HARNESS_REQUIRE_OWNERSHIP: ${HARNESS_REQUIRE_OWNERSHIP:-false}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-ollama}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-http://host.docker.internal:11434/v1}
+      DSH_MODEL: ${DSH_MODEL:-qwen3-abliterated-128k:latest}
+      DSH_WORKSPACE: /tmp/harness-dsh/workspace
+      DSH_SESSION_ROOT: /tmp/harness-dsh/sessions
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8001:8001"
+      - "8002:8002"
+      - "8003:8003"
+      - "8004:8004"
+      - "8005:8005"
+      - "8006:8006"
+      - "8008:8008"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)\""]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/frontend.Dockerfile
+    environment:
+      NEXT_PUBLIC_API_PREFIX: /api/v1
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  pgdata:

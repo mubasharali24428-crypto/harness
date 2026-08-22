@@ -1,0 +1,63 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Section 4: Agent Orchestration Engine API",
+    "version": "0.1.0",
+    "description": "API fragment for agent plan lifecycle, execution state machine, and done-signals."
+  },
+  "paths": {
+    "/api/v1/orchestrator/runs/{runId}/plan": {
+      "post": {
+        "summary": "Propose an execution plan for an agent run",
+        "operationId": "proposePlan",
+        "parameters": [
+          { "name": "runId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "201": { "description": "Plan proposed" },
+          "400": { "description": "Invalid state" }
+        }
+      }
+    },
+    "/api/v1/orchestrator/runs/{runId}/plan/approve": {
+      "post": {
+        "summary": "Approve a proposed execution plan",
+        "operationId": "approvePlan",
+        "parameters": [
+          { "name": "runId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["planId", "userId"],
+                "properties": {
+                  "planId": { "type": "string" },
+                  "userId": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Plan approved" }
+        }
+      }
+    },
+    "/api/v1/orchestrator/runs/{runId}/start": {
+      "post": {
+        "summary": "Start execution after plan approval",
+        "operationId": "startExecution",
+        "parameters": [
+          { "name": "runId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Execution started" },
+          "403": { "description": "Plan not approved" }
+        }
+      }
+    }
+  }
+}

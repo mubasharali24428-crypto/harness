@@ -1,0 +1,225 @@
+"""Section 8 — FastAPI router for the Review Area.
+
+Endpoints:
+  GET  /reviews/{prId}          — full review data (diff, files, risks, summary,
+                                 comments, test results)
+  POST /reviews/{prId}/approve                  — approve a PR (no auto-merge)
+  POST /reviews/{prId}/request-changes          — request changes with inline comments
+  POST /reviews/{prId}/comments                 — add an inline review comment
+  GET  /reviews/{prId}/comments                 — list inline review comments
+  GET  /reviews/{prId}/risks                   — get risk flags for a PR
+  GET  /reviews/{prId}/deep-link                — deep-link to GitHub merge button
+
+All endpoints use Section 1's auth middleware via make_bearer_dep.
+"""
+
+from typing import Any
+
+import harness_contracts as contracts
+from fastapi import APIRouter, FastAPI, HTTPException, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from harness_contracts import KeyVault, make_bearer_dep
+from pydantic import BaseModel, Field
+
+from .config import Settings
+from .models import ChangedFile, ReviewData, ReviewStatus, RiskFlag
+from .service import ReviewService
+
+router = APIRouter(prefix=contracts.API_PREFIX)
+
+
+class ApproveRequest(BaseModel):
+    reviewer_user_id: str = Field(..., min_length=1)
+
+
+class RequestChangesRequest(BaseModel):
+    reviewer_user_id: str = Field(..., min_length=1)
+    comments: list[dict] = Field(default_factory=list)
+
+
+class InlineCommentRequest(BaseModel):
+    file_path: str | None = None
+    line: int | None = None
+    body: str = Field(..., min_length=1)
+
+
+class ReviewDataResponse(BaseModel):
+    prId: str
+    projectId: str
+    githubPrNumber: int
+    prUrl: str
+    headBranch: str
+    baseBranch: str
+    state: str
+    reviewStatus: str
+    approvedBy: str | None = None
+    diff: str
+    changedFiles: list[ChangedFile]
+    unchangedAreasNote: str | None = None
+    riskFlags: list[RiskFlag]
+    summary: dict[str, Any] | None = None
+    reviewComments: list[dict[str, Any]]
+    testResults: list[dict[str, Any]]
+    model_config = {"protected_namespaces": ()}
+
+
+def make_app(session_factory, settings: Settings):
+    app = FastAPI(title="harness-review", version="0.1.0")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    app.state.session_factory = session_factory
+    app.state.settings = settings
+    app.state.vault = KeyVault(settings.master_key)
+
+    get_principal = make_bearer_dep(session_factory)
+    app.state.get_principal = get_principal
+
+    # The ReviewService is wired up here with injected dependencies.
+    # In production, github_service and model_router come from Sections 2 & 3.
+    # diff_provider and write_audit come from the deployment wiring.
+    app.state.review_service = ReviewService(
+        session_factory=session_factory,
+        github_service=None,
+        model_router=None,
+        diff_provider=None,
+        write_audit=None,
+    )
+
+    @app.get("/health")
+    async def health():
+        return {"ok": True}
+
+    app.include_router(router)
+    return app
+
+
+@router.get("/reviews/{pr_id}", response_model=ReviewDataResponse)
+async def get_review(
+    pr_id: str, request: Request, diff_text: str | None = None
+) -> ReviewDataResponse:
+    svc: ReviewService = request.app.state.review_service
+    try:
+        data = await svc.get_review_data(pr_id, diff_text=diff_text)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={"error": {"code": "REVIEW_DATA_ERROR", "message": str(exc)}},
+        ) from exc
+    return ReviewDataResponse(**_to_response_dict(data))
+
+
+@router.post("/reviews/{pr_id}/approve", status_code=status.HTTP_200_OK)
+async def approve_pr(pr_id: str, request: Request, body: ApproveRequest) -> dict[str, Any]:
+    svc: ReviewService = request.app.state.review_service
+    try:
+        await svc.approve(pr_id, body.reviewer_user_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"prId": pr_id, "status": ReviewStatus.APPROVED.value}
+
+
+@router.post("/reviews/{pr_id}/request-changes", status_code=status.HTTP_200_OK)
+async def request_changes(
+    pr_id: str, request: Request, body: RequestChangesRequest
+) -> dict[str, Any]:
+    svc: ReviewService = request.app.state.review_service
+    try:
+        await svc.request_changes(pr_id, body.comments, body.reviewer_user_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"prId": pr_id, "status": ReviewStatus.CHANGES_REQUESTED.value}
+
+
+@router.post("/reviews/{pr_id}/comments", status_code=status.HTTP_201_CREATED)
+async def add_comment(
+    pr_id: str, request: Request, body: InlineCommentRequest
+) -> dict[str, Any]:
+    svc: ReviewService = request.app.state.review_service
+    try:
+        comment = await svc.add_inline_comment(
+            pr_id,
+            body.file_path,
+            body.line,
+            body.body,
+            _resolve_reviewer(request),
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return comment
+
+
+@router.get("/reviews/{pr_id}/comments")
+async def list_comments(pr_id: str, request: Request) -> list[dict[str, Any]]:
+    svc: ReviewService = request.app.state.review_service
+    return await svc.get_comments(pr_id)
+
+
+@router.get("/reviews/{pr_id}/risks")
+async def get_risk_flags(
+    pr_id: str, request: Request, diff_text: str | None = None
+) -> list[dict[str, Any]]:
+    svc: ReviewService = request.app.state.review_service
+    try:
+        flags = await svc.get_risk_flags(pr_id, diff_text=diff_text)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={"error": {"code": "RISK_ANALYSIS_ERROR", "message": str(exc)}},
+        ) from exc
+    return [f.model_dump() for f in flags]
+
+
+@router.get("/reviews/{pr_id}/deep-link")
+async def deep_link_to_github(pr_id: str, request: Request) -> dict[str, str]:
+    """Return a deep-link URL to GitHub's PR page + merge button.
+
+    The app itself never merges — this is always a manual GitHub action.
+    """
+    svc: ReviewService = request.app.state.review_service
+    data = await svc.get_review_data(pr_id)
+    return {
+        "githubUrl": data.pr_url,
+        "mergeButtonUrl": f"{data.pr_url}/new_branch",
+        "note": "Merge is ALWAYS a manual action on GitHub. This app never calls a merge API.",
+    }
+
+
+def _resolve_reviewer(request: Request) -> str:
+    """Extract the reviewer user ID from the auth context or fall back."""
+    try:
+        principal = request.scope.get("_principal")
+        if principal and hasattr(principal, "userId"):
+            return principal.userId
+    except (AttributeError, KeyError):
+        pass
+    return request.headers.get("x-user-id", "unknown")
+
+
+def _to_response_dict(data: ReviewData) -> dict[str, Any]:
+    return {
+        "prId": data.prId,
+        "projectId": data.project_id,
+        "githubPrNumber": data.github_pr_number,
+        "prUrl": data.pr_url,
+        "headBranch": data.head_branch,
+        "baseBranch": data.base_branch,
+        "state": data.state,
+        "reviewStatus": data.review_status.value,
+        "approvedBy": data.approved_by,
+        "diff": data.diff,
+        "changedFiles": [f.model_dump() for f in data.changed_files],
+        "unchangedAreasNote": data.unchanged_areas_note,
+        "riskFlags": [f.model_dump() for f in data.risk_flags],
+        "summary": data.summary.model_dump() if data.summary else None,
+        "reviewComments": data.review_comments,
+        "testResults": [t.model_dump() for t in data.test_results],
+    }

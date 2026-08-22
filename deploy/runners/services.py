@@ -1,0 +1,222 @@
+"""Assembly runners: one FastAPI app per backend service, wired at deploy time."""
+
+import os
+import sys
+from pathlib import Path
+
+HARNESS_ROOT = Path(__file__).resolve().parents[2]
+for section in sorted((HARNESS_ROOT).glob("section*")):
+    src = section / "src"
+    if src.exists():
+        sys.path.insert(0, str(src))
+
+DATABASE_URL = os.environ.get(
+    "HARNESS_DATABASE_URL", "postgresql+asyncpg://harness:harness@db:5432/harness"
+)
+
+_DEV_MASTER_KEY = b"dev-master-key-change-me-in-prod!"
+MASTER_KEY = os.environ.get("HARNESS_MASTER_KEY", "").encode()
+if not MASTER_KEY or MASTER_KEY == _DEV_MASTER_KEY:
+    # F9 fail-fast: never silently run production secrets under a public constant.
+    if os.environ.get("HARNESS_ALLOW_DEV_MASTER_KEY") != "1":
+        raise SystemExit(
+            "Refusing to start: set HARNESS_MASTER_KEY to a real 32+ byte secret "
+            "(or HARNESS_ALLOW_DEV_MASTER_KEY=1 for local development)."
+        )
+    MASTER_KEY = _DEV_MASTER_KEY
+
+_CORS_DEFAULT = "http://localhost:3000"
+CORS_ORIGINS = [
+    o.strip() for o in os.environ.get("HARNESS_CORS_ORIGINS", _CORS_DEFAULT).split(",") if o.strip()
+]
+
+
+def get_factory():
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    engine = create_async_engine(DATABASE_URL)
+    return async_sessionmaker(engine, expire_on_commit=False)
+
+
+def base_settings(**kw):
+    from pydantic_settings import BaseSettings, SettingsConfigDict
+
+    class S(BaseSettings):
+        model_config = SettingsConfigDict(env_prefix="HARNESS_", extra="ignore")
+        database_url: str = DATABASE_URL
+        master_key: bytes = MASTER_KEY
+        cors_origins: list[str] = CORS_ORIGINS
+        # H2r ownership-proof knobs must exist here too — this local Settings
+        # class replaces section1's for every deployed service.
+        require_ownership: bool = False
+        otp_ttl_minutes: int = 10
+        otp_max_attempts: int = 5
+
+    return S(**kw)
+
+
+def simple_app(router, title):
+    from fastapi import FastAPI
+    from fastapi.middleware.cors import CORSMiddleware
+
+    app = FastAPI(title=title)
+    # H1: no wildcard origins; browsers send credentials, so origins must be exact.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    @app.get("/health")
+    async def health():
+        return {"ok": True}
+
+    app.include_router(router)
+    return app
+
+
+def app_identity():
+    from harness_identity.app import make_app
+
+    return make_app(get_factory(), base_settings())
+
+
+def app_github():
+    from harness_github.app import make_app
+
+    return make_app(get_factory(), base_settings())
+
+
+def app_models():
+    from harness_router.api import router
+
+    return simple_app(router, "harness-router")
+
+
+def app_orchestrator():
+    from harness_contracts.fastapi_auth import make_bearer_dep
+    from harness_identity.eventbus import EventBus
+    from harness_orchestrator.api import configure_orchestrator, router
+    from harness_orchestrator.service import OrchestratorService
+
+    factory = get_factory()
+    bus = EventBus(factory)
+    service = OrchestratorService(session_factory=factory, bus=bus)  # F8/H3: persisted + rehydrated
+    configure_orchestrator(service)
+
+    app = simple_app(router, "harness-orchestrator")
+    app.state.get_principal = make_bearer_dep(factory)  # F2: bearer auth on every route
+    return app
+
+
+def app_sandbox():
+    from harness_contracts.events import EventType
+    from harness_identity.eventbus import EventBus
+    from harness_sandbox.api import configure_sandbox, router
+    from harness_sandbox.service import SandboxService
+
+    factory = get_factory()
+    bus = EventBus(factory)
+
+    def _publish_stream_event(etype, payload):
+        """M2: terminal_output/diff_progress → S1 bus (projectId-scoped)."""
+        project_id = payload.get("projectId")
+        if not project_id:
+            return
+        import asyncio
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return  # sync route without a loop: live push skipped, log still truth
+
+        async def _pub():
+            try:
+                await bus.publish(EventType(etype), project_id, dict(payload), None)
+            except Exception:  # noqa: BLE001 — telemetry never breaks execution
+                pass
+
+        loop.create_task(_pub())
+
+    configure_sandbox(SandboxService(on_stream=_publish_stream_event))
+    return simple_app(router, "harness-sandbox")
+
+
+def app_meeting():
+    from harness_meeting.api import router
+
+    return simple_app(router, "harness-meeting")
+
+
+def app_review():
+    from fastapi import FastAPI
+    from fastapi.middleware.cors import CORSMiddleware
+
+    from harness_contracts import KeyVault, make_bearer_dep
+    from harness_github.service import GitHubService
+    from harness_identity.audit import write_audit as s1_write_audit
+    from harness_review.api import router as review_router
+    from harness_review.config import Settings as ReviewSettings
+    from harness_review.service import ReviewService
+
+    factory = get_factory()
+    settings = ReviewSettings(
+        database_url=DATABASE_URL, master_key=MASTER_KEY, cors_origins=CORS_ORIGINS
+    )
+    app = FastAPI(title="harness-review")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=CORS_ORIGINS,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    vault = KeyVault(MASTER_KEY)
+
+    async def diff_provider(project_id: str, pr_number: int) -> str:
+        # Diff arrives via Section 2's contract (getPRDiff); requires a
+        # connected GitHub account for the acting user.
+        async with factory() as db:
+            svc = GitHubService(db, vault)
+            data = await svc.getPRDiff("system", project_id, pr_number)
+            await db.close()
+            return data["diff"]
+
+    app.state.session_factory = factory
+    app.state.settings = settings
+    app.state.vault = vault
+    app.state.get_principal = make_bearer_dep(factory)
+    app.state.review_service = ReviewService(
+        session_factory=factory,
+        diff_provider=diff_provider,
+        write_audit=s1_write_audit,
+    )
+
+    @app.get("/health")
+    async def health():
+        return {"ok": True}
+
+    app.include_router(review_router)
+    return app
+
+
+SERVICES = {
+    "identity": ("app_identity", 8001),
+    "github": ("app_github", 8002),
+    "models": ("app_models", 8003),
+    "orchestrator": ("app_orchestrator", 8004),
+    "sandbox": ("app_sandbox", 8005),
+    "meeting": ("app_meeting", 8006),
+    "review": ("app_review", 8008),
+}
+
+
+# uvicorn --factory aliases (entrypoint references these names)
+identity_app = app_identity
+github_app = app_github
+models_app = app_models
+orchestrator_app = app_orchestrator
+sandbox_app = app_sandbox
+meeting_app = app_meeting
+review_app = app_review

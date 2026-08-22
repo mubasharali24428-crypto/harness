@@ -1,0 +1,12 @@
+{
+  "status": 200,
+  "body": {
+    "baselineEnabled": true,
+    "errorLogs": true,
+    "usageAnalytics": true,
+    "promptMetadata": true,
+    "codeMetadata": true,
+    "fullPromptText": true,
+    "fullCodeContent": false
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "status": 200,
+  "body": {
+    "title": "Guided demo: one task, end to end",
+    "intro": "This walks the full MVP loop once on the seeded demo repository: meeting → brief → plan → approval → sandboxed execution → human edit → done signal → reviewer → draft PR → human review → manual merge. Nothing here touches a real repo, and every step is visible in the UI.",
+    "repoHint": "Push the demo repo (deploy/scripts/push_demo_to_github.sh) to a scratch GitHub repository, then connect it like any other repo.",
+    "steps": [
+      {
+        "id": "meeting_discuss",
+        "order": 1,
+        "title": "Discuss the task in the Meeting Area",
+        "area": "meeting",
+        "description": "Create a meeting for the demo task. The AI participant stays muted until explicitly invoked — invite it for quick research or a summary, not to fill the channel.",
+        "expectedEvent": null,
+        "section": 6
+      },
+      {
+        "id": "brief_generate",
+        "order": 2,
+        "title": "Generate and approve the engineering brief",
+        "area": "meeting",
+        "description": "Invoke 'turn this into a brief'. Check the five fields — requirements, constraints, acceptance criteria, risks, open questions — then approve. The brief is what the agent plans against, so read it before approving.",
+        "expectedEvent": null,
+        "section": 6
+      },
+      {
+        "id": "plan_proposed",
+        "order": 3,
+        "title": "Review the agent's proposed plan",
+        "area": "working",
+        "description": "The agent proposes a plan: goal, files likely to change, steps, tests, risks, estimated cost, forbidden paths, expected result. Nothing executes until you approve.",
+        "expectedEvent": "plan_proposed",
+        "section": 4
+      },
+      {
+        "id": "plan_approved",
+        "order": 4,
+        "title": "Approve the plan",
+        "area": "working",
+        "description": "Approving is the governance gate: this approval is audit-logged and the sandbox will refuse commands until it exists.",
+        "expectedEvent": "plan_approved",
+        "section": 4
+      },
+      {
+        "id": "execution_watch",
+        "order": 5,
+        "title": "Watch execution — terminal, diff, cost",
+        "area": "working",
+        "description": "The agent works on its own branch in an ephemeral sandbox. Watch live terminal output, the growing diff, test results, and cost metering.",
+        "expectedEvent": "execution_started",
+        "section": 7
+      },
+      {
+        "id": "pause_edit",
+        "order": 6,
+        "title": "Pause and take over with a human edit",
+        "area": "working",
+        "description": "Start editing a file in the Working Area — the agent pauses the moment you touch the buffer. No timer, no forced handover.",
+        "expectedEvent": "paused",
+        "section": 7
+      },
+      {
+        "id": "done_signal",
+        "order": 7,
+        "title": "Send the explicit done signal",
+        "area": "working",
+        "description": "Press the Done button (or Cmd+S / Cmd+Enter). Only this signal — never per-keystroke analysis — triggers the reviewer sub-agent.",
+        "expectedEvent": "done_signal_received",
+        "section": 4
+      },
+      {
+        "id": "reviewer_pass",
+        "order": 8,
+        "title": "Read the reviewer's verdict",
+        "area": "working",
+        "description": "The reviewer sub-agent checks syntax, conflicts with existing code, and brief alignment on a cheaper model. Its verdict is visible to the whole team before the agent resumes.",
+        "expectedEvent": "review_passed",
+        "section": 4
+      },
+      {
+        "id": "draft_pr",
+        "order": 9,
+        "title": "Open the draft PR with the AI summary",
+        "area": "review",
+        "description": "The GitHub service opens a draft PR carrying the AI-written summary: what changed, why, what didn't change, what needs review, what's risky.",
+        "expectedEvent": "pr_opened",
+        "section": 2
+      },
+      {
+        "id": "review_gate",
+        "order": 10,
+        "title": "Review in the Review Area",
+        "area": "review",
+        "description": "See the diff with high-risk zones highlighted (auth, payments, migrations, secrets). Comment inline; approve or request changes.",
+        "expectedEvent": null,
+        "section": 8
+      },
+      {
+        "id": "manual_merge",
+        "order": 11,
+        "title": "Merge manually on GitHub",
+        "area": "github",
+        "description": "The final act is yours: click Merge on GitHub. The app cannot do it for you — by design.",
+        "expectedEvent": null,
+        "section": 10
+      }
+    ]
+  }
+}

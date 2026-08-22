@@ -1,0 +1,11 @@
+{
+  "status": 400,
+  "body": {
+    "detail": {
+      "error": {
+        "code": "FULL_COLLECTION_NOT_ENABLED",
+        "message": "telemetry kind 'full_code' rejected: full-content collection is not enabled"
+      }
+    }
+  }
+}

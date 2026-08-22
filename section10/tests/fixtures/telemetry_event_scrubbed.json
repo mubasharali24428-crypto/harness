@@ -1,0 +1,13 @@
+{
+  "status": 201,
+  "body": {
+    "accepted": true,
+    "stored": {
+      "kind": "prompt_metadata",
+      "payload": {
+        "model": "deepseek/deepseek-coder"
+      },
+      "ts": null
+    }
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Section 3: Model Routing & BYOK Layer API",
+    "version": "0.1.0",
+    "description": "API fragment for model routing, token cost estimation, and model discovery."
+  },
+  "paths": {
+    "/api/v1/models/call": {
+      "post": {
+        "summary": "Invoke an LLM via the model router",
+        "operationId": "callModel",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["agentId", "role", "messages"],
+                "properties": {
+                  "agentId": { "type": "string" },
+                  "role": { "type": "string", "enum": ["primary", "reviewer"] },
+                  "messages": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": ["role", "content"],
+                      "properties": {
+                        "role": { "type": "string" },
+                        "content": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Model completion result",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ModelResult" } } }
+          },
+          "401": { "description": "Invalid API key" },
+          "429": { "description": "Rate limit exceeded" }
+        }
+      }
+    },
+    "/api/v1/models/estimate-cost": {
+      "post": {
+        "summary": "Estimate USD token cost for an execution role",
+        "operationId": "estimateCost",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["role", "inputTokens", "outputTokens"],
+                "properties": {
+                  "role": { "type": "string", "enum": ["primary", "reviewer"] },
+                  "inputTokens": { "type": "integer" },
+                  "outputTokens": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Estimated USD cost" }
+        }
+      }
+    },
+    "/api/v1/models": {
+      "get": {
+        "summary": "List all available BYOK and local models",
+        "operationId": "listModels",
+        "responses": {
+          "200": {
+            "description": "List of model IDs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ModelResult": {
+        "type": "object",
+        "required": ["text", "costUsd", "model", "latencyMs"],
+        "properties": {
+          "text": { "type": "string" },
+          "costUsd": { "type": "number" },
+          "model": { "type": "string" },
+          "latencyMs": { "type": "integer" }
+        }
+      }
+    }
+  }
+}
