@@ -1,5 +1,6 @@
 """Assembly runners: one FastAPI app per backend service, wired at deploy time."""
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -26,9 +27,25 @@ if not MASTER_KEY or MASTER_KEY == _DEV_MASTER_KEY:
     MASTER_KEY = _DEV_MASTER_KEY
 
 _CORS_DEFAULT = "http://localhost:3000"
-CORS_ORIGINS = [
-    o.strip() for o in os.environ.get("HARNESS_CORS_ORIGINS", _CORS_DEFAULT).split(",") if o.strip()
-]
+
+
+def _parse_cors_origins(raw: str) -> list[str]:
+    """Accept BOTH env shapes: JSON array (pydantic convention, what compose
+    sets) and comma-separated. The known pitfall — a JSON string fed to
+    comma-split yields '["http://localhost:3000"]' as a single bogus origin,
+    so every browser request fails CORS with Disallowed origin."""
+    raw = raw.strip()
+    if raw.startswith("["):
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return [str(o).strip() for o in parsed if str(o).strip()]
+        except json.JSONDecodeError:
+            pass
+    return [o.strip() for o in raw.split(",") if o.strip()]
+
+
+CORS_ORIGINS = _parse_cors_origins(os.environ.get("HARNESS_CORS_ORIGINS", _CORS_DEFAULT))
 
 
 def get_factory():
