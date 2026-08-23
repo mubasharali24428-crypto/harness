@@ -42,7 +42,10 @@ export default function Meeting() {
     }
   };
 
-  const projectId = () => getProjectId() ?? "proj-test-1";
+  // C-006: no fabricated project fallback. Meetings are user actions — the
+  // button is disabled until a real project has been bootstrapped post-login.
+  const projectId = () => getProjectId();
+  const hasProject = () => Boolean(projectId());
 
   const reload = (id: string) =>
     guard(async () => {
@@ -67,7 +70,12 @@ export default function Meeting() {
 
   const startMeeting = () =>
     guard(async () => {
-      const m = await createMeeting(projectId(), "UI meeting", getToken()!);
+      const pid = projectId();
+      if (!pid) {
+        setError("No project selected — sign in again so your real project can be loaded.");
+        return;
+      }
+      const m = await createMeeting(pid, "UI meeting", getToken()!);
       setMeetingId(m.id);
       await reload(m.id);
     });
@@ -76,7 +84,12 @@ export default function Meeting() {
     guard(async () => {
       let id = meetingId;
       if (!id) {
-        const m = await createMeeting(projectId(), "UI meeting", getToken()!);
+        const pid = projectId();
+        if (!pid) {
+          setError("No project selected — sign in again so your real project can be loaded.");
+          return;
+        }
+        const m = await createMeeting(pid, "UI meeting", getToken()!);
         id = m.id;
         setMeetingId(id);
       }
@@ -119,7 +132,7 @@ export default function Meeting() {
       </h1>
       {!meetingId && (
         <p>
-          <button className="btn primary" disabled={busy} onClick={startMeeting}>
+          <button className="btn primary" disabled={busy || !hasProject()} onClick={startMeeting}>
             Start a live meeting (creates in S6)
           </button>{" "}
           — or just send a message and one is created for you.

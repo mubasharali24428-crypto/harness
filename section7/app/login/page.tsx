@@ -3,10 +3,18 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ApiError, login, requestLoginOtp, verifyLoginOtp } from "@/lib/api";
-import { saveSession, setProjectId, setRunId, setUserId } from "@/lib/auth";
+import { saveSession, setUserId } from "@/lib/auth";
+// W1-C2 (C-006): post-auth identity is resolved for real — the caller's actual
+// project (or an honest route to creating one). No fabricated fallbacks.
+// (Relative import: the @/* alias maps into src/, this lane owns lib/ at root.)
+import {
+  bootstrapProjectSession,
+  bootstrapSucceeded,
+  createAndActivateProject,
+} from "../../lib/session";
 import type { Principal, Role } from "@contracts/roles";
 
-type Mode = "legacy" | "otp-code-sent";
+type Mode = "legacy" | "otp-code-sent" | "create-project";
 
 export default function Login() {
   const router = useRouter();
@@ -16,18 +24,53 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [projectName, setProjectName] = useState("");
+  // Token held while the user names their first project (create-project mode).
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
 
-  function adoptSession(token: string, principal: Principal) {
+  /**
+   * C-006 — post-auth identity is REAL or the flow routes to creation:
+   *  - a stored-and-still-valid projectId is kept;
+   *  - otherwise the first project of the caller's team is adopted;
+   *  - with zero projects the page switches to the create-project flow and
+   *    only continues once POST /api/v1/projects returns a real row.
+   * No run id is minted client-side anymore: runs come into existence when
+   * the orchestrator's plan gate mints them server-side on approve.
+   */
+  async function adoptSession(token: string, principal: Principal): Promise<void> {
     saveSession(token, principal);
     setUserId(principal.userId);
-    if (!setProjectIdIfEmpty()) setProjectId("proj-test-1");
-    if (!localStorage.getItem("harness.runId")) setRunId(`run-${Date.now().toString(36)}`);
+
+    let boot = await bootstrapProjectSession(token);
+    if (!bootstrapSucceeded(boot.outcome)) {
+      if (boot.outcome === "needs-project") {
+        setPendingToken(token);
+        setMode("create-project");
+        return; // continue after a real project exists
+      }
+      throw new Error(
+        "Could not load your projects (is the identity service up?). Nothing was invented to fill in.",
+      );
+    }
+
     router.push("/");
   }
 
-  function setProjectIdIfEmpty(): boolean {
-    if (localStorage.getItem("harness.projectId")) return true;
-    return false;
+  async function createProjectSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!pendingToken) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await createAndActivateProject(projectName, pendingToken);
+      setPendingToken(null);
+      setMode("legacy");
+      router.push("/");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function legacySubmit(e: React.FormEvent) {
@@ -36,7 +79,7 @@ export default function Login() {
     setError(null);
     try {
       const { token, principal } = await login(email);
-      adoptSession(token, principal);
+      await adoptSession(token, principal);
     } catch (err) {
       // Flag-aware: when the server enforces ownership proof (403 OWNERSHIP_REQUIRED),
       // switch to the OTP flow instead of dead-ending.
@@ -70,7 +113,7 @@ export default function Login() {
       const { token, principal } = await verifyLoginOtp(email, code.trim());
       // S1 provisions roles from the same enum; the DTO's role is a plain string
       // on the wire — assert it into the frozen union at the boundary.
-      adoptSession(token, { ...principal, role: principal.role as Role });
+      await adoptSession(token, { ...principal, role: principal.role as Role });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -94,6 +137,33 @@ export default function Login() {
           />
           <button className="btn primary" disabled={busy} style={{ width: "100%" }}>
             {busy ? "Signing in…" : "Enter the harness"}
+          </button>
+          {error && (
+            <p style={{ color: "var(--red)", marginTop: 8 }}>{error}</p>
+          )}
+        </form>
+      ) : mode === "create-project" ? (
+        // C-006: honest first-run state — the account has no projects yet, so
+        // we create a real one (POST /api/v1/projects) before entering.
+        <form onSubmit={createProjectSubmit} className="card" style={{ width: 360 }}>
+          <h2 style={{ color: "var(--accent)", letterSpacing: 2 }}>HARNESS</h2>
+          <p>
+            Your team has no projects yet. Name your first one — it&apos;s created for real in
+            Section 1 before you continue.
+          </p>
+          <input
+            value={projectName}
+            onChange={(e) => setProjectName(e.target.value)}
+            placeholder="Project name (e.g. Atlas migration)"
+            required
+            className="text-input"
+          />
+          <button
+            className="btn primary"
+            disabled={busy || !projectName.trim()}
+            style={{ width: "100%" }}
+          >
+            {busy ? "Creating project…" : "Create project & enter"}
           </button>
           {error && (
             <p style={{ color: "var(--red)", marginTop: 8 }}>{error}</p>
