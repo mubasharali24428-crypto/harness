@@ -19,6 +19,10 @@ Deployment wiring: the orchestrator/sandbox services run
 in their compose ``command:``, so a bad config fails the container (and
 its healthcheck) instead of serving degraded answers.
 
+Boot policy (brief W1-B1): an UNSET ``ENGINE_LIVE_MODE`` is itself a
+failure — a deploy must explicitly choose live or dry; the engine never
+guesses (and never silently downgrades a configured model).
+
 Exit codes:
     0 — configuration valid (summary printed, names only)
     2 — invalid/missing configuration (EngineConfigError path)
@@ -51,7 +55,7 @@ from harness_orchestrator.live_mode import (  # noqa: E402 (path bootstrap first
 
 def main(argv: list[str] | None = None) -> int:
     try:
-        summary = validate_engine_env(os.environ)
+        summary = validate_engine_env(os.environ, require_explicit_mode=True)
     except EngineConfigError as exc:
         print(f"ENGINE BOOT FAILED: {exc}", file=sys.stderr)
         print(

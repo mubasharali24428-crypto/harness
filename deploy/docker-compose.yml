@@ -16,13 +16,16 @@ x-backend-env: &backend-env
   HARNESS_CORS_ORIGINS: ${HARNESS_CORS_ORIGINS:-["http://localhost:3000"]}
   HARNESS_REQUIRE_OWNERSHIP: ${HARNESS_REQUIRE_OWNERSHIP:-false}
   # C-004/H-006 (M11-W1-B1): engine mode is EXPLICIT and validated at
-  # boot (deploy/runners/engine_boot.py). Placeholder credentials are gone:
-  # no "ollama" API-key default, no implicit host-Ollama endpoint, no
-  # silent provider/model fallback. Unset ⇒ dry engine (honest stub).
+  # boot (deploy/runners/engine_boot.py). Placeholder/dev defaults are
+  # gone: no placeholder API-key value, no implicit local-provider
+  # endpoint, no baked-in dev model name, no silent provider/model
+  # fallback. Required variables stay UNSET for the operator; boot fails
+  # loudly (variable NAMES only) until they are provided.
+  # Host-unset ENGINE_LIVE_MODE ⇒ container boots dry (honest stub).
   ENGINE_LIVE_MODE: ${ENGINE_LIVE_MODE:-dry}
   DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
   DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-}
-  DSH_MODEL: ${DSH_MODEL:-qwen3.5-9b-128k:latest}
+  DSH_MODEL: ${DSH_MODEL:-}
   DSH_WORKSPACE: /tmp/harness-dsh/workspace
   DSH_SESSION_ROOT: /tmp/harness-dsh/sessions
   GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
