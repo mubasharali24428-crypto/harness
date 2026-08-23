@@ -44,8 +44,6 @@ From raw-21 §B (ranked order preserved), cross-referenced with raw-09 gap numbe
 
 **Compounding launch damage not in the top-10 list but feeding it:** fabricated placeholder project/run IDs at login (G#10, BLOCKER, S), unwired demo fixtures (G#13, BLOCKER for evals, S), and silent `cost_ledger` bypass on direct dsh runs (G#6a, BLOCKER-adjacent, S). These are wave-NOW honesty fixes: nothing recovers a demo that starts with fake data.
 
-<!-- APPEND -->
-
 ---
 
 ## 3. Feature roadmap — four horizons
@@ -87,6 +85,85 @@ Turns the trustworthy core into a daily-habit product.
 
 **NEXT exit criteria:** mistakes are undoable (X1), conventions stick (X2), spend is visible and models switchable per step (X3), users stop babysitting runs (X4), edits are curatable not just inspectable (X5), and the meeting-side strategic bet has a written verdict (X7).
 
-<!-- APPEND -->
+### 3c. LATER — month 2–3
 
+The M-size context stack that makes harness a competitor rather than a compliance shell.
+
+| # | Item | What to build | Size | Dependencies | Resolves |
+|---|------|---------------|------|--------------|----------|
+| L1 | **Codebase indexing / RAG** | Per-project index job: tree-sitter symbol extraction → embeddings → pgvector in the existing Postgres; `@file`/`@symbol` mentions in the meeting/chat composer; top-k chunks injected into plan context. No new infra — Postgres is already there. | M (raw-09) / L end-to-end (raw-19) | N9 tree ships first (cheap unblocker); N4 gives @ai a real backend to upgrade | G#1, G#8, K2 |
+| L2 | **Mid-flight plan editing** | Make plan steps first-class mutable records (versioned plan doc keyed to run), PATCH endpoint + editor in the plan panel, `plan_revised` events so the audit trail stays honest. Extends N2's binary gate into editable governance. | M | N2 gate complete | G#5 |
+| L3 | **AI notetaking / action items** | Meeting summaries + action items with owners — Granola/Fireflies-class output. M given any transcript source; without one it stays blocked on X7's media decision. | M | X7 decision; transcript source | raw-20 AI notetaking |
+| L4 | **Calendar integration** | Google/Outlook calendar connect; join scheduled events and pre-load project/brief context before the human reaches the keyboard. | M | X7 positioning decided | raw-20 calendar |
+| L5 | **Collaboration: shared runs** | Read-only run-share links reusing the WS replay path first; presence + step comments later. The event-sourced log makes this dramatically cheaper here than for incumbents retrofitting it — harness's best differentiation wedge. | M | event bus stable; benefits from X8 threads | G#11, K10 |
+| L6 | **Multi-file change-set view** | Grouped per-file review of a coordinated change-set (Copilot Workspace spec→plan→build analog), building on X5's hunk UI. | S | X5 | raw-19 multi-file composer |
+| L7 | **Mobile/responsive monitoring pass** | Responsive pass on Command Center + run detail + plan-approve flow only (not the full working area). Sequence after X4 — notifications are useless if their link dead-ends on mobile. | S–M | X4 shipped | G#15 |
+
+**LATER exit criteria:** the agent answers questions from the actual repo with citations (L1), plans can be steered mid-flight without restarts (L2), and a second human can watch/review a run they didn't start (L5).
+
+### 3d. FUTURE — post-quarter bets
+
+Sequenced deliberately behind the trust/context stack; each is a company-scale bet, not a sprint item.
+
+| # | Item | What to build | Size | Dependencies | Resolves |
+|---|------|---------------|------|--------------|----------|
+| F1 | **Voice/video presence stack** | The K1 BLOCKER itself: multi-party audio/video, screen share, recording + transcript pipeline. Proceeds only if X7's verdict says live media is load-bearing for the wedge; otherwise stay async-first and buy/integrate transcripts (L3). | L×several | X7 verdict; L3/L4 groundwork | K1, raw-20 video/screen-share/recording |
+| F2 | **Tab completion** | The daily-habit hook Cursor/Copilot own: low-latency inline completion across files. Needs its own serving path and latency budget — meaningless until runs are trustworthy (NOW/NEXT) and grounded (L1). | L | L1 index infra; dedicated inference path | K4 |
+| F3 | **Marketplace / plugins** | Third-party integration surface (Slack, Linear, CI notifiers, custom sandbox policies). Prereq: runtime feature-flag service and stable public API contracts. | L | contracts v0.2+ stabilized; flags service (raw-11 gap) | platform story |
+| F4 | **Cloud offering** | Managed-cloud trial funnel alongside self-host. Self-host packaging ships first as the bridge (compose/Helm one-liner, pinned images, health-checked bootstrap against existing conformance fixtures) — design center stays sovereignty-compatible. | M then L | L-wave stability; billing real (§4) | G#12, raw-21 §A-5 pairing |
+| F5 | **Enterprise SSO/SCIM + compliance pack** | SAML/OIDC SSO, SCIM provisioning/deprovisioning (with session revocation on offboarding — raw-11 privacy gap), SOC2 controls mapping of the existing governance claims, DPA/subprocessor list. The moment the audit trail becomes sellable to Fortune-500 procurement. | L | N5 auth foundation; cloud offering in flight | raw-11 regulatory/privacy cluster |
+
+---
+
+## 4. Pricing & packaging sketch
+
+**Starting reality (raw-11):** free/pro/team exist as bare strings with zero behavioral differences anywhere in code; no pricing page or tier-comparison surface (`/settings/billing` renders `<option>` text); free-tier limits unenforced (unlimited everything on every plan); no feature gating middleware; quota enforcement is split-brain (`check_budget()` reads `teams.budget_usd` only, never `billing_plans.monthly_budget_usd`; fresh `BillingPlan` rows default to `$0` budget display); no seat licensing ("team" untied to `TeamMember` count); no checkout, webhooks, dunning, proration, refunds, invoices, or tax handling — `StripeClient` is an uninstantiated Protocol whose absence *silently degrades* to local mode. And the cross-cutting blocker: **no LICENSE + no pricing + no ToS means the product cannot yet be lawfully sold** — license/terms/pricing are launch blockers in their own right.
+
+### Tier sketch
+
+| | **Free** | **Pro** | **Team** |
+|---|---|---|---|
+| Price | $0 | ~$20–30/dev/mo | ~$40–60/seat/mo |
+| Seats | 1 (+2 view-only) | 1–5 | 5–500 |
+| Projects / runs | 2 repos, ~50 agent-runs/mo cap (enforced) | unlimited repos, generous run caps | pooled run budget + per-team budget controls |
+| Governance | plan gate + basic audit trail (the wedge, free — it's the hook) | + checkpoints, rules files, notifications | + shared runs/collaboration, roles granularity, audit export |
+| Cost visibility | own spend visible | + per-step model selection | + budgets, alerts, per-team rollups |
+| Sandbox/security | standard allow-list | same | + custom policies, priority on interstitial approvals |
+| Deployment | cloud | cloud | cloud **or self-host** (self-host gated here — it's the sovereignty SKU) |
+
+**What gates what:** enforce free caps at the API layer (plan-gate dependency on project-create/run-start, honest 409s when billing is disabled — fix the currently-unguarded `PUT /billing/plan`); unify cap resolution so plan budgets actually gate runs (close the `check_budget` split-brain); tie "team" limits to real seat counts; map every tier boundary to a feature the roadmap ships (checkpoints/rules → Pro; collaboration/budgets/self-host → Team) so gating reads as value, not crippleware.
+
+### Trial mechanics
+Time-boxed (14-day) Team trial on signup — flag on the team row with expiry checked at request time, conversion tracked (raw-11 notes none of this exists). Trial gets full Team features including one seeded demo project (N8) so evaluation starts paved. When Stripe lands: checkout session creation, webhook ingest + reconciliation, dunning state machine, proration, invoices from `cost_ledger` — until then paid plans stay honor-system strings, so do not charge anyone before the billing wave closes. Seed demo/billing plan data in `seed_demo.py` so sales can show tiers. Self-host stays free-to-run under the chosen license (LICENSE decision is itself a NOW blocker) with commercial terms attached to support/update entitlements rather than runtime kill-switches.
+
+---
+
+## 5. Metrics to instrument from day one
+
+Raw-11 verdict: zero product analytics today; the onboarding-funnel UI exists but step completion is never recorded server-side; the event bus already carries most of what we need. Instrumentation is therefore cheap — log milestones as events, don't build a parallel pipeline.
+
+### The funnel (signup → project → first run → first PR)
+1. **signup_created** → account exists (OTP-verified post-N5).
+2. **repo_connected** → first real repo connected; time since signup.
+3. **brief_submitted** → first brief/plan requested.
+4. **plan_gate_decided** → first approve/reject (the governance moment).
+5. **run_completed** → first agent run reaches terminal state.
+6. **pr_opened** → first PR lands (N3 wired). *This is the activation event.*
+Track step-to-step conversion + median time between steps; the onboarding checklist UI should read its state from these recorded milestones, not local guesses.
+
+### Activation targets
+- **Aha (< 10 min):** seeded demo opened (N8) or repo connected.
+- **Activated (< 24 h):** plan gate approved AND run completed on a real repo.
+- **Value confirmed (< 72 h):** PR opened and/or checkpoint restored after a bad run — the trust loop closing.
+Funnel cliffs diagnose which wave is failing: drop-off at repo_connected → onboarding/N9 problem; at plan_gate → N2 friction; at run_completed → engine/config reliability (N6); at pr_opened → N3 gaps.
+
+### Retention signals
+- Weekly Active Teams / WAU-per-seat; repeat runs per repo (habit formation).
+- Login recency + abandoned-run rate + invite-acceptance rate (all derivable from existing auth/audit tables per raw-11).
+- Notification engagement: outbox open/click-through (the outbox is already "a ready-made engagement dataset with zero queries").
+- Correction stickiness: do users stop re-explaining conventions after X2 ships?
+- Spend trajectory per team (post-N7 ledger completeness ≥ 99% — alert on metering gaps via dead-man's switch).
+
+### Guardrails
+Cost per completed run vs. cost per merged PR; gate latency (the differentiator must stay fast — raw-21 warns slow gates read as friction to individual devs); sandbox rejection rate and false-positive approvals (X6 quality); audit-event write failures (C2 regression alarm).
 
