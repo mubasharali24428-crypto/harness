@@ -149,4 +149,4 @@ it appends to services.py which depends on nothing else changing there).
 - [x] E: header middleware verified via TestClient (HSTS flag-gated, report-only CSP HTML-only); security-scan job in ci.yml (YAML parses)
 - [x] Full sweep green across all sections + ruff clean everywhere + compose config valid
 - [x] GAP Part 10 ledger rows + STATUS.md wave entry
-- [ ] Single wave commit pushed; CI all jobs green ← in flight at commit time
+- [x] Single wave commit pushed (62f5350); CI ALL JOBS GREEN incl. new security-scan job
