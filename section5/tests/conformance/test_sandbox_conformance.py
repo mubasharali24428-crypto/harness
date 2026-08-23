@@ -53,13 +53,27 @@ async def test_full_sandbox_lifecycle(tmp_path):
     assert handle.taskId not in runner.active_tasks
 
 
-def test_rest_api_conformance():
+def _principal(role="admin"):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(userId="u-golden", teamId="team-golden", role=role)
+
+
+def _app_with_auth(principal=None):
     from fastapi import FastAPI
+
+    from harness_sandbox.api import get_principal
 
     app = FastAPI()
     app.include_router(router)
+    if principal is not None:
+        app.dependency_overrides[get_principal] = lambda: principal
     client = TestClient(app)
+    return app, client
 
+
+def test_rest_api_conformance():
+    app, client = _app_with_auth(_principal("ADMIN"))
     # 1. POST /api/v1/sandbox/tasks
     res = client.post(
         "/api/v1/sandbox/tasks",
@@ -101,3 +115,24 @@ def test_rest_api_conformance():
     # 5. POST /api/v1/sandbox/tasks/{taskId}/destroy
     res = client.post("/api/v1/sandbox/tasks/api-task-001/destroy")
     assert res.status_code == 200
+
+
+def test_unwired_auth_rejected():
+    """D6 regression guard: no auth wiring => 503/401, never an open endpoint."""
+    _, client = _app_with_auth()
+    res = client.post(
+        "/api/v1/sandbox/tasks",
+        json={"taskId": "x", "repoRef": "r", "branch": "b"},
+    )
+    assert res.status_code in (401, 403, 503)
+
+
+@pytest.mark.parametrize("role", ["viewer", "guest"])
+def test_read_only_roles_denied(role):
+    _, client = _app_with_auth(_principal(role))
+    res = client.post(
+        "/api/v1/sandbox/tasks",
+        json={"taskId": "x", "repoRef": "r", "branch": "b"},
+    )
+    assert res.status_code == 403
+    assert res.json()["detail"]["error"]["code"] == "ROLE_DENIED"

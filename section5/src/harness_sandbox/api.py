@@ -1,6 +1,7 @@
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from harness_contracts.roles import Principal, can
 from harness_contracts.signatures import TaskHandle
 from pydantic import BaseModel, Field
 
@@ -22,6 +23,30 @@ def get_sandbox_service() -> SandboxService:
     return _service
 
 
+async def get_principal(request: Request) -> Principal:
+    """Auth resolution via app.state.get_principal; fail closed (D6/P0.6)."""
+    dep = getattr(request.app.state, "get_principal", None)
+    if dep is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": {"code": "AUTH_NOT_CONFIGURED", "message": "auth not wired"}},
+        )
+    return await dep(request)
+
+
+async def require_writer(principal: Annotated[Principal, Depends(get_principal)]) -> Principal:
+    """Executing code is a write action: viewers/guests are denied."""
+    if not can(principal, "write"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": {"code": "ROLE_DENIED", "message": "role may not write"}},
+        )
+    return principal
+
+
+Writer = Annotated[Principal, Depends(require_writer)]
+
+
 class CreateTaskRequest(BaseModel):
     taskId: str
     repoRef: str
@@ -40,7 +65,7 @@ class ApplyEditRequest(BaseModel):
 
 
 @router.post("/tasks", response_model=TaskHandle, status_code=status.HTTP_201_CREATED)
-def create_task(req: CreateTaskRequest) -> TaskHandle:
+def create_task(req: CreateTaskRequest, principal: Writer) -> TaskHandle:
     return _service.run_task(
         task_id=req.taskId,
         repo_ref=req.repoRef,
@@ -51,7 +76,9 @@ def create_task(req: CreateTaskRequest) -> TaskHandle:
 
 
 @router.post("/tasks/{taskId}/exec", response_model=StructuredExecResult)
-async def exec_command(taskId: str, req: ExecCommandRequest) -> StructuredExecResult:
+async def exec_command(
+    taskId: str, req: ExecCommandRequest, principal: Writer
+) -> StructuredExecResult:
     handle = TaskHandle(taskId=taskId, containerId=f"local-{taskId}", branch="main")
     try:
         return await _service.exec_structured(handle, req.command)
@@ -68,7 +95,7 @@ async def exec_command(taskId: str, req: ExecCommandRequest) -> StructuredExecRe
 
 
 @router.post("/tasks/{taskId}/edits", status_code=status.HTTP_200_OK)
-def apply_edit(taskId: str, req: ApplyEditRequest) -> dict[str, Any]:
+def apply_edit(taskId: str, req: ApplyEditRequest, principal: Writer) -> dict[str, Any]:
     handle = TaskHandle(taskId=taskId, containerId=f"local-{taskId}", branch="main")
     try:
         _service.apply_edit(handle, req.path, req.diff)
@@ -86,7 +113,7 @@ def apply_edit(taskId: str, req: ApplyEditRequest) -> dict[str, Any]:
 
 
 @router.post("/tasks/{taskId}/destroy", status_code=status.HTTP_200_OK)
-def destroy_task(taskId: str) -> dict[str, str]:
+def destroy_task(taskId: str, principal: Writer) -> dict[str, str]:
     handle = TaskHandle(taskId=taskId, containerId=f"local-{taskId}", branch="main")
     _service.destroy(handle)
     return {"status": "destroyed", "taskId": taskId}

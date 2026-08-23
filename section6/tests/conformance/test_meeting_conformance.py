@@ -1,6 +1,5 @@
 """Conformance tests for Section 6: Meeting Area."""
 
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from fixtures.golden_fixtures import (
     GOLDEN_MEETING_TITLE,
@@ -73,8 +72,17 @@ def test_full_meeting_lifecycle():
 
 def test_rest_api_conformance():
     """Test all REST API endpoints."""
+    from types import SimpleNamespace
+
+    from fastapi import FastAPI
+
+    from harness_meeting.api import get_principal
+
     app = FastAPI()
     app.include_router(router)
+    app.dependency_overrides[get_principal] = lambda: SimpleNamespace(
+        userId="u-session", teamId="team-golden"
+    )
     client = TestClient(app)
 
     # 1. Create meeting
@@ -157,3 +165,39 @@ def test_rest_api_conformance():
     # 13. 404 for nonexistent meeting
     res = client.get("/api/v1/meetings/mtg-nonexistent")
     assert res.status_code == 404
+
+
+def test_unauthenticated_requests_are_rejected():
+    """D6 regression guard: no auth wiring => 503/401, never an open endpoint."""
+    from fastapi import FastAPI
+
+    app = FastAPI()
+    app.include_router(router)  # no dependency override / state wiring
+    client = TestClient(app)
+    res = client.get("/api/v1/meetings/mtg-any")
+    assert res.status_code in (401, 403, 503)
+
+
+def test_message_identity_comes_from_session_not_body():
+    """D6: a forged body userId must not override the authenticated principal."""
+    from types import SimpleNamespace
+
+    from fastapi import FastAPI
+
+    from harness_meeting.api import get_principal
+
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_principal] = lambda: SimpleNamespace(
+        userId="u-real", teamId="team-golden"
+    )
+    client = TestClient(app)
+    meeting_id = client.post(
+        "/api/v1/meetings", json={"projectId": "proj-auth", "title": "Identity Test"}
+    ).json()["id"]
+    res = client.post(
+        f"/api/v1/meetings/{meeting_id}/messages",
+        json={"userId": "u-forged", "content": "hello"},
+    )
+    assert res.status_code == 201
+    assert res.json()["userId"] == "u-real"

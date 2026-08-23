@@ -50,6 +50,49 @@ CI green (~36s runs); nightly probe schedule present.
 3. Gate: 370 pytest (S4 72/72) + 58 vitest green; ruff clean; TS mirror in sync;
    compose config valid.
 
+## Wave 6c (2026-08-23) — Phase 0 COMPLETE: D5 authz + D6 auth wiring
+
+Phase 0 of docs/EXPANSION_PLAN.md is now fully landed (D1–D4 in 6b; the last two
+defects closed here).
+
+1. **D5 DONE (S4)**: every `/api/v1/orchestrator/runs/{runId}` route now runs a
+   single authorization dependency (`_authz_dep(action)` → `authz.py`): identity
+   via app.state bearer dep, team ownership via `agent_runs.project_id` →
+   `projects.team_id` join (raw SQL on frozen names; skipped in bare unit mode
+   like rehydration), and role permission via frozen `roles.can()` — approve/
+   reject need "approve", run control needs "write", GETs are read-open.
+   `propose` rejects foreign AND unknown projectId (TEAM_OWNERSHIP 403) so a
+   propose can never mint a run into another team's project. 10 regression tests
+   (`tests/unit/test_authz.py`) incl. viewer-can-read-but-not-drive and
+   guest-cannot-pause. S4: 82 passed.
+2. **D6 DONE (S5/S6/S8 + deploy)** — implemented by Codex CLI (`--profile ox`,
+   OpenRouter stealth/ox-alpha) from a written brief (`docs/briefs/2026-08-23-d6-codex-auth-wiring.md`), diff
+   reviewed and independently re-verified by ox-alpha:
+   - Fail-closed `get_principal` dependency on EVERY route of all three services
+     (401 bad token / 503 unwired — no open endpoint anywhere).
+   - Identity always from the principal: S6 body `userId` and S8 body
+     `reviewer_user_id` kept wire-compatible but IGNORED; S8's spoofable
+     `x-user-id` header fallback DELETED (`_resolve_reviewer` removed).
+   - S5 adds a write-gate: viewer/guest roles get ROLE_DENIED 403 on all four
+     task routes (executing code is a write).
+   - Deploy assembly wires `make_bearer_dep(factory)` into `app_sandbox` and a
+     rebuilt `app_meeting` (own factory + CORS + /health); `app_review` already
+     had it — now its routes actually consume it.
+   - Tests: S5/S6 conformance updated to principal dependency-overrides + new
+     unauthenticated-rejection tests; new `section8/tests/unit/test_api_auth.py`
+     pins forged-body and x-user-id spoof rejections. S5 118 passed,
+     S6 38 passed, S8 38 passed.
+3. **CI fix en route**: ruff F841/F401 in S4 engine tests had failed the
+   `pytest (section4)` job on commit 15326db; dropped in 72bd255 (suite green
+   since).
+4. Full sweep this session: 477 pytest across 8 sections + 58 vitest + tsc +
+   ruff (all sections) + sh -n + compose config + TS-mirror --check, ALL GREEN.
+
+Phase 0 exit criteria met except live-stack re-smoke (PG stack was down locally;
+nightly CI covers the real-PG probe). Next up per plan: Phase 1 production
+architecture (split containers, durable run queue, cross-process state).
+
+
 ## Wave 2 (this session) — read docs/GAP_ANALYSIS_AND_FIXES.md for full detail
 
 1. **H8 DONE**: one-time WS tickets (`POST /api/v1/ws-ticket`, 30s, project-

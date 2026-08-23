@@ -1,14 +1,29 @@
 """REST API endpoints for Section 6: Meeting Area."""
 
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from harness_contracts.roles import Principal
 from pydantic import BaseModel
 
 from harness_meeting.service import MeetingService
 
 router = APIRouter(prefix="/api/v1/meetings", tags=["meetings"])
 _service = MeetingService()
+
+
+async def get_principal(request: Request) -> Principal:
+    """Auth resolution via app.state.get_principal; fail closed (D6/P0.6)."""
+    dep = getattr(request.app.state, "get_principal", None)
+    if dep is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": {"code": "AUTH_NOT_CONFIGURED", "message": "auth not wired"}},
+        )
+    return await dep(request)
+
+
+RequirePrincipal = Annotated[Principal, Depends(get_principal)]
 
 
 def get_meeting_service() -> MeetingService:
@@ -40,13 +55,13 @@ class CreatePromptRequest(BaseModel):
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
-def create_meeting(req: CreateMeetingRequest) -> dict[str, Any]:
+def create_meeting(req: CreateMeetingRequest, principal: RequirePrincipal) -> dict[str, Any]:
     meeting = _service.create_meeting(req.projectId, req.title)
     return meeting.model_dump()
 
 
 @router.get("/{meetingId}", status_code=status.HTTP_200_OK)
-def get_meeting(meetingId: str) -> dict[str, Any]:
+def get_meeting(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
     try:
         meeting = _service.get_meeting(meetingId)
         return meeting.model_dump()
@@ -58,9 +73,11 @@ def get_meeting(meetingId: str) -> dict[str, Any]:
 
 
 @router.post("/{meetingId}/messages", status_code=status.HTTP_201_CREATED)
-def post_message(meetingId: str, req: PostMessageRequest) -> dict[str, Any]:
+def post_message(
+    meetingId: str, req: PostMessageRequest, principal: RequirePrincipal
+) -> dict[str, Any]:
     try:
-        msg = _service.post_message(meetingId, req.userId, req.content)
+        msg = _service.post_message(meetingId, principal.userId, req.content)
         return msg.model_dump()
     except KeyError as e:
         raise HTTPException(
@@ -70,7 +87,7 @@ def post_message(meetingId: str, req: PostMessageRequest) -> dict[str, Any]:
 
 
 @router.get("/{meetingId}/messages", status_code=status.HTTP_200_OK)
-def get_messages(meetingId: str) -> list[dict[str, Any]]:
+def get_messages(meetingId: str, principal: RequirePrincipal) -> list[dict[str, Any]]:
     try:
         messages = _service.get_messages(meetingId)
         return [m.model_dump() for m in messages]
@@ -82,9 +99,9 @@ def get_messages(meetingId: str) -> list[dict[str, Any]]:
 
 
 @router.post("/{meetingId}/ai", status_code=status.HTTP_200_OK)
-def invoke_ai(meetingId: str, req: InvokeAIRequest) -> dict[str, Any]:
+def invoke_ai(meetingId: str, req: InvokeAIRequest, principal: RequirePrincipal) -> dict[str, Any]:
     try:
-        result = _service.invoke_ai(meetingId, req.userId, req.content)
+        result = _service.invoke_ai(meetingId, principal.userId, req.content)
         if result is None:
             return {"status": "not_invoked", "message": "AI was not invoked."}
         return result.model_dump()
@@ -96,7 +113,7 @@ def invoke_ai(meetingId: str, req: InvokeAIRequest) -> dict[str, Any]:
 
 
 @router.post("/{meetingId}/brief", status_code=status.HTTP_201_CREATED)
-def generate_brief(meetingId: str) -> dict[str, Any]:
+def generate_brief(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
     try:
         brief = _service.generate_brief(meetingId)
         return brief.model_dump()
@@ -108,7 +125,7 @@ def generate_brief(meetingId: str) -> dict[str, Any]:
 
 
 @router.get("/{meetingId}/brief", status_code=status.HTTP_200_OK)
-def get_brief(meetingId: str) -> dict[str, Any]:
+def get_brief(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
     try:
         brief = _service.get_brief(meetingId)
         if brief is None:
@@ -128,9 +145,11 @@ def get_brief(meetingId: str) -> dict[str, Any]:
     "/{meetingId}/brief/{briefId}/approve",
     status_code=status.HTTP_200_OK,
 )
-def approve_brief(meetingId: str, briefId: str, req: ApproveBriefRequest) -> dict[str, Any]:
+def approve_brief(
+    meetingId: str, briefId: str, req: ApproveBriefRequest, principal: RequirePrincipal
+) -> dict[str, Any]:
     try:
-        brief = _service.approve_brief(meetingId, briefId, req.userId)
+        brief = _service.approve_brief(meetingId, briefId, principal.userId)
         return brief.model_dump()
     except KeyError as e:
         raise HTTPException(
@@ -148,9 +167,11 @@ def approve_brief(meetingId: str, briefId: str, req: ApproveBriefRequest) -> dic
     "/{meetingId}/brief/{briefId}/reject",
     status_code=status.HTTP_200_OK,
 )
-def reject_brief(meetingId: str, briefId: str, req: ApproveBriefRequest) -> dict[str, Any]:
+def reject_brief(
+    meetingId: str, briefId: str, req: ApproveBriefRequest, principal: RequirePrincipal
+) -> dict[str, Any]:
     try:
-        brief = _service.reject_brief(meetingId, briefId, req.userId)
+        brief = _service.reject_brief(meetingId, briefId, principal.userId)
         return brief.model_dump()
     except KeyError as e:
         raise HTTPException(
@@ -160,7 +181,7 @@ def reject_brief(meetingId: str, briefId: str, req: ApproveBriefRequest) -> dict
 
 
 @router.post("/{meetingId}/summary", status_code=status.HTTP_201_CREATED)
-def generate_summary(meetingId: str) -> dict[str, Any]:
+def generate_summary(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
     try:
         summary = _service.generate_summary(meetingId)
         return summary.model_dump()
@@ -172,12 +193,14 @@ def generate_summary(meetingId: str) -> dict[str, Any]:
 
 
 @router.post("/{meetingId}/prompts", status_code=status.HTTP_201_CREATED)
-def create_prompt(meetingId: str, req: CreatePromptRequest) -> dict[str, Any]:
-    prompt = _service.create_prompt(meetingId, req.userId, req.content)
+def create_prompt(
+    meetingId: str, req: CreatePromptRequest, principal: RequirePrincipal
+) -> dict[str, Any]:
+    prompt = _service.create_prompt(meetingId, principal.userId, req.content)
     return prompt.model_dump()
 
 
 @router.get("/{meetingId}/prompts", status_code=status.HTTP_200_OK)
-def list_prompts(meetingId: str) -> list[dict[str, Any]]:
+def list_prompts(meetingId: str, principal: RequirePrincipal) -> list[dict[str, Any]]:
     prompts = _service.list_prompts(meetingId)
     return [p.model_dump() for p in prompts]

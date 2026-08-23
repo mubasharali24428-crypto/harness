@@ -13,12 +13,13 @@ Endpoints:
 All endpoints use Section 1's auth middleware via make_bearer_dep.
 """
 
-from typing import Any
+from typing import Annotated, Any
 
 import harness_contracts as contracts
-from fastapi import APIRouter, FastAPI, HTTPException, Request, status
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from harness_contracts import KeyVault, make_bearer_dep
+from harness_contracts.roles import Principal
 from pydantic import BaseModel, Field
 
 from .config import Settings
@@ -26,6 +27,20 @@ from .models import ChangedFile, ReviewData, ReviewStatus, RiskFlag
 from .service import ReviewService
 
 router = APIRouter(prefix=contracts.API_PREFIX)
+
+
+async def get_principal(request: Request) -> Principal:
+    """Auth resolution via app.state.get_principal; fail closed (D6/P0.6)."""
+    dep = getattr(request.app.state, "get_principal", None)
+    if dep is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": {"code": "AUTH_NOT_CONFIGURED", "message": "auth not wired"}},
+        )
+    return await dep(request)
+
+
+RequirePrincipal = Annotated[Principal, Depends(get_principal)]
 
 
 class ApproveRequest(BaseModel):
@@ -100,7 +115,7 @@ def make_app(session_factory, settings: Settings):
 
 @router.get("/reviews/{pr_id}", response_model=ReviewDataResponse)
 async def get_review(
-    pr_id: str, request: Request, diff_text: str | None = None
+    pr_id: str, request: Request, principal: RequirePrincipal, diff_text: str | None = None
 ) -> ReviewDataResponse:
     svc: ReviewService = request.app.state.review_service
     try:
@@ -116,30 +131,40 @@ async def get_review(
 
 
 @router.post("/reviews/{pr_id}/approve", status_code=status.HTTP_200_OK)
-async def approve_pr(pr_id: str, request: Request, body: ApproveRequest) -> dict[str, Any]:
+async def approve_pr(
+    pr_id: str, request: Request, body: ApproveRequest, principal: RequirePrincipal
+) -> dict[str, Any]:
     svc: ReviewService = request.app.state.review_service
     try:
-        await svc.approve(pr_id, body.reviewer_user_id)
+        await svc.approve(pr_id, principal.userId)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return {"prId": pr_id, "status": ReviewStatus.APPROVED.value}
+    return {
+        "prId": pr_id,
+        "status": ReviewStatus.APPROVED.value,
+        "reviewerUserId": principal.userId,
+    }
 
 
 @router.post("/reviews/{pr_id}/request-changes", status_code=status.HTTP_200_OK)
 async def request_changes(
-    pr_id: str, request: Request, body: RequestChangesRequest
+    pr_id: str, request: Request, body: RequestChangesRequest, principal: RequirePrincipal
 ) -> dict[str, Any]:
     svc: ReviewService = request.app.state.review_service
     try:
-        await svc.request_changes(pr_id, body.comments, body.reviewer_user_id)
+        await svc.request_changes(pr_id, body.comments, principal.userId)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return {"prId": pr_id, "status": ReviewStatus.CHANGES_REQUESTED.value}
+    return {
+        "prId": pr_id,
+        "status": ReviewStatus.CHANGES_REQUESTED.value,
+        "reviewerUserId": principal.userId,
+    }
 
 
 @router.post("/reviews/{pr_id}/comments", status_code=status.HTTP_201_CREATED)
 async def add_comment(
-    pr_id: str, request: Request, body: InlineCommentRequest
+    pr_id: str, request: Request, body: InlineCommentRequest, principal: RequirePrincipal
 ) -> dict[str, Any]:
     svc: ReviewService = request.app.state.review_service
     try:
@@ -148,7 +173,7 @@ async def add_comment(
             body.file_path,
             body.line,
             body.body,
-            _resolve_reviewer(request),
+            principal.userId,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -157,13 +182,14 @@ async def add_comment(
 
 @router.get("/reviews/{pr_id}/comments")
 async def list_comments(pr_id: str, request: Request) -> list[dict[str, Any]]:
+    await get_principal(request)
     svc: ReviewService = request.app.state.review_service
     return await svc.get_comments(pr_id)
 
 
 @router.get("/reviews/{pr_id}/risks")
 async def get_risk_flags(
-    pr_id: str, request: Request, diff_text: str | None = None
+    pr_id: str, request: Request, principal: RequirePrincipal, diff_text: str | None = None
 ) -> list[dict[str, Any]]:
     svc: ReviewService = request.app.state.review_service
     try:
@@ -179,7 +205,9 @@ async def get_risk_flags(
 
 
 @router.get("/reviews/{pr_id}/deep-link")
-async def deep_link_to_github(pr_id: str, request: Request) -> dict[str, str]:
+async def deep_link_to_github(
+    pr_id: str, request: Request, principal: RequirePrincipal
+) -> dict[str, str]:
     """Return a deep-link URL to GitHub's PR page + merge button.
 
     The app itself never merges — this is always a manual GitHub action.
@@ -191,17 +219,6 @@ async def deep_link_to_github(pr_id: str, request: Request) -> dict[str, str]:
         "mergeButtonUrl": f"{data.pr_url}/new_branch",
         "note": "Merge is ALWAYS a manual action on GitHub. This app never calls a merge API.",
     }
-
-
-def _resolve_reviewer(request: Request) -> str:
-    """Extract the reviewer user ID from the auth context or fall back."""
-    try:
-        principal = request.scope.get("_principal")
-        if principal and hasattr(principal, "userId"):
-            return principal.userId
-    except (AttributeError, KeyError):
-        pass
-    return request.headers.get("x-user-id", "unknown")
 
 
 def _to_response_dict(data: ReviewData) -> dict[str, Any]:

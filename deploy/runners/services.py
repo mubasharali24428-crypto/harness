@@ -118,6 +118,7 @@ def app_orchestrator():
 
 def app_sandbox():
     from harness_contracts.events import EventType
+    from harness_contracts.fastapi_auth import make_bearer_dep
     from harness_identity.eventbus import EventBus
     from harness_sandbox.api import configure_sandbox, router
     from harness_sandbox.service import SandboxService
@@ -146,13 +147,35 @@ def app_sandbox():
         loop.create_task(_pub())
 
     configure_sandbox(SandboxService(on_stream=_publish_stream_event))
-    return simple_app(router, "harness-sandbox")
+    app = simple_app(router, "harness-sandbox")
+    app.state.get_principal = make_bearer_dep(factory)
+    return app
 
 
 def app_meeting():
+    from fastapi import FastAPI
+    from fastapi.middleware.cors import CORSMiddleware
+
+    from harness_contracts.fastapi_auth import make_bearer_dep
     from harness_meeting.api import router
 
-    return simple_app(router, "harness-meeting")
+    factory = get_factory()
+    app = FastAPI(title="harness-meeting")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    @app.get("/health")
+    async def health():
+        return {"ok": True}
+
+    app.state.get_principal = make_bearer_dep(factory)
+    app.include_router(router)
+    return app
 
 
 def app_review():
