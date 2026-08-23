@@ -21,7 +21,12 @@ from harness_orchestrator.run_queue import (
     heartbeat_run,
     reclaim_orphans,
 )
-from harness_orchestrator.state_machine import AgentState, AgentStateMachine
+from harness_orchestrator.signals import gate_done_signal
+from harness_orchestrator.state_machine import (
+    PLAN_REJECTED_EVENT,
+    AgentState,
+    AgentStateMachine,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -400,7 +405,32 @@ class OrchestratorService(Orchestrator):
         self.planner.reject_plan(plan_id)
         sm: AgentStateMachine = run_data["state_machine"]
         sm.reject_plan(plan_id, principal_user_id)
+        # S-010: persist the rejection as an agent_events row (run-scoped, no
+        # project FK) so it survives restart and is queryable alongside the
+        # audit row. The S1 bus requires an EventType member + project FK and
+        # the frozen contracts enum has no PLAN_REJECTED member, so this write
+        # goes direct with the same wire name the state machine emits.
+        await self._persist_rejection_event(run_id, plan_id, principal_user_id)
         await self._persist_plan_status(run_id, plan_id, "rejected")
+        # W1-A2 seam: audited money-adjacent decision (plan.rejected is in the
+        # frozen append-only allowlist). The event above carries runId/planId/
+        # rejectedBy on the bus; this row makes it queryable + tamper-evident.
+        # Best-effort by construction — the S1 helper never raises into us.
+        if self.session_factory is not None:
+            try:
+                from harness_identity.audit_emit import emit_plan_rejected
+
+                async with self.session_factory() as db:
+                    await emit_plan_rejected(
+                        db,
+                        actor_user_id=principal_user_id,
+                        team_id=await self._team_for_run(run_data) or "",
+                        target_id=run_id,
+                        detail={"planId": plan_id},
+                        session_owner=True,
+                    )
+            except Exception:  # noqa: BLE001 — audit must never break rejection
+                logger.exception("plan.rejected audit emission failed for %s", run_id)
 
     async def start_execution(self, run_id: str) -> None:
         run_data = await self._ensure_run(run_id)
@@ -416,10 +446,15 @@ class OrchestratorService(Orchestrator):
             queued = await enqueue_run(
                 self.run_queue_factory, run_id, run_data.get("projectId") or ""
             )
-            if not queued:
+            if queued:
+                return  # worker loop will claim and spawn
+            # Not queued = a live claim already exists (double start) OR the
+            # queue table is absent (bare sqlite in-memory test DB). Spawn
+            # directly unless the run is genuinely executing right now.
+            live = run_data.get("task")
+            if live is not None and not live.done():
                 logger.info("run %s already has a live claim; ignoring double start", run_id)
                 return
-            return  # worker loop will claim and spawn
         self._spawn_execution(run_data, plan)
 
     def _spawn_execution(self, run_data: dict[str, Any], plan: AgentPlan) -> None:
@@ -601,6 +636,20 @@ class OrchestratorService(Orchestrator):
         sm.submit_human_edit(path=path)
         self._cancel_live_task(run_data)
 
+    async def gate_done_signal(
+        self, run_id: str, principal: Any, diff_text: str
+    ) -> None:
+        """H-007: validate a done-signal BEFORE any transition or review spend.
+
+        Centralizes the signals.py gate at the service seam so the FastAPI
+        route and any internal caller enforce identical role/evidence/liveness
+        semantics. Raises the typed DoneSignalRejectedError subclasses (the
+        route maps them to 403/409/400).
+        """
+        run_data = await self._ensure_run(run_id)
+        sm: AgentStateMachine = run_data["state_machine"]
+        gate_done_signal(principal, sm.state, diff_text)
+
     async def signal_done(self, run_id: str, diff_text: str = "") -> ReviewFindings:
         run_data = await self._ensure_run(run_id)
         sm: AgentStateMachine = run_data["state_machine"]
@@ -645,6 +694,9 @@ class OrchestratorService(Orchestrator):
         run_data = await self._ensure_run(run_id)
         sm: AgentStateMachine = run_data["state_machine"]
         task = run_data.get("task")
+        # M11-W1-B1: expose the EXPLICIT engine mode on the wire so clients
+        # never re-derive liveness from key presence (finding C-004).
+        engine_mode = getattr(self.engine, "mode", None)
         return {
             "runId": run_id,
             "state": sm.state,
@@ -652,6 +704,7 @@ class OrchestratorService(Orchestrator):
             "planApproved": sm.plan_approved,
             "isHumanEditing": sm.is_human_editing,
             "executing": bool(task is not None and not task.done()),
+            "engineMode": getattr(engine_mode, "value", engine_mode),
         }
 
     async def _persist_plan_status(self, run_id: str, plan_id: str, status: str) -> None:
@@ -668,3 +721,54 @@ class OrchestratorService(Orchestrator):
                 await db.commit()
         except Exception:  # noqa: BLE001
             logger.exception("plan status update failed for %s", plan_id)
+
+    async def _persist_rejection_event(
+        self, run_id: str, plan_id: str, principal_user_id: str
+    ) -> None:
+        """Write the ``plan.rejected`` row into agent_events (best-effort).
+
+        The frozen schema makes ``project_id`` NOT NULL + FK'd, so the owner
+        project is resolved first (in-memory bind, else the agent_runs row)
+        and an unbound run simply skips persistence. Rehydration ignores
+        unknown event names by design, so replaying this row cannot resurrect
+        anything — it exists for observability/audit.
+        """
+        factory = self.session_factory
+        if factory is None:
+            return
+        from sqlalchemy import text
+
+        try:
+            async with factory() as db:
+                project_id = self.runs.get(run_id, {}).get("projectId")
+                if not project_id:
+                    row = (
+                        await db.execute(
+                            text("SELECT project_id FROM agent_runs WHERE id = :r"),
+                            {"r": run_id},
+                        )
+                    ).first()
+                    project_id = row.project_id if row is not None else None
+                if not project_id:
+                    return  # frozen schema: no nullable escape hatch — skip
+                await db.execute(
+                    text(
+                        "INSERT INTO agent_events (project_id, run_id, type, payload)"
+                        " VALUES (:project_id, :run_id, :etype, :payload)"
+                    ),
+                    {
+                        "project_id": project_id,
+                        "run_id": run_id,
+                        "etype": PLAN_REJECTED_EVENT,
+                        "payload": json.dumps(
+                            {
+                                "runId": run_id,
+                                "planId": plan_id,
+                                "rejectedBy": principal_user_id,
+                            }
+                        ),
+                    },
+                )
+                await db.commit()
+        except Exception:  # noqa: BLE001 — rejection must never fail on telemetry
+            logger.exception("plan.rejected event persistence failed for %s", run_id)

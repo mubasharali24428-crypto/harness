@@ -6,7 +6,8 @@ happens to sit in the environment. Two modes exist and nothing else:
 
 * ``live`` — every run goes through the DeepSeek Harness SDK using exactly
   the configured model. Requires a real ``DEEPSEEK_API_KEY``, a
-  ``DSH_MODEL``, and (when set) a well-formed ``DEEPSEEK_BASE_URL``.
+  ``DSH_MODEL``, and a well-formed ``DEEPSEEK_BASE_URL`` (all three; a
+  missing one is a loud ``EngineConfigError`` naming the variable).
 * ``dry``  — no model credentials are consulted; runs answer with the
   honest "not configured" stub. Requires nothing.
 
@@ -15,12 +16,16 @@ Selection order (first match wins):
 1. explicit ``live_mode=`` argument (programmatic construction),
 2. ``ENGINE_LIVE_MODE`` environment variable (deployment config),
 3. ``dry`` — the absence of an explicit decision is a dry engine, not a
-   live one.
+   live one. Deploy-time boot (``deploy/runners/engine_boot.py``) is
+   stricter: it passes ``require_explicit_mode=True`` so an UNSET
+   ``ENGINE_LIVE_MODE`` fails loudly instead of guessing dry.
 
-Placeholder credentials (the old compose default literal ``"ollama"``,
-``changeme``, blank strings, …) NEVER count as live configuration: they
-raise :class:`EngineConfigError` naming the offending variable. Error
-messages carry environment variable NAMES, never secret VALUES.
+Placeholder credentials (the historic compose default literal, plus
+``changeme``, blank strings, …) NEVER count as live configuration:
+:func:`derive_live_mode` maps them to ``DRY`` (never ``LIVE``), while an
+EXPLICIT ``ENGINE_LIVE_MODE=live`` request with a placeholder raises
+:class:`EngineConfigError` naming the offending variable. Error messages
+carry environment variable NAMES, never secret VALUES.
 
 The forced-downgrade ladder this module supersedes was removed per
 AGENTS.md law ("No forced model downgrade"): the configured model is the
@@ -39,7 +44,7 @@ BASE_URL_ENV = "DEEPSEEK_BASE_URL"
 MODEL_ENV = "DSH_MODEL"
 
 #: Environment variables required (non-empty, non-placeholder) for live mode.
-REQUIRED_LIVE_ENV_VARS = (API_KEY_ENV, MODEL_ENV)
+REQUIRED_LIVE_ENV_VARS = (API_KEY_ENV, BASE_URL_ENV, MODEL_ENV)
 
 
 class LiveMode(str, Enum):
@@ -168,21 +173,27 @@ def _require_present(name: str, value: str | None) -> str:
 
 
 def _validate_base_url(value: str | None) -> str | None:
-    """Validate DEEPSEEK_BASE_URL when provided (optional for live mode).
+    """Require and validate DEEPSEEK_BASE_URL for live mode.
 
-    Unset is legal (the SDK then targets the official DeepSeek endpoint);
-    anything set must be a real http(s) URL — the literal "ollama" or a
-    scheme-less host is exactly the degenerate config C-004 describes.
+    A missing URL is a loud failure naming the VARIABLE (boot integrity:
+    never guess an endpoint); anything set must be a real http(s) URL —
+    the historic placeholder literal or a scheme-less host is exactly
+    the degenerate config C-004 describes.
     """
-    if value is None or not value.strip():
-        return None
+    if is_placeholder(value):
+        raise EngineConfigError(
+            f"{BASE_URL_ENV} is required for {ENGINE_LIVE_MODE_ENV}=live; "
+            f"set it to an http(s):// endpoint URL (or run with "
+            f"{ENGINE_LIVE_MODE_ENV}=dry)"
+        )
+    assert value is not None  # narrowed by is_placeholder
     stripped = value.strip()
     lowered = stripped.lower()
     if not (lowered.startswith("http://") or lowered.startswith("https://")):
         raise EngineConfigError(
             f"{BASE_URL_ENV} must be an http(s):// URL for OpenAI-compatible "
-            f"endpoints (got a non-URL value); leave it unset to use the "
-            f"official DeepSeek endpoint"
+            f"endpoints (got a non-URL value); fix it or run with "
+            f"{ENGINE_LIVE_MODE_ENV}=dry"
         )
     return stripped
 
@@ -195,7 +206,8 @@ def validate_live_credentials(
 ) -> dict[str, str | None]:
     """Validate a live configuration supplied as explicit values.
 
-    Returns a sanitized description (variable NAMES and the non-secret
+    All three variables are required (key, model, base URL). Returns a
+    sanitized description (variable NAMES and the non-secret
     model/base-url); raises EngineConfigError naming the first offender.
     Never includes the API key in the return value or any error message.
     """
@@ -205,8 +217,29 @@ def validate_live_credentials(
     return {"model": model_value, "base_url": url_value}
 
 
+def derive_live_mode(
+    *,
+    api_key: str | None,
+    model: str | None,
+    base_url: str | None = None,
+) -> LiveMode:
+    """Derive the explicit mode from configuration VALUES (C-004 law).
+
+    A placeholder credential (the historic compose default literal,
+    ``changeme``, blank/None, …) derives ``DRY`` — NEVER ``LIVE``. Any
+    non-placeholder configuration must fully validate (real key + model
+    + http(s) base URL) or the failure names the offending VARIABLE.
+    """
+    if is_placeholder(api_key):
+        return LiveMode.DRY
+    validate_live_credentials(api_key=api_key, model=model, base_url=base_url)
+    return LiveMode.LIVE
+
+
 def validate_engine_env(
     environ: Mapping[str, str] | None = None,
+    *,
+    require_explicit_mode: bool = False,
 ) -> dict[str, object]:
     """Validate the engine environment; raise or return a sanitized summary.
 
@@ -215,8 +248,29 @@ def validate_engine_env(
     (deploy-time validate-or-exit). The returned summary carries the mode,
     the configured model name, and WHICH variables were provided — never
     any secret value.
+
+    With ``require_explicit_mode=True`` (boot policy) an UNSET or blank
+    ``ENGINE_LIVE_MODE`` is a loud EngineConfigError naming the variable
+    — a deploy must DECIDE, never drift into a guessed mode.
     """
     env = os.environ if environ is None else environ
+    raw_mode = env.get(ENGINE_LIVE_MODE_ENV)
+    if require_explicit_mode and (raw_mode is None or not raw_mode.strip()):
+        degenerate = [
+            name for name in REQUIRED_LIVE_ENV_VARS if is_placeholder(env.get(name))
+        ]
+        detail = (
+            " Variables not usable for live mode: " + ", ".join(degenerate) + "."
+            if degenerate
+            else ""
+        )
+        raise EngineConfigError(
+            f"{ENGINE_LIVE_MODE_ENV} is not set; the engine refuses to guess a "
+            f"mode. Set {ENGINE_LIVE_MODE_ENV}=dry to run without model "
+            f"credentials, or {ENGINE_LIVE_MODE_ENV}=live together with the "
+            f"required variables."
+            + detail
+        )
     mode = resolve_live_mode(env)
     summary: dict[str, object] = {
         "mode": mode,

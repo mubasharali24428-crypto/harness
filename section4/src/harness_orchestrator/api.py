@@ -24,6 +24,11 @@ from harness_orchestrator.logging_utils import (
 )
 from harness_orchestrator.planner import PlanNotApprovedError
 from harness_orchestrator.service import OrchestratorService
+from harness_orchestrator.signals import (
+    DoneSignalRejectedError,
+    EmptyDiffTextError,
+    RunNotLiveForDoneSignalError,
+)
 from harness_orchestrator.state_machine import InvalidStateTransitionError
 
 router = APIRouter(prefix="/api/v1/orchestrator", tags=["orchestrator"])
@@ -419,6 +424,28 @@ async def submit_human_edit(
 
 @router.post("/runs/{runId}/done-signal", status_code=status.HTTP_200_OK)
 async def signal_done(runId: str, req: DoneSignalRequest, actor: RunReader) -> dict:
+    # H-007: the done-gate is enforced HERE, before any transition or review
+    # spend. The route still declares RunReader so read-only principals reach
+    # this handler — and get the gate's explicit 403 instead of a generic
+    # authz denial, with identical semantics for service-level callers.
+    principal: Principal = actor
+    try:
+        await _service.gate_done_signal(runId, principal, req.diffText)
+    except RunNotLiveForDoneSignalError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": {"code": e.code, "message": e.message}},
+        ) from e
+    except EmptyDiffTextError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": {"code": e.code, "message": e.message}},
+        ) from e
+    except DoneSignalRejectedError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": {"code": e.code, "message": e.message}},
+        ) from e
     findings = await _service.signal_done(runId, diff_text=req.diffText)
     dump = findings.model_dump(by_alias=True)
     return {"runId": runId, "findings": dump}

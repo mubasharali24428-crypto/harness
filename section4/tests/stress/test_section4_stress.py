@@ -465,59 +465,73 @@ class TestOrchestratorRestApiStress:
 
 
 # ================================================================
-# ENGINE FALLBACK CHAIN (dsh-inspired downgrade)
+# ENGINE SINGLE-MODEL EXECUTION (W1-B1: downgrade ladder deleted)
 # ================================================================
 
-class TestEngineFallbackChain:
+class TestEngineSingleModel:
+    """The configured model is the ONLY model. Failure is an honest
+    status="error"; no other model is ever consulted (AGENTS.md law,
+    raw-02 H1). Attribution names the model that answered (L1)."""
+
     def _wrapper(self, failing_model):
         from harness_orchestrator.engine import DeepSeekHarnessWrapper
 
         class StubWrapper(DeepSeekHarnessWrapper):
             def __init__(self):
-                super().__init__(api_key="k", model="primary-model")
+                # M11-W1-B1: live mode validates ALL THREE config values at
+                # construction (key, model, base_url) — the stub supplies a
+                # syntactically valid base_url so validation passes and the
+                # overridden _run_live below stays the thing under test.
+                super().__init__(
+                    api_key="***",
+                    model="primary-model",
+                    base_url="http://127.0.0.1:11434/v1",
+                    live_mode="live",
+                )
                 self.calls = []
 
-            # Wave 6: candidates arrive as the per-call ``model`` kwarg
-            # (no more process-global self.model mutation between rungs).
             def _run_live(self, goal, session_id, model=None):
-                model = model or self.model
                 self.calls.append(model)
                 if model == failing_model:
-                    raise RuntimeError("provider down")
-                return f"ok via {model}", "completed"
+                    return "provider down", "error", model
+                return f"ok via {model}", "completed", model
 
         return StubWrapper()
 
-    def test_primary_success_no_fallback(self):
+    def test_primary_success_single_attempt(self):
         w = self._wrapper(failing_model="never")
-        text, status = w._run_live_with_fallback("goal", "s1")
-        assert status == "completed" and text == "ok via primary-model"
+        out = w.execute_goal("goal", "s1")
+        assert out["status"] == "completed"
+        assert out["finalResponse"] == "ok via primary-model"
+        assert out["engine"] == "deepseek-harness-sdk:primary-model"
         assert w.calls == ["primary-model"]
 
-    def test_downgrades_to_fallback_on_failure(self):
+    def test_primary_failure_is_honest_error_no_downgrade(self):
         w = self._wrapper(failing_model="primary-model")
-        w.fallback_models = ["backup-model"]
-        text, status = w._run_live_with_fallback("goal", "s2")
-        assert status == "completed"
-        assert "backup-model" in text
-        assert w.calls == ["primary-model", "backup-model"]
+        out = w.execute_goal("goal", "s2")
+        assert out["status"] == "error"
+        assert "provider down" in out["finalResponse"]
+        # Exactly ONE attempt against the configured model — no backup rung.
+        assert w.calls == ["primary-model"]
+        # L1 honesty: the engine string still names the model that ran.
+        assert out["engine"] == "deepseek-harness-sdk:primary-model"
 
-    def test_all_fail_reports_error(self):
+    def test_engine_exception_never_escapes_execute_goal(self):
         from harness_orchestrator.engine import DeepSeekHarnessWrapper
 
-        class AllFailWrapper(DeepSeekHarnessWrapper):
+        class ExplodingWrapper(DeepSeekHarnessWrapper):
             def __init__(self):
-                super().__init__(api_key="k", model="m1")
-                self.fallback_models = ["m2", "m3"]
-                self.tried = []
+                super().__init__(
+                    api_key="k",
+                    model="m1",
+                    base_url="http://127.0.0.1:11434/v1",
+                    live_mode="live",
+                )
 
             def _run_live(self, goal, session_id, model=None):
-                model = model or self.model
-                self.tried.append(model)
                 raise RuntimeError(f"{model} down")
 
-        w = AllFailWrapper()
-        text, status = w._run_live_with_fallback("goal", "s3")
-        assert status == "error"
-        assert w.tried == ["m1", "m2", "m3"]
-        assert "all models" in text and "m3 down" in text
+        out = ExplodingWrapper().execute_goal("goal", "s3")
+        assert out["status"] == "error"
+        assert "m1" in out["finalResponse"]
+        assert "m1" in out["engine"]

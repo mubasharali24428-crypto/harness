@@ -1,7 +1,8 @@
 """Mission 10 node B5: Postgres fixed-window rate limiting for the auth edge.
 
-Guards the credential-spray surface (login + OTP request) with per-IP+route
-fixed-window counters persisted in ``rate_buckets`` (migration 0011). The
+Guards the credential-spray surface (OTP request + verify) and the invite-mint
+write with per-IP+route fixed-window counters persisted in ``rate_buckets``
+(migration 0011). The
 counter lives in Postgres, not process memory, so the limit holds across
 uvicorn workers and restarts — in-memory buckets reset on every deploy and
 are invisible to sibling workers.
@@ -46,7 +47,13 @@ from datetime import UTC, datetime
 from harness_contracts import error_body
 from sqlalchemy import text
 
-__all__ = ["RateLimitMiddleware", "install_rate_limit"]
+__all__ = [
+    "DEFAULT_PROTECTED_ROUTES",
+    "INVITE_MINT_TEMPLATE",
+    "RateLimitMiddleware",
+    "install_rate_limit",
+    "route_matches",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +64,18 @@ DEFAULT_WINDOW_SECONDS = 60
 # /auth/verify-otp); the old default limited a phantom route while leaving
 # the actual OTP endpoints unprotected.
 DEFAULT_ROUTES = ("/api/v1/auth/request-login", "/api/v1/auth/verify-otp")
+
+# Wave9-C follow-up: invite MINTING (invites.py POST /teams/{team_id}/invites)
+# emails one bearer-grade join token per call, so an unthrottled mint means
+# mail-bombing plus token farming. It joins the shipped default coverage via
+# DEFAULT_PROTECTED_ROUTES below (what install_rate_limit ships by default);
+# DEFAULT_ROUTES itself stays byte-identical because tests/test_ratelimit.py
+# pins it as the auth-edge contract.
+# A "{seg}" segment marks a route TEMPLATE: concrete paths are matched against
+# it, and the TEMPLATE keys the bucket, so one IP shares one budget across
+# every team id instead of farming a fresh bucket per forged team id.
+INVITE_MINT_TEMPLATE = "/api/v1/teams/{team_id}/invites"
+DEFAULT_PROTECTED_ROUTES = (*DEFAULT_ROUTES, INVITE_MINT_TEMPLATE)
 
 # Single-statement fixed-window counter (see module docstring for why this is
 # race-free). RETURNING yields the post-increment count in the same round trip;
@@ -89,6 +108,26 @@ def bucket_key(client_ip: str, route_template: str) -> str:
     return f"{client_ip}|{route_template}"[:200]
 
 
+def route_matches(route_template: str, path: str) -> bool:
+    """Match a concrete request path against a configured route.
+
+    Literal routes compare exactly. A "{param}" segment matches exactly one
+    non-empty path segment (FastAPI 404s the empty case anyway), and segment
+    counts must agree, so prefix overlaps never false-positive.
+    """
+    wanted = route_template.split("/")
+    got = path.split("/")
+    if len(wanted) != len(got):
+        return False
+    for tmpl_seg, path_seg in zip(wanted, got, strict=True):
+        if tmpl_seg.startswith("{") and tmpl_seg.endswith("}"):
+            if not path_seg:
+                return False
+        elif tmpl_seg != path_seg:
+            return False
+    return True
+
+
 class RateLimitMiddleware:
     """Wrap the ASGI callable directly; enforce limits on configured routes."""
 
@@ -99,7 +138,7 @@ class RateLimitMiddleware:
         *,
         limit: int = DEFAULT_LIMIT,
         window_seconds: int = DEFAULT_WINDOW_SECONDS,
-        routes: tuple[str, ...] = DEFAULT_ROUTES,
+        routes: tuple[str, ...] = DEFAULT_PROTECTED_ROUTES,
         bind_state=None,  # noqa: ANN001 — app.state for lazy factory lookup
     ) -> None:  # noqa: ANN001 — pure ASGI signature
         self.app = app
@@ -107,7 +146,11 @@ class RateLimitMiddleware:
         self.bind_state = bind_state
         self.limit = limit
         self.window_seconds = window_seconds
-        self.routes = frozenset(routes)
+        self.routes = tuple(routes)
+        # Exact-hit fast path; templates checked in configured order (first
+        # match wins, deterministic even if two templates overlap).
+        self._exact = frozenset(r for r in self.routes if "{" not in r)
+        self._templates = tuple(r for r in self.routes if "{" in r)
 
     @property
     def session_factory(self):
@@ -121,17 +164,28 @@ class RateLimitMiddleware:
             )
         return factory
 
+    def _match_route(self, path: str) -> str | None:
+        """Configured route governing this path — the TEMPLATE for templated
+        routes (buckets key on templates, never raw paths) — else None."""
+        if path in self._exact:
+            return path
+        for template in self._templates:
+            if route_matches(template, path):
+                return template
+        return None
+
     async def __call__(self, scope, receive, send) -> None:  # noqa: ANN001
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
         path = scope.get("path", "")
-        if path not in self.routes:
+        route = self._match_route(path)
+        if route is None:
             await self.app(scope, receive, send)
             return
 
-        allowed, retry_after = await self._check(path, scope.get("client"))
+        allowed, retry_after = await self._check(route, scope.get("client"))
         if not allowed:
             body = json.dumps(error_body("RATE_LIMITED", "too many attempts; slow down"))
             await send(
@@ -184,7 +238,7 @@ def install_rate_limit(
     *,
     limit: int = DEFAULT_LIMIT,
     window_seconds: int = DEFAULT_WINDOW_SECONDS,
-    routes: tuple[str, ...] = DEFAULT_ROUTES,
+    routes: tuple[str, ...] = DEFAULT_PROTECTED_ROUTES,
     session_factory=None,
 ):
     """Register the middleware stack entry and return the concrete class.

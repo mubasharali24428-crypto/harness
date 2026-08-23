@@ -25,10 +25,12 @@ import pytest
 
 from harness_orchestrator.engine import DeepSeekHarnessWrapper
 from harness_orchestrator.live_mode import (
-    ENGINE_LIVE_MODE_ENV,
     API_KEY_ENV,
+    BASE_URL_ENV,
+    ENGINE_LIVE_MODE_ENV,
     MODEL_ENV,
     LiveMode,
+    derive_live_mode,
     is_placeholder,
     parse_live_mode,
     resolve_live_mode,
@@ -173,13 +175,87 @@ def test_key_presence_alone_is_never_live(monkeypatch):
 
 def test_explicit_live_string_and_enum_are_equivalent():
     a = DeepSeekHarnessWrapper(
-        live_mode="live", api_key="sk-real", model="mymodel"
+        live_mode="live", api_key="sk-real",
+        base_url="https://api.deepseek.com/v1", model="mymodel",
     )
     b = DeepSeekHarnessWrapper(
-        live_mode=LiveMode.LIVE, api_key="sk-real", model="mymodel"
+        live_mode=LiveMode.LIVE, api_key="sk-real",
+        base_url="https://api.deepseek.com/v1", model="mymodel",
     )
     assert a.mode is LiveMode.LIVE and b.mode is LiveMode.LIVE
     assert a.live_mode is True and b.live_mode is True
+
+
+# --------------------------------------------------------------------------
+# C-004 derivation: mode is derived from VALIDATED config values
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "value", ["ollama", "Ollama", "", "   ", None, "changeme"]
+)
+def test_derive_placeholder_key_is_dry_never_live(value):
+    """Dispatcher contract: placeholder key ⇒ DRY — NEVER LIVE."""
+    assert (
+        derive_live_mode(
+            api_key=value,
+            model="mymodel",
+            base_url="https://api.deepseek.com/v1",
+        )
+        is LiveMode.DRY
+    )
+
+
+def test_derive_valid_key_url_model_is_live():
+    assert (
+        derive_live_mode(
+            api_key="sk-real",
+            model="mymodel",
+            base_url="https://api.deepseek.com/v1",
+        )
+        is LiveMode.LIVE
+    )
+
+
+@pytest.mark.parametrize('value', [None, "", "   ", "ollama"])
+def test_missing_url_is_validation_error_naming_the_variable(value):
+    """Missing/degenerate DEEPSEEK_BASE_URL fails LOUDLY, naming the var."""
+    with pytest.raises(Exception) as excinfo:
+        derive_live_mode(api_key="sk-real", model="mymodel", base_url=value)
+    message = str(excinfo.value)
+    assert BASE_URL_ENV in message  # names the VARIABLE...
+    assert "sk-real" not in message  # ...never any credential VALUE
+
+
+def test_validate_live_credentials_requires_base_url():
+    with pytest.raises(Exception) as excinfo:
+        validate_live_credentials(
+            api_key="sk-real", model="mymodel", base_url=None
+        )
+    assert BASE_URL_ENV in str(excinfo.value)
+
+
+def test_boot_gate_requires_explicit_mode_naming_all_missing_vars():
+    """validate_engine_env(require_explicit_mode=True): unset mode is a
+    loud failure naming ENGINE_LIVE_MODE plus every still-owed variable."""
+    with pytest.raises(Exception) as excinfo:
+        validate_engine_env({}, require_explicit_mode=True)
+    message = str(excinfo.value)
+    assert ENGINE_LIVE_MODE_ENV in message
+    for name in (API_KEY_ENV, BASE_URL_ENV, MODEL_ENV):
+        assert name in message  # NAMES only
+
+
+def test_boot_gate_explicit_dry_needs_no_credentials():
+    summary = validate_engine_env(
+        {ENGINE_LIVE_MODE_ENV: "dry"}, require_explicit_mode=True
+    )
+    assert summary["mode"] is LiveMode.DRY
+
+
+def test_library_default_stays_dry_without_explicit_choice():
+    # Non-boot callers keep the historical default: unset ⇒ dry.
+    assert validate_engine_env({})["mode"] is LiveMode.DRY
 
 
 # --------------------------------------------------------------------------
@@ -203,7 +279,8 @@ def test_failed_model_is_reported_honestly_without_retry(monkeypatch):
     """Primary fails ⇒ status=error naming THAT model. No second model is
     ever consulted (AGENTS.md: no forced model downgrade)."""
     w = DeepSeekHarnessWrapper(
-        live_mode="live", api_key="sk-real", model="primary-model"
+        live_mode="live", api_key="sk-real",
+        base_url="https://api.deepseek.com/v1", model="primary-model",
     )
     calls: list[str | None] = []
 
@@ -223,7 +300,8 @@ def test_result_attribution_names_the_model_that_answered(monkeypatch):
     """raw-02 L1: even where a different model could answer, the engine
     field must name the actual responder — here the single configured one."""
     w = DeepSeekHarnessWrapper(
-        live_mode="live", api_key="sk-real", model="configured-model"
+        live_mode="live", api_key="sk-real",
+        base_url="https://api.deepseek.com/v1", model="configured-model",
     )
 
     def fake_run(goal, session_id, model=None):
@@ -306,6 +384,20 @@ def test_boot_invalid_mode_value_fails_loudly():
     assert "is invalid" in proc.stdout + proc.stderr
 
 
+def test_boot_without_explicit_mode_or_env_fails_naming_vars():
+    """The deploy verify contract: bare boot (no engine env at all) exits
+    non-zero and names the variables — ENGINE_LIVE_MODE plus the required
+    set — never their values."""
+    proc = _run_boot()
+    assert proc.returncode != 0
+    combined = proc.stdout + proc.stderr
+    assert "ENGINE BOOT FAILED" in combined
+    assert ENGINE_LIVE_MODE_ENV in combined
+    assert API_KEY_ENV in combined
+    assert BASE_URL_ENV in combined
+    assert MODEL_ENV in combined
+
+
 # --------------------------------------------------------------------------
 # Status endpoint exposes the explicit mode
 # --------------------------------------------------------------------------
@@ -319,7 +411,8 @@ async def test_status_payload_exposes_explicit_engine_mode():
 
     live = OrchestratorService(
         engine=DeepSeekHarnessWrapper(
-            live_mode="live", api_key="sk-real", model="mymodel"
+            live_mode="live", api_key="sk-real",
+            base_url="https://api.deepseek.com/v1", model="mymodel",
         )
     )
     assert (await live.get_status("run-live"))["engineMode"] == "live"
@@ -332,11 +425,14 @@ async def test_status_payload_exposes_explicit_engine_mode():
 
 def test_compose_ships_no_degenerate_defaults():
     text = COMPOSE.read_text()
-    assert "-ollama" not in text  # the placeholder API key default
+    assert "ollama" not in text.lower()  # zero matches, comments included
+    assert "qwen3.5-9b-128k" not in text  # no baked-in dev model name
     assert "dev-master-key-change-me-in-prod!" not in text  # H-005
-    assert "host.docker.internal:11434" not in text  # implicit Ollama endpoint
+    assert "host.docker.internal:11434" not in text  # implicit local endpoint
     assert "${HARNESS_ALLOW_DEV_MASTER_KEY:-1}" not in text  # H-005 opt-in
     assert "DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}" in text
+    assert "DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-}" in text
+    assert "DSH_MODEL: ${DSH_MODEL:-}" in text  # required var left UNSET
     assert "ENGINE_LIVE_MODE: ${ENGINE_LIVE_MODE:-dry}" in text
 
 
@@ -346,4 +442,6 @@ def test_compose_parses_as_yaml():
     env = doc["x-backend-env"]
     assert env["ENGINE_LIVE_MODE"] == "${ENGINE_LIVE_MODE:-dry}"
     assert env["DEEPSEEK_API_KEY"] == "${DEEPSEEK_API_KEY:-}"
+    assert env["DEEPSEEK_BASE_URL"] == "${DEEPSEEK_BASE_URL:-}"
+    assert env["DSH_MODEL"] == "${DSH_MODEL:-}"
     assert env["HARNESS_ALLOW_DEV_MASTER_KEY"] == "${HARNESS_ALLOW_DEV_MASTER_KEY:-}"
