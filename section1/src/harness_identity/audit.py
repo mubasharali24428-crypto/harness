@@ -19,6 +19,12 @@ APPEND_ONLY_ACTIONS = frozenset(
         "merge.performed",
         "apikey.added",
         "apikey.removed",
+        "invite.minted",
+        "invite.redeemed",
+        "invite.revoked",
+        "billing.plan_changed",
+        "run.started",
+        "run.stopped",
         "forbidden.command_blocked",
     }
 )

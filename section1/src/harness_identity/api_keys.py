@@ -31,6 +31,7 @@ from harness_contracts import Principal, can, error_body
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
+from .audit_emit import emit_apikey_added, emit_apikey_removed
 from .auth import get_principal
 from .crypto import KeyVault
 from .models import ApiKey
@@ -95,6 +96,15 @@ async def mint_key(
         db.add(row)
         await db.commit()
         await db.refresh(row)
+        # C-002 audit trail: mint is an allowlisted sensitive action. The emit
+        # helper reuses this committed session and never raises into the path.
+        await emit_apikey_added(
+            db,
+            actor_user_id=principal.userId,
+            team_id=principal.teamId,
+            target_id=row.id,
+            detail={"label": row.label, "provider": row.provider},
+        )
         return _key_public(row, include_revoked=False)
 
 
@@ -156,4 +166,13 @@ async def revoke_key(
         if row.revoked_at is None:
             row.revoked_at = datetime.now(UTC)
             await db.commit()
+            # C-002 audit: only the transition to revoked is an event; the
+            # idempotent double-revoke path stays silent (still 204 either way).
+            await emit_apikey_removed(
+                db,
+                actor_user_id=principal.userId,
+                team_id=principal.teamId,
+                target_id=row.id,
+                detail={"label": row.label, "provider": row.provider},
+            )
     # Already-revoked falls through: 204 either way (idempotent soft-revoke).

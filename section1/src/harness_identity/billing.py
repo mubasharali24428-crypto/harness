@@ -47,6 +47,7 @@ from pydantic import BaseModel
 from sqlalchemy import DateTime, ForeignKey, Numeric, String, func, select, text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from .audit_emit import emit_billing_plan_changed
 from .auth import get_principal
 from .models import AgentRun, Base, CostLedger, Project, uid
 
@@ -238,6 +239,7 @@ async def update_billing_plan(
         row = (
             await db.execute(select(BillingPlan).where(BillingPlan.team_id == principal.teamId))
         ).scalar_one_or_none()
+        previous = None if row is None else row.plan
         if row is None:
             row = BillingPlan(
                 team_id=principal.teamId,
@@ -249,4 +251,13 @@ async def update_billing_plan(
             row.plan = body.plan
         row.updated_at = datetime.now(UTC)
         await db.commit()
-    return await _state_payload(request, principal)
+        # C-002 audit: plan changes are money-adjacent and admin-gated. Emitted
+        # after commit; detail carries plan names only, never provider secrets.
+        await emit_billing_plan_changed(
+            db,
+            actor_user_id=principal.userId,
+            team_id=principal.teamId,
+            target_id=row.id,
+            detail={"from": previous, "to": body.plan},
+        )
+        return await _state_payload(request, principal)

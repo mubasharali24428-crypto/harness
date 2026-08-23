@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .audit_emit import emit_invite_minted, emit_invite_redeemed, emit_invite_revoked
 from .auth import get_principal
 from .models import Role as DbRole
 from .models import TeamInvite, TeamMember, User
@@ -96,6 +97,15 @@ async def create_invite(
         db.add(invite)
         await db.commit()
         await db.refresh(invite)
+        # C-002 audit: mint is sensitive; detail carries email/role only — the
+        # raw token below must never enter the audit row.
+        await emit_invite_minted(
+            db,
+            actor_user_id=principal.userId,
+            team_id=team_id,
+            target_id=invite.id,
+            detail={"email": invite.email, "role": invite.role},
+        )
         out = _invite_public(invite)
         out["token"] = raw_token  # shown once; never stored, never listed again
         return out
@@ -205,6 +215,14 @@ async def revoke_invite(
             )
         await db.delete(row)
         await db.commit()
+        # C-002 audit: admin revoke of an (unredeemed) invite.
+        await emit_invite_revoked(
+            db,
+            actor_user_id=principal.userId,
+            team_id=team_id,
+            target_id=invite_id,
+            detail={"email": row.email, "role": row.role},
+        )
     return {"ok": True}
 
 
@@ -269,6 +287,15 @@ async def redeem_invite(
         ).scalar_one_or_none()
         if existing_member is not None:
             await db.commit()
+            # C-002 audit: this token was still consumed — same event as a
+            # first join, minus the membership insert.
+            await emit_invite_redeemed(
+                db,
+                actor_user_id=principal.userId,
+                team_id=claimed["team_id"],
+                target_id=str(claimed["id"]),
+                detail={"email": claimed["email"], "role": str(claimed["role"])},
+            )
             return {
                 "membership": {
                     "teamId": claimed["team_id"],
@@ -286,6 +313,18 @@ async def redeem_invite(
         )
         db.add(member)
         await db.commit()
+
+    # C-002 audit: a token was redeemed into real membership. Emitted after the
+    # transaction closes so the audit write can never poison the atomic claim;
+    # detail is ids/role only — the raw token never enters the audit row.
+    await emit_invite_redeemed(
+        request.app.state.session_factory(),
+        actor_user_id=principal.userId,
+        team_id=claimed["team_id"],
+        target_id=str(claimed["id"]),
+        session_owner=True,
+        detail={"email": claimed["email"], "role": str(claimed["role"])},
+    )
 
     return {"membership": {"teamId": claimed["team_id"], "role": str(claimed["role"])},
             "alreadyMember": False}
