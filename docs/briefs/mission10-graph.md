@@ -95,7 +95,7 @@ files are expected — ignore them.
 | B2 billing-page | sa-0-96814f1c | DONE | ✅ shared S7 gate: tsc OK, vitest 65/65; flag-off upsell + quota meter per M10-C3; e2e probe deferred to ATLAS merge wiring with B1 backend |
 | B3 onboarding | sa-0-e1ee3262 | DONE | ✅ ATLAS rerun: test_steps 15/15 (PYTHONPATH=src recipe, no section venv — honest), S7 gate 73/73 incl. new page; api.py was baseline-owned file EXTENDED per brief; done-derivation honest (no fabricated completion signals) |
 | B4 walg-pitr | sa-0-461180a7 | DONE | ✅ ATLAS gates: bash -n both scripts, compose valid base+walg profile modes, runbook "WAL-G operation" section with validated/not-validated split; live guard probe → honest ERROR+exit1 without wal-g binary; ATLAS fixup: +x bits added to both .sh (agent omitted); Dockerfile.walg image recipe included in-lane; real-S3 round-trip remains documented-as-unexercised |
-| B5 rate-limit | sa-0-2bce4bb9 | RUNNING | |
+| B5 rate-limit | sa-0-2bce4bb9 | DONE | ✅ ATLAS rerun: 9/9 + ruff clean; footprint = 3 owned files; 429+Retry-After verified in middleware source, single-statement ON CONFLICT upsert w/ window reset, DB-failure fail-open exception-guarded per spec; migration 0011 style matches siblings |
 
 ## Merge checklist (gate exit criteria)
 
