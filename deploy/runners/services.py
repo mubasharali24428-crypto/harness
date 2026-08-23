@@ -88,8 +88,17 @@ def simple_app(router, title):
 
 def app_identity():
     from harness_identity.app import make_app
+    from harness_identity.ratelimit import install_rate_limit
 
-    return make_app(get_factory(), base_settings())
+    app = make_app(get_factory(), base_settings())
+
+    # Mission10-B5 merge wiring: fixed-window rate limiting on the auth edge
+    # (login + OTP request). Installed at assembly level so tests can build
+    # un-limited apps via make_app and install their own tuned limiter.
+    # DB failure fails OPEN (availability > strictness).
+    install_rate_limit(app)
+
+    return app
 
 
 def app_github():
@@ -220,6 +229,10 @@ def app_orchestrator():
         _notification_worker.stop()
 
     app.state.get_principal = make_bearer_dep(factory)  # F2: bearer auth on every route
+    # M10-C2 (A4): team-scoped runs index for S7's runs page.
+    from harness_orchestrator.runs_index import router as runs_index_router
+
+    app.include_router(runs_index_router)
     return app
 
 

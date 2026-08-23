@@ -1,0 +1,43 @@
+# deploy/walg/Dockerfile.walg — postgres:18-alpine + the WAL-G binary.
+#
+# Mission 10 node B4. The stock `postgres:18-alpine` db image has no wal-g, so
+# archive_command='wal-g wal-push %p' cannot run inside it yet; build THIS
+# image and point a future wave's db service at it:
+#
+#     docker build -f deploy/walg/Dockerfile.walg -t harness-db-walg --build-arg WALG_VERSION=v3.0.9 .
+#     # then in compose:  db: { image: harness-db-walg, ... }
+#
+# Binary provenance (asset names/URLs verified against the upstream GitHub
+# release manifest on 2026-08-22):
+#     https://github.com/wal-g/wal-g/releases/download/<WALG_VERSION>/wal-g-pg-24.04-<amd64|aarch64>
+#   Each asset ships with a sibling `.sha256` checksum file, which is verified
+#   below before the binary is installed. Update WALG_VERSION deliberately;
+#   re-run the PITR drill after every bump.
+#
+# NOTE (honest limits): NOT built or run locally for Mission 10 — the build
+# environment has no mandate to pull images. Syntax follows the standard
+# multi-arch pattern; a credentialed operator should build it once and record
+# the result in docs/runbooks/backup-and-pitr.md.
+
+FROM postgres:18-alpine
+
+ARG WALG_VERSION=v3.0.9
+ARG TARGETARCH=amd64
+
+LABEL org.opencontainers.image.title="harness-postgres-walg" \
+      org.opencontainers.image.description="postgres:18-alpine + WAL-G ${WALG_VERSION} for harness PITR" \
+      org.opencontainers.image.source="https://github.com/wal-g/wal-g"
+
+ADD https://github.com/wal-g/wal-g/releases/download/${WALG_VERSION}/wal-g-pg-24.04-${TARGETARCH} /tmp/wal-g
+ADD https://github.com/wal-g/wal-g/releases/download/${WALG_VERSION}/wal-g-pg-24.04-${TARGETARCH}.sha256 /tmp/wal-g.sha256
+
+RUN set -eu; \
+    cd /tmp; \
+    echo "$(cat wal-g.sha256)  wal-g" | sha256sum -c -; \
+    chmod +x wal-g; \
+    mv wal-g /usr/local/bin/wal-g; \
+    rm wal-g.sha256; \
+    /usr/local/bin/wal-g --version
+
+# Nothing else changes: same postgres user/layout as the stock image so the
+# pgdata volume stays byte-compatible.

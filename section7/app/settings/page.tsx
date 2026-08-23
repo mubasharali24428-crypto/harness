@@ -64,6 +64,16 @@ function SettingsInner() {
       )}
 
       <section style={{ maxWidth: 520 }}>
+        <h2 style={{ marginTop: 0 }}>Workspace</h2>
+        <ul style={{ color: "#9aa4b2", fontSize: 14, lineHeight: 2, paddingLeft: 18 }}>
+          <li><a href="/settings/team" style={{ color: "#93c5fd" }}>Team &amp; invites</a></li>
+          <li><a href="/settings/keys" style={{ color: "#93c5fd" }}>API keys (BYO providers)</a></li>
+          <li><a href="/settings/billing" style={{ color: "#93c5fd" }}>Billing &amp; plan</a></li>
+          <li><a href="/onboarding" style={{ color: "#93c5fd" }}>Onboarding checklist</a></li>
+        </ul>
+      </section>
+
+      <section style={{ maxWidth: 520 }}>
         <h2 style={{ marginTop: 0 }}>GitHub connection</h2>
         <p style={{ color: "#9aa4b2", fontSize: 14 }}>
           Connect your GitHub account so agents can read repos, push branches and

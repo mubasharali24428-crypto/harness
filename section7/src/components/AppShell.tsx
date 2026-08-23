@@ -9,8 +9,10 @@ import { clearSession, getToken, getProjectId, getRunId, setProjectId, loadSessi
 
 const AREAS = [
   { href: "/", label: "Command Center" },
+  { href: "/runs", label: "Runs" },
   { href: "/meeting", label: "Meeting" },
   { href: "/review", label: "Review" },
+  { href: "/dashboard/cost", label: "Cost" },
   { href: "/settings", label: "Settings" },
 ];
 

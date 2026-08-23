@@ -1,5 +1,46 @@
 # STATUS — where the project stands (updated 2026-08-22, end of wave 4)
 
+## Mission 10 (2026-08-23) — ALEX_TEAM: Phase 2 completion + Phase 3 edge-hardening begins
+
+First full ALEX_TEAM run: ATLAS + 2 lead review ladders + 10 parallel subagent
+lanes in two squads, three PAIR×2 lanes on written interface contracts
+(M10-C1 keys, M10-C2 runs, M10-C3 billing). Graph:
+docs/briefs/mission10-graph.md, baseline abcab51. Two provider-outage deaths
+(one 43-min explore-then-timeout with zero writes; one dispatch-call timeout
+that actually spawned fine) — footprint-audited before each re-dispatch.
+
+1. **BYO keys (M10-C1)** — /api/v1/keys CRUD over frozen api_keys table:
+   KeyVault-encrypted at rest, hint-only exposure, idempotent soft revoke,
+   foreign-team 404 without existence oracle; S7 /settings/keys page.
+2. **Cost dashboard** — S7 /dashboard/cost over live /spend: range selector,
+   totals cards, pure-CSS byModel bars, SVG sparkline, honest empty state,
+   explanatory notice when metering unwired (503).
+3. **Run history (M10-C2)** — GET /api/v1/orchestrator/runs team-scoped with
+   server-driven paging (limit≤100 clamp) + filters; startedAt/finishedAt
+   honestly derived from agent_events (frozen agent_runs lacks columns); S7
+   /runs page w/ status pills and relative times.
+4. **Billing (M10-C3)** — /api/v1/billing/state|plan behind HARNESS_BILLING;
+   flag-off renders honest upsell; local quota = cost_ledger SUM per month vs
+   teams.budget_usd; Stripe adapter is an injectable protocol (no package);
+   migration 0010 billing_plans; S7 /settings/billing page w/ meter.
+5. **Onboarding revival** — S10 checklist API derives `done` from real state
+   only (no fabricated signals); interactive S7 /onboarding page w/ progress.
+6. **WAL-G PITR** — deploy/walg scripts (base/wal push, PITR restore to target
+   time), compose `walg` profile, Dockerfile.walg, runbook "WAL-G operation"
+   section with explicit validated/not-validated split (needs S3 creds to
+   exercise).
+7. **Rate limiting** — fixed-window Postgres limiter on login/OTP routes:
+   atomic ON CONFLICT upsert, 429+Retry-After error_body envelope, DB failure
+   fails OPEN (availability > strictness); migration 0011 rate_buckets.
+
+ATLAS wirings: keys+billing routers registered in app.py; rate limiter
+installed at assembly level (app_identity) NOT in make_app — tests build
+un-limited apps and install tuned limiters (double-install caught live at
+merge: 6 red tests → moved wiring → 134 green). Nav links added (Runs, Cost +
+settings-hub Workspace links). Gate sweep: S1 134 / S2 19 / S3 66 / S4 134+1
+known LIVEPROBE flake / S5 118+1skip / S6 38 / S8 38, S7 tsc OK + 73 vitest,
+section10 15, ruff clean everywhere, compose valid incl. walg profile.
+
 ## Wave 9 (2026-08-23) — Phase 2 SaaS core begins: metering, budgets, orgs, notifications, security headers
 
 Five parallel subagent nodes (graph: docs/briefs/wave9-task-graph.md, baseline

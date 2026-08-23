@@ -109,6 +109,17 @@ def make_app(session_factory, settings: Settings):
     from .invites import router as invites_router
 
     app.include_router(invites_router)
+
+    # Mission10-A1 merge wiring: BYO keys CRUD (encrypted at rest, hint-only
+    # exposure, soft revoke).
+    from .api_keys import router as api_keys_router
+
+    app.include_router(api_keys_router)
+
+    # Mission10-B1 merge wiring: billing state/plan behind HARNESS_BILLING.
+    from .billing import router as billing_router
+
+    app.include_router(billing_router)
     return app
 
 
