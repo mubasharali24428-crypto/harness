@@ -13,6 +13,14 @@ CASES = [
         "path": "/api/v1/onboarding/steps",
     },
     {
+        # M10-B3: interactive first-run checklist (deterministic — derives
+        # `done` from a fresh store where nothing is acknowledged).
+        "fixture": "checklist.json",
+        "method": "GET",
+        "path": "/api/v1/onboarding/checklist",
+        "fresh": True,
+    },
+    {
         "fixture": "security_checklist.json",
         "method": "GET",
         "path": "/api/v1/onboarding/security-checklist",
