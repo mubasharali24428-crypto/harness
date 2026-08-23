@@ -1,6 +1,9 @@
 import asyncio
 import json
 import logging
+import os
+import secrets
+import socket
 from typing import Any
 
 from harness_contracts.events import EventType
@@ -10,9 +13,18 @@ from harness_contracts.signatures import Orchestrator
 from harness_orchestrator.engine import DeepSeekHarnessWrapper
 from harness_orchestrator.planner import PlanNotApprovedError, PlanService
 from harness_orchestrator.reviewer import ReviewerSubAgent, ReviewFindings
+from harness_orchestrator.run_queue import (
+    claim_next_run,
+    enqueue_run,
+    finish_run,
+    heartbeat_run,
+    reclaim_orphans,
+)
 from harness_orchestrator.state_machine import AgentState, AgentStateMachine
 
 logger = logging.getLogger(__name__)
+
+_HEARTBEAT_INTERVAL_SECONDS = 10.0
 
 _REHYDRATE_SQL = """
     SELECT type AS event_type, payload AS payload
@@ -64,6 +76,10 @@ class OrchestratorService(Orchestrator):
         on_event=None,
         session_factory=None,
         bus=None,
+        run_queue_factory=None,
+        max_per_team: int = 4,
+        worker_id: str | None = None,
+        stale_seconds: int = 90,
     ) -> None:
         self.planner = planner or PlanService()
         self.reviewer = reviewer or ReviewerSubAgent()
@@ -71,6 +87,10 @@ class OrchestratorService(Orchestrator):
         self.on_event = on_event
         self.session_factory = session_factory
         self.bus = bus  # duck-typed EventBus: publish/ensure_run coroutines (S1 delivery)
+        self.run_queue_factory = run_queue_factory or session_factory
+        self.max_per_team = max_per_team
+        self.worker_id = worker_id or f"{socket.gethostname()}:{os.getpid()}:{secrets.token_hex(3)}"
+        self.stale_seconds = stale_seconds
 
         self.runs: dict[str, dict[str, Any]] = {}
         self._bg_tasks: set[asyncio.Task] = set()
@@ -231,6 +251,11 @@ class OrchestratorService(Orchestrator):
     async def _persist_plan(self, run_id: str, plan_id: str, plan: AgentPlan, status: str) -> None:
         if self.session_factory is None:
             return
+        # created_at must be a real datetime object: asyncpg rejects ISO strings
+        # for TIMESTAMPTZ (verified live 2026-08-23), while SQLite accepts the
+        # object via its adapter. This column is never compared as text.
+        from datetime import UTC, datetime
+
         from sqlalchemy import text
 
         sql = text(
@@ -239,7 +264,7 @@ class OrchestratorService(Orchestrator):
                                      risks, estimated_cost_usd, forbidden_paths,
                                      expected_result, status, created_at)
             VALUES (:id, :run_id, :goal, :files, :steps, :tests, :risks, :cost, :forbidden,
-                    :expected, :status, now())
+                    :expected, :status, :created_at)
             ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status
             """
         )
@@ -259,6 +284,9 @@ class OrchestratorService(Orchestrator):
                         "forbidden": json.dumps(plan.forbiddenPaths),
                         "expected": plan.expectedResult,
                         "status": status,
+                        # timezone-aware datetime: correct on asyncpg (TIMESTAMPTZ)
+                        # and accepted by SQLite's adapter; never compared as text.
+                        "created_at": datetime.now(UTC),
                     },
                 )
                 await db.commit()
@@ -313,6 +341,14 @@ class OrchestratorService(Orchestrator):
         sm.start_execution()
 
         plan = self.planner.get_plan(plan_id)
+        if self.run_queue_factory is not None:
+            queued = await enqueue_run(
+                self.run_queue_factory, run_id, run_data.get("projectId") or ""
+            )
+            if not queued:
+                logger.info("run %s already has a live claim; ignoring double start", run_id)
+                return
+            return  # worker loop will claim and spawn
         self._spawn_execution(run_data, plan)
 
     def _spawn_execution(self, run_data: dict[str, Any], plan: AgentPlan) -> None:
@@ -326,43 +362,61 @@ class OrchestratorService(Orchestrator):
     async def _execute(self, run_data: dict[str, Any], plan: AgentPlan) -> None:
         run_id = run_data["runId"]
         sm: AgentStateMachine = run_data["state_machine"]
+        heartbeat_task = None
+        if self.run_queue_factory is not None:
+
+            async def _heartbeat() -> None:
+                while True:
+                    try:
+                        await heartbeat_run(self.run_queue_factory, run_id, self.worker_id)
+                    except Exception:  # noqa: BLE001 — heartbeat must not kill execution
+                        logger.exception("heartbeat failed for run %s", run_id)
+                    await asyncio.sleep(_HEARTBEAT_INTERVAL_SECONDS)
+
+            heartbeat_task = asyncio.create_task(_heartbeat())
         try:
-            result = await asyncio.to_thread(
-                self.engine.execute_goal, goal=plan.goal, session_id=run_id
-            )
-        except asyncio.CancelledError:
-            # Pause keeps the run resumable: no terminal result written. Stop and
-            # other terminal cancellations record an honest 'cancelled' outcome.
-            if run_data.get("_cancel_reason") != "pause":
+            try:
+                result = await asyncio.to_thread(
+                    self.engine.execute_goal, goal=plan.goal, session_id=run_id
+                )
+            except asyncio.CancelledError:
+                # Pause keeps the run resumable: no terminal result written. Stop and
+                # other terminal cancellations record an honest 'cancelled' outcome.
+                if run_data.get("_cancel_reason") != "pause":
+                    run_data["engine_result"] = {
+                        "sessionId": run_id,
+                        "engine": "cancelled",
+                        "status": "cancelled",
+                        "finalResponse": "Execution cancelled via pause/stop.",
+                    }
+                return
+            except Exception as exc:  # noqa: BLE001 — surface engine failures to the UI
                 run_data["engine_result"] = {
                     "sessionId": run_id,
-                    "engine": "cancelled",
-                    "status": "cancelled",
-                    "finalResponse": "Execution cancelled via pause/stop.",
+                    "engine": "error",
+                    "status": "error",
+                    "finalResponse": f"DeepSeek Harness run failed: {exc}",
                 }
-            return
-        except Exception as exc:  # noqa: BLE001 — surface engine failures to the UI
-            run_data["engine_result"] = {
-                "sessionId": run_id,
-                "engine": "error",
-                "status": "error",
-                "finalResponse": f"DeepSeek Harness run failed: {exc}",
-            }
-            # Wave 6 (D4): honest failure lands on the bus and blocks the run
-            # (no-op unless still EXECUTING — pause/stop already told their story).
-            sm.execution_failed(f"DeepSeek Harness run failed: {exc}")
-            return
-        if run_data.get("cancel_requested"):
-            return  # zombie result from a cancelled live call — discard
-        run_data["engine_result"] = result
-        # Wave 6 (D4): engine settled while still EXECUTING → emit + advance.
-        # Completed opens the human done-gate; any other status blocks honestly.
-        summary = str(result.get("finalResponse") or "")
-        status = str(result.get("status") or "")
-        if status == "completed":
-            sm.execution_completed(summary[:4000])
-        else:
-            sm.execution_failed(summary or f"engine status={status or 'unknown'}")
+                # Wave 6 (D4): honest failure lands on the bus and blocks the run
+                # (no-op unless still EXECUTING — pause/stop already told their story).
+                sm.execution_failed(f"DeepSeek Harness run failed: {exc}")
+                return
+            if run_data.get("cancel_requested"):
+                return  # zombie result from a cancelled live call — discard
+            run_data["engine_result"] = result
+            # Wave 6 (D4): engine settled while still EXECUTING → emit + advance.
+            # Completed opens the human done-gate; any other status blocks honestly.
+            summary = str(result.get("finalResponse") or "")
+            status = str(result.get("status") or "")
+            if status == "completed":
+                sm.execution_completed(summary[:4000])
+            else:
+                sm.execution_failed(summary or f"engine status={status or 'unknown'}")
+        finally:
+            if heartbeat_task is not None:
+                heartbeat_task.cancel()
+            if self.run_queue_factory is not None:
+                await finish_run(self.run_queue_factory, run_id)
 
     async def get_engine_result(self, run_id: str) -> dict[str, Any]:
         run_data = await self._ensure_run(run_id)
@@ -409,6 +463,14 @@ class OrchestratorService(Orchestrator):
         sm.resume()  # PAUSED/BLOCKED → EXECUTING (+ RESUMED event); no-op otherwise
         if sm.state is not AgentState.EXECUTING:
             return  # resume from IDLE/DONE/… is a no-op — nothing to resurrect
+        if self.run_queue_factory is not None:
+            queued = await enqueue_run(
+                self.run_queue_factory, run_id, run_data.get("projectId") or ""
+            )
+            if not queued:
+                logger.info("run %s already has a live claim; ignoring double resume", run_id)
+                return
+            return  # worker loop will claim and spawn
         self._spawn_execution(run_data, plan)
 
     async def stop_agent(self, run_id: str) -> None:
@@ -423,6 +485,36 @@ class OrchestratorService(Orchestrator):
         if task is not None and not task.done():
             run_data["cancel_requested"] = True
             task.cancel()
+
+    async def recover_orphans(self) -> list[str]:
+        """Requeue claims whose worker went silent (crash detector)."""
+        if self.run_queue_factory is None:
+            return []
+        return await reclaim_orphans(self.run_queue_factory, stale_seconds=self.stale_seconds)
+
+    async def poll_once(self) -> str | None:
+        """Claim one queued run and spawn its engine task; returns the run_id."""
+        if self.run_queue_factory is None:
+            return None
+        claim = await claim_next_run(self.run_queue_factory, self.worker_id, self.max_per_team)
+        if claim is None:
+            return None
+        run_id = claim["run_id"]
+        run_data = await self._ensure_run(run_id, project_id=claim.get("project_id"))
+        sm: AgentStateMachine = run_data["state_machine"]
+        if sm.state is not AgentState.EXECUTING:
+            await finish_run(self.run_queue_factory, run_id)
+            return None
+        live = run_data.get("task")
+        if live is not None and not live.done():
+            return None
+        plan_id = run_data.get("plan_id")
+        if not plan_id or not self.planner.is_approved(plan_id):
+            logger.error("claimed run %s lacks an approved plan; dropping claim", run_id)
+            await finish_run(self.run_queue_factory, run_id)
+            return None
+        self._spawn_execution(run_data, self.planner.get_plan(plan_id))
+        return run_id
 
     async def submit_human_edit(self, run_id: str, path: str, content: str) -> None:
         run_data = await self._ensure_run(run_id)

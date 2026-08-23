@@ -148,6 +148,43 @@ REAL `docker compose up -d --build` boot (not just static checks):
 Phase 1 remaining: durable run queue (`run_claims` SKIP LOCKED), structured
 JSON logs + request IDs, Prometheus /metrics, secrets hardening.
 
+## Wave 7c (2026-08-23) — durable run queue (crash-resumable execution)
+
+Implemented by Codex CLI (`--profile ox`) from
+docs/briefs/2026-08-23-p1c-durable-run-queue.md; diff reviewed and independently
+re-verified by ox-alpha, which caught and fixed one production-breaking defect
+in the delegation's output (asyncpg rejects ISO strings for TIMESTAMPTZ —
+verified live against the compose Postgres before fixing; `_persist_plan` now
+binds real datetime objects, ISO text remains reserved for text-compared
+columns).
+
+1. **P1-QUEUE DONE (S4 + migration 0006)**: `run_claims` table
+   (queued/running/orphaned, TEXT ISO timestamps, no FK — claims may precede
+   the lazy `agent_runs` insert). Store `run_queue.py`: enqueue with
+   orphan-requeue + double-start guard; ONE atomic FIFO claim statement with a
+   per-team running-count cap (`projects` join); worker-guarded heartbeats;
+   finish-on-settle; `reclaim_orphans` flips stale heartbeats (90s default,
+   10s heartbeat cadence) — a killed container's runs become claimable again.
+2. **Service integration**: start/resume enqueue instead of spawning when a
+   factory is present; the SM stays EXECUTING exactly as before; `_execute`
+   heartbeats and finish-runs in `finally`; `poll_once()` rehydrates the
+   claimed run (crashed-process EXECUTING-with-dead-task is precisely the
+   resurrection case) and drops claims for PAUSED-rehydrated runs honestly;
+   bare unit mode (no factory) spawns directly — every pre-existing suite
+   untouched and green.
+3. **Worker + deploy**: `RunQueueWorker` loop (recover-on-start, never dies on
+   one bad poll) wired into `app_orchestrator` via startup/shutdown hooks;
+   `HARNESS_RUN_CONCURRENCY` (default 4) and `HARNESS_WORKER_POLL_SECONDS`
+   (default 0.5) env knobs.
+4. Gate: S4 90 passed (8 new queue tests incl. FIFO, team cap, heartbeat
+   guard, orphan requeue, crash-resume story, service enqueue→poll→complete,
+   bare-mode regression); full 8-section sweep 447 passed; ruff clean; TS
+   mirror in sync. Live-PG boot of the new migration happens on next
+   `docker compose up` (migrate one-shot picks up 0006 automatically).
+
+Phase 1 remaining: structured JSON logs + request IDs, Prometheus /metrics,
+reverse proxy/TLS, backup/PITR runbook, secrets hardening.
+
 
 ## Wave 2 (this session) — read docs/GAP_ANALYSIS_AND_FIXES.md for full detail
 

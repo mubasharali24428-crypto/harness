@@ -105,13 +105,35 @@ def app_orchestrator():
     from harness_identity.eventbus import EventBus
     from harness_orchestrator.api import configure_orchestrator, router
     from harness_orchestrator.service import OrchestratorService
+    from harness_orchestrator.worker import RunQueueWorker
+
+    import os
 
     factory = get_factory()
     bus = EventBus(factory)
-    service = OrchestratorService(session_factory=factory, bus=bus)  # F8/H3: persisted + rehydrated
+    service = OrchestratorService(
+        session_factory=factory,
+        bus=bus,
+        max_per_team=int(os.environ.get("HARNESS_RUN_CONCURRENCY", "4")),
+    )  # F8/H3: persisted + rehydrated; Phase 1 durable run queue
     configure_orchestrator(service)
 
+    if service.run_queue_factory is not None:
+        worker = RunQueueWorker(
+            service,
+            poll_interval=float(os.environ.get("HARNESS_WORKER_POLL_SECONDS", "0.5")),
+        )
+
     app = simple_app(router, "harness-orchestrator")
+
+    @app.on_event("startup")
+    async def _start_run_queue_worker():
+        worker.run_forever()
+
+    @app.on_event("shutdown")
+    async def _stop_run_queue_worker():
+        worker.stop()
+
     app.state.get_principal = make_bearer_dep(factory)  # F2: bearer auth on every route
     return app
 
