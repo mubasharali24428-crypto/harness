@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
-from enum import Enum
+from enum import StrEnum
 
 ENGINE_LIVE_MODE_ENV = "ENGINE_LIVE_MODE"
 API_KEY_ENV = "DEEPSEEK_API_KEY"
@@ -47,7 +47,7 @@ MODEL_ENV = "DSH_MODEL"
 REQUIRED_LIVE_ENV_VARS = (API_KEY_ENV, BASE_URL_ENV, MODEL_ENV)
 
 
-class LiveMode(str, Enum):
+class LiveMode(StrEnum):
     """The complete set of engine modes. There is no third option."""
 
     LIVE = "live"

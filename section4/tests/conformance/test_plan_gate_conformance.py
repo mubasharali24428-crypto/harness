@@ -19,9 +19,8 @@ constants these walks consume.
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from harness_contracts.roles import Principal, Role
-
 from fixtures.golden_fixtures import GOLDEN_GOAL, GOLDEN_USER_ID
+from harness_contracts.roles import Principal, Role
 
 from harness_orchestrator.plan_gate import (
     _plan_gate_principal,
