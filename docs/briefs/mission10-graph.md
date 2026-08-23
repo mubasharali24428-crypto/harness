@@ -88,11 +88,11 @@ files are expected — ignore them.
 |---|---|---|---|
 | A1 keys-api | sa-0-84846778 | RUNNING | |
 | A2 keys-page | sa-0-5cd7487d | RUNNING | |
-| A3 cost-dashboard | sa-0-72c44aa7 | BUILD DONE (455s, clean exit) | gate pending |
+| A3 cost-dashboard | sa-0-72c44aa7 | DONE | ✅ shared S7 gate: tsc OK, vitest 65/65; client shapes verified against real summarize_spend wire format |
 | A4 runs-index-api | sa-0-cc8687cb | RUNNING | |
 | A5 runs-page | sa-0-abc6708e | RUNNING | |
 | B1 billing-api | sa-0-2cf37a67 | RUNNING | |
-| B2 billing-page | sa-0-96814f1c | RUNNING | |
+| B2 billing-page | sa-0-96814f1c | DONE | ✅ shared S7 gate: tsc OK, vitest 65/65; flag-off upsell + quota meter per M10-C3; e2e probe deferred to ATLAS merge wiring with B1 backend |
 | B3 onboarding | sa-0-e1ee3262 | RUNNING | |
 | B4 walg-pitr | sa-0-461180a7 | RUNNING (dispatch call timed out at 420s but agent spawned fine) | |
 | B5 rate-limit | sa-0-2bce4bb9 | RUNNING | |
