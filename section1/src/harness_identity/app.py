@@ -241,10 +241,6 @@ async def me(principal: Annotated[object, Depends(get_principal)]) -> dict:
     return principal.model_dump()
 
 
-class InviteBody(BaseModel):
-    email: str
-
-
 class CreateProjectBody(BaseModel):
     name: str
     repoFullName: str | None = None
@@ -324,43 +320,10 @@ async def add_agent_seat(
         return {"seat": {"id": member.id, "displayName": member.display_name, "role": member.role}}
 
 
-@router.post("/teams/{team_id}/members/invite")
-async def invite_member(
-    team_id: str,
-    body: InviteBody,
-    request: Request,
-    principal: Annotated[object, Depends(get_principal)],
-) -> dict:
-    """Admin invites a teammate by email (MVP: basic email invite; engineer role)."""
-    from .models import User
-
-    if principal.teamId != team_id or principal.role != Role.ADMIN:
-        raise HTTPException(status_code=403, detail="admin of this team only")
-    async with request.app.state.session_factory() as db:
-        user = (
-            await db.execute(
-                select(User).where(User.email == body.email.lower().strip())
-            )
-        ).scalar_one_or_none()
-        if user is None:
-            user = User(email=body.email.lower().strip(), name=body.email.split("@")[0])
-            db.add(user)
-            await db.flush()
-        existing = (
-            await db.execute(
-                select(TeamMember).where(
-                    TeamMember.team_id == team_id, TeamMember.user_id == user.id
-                )
-            )
-        ).scalar_one_or_none()
-        if existing:
-            raise HTTPException(status_code=409, detail="already a member")
-        member = TeamMember(
-            team_id=team_id, user_id=user.id, display_name=user.name, role=Role.ENGINEER.value
-        )
-        db.add(member)
-        await db.commit()
-        return {"member": {"userId": user.id, "role": member.role}}
+# C-001 (M11-W1-A1): the legacy direct-add invite endpoint was REMOVED —
+# it attached any pre-created user to a team as ENGINEER with no consent
+# (cross-team account injection). Team joining goes exclusively through the
+# token flow in invites.py (mint → redeem), which is audited via audit_emit.
 
 
 class WsTicketRequest(BaseModel):

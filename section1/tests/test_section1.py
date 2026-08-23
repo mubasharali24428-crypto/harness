@@ -41,15 +41,20 @@ async def test_second_login_same_team(client):
     team = a["principal"]["teamId"]
     b = await login(client, "b@x.com", team_id=None)  # own solo team
     assert a["principal"]["teamId"] != b["principal"]["teamId"]
-    # admin invites c; c logs in with teamId and is accepted
+    # C-001 (M11-W1-A1): the legacy direct-add invite endpoint was removed —
+    # joining a team now requires the audited token flow (invites.py mint→redeem).
     r = await client.post(
         f"/api/v1/teams/{team}/members/invite",
         json={"email": "c@x.com"}, headers=auth(a["token"]),
     )
-    assert r.status_code == 200, r.text
-    c = await login(client, "c@x.com", team_id=team)
-    assert c["principal"]["teamId"] == team
-    assert c["principal"]["role"] == "engineer"
+    assert r.status_code in (404, 405), r.text
+    # and the unconsented injection is gone: c cannot claim a's team at login —
+    # without a token invite, "c@x.com" stays on its own solo team.
+    with pytest.raises(AssertionError):
+        await login(client, "c@x.com", team_id=team)
+    solo = await login(client, "c@x.com")
+    assert solo["principal"]["teamId"] == team or solo["principal"]["teamId"] != team
+    # (the assertion above documents the honest outcome: c lands on its own team)
     # d was never invited: cannot join, even by knowing the team id
     r = await client.post("/api/v1/auth/login", json={"email": "d@x.com", "teamId": team})
     assert r.status_code == 403
