@@ -87,7 +87,7 @@ files are expected — ignore them.
 | Node | Agent | State | Gate verdict |
 |---|---|---|---|
 | A1 keys-api | sa-0-84846778 | RUNNING | |
-| A2 keys-page | sa-0-5cd7487d | RUNNING | |
+| A2 keys-page | sa-0-5cd7487d | DONE | ✅ shared S7 gate: tsc OK, vitest 65/65; M10-C1 client shapes + a11y patterns verified in report |
 | A3 cost-dashboard | sa-0-72c44aa7 | DONE | ✅ shared S7 gate: tsc OK, vitest 65/65; client shapes verified against real summarize_spend wire format |
 | A4 runs-index-api | sa-0-cc8687cb | RUNNING | |
 | A5 runs-page | sa-0-abc6708e | RUNNING | |
