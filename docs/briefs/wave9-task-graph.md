@@ -135,8 +135,8 @@ it appends to services.py which depends on nothing else changing there).
 | Node | Agent | State | Verification | Merged |
 |------|-------|-------|--------------|--------|
 | A cost-metering | sa-0-7c6cf890 (re-dispatch x1: first attempt 17m explore then provider 503, ZERO writes) | RUNNING | | |
-| B budget-caps | sa-0-6de4391e (re-dispatch; first attempt died on provider HTTP 503, zero writes) | RUNNING | | |
-| C orgs-invites-ui | sa-0-fd81870d | RUNNING | | |
+| B budget-caps | sa-0-6de4391e (re-dispatch; first attempt died on provider HTTP 503, zero writes) | DONE | ✅ ox-alpha rerun: unit 22/22, ruff clean, migration shape OK; live-exercised check_budget (unlimited/zero-cap/env-cap all correct); S4 sweep 123 passed + 1 pre-existing flaky live-probe failure (OpenRouter upstream outage → D2 honesty guard, unrelated to B); footprint = owned files only | |
+| C orgs-invites-ui | sa-0-047fd239 (re-dispatch x1: first attempt died on 300s API timeout after 27m, ZERO writes) | RUNNING | | |
 | D notifications | sa-0-94bcf563 (re-dispatch; first attempt died on provider HTTP 503, zero writes) | RUNNING | | |
 | E secrets-headers | sa-0-3df6c3ba | RUNNING | | |
 
