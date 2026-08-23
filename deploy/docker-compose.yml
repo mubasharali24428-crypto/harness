@@ -1,5 +1,41 @@
 name: harness
 
+x-backend-build: &backend-build
+  build:
+    context: ..
+    dockerfile: deploy/backend.Dockerfile
+
+x-backend-env: &backend-env
+  HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@db:5432/harness
+  HARNESS_MASTER_KEY: ${HARNESS_MASTER_KEY:-dev-master-key-change-me-in-prod!}
+  HARNESS_ALLOW_DEV_MASTER_KEY: ${HARNESS_ALLOW_DEV_MASTER_KEY:-1}
+  HARNESS_CORS_ORIGINS: ${HARNESS_CORS_ORIGINS:-["http://localhost:3000"]}
+  HARNESS_REQUIRE_OWNERSHIP: ${HARNESS_REQUIRE_OWNERSHIP:-false}
+  DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-ollama}
+  DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-http://host.docker.internal:11434/v1}
+  DSH_MODEL: ${DSH_MODEL:-qwen3.5-9b-128k:latest}
+  DSH_WORKSPACE: /tmp/harness-dsh/workspace
+  DSH_SESSION_ROOT: /tmp/harness-dsh/sessions
+  GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+  GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+  # S2's Settings use the HARNESS_ prefix — map the well-known names across.
+  HARNESS_GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+  HARNESS_GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+  HARNESS_FRONTEND_BASE: ${FRONTEND_BASE:-http://localhost:3000}
+  HARNESS_GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:8002/api/v1/github/oauth/callback}
+  HARNESS_SMTP_HOST: ${HARNESS_SMTP_HOST:-}
+  HARNESS_SMTP_PORT: ${HARNESS_SMTP_PORT:-587}
+  HARNESS_SMTP_USERNAME: ${HARNESS_SMTP_USERNAME:-}
+  HARNESS_SMTP_PASSWORD: ${HARNESS_SMTP_PASSWORD:-}
+  HARNESS_SMTP_FROM: ${HARNESS_SMTP_FROM:-harness@noreply.local}
+  HARNESS_SMTP_STARTTLS: ${HARNESS_SMTP_STARTTLS:-true}
+
+x-backend-depends: &backend-depends
+  migrate:
+    condition: service_completed_successfully
+  db:
+    condition: service_healthy
+
 services:
   db:
     image: postgres:18-alpine
@@ -22,44 +58,27 @@ services:
       timeout: 3s
       retries: 15
 
-  backend:
-    build:
-      context: ..
-      dockerfile: deploy/backend.Dockerfile
+  migrate:
+    <<: *backend-build
     environment:
-      HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@db:5432/harness
-      HARNESS_MASTER_KEY: ${HARNESS_MASTER_KEY:-dev-master-key-change-me-in-prod!}
-      HARNESS_ALLOW_DEV_MASTER_KEY: ${HARNESS_ALLOW_DEV_MASTER_KEY:-1}
-      HARNESS_CORS_ORIGINS: ${HARNESS_CORS_ORIGINS:-["http://localhost:3000"]}
-      HARNESS_REQUIRE_OWNERSHIP: ${HARNESS_REQUIRE_OWNERSHIP:-false}
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-ollama}
-      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-http://host.docker.internal:11434/v1}
-      DSH_MODEL: ${DSH_MODEL:-qwen3.5-9b-128k:latest}
-      DSH_WORKSPACE: /tmp/harness-dsh/workspace
-      DSH_SESSION_ROOT: /tmp/harness-dsh/sessions
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
-      # S2's Settings use the HARNESS_ prefix — map the well-known names across.
-      HARNESS_GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
-      HARNESS_GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
-      HARNESS_FRONTEND_BASE: ${FRONTEND_BASE:-http://localhost:3000}
-      HARNESS_GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-http://localhost:8002/api/v1/github/oauth/callback}
-      HARNESS_SMTP_HOST: ${HARNESS_SMTP_HOST:-}
-      HARNESS_SMTP_PORT: ${HARNESS_SMTP_PORT:-587}
-      HARNESS_SMTP_USERNAME: ${HARNESS_SMTP_USERNAME:-}
-      HARNESS_SMTP_PASSWORD: ${HARNESS_SMTP_PASSWORD:-}
-      HARNESS_SMTP_FROM: ${HARNESS_SMTP_FROM:-harness@noreply.local}
-      HARNESS_SMTP_STARTTLS: ${HARNESS_SMTP_STARTTLS:-true}
+      <<: *backend-env
+      HARNESS_SERVICE: migrate
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  identity:
+    <<: *backend-build
+    environment:
+      <<: *backend-env
+      HARNESS_SERVICE: identity
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
       - "8001:8001"
-      - "8002:8002"
-      - "8003:8003"
-      - "8004:8004"
-      - "8005:8005"
-      - "8006:8006"
-      - "8008:8008"
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)\""]
       interval: 5s
@@ -67,9 +86,115 @@ services:
       retries: 12
       start_period: 20s
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
+    depends_on: *backend-depends
+
+  github:
+    <<: *backend-build
+    environment:
+      <<: *backend-env
+      HARNESS_SERVICE: github
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8002:8002"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=3)\""]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    depends_on: *backend-depends
+
+  models:
+    <<: *backend-build
+    environment:
+      <<: *backend-env
+      HARNESS_SERVICE: models
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8003:8003"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8003/health', timeout=3)\""]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    depends_on: *backend-depends
+
+  orchestrator:
+    <<: *backend-build
+    environment:
+      <<: *backend-env
+      HARNESS_SERVICE: orchestrator
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8004:8004"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8004/health', timeout=3)\""]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    depends_on: *backend-depends
+
+  sandbox:
+    <<: *backend-build
+    environment:
+      <<: *backend-env
+      HARNESS_SERVICE: sandbox
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8005:8005"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8005/health', timeout=3)\""]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    depends_on: *backend-depends
+
+  meeting:
+    <<: *backend-build
+    environment:
+      <<: *backend-env
+      HARNESS_SERVICE: meeting
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8006:8006"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8006/health', timeout=3)\""]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    depends_on: *backend-depends
+
+  review:
+    <<: *backend-build
+    environment:
+      <<: *backend-env
+      HARNESS_SERVICE: review
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8008:8008"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8008/health', timeout=3)\""]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    depends_on: *backend-depends
 
   frontend:
     build:
@@ -86,7 +211,7 @@ services:
       - "3000:3000"
     restart: unless-stopped
     depends_on:
-      backend:
+      identity:
         condition: service_healthy
 
 volumes:

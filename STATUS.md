@@ -120,6 +120,34 @@ the delegation's output (see below).
 Next Phase 1 candidates: split-container compose shape (brief drafted),
 durable run queue (`run_claims` SKIP LOCKED), structured logs/metrics.
 
+## Wave 7b (2026-08-23) — split-container deployment, live-proven
+
+Implemented by Codex CLI (`--profile ox`) from
+docs/briefs/2026-08-23-p1b-split-container.md; verified by ox-alpha against a
+REAL `docker compose up -d --build` boot (not just static checks):
+
+1. **P1-SPLIT DONE**: one image, service selected by `HARNESS_SERVICE`
+   (`migrate|identity|github|models|orchestrator|sandbox|meeting|review`).
+   entrypoint.sh: unknown values fail fast; `migrate` runs schema+seed then
+   exits 0; single-service mode execs ONE uvicorn on its port (workspace copy
+   only for sandbox/orchestrator); unset var keeps the legacy all-in-one flow
+   byte-identical. docker-compose.yml: YAML anchors (`x-backend-build/env/
+   depends`) expand into db + migrate (one-shot, restart:no) + seven services,
+   each with its own port and self healthcheck, all gated on
+   `service_completed_successfully` from migrate; frontend now waits on
+   identity. services.py unchanged (factory names already matched).
+2. **Live proof (this session)**: full stack booted split — migrate applied
+   0005_ephemeral_state.sql to real Postgres then exited; all seven backends
+   healthy on their own ports + frontend 200; unauthenticated calls to S5/S6/S8
+   → 401 (D6 holds in containers); login → ws-ticket mint → WS upgrade with
+   ticket CONNECTED, replay of the same ticket rejected (single-use across
+   processes, P1-XSTATE proven live); authed meeting create on :8006 → 201.
+3. Ops note: re-running `docker compose run --rm migrate` after creating new
+   teams seeds their starter project (idempotent) — used during live probing.
+
+Phase 1 remaining: durable run queue (`run_claims` SKIP LOCKED), structured
+JSON logs + request IDs, Prometheus /metrics, secrets hardening.
+
 
 ## Wave 2 (this session) — read docs/GAP_ANALYSIS_AND_FIXES.md for full detail
 
