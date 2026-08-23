@@ -90,7 +90,7 @@ files are expected — ignore them.
 | A2 keys-page | sa-0-5cd7487d | DONE | ✅ shared S7 gate: tsc OK, vitest 65/65; M10-C1 client shapes + a11y patterns verified in report |
 | A3 cost-dashboard | sa-0-72c44aa7 | DONE | ✅ shared S7 gate: tsc OK, vitest 65/65; client shapes verified against real summarize_spend wire format |
 | A4 runs-index-api | sa-0-cc8687cb | RUNNING | |
-| A5 runs-page | sa-0-abc6708e | RUNNING | |
+| A5 runs-page | sa-0-abc6708e | DONE | ✅ ATLAS rerun after landing: tsc OK, vitest 65/65; footprint = 2 owned files; M10-C2 client w/ server-driven paging, honest empty states |
 | B1 billing-api | sa-0-2cf37a67 | RUNNING | |
 | B2 billing-page | sa-0-96814f1c | DONE | ✅ shared S7 gate: tsc OK, vitest 65/65; flag-off upsell + quota meter per M10-C3; e2e probe deferred to ATLAS merge wiring with B1 backend |
 | B3 onboarding | sa-0-e1ee3262 | RUNNING | |
