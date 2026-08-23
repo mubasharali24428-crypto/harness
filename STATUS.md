@@ -1,5 +1,43 @@
 # STATUS — where the project stands (updated 2026-08-22, end of wave 4)
 
+## Wave 9 (2026-08-23) — Phase 2 SaaS core begins: metering, budgets, orgs, notifications, security headers
+
+Five parallel subagent nodes (graph: docs/briefs/wave9-task-graph.md, baseline
+6d5e52c). Three first attempts died to provider outages (HTTP 503 ×2, 300s API
+timeout ×1) with ZERO tree writes each — all re-dispatched and completed. Every
+node's delivery was independently re-verified by the orchestrator (own test
+reruns + live probes), then two merge wirings landed:
+
+1. **P2-METER (S3)** — cost_ledger has real writers: record_usage on every
+   successful call_model, fire-and-forget swallow-on-failure;
+   GET /api/v1/models/spend aggregates totals/byModel/byDay; app_models now
+   boots an asyncpg ledger pool at startup and drains pending writes on
+   shutdown. S3 66 passed.
+2. **P2-BUDGET (S4)** — check_budget enforced pre-spawn and on reviewer model
+   calls; cap = teams.budget_usd (migration 0007) > HARNESS_TEAM_BUDGET_USD >
+   unlimited; over-cap ⇒ honest blocked event. S4 123 passed + 1 known flake
+   (LIVEPROBE OpenRouter outage during this session — D2 honesty guard working,
+   unrelated).
+3. **P2-ORGS (S1+S7)** — team_invites (0008) with hashed tokens, admin-only
+   mint/revoke, atomic redeem (404/409/410 honest codes), members roster;
+   S7 /settings/team page (roles pills, invite form, revoke, join-by-token);
+   verified against live Postgres. S1 105 passed; S7 vitest 58 passed.
+4. **P2-NOTIF (S1+deploy)** — notification_outbox (0009); templates
+   run_finished(←engine_completed)/review_failed/pr_opened; worker drains with
+   max 3 attempts; dev mode offline-green; EventBus gained a disclosed,
+   exception-guarded listener tap so notifications can never break publishing.
+5. **SEC-HEADERS (all apps + CI)** — crypto audit verdict NO GAP (regression-
+   tested); pure-ASGI middleware (nosniff/DENY/referrer everywhere, HSTS only
+   behind HARNESS_TLS_ENABLED=1, report-only CSP on HTML) wired into
+   S1/S4/S5/S6/S8 factories; ci.yml gained security-scan job (pip-audit WARN +
+   gitleaks).
+
+Merge wirings by orchestrator: invites router registered in app.py;
+set_ledger_pool wired in app_models. Gate sweep: **7 sections pytest green
+(105+19+66+124+119+38+38 incl. skips), ruff clean everywhere, compose config
+valid**. Known-open follow-ups: WAL-G PITR (runbook documents it), real TLS
+certs (needs domain), Stripe billing flag, BYO keys UI.
+
 ## Working right now
 
 - `docker compose -f deploy/docker-compose.yml up` → healthy stack (PG + 7

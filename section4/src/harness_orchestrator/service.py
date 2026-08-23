@@ -10,6 +10,7 @@ from harness_contracts.events import EventType
 from harness_contracts.plan import AgentPlan
 from harness_contracts.signatures import Orchestrator
 
+from harness_orchestrator.budget import BudgetStatus, check_budget
 from harness_orchestrator.engine import DeepSeekHarnessWrapper
 from harness_orchestrator.planner import PlanNotApprovedError, PlanService
 from harness_orchestrator.reviewer import ReviewerSubAgent, ReviewFindings
@@ -148,6 +149,76 @@ class OrchestratorService(Orchestrator):
             await self.bus.publish(event_type, project_id, dict(payload), run_id)
         except Exception:  # noqa: BLE001 — delivery must never break orchestration
             logger.exception("eventbus publish failed for run %s", run_id)
+
+    # ------------------------------------------------------------- budget
+
+    async def _budget_gate(self, run_data: dict[str, Any], plan: AgentPlan | None) -> bool:
+        """Wave 9 node B: refuse to spend before a model call happens.
+
+        Returns True when the team is over budget (run blocked honestly via
+        ENGINE_FAILED — a frozen contract event). Any budget-read failure
+        degrades to "allowed" so an outage cannot brick orchestration.
+        """
+        factory = self.run_queue_factory or self.session_factory
+        if factory is None:
+            return False  # bare in-memory mode: nothing to aggregate against
+        team_id = await self._team_for_run(run_data)
+        if not team_id:
+            return False  # unbindable run: no cap applies
+        status: BudgetStatus = await check_budget(
+            factory,
+            team_id,
+            estimated_call_cost_usd=(
+                float(plan.estimatedCostUsd) if plan is not None else None
+            ),
+        )
+        if status.allowed:
+            return False
+        reason = f"Budget cap reached: {status.reason}"
+        logger.warning("blocking run %s pre-call: %s", run_data.get("runId"), reason)
+        sm: AgentStateMachine = run_data["state_machine"]
+        sm.execution_failed(reason)
+        return True
+
+    async def _team_for_run(self, run_data: dict[str, Any]) -> str | None:
+        """Resolve the owning team id for a run (agent_runs → projects → teams).
+
+        Prefers the run record's project_id; rehydrates it from agent_runs
+        when this process never saw the bind. Read-only, failure-tolerant.
+        """
+        project_id = run_data.get("projectId")
+        factory = self.run_queue_factory or self.session_factory
+        if factory is None:
+            return None
+        from sqlalchemy import text
+
+        try:
+            async with factory() as db:
+                if project_id:
+                    row = (
+                        await db.execute(
+                            text("SELECT team_id FROM projects WHERE id = :p"),
+                            {"p": project_id},
+                        )
+                    ).first()
+                    if row is not None:
+                        return row.team_id
+                run_id = run_data.get("runId")
+                if not run_id:
+                    return None
+                row = (
+                    await db.execute(
+                        text(
+                            "SELECT p.team_id AS team_id FROM agent_runs r "
+                            "JOIN projects p ON r.project_id = p.id WHERE r.id = :r"
+                        ),
+                        {"r": run_id},
+                    )
+                ).first()
+                return row.team_id if row is not None else None
+        except Exception:  # noqa: BLE001 — ownership lookup must never crash a run
+            logger.exception("team lookup failed for run %s", run_data.get("runId"))
+            return None
 
     # ------------------------------------------------------------------- runs
 
@@ -375,6 +446,8 @@ class OrchestratorService(Orchestrator):
 
             heartbeat_task = asyncio.create_task(_heartbeat())
         try:
+            if await self._budget_gate(run_data, plan):  # Wave 9 B: no model call over cap
+                return
             try:
                 result = await asyncio.to_thread(
                     self.engine.execute_goal, goal=plan.goal, session_id=run_id
@@ -513,7 +586,11 @@ class OrchestratorService(Orchestrator):
             logger.error("claimed run %s lacks an approved plan; dropping claim", run_id)
             await finish_run(self.run_queue_factory, run_id)
             return None
-        self._spawn_execution(run_data, self.planner.get_plan(plan_id))
+        plan = self.planner.get_plan(plan_id)
+        if await self._budget_gate(run_data, plan):  # Wave 9 B: never spawn over cap
+            await finish_run(self.run_queue_factory, run_id)
+            return None
+        self._spawn_execution(run_data, plan)
         return run_id
 
     async def submit_human_edit(self, run_id: str, path: str, content: str) -> None:
@@ -530,9 +607,25 @@ class OrchestratorService(Orchestrator):
         sm.signal_done()
         self._cancel_live_task(run_data)
 
+        # Wave 9 node B: the reviewer's model_router call is a real spend —
+        # check the cap BEFORE invoking it. Over budget ⇒ no model call; the
+        # reviewer falls back to deterministic heuristics and records why.
+        budget_block: str | None = None
+        factory = self.run_queue_factory or self.session_factory
+        if factory is not None and self.reviewer.model_router is not None:
+            team_id = await self._team_for_run(run_data)
+            if team_id:
+                status: BudgetStatus = await check_budget(factory, team_id)
+                if not status.allowed:
+                    budget_block = status.reason
+                    logger.warning(
+                        "reviewer model call withheld for run %s: %s", run_id, budget_block
+                    )
+
         findings = self.reviewer.evaluate_changes(
             brief_summary=run_data["goal"],
             diff_text=diff_text,
+            budget_blocked_reason=budget_block,
         )
         if findings.passed:
             sm.reviewer_passed(findings.model_dump(by_alias=True))

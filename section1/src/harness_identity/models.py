@@ -274,3 +274,23 @@ class LoginOtp(Base, TimestampMixin):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TeamInvite(Base):
+    """Wave 9 node C: org invite tokens (mirror of 0008_team_invites.sql).
+
+    Raw tokens are shown once at mint time; only SHA-256 digests are stored.
+    """
+
+    __tablename__ = "team_invites"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    team_id: Mapped[str] = mapped_column(ForeignKey("teams.id"), nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(String(20), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    redeemed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

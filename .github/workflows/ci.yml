@@ -116,3 +116,34 @@ jobs:
           HARNESS_DATABASE_URL=postgresql+asyncpg://harness:harness@localhost:5499/harness \
           ./.venv/bin/python -m pytest tests/ -q
         working-directory: section1
+
+  security-scan:
+    # Wave9-E: supply-chain + secret scanning. pip-audit is WARN-posture this
+    # wave (continue-on-error); gitleaks blocks. Do not restructure existing jobs.
+    name: security scan (pip-audit warn + gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # gitleaks scans full history; shallow clones would skip most commits.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install section1 env (audit target)
+        run: |
+          python -m venv .venv
+          ./.venv/bin/pip install -q -e ../contracts -e ".[dev]" \
+            || ./.venv/bin/pip install -q -e ../contracts -e .
+        working-directory: section1
+      - name: pip-audit (WARN only this wave)
+        continue-on-error: true
+        run: |
+          ./.venv/bin/pip install -q pip-audit
+          ./.venv/bin/pip-audit --progress-spinner off
+      - name: gitleaks (official action, blocking)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

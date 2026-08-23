@@ -1,12 +1,16 @@
+import asyncio
+import logging
 import threading
 from collections import defaultdict
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import PlainTextResponse
 from harness_contracts.signatures import ModelCallOpts, ModelResult, ModelRole
 from pydantic import BaseModel, Field
 
+from harness_router import ledger as cost_ledger
 from harness_router.catalog import catalog
 from harness_router.config import MODEL_PRICING_CATALOG
 from harness_router.providers import InvalidApiKeyError, RateLimitExceededError
@@ -17,6 +21,73 @@ from harness_router.service import ModelRouterService
 # even with unbounded agent/project ids in real paths.
 _lock = threading.Lock()
 _requests_total: dict[tuple[str, str], int] = defaultdict(int)
+
+logger = logging.getLogger(__name__)
+
+# Cost-metering pool holder. None until deploy wiring calls set_ledger_pool —
+# metering is then skipped entirely; the call path is never blocked.
+_ledger_pool: list[Any] = [None]
+
+
+def get_ledger_pool() -> Any:
+    """Current cost_ledger pool, or None when metering is not wired."""
+    return _ledger_pool[0]
+
+
+def set_ledger_pool(pool: Any) -> None:
+    """Attach/replace the cost_ledger pool (Section 10 assembly point)."""
+    _ledger_pool[0] = pool
+
+
+# Fire-and-forget usage tasks; kept so tests can drain deterministically and
+# shutdown can attempt a flush. Done-callbacks prune finished entries.
+_usage_tasks: set[asyncio.Task] = set()
+
+
+def pending_usage_tasks() -> tuple[asyncio.Task, ...]:
+    """Currently outstanding usage-recording tasks (test/drain hook)."""
+    return tuple(_usage_tasks)
+
+
+def _estimate_tokens(messages: list[dict[str, str]], response_text: str) -> tuple[int, int]:
+    """Mirror of providers.ModelProviderClient's token accounting (the frozen
+    ModelResult contract carries no token fields): ~4 chars per token."""
+    prompt = " ".join(m.get("content", "") for m in messages)
+    return max(1, len(prompt) // 4), max(1, len(response_text) // 4)
+
+
+def record_call_usage(
+    agent_id: str,
+    role: ModelRole,
+    messages: list[dict[str, str]],
+    result: ModelResult,
+    run_id: str | None = None,
+    pool: Any | None = None,
+) -> asyncio.Task | None:
+    """Fire-and-forget usage recording after a successful model call.
+
+    Schedules ``ledger.record_usage`` on a background task; ledger failures
+    are swallowed inside record_usage and never reach the caller.
+    """
+    pool = pool if pool is not None else _ledger_pool[0]
+    if pool is None:
+        return None
+    input_tokens, output_tokens = _estimate_tokens(messages, result.text)
+    task = asyncio.get_running_loop().create_task(
+        cost_ledger.record_usage(
+            pool,
+            agent_id=agent_id,
+            role=role,
+            model=result.model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            latency_ms=result.latencyMs,
+            run_id=run_id,
+        )
+    )
+    _usage_tasks.add(task)
+    task.add_done_callback(_usage_tasks.discard)
+    return task
 
 
 def _record_request(method: str, path: str) -> None:
@@ -75,9 +146,12 @@ class ConfigureRoleModelRequest(BaseModel):
 
 
 @router.post("/call", response_model=ModelResult, status_code=status.HTTP_200_OK)
-def call_model(req: CallModelRequest) -> ModelResult:
+async def call_model(req: CallModelRequest) -> ModelResult:
     try:
-        return _service.call_model(
+        # Provider call is blocking; keep it off the event loop like the
+        # threadpool the sync def previously ran in.
+        result = await run_in_threadpool(
+            _service.call_model,
             agent_id=req.agentId,
             role=req.role,
             messages=req.messages,
@@ -92,6 +166,49 @@ def call_model(req: CallModelRequest) -> ModelResult:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={"error": {"code": "RATE_LIMIT_EXCEEDED", "message": str(e)}},
+        ) from e
+
+    # Wave 9A: record real usage on every successful provider call. The
+    # recorder swallows ledger failures — it must never break the call path.
+    try:
+        record_call_usage(agent_id=req.agentId, role=req.role, messages=req.messages, result=result)
+    except Exception:  # pragma: no cover - belt & braces around fire-and-forget
+        logger.warning("cost metering scheduling failed; continuing", exc_info=True)
+    return result
+
+
+@router.get("/spend", status_code=status.HTTP_200_OK)
+async def model_spend(
+    teamId: str | None = Query(default=None),
+    projectId: str | None = Query(default=None),
+    sinceDays: int | None = Query(default=None, ge=0),
+) -> dict[str, Any]:
+    """Aggregated spend from cost_ledger: totals, per-model and per-day."""
+    pool = get_ledger_pool()
+    if pool is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": {
+                    "code": "LEDGER_UNAVAILABLE",
+                    "message": "Cost ledger pool is not wired; spend data unavailable.",
+                }
+            },
+        )
+    try:
+        return await cost_ledger.spend_summary(
+            pool,
+            team_id=teamId or None,
+            project_id=projectId or None,
+            since_days=sinceDays,
+        )
+    except Exception as e:
+        logger.warning("spend aggregation failed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": {"code": "LEDGER_QUERY_FAILED", "message": f"Spend query failed: {e}"}
+            },
         ) from e
 
 

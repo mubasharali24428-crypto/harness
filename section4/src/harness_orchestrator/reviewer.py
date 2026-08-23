@@ -31,6 +31,7 @@ class ReviewerSubAgent:
         diff_text: str,
         test_results_summary: str = "passed",
         agent_id: str = "reviewer",
+        budget_blocked_reason: str | None = None,
     ) -> ReviewFindings:
         issues = []
         syntax_ok = True
@@ -52,7 +53,16 @@ class ReviewerSubAgent:
 
         summary = "Review passed cleanly." if passed else f"Review failed: {', '.join(issues)}"
         model_used = None
-        if self.model_router is not None:
+        # Wave 9 node B: over-budget ⇒ NO model call, honestly recorded. The
+        # deterministic heuristics above still gate pass/fail — the review
+        # itself never depended on the model; only its summary does.
+        if budget_blocked_reason is not None:
+            summary = (
+                f"Model call withheld — team budget cap reached ({budget_blocked_reason}). "
+                + summary
+            )
+            issues.append(f"budget_cap_withheld_model_call: {budget_blocked_reason}")
+        elif self.model_router is not None:
             from harness_contracts.signatures import ModelCallOpts, ModelRole
 
             result = self.model_router.call_model(

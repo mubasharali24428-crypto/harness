@@ -39,6 +39,7 @@ class EventBus:
         self._sessions = session_factory
         self._queue_maxsize = subscriber_queue_maxsize
         self._subscribers: dict[str, set[asyncio.Queue[EventEnvelope]]] = {}
+        self._event_listeners: list = []  # wave9D: sync taps on committed envelopes
         self._lock = asyncio.Lock()
         self._listener_task: asyncio.Task | None = None
 
@@ -168,6 +169,13 @@ class EventBus:
 
         async with self._lock:
             queues = list(self._subscribers.get(project_id, ()))
+        for listener in self._event_listeners:
+            try:
+                # Wave 9D: side-channel taps (notification outbox). Must never
+                # delay or break the publisher's fan-out path.
+                listener(envelope)
+            except Exception:  # noqa: BLE001 — a broken tap must never break the bus
+                logger.exception("eventbus event-listener failed on %s", envelope.type)
         dropped = 0
         for q in queues:
             try:
@@ -201,6 +209,14 @@ class EventBus:
     async def unsubscribe(self, project_id: str, q: asyncio.Queue[EventEnvelope]) -> None:
         async with self._lock:
             self._subscribers.get(project_id, set()).discard(q)
+
+    def add_event_listener(self, callback) -> None:
+        """Wave 9D: process-wide tap on every published envelope (all event
+        types, all projects) for side-channel consumers like the notification
+        outbox. Callbacks are plain sync functions invoked AFTER the row is
+        committed; they must never raise or block (see notifier.make_event_notifier).
+        Live-subscriber fan-out is unaffected."""
+        self._event_listeners.append(callback)
 
     async def replay(
         self, project_id: str, after_seq: int = 0, limit: int = REPLAY_DEFAULT_LIMIT

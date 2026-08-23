@@ -87,6 +87,10 @@ def make_app(session_factory, settings: Settings):
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Wave9-E: baseline security headers via shared S1 middleware (append-only wire).
+    from harness_identity.security_headers import install_security_headers
+
+    install_security_headers(app)
     app.state.session_factory = session_factory
     app.state.settings = settings
     app.state.vault = KeyVault(settings.master_key)

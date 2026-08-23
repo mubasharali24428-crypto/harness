@@ -79,6 +79,10 @@ def simple_app(router, title):
         return {"ok": True}
 
     app.include_router(router)
+    # Wave9-E (append): security headers for simple_app consumers (S4/S5).
+    from harness_identity.security_headers import install_security_headers
+
+    install_security_headers(app)
     return app
 
 
@@ -95,9 +99,46 @@ def app_github():
 
 
 def app_models():
-    from harness_router.api import router
+    import asyncio
+    import os
 
-    return simple_app(router, "harness-router")
+    from harness_router.api import (
+        get_ledger_pool,
+        pending_usage_tasks,
+        router,
+        set_ledger_pool,
+    )
+
+    app = simple_app(router, "harness-router")
+
+    # Wave9-A merge wiring: cost metering activates when this service boots
+    # with a database; until then calls succeed unmetered and /spend
+    # answers 503 honestly.
+    dsn = os.environ.get(
+        "HARNESS_DATABASE_URL",
+        "postgresql+asyncpg://harness:harness@db:5432/harness",
+    )
+    if dsn.startswith("postgresql+asyncpg://"):
+        dsn = dsn.replace("postgresql+asyncpg://", "postgresql://", 1)
+
+    @app.on_event("startup")
+    async def _start_cost_ledger_pool() -> None:
+        import asyncpg
+
+        set_ledger_pool(await asyncpg.create_pool(dsn=dsn, min_size=0, max_size=4))
+
+    @app.on_event("shutdown")
+    async def _stop_cost_ledger_pool() -> None:
+        for task in pending_usage_tasks():  # drain in-flight metering writes
+            try:
+                await asyncio.wait_for(asyncio.shield(task), timeout=5)
+            except Exception:  # noqa: BLE001 — ledger must never block shutdown
+                pass
+        pool = get_ledger_pool()
+        if pool is not None:
+            await pool.close()
+
+    return app
 
 
 def app_orchestrator():
@@ -143,6 +184,40 @@ def app_orchestrator():
     @app.on_event("shutdown")
     async def _stop_run_queue_worker():
         worker.stop()
+
+    # ------------------------------------------------------------------
+    # Wave 9 node D — email notifications via the durable outbox.
+    #
+    # Every committed bus envelope is tapped (EventBus.add_event_listener);
+    # run-completion / review-failure / PR-opened events enqueue an
+    # notification_outbox row through a fire-and-forget task — this NEVER
+    # blocks or breaks the event flow. A background NotificationWorker drains
+    # queued rows with backoff: real SMTP when HARNESS_SMTP_HOST is set,
+    # visible dev-log + status=sent otherwise (CI stays offline-green).
+    # Recipient = payload.notifyEmail override, else HARNESS_NOTIFY_EMAIL
+    # (unset => notifications off, rows are simply never enqueued).
+    # ------------------------------------------------------------------
+    from harness_identity.notifier import (
+        NotificationWorker,
+        make_event_notifier,
+    )
+
+    _notify_settings = base_settings()
+    app.state.event_notifier = make_event_notifier(factory, _notify_settings)
+    bus.add_event_listener(app.state.event_notifier)
+    _notification_worker = NotificationWorker(
+        factory,
+        settings=_notify_settings,
+        poll_interval=float(os.environ.get("HARNESS_NOTIFY_POLL_SECONDS", "30")),
+    )
+
+    @app.on_event("startup")
+    async def _start_notification_worker():
+        _notification_worker.start()
+
+    @app.on_event("shutdown")
+    async def _stop_notification_worker():
+        _notification_worker.stop()
 
     app.state.get_principal = make_bearer_dep(factory)  # F2: bearer auth on every route
     return app
@@ -206,6 +281,10 @@ def app_meeting():
         return {"ok": True}
 
     app.state.get_principal = make_bearer_dep(factory)
+    # Wave9-E (append): security headers on the meeting app (S6).
+    from harness_identity.security_headers import install_security_headers
+
+    install_security_headers(app)
     app.include_router(router)
     return app
 
@@ -257,6 +336,10 @@ def app_review():
     async def health():
         return {"ok": True}
 
+    # Wave9-E (append): security headers on the review app (S8).
+    from harness_identity.security_headers import install_security_headers
+
+    install_security_headers(app)
     app.include_router(review_router)
     return app
 

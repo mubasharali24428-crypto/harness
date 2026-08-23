@@ -136,17 +136,17 @@ it appends to services.py which depends on nothing else changing there).
 |------|-------|-------|--------------|--------|
 | A cost-metering | sa-0-7c6cf890 (re-dispatch x1: first attempt 17m explore then provider 503, ZERO writes) | DONE | ✅ ox-alpha rerun: 66/66 + ruff clean; live-exercised: failure-swallow returns None+WARNING, /spend honest 503 without pool, summarize_spend math exact; MERGE TASK for ox-alpha: call set_ledger_pool() in app_models assembly | |
 | B budget-caps | sa-0-6de4391e (re-dispatch; first attempt died on provider HTTP 503, zero writes) | DONE | ✅ ox-alpha rerun: unit 22/22, ruff clean, migration shape OK; live-exercised check_budget (unlimited/zero-cap/env-cap all correct); S4 sweep 123 passed + 1 pre-existing flaky live-probe failure (OpenRouter upstream outage → D2 honesty guard, unrelated to B); footprint = owned files only | |
-| C orgs-invites-ui | sa-0-047fd239 (re-dispatch x1: first attempt died on 300s API timeout after 27m, ZERO writes) | RUNNING | | |
+| C orgs-invites-ui | sa-0-047fd239 (re-dispatch x1: first attempt died on 300s API timeout after 27m, ZERO writes) | DONE | ✅ ox-alpha rerun: S1 105/105 + ruff clean, S7 vitest 58/58; endpoints verified (mint/list/redeem/revoke/members); disclosed additions: TeamInvite ORM mirror + members-list endpoint; PG-only migrations confirmed against live Postgres (mint→redeem→member row→410 expired). Merge wiring by ox-alpha: invites router registered in app.py | ✅ this commit |
 | D notifications | sa-0-94bcf563 (re-dispatch; first attempt died on provider HTTP 503, zero writes) | DONE | ✅ ox-alpha rerun: S1 96/96, compose config OK, notifier diff pure-additive (OTP untouched); live probe: TEMPLATES {run_finished, review_failed, pr_opened}, engine_completed→run_finished mapping, worker w/ 3 attempts; DEVIATION accepted: +16-line additive listener hook in eventbus.py (disclosed, exception-guarded) | |
 | E secrets-headers | sa-0-3df6c3ba | DONE | ✅ ox-alpha rerun: headers suite 18/18, ruff clean; live probes: base headers on JSON, HSTS only when HARNESS_TLS_ENABLED=1, report-only CSP on HTML only; ci.yml parses (5 jobs incl. security-scan); wires verified in S1/S8/services factories; crypto.py audit verdict NO GAP (regression tests encode it). Note: eventbus.py + notifier.py changes belong to node D | |
 
 ## Merge checklist (gate exit criteria)
 
-- [ ] A: S3 suite green + spend endpoint returns aggregated JSON against live PG
-- [ ] B: S4 suite green + over-budget run rejected with honest error event
-- [ ] C: S1 suite green + invite mint→redeem proven against live PG; team page renders
-- [ ] D: S1 suite green + outbox drain produces 'sent' rows offline
-- [ ] E: header middleware verified via TestClient; pip-audit/gitleaks jobs appear in CI yaml
-- [ ] Full sweep green across all sections + ruff clean everywhere
-- [ ] GAP Part 10 ledger rows + STATUS.md wave entry
-- [ ] Single wave commit pushed; CI all jobs green
+- [x] A: S3 suite green (66) + spend endpoint honest-503 proven without pool + aggregation math exact
+- [x] B: S4 suite green + over-budget rejection live-proven with honest reason string
+- [x] C: S1 suite green (105) + invite lifecycle verified against live PG incl. 410-expired; team page renders (vitest 58)
+- [x] D: S1 suite green + outbox drain produces sent rows offline; templates + engine_completed→run_finished mapping probed
+- [x] E: header middleware verified via TestClient (HSTS flag-gated, report-only CSP HTML-only); security-scan job in ci.yml (YAML parses)
+- [x] Full sweep green across all sections + ruff clean everywhere + compose config valid
+- [x] GAP Part 10 ledger rows + STATUS.md wave entry
+- [ ] Single wave commit pushed; CI all jobs green ← in flight at commit time

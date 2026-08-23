@@ -81,6 +81,12 @@ def make_app(session_factory, settings: Settings):
     app.state.notifier = make_notifier(settings)
     register_append_only_guard()
 
+    # Wave9-E: baseline security headers (nosniff/DENY/referrer, HSTS behind
+    # HARNESS_TLS_ENABLED, report-only CSP on HTML).
+    from .security_headers import install_security_headers
+
+    install_security_headers(app)
+
     @app.get("/health")
     async def health(request: Request, deep: int = 0):
         if not deep:
@@ -96,6 +102,13 @@ def make_app(session_factory, settings: Settings):
         return {"ok": True, "db": "ok"}
 
     app.include_router(router)
+
+    # Wave9-C merge wiring: token-based team invites + members roster
+    # (invites.py exposes its own APIRouter; legacy direct-add invite on the
+    # main router lives at a different path — both coexist).
+    from .invites import router as invites_router
+
+    app.include_router(invites_router)
     return app
 
 
