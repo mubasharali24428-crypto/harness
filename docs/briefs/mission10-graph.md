@@ -86,16 +86,16 @@ files are expected — ignore them.
 
 | Node | Agent | State | Gate verdict |
 |---|---|---|---|
-| A1 keys-api | — | PENDING | |
-| A2 keys-page | — | PENDING | |
-| A3 cost-dashboard | — | PENDING | |
-| A4 runs-index-api | — | PENDING | |
-| A5 runs-page | — | PENDING | |
-| B1 billing-api | — | PENDING | |
-| B2 billing-page | — | PENDING | |
-| B3 onboarding | — | PENDING | |
-| B4 walg-pitr | — | PENDING | |
-| B5 rate-limit | — | PENDING | |
+| A1 keys-api | sa-0-84846778 | RUNNING | |
+| A2 keys-page | sa-0-5cd7487d | RUNNING | |
+| A3 cost-dashboard | sa-0-72c44aa7 | BUILD DONE (455s, clean exit) | gate pending |
+| A4 runs-index-api | sa-0-cc8687cb | RUNNING | |
+| A5 runs-page | sa-0-abc6708e | RUNNING | |
+| B1 billing-api | sa-0-2cf37a67 | RUNNING | |
+| B2 billing-page | sa-0-96814f1c | RUNNING | |
+| B3 onboarding | sa-0-e1ee3262 | RUNNING | |
+| B4 walg-pitr | sa-0-461180a7 | RUNNING (dispatch call timed out at 420s but agent spawned fine) | |
+| B5 rate-limit | sa-0-2bce4bb9 | RUNNING | |
 
 ## Merge checklist (gate exit criteria)
 
