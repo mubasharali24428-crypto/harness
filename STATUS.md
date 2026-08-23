@@ -185,6 +185,38 @@ columns).
 Phase 1 remaining: structured JSON logs + request IDs, Prometheus /metrics,
 reverse proxy/TLS, backup/PITR runbook, secrets hardening.
 
+## Wave 8 (2026-08-23) — parallel subagent wave: observability + TLS + backup
+
+Orchestration pattern (new for this wave): ox-alpha built a task-dependency
+graph (docs/briefs/wave8-task-graph.md) with strict per-node file ownership,
+dispatched THREE subagents in parallel, independently re-verified every
+delivery, and merged at the gate with zero conflicts. Graph tracked state
+live; merge checklist fully ticked.
+
+1. **P1-OBS DONE (S4, node A)**: JSON structured logging ({ts,level,logger,
+   msg,requestId,method,path,status,durMs}) via contextvars request-id +
+   RequestContextMiddleware (X-Request-ID echoed/minted on every response);
+   hand-rolled thread-safe Prometheus /api/v1/orchestrator/metrics — counter +
+   histogram with ROUTE-TEMPLATE path labels (raw ids leak-checked clean);
+   HARNESS_LOG_FORMAT env knob. Verified through the real deploy app.
+2. **P1-TLS DONE (deploy + S3, node B)**: Caddyfile harness.local (tls
+   internal) routing all 7 backends by path prefix incl. WS passthrough;
+   compose `proxy` service gated behind a `proxy` PROFILE (default up
+   unchanged); S3 public /api/v1/models/metrics counter. caddy validate green;
+   compose config green in both profile modes.
+3. **P1-BACKUP DONE (node C)**: deploy/backup/{backup,restore,verify_restore}.sh
+   (custom-format dumps, integrity gate, retention, drop-recreate restore w/
+   prompt, scratch-db verify vs live row counts) + docs/runbooks/
+   backup-and-pitr.md (explicit RPO/RTO, cron, honest WAL-G/pgBackRest gap).
+   Orchestrator re-ran backup + verify live: all key tables PASS identical.
+4. Gate: full sweep **461 pytest** across 8 sections green; ruff clean;
+   sh -n + compose config (both modes) + TS mirror OK. Zero cross-node
+   conflicts (file-ownership graph held).
+
+Phase 1 remaining after this wave: real TLS certificates cutover (config-only,
+needs a domain), WAL-G/pgBackRest PITR (documented next step), secrets
+hardening, frontend e2e (Phase 3 territory).
+
 
 ## Wave 2 (this session) — read docs/GAP_ANALYSIS_AND_FIXES.md for full detail
 

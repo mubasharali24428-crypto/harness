@@ -1,0 +1,3 @@
+# Snapshots are machine-generated and can be huge — never commit.
+*
+!.gitignore

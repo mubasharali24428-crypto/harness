@@ -1,0 +1,51 @@
+# Wave 8B — TLS reverse proxy for the AI Engineering Harness.
+#
+# Site: https://harness.local (TLS via Caddy's internal CA — dev only).
+# Routing: exact /api/v1/* prefix table -> per-section backends (WS included;
+# Caddy reverse_proxy upgrades WebSocket connections automatically). Anything
+# unmatched answers 204 so scanners/probes get nothing to chew on.
+# Inbound request headers are forwarded untouched (Caddy default).
+{
+	admin off
+}
+
+harness.local {
+	tls internal
+	log {
+		output stdout
+	}
+
+	@identity path /api/v1/auth* /api/v1/users* /api/v1/projects* /api/v1/ws*
+	handle @identity {
+		reverse_proxy identity:8001
+	}
+
+	handle /api/v1/github* {
+		reverse_proxy github:8002
+	}
+
+	handle /api/v1/models* {
+		reverse_proxy models:8003
+	}
+
+	handle /api/v1/orchestrator* {
+		reverse_proxy orchestrator:8004
+	}
+
+	handle /api/v1/sandbox* {
+		reverse_proxy sandbox:8005
+	}
+
+	handle /api/v1/meetings* {
+		reverse_proxy meeting:8006
+	}
+
+	handle /api/v1/reviews* {
+		reverse_proxy review:8008
+	}
+
+	# Everything else (incl. unmatched /api/v1/* paths): empty success, no body.
+	handle {
+		respond 204
+	}
+}

@@ -1,6 +1,9 @@
+import threading
+from collections import defaultdict
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import PlainTextResponse
 from harness_contracts.signatures import ModelCallOpts, ModelResult, ModelRole
 from pydantic import BaseModel, Field
 
@@ -9,7 +12,42 @@ from harness_router.config import MODEL_PRICING_CATALOG
 from harness_router.providers import InvalidApiKeyError, RateLimitExceededError
 from harness_router.service import ModelRouterService
 
-router = APIRouter(prefix="/api/v1/models", tags=["models"])
+# Wave 8B: tiny self-written Prometheus collector (NO prometheus_client dep).
+# Counted per (HTTP method, route template) so label cardinality stays bounded
+# even with unbounded agent/project ids in real paths.
+_lock = threading.Lock()
+_requests_total: dict[tuple[str, str], int] = defaultdict(int)
+
+
+def _record_request(method: str, path: str) -> None:
+    with _lock:
+        _requests_total[(method, path)] += 1
+
+
+def _count_request(request: Request) -> None:
+    """Router-wide dependency: count every request handled by this router."""
+    route = request.scope.get("route")
+    path_template = getattr(route, "path", None) or request.url.path
+    _record_request(request.method, path_template)
+
+
+def render_prometheus_metrics() -> str:
+    lines = [
+        "# HELP models_requests_total Total requests handled by the model router.",
+        "# TYPE models_requests_total counter",
+    ]
+    with _lock:
+        snapshot = sorted(_requests_total.items())
+    for (method, path), count in snapshot:
+        lines.append(f'models_requests_total{{method="{method}",path="{path}"}} {count}')
+    return "\n".join(lines) + "\n"
+
+
+router = APIRouter(
+    prefix="/api/v1/models",
+    tags=["models"],
+    dependencies=[Depends(_count_request)],
+)
 _service = ModelRouterService()
 
 
@@ -103,3 +141,12 @@ def configure_role_model(req: ConfigureRoleModelRequest) -> dict[str, str]:
         )
     _service.set_role_model(req.role, req.model)
     return {"role": req.role, "model": req.model, "status": "configured"}
+
+
+@router.get("/metrics", status_code=status.HTTP_200_OK)
+def prometheus_metrics() -> Response:
+    """PUBLIC Prometheus endpoint — no auth dep, like /health."""
+    return PlainTextResponse(
+        render_prometheus_metrics(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )

@@ -101,13 +101,22 @@ def app_models():
 
 
 def app_orchestrator():
+    import os
+
     from harness_contracts.fastapi_auth import make_bearer_dep
     from harness_identity.eventbus import EventBus
-    from harness_orchestrator.api import configure_orchestrator, router
+    from harness_orchestrator.api import (
+        RequestContextMiddleware,
+        configure_orchestrator,
+        router,
+    )
+    from harness_orchestrator.logging_utils import configure_logging
     from harness_orchestrator.service import OrchestratorService
     from harness_orchestrator.worker import RunQueueWorker
 
-    import os
+    # Wave 8A observability: single-line JSON logs by default (env knob
+    # HARNESS_LOG_FORMAT=json|console), request-id middleware + /metrics.
+    configure_logging(os.environ.get("HARNESS_LOG_FORMAT", "json"))
 
     factory = get_factory()
     bus = EventBus(factory)
@@ -125,6 +134,7 @@ def app_orchestrator():
         )
 
     app = simple_app(router, "harness-orchestrator")
+    app.add_middleware(RequestContextMiddleware)  # X-Request-ID + access log + metrics
 
     @app.on_event("startup")
     async def _start_run_queue_worker():

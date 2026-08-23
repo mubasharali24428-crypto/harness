@@ -1,8 +1,15 @@
+import bisect
+import logging
+import threading
+import time
+import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from harness_contracts.roles import Principal
 from pydantic import BaseModel
+from starlette.datastructures import Headers, MutableHeaders
+from starlette.routing import Match
 
 from harness_orchestrator.authz import (
     OwnershipDeniedError,
@@ -10,12 +17,211 @@ from harness_orchestrator.authz import (
     authorize_run,
     require_role,
 )
+from harness_orchestrator.logging_utils import (
+    REQUEST_ID_HEADER,
+    reset_request_id,
+    set_request_id,
+)
 from harness_orchestrator.planner import PlanNotApprovedError
 from harness_orchestrator.service import OrchestratorService
 from harness_orchestrator.state_machine import InvalidStateTransitionError
 
 router = APIRouter(prefix="/api/v1/orchestrator", tags=["orchestrator"])
 _service = OrchestratorService()
+
+# --------------------------------------------------------------------------
+# Wave 8 node A: observability (request ids, access log, /metrics).
+# --------------------------------------------------------------------------
+
+_obs_logger = logging.getLogger("harness.orchestrator.request")
+
+_DEFAULT_BUCKETS: tuple[float, ...] = (
+    0.005,
+    0.01,
+    0.025,
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    1.0,
+    2.5,
+    5.0,
+    10.0,
+)
+
+
+def _escape_label(value: str) -> str:
+    return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+
+class MetricsCollector:
+    """Minimal Prometheus text-format collector (no prometheus_client dep).
+
+    Counters: ``http_requests_total{method,path,status}``.
+    Histogram: ``http_request_duration_seconds`` (method/path labels,
+    standard buckets). Raw per-bucket counts are stored and cumulative
+    bucket values are computed at render time. All mutation happens under a
+    threading.Lock so worker threads + request tasks can't tear a series.
+
+    IMPORTANT: ``path`` labels MUST be route TEMPLATES (e.g.
+    ``/api/v1/orchestrator/runs/{runId}/status``), never raw ids — otherwise
+    one run id per label value explodes cardinality without bound.
+    """
+
+    def __init__(self, buckets: tuple[float, ...] = _DEFAULT_BUCKETS) -> None:
+        self._lock = threading.Lock()
+        self._buckets = buckets
+        self._counts: dict[tuple[str, str, str], int] = {}
+        # (method, path) -> per-bucket observation counts
+        self._hist_raw: dict[tuple[str, str], list[int]] = {}
+        self._hist_sum: dict[tuple[str, str], float] = {}
+
+    def observe(
+        self, *, method: str, path: str, status_code: int | str, duration_s: float
+    ) -> None:
+        ckey = (method, path, str(status_code))
+        hkey = (method, path)
+        idx = bisect.bisect_right(self._buckets, duration_s)
+        with self._lock:
+            self._counts[ckey] = self._counts.get(ckey, 0) + 1
+            raw = self._hist_raw.setdefault(hkey, [0] * len(self._buckets))
+            if 0 <= idx < len(raw):
+                raw[idx] += 1
+            self._hist_sum[hkey] = self._hist_sum.get(hkey, 0.0) + duration_s
+
+    def render(self) -> str:
+        """Prometheus text format (version 0.0.4), deterministic ordering."""
+        with self._lock:
+            counters = sorted(self._counts.items())
+            hist_raw = {k: list(v) for k, v in self._hist_raw.items()}
+            hist_sum = dict(self._hist_sum)
+
+        lines = [
+            "# HELP http_requests_total Total HTTP requests handled.",
+            "# TYPE http_requests_total counter",
+        ]
+        for (method, path, status_label), count in counters:
+            lines.append(
+                f'http_requests_total{{method="{_escape_label(method)}",'
+                f'path="{_escape_label(path)}",status="{_escape_label(status_label)}"}}'
+                f" {count}"
+            )
+
+        lines.append(
+            "# HELP http_request_duration_seconds "
+            "HTTP request duration in seconds."
+        )
+        lines.append("# TYPE http_request_duration_seconds histogram")
+        for (method, path), raw in sorted(hist_raw.items()):
+            labels = f'method="{_escape_label(method)}",path="{_escape_label(path)}"'
+            cumulative = 0
+            for bucket, n in zip(self._buckets, raw, strict=True):
+                cumulative += n
+                lines.append(
+                    f"http_request_duration_seconds_bucket{{{labels},"
+                    f'le="{bucket:g}"}} {cumulative}'
+                )
+            total = sum(raw)
+            lines.append(
+                f'http_request_duration_seconds_bucket{{{labels},le="+Inf"}} {total}'
+            )
+            lines.append(
+                f"http_request_duration_seconds_sum{{{labels}}} "
+                f"{hist_sum.get((method, path), 0.0)!r}"
+            )
+            lines.append(f"http_request_duration_seconds_count{{{labels}}} {total}")
+        return "\n".join(lines) + "\n"
+
+
+METRICS = MetricsCollector()
+
+
+def _route_template(scope: dict) -> str:
+    """Label-safe path: matched route TEMPLATE or the constant "unmatched".
+
+    FastAPI publishes the matched APIRoute as scope["route"]; its .path is the
+    full template including the router prefix. Raw request paths are NEVER
+    used as labels (unbounded cardinality: one run id == one new series).
+    """
+    route = scope.get("route")
+    template = getattr(route, "path", None)
+    if template:
+        return str(template)
+    # Defensive fallback for routers that don't publish scope["route"]:
+    # re-match against the app's routes.
+    from_app_routes = getattr(scope.get("app"), "routes", None) or ()
+    for candidate in from_app_routes:
+        try:
+            match, _ = candidate.matches(scope)
+        except Exception:  # noqa: BLE001 — telemetry must never raise
+            continue
+        if match is Match.FULL:
+            return str(getattr(candidate, "path", "unmatched"))
+    return "unmatched"
+
+
+class RequestContextMiddleware:
+    """Pure-ASGI middleware: X-Request-ID propagation + access log + metrics.
+
+    Deliberately OUTSIDE auth so every response carries X-Request-ID and
+    every request produces exactly one INFO JSON line — including 404s,
+    401s and handler crashes. Inbound ``X-Request-ID`` is echoed back;
+    otherwise a 12-hex-char id is minted.
+    """
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":  # lifespan/websocket pass through untouched
+            await self.app(scope, receive, send)
+            return
+
+        inbound = Headers(scope=scope).get(REQUEST_ID_HEADER)
+        rid = inbound or uuid.uuid4().hex[:12]
+        token = set_request_id(rid)
+        started = time.perf_counter()
+        seen_status = 500
+
+        async def send_wrapped(message) -> None:
+            nonlocal seen_status
+            if message["type"] == "http.response.start":
+                seen_status = message["status"]
+                MutableHeaders(scope=message)[REQUEST_ID_HEADER] = rid
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_wrapped)
+        finally:
+            dur_ms = round((time.perf_counter() - started) * 1000.0, 2)
+            path_label = _route_template(scope)
+            method = scope.get("method", "-")
+            METRICS.observe(
+                method=method,
+                path=path_label,
+                status_code=seen_status,
+                duration_s=dur_ms / 1000.0,
+            )
+            _obs_logger.info(
+                "http request",
+                extra={
+                    "request_id": rid,
+                    "method": method,
+                    "path": path_label,
+                    "status_code": seen_status,
+                    "duration_ms": dur_ms,
+                },
+            )
+            reset_request_id(token)
+
+
+@router.get("/metrics", include_in_schema=False)
+async def orchestrator_metrics() -> Response:
+    """Prometheus scrape target — public like /health (no principal required)."""
+    return Response(
+        content=METRICS.render(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
 
 
 def get_orchestrator_service() -> OrchestratorService:
