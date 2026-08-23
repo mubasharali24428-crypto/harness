@@ -250,6 +250,17 @@ def app_orchestrator():
     from harness_orchestrator.runs_index import router as runs_index_router
 
     app.include_router(runs_index_router)
+
+    # ------------------------------------------------------------------
+    # M11-W1-C1: plan-gate API router. Sole include block for W1-C1 —
+    # shares the orchestrator's service so plans minted by /plans are the
+    # same objects approve/reject/startRun drive.
+    # ------------------------------------------------------------------
+    from harness_orchestrator.plan_gate import configure_plan_gate
+    from harness_orchestrator.plan_gate import router as plan_gate_router
+
+    configure_plan_gate(service)
+    app.include_router(plan_gate_router)
     return app
 
 
