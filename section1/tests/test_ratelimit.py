@@ -72,6 +72,9 @@ def _limited_app(session_factory, **kw):
     app = make_app(
         session_factory, Settings(master_key=MASTER, cors_origins=[])
     )
+    # Burst/reset suites hammer /auth/request-login; swallow the dev OTP
+    # printer instead of spamming one line per attempt into the test output.
+    app.state.notifier = lambda email, code: None
     install_rate_limit(app, **kw)
     return app
 
@@ -91,14 +94,30 @@ async def _login(ip: str, app, email: str | None = None):
         return await c.post(LIMITED_LOGIN, json={"email": email})
 
 
+# M11-W1 rescue: the DEFAULT_ROUTES contract now guards the REAL OTP edge
+# (/auth/request-login + /auth/verify-otp), so the burst/reset tests drive
+# request-login instead of the no-longer-defaulted legacy /auth/login route.
+OTP_REQUEST = "/api/v1/auth/request-login"
+
+
+async def _otp_request(ip: str, app, email: str):
+    async with await _client_for(app, ip) as c:
+        return await c.post(OTP_REQUEST, json={"email": email})
+
+
 async def test_default_routes_are_the_auth_edge():
-    """Pin the contract: the shipped defaults guard exactly these two routes."""
-    assert rl.DEFAULT_ROUTES == ("/api/v1/auth/login", "/api/v1/auth/otp/request")
+    """Pin the contract: the shipped defaults guard exactly these two routes.
+
+    M11-W1 rescue: the pre-existing default named a phantom route
+    ("/auth/otp/request" never existed in app.py) while leaving the real OTP
+    endpoints unprotected — fixed to request-login + verify-otp.
+    """
+    assert rl.DEFAULT_ROUTES == ("/api/v1/auth/request-login", "/api/v1/auth/verify-otp")
 
 
 async def test_burst_within_limit_passes(rl_engine):
     app = _limited_app(_factory(rl_engine), limit=3, window_seconds=60)
-    statuses = [await _login("10.1.1.1", app) for _ in range(3)]
+    statuses = [await _otp_request("10.1.1.1", app, "burst@example.com") for _ in range(3)]
     statuses = [r.status_code for r in statuses]
     assert statuses == [200, 200, 200]
 
@@ -106,9 +125,9 @@ async def test_burst_within_limit_passes(rl_engine):
 async def test_limit_plus_one_gets_429_with_retry_after(rl_engine):
     app = _limited_app(_factory(rl_engine), limit=3, window_seconds=60)
     for i in range(3):
-        resp = await _login("10.2.2.2", app, email=f"u{i}@example.com")
+        resp = await _otp_request("10.2.2.2", app, f"u{i}@example.com")
         assert resp.status_code == 200
-    blocked = await _login("10.2.2.2", app, email="overflow@example.com")
+    blocked = await _otp_request("10.2.2.2", app, "overflow@example.com")
     assert blocked.status_code == 429
     # Contract error_body() envelope + machine-readable Retry-After.
     assert blocked.json() == {
@@ -124,12 +143,14 @@ async def test_new_window_resets(rl_engine, monkeypatch):
     monkeypatch.setattr(rl, "time", clock)
     app = _limited_app(_factory(rl_engine), limit=2, window_seconds=60)
 
-    assert (await _login("10.3.3.3", app)).status_code == 200
-    assert (await _login("10.3.3.3", app)).status_code == 200
-    assert (await _login("10.3.3.3", app)).status_code == 429
+    assert (await _otp_request("10.3.3.3", app, "w@example.com")).status_code == 200
+    assert (await _otp_request("10.3.3.3", app, "w@example.com")).status_code == 200
+    assert (await _otp_request("10.3.3.3", app, "w@example.com")).status_code == 429
 
     clock.now_value += 61  # cross the fixed-window boundary
-    assert (await _login("10.3.3.3", app)).status_code == 200
+    assert (
+        await _otp_request("10.3.3.3", app, "w@example.com")
+    ).status_code == 200
 
     async with _factory(rl_engine)() as db:
         rows = (
@@ -144,10 +165,14 @@ async def test_new_window_resets(rl_engine, monkeypatch):
 async def test_different_ips_independent(rl_engine):
     app = _limited_app(_factory(rl_engine), limit=2, window_seconds=60)
     for i in range(2):
-        assert (await _login("10.4.4.4", app, email=f"a{i}@example.com")).status_code == 200
-    assert (await _login("10.4.4.4", app)).status_code == 429
+        assert (
+            await _otp_request("10.4.4.4", app, f"a{i}@example.com")
+        ).status_code == 200
+    assert (
+        await _otp_request("10.4.4.4", app, "overflow@example.com")
+    ).status_code == 429
     # A fresh IP starts from a clean bucket even mid-window of the first IP.
-    assert (await _login("10.4.4.5", app)).status_code == 200
+    assert (await _otp_request("10.4.4.5", app, "fresh@example.com")).status_code == 200
 
 
 class _ExplodingStore:
@@ -162,8 +187,12 @@ async def test_db_down_fails_open(rl_engine, caplog, monkeypatch):
     # not the app: with a working counter the 4th attempt is 429...
     healthy = _limited_app(_factory(rl_engine), limit=3, window_seconds=60)
     for i in range(3):
-        assert (await _login("10.5.5.5", healthy, email=f"h{i}@example.com")).status_code == 200
-    assert (await _login("10.5.5.5", healthy)).status_code == 429
+        assert (
+            await _otp_request("10.5.5.5", healthy, f"h{i}@example.com")
+        ).status_code == 200
+    assert (
+        await _otp_request("10.5.5.5", healthy, "overflow@example.com")
+    ).status_code == 429
 
     # ...but when the COUNTER STORE is down, availability wins and requests
     # pass through to the app (whose own healthy DB answers 200).
@@ -177,7 +206,9 @@ async def test_db_down_fails_open(rl_engine, caplog, monkeypatch):
         statuses = []
         for i in range(5):  # well past limit=1 — every one must fail OPEN
             statuses.append(
-                (await _login("10.6.6.6", broken, email=f"f{i}@example.com")).status_code
+                (
+                    await _otp_request("10.6.6.6", broken, f"f{i}@example.com")
+                ).status_code
             )
     assert statuses == [200] * 5
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
@@ -230,7 +261,7 @@ async def test_routes_bucketed_separately(rl_engine):
         routes=(LIMITED_LOGIN, otp_request),
     )
     assert (await _login("10.8.8.8", app)).status_code == 200
-    assert (await _login("10.8.8.8", app)).status_code == 429  # login bucket spent
+    assert (await _login("10.8.8.8", app)).status_code == 429  # first-route bucket spent
 
     async with await _client_for(app, "10.8.8.8") as c:
         # The otp/request route has its own untouched bucket (404 from routing

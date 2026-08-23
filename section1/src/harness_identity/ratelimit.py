@@ -52,7 +52,11 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_LIMIT = 10
 DEFAULT_WINDOW_SECONDS = 60
-DEFAULT_ROUTES = ("/api/v1/auth/login", "/api/v1/auth/otp/request")
+# M11-W1 rescue: guard the REAL auth edge. The legacy "/auth/otp/request"
+# path never existed in app.py (routes are /auth/request-login +
+# /auth/verify-otp); the old default limited a phantom route while leaving
+# the actual OTP endpoints unprotected.
+DEFAULT_ROUTES = ("/api/v1/auth/request-login", "/api/v1/auth/verify-otp")
 
 # Single-statement fixed-window counter (see module docstring for why this is
 # race-free). RETURNING yields the post-increment count in the same round trip;
