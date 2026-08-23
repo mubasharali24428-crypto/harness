@@ -86,7 +86,7 @@ files are expected — ignore them.
 
 | Node | Agent | State | Gate verdict |
 |---|---|---|---|
-| A1 keys-api | sa-0-84846778 | RUNNING | |
+| A1 keys-api | sa-0-84846778 | DONE | ✅ ATLAS rerun: 9/9 + ruff clean on owned files; footprint = 2 new files (models.py untouched — no append needed); encrypted-at-rest + hint-leak assertions present |
 | A2 keys-page | sa-0-5cd7487d | DONE | ✅ shared S7 gate: tsc OK, vitest 65/65; M10-C1 client shapes + a11y patterns verified in report |
 | A3 cost-dashboard | sa-0-72c44aa7 | DONE | ✅ shared S7 gate: tsc OK, vitest 65/65; client shapes verified against real summarize_spend wire format |
 | A4 runs-index-api | sa-0-cc8687cb | RUNNING | |
