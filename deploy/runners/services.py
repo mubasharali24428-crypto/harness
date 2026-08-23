@@ -303,7 +303,6 @@ def app_sandbox():
 def app_meeting():
     from fastapi import FastAPI
     from fastapi.middleware.cors import CORSMiddleware
-
     from harness_contracts.fastapi_auth import make_bearer_dep
     from harness_meeting.api import router
 
@@ -333,7 +332,6 @@ def app_meeting():
 def app_review():
     from fastapi import FastAPI
     from fastapi.middleware.cors import CORSMiddleware
-
     from harness_contracts import KeyVault, make_bearer_dep
     from harness_github.service import GitHubService
     from harness_identity.audit import write_audit as s1_write_audit

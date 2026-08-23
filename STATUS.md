@@ -1,4 +1,56 @@
-# STATUS — where the project stands (updated 2026-08-22, end of wave 4)
+# STATUS — where the project stands (updated 2026-08-23, Mission 11 wave 1)
+
+## Mission 11 / Wave 1 (2026-08-23) — CLIENTELA remediation: six CRITICALs + flow-blocking HIGHs
+
+Baseline d5d9619, 7 lanes (graph: docs/briefs/mission11-wave1-graph.md). Sole-owner
+law held all wave: services.py include block = C1 only; compose engine env block =
+B1 only; state_machine.py = D1 only. Lane-by-lane:
+
+1. **W1-A1 — C-001/H-004** (dc9b75f): verified ownership behind OTP — rate limiter
+   DEFAULT_ROUTES moved onto /auth/request-login + /auth/verify-otp (dead legacy
+   route removed); unverified team-create 403, burst 429+Retry-After with window
+   reset, double-redeem rejected. Legacy direct-add removal lands at ATLAS merge
+   (app.py is ATLAS-owned).
+2. **W1-A2 — C-002** (7a6b2b3): audit emission wiring — audit_emit.py typed helpers
+   (never-throw, secret-scrubbed) called at every sensitive site (api_keys,
+   invites, billing); run.started/stopped helpers shipped as a merge seam for S4.
+3. **W1-C1 — C-005 backend** (281d769): plan-gate orchestrator API per the verbatim
+   W1-C1↔C2 pair contract — POST /api/v1/orchestrator/plans → 201 {planId, plan};
+   approve → 200 {runId} idempotent; reject → 202 persisted+audited; role gates
+   admin/engineer decide, viewer/guest 403; sole include block in services.py.
+4. **W1-C2 — C-005 UI + C-006** (c2b487c): PlanGate card off status.state;
+   planGateApi.ts mirrors the contract DTOs field-by-field; login routes real
+   post-auth identity — adopt first team project or switch to create-project flow;
+   fabricated proj-test-1 / run-timestamp literals deleted from source (runs are
+   minted server-side on approve now).
+5. **W1-B1 — C-004/H-005/H-006** (db9e333): engine boot integrity — engine_boot.py
+   validates required env and exits non-zero naming vars (never values);
+   contracts-path bootstrap for bare checkouts; compose engine block free of
+   ollama placeholder/dev defaults; live_mode explicit {live,dry} enum; downgrade
+   ladder removed.
+6. **W1-A3 — C-003 budgets** (IN FLIGHT, uncommitted tree): budget_guard.py (S3)
+   + cost_ledger.py writers (S1), atomic fail-closed reserve; test_budget_atomic.py.
+7. **W1-D1 — H-007/H-008 done-signal** (IN FLIGHT, uncommitted tree): signals.py;
+   role gate + non-empty diff + no resurrection; reviewer_passed→DONE terminal;
+   reject_plan persisted+audited (state_machine.py is D1-owned — C1 reads only).
+
+Glue lane (this entry): services.py import hygiene — both I001 blocks sorted
+(pre-existing at baseline d5d9619, proven; sort-only, zero behavior delta);
+fabricated-literal final sweep CLEAN (proj-test-1 / run-${Date…} survive only in
+docs/clientela audit cards as historical record and in gitignored .next build
+cache — zero occurrences in any shipped source); plan-gate conformance goldens
+added at section4/tests/conformance/test_plan_gate_conformance.py (golden walks
+over the pair-contract routes: 201 propose → idempotent 200 approve → gated
+start executing; 202 audited reject ⇒ subsequent start 409 PLAN_NOT_APPROVED;
+ROLE_DENIED / PLAN_NOT_FOUND error_body envelopes frozen).
+
+Known drift & gate notes for ATLAS:
+- Migration numbering: wave pre-assigned 0012 to auth hardening, but M10 already
+  used 0012 (agent_events run_id index) — next free slot is 0013.
+- S4 canonical suite (`section4/.venv`): 225 passed / 1 skipped, with 3 known-red
+  TestEngineSingleModel stress cases — old wrappers construct engines without
+  DEEPSEEK_BASE_URL and B1's new fail-closed boot validation trips them;
+  engine-boot lane reconciles before merge.
 
 ## Mission 10 (2026-08-23) — ALEX_TEAM: Phase 2 completion + Phase 3 edge-hardening begins
 
