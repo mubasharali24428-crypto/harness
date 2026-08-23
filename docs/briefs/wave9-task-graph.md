@@ -134,11 +134,11 @@ it appends to services.py which depends on nothing else changing there).
 
 | Node | Agent | State | Verification | Merged |
 |------|-------|-------|--------------|--------|
-| A cost-metering | — | PENDING | | |
-| B budget-caps | — | PENDING | | |
-| C orgs-invites-ui | — | PENDING | | |
-| D notifications | — | PENDING | | |
-| E secrets-headers | — | PENDING | | |
+| A cost-metering | sa-0-8361bf7d | RUNNING | | |
+| B budget-caps | sa-0-6de4391e (re-dispatch; first attempt died on provider HTTP 503, zero writes) | RUNNING | | |
+| C orgs-invites-ui | sa-0-fd81870d | RUNNING | | |
+| D notifications | sa-0-94bcf563 (re-dispatch; first attempt died on provider HTTP 503, zero writes) | RUNNING | | |
+| E secrets-headers | sa-0-3df6c3ba | RUNNING | | |
 
 ## Merge checklist (gate exit criteria)
 
