@@ -12,12 +12,13 @@ variable NAMES and non-secret configuration (mode, model name, base URL)
 — never credential VALUES. The API key is read only through
 ``live_mode.validate_engine_env``, whose summary carries no secrets.
 
-Deployment wiring: the orchestrator/sandbox services run
+Deployment wiring (reality check, V-Pair-3 verify note): compose does NOT
+invoke this script today — entrypoint.sh boots uvicorn directly, and the
+runtime enforcement point is Engine construction (validate_live_credentials),
+which refuses LIVE-with-placeholder at app start. This script remains the
+standalone pre-flight validator for operators/CI:
 
-    python /opt/harness/deploy/runners/engine_boot.py && exec uvicorn ...
-
-in their compose ``command:``, so a bad config fails the container (and
-its healthcheck) instead of serving degraded answers.
+    python deploy/runners/engine_boot.py && <start the stack>
 
 Boot policy (brief W1-B1): an UNSET ``ENGINE_LIVE_MODE`` is itself a
 failure — a deploy must explicitly choose live or dry; the engine never
