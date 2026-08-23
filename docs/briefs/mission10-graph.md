@@ -106,4 +106,4 @@ files are expected — ignore them.
 - [x] Verifier team: all 3 verticals READY-TO-MERGE; in-lane fixes: pill-map, month-boundary seeding
 - [x] Full sweep green + ruff clean + compose config valid (incl. walg profile mode)
 - [x] GAP Part 10 rows (M10-KEYS/RUNS/COSTDASH/BILLING/ONBOARD/WALG/RATELIMIT) + STATUS entry + verifier doc
-- [ ] Single mission commit pushed; CI all jobs green ← committing now
+- [x] Mission commit 4e5fe0e + CI-red fix commit pushed; CI ALL JOBS GREEN (run 32631351702)
