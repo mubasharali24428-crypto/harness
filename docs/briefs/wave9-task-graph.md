@@ -138,7 +138,7 @@ it appends to services.py which depends on nothing else changing there).
 | B budget-caps | sa-0-6de4391e (re-dispatch; first attempt died on provider HTTP 503, zero writes) | DONE | ✅ ox-alpha rerun: unit 22/22, ruff clean, migration shape OK; live-exercised check_budget (unlimited/zero-cap/env-cap all correct); S4 sweep 123 passed + 1 pre-existing flaky live-probe failure (OpenRouter upstream outage → D2 honesty guard, unrelated to B); footprint = owned files only | |
 | C orgs-invites-ui | sa-0-047fd239 (re-dispatch x1: first attempt died on 300s API timeout after 27m, ZERO writes) | RUNNING | | |
 | D notifications | sa-0-94bcf563 (re-dispatch; first attempt died on provider HTTP 503, zero writes) | RUNNING | | |
-| E secrets-headers | sa-0-3df6c3ba | RUNNING | | |
+| E secrets-headers | sa-0-3df6c3ba | DONE | ✅ ox-alpha rerun: headers suite 18/18, ruff clean; live probes: base headers on JSON, HSTS only when HARNESS_TLS_ENABLED=1, report-only CSP on HTML only; ci.yml parses (5 jobs incl. security-scan); wires verified in S1/S8/services factories; crypto.py audit verdict NO GAP (regression tests encode it). Note: eventbus.py + notifier.py changes belong to node D | |
 
 ## Merge checklist (gate exit criteria)
 
