@@ -71,3 +71,14 @@ class GithubConnection(Base):
     github_login: Mapped[str] = mapped_column(String(100))
     access_token_encrypted: Mapped[str] = mapped_column(Text)
     scopes: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class OAuthState(Base):
+    """Mirror of migration 0005's oauth_states (TEXT timestamps, ISO-8601 UTC)."""
+
+    __tablename__ = "oauth_states"
+
+    state: Mapped[str] = mapped_column(String(128), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    expires_at: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[str] = mapped_column(Text, nullable=False)

@@ -92,6 +92,34 @@ Phase 0 exit criteria met except live-stack re-smoke (PG stack was down locally;
 nightly CI covers the real-PG probe). Next up per plan: Phase 1 production
 architecture (split containers, durable run queue, cross-process state).
 
+## Wave 7 (2026-08-23) — Phase 1 starts: cross-process ephemeral auth state
+
+Implemented by Codex CLI (`--profile ox`) from a written brief
+(docs/briefs/2026-08-23-p1a-cross-process-state.md); diff reviewed and
+independently re-verified by ox-alpha, which also caught + fixed one defect in
+the delegation's output (see below).
+
+1. **P1-XSTATE DONE (S1/S2)**: WS connect tickets and GitHub OAuth states moved
+   from `app.state` dicts into Postgres (migration `0005_ephemeral_state.sql`,
+   tables `ws_tickets` / `oauth_states`). Stores:
+   `section1/src/harness_identity/ephemeral.py` (mint/redeem with atomic
+   single-use `DELETE … RETURNING`, project-bound, opportunistic expiry sweep on
+   mint) and `section2/src/harness_github/state_store.py` (insert/consume,
+   same pattern). In-memory dicts deleted; HTTP contracts unchanged; tickets/
+   states now redeemable on ANY replica.
+2. **Timestamp discipline**: both stores write UTC ISO-8601 TEXT and migration
+   0005 declares TEXT columns — SQLite keeps DATETIME as text, and mixing
+   adapter-formatted datetimes (space separator) with `.isoformat()` rows (T
+   separator) made an EXPIRED ticket compare as valid under string comparison.
+   Caught via the new `test_ws_ticket_expired_rejected` regression; fixed by
+   normalizing at every boundary so SQLite and PostgreSQL run identical code.
+3. Tests: S1 ticket suite extended (roundtrip, single-use replay, expired,
+   wrong-project, cross-instance over one shared SQLite file) → S1 50 passed;
+   S2 OAuth state suite likewise → 19 passed. Ruff clean both.
+
+Next Phase 1 candidates: split-container compose shape (brief drafted),
+durable run queue (`run_claims` SKIP LOCKED), structured logs/metrics.
+
 
 ## Wave 2 (this session) — read docs/GAP_ANALYSIS_AND_FIXES.md for full detail
 

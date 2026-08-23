@@ -13,6 +13,9 @@ Security invariants pinned here:
 """
 
 
+import sqlite3
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
@@ -69,9 +72,11 @@ async def test_start_redirects_to_github_with_bound_state(db, client):
     assert "scope=repo%20read:user" in loc
     assert "redirect_uri=" in loc
     state = await _extract_state(loc)
+    from harness_github.state_store import consume_oauth_state
+
     # The state must be bound server-side to THIS user (CSRF anchor).
-    assert state in client.app.state.oauth_states
-    assert client.app.state.oauth_states[state][0] == "u1"
+    assert await consume_oauth_state(db, state) == "u1"
+    assert await consume_oauth_state(db, state) is None  # consumed by the probe
 
 
 async def test_start_without_creds_is_clean_not_configured(db, anon_client):
@@ -172,7 +177,57 @@ async def test_start_ticket_mints_and_drives_flow(db, client):
     )
     assert r.status_code in (301, 302, 303, 307)
     assert r.headers["location"].startswith("https://github.com/login/oauth/authorize")
-    assert client.app.state.oauth_states  # state still bound server-side
+    state = await _extract_state(r.headers["location"])
+    assert state  # state still minted server-side (DB-backed)
+
+
+# ================================================================
+# Cross-process OAuth states: DB-backed store shared by two instances.
+# ================================================================
+
+
+async def test_oauth_state_survives_across_instances(tmp_path):
+    from sqlalchemy import text as _text
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from harness_github.state_store import consume_oauth_state, insert_oauth_state
+
+    shared = str(tmp_path / "shared.db")
+    eng = None
+    try:
+        con = sqlite3.connect(shared)
+        con.execute(
+            "CREATE TABLE oauth_states (state VARCHAR(128) PRIMARY KEY,"
+            " user_id VARCHAR(36) NOT NULL,"
+            " expires_at TIMESTAMP WITH TIME ZONE NOT NULL,"
+            " created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL)"
+        )
+        con.commit()
+        con.close()
+
+        # Instance B reads the same DB file and consumes the state atomically.
+        eng = create_async_engine(f"sqlite+aiosqlite:///{shared}")
+        factory_b = async_sessionmaker(eng)
+        await insert_oauth_state(factory_b, "state-x", "u1")
+        assert await consume_oauth_state(factory_b, "state-x") == "u1"
+        assert await consume_oauth_state(factory_b, "state-x") is None  # single use
+
+        # Expired state is invisible to the consumer.
+        expired = "state-old"
+        now = datetime.now(UTC)
+        async with factory_b() as s:
+            await s.execute(
+                _text(
+                    "INSERT INTO oauth_states (state, user_id, expires_at, created_at)"
+                    " VALUES (:s, 'u1', :e, :c)"
+                ),
+                {"s": expired, "e": now - timedelta(seconds=1), "c": now},
+            )
+            await s.commit()
+        assert await consume_oauth_state(factory_b, expired) is None
+    finally:
+        if eng is not None:
+            await eng.dispose()
 
 
 async def test_start_ticket_is_single_use(db, client):

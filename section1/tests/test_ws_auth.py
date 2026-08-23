@@ -131,6 +131,22 @@ def _seed_sync():
     )
     con.commit()
     con.close()
+    # Ephemeral-state tables (migration 0005) — tests own their SQLite schema.
+    con = __import__("sqlite3").connect(DB_FILE)
+    con.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS ws_tickets (
+            token_hash VARCHAR(64) PRIMARY KEY,
+            user_id VARCHAR(36) NOT NULL,
+            team_id VARCHAR(36) NOT NULL,
+            role VARCHAR(20) NOT NULL,
+            project_id VARCHAR(36) NOT NULL,
+            expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL);
+        """
+    )
+    con.commit()
+    con.close()
 
 
 def _mk(db):
@@ -277,11 +293,53 @@ async def test_ws_ticket_expired_rejected(db):
     app = _mk(db)
     _seed_sync()
     ticket = (await _issue_ticket(app)).json()["ticket"]
-    store = app.state.ws_tickets
-    store[ticket]["expires"] = datetime.now(UTC) - timedelta(seconds=1)
+    import sqlite3 as _sq
+
+    con = _sq.connect(DB_FILE)
+    con.execute(
+        "UPDATE ws_tickets SET expires_at = ?",
+        ((datetime.now(UTC) - timedelta(seconds=1)).isoformat(),),
+    )
+    con.commit()
+    con.close()
 
     async with MiniWs(app, f"/api/v1/ws/proj-1?ticket={ticket}") as ws:
         _expect_reject(ws, 4401)
+
+
+# ================================================================
+# Cross-process tickets: DB-backed store shared by two app instances.
+# ================================================================
+
+
+def _shared_factory():
+    DB_DIR.mkdir(parents=True, exist_ok=True)
+    sync_engine = create_engine(f"sqlite:///{DB_FILE}")
+    Base.metadata.create_all(sync_engine)
+    sync_engine.dispose()
+    eng = create_async_engine(f"sqlite+aiosqlite:///{DB_FILE}")
+    return async_sessionmaker(eng, expire_on_commit=False)
+
+
+async def test_ws_tickets_survive_across_instances(db):
+    """Mint on instance A's factory, redeem through instance B's factory."""
+    from harness_contracts import Principal
+
+    from harness_identity.ephemeral import mint_ws_ticket, redeem_ws_ticket
+
+    _seed_sync()
+    factory_b = _shared_factory()
+    principal = Principal(userId="u1", teamId="t1", role="admin")
+    ticket, ttl = await mint_ws_ticket(factory_b, principal, "proj-1")
+    assert ttl > 0
+
+    # Redeemed via a *different* process-equivalent (instance A = `db` fixture).
+    redeemed = await redeem_ws_ticket(db, ticket, "proj-1")
+    assert redeemed is not None and redeemed.userId == "u1"
+    assert await redeem_ws_ticket(db, ticket, "proj-1") is None  # single use
+    assert await redeem_ws_ticket(db, ticket + "x", "proj-1") is None
+
+    await factory_b.kw["bind"].dispose()
 
 
 async def test_token_path_still_works_during_transition(db):
@@ -310,5 +368,3 @@ async def test_silent_client_disconnect_does_not_wedge_handler(db):
     # instead of leaking it, and a fresh client gets a normal session.
     async with MiniWs(app, "/api/v1/ws/proj-1?token=goodtok") as ws:
         assert ws.accepted
-
-

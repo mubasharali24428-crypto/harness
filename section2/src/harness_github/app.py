@@ -14,6 +14,7 @@ from sqlalchemy import text
 
 from .client import GITHUB_WEB, MergeGuardViolation
 from .config import Settings
+from .state_store import consume_oauth_state, insert_oauth_state
 
 router = APIRouter(prefix=contracts.API_PREFIX)
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -35,7 +36,6 @@ def make_app(session_factory, settings: Settings):
     app.state.settings = settings
     app.state.vault = KeyVault(settings.master_key)
     app.state.transport = None  # injectable httpx transport for tests
-    app.state.oauth_states: dict[str, tuple[str, float]] = {}  # state -> (user_id, expiry)
     app.state.oauth_start_tickets: dict[str, tuple[str, float]] = {}
     get_principal = make_bearer_dep(session_factory)
     app.state.get_principal = get_principal
@@ -134,10 +134,7 @@ async def oauth_start(request: Request, ticket: str = ""):
     from urllib.parse import quote
 
     state = uuid.uuid4().hex
-    request.app.state.oauth_states[state] = (
-        user_id,
-        time.time() + OAUTH_STATE_TTL,
-    )
+    await insert_oauth_state(request.app.state.session_factory, state, user_id)
     url = (
         f"{GITHUB_WEB}/login/oauth/authorize"
         f"?client_id={settings.github_client_id}"
@@ -170,8 +167,8 @@ async def oauth_callback(code: str, state: str, request: Request):
     which is the CSRF binding back to the initiating user."""
     settings: Settings = request.app.state.settings
     frontend = settings.frontend_base.rstrip("/") + "/settings"
-    entry = request.app.state.oauth_states.pop(state, None)
-    if entry is None or entry[1] < time.time():
+    user_id = await consume_oauth_state(request.app.state.session_factory, state)
+    if user_id is None:
         raise HTTPException(
             status_code=400,
             detail={
@@ -181,8 +178,6 @@ async def oauth_callback(code: str, state: str, request: Request):
                 }
             },
         )
-    user_id = entry[0]
-
     try:
         payload = await _exchange_token(settings, code, request)
         access_token = payload.get("access_token")
@@ -320,5 +315,3 @@ async def pr_status(project_id: str, pr_number: int, service: ServiceDep) -> dic
 async def pr_diff(project_id: str, pr_number: int, service: ServiceDep) -> dict:
     svc, principal = service
     return await svc.getPRDiff(principal.userId, project_id, pr_number)
-
-

@@ -1,8 +1,7 @@
 import asyncio
-import secrets
 import time
 from collections import defaultdict, deque
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Annotated
 
 import harness_contracts as contracts
@@ -17,54 +16,17 @@ from .audit import register_append_only_guard
 from .auth import get_principal, hash_token, issue_otp, login_or_register, verify_otp
 from .config import Settings
 from .crypto import KeyVault
+from .ephemeral import mint_ws_ticket, redeem_ws_ticket
 from .eventbus import EventBus
 from .models import AuthSession, TeamMember
 from .models import Role as DbRole
 
 LOGIN_RATE_LIMIT = 20  # attempts
 LOGIN_RATE_WINDOW_S = 60
-WS_TICKET_TTL_SECONDS = 30
-
-
-def _ticket_store(app_state) -> dict:
-    if not hasattr(app_state, "ws_tickets"):
-        app_state.ws_tickets = {}
-    return app_state.ws_tickets
-
-
-def _purge_expired_tickets(store: dict) -> None:
-    now = datetime.now(UTC)
-    for k in [k for k, v in store.items() if v["expires"] < now]:
-        del store[k]
-
-
 async def _issue_ws_ticket(app_state, principal, session_factory, project_id: str) -> dict:
     await _require_project_access(session_factory, principal, project_id)
-    store = _ticket_store(app_state)
-    _purge_expired_tickets(store)
-    ticket = secrets.token_urlsafe(32)
-    store[ticket] = {
-        "userId": principal.userId,
-        "teamId": principal.teamId,
-        "role": principal.role,
-        "projectId": project_id,
-        "expires": datetime.now(UTC) + timedelta(seconds=WS_TICKET_TTL_SECONDS),
-    }
-    return {"ticket": ticket, "expiresInSeconds": WS_TICKET_TTL_SECONDS}
-
-
-def _redeem_ticket(app_state, ticket: str, project_id: str):
-    """One-time redemption: pop first, then validate. Unknown/expired/mismatched → None."""
-    store = getattr(app_state, "ws_tickets", None)
-    rec = store.pop(ticket, None) if (store and ticket) else None
-    if rec is None:
-        return None
-    expires = rec["expires"] if rec["expires"].tzinfo else rec["expires"].replace(tzinfo=UTC)
-    if expires < datetime.now(UTC) or rec["projectId"] != project_id:
-        return None
-    return ContractsPrincipal(
-        userId=rec["userId"], teamId=rec["teamId"], role=rec["role"]
-    )
+    ticket, ttl = await mint_ws_ticket(session_factory, principal, project_id)
+    return {"ticket": ticket, "expiresInSeconds": ttl}
 
 
 def _login_rate_limited(app_state, client_ip: str) -> bool:
@@ -145,7 +107,6 @@ async def _principal_from_token(
 ) -> ContractsPrincipal | None:
     if not token:
         return None
-    from datetime import UTC, datetime
 
     async with session_factory() as db:
         row = (
@@ -402,7 +363,9 @@ async def project_ws(
 ):
     if ticket:
         # One-time redemption binds the principal AND the project in one step.
-        principal = _redeem_ticket(websocket.app.state, ticket, project_id)
+        principal = await redeem_ws_ticket(
+            websocket.app.state.session_factory, ticket, project_id
+        )
     elif token:
         principal = await _principal_from_token(websocket.app.state.session_factory, token)
     else:
