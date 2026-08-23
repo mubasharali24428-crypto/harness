@@ -18,6 +18,11 @@ class EventType(StrEnum):
     PR_OPENED = "pr_opened"
     TERMINAL_OUTPUT = "terminal_output"
     DIFF_PROGRESS = "diff_progress"
+    # Wave 6 (additive): engine lifecycle. Emitted by S4 when the execution
+    # engine settles — completion advances EXECUTING→AWAITING_DONE_SIGNAL,
+    # failure advances EXECUTING→BLOCKED. Payload keys: summary | reason.
+    ENGINE_COMPLETED = "engine_completed"
+    ENGINE_FAILED = "engine_failed"
 
 
 EVENT_TYPES = frozenset(EventType)

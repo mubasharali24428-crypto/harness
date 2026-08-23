@@ -27,29 +27,122 @@ def test_live_mode_detected_via_env(monkeypatch):
     assert w._engine_name() == "deepseek-harness-sdk:qwen3-abliterated-128k:latest"
 
 
-def test_live_run_against_local_ollama(monkeypatch):
+def _openrouter_key() -> str | None:
+    """Read OPENROUTER_API_KEY from ~/.hermes/.env without ever printing it."""
+    import os
+
+    path = os.path.expanduser("~/.hermes/.env")
+    if not os.path.exists(path):
+        return None
+    with open(path) as fh:
+        for line in fh:
+            if line.startswith("OPENROUTER_API_KEY="):
+                value = line.split("=", 1)[1].strip().strip('"').strip("'")
+                return value or None
+    return None
+
+
+def test_live_run_against_openrouter():
+    """Live agentic round-trip through OpenRouter (stealth/ox-alpha).
+
+    Proves the OpenAI-compatible engine path end-to-end INCLUDING a real
+    filesystem side effect — replaces the old Ollama probe whose model
+    returned status=completed with 0 chars of output (D2's honesty rule
+    turned that into an honest error). Skips without OPENROUTER_API_KEY
+    so CI stays green offline."""
+    import os
+    import tempfile
+
     import pytest
 
-    ollama_up = True
-    import urllib.request
+    api_key = _openrouter_key()
+    if not api_key:
+        pytest.skip("OPENROUTER_API_KEY not configured (~/.hermes/.env)")
 
-    try:
-        urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=2)
-    except Exception:
-        ollama_up = False
-    if not ollama_up:
-        pytest.skip("local Ollama not running")
+    # Fresh workspace AND session root per run: dsh resumes session history
+    # from session_root, so reusing the old Ollama-era dir would continue a
+    # poisoned conversation instead of exercising a clean run.
+    ws = tempfile.mkdtemp(prefix="harness-engine-test-ws-")
+    session_root = tempfile.mkdtemp(prefix="harness-engine-test-sessions-")
+    marker = os.path.join(ws, "engine_ok.txt")
 
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "ollama")
-    monkeypatch.setenv("DEEPSEEK_BASE_URL", "http://127.0.0.1:11434/v1")
-    monkeypatch.setenv("DSH_MODEL", "qwen3-abliterated-128k:latest")
     w = DeepSeekHarnessWrapper(
-        workspace_dir="/tmp/harness-engine-test-ws",
-        session_root="/tmp/harness-engine-test-sessions",
+        workspace_dir=ws,
+        session_root=session_root,
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1",
+        model="stealth/ox-alpha",
+        fallback_models=[],  # live test must exercise exactly the named model
     )
-    out = w.execute_goal("Create a file named engine_ok.txt containing exactly 'engine ok'.")
+    out = w.execute_goal(
+        "Create a file named engine_ok.txt containing exactly 'engine ok'."
+    )
     assert out["status"] == "completed", out
     from pathlib import Path
 
-    created = Path("/tmp/harness-engine-test-ws") / "engine_ok.txt"
+    created = Path(ws) / "engine_ok.txt"
     assert created.read_text().strip() == "engine ok"
+
+
+# ----------------------------------------------------------------------
+# Wave 6 (D2): an empty/whitespace finalResponse is a FAILED rung, never a
+# success — a missing model once returned status=completed with text="" and
+# silently skipped the fallback ladder (live smoke evidence, smoke-run-1).
+# ----------------------------------------------------------------------
+
+
+def _wrapper_with_spy(monkeypatch, responses):
+    """responses: dict model -> (text, status); records call order."""
+    w = DeepSeekHarnessWrapper(
+        api_key="sk-test",
+        base_url="http://localhost:11434/v1",
+        model="primary-model",
+        fallback_models=["fallback-a", "fallback-b"],
+    )
+    calls: list[str | None] = []
+
+    def fake_run(goal, session_id, model=None):
+        calls.append(model)
+        return responses[model]
+
+    monkeypatch.setattr(w, "_run_live", fake_run)
+    return w, calls
+
+
+def test_empty_primary_response_falls_through_to_next_model(monkeypatch):
+    w, calls = _wrapper_with_spy(
+        monkeypatch,
+        {
+            "primary-model": ("", "completed"),  # the D2 fake-success shape
+            "fallback-a": ("   \n  ", "completed"),  # whitespace-only also counts
+            "fallback-b": ("real answer", "completed"),
+        },
+    )
+    text, status = w._run_live_with_fallback("goal", "sess")
+    assert (text, status) == ("real answer", "completed")
+    assert calls == ["primary-model", "fallback-a", "fallback-b"]
+
+
+def test_all_models_empty_is_honest_error(monkeypatch):
+    w, calls = _wrapper_with_spy(
+        monkeypatch,
+        {m: ("", "completed") for m in ("primary-model", "fallback-a", "fallback-b")},
+    )
+    text, status = w._run_live_with_fallback("goal", "sess")
+    assert status == "error"
+    assert "primary-model" in text and "fallback-b" in text
+    assert calls == ["primary-model", "fallback-a", "fallback-b"]
+
+
+def test_nonempty_failure_status_still_falls_through(monkeypatch):
+    """A chatty error must not be mistaken for success either."""
+    w, calls = _wrapper_with_spy(
+        monkeypatch,
+        {
+            "primary-model": ("model exploded loudly", "error"),
+            "fallback-a": ("fine", "completed"),
+        },
+    )
+    text, status = w._run_live_with_fallback("goal", "sess")
+    assert (text, status) == ("fine", "completed")
+    assert calls == ["primary-model", "fallback-a"]

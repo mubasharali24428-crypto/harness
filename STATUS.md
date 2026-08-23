@@ -30,6 +30,26 @@
 Verified this session: stack healthy on all 7 ports + frontend; seed_demo idempotent;
 CI green (~36s runs); nightly probe schedule present.
 
+## Wave 6b (2026-08-23) — Phase 0 landed (D1–D4) + OpenRouter live probe
+
+1. **D1–D4 landed** (from docs/EXPANSION_PLAN.md Phase 0, authored by the wave-6
+   planning session): D1 compose model drift fixed; D2 empty-completion honesty
+   guard (fake-success now falls through the fallback ladder to an honest error);
+   D3 per-run publish chains (bus seq order matches causal order); D4 additive
+   engine lifecycle events — contracts 0.2.0→0.3.0, `engine_completed`/
+   `engine_failed`, TS mirror regenerated same commit, SM advances
+   EXECUTING→AWAITING_DONE_SIGNAL on completion / BLOCKED on failure (guarded to
+   EXECUTING so pause/human-edit narratives win), golden fixtures + S1 conformance
+   pin updated, new publish-ordering + SM + engine tests. Failed runs land in
+   BLOCKED, which RESUME can legitimately resurrect.
+2. **LIVEPROBE**: flaky local-Ollama live test replaced by an OpenRouter probe
+   (model stealth/ox-alpha, per user) asserting the real filesystem side effect;
+   fresh workspace/session dirs per run — reusing dsh session_root had poisoned
+   reruns with dead session history (completed-with-0-chars). Skips without
+   OPENROUTER_API_KEY so CI stays green offline.
+3. Gate: 370 pytest (S4 72/72) + 58 vitest green; ruff clean; TS mirror in sync;
+   compose config valid.
+
 ## Wave 2 (this session) — read docs/GAP_ANALYSIS_AND_FIXES.md for full detail
 
 1. **H8 DONE**: one-time WS tickets (`POST /api/v1/ws-ticket`, 30s, project-

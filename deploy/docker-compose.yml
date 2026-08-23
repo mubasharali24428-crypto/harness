@@ -34,7 +34,7 @@ services:
       HARNESS_REQUIRE_OWNERSHIP: ${HARNESS_REQUIRE_OWNERSHIP:-false}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-ollama}
       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-http://host.docker.internal:11434/v1}
-      DSH_MODEL: ${DSH_MODEL:-qwen3-abliterated-128k:latest}
+      DSH_MODEL: ${DSH_MODEL:-qwen3.5-9b-128k:latest}
       DSH_WORKSPACE: /tmp/harness-dsh/workspace
       DSH_SESSION_ROOT: /tmp/harness-dsh/sessions
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}

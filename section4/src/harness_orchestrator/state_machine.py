@@ -72,6 +72,22 @@ class AgentStateMachine:
         self.transition_to(AgentState.EXECUTING)
         self.emit(EventType.EXECUTION_STARTED, {"runId": self.run_id})
 
+    def execution_completed(self, summary: str = "") -> None:
+        """Wave 6 (D4): engine settled successfully — open the human done-gate.
+        No-op unless EXECUTING (pause/stop/human-edit already own the narrative)."""
+        if self.state == AgentState.EXECUTING:
+            self.transition_to(AgentState.AWAITING_DONE_SIGNAL)
+            self.emit(
+                EventType.ENGINE_COMPLETED,
+                {"runId": self.run_id, "summary": summary},
+            )
+
+    def execution_failed(self, reason: str = "") -> None:
+        """Wave 6 (D4): engine failed honestly — block for human intervention."""
+        if self.state == AgentState.EXECUTING:
+            self.transition_to(AgentState.BLOCKED)
+            self.emit(EventType.ENGINE_FAILED, {"runId": self.run_id, "reason": reason})
+
     def pause(self, reason: str = "user_requested") -> None:
         if self.state == AgentState.EXECUTING:
             self.transition_to(AgentState.PAUSED)

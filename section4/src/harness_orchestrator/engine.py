@@ -82,22 +82,27 @@ class DeepSeekHarnessWrapper:
 
     def _run_live_with_fallback(self, goal: str, session_id: str) -> tuple[str, str]:
         """dsh-inspired downgrade: primary model first, then each fallback.
-        All candidates failing is an honest 'error', never a fake success."""
+        All candidates failing is an honest 'error', never a fake success.
+
+        Wave 6 (D2): an empty/whitespace finalResponse counts as a FAILED rung,
+        not a success — a missing/misconfigured model once surfaced as
+        status="completed" with text="" and silently skipped the ladder.
+        The candidate model is passed per call instead of mutating ``self.model``
+        (process-global mutation raced across concurrent runs)."""
         candidates = [self.model] + [m for m in self.fallback_models if m and m != self.model]
         last_error: Exception | None = None
         for candidate in candidates:
-            original = self.model
             try:
-                self.model = candidate
-                text, status = self._run_live(goal, session_id)
+                text, status = self._run_live(goal, session_id, model=candidate)
             except Exception as exc:  # noqa: BLE001 — try next rung of the ladder
                 last_error = exc
                 continue
-            finally:
-                self.model = original
-            if status == "completed":
+            if status == "completed" and text and text.strip():
                 return text, status
-            last_error = RuntimeError(text)
+            last_error = RuntimeError(
+                f"model {candidate} returned status={status} with "
+                f"{len(text or '')} chars of output"
+            )
         tried = ", ".join(candidates)
         detail = f": {last_error}" if last_error else ""
         return (
@@ -105,7 +110,8 @@ class DeepSeekHarnessWrapper:
             "error",
         )
 
-    def _run_live(self, goal: str, session_id: str) -> tuple[str, str]:
+    def _run_live(self, goal: str, session_id: str, model: str | None = None) -> tuple[str, str]:
+        model = model or self.model
         try:
             from deepseek_harness import DeepSeekHarness
 
@@ -113,7 +119,7 @@ class DeepSeekHarnessWrapper:
             os.makedirs(self.session_root, exist_ok=True)
             kwargs: dict[str, Any] = dict(
                 provider="deepseek-official",
-                model=self.model,
+                model=model,
                 max_tokens=4096,
                 cwd=self.workspace,
                 session_root=self.session_root,

@@ -477,11 +477,14 @@ class TestEngineFallbackChain:
                 super().__init__(api_key="k", model="primary-model")
                 self.calls = []
 
-            def _run_live(self, goal, session_id):
-                self.calls.append(self.model)
-                if self.model == failing_model:
+            # Wave 6: candidates arrive as the per-call ``model`` kwarg
+            # (no more process-global self.model mutation between rungs).
+            def _run_live(self, goal, session_id, model=None):
+                model = model or self.model
+                self.calls.append(model)
+                if model == failing_model:
                     raise RuntimeError("provider down")
-                return f"ok via {self.model}", "completed"
+                return f"ok via {model}", "completed"
 
         return StubWrapper()
 
@@ -508,9 +511,10 @@ class TestEngineFallbackChain:
                 self.fallback_models = ["m2", "m3"]
                 self.tried = []
 
-            def _run_live(self, goal, session_id):
-                self.tried.append(self.model)
-                raise RuntimeError(f"{self.model} down")
+            def _run_live(self, goal, session_id, model=None):
+                model = model or self.model
+                self.tried.append(model)
+                raise RuntimeError(f"{model} down")
 
         w = AllFailWrapper()
         text, status = w._run_live_with_fallback("goal", "s3")

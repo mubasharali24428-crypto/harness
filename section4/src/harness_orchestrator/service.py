@@ -36,6 +36,8 @@ _EVENT_STATE_MAP: dict[str, AgentState] = {
     EventType.PAUSED.value: AgentState.PAUSED,
     EventType.RESUMED.value: AgentState.EXECUTING,
     EventType.BLOCKED_AWAITING_CLARIFICATION.value: AgentState.BLOCKED,
+    EventType.ENGINE_COMPLETED.value: AgentState.AWAITING_DONE_SIGNAL,
+    EventType.ENGINE_FAILED.value: AgentState.BLOCKED,
     EventType.DONE_SIGNAL_RECEIVED.value: AgentState.REVIEWING,
     EventType.REVIEW_PASSED.value: AgentState.EXECUTING,
     EventType.REVIEW_FAILED.value: AgentState.BLOCKED,
@@ -72,6 +74,11 @@ class OrchestratorService(Orchestrator):
 
         self.runs: dict[str, dict[str, Any]] = {}
         self._bg_tasks: set[asyncio.Task] = set()
+        # Wave 6 (D3): per-run publish chains. Fire-and-forget tasks raced under
+        # fast successive actions — execution_started once landed BEFORE the
+        # plan_approved that caused it (live smoke evidence). Each run's publishes
+        # now await the previous one, so bus seq order matches causal order.
+        self._publish_chains: dict[str, asyncio.Task] = {}
 
     # ------------------------------------------------------------------ events
 
@@ -89,9 +96,32 @@ class OrchestratorService(Orchestrator):
             loop = asyncio.get_running_loop()
         except RuntimeError:
             return  # sync context (unit tests): DB delivery handled by API layer
-        task = loop.create_task(self._publish_safe(event_type, project_id, payload, run_id))
+        prev = self._publish_chains.get(run_id)
+        task = loop.create_task(
+            self._publish_ordered(prev, event_type, project_id, payload, run_id)
+        )
         self._bg_tasks.add(task)
-        task.add_done_callback(self._bg_tasks.discard)
+        self._publish_chains[run_id] = task
+
+        def _chain_done(done: asyncio.Task, rid: str = run_id) -> None:
+            self._bg_tasks.discard(done)
+            if self._publish_chains.get(rid) is done:
+                del self._publish_chains[rid]
+
+        task.add_done_callback(_chain_done)
+
+    async def _publish_ordered(
+        self, prev: asyncio.Task | None, event_type, project_id, payload, run_id
+    ) -> None:
+        """Wave 6 (D3): serialize this run's publishes behind the previous one."""
+        if prev is not None:
+            try:
+                await prev
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001 — predecessor failure must not stall us
+                pass
+        await self._publish_safe(event_type, project_id, payload, run_id)
 
     async def _publish_safe(self, event_type, project_id, payload, run_id) -> None:
         try:
@@ -295,6 +325,7 @@ class OrchestratorService(Orchestrator):
 
     async def _execute(self, run_data: dict[str, Any], plan: AgentPlan) -> None:
         run_id = run_data["runId"]
+        sm: AgentStateMachine = run_data["state_machine"]
         try:
             result = await asyncio.to_thread(
                 self.engine.execute_goal, goal=plan.goal, session_id=run_id
@@ -317,10 +348,21 @@ class OrchestratorService(Orchestrator):
                 "status": "error",
                 "finalResponse": f"DeepSeek Harness run failed: {exc}",
             }
+            # Wave 6 (D4): honest failure lands on the bus and blocks the run
+            # (no-op unless still EXECUTING — pause/stop already told their story).
+            sm.execution_failed(f"DeepSeek Harness run failed: {exc}")
             return
         if run_data.get("cancel_requested"):
             return  # zombie result from a cancelled live call — discard
         run_data["engine_result"] = result
+        # Wave 6 (D4): engine settled while still EXECUTING → emit + advance.
+        # Completed opens the human done-gate; any other status blocks honestly.
+        summary = str(result.get("finalResponse") or "")
+        status = str(result.get("status") or "")
+        if status == "completed":
+            sm.execution_completed(summary[:4000])
+        else:
+            sm.execution_failed(summary or f"engine status={status or 'unknown'}")
 
     async def get_engine_result(self, run_id: str) -> dict[str, Any]:
         run_data = await self._ensure_run(run_id)

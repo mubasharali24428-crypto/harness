@@ -18,7 +18,8 @@ from harness_contracts import (
 GOLDEN = Path(__file__).parent / "golden"
 
 
-def test_all_twelve_event_types_exist():
+def test_all_fourteen_event_types_exist():
+    """Wave 6: contracts 0.3.0 adds engine_completed/engine_failed (additive)."""
     assert {e.value for e in EVENT_TYPES} == {
         "plan_proposed",
         "plan_approved",
@@ -32,6 +33,8 @@ def test_all_twelve_event_types_exist():
         "pr_opened",
         "terminal_output",
         "diff_progress",
+        "engine_completed",
+        "engine_failed",
     }
 
 

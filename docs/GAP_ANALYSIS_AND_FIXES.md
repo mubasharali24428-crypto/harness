@@ -957,6 +957,11 @@ Carry these forward verbatim in STATUS.md updates.
 | ~~E-seed~~ | seed_demo idempotency vs per-login team minting | fixed wave 5 (persisted session) | no |
 | ~~CI-S1HANG~~ | section1 pytest job hung forever on CI runners | FIXED wave 5b (see Appendix G) | was blocking CI |
 | ~~RESUME~~ | Checkpoint-aware engine resume (Appendix C FAQ: pause/restart re-executes goals) | DONE 2026-08-22 (commit bce2b1c: resume respawns engine task, same session_id ⇒ dsh continues its session; 5 tests) | no |
+| ~~D1~~ | Compose default `DSH_MODEL` pointed at nonexistent local model | FIXED 2026-08-22 (default → `qwen3.5-9b-128k:latest`) | was ops |
+| ~~D2~~ | Engine fake-success: empty finalResponse counted as completed, fallback ladder never triggered | FIXED 2026-08-22 (empty/non-completed rung ⇒ fall through ⇒ honest error; stress tests migrated to per-call model arg) | was HIGH |
+| ~~D3~~ | Event-publish race under fast successive actions (`execution_started` sequenced before `plan_approved`) | FIXED 2026-08-22 (per-run publish chains serialize bus order behind causal order; regression test) | was MEDIUM |
+| ~~D4~~ | Engine settle emitted no event, never advanced the state machine (UI had to poll) | DONE 2026-08-22 (contracts 0.3.0 additive `engine_completed`/`engine_failed`, TS mirror regenerated same commit, SM advances EXECUTING→AWAITING_DONE_SIGNAL/BLOCKED, golden fixtures, S1 conformance pin) | was MEDIUM |
+| LIVEPROBE | Flaky local-Ollama live engine test replaced by OpenRouter probe (stealth/ox-alpha, real side-effect assertion, fresh session dirs — reused dsh session_root poisoned reruns) | DONE 2026-08-22; skips without OPENROUTER_API_KEY so CI stays green offline | no |
 | OAUTH-CREDS | Real GITHUB_CLIENT_ID/SECRET in deploy env so Settings Connect goes live (code DONE wave 5; without creds :8002 503s NOT_CONFIGURED by design) | config-only | demo day |
 | DB-RESTART | db container had `restart:` policy missing — host restart left backend DNS-crash-looping | trivial, FIXED 2026-08-22 (`restart: unless-stopped`) | was ops |
 
