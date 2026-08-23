@@ -20,6 +20,7 @@ dev = [
     # D5 ownership-guard tests exercise the projects→teams join against sqlite.
     "aiosqlite>=0.20",
     "greenlet>=3",
+    "sqlalchemy>=2",
 ]
 
 [build-system]
