@@ -1,0 +1,18 @@
+**Done.** Full audit written to `/Users/user/section7-core-flow-audit.md` (24 findings, each with file:line, severity, user-visible brokenness, fix). Read-only analyst — no repo files touched.
+
+## What I did
+- Walked the full core flow as a new user: login → project → meeting @ai → brief → approve → working-area plan gate → execution → done/review → PR.
+- Read every target file (`login/page.tsx`, `meeting/page.tsx`, `app/page.tsx`, `review/page.tsx`, `WorkingArea.tsx` + all panels, `Controls.tsx`, `AppShell.tsx`, `api.ts`, `auth.ts`, `useEventStream.ts`, `deriveView.ts`, `globals.css`, `/runs`, settings).
+- **Cross-checked against real backends**: S4 orchestrator routes (`POST /runs/{id}/plan|plan/approve|plan/reject|start` exist) and S6 meeting service (found the literal `"Regarding your question: {args}"` template at `service.py:114`; AI participant is a regex rules engine, no LLM). Also verified claims by grep (no `setPrId` callers, no `@media` queries, zero `onKeyDown` handlers) and ran `tsc --noEmit` (clean).
+
+## Key findings
+- **P0 ×5:** (1) plan propose/approve/start UI + API clients missing everywhere — run can never leave `idle`, circular pointers between pages; (2) login stores fake `proj-test-1` / `run-<timestamp>` ids → silent 404s; (3) Review page dead — nothing ever writes `harness.prId`; (4) `@ai` replies are canned echoes plus a redundant second `invokeAi` call from the client; (5) no 401 handling — expired token = infinite raw-string errors pointing at ":8006".
+- **P1 ×12:** Command Center "live" pill is a one-shot REST snapshot with no WS; empty input silently sends "Please review the plan."; Request-changes submits empty comments; Stop/Done/human-takeover with no guardrails (Done enabled in every state); un-debounced refetch-per-event with stale-response race; unguarded `JSON.parse` in WS handler + fixed 1.5s reconnect loop; stale Working link + sidebar overwriting project selection; sign-out keeps projectId/runId/prId/goal; raw error strings without `role="alert"` on 4 older screens; meeting lost on refresh; zero responsive CSS (fixed 220px sidebar, hard 2-col grid); hydration mismatch from render-time `getToken()`.
+- **P2 ×7:** no optimistic UI/single global busy; Enter doesn't send chat; focus/label a11y gaps; missing `aria-live` on chat/status/blockers; Human Gate ignores server review status; `crypto.randomUUID()` breaks on http; duplicated client-side risk heuristic.
+- False lead discarded: an apparent corrupted `` authorization: *** ${token}` `` line in api.ts turned out to be my terminal's output redaction of `Bearer ${token}` — committed source and build are fine.
+
+## Files created/modified
+- Created: `/Users/user/section7-core-flow-audit.md`. Nothing in the repo was modified.
+
+## Issues encountered
+- One grep-style command was blocked by the command parser (oversized inline payload); re-ran via the search_files tool instead — no impact on results.
