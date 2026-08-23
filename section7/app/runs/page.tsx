@@ -38,14 +38,21 @@ const selectStyle = {
   padding: "6px 8px",
 } as const;
 
-/** Status → theme-var pill color. Unknown statuses fall through honestly. */
+/** Status → theme-var pill color over the REAL AgentState vocabulary
+ *  (section4 state_machine.py). Active work = yellow, human/waiting gates =
+ *  blue, terminal success = green, failure = red; unknown values fall through
+ *  honestly to the uncolored .pill base. */
 const statusPillClass: Record<string, string> = {
-  queued: "pill blue",
-  running: "pill yellow",
-  completed: "pill green",
-  failed: "pill red",
+  idle: "pill blue",
+  planning: "pill yellow",
+  awaiting_plan_approval: "pill blue",
+  executing: "pill yellow",
   paused: "pill yellow",
+  awaiting_done_signal: "pill blue",
+  reviewing: "pill yellow",
   blocked: "pill red",
+  pr_opened: "pill blue",
+  done: "pill green",
 };
 
 const PAGE_SIZES = [10, 25, 50, 100] as const;

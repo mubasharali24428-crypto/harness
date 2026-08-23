@@ -90,5 +90,5 @@ B4 walg: fix-loop in flight — ATLAS personal gate after close. Do NOT touch.
 | Pair | Vertical | PASS-1 evidence | PASS-2 verdict | Spot-check by ATLAS |
 |---|---|---|---|---|
 | 1 | KEYS | | | |
-| 2 | RUNS | | | |
+| 2 | RUNS | ✅ footprint exact, S4 11/11, ruff clean, anti-synthesis clean, OpenAPI probe | `READY-TO-MERGE` (1 MINOR fixed in-lane: pill map remapped to all 10 AgentStates; resume-safety + pagination walk + enum equality proven live) | ✅ ATLAS: tsc+vitest rerun green (73/73), pill spot-check pass; host node repaired via libada.3 compat symlink |
 | 3 | BILLING | | | |
