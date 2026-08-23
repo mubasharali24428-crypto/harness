@@ -7,12 +7,13 @@ Follows contracts/api-conventions.md: camelCase JSON bodies, error bodies shaped
 import httpx
 from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .checklist import checklist_payload
 from .demo_repo import manifest_payload
 from .guided_demo import demo_payload
-from .steps import STEPS, steps_payload
+from .steps import STEPS, OnboardingStep, steps_payload
 from .store import StateStore
 from .telemetry import (
     ExplicitOptInRequiredError,
@@ -60,6 +61,74 @@ async def probe_available(client: httpx.AsyncClient, url: str, health_path: str)
 @router.get("/steps")
 async def get_steps() -> dict:
     return {"items": steps_payload()}
+
+
+# ---------------------------------------------------------------------------
+# M10-B3 — GET /checklist: the interactive first-run checklist.
+#
+# Derived from steps.py's frozen order plus whatever real completion signal
+# Section 10 actually persists today (StateStore). Honest done semantics — we
+# never pretend a step completed when nothing recorded it:
+#   * "other_integrations"  → done (required=False, purely informational;
+#                             brief §11 says "None required beyond GitHub").
+#   * "guided_demo"         → done once the security checklist was
+#                             acknowledged (POST /security-checklist/
+#                             acknowledge) — the one completion action this
+#                             section owns end-to-end right now.
+#   * everything else       → done=False until a section-owned signal exists
+#                             (GitHub OAuth lives in S2, teams/members in S1,
+#                             meetings in S6). Flipping these on later means
+#                             extending derive_done, not faking state here.
+# ---------------------------------------------------------------------------
+
+
+class ChecklistItem(BaseModel):
+    """Wire shape of one checklist row: {id, title, description?, done}."""
+
+    id: str
+    title: str
+    description: str | None = None
+    done: bool
+
+
+def derive_done(step_id: str, *, security_checklist_acknowledged: bool) -> bool:
+    """Whether an onboarding step counts as complete. Pure — see block above."""
+    if step_id == "other_integrations":
+        return True  # informational step, explicitly not required
+    if step_id == "guided_demo":
+        return security_checklist_acknowledged
+    return False
+
+
+def build_checklist_items(
+    *,
+    security_checklist_acknowledged: bool,
+    steps: list[OnboardingStep] | None = None,
+) -> list[dict]:
+    """Ordered checklist payload derived from steps.py state. Pure."""
+    ordered = sorted(steps if steps is not None else STEPS, key=lambda s: s.order)
+    items: list[dict] = []
+    for step in ordered:
+        done = derive_done(step.id, security_checklist_acknowledged=security_checklist_acknowledged)
+        items.append(
+            ChecklistItem(
+                id=step.id,
+                title=step.title,
+                description=step.description,
+                done=done,
+            ).model_dump()
+        )
+    return items
+
+
+@router.get("/checklist")
+async def get_checklist(request: Request) -> dict:
+    state = request.app.state.store.load()
+    return {
+        "items": build_checklist_items(
+            security_checklist_acknowledged=state["securityChecklistAcknowledged"],
+        )
+    }
 
 
 @router.get("/state")

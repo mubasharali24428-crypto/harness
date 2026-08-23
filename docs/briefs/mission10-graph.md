@@ -99,10 +99,11 @@ files are expected — ignore them.
 
 ## Merge checklist (gate exit criteria)
 
-- [ ] All 10 footprints == owned paths
-- [ ] Each suite rerun green by ATLAS (S1, S4, S7 vitest/tsc, section10)
-- [ ] Live probes: keys mint/revoke via TestClient; spend page fetch shape; runs endpoint pagination; billing flag-off state; rate-limit burst block
-- [ ] Lead ladder: ALPHA squad spec-PASS + quality-APPROVED; BETA ditto
-- [ ] Full sweep green + ruff clean + compose config valid (incl. walg profile mode)
-- [ ] GAP Part 10 rows + STATUS.md entry + evolution ledgers audited
-- [ ] Single mission commit pushed; CI all jobs green
+- [x] All 10 footprints == owned paths (verifier pairs re-audited independently)
+- [x] Each suite rerun green by ATLAS (S1 134, S4 11+134, S7 tsc+73 vitest, section10 15)
+- [x] Live probes: keys mint/revoke via scratch app (pair-1), runs pagination walk + status enum equality (pair-2), billing flag-off byte-exact payload (pair-3)
+- [x] Lead ladder: ALPHA 5/5 spec PASS, BETA closed loops (B2 crash fix, B4 env-knobs+checksum)
+- [x] Verifier team: all 3 verticals READY-TO-MERGE; in-lane fixes: pill-map, month-boundary seeding
+- [x] Full sweep green + ruff clean + compose config valid (incl. walg profile mode)
+- [x] GAP Part 10 rows (M10-KEYS/RUNS/COSTDASH/BILLING/ONBOARD/WALG/RATELIMIT) + STATUS entry + verifier doc
+- [ ] Single mission commit pushed; CI all jobs green ← committing now
