@@ -93,7 +93,7 @@ files are expected — ignore them.
 | A5 runs-page | sa-0-abc6708e | DONE | ✅ ATLAS rerun after landing: tsc OK, vitest 65/65; footprint = 2 owned files; M10-C2 client w/ server-driven paging, honest empty states |
 | B1 billing-api | sa-0-2cf37a67 | DONE | ✅ ATLAS rerun: test_billing 11/11 (full S1 sweep green at gate), ruff clean, migration 0010 style matches siblings w/ explanatory header; flag-off/enabled/quota-math/month-scoping proven via suite's ASGI transport; disclosed design notes for lead review (local row stays system-of-record in stripe mode) |
 | B2 billing-page | sa-0-96814f1c | DONE | ✅ shared S7 gate: tsc OK, vitest 65/65; flag-off upsell + quota meter per M10-C3; e2e probe deferred to ATLAS merge wiring with B1 backend |
-| B3 onboarding | sa-0-e1ee3262 | RUNNING | |
+| B3 onboarding | sa-0-e1ee3262 | DONE | ✅ ATLAS rerun: test_steps 15/15 (PYTHONPATH=src recipe, no section venv — honest), S7 gate 73/73 incl. new page; api.py was baseline-owned file EXTENDED per brief; done-derivation honest (no fabricated completion signals) |
 | B4 walg-pitr | sa-0-461180a7 | RUNNING (dispatch call timed out at 420s but agent spawned fine) | |
 | B5 rate-limit | sa-0-2bce4bb9 | RUNNING | |
 
