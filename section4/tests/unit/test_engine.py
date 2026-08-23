@@ -50,7 +50,6 @@ def test_live_run_against_openrouter():
     returned status=completed with 0 chars of output (D2's honesty rule
     turned that into an honest error). Skips without OPENROUTER_API_KEY
     so CI stays green offline."""
-    import os
     import tempfile
 
     import pytest
@@ -64,7 +63,6 @@ def test_live_run_against_openrouter():
     # poisoned conversation instead of exercising a clean run.
     ws = tempfile.mkdtemp(prefix="harness-engine-test-ws-")
     session_root = tempfile.mkdtemp(prefix="harness-engine-test-sessions-")
-    marker = os.path.join(ws, "engine_ok.txt")
 
     w = DeepSeekHarnessWrapper(
         workspace_dir=ws,
