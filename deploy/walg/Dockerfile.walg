@@ -28,15 +28,19 @@ LABEL org.opencontainers.image.title="harness-postgres-walg" \
       org.opencontainers.image.description="postgres:18-alpine + WAL-G ${WALG_VERSION} for harness PITR" \
       org.opencontainers.image.source="https://github.com/wal-g/wal-g"
 
-ADD https://github.com/wal-g/wal-g/releases/download/${WALG_VERSION}/wal-g-pg-24.04-${TARGETARCH} /tmp/wal-g
-ADD https://github.com/wal-g/wal-g/releases/download/${WALG_VERSION}/wal-g-pg-24.04-${TARGETARCH}.sha256 /tmp/wal-g.sha256
+ADD https://github.com/wal-g/wal-g/releases/download/${WALG_VERSION}/wal-g-pg-24.04-${TARGETARCH} /tmp/wal-g-pg-24.04-${TARGETARCH}
+ADD https://github.com/wal-g/wal-g/releases/download/${WALG_VERSION}/wal-g-pg-24.04-${TARGETARCH}.sha256 /tmp/wal-g-pg-24.04-${TARGETARCH}.sha256
 
+# Verify-then-rename: the .sha256 asset's checksum line names the ORIGINAL
+# upstream filename (wal-g-pg-24.04-${TARGETARCH}), so `sha256sum -c` must run
+# while the binary still carries that name. Renaming before verifying made the
+# check unsatisfiable on every first build.
 RUN set -eu; \
     cd /tmp; \
-    echo "$(cat wal-g.sha256)  wal-g" | sha256sum -c -; \
-    chmod +x wal-g; \
-    mv wal-g /usr/local/bin/wal-g; \
-    rm wal-g.sha256; \
+    sha256sum -c "wal-g-pg-24.04-${TARGETARCH}.sha256"; \
+    chmod +x "wal-g-pg-24.04-${TARGETARCH}"; \
+    mv "wal-g-pg-24.04-${TARGETARCH}" /usr/local/bin/wal-g; \
+    rm "wal-g-pg-24.04-${TARGETARCH}.sha256"; \
     /usr/local/bin/wal-g --version
 
 # Nothing else changes: same postgres user/layout as the stock image so the

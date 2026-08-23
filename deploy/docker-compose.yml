@@ -245,6 +245,57 @@ services:
       review:
         condition: service_healthy
 
+  # Mission 10 B4 — WAL-G PITR sidecar (base backups + retention). Opt-in via
+  # the 'walg' profile so the default `up` stays unchanged, mirroring the
+  # wave-8B 'proxy' pattern above:
+  #   docker compose -f deploy/docker-compose.yml --profile walg run --rm walg base   # one-shot
+  #   docker compose -f deploy/docker-compose.yml --profile walg up -d walg           # cron-ish loop
+  #
+  # ONE-SHOT vs LOOP: the command is driven by WALG_MODE. `oneshot` runs a
+  # single base backup and exits (pair with host cron or an external scheduler).
+  # `loop` sleeps WALG_INTERVAL_SECONDS between runs (a poor man's scheduler —
+  # no catch-up if the container was down; prefer one-shot + host cron for
+  # exact timing). WAL archiving itself is NOT this container's job: it is
+  # done by archive_command inside the db container once the db image carries
+  # the wal-g binary (build deploy/walg/Dockerfile.walg; documented as a
+  # FUTURE compose db-service change in docs/runbooks/backup-and-pitr.md).
+  walg:
+    image: postgres:18-alpine
+    profiles:
+      - walg
+    entrypoint: ["sh", "/opt/harness/deploy/walg/backup-walg.sh"]
+    environment:
+      # Storage target — REQUIRED in real use; defaults keep `config` mode runnable.
+      WALG_S3_PREFIX: ${WALG_S3_PREFIX:-}
+      WALG_FILE_PREFIX: ${WALG_FILE_PREFIX:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      AWS_ENDPOINT: ${AWS_ENDPOINT:-}
+      # Same DB identity/env family as the db + backend services above.
+      PGHOST: ${WALG_PGHOST:-db}
+      PGPORT: "5432"
+      PGUSER: harness
+      PGPASSWORD: ${POSTGRES_PASSWORD:-harness}
+      PGDATABASE: harness
+      WALG_COMPRESSION_METHOD: ${WALG_COMPRESSION_METHOD:-lz4}
+      WALG_RETENTION_KEEP: ${WALG_RETENTION_KEEP:-0}
+      # base | wal | list | retention | config (see backup-walg.sh usage)
+      WALG_MODE: ${WALG_MODE:-config}
+      # oneshot | loop (loop re-runs WALG_MODE every WALG_INTERVAL_SECONDS)
+      WALG_LOOP: ${WALG_LOOP:-oneshot}
+      WALG_INTERVAL_SECONDS: ${WALG_INTERVAL_SECONDS:-86400}
+    volumes:
+      # Read-only view of the repo (the backup script) + of the pgdata volume,
+      # for LOCAL-mode base backups (`backup-push <pgdata>` per upstream docs).
+      # Streaming mode (WALG_STREAM_BACKUP=1) needs only the env above.
+      - ./:/opt/harness/deploy:ro
+      - pgdata:/var/lib/postgresql/data:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   pgdata:
   caddy_data:
