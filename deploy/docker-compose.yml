@@ -7,12 +7,21 @@ x-backend-build: &backend-build
 
 x-backend-env: &backend-env
   HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@db:5432/harness
-  HARNESS_MASTER_KEY: ${HARNESS_MASTER_KEY:-dev-master-key-change-me-in-prod!}
-  HARNESS_ALLOW_DEV_MASTER_KEY: ${HARNESS_ALLOW_DEV_MASTER_KEY:-1}
+  # H-005 (M11-W1-B1): no master-key dev default ships here anymore.
+  # Empty default keeps `docker compose config` valid while services.py's
+  # fail-fast refuses to boot without a real key; opt back into local dev
+  # EXPLICITLY via HARNESS_ALLOW_DEV_MASTER_KEY=1.
+  HARNESS_MASTER_KEY: ${HARNESS_MASTER_KEY:-}
+  HARNESS_ALLOW_DEV_MASTER_KEY: ${HARNESS_ALLOW_DEV_MASTER_KEY:-}
   HARNESS_CORS_ORIGINS: ${HARNESS_CORS_ORIGINS:-["http://localhost:3000"]}
   HARNESS_REQUIRE_OWNERSHIP: ${HARNESS_REQUIRE_OWNERSHIP:-false}
-  DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-ollama}
-  DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-http://host.docker.internal:11434/v1}
+  # C-004/H-006 (M11-W1-B1): engine mode is EXPLICIT and validated at
+  # boot (deploy/runners/engine_boot.py). Placeholder credentials are gone:
+  # no "ollama" API-key default, no implicit host-Ollama endpoint, no
+  # silent provider/model fallback. Unset ⇒ dry engine (honest stub).
+  ENGINE_LIVE_MODE: ${ENGINE_LIVE_MODE:-dry}
+  DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+  DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-}
   DSH_MODEL: ${DSH_MODEL:-qwen3.5-9b-128k:latest}
   DSH_WORKSPACE: /tmp/harness-dsh/workspace
   DSH_SESSION_ROOT: /tmp/harness-dsh/sessions

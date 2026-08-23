@@ -96,7 +96,13 @@ def test_engine_failure_blocks_run():
     assert events[-1][1]["reason"] == "model ladder exhausted"
 
 
-def test_lifecycle_events_are_noop_outside_executing():
+def test_lifecycle_events_ignored_outside_executing_but_terminal_raises():
+    """Non-EXECUTING states ignore engine lifecycle events (no narrative steal).
+
+    H-008 sharpens the post-stop half of this contract: DONE is terminal, so
+    a late engine result must not only fail to resurrect the run — it must
+    raise InvalidStateTransitionError instead of being swallowed silently
+    ("loud error instead of a quiet lie")."""
     events = []
     sm = AgentStateMachine(run_id="run-idle", on_event=lambda t, p: events.append((t, p)))
     sm.execution_completed("premature")
@@ -104,10 +110,14 @@ def test_lifecycle_events_are_noop_outside_executing():
     assert sm.state == AgentState.IDLE
     assert events == []
 
-    # After stop (DONE), a late engine result must not resurrect anything.
+    # After stop (DONE), a late engine result must not resurrect anything —
+    # and per H-008 terminal hygiene it refuses loudly rather than lying quiet.
     events.clear()
     sm2 = _executing_sm(events)
     sm2.finish()
-    sm2.execution_completed("late zombie")
+    with pytest.raises(InvalidStateTransitionError):
+        sm2.execution_completed("late zombie")
+    with pytest.raises(InvalidStateTransitionError):
+        sm2.execution_failed("late zombie")
     assert sm2.state == AgentState.DONE
     assert events == []
