@@ -10,6 +10,10 @@ export const IDENTITY_BASE =
   process.env.NEXT_PUBLIC_IDENTITY_BASE_URL ?? "http://localhost:8001";
 export const ORCHESTRATOR_BASE =
   process.env.NEXT_PUBLIC_ORCHESTRATOR_BASE_URL ?? "http://localhost:8004";
+// M12-G8: Section 5 sandbox (tree browser slice) — same convention as the
+// other service bases; NEXT_PUBLIC_ is baked at build time like the rest.
+export const SANDBOX_BASE =
+  process.env.NEXT_PUBLIC_SANDBOX_BASE_URL ?? "http://localhost:8005";
 export const MEETING_BASE =
   process.env.NEXT_PUBLIC_MEETING_URL ?? "http://localhost:8006";
 export const REVIEW_BASE =
@@ -243,6 +247,49 @@ export function replayEvents(
     `${IDENTITY_BASE}/api/v1/projects/${projectId}/events/replay?after_seq=${afterSeq}`,
     token,
   );
+}
+
+// ---------------------------------------------------------------------------
+// Section 5 — sandbox checkpoints (M12-G9). List is a JSON resource; the diff
+// endpoint returns raw text/plain (not the JSON envelope apiFetch assumes),
+// so it gets a dedicated fetcher that still reuses the auth header shape.
+// SANDBOX_BASE is declared once at the top of this file (G8 tree browser).
+// ---------------------------------------------------------------------------
+
+export interface CheckpointDto {
+  sha: string;
+  message: string;
+  createdAt: string;
+  taskId: string;
+}
+
+export interface CheckpointList {
+  projectId: string;
+  items: CheckpointDto[];
+  nextCursor: string | null;
+}
+
+export function listCheckpoints(
+  projectId: string,
+  token: string,
+): Promise<CheckpointList> {
+  return apiFetch(
+    `${SANDBOX_BASE}/api/v1/sandbox/${encodeURIComponent(projectId)}/checkpoints`,
+    token,
+  );
+}
+
+export async function getCheckpointDiff(
+  projectId: string,
+  sha: string,
+  token: string,
+): Promise<string> {
+  const res = await fetch(
+    `${SANDBOX_BASE}/api/v1/sandbox/${encodeURIComponent(projectId)}/checkpoints/${encodeURIComponent(sha)}/diff`,
+    { headers: { authorization: `Bearer ${token}` } },
+  );
+  if (!res.ok) throw new ApiError(`Diff fetch failed (${res.status})`, "UNKNOWN", res.status);
+  return res.text();
 }
 
 /** H8: mint a one-time, 30s, project-bound ticket for the WS upgrade.

@@ -1,10 +1,16 @@
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from harness_contracts.roles import Principal, can
 from harness_contracts.signatures import TaskHandle
 from pydantic import BaseModel, Field
 
+from harness_sandbox.checkpoints import (
+    CheckpointError,
+    CheckpointNotFoundError,
+    CheckpointRepositoryNotFoundError,
+    InvalidShaError,
+)
 from harness_sandbox.output_parser import StructuredExecResult
 from harness_sandbox.policy import SecurityPolicyViolationError
 from harness_sandbox.service import SandboxService
@@ -117,3 +123,56 @@ def destroy_task(taskId: str, principal: Writer) -> dict[str, str]:
     handle = TaskHandle(taskId=taskId, containerId=f"local-{taskId}", branch="main")
     _service.destroy(handle)
     return {"status": "destroyed", "taskId": taskId}
+
+
+# ---------------------------------------------------------------------------
+# M12-G9: checkpoint read surface. Snapshots themselves are taken by the
+# edit flow (SandboxService.apply_edit → CheckpointManager); these endpoints
+# only list and diff what already exists, so they are read actions.
+# ---------------------------------------------------------------------------
+
+
+def _checkpoint_error(e: CheckpointError) -> HTTPException:
+    status_map = {
+        InvalidShaError: status.HTTP_400_BAD_REQUEST,
+        CheckpointNotFoundError: status.HTTP_404_NOT_FOUND,
+        CheckpointRepositoryNotFoundError: status.HTTP_404_NOT_FOUND,
+    }
+    return HTTPException(
+        status_code=status_map.get(type(e), status.HTTP_500_INTERNAL_SERVER_ERROR),
+        detail={"error": {"code": e.code, "message": str(e)}},
+    )
+
+
+def get_reader_principal(principal: Annotated[Principal, Depends(get_principal)]) -> Principal:
+    """Listing/diffing snapshots is a read action — any authenticated role."""
+    return principal
+
+
+Reader = Annotated[Principal, Depends(get_reader_principal)]
+
+
+@router.get("/{projectId}/checkpoints")
+def list_checkpoints(projectId: str, principal: Reader) -> dict:
+    """Snapshots for every workspace of this project, newest first."""
+    try:
+        items = _service.checkpoints.list_checkpoints(projectId)
+    except CheckpointError as e:
+        raise _checkpoint_error(e) from e
+    # Pagination convention (api-conventions.md): ?limit=&cursor= → {items, nextCursor}.
+    limit = 50
+    next_cursor = None
+    if len(items) > limit:
+        items = items[:limit]
+        next_cursor = items[-1]["sha"]
+    return {"projectId": projectId, "items": items, "nextCursor": next_cursor}
+
+
+@router.get("/{projectId}/checkpoints/{sha}/diff")
+def checkpoint_diff(projectId: str, sha: str, principal: Reader) -> Response:
+    """Raw unified diff introduced by one snapshot commit."""
+    try:
+        diff_text = _service.checkpoints.get_diff(projectId, sha)
+    except CheckpointError as e:
+        raise _checkpoint_error(e) from e
+    return Response(content=diff_text, media_type="text/plain; charset=utf-8")

@@ -271,6 +271,7 @@ def app_sandbox():
     from harness_identity.eventbus import EventBus
     from harness_sandbox.api import configure_sandbox, router
     from harness_sandbox.service import SandboxService
+    from harness_sandbox.tree_api import router as tree_router  # M12-G8 read-only tree
 
     factory = get_factory()
     bus = EventBus(factory)
@@ -297,6 +298,8 @@ def app_sandbox():
 
     configure_sandbox(SandboxService(on_stream=_publish_stream_event))
     app = simple_app(router, "harness-sandbox")
+    # M12-G8: mount the read-only tree router on the same app + bearer auth.
+    app.include_router(tree_router)
     app.state.get_principal = make_bearer_dep(factory)
     return app
 
