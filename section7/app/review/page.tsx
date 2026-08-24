@@ -1,9 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+// M12-E4b — Review page as the REAL prId consumer (H-001 UI half + W2-C2).
+// Acquisition precedence: ?pr= deep link → pr_opened bus event for the
+// current run → session-remembered value written by THIS page. When none has
+// produced a prId, PrEmptyState renders the honest pending copy — the old
+// dead-end ("set harness.prId first" / hand-edit localStorage) is gone.
+import { useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
 import { approvePr, getReviewData, requestChanges, type ReviewDto } from "@/lib/api";
-import { getUserId, getPrId, getToken } from "@/lib/auth";
+import { getUserId, getPrId, setPrId, getToken, getProjectId } from "@/lib/auth";
+import { useEventStream } from "@/lib/useEventStream";
+import {
+  adoptEventPrId,
+  prIdFromSearch,
+  resolvePrId,
+} from "./prSource";
+import { PrEmptyState } from "./prEmptyState";
 
 const RISKY_FILES = ["auth/", "payment/", "migrations", ".env", "secrets"];
 
@@ -12,17 +24,66 @@ export default function Review() {
   const [liveReview, setLiveReview] = useState<ReviewDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const prId = getPrId();
 
+  // --- prId acquisition (W2-C2 consumer side) -----------------------------
+  // Path 1: deep link /review?pr=<prId>, resolved once on mount. Also the
+  // signal that the URL itself names the PR under review.
+  const [deepLinkPrId, setDeepLinkPrId] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
-    const token = getToken();
-    if (!prId || !token) return;
-    getReviewData(prId, token)
+    const fromUrl = prIdFromSearch(window.location.search);
+    if (fromUrl) {
+      setDeepLinkPrId(fromUrl);
+      // Persist ONLY what this page legitimately learned — no hand editing.
+      setPrId(fromUrl);
+    }
+    setHydrated(true);
+  }, []);
+
+  // Path 3: value remembered in the session store (written by this page on an
+  // earlier visit / deep link). Read after hydration so SSR markup matches.
+  const [rememberedPrId, setRememberedPrId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!deepLinkPrId && !hydrated) return;
+    setRememberedPrId(getPrId());
+  }, [deepLinkPrId, hydrated]);
+
+  const projectId = getProjectId();
+  const token = getToken();
+  const { events } = useEventStream(projectId, token);
+
+  // Path 2: subscribe to the bus; adopt prId from a pr_opened event matching
+  // the current run. Producer is lane E4a (parallel) — payload shape per
+  // W2-C2: {runId, prId, url}. Producer side UNVERIFIED pending ATLAS merge.
+  const currentRunId = useMemo(() => {
+    for (let i = events.length - 1; i >= 0; i--) {
+      const rid = events[i].runId;
+      if (rid) return rid;
+    }
+    return null;
+  }, [events]);
+  const [eventPrId, setEventPrId] = useState<string | null>(null);
+  useEffect(() => {
+    const adopted = adoptEventPrId(deepLinkPrId ?? rememberedPrId, events, currentRunId);
+    if (adopted && adopted !== eventPrId) {
+      setEventPrId(adopted);
+      setPrId(adopted); // remember it so refresh keeps the review loaded
+    }
+  }, [deepLinkPrId, rememberedPrId, events, currentRunId]); // eslint-disable-line react-hooks/exhaustive-deps -- eventPrId intentionally excluded: adoption guard lives inside
+
+  const prId = deepLinkPrId ?? eventPrId ?? rememberedPrId;
+
+  // Load review data whenever a prId becomes available.
+  useEffect(() => {
+    const t = getToken();
+    if (!prId || !t) return;
+    getReviewData(prId, t)
       .then((r) => {
         setLiveReview(r);
+        setError(null);
       })
       .catch(() => {
-        /* stay on empty state until a PR exists */
+        /* stay on honest empty state until the PR exists */
       });
   }, [prId]);
 
@@ -33,11 +94,11 @@ export default function Review() {
 
   async function decide(kind: "approved" | "changes_requested") {
     if (!prId) {
-      setError("No PR selected — set harness.prId first.");
+      setError("No pull request yet — it appears here the moment the agent opens one.");
       return;
     }
-    const token = getToken();
-    if (!token) {
+    const t = getToken();
+    if (!t) {
       setError("Not signed in — go to /login first.");
       return;
     }
@@ -45,8 +106,8 @@ export default function Review() {
     setError(null);
     try {
       const reviewer = getUserId() ?? "ui-user";
-      if (kind === "approved") await approvePr(prId, reviewer, token);
-      else await requestChanges(prId, [], reviewer, token);
+      if (kind === "approved") await approvePr(prId, reviewer, t);
+      else await requestChanges(prId, [], reviewer, t);
       setDecision(kind);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -60,18 +121,10 @@ export default function Review() {
       <h1>
         Review Area{" "}
         <span className={`pill ${liveReview ? "green" : "yellow"}`}>
-          {liveReview ? `PR ${liveReview.prId}` : "no PR loaded"}
+          {liveReview ? `PR ${liveReview.prId}` : prId ? `PR ${prId} loading…` : "no PR yet"}
         </span>
       </h1>
-      {!prId && (
-        <div className="card">
-          <h2>No pull request selected</h2>
-          <p>
-            Open a PR from an approved run, then this area renders its diff, risk flags,
-            and human gate.
-          </p>
-        </div>
-      )}
+      {!prId && <PrEmptyState />}
       {liveReview && (
         <div className="grid">
           <div className="card" style={{ gridColumn: "1 / -1" }}>
@@ -152,6 +205,12 @@ export default function Review() {
             )}
           </div>
         </div>
+      )}
+      {!liveReview && prId && !decision && (
+        <p className="status-line">
+          <span>PR {prId}</span>
+          <span>loading diff…</span>
+        </p>
       )}
       {error && <p style={{ color: "var(--red)" }}>{error}</p>}
     </AppShell>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ApiError, login, requestLoginOtp, verifyLoginOtp } from "@/lib/api";
 import { saveSession, setUserId } from "@/lib/auth";
 // W1-C2 (C-006): post-auth identity is resolved for real — the caller's actual
@@ -24,9 +24,19 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  // M12-E2: /login?expired=1 — the apiFetch interceptor lands here after a 401.
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [projectName, setProjectName] = useState("");
   // Token held while the user names their first project (create-project mode).
   const [pendingToken, setPendingToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Read the query param off window (not useSearchParams) so the statically
+    // prerendered login page never needs a Suspense boundary.
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("expired") === "1") {
+      setSessionExpired(true);
+    }
+  }, []);
 
   /**
    * C-006 — post-auth identity is REAL or the flow routes to creation:
@@ -123,6 +133,27 @@ export default function Login() {
 
   return (
     <div style={{ display: "grid", placeItems: "center", minHeight: "100vh" }}>
+      {sessionExpired && (
+        // M12-E2: shown when the 401 interceptor bounces here with ?expired=1.
+        <div
+          role="alert"
+          style={{
+            position: "fixed",
+            top: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 10,
+            background: "#3b2f0b",
+            color: "#f5d76e",
+            border: "1px solid #8a7500",
+            borderRadius: 6,
+            padding: "10px 18px",
+            fontSize: 14,
+          }}
+        >
+          Session expired — sign in again.
+        </div>
+      )}
       {mode === "legacy" ? (
         <form onSubmit={legacySubmit} className="card" style={{ width: 360 }}>
           <h2 style={{ color: "var(--accent)", letterSpacing: 2 }}>HARNESS</h2>

@@ -2,6 +2,9 @@ import type { AgentPlan } from "@contracts/plan";
 import type { Principal } from "@contracts/roles";
 import type { RunStatus } from "@contracts/api";
 import type { EventEnvelope } from "@contracts/events";
+// M12-E2: on a 401 the interceptor clears the whole session client-side
+// (token + loose harness.* keys) before bouncing to /login?expired=1.
+import { clearSession } from "./auth";
 
 export const IDENTITY_BASE =
   process.env.NEXT_PUBLIC_IDENTITY_BASE_URL ?? "http://localhost:8001";
@@ -66,6 +69,50 @@ export function parseApiError(status: number, body: unknown): { message: string;
   return { message: `Request failed with status ${status}`, code: "UNKNOWN" };
 }
 
+// ---------------------------------------------------------------------------
+// M12-E2 friendly errors: map machine error codes to human sentences with a
+// next-step hint. Keys are the codes sections actually emit today (verified by
+// grep across section1–section10); anything unmapped falls through to the
+// generic branch. User-facing strings never leak dev jargon (service names,
+// ports, storage keys).
+// ---------------------------------------------------------------------------
+const FRIENDLY_ERROR_MESSAGES: Record<string, string> = {
+  RATE_LIMITED:
+    "You're doing that too quickly. Please wait a moment and try again.",
+  RATE_LIMIT_EXCEEDED:
+    "You're doing that too quickly. Please wait a moment and try again.",
+  OWNERSHIP_REQUIRED:
+    "We need to confirm this workspace belongs to you. Sign in with the email linked to the project.",
+  PLAN_NOT_APPROVED:
+    "This work can't start until someone approves the plan. Ask your team to review it first.",
+  INVALID_STATE:
+    "That action doesn't fit where things are right now. Refresh the page and check the run's current step.",
+  NO_BRIEF:
+    "There's no brief to show yet. Generate one from the meeting before continuing.",
+  PLAN_MISMATCH:
+    "The plan changed since you last looked. Reload it, then approve or request changes again.",
+  PLAN_NOT_FOUND:
+    "No plan has been drawn up for this yet. Wait for one to be proposed, then review it.",
+  NOT_FOUND:
+    "We couldn't find what you asked for. It may have been deleted or is still being created.",
+  INVALID_CODE:
+    "That code isn't right. Double-check the email and try again.",
+  EXPIRED:
+    "That code has expired. Request a fresh one to continue.",
+  LOCKED:
+    "Too many wrong attempts. Please wait a few minutes, then request a new code.",
+  ROLE_DENIED:
+    "Your role doesn't allow that action. Ask an admin on your team for help.",
+  SECURITY_POLICY_VIOLATION:
+    "That action was blocked for safety reasons. If you think it's needed, ask your team admin.",
+};
+
+/** Pure: returns a user-safe sentence for a known error code; null when the
+ *  caller should fall back to the generic message + correlation hint. */
+export function friendlyErrorMessage(code: string): string | null {
+  return FRIENDLY_ERROR_MESSAGES[code] ?? null;
+}
+
 async function apiFetch<T>(url: string, token: string | null, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
@@ -85,10 +132,35 @@ async function apiFetch<T>(url: string, token: string | null, init?: RequestInit
     }
   }
   if (!res.ok) {
+    // M12-E2 interceptor: an expired/invalid session is not a normal error —
+    // wipe every credential and loose key, bounce to the login page with
+    // ?expired=1 (the login page shows a "Session expired" banner for it), and
+    // throw ApiError so the awaiting caller still unwinds cleanly.
+    if (res.status === 401) {
+      clearSession();
+      if (typeof window !== "undefined") window.location.href = "/login?expired=1";
+      throw new ApiError(
+        "Your session has expired. Please sign in again.",
+        "UNAUTHORIZED",
+        res.status,
+      );
+    }
     const { message, code } = parseApiError(res.status, body);
-    throw new ApiError(message, code, res.status);
+    throw new ApiError(friendlyErrorMessage(code) ?? message, code, res.status);
   }
   return body as T;
+}
+
+/** M12-E2: human sentence + correlation hint for errors we can't translate.
+ *  Used by pages as the last-resort fallback so users always have something to
+ *  do next. Known codes get their friendly copy from the map instead. */
+export function displayErrorMessage(err: unknown): string {
+  if (err instanceof ApiError && friendlyErrorMessage(err.code)) {
+    return friendlyErrorMessage(err.code) as string;
+  }
+  const raw =
+    err instanceof Error && err.message.trim() !== "" ? err.message : String(err);
+  return `${raw} If this keeps happening, contact support with the time it occurred.`;
 }
 
 export function getRunStatus(runId: string, token: string): Promise<RunStatus> {

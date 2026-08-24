@@ -36,7 +36,19 @@ export function loadSession(): Session | null {
 
 export function clearSession(): void {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(STORAGE_KEY);
+  // M12-E2 sign-out hygiene: wipe the session token AND every loose harness.*
+  // key (projectId, runId, prId, goal, userId, principal) so a stale run/PR
+  // selection never leaks into the next account that signs in on this browser.
+  // Sweep by prefix rather than enumerating KEYS so keys added later are
+  // covered without touching this function again; uses the Storage interface's
+  // own length/key(i) enumeration, which works on real browsers and any
+  // spec-compliant mock alike.
+  const sweep: string[] = [];
+  for (let i = 0; i < window.localStorage.length; i += 1) {
+    const key = window.localStorage.key(i);
+    if (key && key.startsWith("harness.")) sweep.push(key);
+  }
+  for (const key of sweep) window.localStorage.removeItem(key);
 }
 
 /** Session token or null — the one accessor pages should use. */
