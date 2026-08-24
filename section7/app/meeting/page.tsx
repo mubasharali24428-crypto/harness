@@ -12,12 +12,15 @@ import {
   generateBrief,
   getBrief,
   getMessages,
-  invokeAi,
   postMessage,
   type BriefDto,
   type MeetingMsg,
 } from "@/lib/api";
 import { getUserId, getProjectId, getToken, loadSession, setGoal } from "@/lib/auth";
+// M12-E1 (H-002): one send = one call. S6 answers "@ai" server-side (real
+// model via the team's BYO key, honest fallback when none), so the client's
+// second invokeAi POST is gone; sendWithAi owns the single-call flow + thinking.
+import { sendWithAi } from "@/lib/meetingSend";
 // M12-E6: the meeting pointer survives refresh. Persisted per team under
 // `harness.meeting.<teamId>`; restored on mount and rehydrated through the
 // existing GET messages/brief endpoints — no new backend surface.
@@ -45,6 +48,9 @@ export default function Meeting() {
   const [error, setError] = useState<string | null>(null);
   // M12-E6: true once a persisted meeting was successfully brought back on mount.
   const [restoredFromStorage, setRestoredFromStorage] = useState(false);
+  // M12-E1: true while an @ai send awaits S6's server-side reply (key decrypt
+  // + model call can take seconds) — renders the thinking indicator.
+  const [thinking, setThinking] = useState(false);
 
   // Generalized so reload can report how the GET went (restore needs to know
   // missing vs unreachable); every existing caller still ignores the result.
@@ -151,16 +157,30 @@ export default function Meeting() {
       }
       const content = draft.trim() || "Please review the plan.";
       const uid = getUserId() ?? "ui-user";
-      await postMessage(id, uid, withAi ? `@ai ${content}` : content, getToken()!);
-      if (withAi) await invokeAi(id, uid, content, getToken()!);
+      if (withAi) {
+        // M12-E1: single invocation — S6 replies server-side to the "@ai"
+        // message; thinking indicator covers the model-call latency.
+        await sendWithAi({
+          meetingId: id,
+          userId: uid,
+          content,
+          token: getToken()!,
+          onMessages: setMessages,
+          onThinking: setThinking,
+        });
+      } else {
+        await postMessage(id, uid, content, getToken()!);
+      }
       setDraft("");
       if (createdHere && id) {
         const pid = projectId();
         if (pid) persist(id, pid);
       }
-      await getMessages(id, getToken()!)
-        .then(setMessages)
-        .catch(() => {});
+      if (!withAi) {
+        await getMessages(id, getToken()!)
+          .then(setMessages)
+          .catch(() => {});
+      }
       setLive(true);
     });
 
@@ -229,6 +249,12 @@ export default function Meeting() {
               </div>
             );
           })}
+          {/* M12-E1: shown while S6 works on an @ai reply (key + model call). */}
+          {thinking && (
+            <div className="msg agent" data-testid="ai-thinking">
+              <div className="who">ai-participant</div>thinking…
+            </div>
+          )}
           <div className="chat-input">
             <input
               value={draft}
@@ -238,8 +264,12 @@ export default function Meeting() {
             <button className="btn" disabled={busy} onClick={() => void send(false)}>
               Send
             </button>
-            <button className="btn primary" disabled={busy} onClick={() => void send(true)}>
-              Send @ai
+            <button
+              className="btn primary"
+              disabled={busy || thinking}
+              onClick={() => void send(true)}
+            >
+              {thinking ? "@ai thinking…" : "Send @ai"}
             </button>
           </div>
         </div>
