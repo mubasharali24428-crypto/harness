@@ -17,32 +17,32 @@ exact statement Postgres runs against rate_buckets (migration 0011).
 """
 
 import logging
+import sys
+from pathlib import Path
 
-# The hook import appends section1/src to sys.path FIRST (G3-style seam), so
-# every harness_identity import below resolves in this venv.
+# G3-style seam: the shared limiter lives in section1 and this venv does not
+# carry harness_identity as an installed distribution, so append its src tree
+# BEFORE importing it.
+_ROOT = Path(__file__).resolve().parents[2]
+if (_ROOT / "section1" / "src") not in sys.path:
+    sys.path.append(str(_ROOT / "section1" / "src"))
+
+import harness_identity.ratelimit as rl
+import pytest
+from fastapi import FastAPI
+from harness_contracts.roles import Principal, Role
+from harness_identity.models import Base
+from harness_identity.ratelimit import RUN_START_LIMIT, RUN_START_TEMPLATE
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+from harness_orchestrator import api as orch_api
+from harness_orchestrator.api import get_principal, router
 from harness_orchestrator.ratelimit_hooks import (
     ORCHESTRATOR_ROUTE_LIMITS,
     install_orchestrator_rate_limit,
 )
-
-import harness_identity.ratelimit as rl  # noqa: E402 — path set above
-import pytest  # noqa: E402
-from fastapi import FastAPI  # noqa: E402
-from harness_contracts.roles import Principal, Role  # noqa: E402
-from harness_identity.models import Base  # noqa: E402
-from harness_identity.ratelimit import (  # noqa: E402
-    RUN_START_LIMIT,
-    RUN_START_TEMPLATE,
-)
-from httpx import ASGITransport, AsyncClient  # noqa: E402
-from sqlalchemy import text  # noqa: E402
-from sqlalchemy.ext.asyncio import (  # noqa: E402
-    async_sessionmaker,
-    create_async_engine,
-)
-
-from harness_orchestrator import api as orch_api
-from harness_orchestrator.api import get_principal, router
 from harness_orchestrator.service import OrchestratorService
 
 MASTER = b"test-master-key-0123456789abcdef"
