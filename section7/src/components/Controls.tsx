@@ -114,10 +114,13 @@ export function Controls({
 
       {takeover && (
         <div>
+          {/* M15-S3: placeholder-only naming fails WCAG 4.1.2/3.3.2 —
+              aria-label names the field; the checkbox label above doesn't. */}
           <input
             value={editPath}
             onChange={(e) => setEditPath(e.target.value)}
             placeholder="file path"
+            aria-label="File path to edit"
             style={inputStyle}
           />
           <div

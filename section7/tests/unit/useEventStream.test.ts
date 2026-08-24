@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventType } from "@contracts/events";
 import type { EventEnvelope } from "@contracts/events";
 import {
+  computeWsFingerprint,
   EventStreamController,
   mergeEvents,
   type SocketLike,
@@ -379,5 +380,108 @@ describe("H-012 refetch coalescing (WorkingArea wiring shape)", () => {
       vi.advanceTimersByTime(2000);
     }
     expect(h.fetches.length).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// M15-W5-S2 (W5-C1): ticket client-binding. The controller carries a
+// fingerprint = sha256(UA + clientIp-if-known)[:16] on every upgrade URL.
+// Browsers cannot set custom headers on new WebSocket(url), so the value the
+// spec names X-WS-Fingerprint rides as the `fingerprint` query param (the
+// server accepts header-or-param). See the honest-weakening note in
+// useEventStream.ts.
+// ---------------------------------------------------------------------------
+
+describe("computeWsFingerprint (M15-W5-S2)", () => {
+  it("is sha256(ua + ip)[:16], byte-identical to the server's arithmetic", () => {
+    // Independent re-derivation with node:crypto directly.
+    const { createHash } = require("node:crypto");
+    const expected = createHash("sha256").update("UA/1.0" + "10.0.0.9").digest("hex").slice(0, 16);
+    expect(computeWsFingerprint("UA/1.0", "10.0.0.9")).toBe(expected);
+  });
+
+  it("degrades to a UA-only digest when no IP is known (browser reality)", () => {
+    const { createHash } = require("node:crypto");
+    const expected = createHash("sha256").update("UA/1.0").digest("hex").slice(0, 16);
+    expect(computeWsFingerprint("UA/1.0")).toBe(expected);
+    expect(computeWsFingerprint("UA/1.0")).toHaveLength(16);
+  });
+
+  it("changes when either input changes", () => {
+    expect(computeWsFingerprint("UA/1.0", "10.0.0.9")).not.toBe(
+      computeWsFingerprint("UA/2.0", "10.0.0.9"),
+    );
+    expect(computeWsFingerprint("UA/1.0", "10.0.0.9")).not.toBe(
+      computeWsFingerprint("UA/1.0", "10.0.0.10"),
+    );
+  });
+});
+
+describe("upgrade fingerprint transport (M15-W5-S2)", () => {
+  it("appends &fingerprint=<hex16> to every upgrade URL", async () => {
+    vi.stubGlobal("navigator", { userAgent: "TestUA/7" } as unknown as Navigator);
+    try {
+      const h = await makeController();
+      const url = MockSocket.instances[0].lastUrl();
+      const fp = new URL(url).searchParams.get("fingerprint");
+      // UA-only digest: no getClientIp supplied.
+      expect(fp).toBe(computeWsFingerprint("TestUA/7"));
+      expect(new URLSearchParams(new URL(url).search).get("ticket")).toBe("test-ticket");
+
+      // Reconnect mints again and STILL carries a fresh fingerprint param.
+      h.controller.forceDrop();
+      h.scheduler.fireNext();
+      await flush();
+      expect(MockSocket.instances[1].lastUrl()).toContain("fingerprint=");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("uses getClientIp() when the host app knows the client IP", async () => {
+    vi.stubGlobal("navigator", { userAgent: "TestUA/7" } as unknown as Navigator);
+    let ip: string | undefined = undefined;
+    try {
+      MockSocket.instances = [];
+      const scheduler = makeScheduler();
+      const controller = new EventStreamController({
+        mintTicket: TICKET,
+        socketFactory: (url) => new MockSocket(url),
+        schedule: scheduler.schedule,
+        onStateChange: () => {},
+        getClientIp: () => ip,
+      });
+      controller.start("proj-1", "tok-1");
+      await flush();
+      const urlA = MockSocket.instances[0].lastUrl();
+      expect(new URL(urlA).searchParams.get("fingerprint")).toBe(
+        computeWsFingerprint("TestUA/7"),
+      );
+      // Server-rendered hosts can supply it; the digest then covers both fields.
+      ip = "192.0.2.44";
+      controller.forceDrop();
+      scheduler.fireNext();
+      await flush();
+      const urlB = MockSocket.instances[1].lastUrl();
+      expect(new URL(urlB).searchParams.get("fingerprint")).toBe(
+        computeWsFingerprint("TestUA/7", "192.0.2.44"),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("survives a missing navigator (SSR/node) by hashing the empty UA string", async () => {
+    const navDesc = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+    // @ts-expect-error — deliberately hiding navigator for this test.
+    delete globalThis.navigator;
+    try {
+      const h = await makeController();
+      const url = MockSocket.instances[0].lastUrl();
+      expect(new URL(url).searchParams.get("fingerprint")).toBe(computeWsFingerprint(""));
+    } finally {
+      if (navDesc) Object.defineProperty(globalThis, "navigator", navDesc);
+      else vi.unstubAllGlobals();
+    }
   });
 });

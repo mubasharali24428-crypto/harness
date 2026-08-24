@@ -1,9 +1,36 @@
 "use client";
 
+import { createHash } from "node:crypto";
 import { useEffect, useRef, useState } from "react";
 import type { EventEnvelope } from "@contracts/events";
 import { fetchWsTicket, IDENTITY_WS_BASE } from "./api";
 import { backoffDelay, exponentialDelay, BACKOFF_MAX_DELAY_MS } from "./backoff";
+
+// ---------------------------------------------------------------------------
+// M15-W5-S2 (W5-C1): client-side ticket fingerprint.
+//
+// fingerprint = sha256(userAgent + clientIp-if-known)[:16] — byte-identical
+// arithmetic to harness_identity.ephemeral.compute_client_fingerprint.
+//
+// HONEST WEAKENING (documented per mission law):
+//  - Browsers cannot set custom headers on new WebSocket(url), so the browser
+//    client cannot literally send X-WS-Fingerprint. We therefore carry the
+//    SAME value as a `fingerprint` query parameter on the upgrade URL; the
+//    server accepts either (header first, param as the browser channel).
+//  - The browser does not know its own IP, so clientIp is usually undefined
+//    here and the hash degenerates to a UA-only digest. The server treats a
+//    UA-only digest as valid presented-evidence (it compares that field
+//    alone), BUT the authoritative binding is server-side: the upgrade path
+//    always recomputes sha256(exact-UA + peer-IP) and rejects when it no
+//    longer matches what mint stored. A stolen ticket replayed from another
+//    host dies with 4403 TICKET_FINGERPRINT_MISMATCH regardless of what this
+//    file sends.
+// ---------------------------------------------------------------------------
+
+/** Pure + sync: sha256(ua + ip)[:16]; pass undefined ip for the UA-only form. */
+export function computeWsFingerprint(userAgent: string, clientIp?: string): string {
+  return createHash("sha256").update(`${userAgent ?? ""}${clientIp ?? ""}`).digest("hex").slice(0, 16);
+}
 
 /** Pure: merge one incoming envelope into the existing ordered, deduped list.
  *  Dedup by seq guards the reconnect race where the server might re-send an event
@@ -51,6 +78,13 @@ export interface ControllerOptions {
   mintTicket?: () => Promise<string>;
   socketFactory?: SocketFactory;
   schedule?: TimerScheduler;
+  /**
+   * M15-W5-S2: client IP for the ticket fingerprint when the host app knows
+   * it (server-rendered/proxied setups). Browsers normally do NOT know their
+   * own IP — leave undefined and the fingerprint is UA-only (see the honest
+   * weakening note at the top of this file; server-side binding is unaffected).
+   */
+  getClientIp?: () => string | undefined;
   /** Called with each parsed envelope; errors here must never kill the stream. */
   onEvent?: (envelope: EventEnvelope) => void;
   onStateChange?: (status: EventStreamStatus) => void;
@@ -67,6 +101,7 @@ export class EventStreamController {
   private readonly mintTicketOverride?: () => Promise<string>;
   private readonly makeSocket: SocketFactory;
   private readonly schedule: TimerScheduler;
+  private readonly getClientIp?: () => string | undefined;
   private readonly onEvent: (envelope: EventEnvelope) => void;
   private readonly onStateChange: (status: EventStreamStatus) => void;
 
@@ -82,9 +117,9 @@ export class EventStreamController {
 
   constructor(options: ControllerOptions = {}) {
     this.mintTicketOverride = options.mintTicket;
-    this.makeSocket =
-      options.socketFactory ?? ((url) => new WebSocket(url) as unknown as SocketLike);
+    this.makeSocket = options.socketFactory ?? ((url) => new WebSocket(url) as unknown as SocketLike);
     this.schedule = options.schedule ?? defaultSchedule;
+    this.getClientIp = options.getClientIp;
     this.onEvent = options.onEvent ?? noop;
     this.onStateChange = options.onStateChange ?? noop;
   }
@@ -187,9 +222,18 @@ export class EventStreamController {
     // Single-use tickets are short-lived secrets — always URL-encode them and
     // never log or persist the resulting URL.
     const pid = encodeURIComponent(this.projectId);
+    // M15-W5-S2: carry the client fingerprint on the upgrade. Browsers cannot
+    // set custom headers on WebSocket, so the X-WS-Fingerprint value rides as
+    // a query param (the server accepts header-or-param). UA-only unless the
+    // host app supplies getClientIp — see the honest-weakening note above.
+    let ua = "";
+    if (typeof navigator !== "undefined" && typeof navigator.userAgent === "string") {
+      ua = navigator.userAgent;
+    }
+    const fp = computeWsFingerprint(ua, this.getClientIp?.() ?? undefined);
     return `${IDENTITY_WS_BASE}/api/v1/ws/${pid}?afterSeq=${this.lastSeq}&ticket=${encodeURIComponent(
       ticket,
-    )}`;
+    )}&fingerprint=${encodeURIComponent(fp)}`;
   }
 
   private cancelPendingTimer(): void {

@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+// Classic JSX transform (vitest/esbuild) needs React in scope for the .tsx
+// extension; Next's compiler accepts this import too — same as meeting/page.
+import * as React from "react";
 import { panelStyle, headingStyle, inputStyle, secondaryButtonStyle } from "@/lib/styles";
 
 interface Comment {
@@ -48,11 +51,15 @@ export function CommentsNudges({ authorName }: { authorName: string }) {
         ))}
         {comments.length === 0 && <p style={{ color: "#6b7280", fontSize: 13 }}>No comments yet.</p>}
       </div>
+      {/* M15-S3 (W4-VT2 carryover): placeholder-only naming fails WCAG
+          4.1.2/3.3.2 — aria-label carries the accessible name; the panel
+          heading alone doesn't label this textarea. */}
       <textarea
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         rows={2}
         placeholder="Leave a comment or redirect for the agent…"
+        aria-label="Leave a comment or nudge for the agent"
         style={{ ...inputStyle, resize: "vertical" }}
       />
       <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
