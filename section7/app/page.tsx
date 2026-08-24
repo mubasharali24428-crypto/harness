@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import AppShell from "@/components/AppShell";
 import { getRunStatus, getPlan, replayEvents, listProjects } from "@/lib/api";
+import { useEventStream } from "@/lib/useEventStream";
+import type { ConnectionState } from "@/lib/useEventStream";
 import {
   getToken,
   getProjectId,
@@ -17,7 +19,14 @@ export default function CommandCenter() {
   const [plan, setPlan] = useState<AgentPlan | null>(null);
   const [events, setEvents] = useState<EventEnvelope[]>([]);
   const [projectName, setProjectName] = useState<string>("");
-  const [source, setSource] = useState<"live" | "idle">("idle");
+
+  // H-012: the live pill is driven by the WS connection lifecycle, not by REST
+  // fetches succeeding. `source` is now derived purely from that state.
+  const { connectionState, attempt } = useEventStream(
+    typeof window !== "undefined" ? getProjectId() : null,
+    typeof window !== "undefined" ? getToken() : null,
+  );
+
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -43,7 +52,6 @@ export default function CommandCenter() {
           ]);
           if (st.status === "fulfilled") {
             setStatus(st.value);
-            setSource("live");
           }
           if (pl.status === "fulfilled" && pl.value) setPlan(pl.value);
         }
@@ -55,7 +63,6 @@ export default function CommandCenter() {
           const { items } = await replayEvents(projectId, 0, token);
           // newest last for display consistency with the working area
           setEvents(items.slice(-50));
-          if (items.length) setSource("live");
         }
       } catch {
         /* replay needs a real project; idle until one exists */
@@ -65,11 +72,21 @@ export default function CommandCenter() {
 
   const last = events[events.length - 1];
 
+  // H-012: pill state machine — WS-truthful. REST snapshots no longer flip the
+  // pill; only the actual event-stream lifecycle does.
+  const PILL: Record<ConnectionState, { label: string; cls: string }> = {
+    connecting: { label: "connecting", cls: "yellow" },
+    open: { label: "live", cls: "green" },
+    reconnecting: { label: `reconnecting (attempt ${attempt})`, cls: "yellow" },
+    closed: { label: "offline", cls: "red" },
+  };
+  const pill = PILL[connectionState];
+
   return (
     <AppShell active="/">
       <h1>
         Command Center{projectName ? ` — ${projectName}` : ""}{" "}
-        <span className={`pill ${source === "live" ? "green" : "yellow"}`}>{source}</span>
+        <span data-testid="live-pill" className={`pill ${pill.cls}`}>{pill.label}</span>
       </h1>
       {!getToken() && (
         <div className="card">
