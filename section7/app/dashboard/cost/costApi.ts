@@ -2,6 +2,10 @@
 // Lives next to the page (node A3's file boundary); talks to Section 3's
 // model-router service with the same bearer/error conventions as src/lib/api.ts
 // (mirrors teamApi.ts next to the settings/team page).
+//
+// M12-G6: honesty upgrades for empty states + client-side CSV export of the
+// byDay series. All new logic is exported as PURE functions (no DOM, no fetch)
+// so vitest covers it directly; the page owns the DOM side (blob download).
 import { ApiError, parseApiError } from "@/lib/api";
 
 // The model-router base is not exported from @/lib/api today; this file owns
@@ -87,6 +91,33 @@ export function spendIsEmpty(summary: SpendSummary): boolean {
   );
 }
 
+/**
+ * M12-G6 (H-011): distinguish zero-because-nothing-ran from zero-because-unwired.
+ *
+ * The frozen /spend contract gives the UI exactly one hard signal:
+ *   - HTTP 503 {code: "LEDGER_UNAVAILABLE"} → metering is NOT wired; every
+ *     number on this dashboard would be fabricated, so show the explainer.
+ *   - HTTP 200 → the ledger IS connected and queryable, so zeroed totals mean
+ *     no usage was RECORDED for the period. That is still not full proof that
+ *     metering reaches every agent run (runners can bypass recording while the
+ *     ledger itself is healthy), so the page defaults those zeros to the
+ *     explainer too — with copy noting activity was genuinely not recorded.
+ *
+ * "pending" covers first-load/error states the page renders its own way
+ * (loading indicator / role="alert"); it never shows numbers or the explainer.
+ */
+export type SpendView = "unwired" | "no-recorded-activity" | "data" | "pending";
+
+export function classifySpendView(
+  summary: SpendSummary | null,
+  unwired: boolean,
+  hasError: boolean,
+): SpendView {
+  if (hasError || summary === null) return "pending";
+  if (unwired) return "unwired";
+  return spendIsEmpty(summary) ? "no-recorded-activity" : "data";
+}
+
 /** "$0.0000" formatting per the dashboard spec (ledger rounds to 6 decimals;
  *  the UI shows 4). */
 export function formatUsd(costUsd: number): string {
@@ -100,6 +131,52 @@ export function formatTokens(tokens: number): string {
   if (n < 1_000_000) return `${trimZeros((n / 1000).toFixed(1))}k`;
   return `${trimZeros((n / 1_000_000).toFixed(2))}M`;
 }
+
+/** RFC 4180 single-field escape: quote, then double any embedded quotes. */
+function csvField(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+/**
+ * Serialize the byDay series as RFC 4180 CSV (all fields quoted; embedded
+ * quotes doubled; CRLF row endings). Pure — no Blob/DOM here, so it is
+ * unit-testable under vitest's node environment.
+ */
+export function buildSpendCsv(byDay: SpendByDayEntry[]): string {
+  const lines = ["day,cost_usd"];
+  for (const d of byDay) {
+    lines.push(`${csvField(d.day)},${csvField(formatUsd(d.costUsd))}`);
+  }
+  return `${lines.join("\r\n")}\r\n`;
+}
+
+/** Filename for the byDay export, e.g. harness-spend-20260821T101500Z.csv. */
+export function csvFileName(now: Date = new Date()): string {
+  const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  return `harness-spend-${stamp}.csv`;
+}
+
+/**
+ * Trigger a client-side download of `byDay` as CSV via an object URL.
+ * Returns the generated filename. DOM-side counterpart of buildSpendCsv.
+ */
+export function downloadSpendCsv(byDay: SpendByDayEntry[]): string {
+  const blob = new Blob([buildSpendCsv(byDay)], { type: "text/csv;charset=utf-8" });
+  const name = csvFileName();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  return name;
+}
+
+/** Docs link shown in the metering explainer (STATUS.md lives at repo root). */
+export const COST_DOCS_URL =
+  "https://github.com/mubasharali24428-crypto/harness/blob/master/STATUS.md";
 
 function trimZeros(s: string): string {
   return s.includes(".") ? s.replace(/\.?0+$/, "") : s;
