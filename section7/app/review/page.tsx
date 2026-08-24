@@ -6,6 +6,9 @@
 // produced a prId, PrEmptyState renders the honest pending copy — the old
 // dead-end ("set harness.prId first" / hand-edit localStorage) is gone.
 import { useEffect, useMemo, useState } from "react";
+// Classic JSX transform (vitest/esbuild) needs React in scope for the .tsx
+// extension; Next's compiler accepts this import too — same as meeting/page.
+import * as React from "react";
 import AppShell from "@/components/AppShell";
 import { approvePr, getReviewData, requestChanges, type ReviewDto } from "@/lib/api";
 import { getUserId, getPrId, setPrId, getToken, getProjectId } from "@/lib/auth";
@@ -16,6 +19,13 @@ import {
   resolvePrId,
 } from "./prSource";
 import { PrEmptyState } from "./prEmptyState";
+// M16-X4 (raw-17): markup migrated onto the shared DS primitives — Card /
+// Button / Pill replace the class-only shells and the tinted error line moved
+// onto the proposed Notice primitive. Visual parity intent; the .pill.green /
+// .pill.yellow / .pill.red class hooks the e2e journey keys on are preserved
+// verbatim.
+import { Button, Card, Pill } from "@/components/ui";
+import { Notice } from "@/components/ui/Notice";
 
 const RISKY_FILES = ["auth/", "payment/", "migrations", ".env", "secrets"];
 
@@ -118,17 +128,23 @@ export default function Review() {
 
   return (
     <AppShell active="/review">
+      {/* M16-X4: Pill keeps className="pill …" so the e2e journey's .pill hooks
+          stay intact — parity face over the DS tone map. */}
       <h1>
         Review Area{" "}
-        <span className={`pill ${liveReview ? "green" : "yellow"}`}>
+        <Pill
+          tone={liveReview ? "green" : "yellow"}
+          className={`pill ${liveReview ? "green" : "yellow"}`}
+        >
           {liveReview ? `PR ${liveReview.prId}` : prId ? `PR ${prId} loading…` : "no PR yet"}
-        </span>
+        </Pill>
       </h1>
       {!prId && <PrEmptyState />}
       {liveReview && (
         <div className="grid">
-          <div className="card" style={{ gridColumn: "1 / -1" }}>
-            <h2>AI-Written PR Summary</h2>
+          {/* M16-X4: Card(as="div") keeps the .grid child semantics of the old
+              div.card shells; title renders the legacy .card h2 face. */}
+          <Card as="div" style={{ gridColumn: "1 / -1" }} title="AI-Written PR Summary">
             {liveReview.summary?.sections?.length ? (
               liveReview.summary.sections.map((s) => (
                 <p key={s.label}>
@@ -138,11 +154,10 @@ export default function Review() {
             ) : (
               <p>No AI summary stored for this PR yet.</p>
             )}
-          </div>
+          </Card>
 
           {liveReview.changed_files?.length > 0 && (
-            <div className="card">
-              <h2>Changed Files</h2>
+            <Card as="div" title="Changed Files">
               {liveReview.changed_files.map((f) => (
                 <div className="status-line" key={f.path}>
                   <span>{f.path}</span>
@@ -151,11 +166,10 @@ export default function Review() {
                   </span>
                 </div>
               ))}
-            </div>
+            </Card>
           )}
 
-          <div className="card">
-            <h2>Risk Flags</h2>
+          <Card as="div" title="Risk Flags">
             {liveReview.risk_flags?.length ? (
               <ul className="risk-list">
                 {liveReview.risk_flags.map((f) => (
@@ -174,22 +188,28 @@ export default function Review() {
                 secrets).
               </p>
             )}
-          </div>
+          </Card>
 
-          <div className="card">
-            <h2>Human Gate</h2>
+          <Card as="div" title="Human Gate">
             <p>Merge happens on GitHub, by a human, manually. This app never merges.</p>
+            {/* M16-X4: the flex row is the one-off layout exception (above). */}
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="btn primary" disabled={busy} onClick={() => void decide("approved")}>
+              <Button
+                type="button"
+                variant="primary"
+                disabled={busy}
+                onClick={() => void decide("approved")}
+              >
                 Approve
-              </button>
-              <button
-                className="btn danger"
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
                 disabled={busy}
                 onClick={() => void decide("changes_requested")}
               >
                 Request changes
-              </button>
+              </Button>
               <a className="btn" href={liveReview.pr_url} target="_blank" rel="noreferrer">
                 Open on GitHub ↗
               </a>
@@ -197,13 +217,13 @@ export default function Review() {
             {decision && (
               <p>
                 Decision recorded:{" "}
-                <span className={`pill ${decision === "approved" ? "green" : "red"}`}>
+                <Pill tone={decision === "approved" ? "green" : "red"} className={`pill ${decision === "approved" ? "green" : "red"}`}>
                   {decision}
-                </span>{" "}
+                </Pill>{" "}
                 — written to audit log via Section 1.
               </p>
             )}
-          </div>
+          </Card>
         </div>
       )}
       {!liveReview && prId && !decision && (
@@ -212,7 +232,7 @@ export default function Review() {
           <span>loading diff…</span>
         </p>
       )}
-      {error && <p style={{ color: "var(--red)" }}>{error}</p>}
+      {error && <Notice tone="danger">{error}</Notice>}
     </AppShell>
   );
 }

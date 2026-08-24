@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+// Classic JSX transform (vitest/esbuild) needs React in scope for the .tsx
+// extension; Next's compiler accepts this import too — same as meeting/page.
+import * as React from "react";
 import AppShell from "@/components/AppShell";
 import { getRunStatus, getPlan, replayEvents, listProjects } from "@/lib/api";
 import { useEventStream } from "@/lib/useEventStream";
@@ -13,6 +16,12 @@ import {
 import type { EventEnvelope } from "@contracts/events";
 import type { AgentPlan } from "@contracts/plan";
 import type { RunStatus } from "@contracts/api";
+// M16-X4 (raw-17): markup migrated onto the shared DS primitives — Card
+// replaces the class-only shells and the tinted error line moved onto the
+// proposed Notice primitive. Visual parity intent; the .pill class hooks and
+// data-testid="live-pill" are preserved verbatim.
+import { Card, Pill } from "@/components/ui";
+import { Notice } from "@/components/ui/Notice";
 
 export default function CommandCenter() {
   const [status, setStatus] = useState<RunStatus | null>(null);
@@ -73,12 +82,13 @@ export default function CommandCenter() {
   const last = events[events.length - 1];
 
   // H-012: pill state machine — WS-truthful. REST snapshots no longer flip the
-  // pill; only the actual event-stream lifecycle does.
-  const PILL: Record<ConnectionState, { label: string; cls: string }> = {
-    connecting: { label: "connecting", cls: "yellow" },
-    open: { label: "live", cls: "green" },
-    reconnecting: { label: `reconnecting (attempt ${attempt})`, cls: "yellow" },
-    closed: { label: "offline", cls: "red" },
+  // pill; only the actual event-stream lifecycle does. M16-X4: the DS tone
+  // rides alongside the legacy class so <Pill> renders the identical face.
+  const PILL: Record<ConnectionState, { label: string; cls: string; tone: "yellow" | "green" | "red" }> = {
+    connecting: { label: "connecting", cls: "yellow", tone: "yellow" },
+    open: { label: "live", cls: "green", tone: "green" },
+    reconnecting: { label: `reconnecting (attempt ${attempt})`, cls: "yellow", tone: "yellow" },
+    closed: { label: "offline", cls: "red", tone: "red" },
   };
   const pill = PILL[connectionState];
 
@@ -86,29 +96,35 @@ export default function CommandCenter() {
     <AppShell active="/">
       <h1>
         Command Center{projectName ? ` — ${projectName}` : ""}{" "}
-        <span data-testid="live-pill" className={`pill ${pill.cls}`}>{pill.label}</span>
+        <Pill tone={pill.tone} className={`pill ${pill.cls}`} testId="live-pill">
+          {pill.label}
+        </Pill>
       </h1>
       {!getToken() && (
-        <div className="card">
-          <h2>Welcome</h2>
+        // M16-X4: welcome card onto Card (title = legacy .card h2 face).
+        <Card title="Welcome">
           <p>
             Not signed in yet.{" "}
             <a href="/login" style={{ color: "var(--accent)" }}>
               Go to login →
             </a>
           </p>
-        </div>
+        </Card>
       )}
       <div className="grid">
-        <div className="card">
-          <h2>Agent Status</h2>
+        {/* M16-X4: status cards onto Card; the .pill spans keep their class
+            hooks (live-pill testid + e2e selectors) verbatim. */}
+        <Card title="Agent Status">
           {status ? (
             <>
               <div className="status-line">
                 <span>{getRunId() ?? "—"}</span>
-                <span className={`pill ${status.state === "executing" ? "blue" : "yellow"}`}>
+                <Pill
+                  tone={status.state === "executing" ? "blue" : "yellow"}
+                  className={`pill ${status.state === "executing" ? "blue" : "yellow"}`}
+                >
                   {status.state}
-                </span>
+                </Pill>
               </div>
               <div className="status-line">
                 <span>plan approved</span>
@@ -124,10 +140,9 @@ export default function CommandCenter() {
           ) : (
             <p>No live run yet — start one in the Working Area after approving a plan.</p>
           )}
-        </div>
+        </Card>
 
-        <div className="card">
-          <h2>Current Plan</h2>
+        <Card title="Current Plan">
           {plan ? (
             <>
               <ul>
@@ -147,10 +162,9 @@ export default function CommandCenter() {
           ) : (
             <p>No plan proposed for the current run.</p>
           )}
-        </div>
+        </Card>
 
-        <div className="card event-feed">
-          <h2>Activity Stream</h2>
+        <Card className="card event-feed" title="Activity Stream">
           {events.length === 0 && <p>No events yet.</p>}
           {[...events].reverse().map((e) => (
             <div className="event-row" key={e.seq}>
@@ -159,29 +173,28 @@ export default function CommandCenter() {
               <span>{e.runId}</span>
             </div>
           ))}
-        </div>
+        </Card>
 
-        <div className="card">
-          <h2>Guardrails</h2>
+        <Card title="Guardrails">
           <div className="status-line">
             <span>auto-merge</span>
-            <span className="pill red">never</span>
+            <Pill tone="red" className="pill red">never</Pill>
           </div>
           <div className="status-line">
             <span>plan gate</span>
-            <span className="pill green">enforced</span>
+            <Pill tone="green" className="pill green">enforced</Pill>
           </div>
           <div className="status-line">
             <span>sandbox</span>
-            <span className="pill green">allow-list + OS confinement</span>
+            <Pill tone="green" className="pill green">allow-list + OS confinement</Pill>
           </div>
           <div className="status-line">
             <span>forbidden paths</span>
             <span>.env*, infra/</span>
           </div>
-        </div>
+        </Card>
       </div>
-      {error && <p style={{ color: "var(--red)" }}>{error}</p>}
+      {error && <Notice tone="danger">{error}</Notice>}
     </AppShell>
   );
 }

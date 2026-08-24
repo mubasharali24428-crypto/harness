@@ -34,9 +34,10 @@ describe("sendWithAi (M12-E1)", () => {
   it("makes exactly ONE call — the /messages post — and no /ai request", async () => {
     const f = stubFetch((url) => {
       if (String(url).includes("/messages?") || String(url).endsWith("/messages")) {
-        return [{ userId: "u1", content: "@ai status?" }];
+        // M16-X2: the transcript GET answers the pagination envelope now.
+        return { items: [{ userId: "u1", content: "@ai status?" }], hasMore: false };
       }
-      return [];
+      return { items: [], hasMore: false };
     });
     await sendWithAi({
       meetingId: "mtg-9",
@@ -99,9 +100,13 @@ describe("sendWithAi (M12-E1)", () => {
   it("refreshes messages after posting so the AI reply lands in state", async () => {
     const f = stubFetch((url) => {
       if (String(url).includes("/messages") && String(url.split("?").pop() !== "")) {
-        return [{ userId: "ai-participant", content: "model says hi" }];
+        // M16-X2: pagination envelope — the refresh unwraps `items`.
+        return {
+          items: [{ userId: "ai-participant", content: "model says hi" }],
+          hasMore: false,
+        };
       }
-      return [];
+      return { items: [], hasMore: false };
     });
     let finalMessages: MeetingMsg[] = [];
     await sendWithAi({

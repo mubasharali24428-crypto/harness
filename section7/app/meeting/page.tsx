@@ -11,7 +11,7 @@ import {
   createMeeting,
   generateBrief,
   getBrief,
-  getMessages,
+  getMessagePage,
   postMessage,
   type BriefDto,
   type MeetingMsg,
@@ -30,6 +30,13 @@ import {
   runMeetingRestore,
   saveMeeting,
 } from "@/lib/session";
+// M16-X4 (raw-17): markup migrated onto the shared DS primitives — Card /
+// Button / Pill replace the class-only shells and the tinted note line moved
+// onto the proposed Notice primitive. Visual parity intent; all testids,
+// roles, aria-labels and the .pill/.card class hooks the e2e journey keys on
+// are preserved verbatim.
+import { Button, Card, Pill } from "@/components/ui";
+import { Notice } from "@/components/ui/Notice";
 
 /** What the restore-time GET discovered about the saved meeting. */
 type RestoreOutcome = "ok" | "missing" | "unreachable";
@@ -51,6 +58,11 @@ export default function Meeting() {
   // M12-E1: true while an @ai send awaits S6's server-side reply (key decrypt
   // + model call can take seconds) — renders the thinking indicator.
   const [thinking, setThinking] = useState(false);
+  // M16-X2: pagination — true while the server still holds older messages
+  // beyond the loaded window; load-more appends them without touching newer
+  // state (composer, thinking) at all.
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
 
   // Generalized so reload can report how the GET went (restore needs to know
   // missing vs unreachable); every existing caller still ignores the result.
@@ -77,6 +89,28 @@ export default function Meeting() {
   const projectId = () => getProjectId();
   const hasProject = () => Boolean(projectId());
 
+  // M16-X2: load-more — fetch the page strictly older than the oldest loaded
+  // message and PREPEND it. Pure append of history; never touches newer
+  // messages, the composer draft, or the thinking indicator. Cursor prefers
+  // the stable messageSeq; legacy message ids are the fallback.
+  const loadMore = () => {
+    const token = getToken();
+    if (!token || !meetingId || loadingOlder || messages.length === 0) return;
+    const oldest = messages[0];
+    setLoadingOlder(true);
+    void getMessagePage(meetingId, token, {
+      before: oldest.messageSeq ?? oldest.id,
+    })
+      .then((page) => {
+        setMessages((prev) => [...page.items, ...prev]);
+        setHasMore(page.hasMore);
+      })
+      .catch(() => {
+        setError("Couldn't load older messages (is S6 up on :8006?)");
+      })
+      .finally(() => setLoadingOlder(false));
+  };
+
   // M12-E6: every time a meeting becomes current, remember it per team so a
   // refresh lands back in the same room instead of an idle empty one.
   const teamId = () => loadSession()?.principal?.teamId ?? null;
@@ -88,9 +122,11 @@ export default function Meeting() {
   const reload = (id: string) =>
     guard(async (): Promise<RestoreOutcome> => {
       try {
-        const msgs = await getMessages(id, getToken()!);
-        if (msgs.length) setLive(true);
-        setMessages(msgs);
+        const page = await getMessagePage(id, getToken()!);
+        if (page.items.length) setLive(true);
+        setMessages(page.items);
+        // M16-X2: remember whether older history remains server-side.
+        setHasMore(page.hasMore);
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) return "missing";
         return "unreachable"; // S6 down/network blip — keep whatever we have
@@ -115,7 +151,9 @@ export default function Meeting() {
       teamId: loadSession()?.principal?.teamId ?? null,
       token: getToken(),
       getProjectId: projectId,
-      getMessages,
+      // M16-X2: restore reads through the paginated endpoint; only the
+      // newest window hydrates on mount — older pages load via load-more.
+      getMessages: async (id, tok) => (await getMessagePage(id, tok)).items,
       getBrief,
       setMeetingId,
       setMessages,
@@ -177,8 +215,13 @@ export default function Meeting() {
         if (pid) persist(id, pid);
       }
       if (!withAi) {
-        await getMessages(id, getToken()!)
-          .then(setMessages)
+        // M16-X2: refresh through the paginated read; a fresh page REPLACES
+        // state and re-derives hasMore from the server envelope.
+        await getMessagePage(id, getToken()!)
+          .then((page) => {
+            setMessages(page.items);
+            setHasMore(page.hasMore);
+          })
           .catch(() => {});
       }
       setLive(true);
@@ -203,23 +246,27 @@ export default function Meeting() {
 
   return (
     <AppShell active="/meeting">
+      {/* M16-X4: Pill keeps className="pill …" so the e2e journey's .pill.green
+          hooks stay intact — parity face over the DS tone map. */}
       <h1>
         Meeting Area{" "}
-        <span className={`pill ${live ? "green" : "yellow"}`}>
+        <Pill tone={live ? "green" : "yellow"} className={`pill ${live ? "green" : "yellow"}`}>
           {restoredFromStorage ? "restored" : live ? "live" : "idle"}
           {meetingId ? ` · ${meetingId.slice(0, 8)}…` : ""}
-        </span>
+        </Pill>
       </h1>
       {restoredFromStorage && (
-        <p style={{ color: "var(--green)" }} data-testid="meeting-restored-note">
+        // M16-X4: Notice(success) carries the tinted note line; the literal
+        // data-testid + role=status are preserved for meetingRestore's pins.
+        <Notice tone="success" role="status" data-testid="meeting-restored-note">
           {RESTORED_NOTE_LEAD} — picked up where you left off (transcript reloaded).
-        </p>
+        </Notice>
       )}
       {!meetingId && (
         <p>
-          <button className="btn primary" disabled={busy || !hasProject()} onClick={startMeeting}>
+          <Button type="button" variant="primary" disabled={busy || !hasProject()} onClick={startMeeting}>
             Start a live meeting (creates in S6)
-          </button>{" "}
+          </Button>{" "}
           — or just send a message and one is created for you.
         </p>
       )}
@@ -227,18 +274,35 @@ export default function Meeting() {
         <p>
           {/* M12-E6 explicit override: a persisted meeting never traps the user —
               clicking this deliberately starts fresh and replaces the pointer. */}
-          <button className="btn" disabled={busy || !hasProject()} onClick={startMeeting}>
+          <Button type="button" disabled={busy || !hasProject()} onClick={startMeeting}>
             Start a new meeting (replaces the current one)
-          </button>
+          </Button>
         </p>
       )}
       <div className="grid">
-        <div className="card chat">
-          <h2>Discussion (AI muted until you @ai)</h2>
+        {/* M16-X4: Card(as="div") wraps the chat column — .chat flex layout
+            kept via className, title renders the legacy .card h2 face. */}
+        <Card as="div" className="card chat" title="Discussion (AI muted until you @ai)">
           {messages.length === 0 && (
             <div className="msg human">
               <div className="who">you</div>Nothing yet — say something.
             </div>
+          )}
+          {/* M16-X2: load-more — appears only when the server reports older
+              history; prepends the older page without touching newer state. */}
+          {hasMore && (
+            <p>
+              <Button
+                type="button"
+                data-testid="load-older"
+                loading={loadingOlder}
+                loadingText="Loading…"
+                disabled={busy || loadingOlder}
+                onClick={() => void loadMore()}
+              >
+                {loadingOlder ? "Loading…" : "Load earlier messages"}
+              </Button>
+            </p>
           )}
           {messages.map((m, i) => {
             const isAi = Boolean(m.isAiGenerated) || m.userId === "ai-participant";
@@ -265,52 +329,59 @@ export default function Meeting() {
               placeholder="Message team… use @ai to summon the agent"
               aria-label="Chat message"
             />
-            <button className="btn" disabled={busy} onClick={() => void send(false)}>
+            <Button type="button" disabled={busy} onClick={() => void send(false)}>
               Send
-            </button>
-            <button
-              className="btn primary"
+            </Button>
+            {/* M16-X4: loading swaps the label while S6 works (aria-busy). */}
+            <Button
+              type="button"
+              variant="primary"
               disabled={busy || thinking}
+              loading={thinking}
+              loadingText="@ai thinking…"
               onClick={() => void send(true)}
             >
               {thinking ? "@ai thinking…" : "Send @ai"}
-            </button>
+            </Button>
           </div>
-        </div>
+        </Card>
 
-        <div className="card">
-          <h2>Brief lifecycle</h2>
-          <button className="btn" disabled={busy || !meetingId} onClick={genBrief}>
+        {/* M16-X4: brief-lifecycle card onto Card; status/error lines onto
+            Pill/Notice with their e2e class hooks kept. */}
+        <Card title="Brief lifecycle">
+          <Button type="button" disabled={busy || !meetingId} onClick={genBrief}>
             Generate brief from transcript
-          </button>{" "}
+          </Button>{" "}
           {brief && (
-            <button
-              className="btn primary"
+            <Button
+              type="button"
+              variant="primary"
               disabled={busy || brief.status === "approved"}
               style={{ marginLeft: 8 }}
               onClick={doApproveBrief}
             >
               Approve brief
-            </button>
+            </Button>
           )}
           {note && <p>{note}</p>}
-          {error && (
-            <p style={{ color: "var(--red)" }}>{error}</p>
-          )}
+          {error && <Notice tone="danger">{error}</Notice>}
           {brief ? (
             <>
               <p>
                 <strong>Status:</strong>{" "}
-                <span className={`pill ${brief.status === "approved" ? "green" : "yellow"}`}>
+                <Pill
+                  tone={brief.status === "approved" ? "green" : "yellow"}
+                  className={`pill ${brief.status === "approved" ? "green" : "yellow"}`}
+                >
                   {brief.status}
-                </span>
+                </Pill>
               </p>
               <ul>{brief.requirements?.map((r) => <li key={r}>{r}</li>)}</ul>
             </>
           ) : (
             <p>No brief yet. Discuss, then generate.</p>
           )}
-        </div>
+        </Card>
       </div>
     </AppShell>
   );

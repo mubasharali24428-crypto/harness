@@ -385,6 +385,9 @@ export interface MeetingMsg {
   createdAt?: string;
   timestamp?: string;
   isAiGenerated?: boolean;
+  /** M16-X2: 1-based transcript position on GET /messages page items —
+   *  the preferred pagination cursor (`before=<messageSeq>`). */
+  messageSeq?: number;
 }
 
 export interface BriefDto {
@@ -407,8 +410,42 @@ export function createMeeting(projectId: string, title: string, token: string): 
   });
 }
 
-export function getMessages(meetingId: string, token: string): Promise<MeetingMsg[]> {
-  return meetingFetch(`/api/v1/meetings/${meetingId}/messages`, token);
+// M16-X2: S6's GET messages body is now the pagination envelope
+// {items, hasMore} (server default limit 200, cap 500). MeetingMsg keeps its
+// optional fields so both the live S6 shape and legacy fixtures typecheck.
+export interface MessagePage {
+  items: MeetingMsg[];
+  hasMore: boolean;
+}
+
+/**
+ * Raw paginated fetch (M16-X2): `before` is the cursor — messages strictly
+ * OLDER than that message; omit it for the newest window. Prefer the stable
+ * `messageSeq` from a page item; legacy message ids are accepted by the
+ * server for one release. `limit` defaults server-side to
+ * MESSAGES_DEFAULT_LIMIT and is hard-capped at 500.
+ */
+export function getMessagePage(
+  meetingId: string,
+  token: string,
+  opts?: { limit?: number; before?: string | number },
+): Promise<MessagePage> {
+  const qs = new URLSearchParams();
+  if (opts?.limit !== undefined) qs.set("limit", String(opts.limit));
+  if (opts?.before !== undefined) qs.set("before", String(opts.before));
+  const query = qs.toString();
+  return meetingFetch(
+    `/api/v1/meetings/${meetingId}/messages${query ? `?${query}` : ""}`,
+    token,
+  );
+}
+
+/** Convenience read: full page fetch with the older tail unwrapped. */
+export async function getMessages(
+  meetingId: string,
+  token: string,
+): Promise<MeetingMsg[]> {
+  return (await getMessagePage(meetingId, token)).items;
 }
 
 export function postMessage(

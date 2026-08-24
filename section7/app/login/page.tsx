@@ -15,6 +15,15 @@ import {
   bootstrapSucceeded,
   createAndActivateProject,
 } from "../../lib/session";
+// M16-X4 (raw-17): markup migrated onto the shared DS primitives — Button /
+// Brand / Notice replace the inline-styled controls, wordmark and tinted
+// status lines. Visual parity intent; all ids/classes/testids preserved.
+// Brand/Notice are X4-PROPOSED additions (new files in ui/): ui/index.ts is
+// the DS lane's frozen barrel, so they are consumed by module path until the
+// DS lane adopts and re-exports them.
+import { Button } from "@/components/ui";
+import { Notice } from "@/components/ui/Notice";
+import { Brand } from "@/components/ui/Brand";
 import type { Principal, Role } from "@contracts/roles";
 
 type Mode = "legacy" | "otp-code-sent" | "create-project";
@@ -138,28 +147,14 @@ export default function Login() {
     <div style={{ display: "grid", placeItems: "center", minHeight: "100vh" }}>
       {sessionExpired && (
         // M12-E2: shown when the 401 interceptor bounces here with ?expired=1.
-        <div
-          role="alert"
-          style={{
-            position: "fixed",
-            top: 16,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 10,
-            background: "#3b2f0b",
-            color: "#f5d76e",
-            border: "1px solid #8a7500",
-            borderRadius: 6,
-            padding: "10px 18px",
-            fontSize: 14,
-          }}
-        >
+        // M16-X4: Notice(boxed) carries the banner face verbatim (role=alert).
+        <Notice boxed role="alert" testId="login-session-expired">
           Session expired — sign in again.
-        </div>
+        </Notice>
       )}
       {mode === "legacy" ? (
         <form onSubmit={legacySubmit} className="card login-card">
-          <h2 style={{ color: "var(--accent)", letterSpacing: 2 }}>HARNESS</h2>
+          <Brand>HARNESS</Brand>
           <p>Sign in to your team workspace. New email? We create your solo team.</p>
           {/* M15-S3 (W4-VT2 carryover): placeholder-only naming fails WCAG
               4.1.2/3.3.2 — real <label for>, visually hidden via .sr-only so
@@ -176,18 +171,20 @@ export default function Login() {
             required
             className="text-input"
           />
-          <button className="btn primary" disabled={busy} style={{ width: "100%" }}>
+          {/* M16-X4: Button(md) keeps the .btn box at the form-input rhythm.
+              EXCEPTION (documented): width:100% rides Button's style prop —
+              the frozen primitive has no fullWidth prop and ui/ is consume-
+              only; flagged for the DS lane as a candidate prop. */}
+          <Button type="submit" variant="primary" size="md" disabled={busy} loading={busy} loadingText="Signing in…" style={{ width: "100%" }}>
             {busy ? "Signing in…" : "Enter the harness"}
-          </button>
-          {error && (
-            <p style={{ color: "var(--red)", marginTop: 8 }}>{error}</p>
-          )}
+          </Button>
+          {error && <Notice tone="danger" style={{ marginTop: 8 }}>{error}</Notice>}
         </form>
       ) : mode === "create-project" ? (
         // C-006: honest first-run state — the account has no projects yet, so
         // we create a real one (POST /api/v1/projects) before entering.
         <form onSubmit={createProjectSubmit} className="card login-card">
-          <h2 style={{ color: "var(--accent)", letterSpacing: 2 }}>HARNESS</h2>
+          <Brand>HARNESS</Brand>
           <p>
             Your team has no projects yet. Name your first one — it&apos;s created for real in
             Section 1 before you continue.
@@ -204,20 +201,22 @@ export default function Login() {
             required
             className="text-input"
           />
-          <button
-            className="btn primary"
+          {/* M16-X4: EXCEPTION — width:100% via Button's style prop (no
+              fullWidth in the frozen contract; see legacy-mode note). */}
+          <Button
+            type="submit"
+            variant="primary"
+            size="md"
             disabled={busy || !projectName.trim()}
             style={{ width: "100%" }}
           >
             {busy ? "Creating project…" : "Create project & enter"}
-          </button>
-          {error && (
-            <p style={{ color: "var(--red)", marginTop: 8 }}>{error}</p>
-          )}
+          </Button>
+          {error && <Notice tone="danger" style={{ marginTop: 8 }}>{error}</Notice>}
         </form>
       ) : (
         <form onSubmit={otpSubmit} className="card login-card">
-          <h2 style={{ color: "var(--accent)", letterSpacing: 2 }}>HARNESS</h2>
+          <Brand>HARNESS</Brand>
           <p>{note}</p>
           {/* M15-S3: accessible name for the placeholder-only OTP input. */}
           <label htmlFor="login-otp-code" className="sr-only">
@@ -236,13 +235,23 @@ export default function Login() {
             className="text-input"
             style={{ letterSpacing: 8, textAlign: "center", fontSize: 16 }}
           />
-          <button className="btn primary" disabled={busy || code.length !== 6} style={{ width: "100%" }}>
+          {/* M16-X4: EXCEPTION — width:100% via Button's style prop (no
+              fullWidth in the frozen contract; see legacy-mode note). */}
+          <Button
+            type="submit"
+            variant="primary"
+            size="md"
+            disabled={busy || code.length !== 6}
+            style={{ width: "100%" }}
+          >
             {busy ? "Verifying…" : "Verify code"}
-          </button>
-          <button
+          </Button>
+          {/* M16-X4: the ← Back control is a plain secondary Button; the
+              marginTop nudge is the one-off spacing exception (above). */}
+          <Button
             type="button"
-            className="btn"
-            style={{ width: "100%", marginTop: 6 }}
+            variant="secondary"
+            size="md"
             disabled={busy}
             onClick={() => {
               setMode("legacy");
@@ -250,12 +259,11 @@ export default function Login() {
               setNote(null);
               setCode("");
             }}
+            style={{ width: "100%", marginTop: 6 }}
           >
             ← Back
-          </button>
-          {error && (
-            <p style={{ color: "var(--red)", marginTop: 8 }}>{error}</p>
-          )}
+          </Button>
+          {error && <Notice tone="danger" style={{ marginTop: 8 }}>{error}</Notice>}
         </form>
       )}
     </div>
