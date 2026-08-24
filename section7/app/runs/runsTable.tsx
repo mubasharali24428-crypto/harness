@@ -17,8 +17,7 @@ import { formatRelativeTime, formatTimestamp } from "@/lib/format";
 // Classic JSX transform (vitest/esbuild) needs React in scope for the .tsx
 // extension (same convention as the other component files).
 import * as React from "react";
-import { Table, cellStyle } from "@/components/ui";
-import { StatusPill } from "@/components/ui";
+import { Table, cellStyle, StatusPill } from "@/components/ui";
 
 export function isRowActivateKey(key: string): boolean {
   return key === "Enter" || key === " ";

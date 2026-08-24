@@ -17,7 +17,7 @@
 import * as React from "react";
 import { TEAM_ROLES, TeamInviteDto, TeamMemberDto, TeamRole } from "./teamApi";
 import { Button, StatusPill, Table, cellStyle } from "@/components/ui";
-import { cssVar, type StatusTone } from "@/components/tokens";
+import { type StatusTone } from "@/components/tokens";
 
 const selectStyle = {
   background: "var(--panel-2)",
