@@ -76,7 +76,9 @@ MESSAGES = [
     {"role": "system", "content": "You are a meeting assistant."},
     {"role": "user", "content": "Explain JWT refresh tokens."},
 ]
-SECRET = "sk-team-secret-e1-9f2"
+# Fake key literal for the transport probe — deliberately NOT real-looking so
+# secret scanners don't flag it; only its uniqueness matters here.
+SECRET = "fake-key-for-transport-probe-9f2"
 
 
 class TestApiKeySurvivesTheRestSeam:
