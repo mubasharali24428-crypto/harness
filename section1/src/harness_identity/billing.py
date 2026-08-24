@@ -26,7 +26,7 @@ restart-free env change and tests can monkeypatch it):
     availability over strictness (same posture as the wave9 rate-limit node).
 
 Quota math (local): effective budget = max(billing_plans.monthly_budget_usd,
-teams.budget_usd from migration 0007 when the column exists). The 0007 column
+teams.budget_usd from migration 0020 when the column exists). The column
 is NOT mapped on the frozen Team model, so it is read with a guarded raw SQL
 SELECT that cleanly yields None on schemas predating 0007 (scratch sqlite test
 apps) — never a crash, never fabricated numbers.
@@ -39,6 +39,7 @@ error_body() envelope.
 
 import os
 from datetime import UTC, datetime
+from decimal import ROUND_HALF_EVEN, Decimal
 from typing import Annotated, Literal, Protocol
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -74,7 +75,11 @@ class BillingPlan(Base):
         ForeignKey("teams.id"), nullable=False, unique=True, index=True
     )
     plan: Mapped[str] = mapped_column(String(30), nullable=False)
-    monthly_budget_usd: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    # H-023: NUMERIC(12,6) per migration 0020 (was 12,2). Python side carries
+    # exact Decimal; SQLAlchemy converts on the way in/out.
+    monthly_budget_usd: Mapped[Decimal] = mapped_column(
+        Numeric(12, 6), nullable=False, default=Decimal("0")
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -89,7 +94,11 @@ class StripeClient(Protocol):
     """
 
     async def fetch_state(self, team_id: str) -> dict:
-        """Return {plan: str | None, monthlyBudgetUsd: float, usedUsd: float}."""
+        """Return {plan: str | None, monthlyBudgetUsd: float, usedUsd: float}.
+
+        Values are JSON numbers per contract M10-C3 (wire format unchanged);
+        internal money math below stays in exact Decimal (H-023).
+        """
         ...  # pragma: no cover - interface only
 
 
@@ -113,12 +122,15 @@ def _resolve_stripe_adapter(request: Request) -> StripeClient | None:
     return getattr(request.app.state, _STRIPE_CLIENT_ATTR, None)
 
 
-async def _team_budget_override(session_factory, team_id: str) -> float | None:
-    """Read teams.budget_usd (migration 0007) without mapping it on Team.
+async def _team_budget_override(session_factory, team_id: str) -> Decimal | None:
+    """Read teams.budget_usd (migration 0007, now NUMERIC(12,6) via 0020)
+    without mapping it on Team.
 
     Returns None when the column/table answer is unavailable (pre-0007 schema,
     scratch sqlite apps) — callers fall back to the plan-row budget. A broad
     guard is deliberate: quota display must never hard-fail on schema drift.
+    Money comes back as an exact Decimal (H-023); str reads (SQLite) convert
+    exactly too.
     """
     try:
         async with session_factory() as db:
@@ -133,8 +145,9 @@ async def _team_budget_override(session_factory, team_id: str) -> float | None:
     if row is None or row[0] is None:
         return None
     try:
-        return float(row[0])
-    except (TypeError, ValueError):
+        value = row[0]
+        return Decimal(str(value))
+    except Exception:  # noqa: BLE001 — malformed money degrades, never crashes
         return None
 
 
@@ -145,14 +158,29 @@ def _month_start_utc() -> datetime:
 
 def _used_this_month_stmt(team_id: str):
     """SUM(cost_ledger.cost_usd) for the team this month, READ-only join
-    across the frozen tables cost_ledger -> agent_runs -> projects."""
+    across the frozen tables cost_ledger -> agent_runs -> projects.
+
+    SUM runs in SQL over NUMERIC(12,6) — exact base-10 aggregation (H-023);
+    COALESCEs to exact Decimal zero, never a float.
+    """
     return (
-        select(func.coalesce(func.sum(CostLedger.cost_usd), 0.0))
+        select(func.coalesce(func.sum(CostLedger.cost_usd), Decimal("0")))
         .select_from(CostLedger)
         .join(AgentRun, AgentRun.id == CostLedger.run_id)
         .join(Project, Project.id == AgentRun.project_id)
         .where(Project.team_id == team_id, CostLedger.created_at >= _month_start_utc())
     )
+
+
+def _money_wire(value) -> float:
+    """Exact Decimal -> JSON number for the M10-C3 wire (format unchanged)."""
+    dec = value if isinstance(value, Decimal) else Decimal(str(value or 0))
+    return float(dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_EVEN))
+
+
+def _quota_money(value) -> Decimal:
+    """Any stored money shape (Decimal/str/int from PG or SQLite) -> Decimal."""
+    return Decimal(str(value)) if value is not None else Decimal("0")
 
 
 async def _quota_payload(session_factory, team_id: str) -> dict:
@@ -162,14 +190,14 @@ async def _quota_payload(session_factory, team_id: str) -> dict:
         ).scalar_one_or_none()
         used_usd = (await db.execute(_used_this_month_stmt(team_id))).scalar_one()
 
-    monthly_budget = float(plan_row.monthly_budget_usd) if plan_row is not None else 0.0
+    monthly_budget = _quota_money(plan_row.monthly_budget_usd if plan_row else None)
     override = await _team_budget_override(session_factory, team_id)
     if override is not None:
         # Both signals are caps someone set deliberately: the larger governs.
         monthly_budget = max(monthly_budget, override)
     return {
-        "monthlyBudgetUsd": round(monthly_budget, 2),
-        "usedUsd": round(float(used_usd), 2),
+        "monthlyBudgetUsd": _money_wire(monthly_budget),
+        "usedUsd": _money_wire(used_usd),
     }
 
 
@@ -188,8 +216,8 @@ async def _state_payload(request: Request, principal: Principal) -> dict:
                 "enabled": True,
                 "plan": remote.get("plan") or "free",
                 "quota": {
-                    "monthlyBudgetUsd": round(float(remote.get("monthlyBudgetUsd", 0)), 2),
-                    "usedUsd": round(float(remote.get("usedUsd", 0)), 2),
+                    "monthlyBudgetUsd": _money_wire(remote.get("monthlyBudgetUsd", 0)),
+                    "usedUsd": _money_wire(remote.get("usedUsd", 0)),
                 },
                 "source": "stripe",
             }
@@ -244,7 +272,7 @@ async def update_billing_plan(
             row = BillingPlan(
                 team_id=principal.teamId,
                 plan=body.plan,
-                monthly_budget_usd=0,
+                monthly_budget_usd=Decimal("0"),
             )
             db.add(row)
         else:

@@ -227,7 +227,9 @@ async def test_non_admin_cannot_mint_or_list_or_revoke(invites_factory, invites_
     )
     assert r.status_code == 403
 
-    # admin of ANOTHER team: 403 on mint/list/revoke (cross-tenant)
+    # admin of ANOTHER team: cross-tenant probes answer the same 404 an
+    # unknown team would produce on every method (M13-G5a no-oracle law).
+    # In-team non-admins still get 403 FORBIDDEN (asserted above).
     for method, url in (
         ("post", f"/api/v1/teams/{admin['teamId']}/invites"),
         ("get", f"/api/v1/teams/{admin['teamId']}/invites"),
@@ -237,7 +239,8 @@ async def test_non_admin_cannot_mint_or_list_or_revoke(invites_factory, invites_
         if method == "post":
             kwargs["json"] = {"email": "someone@x.com", "role": "guest"}
         r = await getattr(invites_client, method)(url, **kwargs)
-        assert r.status_code == 403, (method, r.text)
+        assert r.status_code == 404, (method, r.text)
+        assert r.json()["detail"]["error"]["code"] == "NOT_FOUND"
 
     # unauthenticated: 401
     r = await invites_client.get(f"/api/v1/teams/{admin['teamId']}/invites")
@@ -358,7 +361,10 @@ async def test_members_list_shows_roles_and_blocks_outsiders(
     r = await invites_client.get(
         f"/api/v1/teams/{admin['teamId']}/members", headers=_bearer(outsider["token"])
     )
-    assert r.status_code == 403
+    # M13-G5a no-oracle law: a foreign probe gets the same NOT_FOUND an
+    # unknown team id would — never a 403 confirming the team exists.
+    assert r.status_code == 404
+    assert r.json()["detail"]["error"]["code"] == "NOT_FOUND"
 
 
 # ------------------------------------------------- schema/migration parity

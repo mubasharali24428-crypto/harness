@@ -1,6 +1,7 @@
 import enum
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
@@ -153,7 +154,10 @@ class AgentPlanRecord(Base, TimestampMixin):
     steps: Mapped[list] = mapped_column(JSONVariant, nullable=False, default=list)
     tests: Mapped[list] = mapped_column(JSONVariant, nullable=False, default=list)
     risks: Mapped[list] = mapped_column(JSONVariant, nullable=False, default=list)
-    estimated_cost_usd: Mapped[float] = mapped_column(Numeric(12, 6), nullable=False, default=0)
+    # H-023: money columns carry exact Python Decimal over NUMERIC(12,6).
+    estimated_cost_usd: Mapped[Decimal] = mapped_column(
+        Numeric(12, 6), nullable=False, default=Decimal("0")
+    )
     forbidden_paths: Mapped[list] = mapped_column(JSONVariant, nullable=False, default=list)
     expected_result: Mapped[str] = mapped_column(Text, nullable=False, default="")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="proposed")
@@ -252,7 +256,7 @@ class CostLedger(Base):
     model: Mapped[str] = mapped_column(String(120), nullable=False)
     input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    cost_usd: Mapped[float] = mapped_column(Numeric(12, 6), nullable=False, default=0)
+    cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal("0"))
     latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

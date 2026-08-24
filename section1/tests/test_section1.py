@@ -73,7 +73,10 @@ async def test_agent_seat_admin_only_solo_ok(client_ownership_off):
     r = await client.post(
         f"/api/v1/teams/{team}/seats/agent", headers=auth(other["token"])
     )
-    assert r.status_code == 403
+    # M13-G5a no-oracle law: a foreign admin probing this path gets exactly
+    # what an unknown team id would produce (404) — never a team-existence
+    # signal; role violations still answer 403.
+    assert r.status_code == 404
 
 
 async def test_vault_roundtrip():

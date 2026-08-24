@@ -245,11 +245,13 @@ async def test_foreign_team_revoke_and_list_are_not_cross_tenant(
     r = await keys_client.get("/api/v1/keys", headers=_bearer(admin_b["token"]))
     assert r.json()["items"] == []
 
-    # explicit ?teamId= pointing outside membership is refused outright
+    # explicit ?teamId= pointing outside membership answers the same 404 an
+    # unknown team would produce (M13-G5a no-oracle law; was 403)
     r = await keys_client.get(
         f"/api/v1/keys?teamId={admin_a['teamId']}", headers=_bearer(admin_b["token"])
     )
-    assert r.status_code == 403, r.text
+    assert r.status_code == 404, r.text
+    assert r.json()["detail"]["error"]["code"] == "NOT_FOUND"
 
     # DELETE of A's id by B: identical answer to an unknown id — 404, no oracle
     r = await keys_client.delete(

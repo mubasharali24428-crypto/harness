@@ -18,7 +18,8 @@ Security posture:
 - key_encrypted/key_hint are excluded from every projection; there is no
   decrypt/read endpoint here (crypto.read_api_key stays internal to S1).
 - Team scoping: list is always the caller's own team via get_principal;
-  an explicit ?teamId= for a team the caller does not belong to is 403.
+  an explicit ?teamId= for a team the caller does not belong to answers
+  404 (M13-G5a no-oracle law — never a team-existence signal).
 - Revocation of another team's key answers 404 (no existence oracle across
   tenants). Double revoke stays 204 — soft-revoke is idempotent.
 """
@@ -39,6 +40,24 @@ from .models import ApiKey
 router = APIRouter(prefix="/api/v1")
 
 PROVIDER_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$"
+
+
+class KeyCreatedResponse(BaseModel):
+    """M13-G5a typing island: the 201 mint view — exactly the M10-C1 fields."""
+
+    id: str
+    label: str
+    provider: str
+    keyHint: str | None
+    createdAt: datetime
+
+
+class KeyItemResponse(KeyCreatedResponse):
+    revokedAt: datetime | None = None
+
+
+class KeyListResponse(BaseModel):
+    items: list[KeyItemResponse]
 
 
 def _key_public(row: ApiKey, *, include_revoked: bool = True) -> dict:
@@ -66,7 +85,16 @@ class KeyCreateBody(BaseModel):
     key: str = Field(min_length=4, max_length=4096)
 
 
-@router.post("/keys", status_code=201)
+@router.post(
+    "/keys",
+    status_code=201,
+    response_model=KeyCreatedResponse,
+    responses={
+        401: {"description": "bad or missing token"},
+        403: {"description": "viewer/guest roles cannot manage keys"},
+        422: {"description": "validation error"},
+    },
+)
 async def mint_key(
     body: KeyCreateBody,
     request: Request,
@@ -108,7 +136,14 @@ async def mint_key(
         return _key_public(row, include_revoked=False)
 
 
-@router.get("/keys")
+@router.get(
+    "/keys",
+    response_model=KeyListResponse,
+    responses={
+        401: {"description": "bad or missing token"},
+        404: {"description": "teamId does not match the caller's membership (no-oracle)"},
+    },
+)
 async def list_keys(
     request: Request,
     principal: Annotated[Principal, Depends(get_principal)],
@@ -117,12 +152,13 @@ async def list_keys(
     """List the caller's team keys (hint only, never the raw key).
 
     ?teamId= is honored only when it matches the caller's membership —
-    anything else is 403 rather than a silent cross-team read.
+    anything else answers 404 NOT_FOUND, identical to an unknown team id
+    (M13-G5a no-oracle law; was 403 FORBIDDEN).
     """
     if teamId is not None and teamId != principal.teamId:
         raise HTTPException(
-            status_code=403,
-            detail=error_body("FORBIDDEN", "not a member of that team"),
+            status_code=404,
+            detail=error_body("NOT_FOUND", "team not found"),
         )
     async with request.app.state.session_factory() as db:
         rows = (
@@ -139,7 +175,15 @@ async def list_keys(
         return {"items": [_key_public(r) for r in rows]}
 
 
-@router.delete("/keys/{key_id}", status_code=204)
+@router.delete(
+    "/keys/{key_id}",
+    status_code=204,
+    responses={
+        401: {"description": "bad or missing token"},
+        403: {"description": "viewer/guest roles cannot manage keys"},
+        404: {"description": "unknown id OR another team's key (no-oracle)"},
+    },
+)
 async def revoke_key(
     key_id: str,
     request: Request,

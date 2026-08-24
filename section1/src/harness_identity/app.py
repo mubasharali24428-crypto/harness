@@ -2,11 +2,11 @@ import asyncio
 import time
 from collections import defaultdict, deque
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 import harness_contracts as contracts
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
-from harness_contracts import Principal as ContractsPrincipal
+from harness_contracts import Principal as ContractsPrincipal, error_body
 from harness_contracts import Role
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -58,13 +58,22 @@ async def _require_project_access(
     principal: ContractsPrincipal,
     project_id: str,
 ) -> None:
-    """Cross-tenant guard: a principal may only touch projects owned by its team."""
+    """Cross-tenant guard: a principal may only touch projects owned by its team.
+
+    M13-G5a no-oracle law: a foreign project answers EXACTLY what an unknown
+    id answers — same status, same error code, same message — so ids cannot be
+    probed for existence across teams. Auth failures stay 401 at get_principal;
+    this guard only ever speaks 404.
+    """
     from .models import Project
 
     async with session_factory() as db:
         row = await db.get(Project, project_id)
     if row is None or row.team_id != principal.teamId:
-        raise HTTPException(status_code=403, detail="project not found for this team")
+        raise HTTPException(
+            status_code=404,
+            detail=error_body("NOT_FOUND", "project not found"),
+        )
 
 
 def make_app(session_factory, settings: Settings):
@@ -182,6 +191,38 @@ class LoginRequest(BaseModel):
     teamName: str | None = Field(default=None, max_length=LOGIN_TEAM_NAME_MAX)
 
 
+class PrincipalResponse(BaseModel):
+    """The authenticated caller (camelCase wire shape per api-conventions.md)."""
+
+    userId: str
+    teamId: str
+    role: str
+
+
+class SessionResponse(BaseModel):
+    """M13-G5a OpenAPI typing island: the auth session minted on login."""
+
+    token: str
+    principal: PrincipalResponse
+
+
+class OkResponse(BaseModel):
+    ok: bool
+
+
+class ErrorDetail(BaseModel):
+    """One error entry of the FROZEN contract envelope (ERROR_BODY_EXAMPLE)."""
+
+    code: str
+    message: str
+
+
+class ErrorEnvelope(BaseModel):
+    """M13-G5a: the frozen contract error shape for OpenAPI responses={} docs."""
+
+    error: ErrorDetail
+
+
 def _dev_notifier(email: str, code: str) -> None:
     # Dev delivery ONLY: prints so `docker logs` shows it regardless of log level.
     # Production must supply SMTP via the same hook (ledger: E-smtp).
@@ -190,7 +231,7 @@ def _dev_notifier(email: str, code: str) -> None:
     print(f"HARNESS-OTP login code for {email}: {code}", file=sys.stderr, flush=True)
 
 
-@router.post("/auth/request-login")
+@router.post("/auth/request-login", response_model=OkResponse)
 async def request_login(body: LoginRequest, request: Request) -> dict:
     client_ip = request.client.host if request.client else "unknown"
     if _login_rate_limited(request.app.state, client_ip):
@@ -208,7 +249,13 @@ class VerifyOtpRequest(BaseModel):
     code: str = Field(max_length=OTP_CODE_MAX)
 
 
-@router.post("/auth/verify-otp")
+@router.post(
+    "/auth/verify-otp",
+    response_model=SessionResponse,
+    responses={
+        401: {"description": "OTP invalid, expired or already redeemed", "model": ErrorEnvelope},
+    },
+)
 async def verify_otp_route(body: VerifyOtpRequest, request: Request) -> dict:
     settings: Settings = request.app.state.settings
     async with request.app.state.session_factory() as db:
@@ -216,7 +263,15 @@ async def verify_otp_route(body: VerifyOtpRequest, request: Request) -> dict:
     return {"token": token, "principal": principal.model_dump()}
 
 
-@router.post("/auth/login")
+@router.post(
+    "/auth/login",
+    response_model=SessionResponse,
+    responses={
+        401: {"description": "bad or missing credentials", "model": ErrorEnvelope},
+        403: {"description": "ownership proof required (H2r)", "model": ErrorEnvelope},
+        429: {"description": "login rate limit exceeded", "model": ErrorEnvelope},
+    },
+)
 async def login(body: LoginRequest, request: Request) -> dict:
     settings: Settings = request.app.state.settings
     if getattr(settings, "require_ownership", False):
@@ -239,7 +294,7 @@ async def login(body: LoginRequest, request: Request) -> dict:
     return {"token": token, "principal": principal.model_dump()}
 
 
-@router.post("/auth/logout")
+@router.post("/auth/logout", response_model=OkResponse)
 async def logout(
     request: Request, principal: Annotated[object, Depends(get_principal)]
 ) -> dict:
@@ -258,9 +313,46 @@ async def logout(
     return {"ok": True}
 
 
-@router.get("/me")
+@router.get("/me", response_model=PrincipalResponse, responses={401: {"model": ErrorEnvelope}})
 async def me(principal: Annotated[object, Depends(get_principal)]) -> dict:
     return principal.model_dump()
+
+
+class ProjectOut(BaseModel):
+    """M13-G5a typing island: a project row on the wire (camelCase)."""
+
+    id: str
+    name: str
+    repoFullName: str | None = None
+
+
+class ProjectListResponse(BaseModel):
+    items: list[ProjectOut]
+
+
+class ProjectCreatedResponse(ProjectOut):
+    """201 mint view of POST /projects (same fields as the projection)."""
+
+
+class WsTicketResponse(BaseModel):
+    ticket: str
+    expiresInSeconds: int
+
+
+class EventEnvelopeOut(BaseModel):
+    """M13-G5a typing island: the FROZEN contracts EventEnvelope on the wire."""
+
+    type: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+    ts: str
+    seq: int
+    projectId: str
+    runId: str | None = None
+
+
+class EventReplayResponse(BaseModel):
+    items: list[EventEnvelopeOut]
+    nextCursor: int
 
 
 class CreateProjectBody(BaseModel):
@@ -269,7 +361,12 @@ class CreateProjectBody(BaseModel):
     repoFullName: str | None = Field(default=None, max_length=PROJECT_REPO_FULL_NAME_MAX)
 
 
-@router.post("/projects", status_code=201)
+@router.post(
+    "/projects",
+    status_code=201,
+    response_model=ProjectCreatedResponse,
+    responses={401: {"model": ErrorEnvelope}, 422: {"model": ErrorEnvelope}},
+)
 async def create_project(
     body: CreateProjectBody,
     request: Request,
@@ -289,7 +386,11 @@ async def create_project(
         return {"id": project.id, "name": project.name, "repoFullName": project.repo_full_name}
 
 
-@router.get("/projects")
+@router.get(
+    "/projects",
+    response_model=ProjectListResponse,
+    responses={401: {"model": ErrorEnvelope}},
+)
 async def list_projects(
     request: Request,
     principal: Annotated[object, Depends(get_principal)],
@@ -329,7 +430,9 @@ async def add_agent_seat(
     if principal.role != Role.ADMIN:
         raise HTTPException(status_code=403, detail="admin only")
     if principal.teamId != team_id:
-        raise HTTPException(status_code=403, detail="wrong team")
+        # M13-G5a no-oracle law: a foreign admin probing this path gets exactly
+        # what an unknown team id would produce — never a team-existence signal.
+        raise HTTPException(status_code=404, detail="team not found")
     member = TeamMember(
         team_id=team_id,
         user_id=None,
@@ -354,7 +457,11 @@ class WsTicketRequest(BaseModel):
     projectId: str = Field(max_length=WS_TICKET_PROJECT_ID_MAX)
 
 
-@router.post("/ws-ticket")
+@router.post(
+    "/ws-ticket",
+    response_model=WsTicketResponse,
+    responses={401: {"model": ErrorEnvelope}, 404: {"model": ErrorEnvelope}},
+)
 async def issue_ws_ticket(
     body: WsTicketRequest,
     request: Request,
@@ -396,7 +503,9 @@ async def project_ws(
             websocket.app.state.session_factory, principal, project_id
         )
     except HTTPException:
-        await websocket.close(code=4403)
+        # M13-G5a no-oracle law: foreign-project upgrades close with the same
+        # code as an unknown project — 4403 is reserved for auth failures.
+        await websocket.close(code=4404)
         return
 
     bus: EventBus = websocket.app.state.event_bus
@@ -445,7 +554,11 @@ async def project_ws(
         await bus.unsubscribe(project_id, queue)
 
 
-@router.get("/projects/{project_id}/events/replay")
+@router.get(
+    "/projects/{project_id}/events/replay",
+    response_model=EventReplayResponse,
+    responses={401: {"model": ErrorEnvelope}, 404: {"model": ErrorEnvelope}},
+)
 async def replay_events(
     project_id: str,
     request: Request,

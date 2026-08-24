@@ -57,9 +57,8 @@ async def client_ownership_off(db):
 
 
 GOLDEN_DIR = Path(__file__).parent / "golden"
+# NOTE (M13-H3b): the former test_contracts_version_frozen() that lived here
+# was dead code — pytest never collects tests from conftest (audit F6), and
+# its literal had drifted to "0.1.0". Revived + widened into the 4-way rot
+# detector at tests/test_version_pin_conformance.py.
 
-
-async def test_contracts_version_frozen():
-    import harness_contracts
-
-    assert harness_contracts.__version__ == "0.1.0"

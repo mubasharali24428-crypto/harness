@@ -196,7 +196,9 @@ async def test_ws_rejects_foreign_team_project(db):
     con.close()
     app = _mk(db)
     async with MiniWs(app, "/api/v1/ws/proj-other?token=goodtok") as ws:
-        _expect_reject(ws, 4403)
+        # M13-G5a no-oracle law: foreign-project upgrades close 4404 — same as
+        # an unknown project; 4403 is reserved for auth failures.
+        _expect_reject(ws, 4404)
 
 
 # ================================================================
@@ -234,7 +236,10 @@ async def test_ws_ticket_rejects_foreign_project(db):
     con.close()
     app = _mk(db)
     r = await _issue_ticket(app, project_id="proj-other")
-    assert r.status_code == 403
+    # M13-G5a no-oracle law: minting for another team's project answers the
+    # same NOT_FOUND an unknown project would — never a 403 existence oracle.
+    assert r.status_code == 404
+    assert r.json()["detail"]["error"]["code"] == "NOT_FOUND"
 
 
 async def test_ws_ticket_happy_path(db):

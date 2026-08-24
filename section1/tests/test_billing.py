@@ -372,7 +372,9 @@ def test_billing_model_matches_frozen_migration_shape():
     assert cols["team_id"].unique is True  # UNIQUE per-team (uq_billing_plans_team_id)
     assert cols["plan"].type.length == 30  # type: ignore[attr-defined]
     assert cols["monthly_budget_usd"].type.precision == 12  # type: ignore[attr-defined]
-    assert cols["monthly_budget_usd"].type.scale == 2  # type: ignore[attr-defined]
+    # H-023 / migration 0020 widened money columns from NUMERIC(12,2) to
+    # NUMERIC(12,6) — exact base-10 money, float drift dies here.
+    assert cols["monthly_budget_usd"].type.scale == 6  # type: ignore[attr-defined]
     fks = list(cols["team_id"].foreign_keys)
     assert len(fks) == 1 and fks[0].column.table.name == "teams"
 

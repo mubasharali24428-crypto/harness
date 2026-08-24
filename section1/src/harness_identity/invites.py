@@ -35,6 +35,21 @@ INVITE_TTL_DAYS = 7
 INVITABLE_ROLES = frozenset(r.value for r in DbRole)
 
 
+class MemberItem(BaseModel):
+    """M13-G5a typing island: one roster row (camelCase per api-conventions)."""
+
+    id: str
+    displayName: str | None = None
+    email: str | None = None
+    memberType: str | None = None
+    role: str
+    createdAt: datetime
+
+
+class MemberListResponse(BaseModel):
+    items: list[MemberItem]
+
+
 def _now() -> datetime:
     return datetime.now(UTC)
 
@@ -60,8 +75,18 @@ def _invite_public(row: TeamInvite) -> dict:
 async def _require_team_admin(
     db: AsyncSession, principal: Principal, team_id: str
 ) -> None:
-    if principal.teamId != team_id or principal.role != Role.ADMIN:
+    """Admin-only gate with the M13-G5a no-oracle law for the team mismatch.
+
+    Role first (a non-admin gets 403 wherever they probe), then membership:
+    a foreign caller gets the same NOT_FOUND an unknown team id would produce,
+    never a 403 confirming the team exists.
+    """
+    if principal.role != Role.ADMIN:
         raise HTTPException(status_code=403, detail=error_body("FORBIDDEN", "admin only"))
+    if principal.teamId != team_id:
+        raise HTTPException(
+            status_code=404, detail=error_body("NOT_FOUND", "team not found")
+        )
 
 
 class InviteCreateBody(BaseModel):
@@ -111,7 +136,14 @@ async def create_invite(
         return out
 
 
-@router.get("/teams/{team_id}/members")
+@router.get(
+    "/teams/{team_id}/members",
+    response_model=MemberListResponse,
+    responses={
+        401: {"description": "bad or missing token"},
+        404: {"description": "caller is not a member of the team (no-oracle)"},
+    },
+)
 async def list_members(
     team_id: str,
     request: Request,
@@ -128,8 +160,11 @@ async def list_members(
             )
         ).scalar_one_or_none()
         if member is None:
+            # M13-G5a no-oracle law: a foreign probe gets the same
+            # NOT_FOUND an unknown team id would produce — never a 403
+            # confirming the team exists.
             raise HTTPException(
-                status_code=403, detail=error_body("FORBIDDEN", "not a member of that team")
+                status_code=404, detail=error_body("NOT_FOUND", "team not found")
             )
         rows = (
             (
@@ -163,8 +198,9 @@ async def list_invites(
     request: Request,
     principal: Annotated[Principal, Depends(get_principal)],
 ) -> dict:
-    """Pending (unredeemed) invites for a team — admin sees all, others get 403
-    without leaking whether any invites exist (enumeration guard)."""
+    """Pending (unredeemed) invites for a team — admin sees all; any other
+    caller (foreign OR in-team non-admin) gets 404/403 without leaking whether
+    any invites exist (enumeration guard, M13-G5a)."""
     async with request.app.state.session_factory() as db:
         member = (
             await db.execute(
@@ -174,8 +210,11 @@ async def list_invites(
             )
         ).scalar_one_or_none()
         if member is None:
+            # M13-G5a no-oracle law: a foreign probe gets the same
+            # NOT_FOUND an unknown team id would produce — never a 403
+            # confirming the team exists.
             raise HTTPException(
-                status_code=403, detail=error_body("FORBIDDEN", "not a member of that team")
+                status_code=404, detail=error_body("NOT_FOUND", "team not found")
             )
 
         rows = (
