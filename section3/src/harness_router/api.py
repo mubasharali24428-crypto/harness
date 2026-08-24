@@ -175,11 +175,20 @@ class SpendByDay(BaseModel):
 
 
 class SpendSummaryResponse(BaseModel):
-    """Aggregate spend from cost_ledger (mirrors ledger.summarize_spend)."""
+    """Aggregate spend from cost_ledger (mirrors ledger.summarize_spend).
+
+    M14-W4 F1a (pair contract W4-C1): ``unwired`` distinguishes
+    zero-because-nothing-ran from zero-because-unmetered. It is False whenever
+    the ledger is connected and queryable (even at zero rows — the numbers are
+    then genuinely zero, not unknown) and the route keeps answering 503
+    LEDGER_UNAVAILABLE only when NO metering config exists, so the field never
+    contradicts the HTTP status.
+    """
 
     totals: SpendTotals
     byModel: list[SpendByModel] = Field(default_factory=list)
     byDay: list[SpendByDay] = Field(default_factory=list)
+    unwired: bool = False
 
 
 class SpendErrorDetail(BaseModel):
@@ -251,7 +260,14 @@ async def model_spend(
     projectId: str | None = Query(default=None),
     sinceDays: int | None = Query(default=None, ge=0),
 ) -> dict[str, Any]:
-    """Aggregated spend from cost_ledger: totals, per-model and per-day."""
+    """Aggregated spend from cost_ledger: totals, per-model and per-day.
+
+    M14-W4 F1a (W4-C1): a wired, queryable ledger answers 200 with
+    ``unwired=False`` — even when zero rows exist, the zeros are REAL zeros
+    (metering is live; nothing ran). ``unwired`` therefore never appears as
+    true in a 200 body: the unwired case is the 503 LEDGER_UNAVAILABLE branch
+    below, which fires only when no metering config (ledger pool) exists.
+    """
     pool = get_ledger_pool()
     if pool is None:
         raise HTTPException(
@@ -264,12 +280,15 @@ async def model_spend(
             },
         )
     try:
-        return await cost_ledger.spend_summary(
+        summary = await cost_ledger.spend_summary(
             pool,
             team_id=teamId or None,
             project_id=projectId or None,
             since_days=sinceDays,
         )
+        # W4-C1: wired + queryable ⇒ unwired=False, always. The zeros in an
+        # empty ledger are real zeros now that run metering is live (F1a).
+        return {**summary, "unwired": False}
     except Exception as e:
         logger.warning("spend aggregation failed", exc_info=True)
         raise HTTPException(

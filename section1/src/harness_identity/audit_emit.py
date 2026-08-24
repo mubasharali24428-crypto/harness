@@ -222,6 +222,31 @@ async def emit_invite_revoked(
     )
 
 
+async def emit_invite_resent(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """invite.resent — M14-F2a: admin re-mints an unredeemed invite; the old
+    token is revoked in the same transaction. NEVER pass either raw token."""
+    return await _emit(
+        session,
+        "invite.resent",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_invite",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
 async def emit_billing_plan_changed(
     session: AsyncSession,
     *,

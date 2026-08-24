@@ -25,9 +25,10 @@ def test_spend_route_has_concrete_openapi_component():
     name = ref.split("/")[-1]
     assert name == "SpendSummaryResponse"
     assert name in schema["components"]["schemas"]
-    # The documented shape mirrors ledger.summarize_spend.
+    # The documented shape mirrors ledger.summarize_spend + the W4-C1
+    # ``unwired`` flag (M14-W4 F1a).
     props = set(schema["components"]["schemas"][name]["properties"])
-    assert props == {"totals", "byModel", "byDay"}
+    assert props == {"totals", "byModel", "byDay", "unwired"}
 
 
 def test_spend_503_is_documented_with_envelope():

@@ -37,6 +37,7 @@ from harness_identity.audit_emit import (
     emit_billing_plan_changed,
     emit_invite_minted,
     emit_invite_redeemed,
+    emit_invite_resent,
     emit_invite_revoked,
     emit_plan_rejected,
     emit_run_started,
@@ -58,6 +59,8 @@ REGISTRY_S1_CALLED = {
     "invite.minted": "emit_invite_minted",
     "invite.redeemed": "emit_invite_redeemed",
     "invite.revoked": "emit_invite_revoked",
+    # M14-F2a: admin resend (old token revoked in the same transaction).
+    "invite.resent": "emit_invite_resent",
     "billing.plan_changed": "emit_billing_plan_changed",
 }
 # Consumed OUTSIDE section1 (W1-D1 state_machine/signals; section4 run routes):
@@ -166,6 +169,7 @@ def test_zero_allowlist_gaps_every_s1_action_has_call_site():
         "emit_invite_minted": "invites.py",
         "emit_invite_redeemed": "invites.py",
         "emit_invite_revoked": "invites.py",
+        "emit_invite_resent": "invites.py",  # M14-F2a
         "emit_billing_plan_changed": "billing.py",
     }
     for helper, filename in homes.items():
@@ -284,6 +288,35 @@ async def test_invite_lifecycle_emits_and_never_leaks_token(factory, client):
     assert revoked[0].actor_member_id == admin["memberId"]
     assert revoked[0].target_id == invite2["id"]
 
+    # --- M14-F2a: resend emits invite.resent and never leaks EITHER token
+    r = await client.post(
+        f"/api/v1/teams/{admin['teamId']}/invites",
+        json={"email": "again@y.com", "role": "engineer"},
+        headers=_bearer(admin["token"]),
+    )
+    assert r.status_code == 201, r.text
+    invite3 = r.json()
+    old_token3, new_token3 = invite3["token"], None
+    r = await client.post(
+        f"/api/v1/teams/{admin['teamId']}/invites/{invite3['id']}/resend",
+        headers=_bearer(admin["token"]),
+    )
+    assert r.status_code == 201, r.text
+    new_token3 = r.json()["token"]
+
+    rows = await _audit_rows(factory)
+    resent = [row for row in rows if row.action == "invite.resent"]
+    assert len(resent) == 1
+    assert resent[0].actor_member_id == admin["memberId"]
+    assert resent[0].target_type == "team_invite"
+    assert resent[0].target_id == invite3["id"]
+    assert resent[0].detail["teamId"] == admin["teamId"]
+    assert resent[0].detail["role"] == "engineer"
+    # No secrets: neither the original nor the fresh token enters ANY audit row.
+    all_rows = await _audit_rows(factory)
+    for leak in (old_token3, new_token3):
+        assert all(leak not in str(row.detail) for row in all_rows)
+
 
 # --------------------------------------------------------- billing handler
 
@@ -369,6 +402,7 @@ async def test_every_s1_helper_writes_exactly_one_row(factory):
         await emit_invite_minted(db, **kw)
         await emit_invite_redeemed(db, **kw)
         await emit_invite_revoked(db, **kw)
+        await emit_invite_resent(db, **kw)  # M14-F2a
         await emit_billing_plan_changed(db, **kw)
         rows = (await db.execute(select(AuditLog))).scalars().all()
 

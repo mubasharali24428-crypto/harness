@@ -319,6 +319,13 @@ class TeamInvite(Base):
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     redeemed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # M14-F2a: admin revoke keeps the row for the audit trail (status derivation)
+    # instead of deleting it — NULL until an admin revokes.
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # M14-F2a: when the invite was sent. Mint stamps it immediately (the raw
+    # token is handed to the admin to deliver); a future mailer lane flips
+    # rows to draft by clearing it. NULL => status "draft".
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

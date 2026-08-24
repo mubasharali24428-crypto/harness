@@ -22,6 +22,8 @@ APPEND_ONLY_ACTIONS = frozenset(
         "invite.minted",
         "invite.redeemed",
         "invite.revoked",
+        # M14-F2a: admin resend of an unredeemed invite (old token revoked).
+        "invite.resent",
         "billing.plan_changed",
         "run.started",
         "run.stopped",
