@@ -72,3 +72,14 @@ R1 provider outages → pure-write briefs + UNVERIFIED protocol + fix-loop reser
 R2 seam drift → contract above is verbatim for both lanes; ATLAS diffs implementations pre-merge.
 R4 sole-owner collisions → ownership table above is LAW.
 R6 anti-synthesis → verifier PASS-1 greps + pasted-output mandate.
+
+## WAVE 1 CLOSED (2026-08-23)
+
+Verifier verdicts:
+- V-Pair-1 AUTH: FIX-LOOP → fixes applied (61cb1a9) → RE-VERIFIED READY-TO-MERGE
+- V-Pair-2 PLAN-GATE: READY (21/21 seam checks, committed 223804b)
+- V-Pair-3 MONEY/STATE: READY-TO-MERGE (committed cf4c5de)
+
+CI: run 32676580960 SUCCESS on the full Wave-1 stack.
+All six CRITICALs + H-004/005/006/007/008 verified dead. Wave 1 formally closed.
+Wave 2 (core UX) queued per part4 §1.
