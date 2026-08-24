@@ -286,9 +286,10 @@ def test_failed_model_is_reported_honestly_without_retry(monkeypatch):
 
     def fake_run(goal, session_id, model=None):
         calls.append(model)
-        return "model exploded", "error", model
+        # M14-W4 F1a: _run_live now returns (text, status, model, events).
+        return "model exploded", "error", model, []
 
-    monkeypatch.setattr(w, "_run_live", fake_run)
+    monkeypatch.setattr(w, "_run_live_events", fake_run)
     out = w.execute_goal("goal", "sess")
     assert out["status"] == "error"
     assert out["finalResponse"] == "model exploded"
@@ -305,9 +306,10 @@ def test_result_attribution_names_the_model_that_answered(monkeypatch):
     )
 
     def fake_run(goal, session_id, model=None):
-        return "answer", "completed", model
+        # M14-W4 F1a: _run_live now returns (text, status, model, events).
+        return "answer", "completed", model, []
 
-    monkeypatch.setattr(w, "_run_live", fake_run)
+    monkeypatch.setattr(w, "_run_live_events", fake_run)
     out = w.execute_goal("goal", "sess")
     assert out["status"] == "completed"
     assert out["engine"] == "deepseek-harness-sdk:configured-model"

@@ -493,8 +493,9 @@ class TestEngineSingleModel:
             def _run_live(self, goal, session_id, model=None):
                 self.calls.append(model)
                 if model == failing_model:
-                    return "provider down", "error", model
-                return f"ok via {model}", "completed", model
+                    # M14-W4 F1a: 4th element = raw SDK events (usage source).
+                    return "provider down", "error", model, []
+                return f"ok via {model}", "completed", model, []
 
         return StubWrapper()
 
