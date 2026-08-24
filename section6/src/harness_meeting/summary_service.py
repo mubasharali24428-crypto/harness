@@ -1,9 +1,19 @@
 """Meeting summary generation and storage."""
 
+import sys
 import uuid
-from datetime import UTC, datetime
+from pathlib import Path
 
 from pydantic import BaseModel, Field
+
+# M13-H4b: the single source of "now" is harness_identity.timeutil (aware
+# UTC law). The section1 src tree is appended exactly like api.py's M12-G3
+# limits seam already does; module level so imports stay order-independent.
+_ROOT = Path(__file__).resolve().parents[3]
+if (_ROOT / "section1" / "src") not in sys.path:
+    sys.path.append(str(_ROOT / "section1" / "src"))
+
+from harness_identity.timeutil import now_utc  # noqa: E402
 
 
 class MeetingSummary(BaseModel):
@@ -12,7 +22,7 @@ class MeetingSummary(BaseModel):
     id: str = Field(default_factory=lambda: f"summary-{uuid.uuid4().hex[:8]}")
     meetingId: str
     content: str
-    createdAt: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+    createdAt: str = Field(default_factory=lambda: now_utc().isoformat())
     format: str = "markdown"
 
 

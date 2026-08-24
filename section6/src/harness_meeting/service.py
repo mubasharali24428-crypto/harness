@@ -1,24 +1,34 @@
 """Top-level Meeting Area service."""
 
 import os
+import sys
 import uuid
-from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from harness_contracts.brief import EngineeringBrief
 from pydantic import BaseModel, Field
 
-from harness_meeting.ai_participant import (
+# M13-H4b: the single source of "now" is harness_identity.timeutil (aware
+# UTC law). The section1 src tree is appended exactly like api.py's M12-G3
+# limits seam already does; module level so imports stay order-independent.
+_ROOT = Path(__file__).resolve().parents[3]
+if (_ROOT / "section1" / "src") not in sys.path:
+    sys.path.append(str(_ROOT / "section1" / "src"))
+
+from harness_identity.timeutil import now_utc  # noqa: E402
+
+from harness_meeting.ai_participant import (  # noqa: E402
     NO_KEY_CONFIGURED_REPLY,
     AIParticipant,
     MalformedTeamKeyError,
     TeamAIClient,
     pick_team_key,
 )
-from harness_meeting.brief_generator import BriefGenerator
-from harness_meeting.chat import ChatMessage, MeetingRoom
-from harness_meeting.prompt_store import Prompt, PromptStore
-from harness_meeting.summary_service import MeetingSummary, SummaryService
+from harness_meeting.brief_generator import BriefGenerator  # noqa: E402
+from harness_meeting.chat import ChatMessage, MeetingRoom  # noqa: E402
+from harness_meeting.prompt_store import Prompt, PromptStore  # noqa: E402
+from harness_meeting.summary_service import MeetingSummary, SummaryService  # noqa: E402
 
 
 class Meeting(BaseModel):
@@ -27,7 +37,7 @@ class Meeting(BaseModel):
     id: str = Field(default_factory=lambda: f"mtg-{uuid.uuid4().hex[:8]}")
     projectId: str
     title: str
-    createdAt: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+    createdAt: str = Field(default_factory=lambda: now_utc().isoformat())
     briefId: str | None = None
 
 
