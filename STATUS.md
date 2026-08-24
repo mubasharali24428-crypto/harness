@@ -540,3 +540,12 @@ VT-1 METERING, VT-2 A11Y/RESPONSIVE, VT-3 INVITES/OPTIMISTIC (live-PG probe
 VT-5 DESIGN-SYSTEM+INFRA. Suites: S1 315 · S3 91 · S4 291 · S6 76 · S7
 vitest 415/415 + tsc clean. Operator note: NUMERIC(12,6) budget cap.
 Wave 5 (roadmap program) remains.
+
+## ALEX-FORCE — Wave 5 CLOSED (2026-08-24)
+
+First mission of the 20-agent ALEX-FORCE: independent close-out verification.
+FORCE-COMMITMENT REPORT verdict: PROCEED TO CLOSE. Full matrix re-verified:
+S1 400 · S4 312 · S6 76 · S8 77 · S7 vitest 431 + tsc clean; guards green
+(routes: 15 modules, isolation: 374 files); live-PG probes passed (FK
+deletion story 3/3, ws fingerprint 15/15, KDF/WS suites 26). Ruff clean.
+Wave 5 CLOSED. Mission 16 (part4 §W5+ backlog) planning next.
