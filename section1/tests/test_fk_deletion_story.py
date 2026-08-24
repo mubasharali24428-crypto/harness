@@ -38,10 +38,15 @@ import uuid
 from pathlib import Path
 
 import pytest
-from sqlalchemy import event, func, select, text
+from sqlalchemy import event, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+# BillingPlan / NotificationOutbox register on the shared Base from their own
+# modules; import them so FK enumeration is deterministic no matter which
+# test file pytest collects first.
+import harness_identity.billing  # noqa: F401
+import harness_identity.notifier  # noqa: F401
 from harness_identity.models import (
     AgentEvent,
     AgentPlanRecord,
@@ -105,6 +110,10 @@ DELETION_MAP: dict[tuple[str, str], tuple[str, str]] = {
     # its TeamSetting model is pinned here so the law holds from day one.
     ("team_settings", "team_id"): ("teams.id", "CASCADE"),
     ("team_settings", "updated_by"): ("users.id", "SET NULL"),
+    # Mapped OUTSIDE models.py (billing.py / notifier.py) — imported below so
+    # enumeration is deterministic regardless of test collection order.
+    ("billing_plans", "team_id"): ("teams.id", "CASCADE"),
+    ("notification_outbox", "team_id"): ("teams.id", "SET NULL"),
     # append-only integrity: never deleted, never detached
     ("cost_ledger", "run_id"): ("agent_runs.id", "RESTRICT"),
     ("audit_log", "actor_member_id"): ("team_members.id", "RESTRICT"),
@@ -113,12 +122,6 @@ DELETION_MAP: dict[tuple[str, str], tuple[str, str]] = {
 #: FKs that exist only on the SQL side, with their pinned story. These are
 #: enforced by migrations + the live-PG probe below, not by ORM metadata.
 SQL_ONLY_FKS: dict[str, tuple[str, str]] = {
-    # billing_plans is raw-SQL by design (0010; BillingPlan lives in
-    # harness_identity.billing, outside Base.metadata).
-    "fk_billing_plans_team_id": (
-        "billing_plans.team_id -> teams.id ON DELETE CASCADE",
-        "-- migration 0010",
-    ),
     # agent_runs.pr_id (0017): see the AgentRun note in models.py — an ORM
     # mirror would create a runs<->PRs reference cycle that breaks single-flush
     # insert ordering. 0023 restripes it explicit; behavior probed live below.
@@ -168,7 +171,9 @@ def test_metadata_matches_deletion_map_exactly():
     missing = sorted(set(expected) - set(actual))
     extra = sorted(set(actual) - set(expected))
     mismatched = sorted(
-        (key, actual[key], expected[key]) for key in set(actual) & set(expected) if actual[key] != expected[key]
+        (key, actual[key], expected[key])
+        for key in set(actual) & set(expected)
+        if actual[key] != expected[key]
     )
     assert not missing, f"FKs missing from DELETION_MAP (update the map): {missing}"
     assert not extra, f"FKs in DELETION_MAP but not in models: {extra}"
@@ -200,9 +205,9 @@ def test_integrity_tables_never_cascade_or_null():
 
 
 def test_fk_inventory_size_is_pinned():
-    """32 ORM FKs (+2 SQL-side) today; any schema-surface change must touch
-    this suite."""
-    assert len(_metadata_fks()) == 32
+    """34 ORM FKs (+1 SQL-side: agent_runs.pr_id) today; any schema-surface
+    change must touch this suite."""
+    assert len(_metadata_fks()) == 34
 
 
 # --------------------------------------------------------------------------
@@ -390,7 +395,11 @@ async def test_optional_back_references_survive_as_null(fk_db):
 
         await db.execute(text("DELETE FROM agent_runs WHERE id = :i"), {"i": ids["run"]})
         await db.commit()
-        ev = (await db.execute(select(AgentEvent).where(AgentEvent.project_id == ids["project"]))).scalar_one()
+        ev = (
+            await db.execute(
+                select(AgentEvent).where(AgentEvent.project_id == ids["project"])
+            )
+        ).scalar_one()
         assert ev.run_id is None, "events outlive their run"
 
 
@@ -507,7 +516,9 @@ def _psql(dbname: str, sql: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(  # noqa: PLW1510 - returncode inspected by callers
         [
             "docker", "exec", "-i", _PG_CONTAINER,
-            "psql", "-U", _PG_USER, "-v", "ON_ERROR_STOP=1", "-q", "-d", dbname, "-f", "-",
+            # -A -t: unaligned, tuples-only => machine-parseable rows.
+            "psql", "-U", _PG_USER, "-v", "ON_ERROR_STOP=1", "-q", "-A", "-t",
+            "-d", dbname, "-f", "-",
         ],
         input=sql,
         capture_output=True,
@@ -580,15 +591,27 @@ class TestLivePostgresDeletionStory:
             f"SELECT '{uid()}', id, 'live-p' FROM teams WHERE name = 'live';\n"
             f"INSERT INTO agent_runs (id, project_id, state) "
             f"SELECT '{uid()}', id, 'running' FROM projects WHERE name = 'live-p';\n"
-            f"INSERT INTO cost_ledger (run_id, agent_role, model) "
-            f"SELECT id, 'primary', 'm' FROM agent_runs;\n"
+            # cost_ledger counters carry NO SQL-side defaults (0001 keeps them
+            # NOT NULL default-less; the ORM supplies zeros), so supply them.
+            "INSERT INTO cost_ledger (run_id, agent_role, model, input_tokens, "
+            "output_tokens, cost_usd, latency_ms) SELECT id, 'primary', 'm', 0, 0, 0, 0 "
+            "FROM agent_runs;\n"
         )
         assert _psql(scratch_pg, seed).returncode == 0
 
         blocked = _psql(scratch_pg, "DELETE FROM agent_runs;")
         assert blocked.returncode != 0, "RESTRICT did not fire on live Postgres"
-        assert "violates foreign key" in blocked.stderr
+        # PG's exact wording for ON DELETE RESTRICT violations.
+        assert "violates RESTRICT setting of foreign key constraint" in blocked.stderr
 
+        blocked_team = _psql(scratch_pg, "DELETE FROM teams WHERE name = 'live';")
+        assert (
+            blocked_team.returncode != 0
+        ), "ledger RESTRICT must propagate up through the whole cascade"
+
+        # Release path: once the integrity row goes (an explicit, audited
+        # operation), both the run delete and the full team cascade succeed.
+        assert _psql(scratch_pg, "DELETE FROM cost_ledger;").returncode == 0
         assert _psql(scratch_pg, "DELETE FROM teams WHERE name = 'live';").returncode == 0
         left = _psql(
             scratch_pg,
@@ -596,3 +619,15 @@ class TestLivePostgresDeletionStory:
             "(SELECT COUNT(*) FROM projects) + (SELECT COUNT(*) FROM cost_ledger);",
         )
         assert left.stdout.strip().endswith("0"), left.stdout
+
+    async def test_event_bus_notify_trigger_survives_the_restripe(self, scratch_pg):
+        """0003's pg_notify trigger lived ON the old agent_events table and
+        dies with any DROP TABLE; Section 1 owns event delivery, so 0023 must
+        re-attach it to the replacement table. Pinned against pg_trigger."""
+        trig = _psql(
+            scratch_pg,
+            "SELECT tgname FROM pg_trigger "
+            "WHERE tgrelid = 'agent_events'::regclass AND NOT tgisinternal;",
+        )
+        names = [ln.strip() for ln in trig.stdout.splitlines() if ln.strip()]
+        assert "trg_notify_agent_events" in names, f"notify trigger missing: {names}"

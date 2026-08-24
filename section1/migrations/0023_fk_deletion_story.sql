@@ -453,6 +453,12 @@ CREATE INDEX ix_agent_events_run_id ON agent_events (run_id);
 CREATE INDEX IF NOT EXISTS idx_agent_events_project_seq ON agent_events (project_id, seq);
 CREATE INDEX IF NOT EXISTS idx_agent_events_run_id_type ON agent_events (run_id, type);
 CREATE INDEX IF NOT EXISTS idx_agent_events_ts ON agent_events (ts);
+-- 0003's LISTEN/NOTIFY trigger died with the old table too; the event bus
+-- (Section 1 owns delivery) needs it re-attached to the replacement table.
+DROP TRIGGER IF EXISTS trg_notify_agent_events ON agent_events;
+CREATE TRIGGER trg_notify_agent_events
+AFTER INSERT ON agent_events
+FOR EACH ROW EXECUTE FUNCTION notify_agent_event();
 SELECT setval(pg_get_serial_sequence('agent_events', 'seq'),
               COALESCE((SELECT MAX(seq) FROM agent_events), 0) + 1, false);
 
