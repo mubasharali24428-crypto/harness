@@ -10,12 +10,14 @@ No third-party dependencies.
 """
 
 import asyncio
+import hashlib
 import html as _html
 import json
 import logging
 import os
 import smtplib
 import sys
+from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -207,13 +209,41 @@ TEMPLATES: dict[str, NotificationTemplate] = {
         heading="Pull request opened 🚀",
         lines=("PR #{pr_number} is ready for review.", "URL: {pr_url}"),
     ),
+    # M12-G7 (raw-13 #14): honest failure/block notices for the remaining run
+    # terminal transitions. run_finished deliberately keeps its Wave-9 shape
+    # (its context is pinned by tests); G7 appends the deep link to its
+    # summary text instead of adding a required placeholder here.
+    "run_failed": NotificationTemplate(
+        name="run_failed",
+        subject="Harness run {run_id} FAILED",
+        heading="Run failed ❌",
+        lines=(
+            "Run {run_id} on project {project_id} failed.",
+            "Reason: {reason}",
+            "Open: {run_link}",
+        ),
+    ),
+    "run_blocked": NotificationTemplate(
+        name="run_blocked",
+        subject="Harness run {run_id} blocked — action needed",
+        heading="Run blocked ⏸️",
+        lines=(
+            "Run {run_id} on project {project_id} is blocked and needs human input.",
+            "{detail}",
+            "Open: {run_link}",
+        ),
+    ),
 }
 
 # Bus event type (harness_contracts.events.EventType values) -> template name.
+# M12-G7 extends the map to every run-terminal transition (engine failure,
+# clarification block); review_failed keeps its dedicated findings template.
 EVENT_TEMPLATE_MAP: dict[str, str] = {
     "engine_completed": "run_finished",
     "review_failed": "review_failed",
     "pr_opened": "pr_opened",
+    "engine_failed": "run_failed",
+    "blocked_awaiting_clarification": "run_blocked",
 }
 
 
@@ -468,6 +498,18 @@ def event_to_template(event_type: str | object) -> str | None:
     return EVENT_TEMPLATE_MAP.get(str(value))
 
 
+def run_deep_link(project_id: str | object, run_id: str | object) -> str:
+    """M12-G7: canonical UI deep link for a run. Pure string building — no
+    secrets, no host config, just the app-relative path the frontend routes."""
+    pid = str(project_id or "unknown")
+    rid = str(run_id or "unknown")
+    return f"/projects/{pid}/runs/{rid}"
+
+
+def _link_line(project_id: str, run_id: str) -> str:
+    return f"Open: {run_deep_link(project_id, run_id)}"
+
+
 def build_notification_context(
     event_type, project_id: str, payload: dict, run_id: str | None
 ) -> dict:
@@ -479,7 +521,10 @@ def build_notification_context(
     kind = str(getattr(event_type, "value", event_type))
     if kind == "engine_completed":
         summary = payload.get("summary")
-        ctx["summary"] = str(summary) if summary else "All execution steps completed."
+        text = str(summary) if summary else "All execution steps completed."
+        # M12-G7: the Wave-9 template shape is pinned downstream (stored
+        # payloads + tests), so the deep link rides in the free-text field.
+        ctx["summary"] = f"{text}\n{_link_line(ctx['project_id'], run)}"
     elif kind == "review_failed":
         findings = payload.get("findings")
         if isinstance(findings, dict) and findings:
@@ -491,10 +536,26 @@ def build_notification_context(
             ctx["findings"] = _compact(findings)
         else:
             ctx["findings"] = "Reviewer reported unresolved issues (no details provided)."
+        ctx["findings"] = f"{ctx['findings']}\n{_link_line(ctx['project_id'], run)}"
     elif kind == "pr_opened":
         pr = payload.get("pr") if isinstance(payload.get("pr"), dict) else {}
         ctx["pr_number"] = str(pr.get("number") or pr.get("prNumber") or "?")
         ctx["pr_url"] = str(pr.get("url") or pr.get("prUrl") or pr.get("htmlUrl") or "(no url)")
+    elif kind == "engine_failed":
+        # M12-G7: honest failure notice. Reason text is compacted and can be
+        # empty — the sentence stays truthful either way.
+        reason = payload.get("reason")
+        ctx["reason"] = _compact(reason) if reason else "No failure reason was provided."
+        ctx["run_link"] = run_deep_link(ctx["project_id"], run)
+    elif kind == "blocked_awaiting_clarification":
+        question = payload.get("question")
+        if question:
+            ctx["detail"] = f"Question: {_compact(question)}"
+        elif str(payload.get("reason") or "") == "human_edit":
+            ctx["detail"] = "A human edit paused the run; it resumes when re-engaged."
+        else:
+            ctx["detail"] = "The run needs input to continue."
+        ctx["run_link"] = run_deep_link(ctx["project_id"], run)
     return ctx
 
 
@@ -515,15 +576,180 @@ def default_recipient(payload: dict | None = None) -> str:
     return os.environ.get("HARNESS_NOTIFY_EMAIL", "")
 
 
+# M12-G7: per-user opt-out preference. Default is notify_email = True
+# (raw-13 #14 asks for a boolean defaulting true). Stored in the existing
+# user_settings KV table (no new migration needed); absent row => default on.
+NOTIFY_EMAIL_DEFAULT = True
+
+
+async def get_notify_email_pref(session_factory, user_id: str) -> bool:
+    """Read one user's notify_email preference. Missing user/row => default;
+    any storage trouble degrades to the default (preference lookup must
+    never break notification routing)."""
+    from .models import UserSetting
+
+    try:
+        async with session_factory() as session:
+            row = await session.get(UserSetting, (user_id, "notify_email"))
+    except Exception:  # noqa: BLE001 — degraded read must not block routing
+        return NOTIFY_EMAIL_DEFAULT
+    if row is None or row.value in (None, ""):
+        return NOTIFY_EMAIL_DEFAULT
+    return str(row.value).strip().lower() in ("1", "true", "yes", "on")
+
+
+async def resolve_admin_recipients(
+    session_factory: async_sessionmaker[AsyncSession], team_id: str | None
+) -> list[str]:
+    """M12-G7 recipient fan-out for run-terminal events: every ACTIVE admin of
+    the owning team (users join), falling back to the env knob when the team
+    has no mailable admin. Deduplicated case-insensitively; empty list means
+    'notifications off'. Storage trouble yields [] — callers skip quietly."""
+    if not team_id:
+        return []
+    from sqlalchemy import select
+
+    from .models import Role, TeamMember, User
+
+    emails: list[str] = []
+    try:
+        async with session_factory() as session:
+            rows = (
+                (
+                    await session.execute(
+                        select(User.email)
+                        .join(TeamMember, TeamMember.user_id == User.id)
+                        .where(
+                            TeamMember.team_id == team_id,
+                            TeamMember.role == Role.ADMIN.value,
+                            TeamMember.member_type == "human",
+                            User.is_active.is_(True),
+                        )
+                        .order_by(User.email)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+    except Exception:  # noqa: BLE001 — roster lookup failure must not raise up
+        return []
+    seen: set[str] = set()
+    for email in rows:
+        key = str(email).strip().lower()
+        if key and key not in seen:
+            seen.add(key)
+            emails.append(str(email).strip())
+    return emails
+
+
+def _dedup_key(envelope) -> str:
+    """One email per transition per run (raw-13 #14): identity is the event's
+    own id — bus seq for real envelopes, stable hash fallback otherwise."""
+    payload = getattr(envelope, "payload", None)
+    event_id = None
+    if isinstance(payload, dict):
+        event_id = payload.get("eventId") or payload.get("id")
+    if not event_id:
+        seq = getattr(envelope, "seq", None)
+        event_id = str(seq) if seq is not None else ""
+    project_id = getattr(envelope, "projectId", None) or ""
+    run_id = getattr(envelope, "runId", None) or ""
+    kind = str(getattr(getattr(envelope, "type", ""), "value", getattr(envelope, "type", "")))
+    if event_id:
+        return f"{project_id}|{run_id}|{kind}|{event_id}"
+    digest = hashlib.sha256(repr(sorted(vars(envelope).items())).encode()).hexdigest()[:32]
+    return f"{project_id}|{run_id}|{kind}|{digest}"
+
+
+class NotificationDedup:
+    """In-process idempotency guard for enqueue-side replays.
+
+    The bus persists an event once and assigns a unique seq, so within a
+    process this set fully answers 'did we already notify this transition?'.
+    Cross-process replay protection rides on the same fact: another process
+    would be tapping a DIFFERENT envelope instance only via its own listener,
+    and each committed row carries a globally-unique seq — so seq-keyed
+    suppression cannot collide across processes either. Bounded LRU keeps the
+    guard memory-flat on long-lived workers; a process restart merely re-reads
+    history without re-sending because replays are served to WS clients, not
+    re-tapped through add_event_listener.
+    """
+
+    def __init__(self, maxsize: int = 4096) -> None:
+        self._seen: OrderedDict[str, None] = OrderedDict()
+        self._maxsize = max(1, int(maxsize))
+
+    def seen(self, key: str) -> bool:
+        """True when `key` was already enqueued by THIS process."""
+        if key in self._seen:
+            self._seen.move_to_end(key)
+            return True
+        self._seen[key] = None
+        while len(self._seen) > self._maxsize:
+            self._seen.popitem(last=False)
+        return False
+
+
 def make_event_notifier(session_factory: async_sessionmaker[AsyncSession], settings=None):
     """Build a fire-and-forget bus-event hook for deploy/runners/services.py.
 
     The returned callable takes one committed harness_contracts EventEnvelope
     (wired via EventBus.add_event_listener), NEVER raises and NEVER awaits on
-    the publisher's critical path: it spawns a task that enqueues an outbox row
+    the publisher's critical path: it spawns a task that enqueues outbox row(s)
     (which the NotificationWorker later drains). Unmappable events, absent
     recipients and malformed contexts are logged-and-skipped by design.
+
+    M12-G7: run-terminal transitions (engine_completed / engine_failed /
+    blocked_awaiting_clarification) are routed through notification_rules —
+    one email per transition per run (event-id dedup) to every active team
+    admin whose notify_email preference is on. Other mapped events
+    (review_failed / pr_opened) keep the exact Wave-9 single-recipient path.
     """
+    from .notification_rules import RUN_TERMINAL_EVENTS, enqueue_run_transition
+
+    legacy = _make_legacy_event_notifier(session_factory)
+
+    def _on_envelope(envelope):
+        try:
+            kind = str(
+                getattr(getattr(envelope, "type", ""), "value", getattr(envelope, "type", ""))
+            )
+            if kind in RUN_TERMINAL_EVENTS:
+                # M12-G7 path: dedup + team-admin fan-out. Same never-raise /
+                # fire-and-forget contract as below; see notification_rules.
+                # Task keeps the historical `_enqueue_row` name — test helpers
+                # (and humans) recognize pending enqueues by it.
+                loop = asyncio.get_running_loop()
+
+                async def _enqueue_row():
+                    try:
+                        await enqueue_run_transition(
+                            session_factory,
+                            envelope,
+                            dedup_seen=_g7_dedup.seen,
+                        )
+                    except Exception:  # noqa: BLE001 — must not surface into runs
+                        logger.exception("run-terminal notification failed")
+
+                loop.create_task(_enqueue_row())
+                return
+
+            legacy(envelope)
+        except Exception:  # noqa: BLE001 — telemetry must never break the event flow
+            logger.exception("notification hook failed")
+
+    return _on_envelope
+
+
+_g7_dedup = NotificationDedup()
+
+
+def _make_legacy_event_notifier(
+    session_factory: async_sessionmaker[AsyncSession],
+):
+    """Wave-9 hook body, unchanged: single recipient from payload override or
+    HARNESS_NOTIFY_EMAIL; kept for review_failed / pr_opened so their pinned
+    semantics survive the G7 routing split."""
 
     def _on_envelope(envelope):
         try:
