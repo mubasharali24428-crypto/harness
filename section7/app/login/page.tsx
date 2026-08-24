@@ -1,5 +1,8 @@
 "use client";
 
+// Classic JSX transform (vitest/esbuild) needs React in scope for the .tsx
+// extension; Next's compiler accepts this import too — same as meeting/page.
+import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ApiError, login, requestLoginOtp, verifyLoginOtp } from "@/lib/api";
@@ -155,10 +158,17 @@ export default function Login() {
         </div>
       )}
       {mode === "legacy" ? (
-        <form onSubmit={legacySubmit} className="card" style={{ width: 360 }}>
+        <form onSubmit={legacySubmit} className="card login-card">
           <h2 style={{ color: "var(--accent)", letterSpacing: 2 }}>HARNESS</h2>
           <p>Sign in to your team workspace. New email? We create your solo team.</p>
+          {/* M15-S3 (W4-VT2 carryover): placeholder-only naming fails WCAG
+              4.1.2/3.3.2 — real <label for>, visually hidden via .sr-only so
+              the label-free design stays intact. */}
+          <label htmlFor="login-email" className="sr-only">
+            Email address
+          </label>
           <input
+            id="login-email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@team.dev"
@@ -176,13 +186,18 @@ export default function Login() {
       ) : mode === "create-project" ? (
         // C-006: honest first-run state — the account has no projects yet, so
         // we create a real one (POST /api/v1/projects) before entering.
-        <form onSubmit={createProjectSubmit} className="card" style={{ width: 360 }}>
+        <form onSubmit={createProjectSubmit} className="card login-card">
           <h2 style={{ color: "var(--accent)", letterSpacing: 2 }}>HARNESS</h2>
           <p>
             Your team has no projects yet. Name your first one — it&apos;s created for real in
             Section 1 before you continue.
           </p>
+          {/* M15-S3: accessible name for the placeholder-only input. */}
+          <label htmlFor="login-project-name" className="sr-only">
+            Project name
+          </label>
           <input
+            id="login-project-name"
             value={projectName}
             onChange={(e) => setProjectName(e.target.value)}
             placeholder="Project name (e.g. Atlas migration)"
@@ -201,10 +216,15 @@ export default function Login() {
           )}
         </form>
       ) : (
-        <form onSubmit={otpSubmit} className="card" style={{ width: 360 }}>
+        <form onSubmit={otpSubmit} className="card login-card">
           <h2 style={{ color: "var(--accent)", letterSpacing: 2 }}>HARNESS</h2>
           <p>{note}</p>
+          {/* M15-S3: accessible name for the placeholder-only OTP input. */}
+          <label htmlFor="login-otp-code" className="sr-only">
+            6-digit code
+          </label>
           <input
+            id="login-otp-code"
             value={code}
             onChange={(e) => setCode(e.target.value)}
             placeholder="123456"

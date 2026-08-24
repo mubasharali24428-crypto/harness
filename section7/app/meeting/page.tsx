@@ -256,10 +256,14 @@ export default function Meeting() {
             </div>
           )}
           <div className="chat-input">
+            {/* M15-S3 (W4-VT2 carryover): placeholder-only naming fails WCAG
+                4.1.2/3.3.2 — aria-label carries the accessible name; a visible
+                label doesn't fit the compact chat composer design. */}
             <input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder="Message team… use @ai to summon the agent"
+              aria-label="Chat message"
             />
             <button className="btn" disabled={busy} onClick={() => void send(false)}>
               Send

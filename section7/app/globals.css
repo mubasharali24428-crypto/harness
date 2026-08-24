@@ -229,6 +229,15 @@ h1 {
   margin-bottom: 10px;
 }
 
+/* M15-S3 — login card responsive contract (W4-VT2 carryover): the old inline
+   width:360 overflowed a 320px viewport. Fluid cap instead of a fixed width:
+   fills small screens edge-to-edge minus gutters, caps at 360px+gutter on
+   desktop so the visual size is unchanged up there. */
+.login-card {
+  width: min(100% - 24px, 380px);
+  max-width: calc(100vw - 24px);
+}
+
 .btn {
   background: var(--panel-2);
   border: 1px solid var(--border);
