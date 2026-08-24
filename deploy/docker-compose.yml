@@ -454,6 +454,65 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  # M14-P2 — LEGACY all-in-one backend, opt-in via the 'legacy-backend'
+  # profile so the default split-service topology stays untouched (mirrors
+  # the wave-8B 'proxy' / Mission-10 'walg' pattern).
+  #
+  # WHY THIS BLOCK EXISTS: the crash-looping harness-backend-1 of W2/W3 was
+  # an ORPHAN from the pre-split revision — a container whose service had
+  # vanished from this file, left detached from every network
+  # (`docker inspect` showed Networks: {}). With no user-defined bridge there
+  # is no embedded resolver at 127.0.0.1:53 inside it, so getaddrinfo("db")
+  # fails with EAI_AGAIN (`[Errno -3] Temporary failure in name resolution`),
+  # entrypoint.sh exits 1 and Docker restarts it instantly — forever.
+  # Declaring the service HERE makes that state impossible to re-enter:
+  # compose now owns it, attaches it to the pinned default network, and can
+  # recreate/upgrade/remove it like any other service.
+  #
+  #   docker compose -f deploy/docker-compose.yml --profile legacy-backend up -d backend
+  #   docker compose -f deploy/docker-compose.yml --profile legacy-backend stop backend
+  backend:
+    <<: *backend-build
+    profiles:
+      - legacy-backend
+    environment:
+      <<: *backend-env
+      # Empty HARNESS_SERVICE selects the all-in-one path in entrypoint.sh
+      # (runs migrate + seeds + supervises uvicorn on 8001-8008 in one PID ns).
+      HARNESS_SERVICE: ""
+    networks:
+      - default
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+    dns:
+      # Embedded Docker resolver FIRST (service names on harness_default),
+      # upstream public fallback second for anything external. Belt-and-braces:
+      # if the network's embedded DNS wedges (the VT-5 failure mode), lookups
+      # degrade to upstream instead of hard-crashing the boot sequence.
+      - 127.0.0.11
+      - 8.8.8.8
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)\""]
+      interval: 15s
+      timeout: 4s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+    depends_on: *backend-depends
+
+# M14-P2 network hardening: declare the default network EXPLICITLY instead of
+# letting compose synthesize it. Pinning name/attachable/driver makes
+# `docker compose up` deterministic after any external `docker network rm`
+# (the VT-documented wedge-breaker) and documents the embedded-DNS contract
+# every service relies on for `db`-style lookups.
+networks:
+  default:
+    name: harness_default
+    driver: bridge
+    attachable: true
+
 volumes:
   pgdata:
   # H-018 (M13-W3-H2): the archiving database's own data volume — deliberately
