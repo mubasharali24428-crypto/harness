@@ -6,8 +6,8 @@ from typing import Annotated, Any
 
 import harness_contracts as contracts
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
-from harness_contracts import Principal as ContractsPrincipal, error_body
-from harness_contracts import Role
+from harness_contracts import Principal as ContractsPrincipal
+from harness_contracts import Role, error_body
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -104,6 +104,15 @@ def make_app(session_factory, settings: Settings):
     from .security_headers import install_security_headers
 
     install_security_headers(app)
+
+    # M13-G5a gate repair: wire lane F1's error envelope so EVERY error path —
+    # including 401s from get_principal and route HTTPExceptions raised with a
+    # bare string detail (e.g. "missing bearer token") — answers the frozen
+    # contract shape {"error": {code, message}} (+ legacy detail mirror).
+    # Previously only tests that installed it manually got the envelope.
+    from .envelope_middleware import install_error_envelope
+
+    install_error_envelope(app)
 
     @app.get("/health")
     async def health(request: Request, deep: int = 0):

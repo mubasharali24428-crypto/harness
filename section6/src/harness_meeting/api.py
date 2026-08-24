@@ -2,7 +2,7 @@
 
 import sys
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from harness_contracts.roles import Principal
@@ -75,13 +75,103 @@ class CreatePromptRequest(BaseModel):
     content: str = Field(max_length=MESSAGE_CONTENT_MAX)
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+# ---------------------------------------------------------------------------
+# M13-G5a OpenAPI typing islands — concrete response schemas for the
+# highest-traffic meeting routes.
+# ---------------------------------------------------------------------------
+
+
+class MeetingOut(BaseModel):
+    id: str
+    projectId: str
+    title: str
+    createdAt: str
+    briefId: str | None = None
+
+
+class ChatMessageOut(BaseModel):
+    id: str
+    meetingId: str
+    userId: str
+    content: str
+    timestamp: str
+    isAiGenerated: bool = False
+
+
+class AiInvokeResponse(ChatMessageOut):
+    """200 body of /ai — the AI reply message, or an explicit not-invoked note."""
+
+
+class NotInvokedResponse(BaseModel):
+    status: Literal["not_invoked"]
+    message: str
+
+
+class _ErrorDetail(BaseModel):
+    """M13-G5a: frozen contract error entry for responses={} documentation."""
+
+    code: str
+    message: str
+
+
+class _ErrorEnvelope(BaseModel):
+    error: _ErrorDetail
+
+
+class BriefOut(BaseModel):
+    """Mirror of the FROZEN contracts EngineeringBrief (camelCase wire)."""
+
+    id: str
+    meetingId: str
+    projectId: str
+    requirements: list[str] = Field(default_factory=list)
+    constraints: list[str] = Field(default_factory=list)
+    acceptanceCriteria: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+    openQuestions: list[Any] = Field(default_factory=list)
+    status: str = "draft"
+
+
+class SummaryOut(BaseModel):
+    """M13-G5a typing island: a stored meeting summary."""
+
+    id: str
+    meetingId: str
+    content: str
+    createdAt: str
+    format: str = "markdown"
+
+
+class PromptOut(BaseModel):
+    """M13-G5a typing island: one versioned prompt row."""
+
+    id: str
+    meetingId: str
+    version: int = 1
+    content: str
+    createdBy: str
+    createdAt: str
+    linkedTaskId: str | None = None
+    linkedBranch: str | None = None
+
+
+@router.post(
+    "",
+    status_code=status.HTTP_201_CREATED,
+    response_model=MeetingOut,
+    responses={401: {"description": "bad or missing token"}},
+)
 def create_meeting(req: CreateMeetingRequest, principal: RequirePrincipal) -> dict[str, Any]:
     meeting = _service.create_meeting(req.projectId, req.title)
     return meeting.model_dump()
 
 
-@router.get("/{meetingId}", status_code=status.HTTP_200_OK)
+@router.get(
+    "/{meetingId}",
+    status_code=status.HTTP_200_OK,
+    response_model=MeetingOut,
+    responses={404: {"model": _ErrorEnvelope, "description": "unknown meeting"}},
+)
 def get_meeting(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
     try:
         meeting = _service.get_meeting(meetingId)
@@ -93,7 +183,12 @@ def get_meeting(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
         ) from e
 
 
-@router.post("/{meetingId}/messages", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{meetingId}/messages",
+    status_code=status.HTTP_201_CREATED,
+    response_model=ChatMessageOut,
+    responses={404: {"model": _ErrorEnvelope, "description": "unknown meeting"}},
+)
 def post_message(
     meetingId: str, req: PostMessageRequest, principal: RequirePrincipal
 ) -> dict[str, Any]:
@@ -107,7 +202,12 @@ def post_message(
         ) from e
 
 
-@router.get("/{meetingId}/messages", status_code=status.HTTP_200_OK)
+@router.get(
+    "/{meetingId}/messages",
+    status_code=status.HTTP_200_OK,
+    response_model=list[ChatMessageOut],
+    responses={404: {"model": _ErrorEnvelope, "description": "unknown meeting"}},
+)
 def get_messages(meetingId: str, principal: RequirePrincipal) -> list[dict[str, Any]]:
     try:
         messages = _service.get_messages(meetingId)
@@ -119,7 +219,12 @@ def get_messages(meetingId: str, principal: RequirePrincipal) -> list[dict[str, 
         ) from e
 
 
-@router.post("/{meetingId}/ai", status_code=status.HTTP_200_OK)
+@router.post(
+    "/{meetingId}/ai",
+    status_code=status.HTTP_200_OK,
+    response_model=AiInvokeResponse | NotInvokedResponse,
+    responses={404: {"model": _ErrorEnvelope, "description": "unknown meeting"}},
+)
 def invoke_ai(meetingId: str, req: InvokeAIRequest, principal: RequirePrincipal) -> dict[str, Any]:
     try:
         result = _service.invoke_ai(meetingId, principal.userId, req.content)
@@ -133,7 +238,12 @@ def invoke_ai(meetingId: str, req: InvokeAIRequest, principal: RequirePrincipal)
         ) from e
 
 
-@router.post("/{meetingId}/brief", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{meetingId}/brief",
+    status_code=status.HTTP_201_CREATED,
+    response_model=BriefOut,
+    responses={404: {"model": _ErrorEnvelope, "description": "unknown meeting"}},
+)
 def generate_brief(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
     try:
         brief = _service.generate_brief(meetingId)
@@ -145,7 +255,14 @@ def generate_brief(meetingId: str, principal: RequirePrincipal) -> dict[str, Any
         ) from e
 
 
-@router.get("/{meetingId}/brief", status_code=status.HTTP_200_OK)
+@router.get(
+    "/{meetingId}/brief",
+    status_code=status.HTTP_200_OK,
+    response_model=BriefOut,
+    responses={
+        404: {"model": _ErrorEnvelope, "description": "unknown meeting or no brief yet"},
+    },
+)
 def get_brief(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
     try:
         brief = _service.get_brief(meetingId)
@@ -165,6 +282,11 @@ def get_brief(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
 @router.post(
     "/{meetingId}/brief/{briefId}/approve",
     status_code=status.HTTP_200_OK,
+    response_model=BriefOut,
+    responses={
+        400: {"model": _ErrorEnvelope, "description": "INVALID_STATE"},
+        404: {"model": _ErrorEnvelope, "description": "unknown meeting/brief"},
+    },
 )
 def approve_brief(
     meetingId: str, briefId: str, req: ApproveBriefRequest, principal: RequirePrincipal
@@ -187,6 +309,8 @@ def approve_brief(
 @router.post(
     "/{meetingId}/brief/{briefId}/reject",
     status_code=status.HTTP_200_OK,
+    response_model=BriefOut,
+    responses={404: {"model": _ErrorEnvelope, "description": "unknown meeting/brief"}},
 )
 def reject_brief(
     meetingId: str, briefId: str, req: ApproveBriefRequest, principal: RequirePrincipal
@@ -201,7 +325,12 @@ def reject_brief(
         ) from e
 
 
-@router.post("/{meetingId}/summary", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{meetingId}/summary",
+    status_code=status.HTTP_201_CREATED,
+    response_model=SummaryOut,
+    responses={404: {"model": _ErrorEnvelope, "description": "unknown meeting"}},
+)
 def generate_summary(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
     try:
         summary = _service.generate_summary(meetingId)
@@ -213,7 +342,11 @@ def generate_summary(meetingId: str, principal: RequirePrincipal) -> dict[str, A
         ) from e
 
 
-@router.post("/{meetingId}/prompts", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{meetingId}/prompts",
+    status_code=status.HTTP_201_CREATED,
+    response_model=PromptOut,
+)
 def create_prompt(
     meetingId: str, req: CreatePromptRequest, principal: RequirePrincipal
 ) -> dict[str, Any]:
@@ -221,7 +354,11 @@ def create_prompt(
     return prompt.model_dump()
 
 
-@router.get("/{meetingId}/prompts", status_code=status.HTTP_200_OK)
+@router.get(
+    "/{meetingId}/prompts",
+    status_code=status.HTTP_200_OK,
+    response_model=list[PromptOut],
+)
 def list_prompts(meetingId: str, principal: RequirePrincipal) -> list[dict[str, Any]]:
     prompts = _service.list_prompts(meetingId)
     return [p.model_dump() for p in prompts]
