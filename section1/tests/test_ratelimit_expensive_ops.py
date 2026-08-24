@@ -91,10 +91,17 @@ def _factory(engine) -> async_sessionmaker:
 
 def _limited_app(session_factory, **kw):
     """Real identity app + G2 limiter installed at factory time."""
-    return make_app(
+    app = make_app(
         session_factory,
         Settings(master_key=MASTER, cors_origins=[], require_ownership=False),
     )
+    # Wire-up contract (ratelimit.py): one install per app at factory time.
+    # The counter store resolves lazily off app.state.session_factory, which
+    # make_app set above. kw forwards limiter tuning (limit=, routes=, ...).
+    install_rate_limit(app, **kw)
+    # Burst suites hit /auth/request-login; swallow the dev OTP printer.
+    app.state.notifier = lambda email, code: None
+    return app
 
 
 async def _client_for(app, ip: str):
@@ -102,9 +109,9 @@ async def _client_for(app, ip: str):
     return AsyncClient(transport=transport, base_url="http://test")
 
 
-async def _post(ip: str, app, path: str):
+async def _post(ip: str, app, path: str, json_body=None):
     async with await _client_for(app, ip) as c:
-        return await c.post(path)
+        return await c.post(path, json=json_body)
 
 
 # ---------------------------------------------------------------------------
@@ -229,10 +236,10 @@ async def test_other_routes_unaffected_by_start_budget(rl_engine):
 async def test_auth_edge_budget_independent_of_expensive_ops(rl_engine):
     """Rebalance, not merge: burning the OTP-request budget leaves the same
     IP's run-start budget intact (and vice versa)."""
-    app = _limited_app(_factory(rl_engine))
+    app = _limited_app(_factory(rl_engine), limit=2)
     ip, path = "10.26.0.1", "/api/v1/auth/request-login"
     for _ in range(3):  # limit=2 → third attempt hits the wall
-        res = await _post(ip, app, path)
+        res = await _post(ip, app, path, {"email": "g2@example.com"})
     assert res.status_code == 429  # auth-edge bucket spent
     assert (
         await _post(ip, app, "/api/v1/orchestrator/runs/r/start")

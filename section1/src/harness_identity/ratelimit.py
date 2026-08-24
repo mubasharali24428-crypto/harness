@@ -72,11 +72,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_LIMIT = 10
 DEFAULT_WINDOW_SECONDS = 60
 
-# M12-W2.2 lane G2 (H-021) budgets: generous caps on the expensive ops —
-# abuse guards, not UX blockers (see the template block below).
-RUN_START_LIMIT = 30  # per minute per IP: agent spawn cost
-MODEL_CALL_LIMIT = 60  # per minute per IP: S3 provider spend
-BRIEF_GENERATE_LIMIT = 20  # per minute per IP: LLM generation work
 # M11-W1 rescue: guard the REAL auth edge. The legacy "/auth/otp/request"
 # path never existed in app.py (routes are /auth/request-login +
 # /auth/verify-otp); the old default limited a phantom route while leaving
@@ -98,7 +93,6 @@ INVITE_MINT_TEMPLATE = "/api/v1/teams/{team_id}/invites"
 # the OTP edge. (In-process _login_rate_limited in app.py stays as a second
 # layer; this makes the DB-backed limiter cover the route too.)
 LOGIN_TEMPLATE = "/api/v1/auth/login"
-DEFAULT_PROTECTED_ROUTES = (*DEFAULT_ROUTES, INVITE_MINT_TEMPLATE, LOGIN_TEMPLATE)
 
 # M12-W2.2 lane G2 (H-021): rate-limit rebalance onto EXPENSIVE OPS.
 #
@@ -114,11 +108,29 @@ DEFAULT_PROTECTED_ROUTES = (*DEFAULT_ROUTES, INVITE_MINT_TEMPLATE, LOGIN_TEMPLAT
 RUN_START_TEMPLATE = "/api/v1/orchestrator/runs/{runId}/start"  # spawn cost
 MODEL_CALL_TEMPLATE = "/api/v1/models/call"  # S3 provider spend
 BRIEF_GENERATE_TEMPLATE = "/api/v1/meetings/{meetingId}/brief"  # LLM generation
+
+# G2 budgets: generous caps — abuse guards, not UX blockers (see block above).
+RUN_START_LIMIT = 30  # per minute per IP: agent spawn cost
+MODEL_CALL_LIMIT = 60  # per minute per IP: S3 provider spend
+BRIEF_GENERATE_LIMIT = 20  # per minute per IP: LLM generation work
+
 EXPENSIVE_OP_LIMITS: dict[str, int] = {
     RUN_START_TEMPLATE: RUN_START_LIMIT,
     MODEL_CALL_TEMPLATE: MODEL_CALL_LIMIT,
     BRIEF_GENERATE_TEMPLATE: BRIEF_GENERATE_LIMIT,
 }
+
+# The expensive ops join the SHIPPED protected set — this tuple is what
+# install_rate_limit guards by default. DEFAULT_ROUTES itself stays
+# byte-identical (tests/test_ratelimit.py pins it as the auth-edge contract).
+DEFAULT_PROTECTED_ROUTES = (
+    *DEFAULT_ROUTES,
+    INVITE_MINT_TEMPLATE,
+    LOGIN_TEMPLATE,
+    RUN_START_TEMPLATE,
+    MODEL_CALL_TEMPLATE,
+    BRIEF_GENERATE_TEMPLATE,
+)
 
 
 def expensive_op_limits() -> dict[str, int]:
