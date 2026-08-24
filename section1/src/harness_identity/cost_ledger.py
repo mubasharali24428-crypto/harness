@@ -145,10 +145,10 @@ async def record_usage(
     anything else happens; it is bound as text.
     """
     try:
-        # Exact money normalization BEFORE any DB contact (H-023): quantize to
-        # NUMERIC(12,6) scale, then bind as text — exact on both drivers.
+        # Exact money normalization happens ONCE, before any DB contact
+        # (H-023); usage_bind_params quantizes to NUMERIC(12,6) and binds the
+        # value as text — exact on both drivers.
         cost_dec = _to_money(cost_usd)
-        cost_bind = f"{cost_dec:.6f}"
         async with session_factory() as db:
             resolved_run_id = run_id
             if resolved_run_id is None:
