@@ -2,7 +2,8 @@
 
 Mission 14 P2 (Squad BETA). Owner: deploy/ops lane. Baseline: 9eeb896.
 Related: `docs/runbooks/backup-and-pitr.md` §Troubleshooting (original W2 carryover
-note), `docs/GAP_ANALYSIS_AND_FIXES.md` DB-RESTART entry, wave graphs W3→W4.
+note), `docs/runbooks/maintenance.md` (scheduled vacuum, M15-W5-D2),
+`docs/GAP_ANALYSIS_AND_FIXES.md` DB-RESTART entry, wave graphs W3→W4.
 
 ---
 
@@ -27,6 +28,7 @@ One image (`harness-backend`, built from `deploy/backend.Dockerfile`), selected 
 | proxy | 80/443 | profile `proxy` |
 | walg-db, walg | — | profile `walg` |
 | events-retention | — | profile `events-retention` |
+| db-maintenance | — | profile `maintenance` (M15-W5-D2): scheduled VACUUM (ANALYZE) for agent_events/rate_buckets/audit_log — see [maintenance.md](maintenance.md) |
 
 Network: single user-defined bridge `harness_default` (declared explicitly in
 compose since M14-P2: pinned name/driver/attachable). All service-name lookups

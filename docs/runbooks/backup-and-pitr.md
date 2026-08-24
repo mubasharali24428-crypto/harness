@@ -56,6 +56,15 @@ sleep loop: exact timing, catch-up semantics, failures surface in cron mail.)
 macOS launchd equivalent: `StartCalendarInterval` agents running the same
 commands.
 
+**Ordering vs vacuum (M15-W5-D2):** schedule base backups AFTER the
+maintenance window — VACUUM first, then the base backup — so restores start
+from a compact state with a short replay chain. The companion
+[runbook](maintenance.md) §WAL-G interplay owns this contract; its weekly
+default (`MAINTENANCE_INTERVAL_SECONDS=604800`, Sunday 04:07 UTC example)
+sits safely before the 03:03-style backup slots only if you keep the days
+straight — when in doubt, run `db-maintenance once` manually right before
+any manual base backup.
+
 **Offsite copy is mandatory for real deployments** — as shipped, everything
 sits on the same filesystem as the stack:
 
