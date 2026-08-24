@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import time
 from collections import defaultdict, deque
 from datetime import UTC, datetime
@@ -16,7 +17,12 @@ from .audit import register_append_only_guard
 from .auth import get_principal, hash_token, issue_otp, login_or_register, verify_otp
 from .config import Settings
 from .crypto import KeyVault
-from .ephemeral import mint_ws_ticket, redeem_ws_ticket
+from .ephemeral import (
+    FINGERPRINT_HEX_LEN,
+    compute_client_fingerprint,
+    mint_ws_ticket,
+    redeem_ws_ticket,
+)
 from .eventbus import EventBus
 from .limits import (
     LOGIN_EMAIL_MAX,
@@ -32,10 +38,32 @@ from .models import Role as DbRole
 
 LOGIN_RATE_LIMIT = 20  # attempts
 LOGIN_RATE_WINDOW_S = 60
-async def _issue_ws_ticket(app_state, principal, session_factory, project_id: str) -> dict:
+
+logger = logging.getLogger(__name__)
+
+
+async def _issue_ws_ticket(
+    app_state, principal, session_factory, project_id: str,
+    user_agent: str = "", client_ip: str = "",
+) -> dict:
     await _require_project_access(session_factory, principal, project_id)
-    ticket, ttl = await mint_ws_ticket(session_factory, principal, project_id)
+    ticket, ttl = await mint_ws_ticket(
+        session_factory, principal, project_id,
+        user_agent=user_agent, client_ip=client_ip,
+    )
     return {"ticket": ticket, "expiresInSeconds": ttl}
+
+
+def _client_ip(request: Request) -> str:
+    """Peer address of the direct connection. Deliberately NOT
+    X-Forwarded-For: that header is client-controlled until a trusted proxy
+    strips/rewrites it, and a spoofed XFF would both forge fingerprints at
+    mint and break them at upgrade. Deployments behind a proxy terminate TLS
+    and present the proxy address — same value at mint and upgrade, so the
+    binding still holds (it just binds to the proxy)."""
+    if request.client is None:
+        return ""
+    return request.client.host or ""
 
 
 def _login_rate_limited(app_state, client_ip: str) -> bool:
@@ -158,6 +186,17 @@ def make_app(session_factory, settings: Settings):
     from .rules_api import router as rules_router
 
     app.include_router(rules_router)
+
+    # M15-G6b: per-team settings CRUD (reviewer thresholds, admin-gated).
+    from .settings_api import router as settings_api_router
+
+    app.include_router(settings_api_router)
+
+    # M15-W5-S1 merge wiring: browser CSP violation collector (unauthed,
+    # size-capped, allow-listed logging — see csp_report.py).
+    from .csp_report import router as csp_report_router
+
+    app.include_router(csp_report_router)
     return app
 
 
@@ -477,22 +516,34 @@ async def issue_ws_ticket(
     principal: Annotated[object, Depends(get_principal)],
 ) -> dict:
     """Mint a one-time, 30s, project-bound ticket so the WS upgrade never needs
-    a long-lived bearer token in a URL (H8)."""
+    a long-lived bearer token in a URL (H8). M15-W5-S2: the ticket is also
+    bound to this client's fingerprint (UA + peer IP hash) and only upgrades
+    from a request that reproduces it."""
     return await _issue_ws_ticket(
-        request.app.state, principal, request.app.state.session_factory, body.projectId
+        request.app.state,
+        principal,
+        request.app.state.session_factory,
+        body.projectId,
+        user_agent=request.headers.get("user-agent", ""),
+        client_ip=_client_ip(request),
     )
 
 
 @router.websocket("/ws/{project_id}")
 async def project_ws(
     websocket: WebSocket, project_id: str, token: str = "", afterSeq: int = 0,
-    ticket: str = "",
+    ticket: str = "", fingerprint: str = "",
 ):
+    # M15-W5-S2: redemption result carries the mint-time client fingerprint
+    # (None when no ticket was presented, or for pre-0024 rows — grace path).
+    redeemed = None
     if ticket:
-        # One-time redemption binds the principal AND the project in one step.
-        principal = await redeem_ws_ticket(
+        # One-time redemption binds the principal AND the project in one step,
+        # and returns the mint-time client fingerprint for upgrade validation.
+        redeemed = await redeem_ws_ticket(
             websocket.app.state.session_factory, ticket, project_id
         )
+        principal = redeemed.principal if redeemed is not None else None
     elif token:
         principal = await _principal_from_token(websocket.app.state.session_factory, token)
     else:
@@ -507,6 +558,51 @@ async def project_ws(
     if principal is None:
         await websocket.close(code=4401)
         return
+
+    # M15-W5-S2 client-binding: recompute the fingerprint from THIS upgrade
+    # request (its UA + peer address) and compare against what mint stored.
+    #
+    # X-WS-Fingerprint is OPTIONAL for one release (backward-compat law):
+    #   absent            -> warn-log + allow (grace path; legacy clients and
+    #                        any browser WS keep working — browsers cannot set
+    #                        custom headers on new WebSocket(url)).
+    #   present + wrong   -> reject with 4403 TICKET_FINGERPRINT_MISMATCH.
+    # The server-side UA+IP recomputation below runs in every case, so a
+    # stolen ticket replayed from a different host is dead regardless of what
+    # the header says. The same value is also accepted via the `fingerprint`
+    # query param, the only channel a browser WS can actually carry.
+    if ticket and redeemed is not None:
+        ws_user_agent = websocket.headers.get("user-agent", "")
+        upgrade_ip = websocket.client.host if websocket.client else ""
+        upgrade_fp = compute_client_fingerprint(ws_user_agent, upgrade_ip)
+        presented = websocket.headers.get("x-ws-fingerprint", "").strip()
+        if not presented:
+            presented = fingerprint.strip()
+        if not presented:
+            logger.warning(
+                "WS upgrade without X-WS-Fingerprint (deprecated, allowed this "
+                "release): project=%s ua_hash=%s",
+                project_id,
+                upgrade_fp,
+            )
+        elif len(presented) != FINGERPRINT_HEX_LEN or presented != upgrade_fp:
+            logger.warning(
+                "WS upgrade rejected: TICKET_FINGERPRINT_MISMATCH "
+                "(project=%s, presented=%s…)",
+                project_id,
+                presented[:4],
+            )
+            await websocket.close(code=4403, reason="TICKET_FINGERPRINT_MISMATCH")
+            return
+        bound = redeemed.fingerprint
+        if bound is not None and bound != upgrade_fp:
+            logger.warning(
+                "WS upgrade rejected: TICKET_FINGERPRINT_MISMATCH "
+                "(ticket bound to a different client; project=%s)",
+                project_id,
+            )
+            await websocket.close(code=4403, reason="TICKET_FINGERPRINT_MISMATCH")
+            return
     try:
         await _require_project_access(
             websocket.app.state.session_factory, principal, project_id

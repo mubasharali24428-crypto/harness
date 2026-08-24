@@ -71,8 +71,9 @@ class BillingPlan(Base):
     __tablename__ = "billing_plans"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    # M15-D1 sweep (W5-C2): plan dies with its team.
     team_id: Mapped[str] = mapped_column(
-        ForeignKey("teams.id"), nullable=False, unique=True, index=True
+        ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
     )
     plan: Mapped[str] = mapped_column(String(30), nullable=False)
     # H-023: NUMERIC(12,6) per migration 0020 (was 12,2). Python side carries

@@ -34,6 +34,9 @@ APPEND_ONLY_ACTIONS = frozenset(
         # Mission 12 G10: user-authored project rules lifecycle.
         "rules.saved",
         "rules.deleted",
+        # M15-G6b: per-team reviewer-threshold tuning lifecycle.
+        "reviewer_thresholds.saved",
+        "reviewer_thresholds.deleted",
     }
 )
 

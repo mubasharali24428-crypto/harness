@@ -267,7 +267,10 @@ class NotificationOutbox(Base):
     __tablename__ = "notification_outbox"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
-    team_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("teams.id"), index=True)
+    # M15-D1 sweep (W5-C2): queued mail outlives the team (mirrors 0009).
+    team_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("teams.id", ondelete="SET NULL"), index=True
+    )
     to_email: Mapped[str] = mapped_column(String(255), nullable=False)
     template: Mapped[str] = mapped_column(String(40), nullable=False)
     payload: Mapped[dict] = mapped_column(JSONVariant, nullable=False, default=dict)

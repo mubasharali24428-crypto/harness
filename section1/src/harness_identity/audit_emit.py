@@ -423,6 +423,62 @@ async def emit_member_role_changed(
         session_owner=session_owner,
     )
 
+async def emit_reviewer_thresholds_saved(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """reviewer_thresholds.saved — M15-G6b: admin PUT of reviewer thresholds.
+
+    Call from the PUT /teams/{teamId}/settings/reviewer-thresholds handler
+    AFTER the row commits; target_id is the teamId, detail carries {created}.
+    """
+    return await _emit(
+        session,
+        "reviewer_thresholds.saved",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_settings",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_reviewer_thresholds_deleted(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """reviewer_thresholds.deleted — M15-G6b: admin reset to defaults.
+
+    Emitted only when a row actually existed; the idempotent no-row 204 stays
+    silent. Call AFTER the delete commits.
+    """
+    return await _emit(
+        session,
+        "reviewer_thresholds.deleted",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_settings",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
 async def emit_rules_saved(
     session: AsyncSession,
     *,

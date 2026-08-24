@@ -135,10 +135,14 @@ def test_shipped_set_covers_expensive_ops():
 def test_expensive_op_budgets_are_generous():
     """Abuse guard, not UX blocker: every expensive op gets a WIDER budget than
     the auth edge's DEFAULT_LIMIT, keyed per route TEMPLATE."""
+    # M15-W5-S1 added the unauthed CSP collector to the shipped budget table
+    # (same 30/min abuse-guard tier as run-start); the G2 expensive ops below
+    # are unchanged.
     assert rl.EXPENSIVE_OP_LIMITS == {
         RUN_START_TEMPLATE: RUN_START_LIMIT,
         MODEL_CALL_TEMPLATE: MODEL_CALL_LIMIT,
         BRIEF_GENERATE_TEMPLATE: BRIEF_GENERATE_LIMIT,
+        rl.CSP_REPORT_TEMPLATE: rl.CSP_REPORT_LIMIT,
     }
     for budget in (RUN_START_LIMIT, MODEL_CALL_LIMIT, BRIEF_GENERATE_LIMIT):
         assert budget > rl.DEFAULT_LIMIT

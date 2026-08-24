@@ -109,6 +109,14 @@ RUN_START_TEMPLATE = "/api/v1/orchestrator/runs/{runId}/start"  # spawn cost
 MODEL_CALL_TEMPLATE = "/api/v1/models/call"  # S3 provider spend
 BRIEF_GENERATE_TEMPLATE = "/api/v1/meetings/{meetingId}/brief"  # LLM generation
 
+# M15-W5-S1: the browser CSP violation collector is UNAUTH by design (browsers
+# fire reports without credentials), which makes it exactly the kind of route
+# that must join the shipped protected set — a scripted flood otherwise spins
+# the violation log. Same template-keying law as above: one IP shares one
+# budget regardless of report content.
+CSP_REPORT_TEMPLATE = "/api/v1/csp-report"
+CSP_REPORT_LIMIT = 30  # per minute per IP: real pages emit reports sparsely
+
 # G2 budgets: generous caps — abuse guards, not UX blockers (see block above).
 RUN_START_LIMIT = 30  # per minute per IP: agent spawn cost
 MODEL_CALL_LIMIT = 60  # per minute per IP: S3 provider spend
@@ -118,15 +126,21 @@ EXPENSIVE_OP_LIMITS: dict[str, int] = {
     RUN_START_TEMPLATE: RUN_START_LIMIT,
     MODEL_CALL_TEMPLATE: MODEL_CALL_LIMIT,
     BRIEF_GENERATE_TEMPLATE: BRIEF_GENERATE_LIMIT,
+    # M15-W5-S1: unauthed browser collector joins the shipped budget table.
+    CSP_REPORT_TEMPLATE: CSP_REPORT_LIMIT,
 }
 
 # The expensive ops join the SHIPPED protected set — this tuple is what
 # install_rate_limit guards by default. DEFAULT_ROUTES itself stays
 # byte-identical (tests/test_ratelimit.py pins it as the auth-edge contract).
+# NOTE ordering law: M15-W5-S1's collector slot sits BEFORE the G2 expensive-op
+# trio so tests/test_ratelimit_expensive_ops.py's [-3:] contract stays intact.
 DEFAULT_PROTECTED_ROUTES = (
     *DEFAULT_ROUTES,
     INVITE_MINT_TEMPLATE,
     LOGIN_TEMPLATE,
+    # M15-W5-S1: unauthed browser CSP collector ships rate-limited.
+    CSP_REPORT_TEMPLATE,
     RUN_START_TEMPLATE,
     MODEL_CALL_TEMPLATE,
     BRIEF_GENERATE_TEMPLATE,

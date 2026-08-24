@@ -17,6 +17,11 @@ from harness_identity.models import Base
 DB_DIR = Path("/tmp/opencode")
 DB_FILE = DB_DIR / "ws_auth_test.db"
 
+# M15-W5-S2: tickets are client-bound, so tests mint and upgrade as one fixed
+# synthetic client (same UA + peer address on both legs).
+MINT_UA = "TestAgent/1.0"
+MINT_IP = "203.0.113.7"
+
 
 class WsRejected(AssertionError):
     def __init__(self, code):
@@ -33,16 +38,20 @@ class MiniWs:
     forever (the CI hang). Single-loop = deterministic.
     """
 
-    def __init__(self, app, target: str):
+    def __init__(self, app, target: str, headers: dict[str, str] | None = None,
+                 client_addr: tuple[str, int] | None = None):
+        self.headers = headers or {}
         parts = urlsplit(target)
         self.scope = {
             "type": "websocket",
             "path": parts.path,
             "query_string": parts.query.encode(),
-            "headers": [],
+            # M15-W5-S2: ASGI requires LOWERCASE header names; starlette reads
+            # them raw, so "User-Agent" would silently read back as "".
+            "headers": [(k.lower().encode(), v.encode()) for k, v in (headers or {}).items()],
             "subprotocols": [],
             "server": ("testserver", 80),
-            "client": ("testclient", 123),
+            "client": client_addr or ("testclient", 123),
         }
         self.app = app
         self._in: asyncio.Queue = asyncio.Queue()  # app <- client
@@ -142,7 +151,8 @@ def _seed_sync():
             role VARCHAR(20) NOT NULL,
             project_id VARCHAR(36) NOT NULL,
             expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL);
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            fingerprint VARCHAR(32));
         """
     )
     con.commit()
@@ -207,11 +217,16 @@ async def test_ws_rejects_foreign_team_project(db):
 
 
 async def _issue_ticket(app, project_id="proj-1", token="goodtok"):
-    async with _http(app) as c:
+    """Mint as a FIXED synthetic client (UA + peer address below); upgrades in
+    this file that expect acceptance must present the same values, since
+    M15-W5-S2 binds every ticket to the minting client."""
+    async with AsyncClient(
+        transport=ASGITransport(app=app, client=(MINT_IP, 50000)), base_url="http://t"
+    ) as c:
         return await c.post(
             "/api/v1/ws-ticket",
             json={"projectId": project_id},
-            headers={"Authorization": f"Bearer {token}"},
+            headers={"Authorization": f"Bearer {token}", "User-Agent": MINT_UA},
         )
 
 
@@ -250,7 +265,9 @@ async def test_ws_ticket_happy_path(db):
     body = r.json()
     assert body["ticket"]
     assert body["expiresInSeconds"] > 0
-    async with MiniWs(app, f"/api/v1/ws/proj-1?ticket={body['ticket']}") as ws:
+    async with MiniWs(app, f"/api/v1/ws/proj-1?ticket={body['ticket']}",
+                      headers={"User-Agent": MINT_UA},
+                      client_addr=(MINT_IP, 123)) as ws:
         assert ws.accepted
 
 
@@ -259,10 +276,14 @@ async def test_ws_ticket_is_single_use(db):
     _seed_sync()
     ticket = (await _issue_ticket(app)).json()["ticket"]
 
-    async with MiniWs(app, f"/api/v1/ws/proj-1?ticket={ticket}") as ws:
+    async with MiniWs(app, f"/api/v1/ws/proj-1?ticket={ticket}",
+                      headers={"User-Agent": MINT_UA},
+                      client_addr=(MINT_IP, 123)) as ws:
         assert ws.accepted
     # ...and the replayed ticket MUST be rejected.
-    async with MiniWs(app, f"/api/v1/ws/proj-1?ticket={ticket}") as ws:
+    async with MiniWs(app, f"/api/v1/ws/proj-1?ticket={ticket}",
+                      headers={"User-Agent": MINT_UA},
+                      client_addr=(MINT_IP, 123)) as ws:
         _expect_reject(ws, 4401)
 
 
@@ -340,7 +361,7 @@ async def test_ws_tickets_survive_across_instances(db):
 
     # Redeemed via a *different* process-equivalent (instance A = `db` fixture).
     redeemed = await redeem_ws_ticket(db, ticket, "proj-1")
-    assert redeemed is not None and redeemed.userId == "u1"
+    assert redeemed is not None and redeemed.principal.userId == "u1"
     assert await redeem_ws_ticket(db, ticket, "proj-1") is None  # single use
     assert await redeem_ws_ticket(db, ticket + "x", "proj-1") is None
 
