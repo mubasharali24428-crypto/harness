@@ -74,7 +74,8 @@ CREATE TABLE cost_ledger (
     input_tokens INTEGER NOT NULL DEFAULT 0,
     output_tokens INTEGER NOT NULL DEFAULT 0,
     cost_usd NUMERIC(12,6) NOT NULL,
-    latency_ms INTEGER NOT NULL DEFAULT 0
+    latency_ms INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT '2026-08-23 12:00:00'
 );
 CREATE TABLE agent_events (
     seq INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -102,7 +103,11 @@ CREATE TABLE agent_plans (
 SEED = [
     "INSERT INTO teams (id, name) VALUES ('team-a', 'A')",
     "INSERT INTO projects (id, team_id) VALUES ('proj-a', 'team-a')",
+    # The metered run's durable anchor: cost_ledger attribution joins
+    # run_id → agent_runs.project_id → projects.team_id, so the run row MUST
+    # exist or the spend route would (correctly) drop the row as unattributed.
     "INSERT INTO agent_runs (id, project_id) VALUES ('run-a', 'proj-a')",
+    "INSERT INTO agent_runs (id, project_id) VALUES ('m-run', 'proj-a')",
 ]
 
 _LOOP = None
@@ -308,12 +313,6 @@ def test_spend_endpoint_reflects_engine_cost_exactly(db_factory, monkeypatch):
         """
 
         _TRANSLATIONS = (
-            (r"\$1::text IS NULL OR p\.team_id::text = \$1", ":p_1 IS NULL OR p.team_id = :p_1"),
-            (r"\$2::text IS NULL OR p\.id::text = \$2", ":p_2 IS NULL OR p.id = :p_2"),
-            (
-                r"\$3::timestamptz IS NULL OR l\.created_at >= \$3",
-                ":p_3 IS NULL OR l.created_at >= :p_3",
-            ),
             (r"date_trunc\('day', l\.created_at\)", "l.created_at"),
         )
 
@@ -321,17 +320,19 @@ def test_spend_endpoint_reflects_engine_cost_exactly(db_factory, monkeypatch):
             self._factory = factory
 
         async def fetch(self, sql, *params):
-            pg_sql = sql
-            for pattern, replacement in self._TRANSLATIONS:
-                pg_sql = _re.sub(pattern, replacement, pg_sql)
+            pg_sql = _re.sub(r"::\w+", "", sql)  # strip PG casts first
             named: dict[str, object] = {}
 
             def _sub(match):
                 i = int(match.group(1))
-                named[f"p_{i}"] = params[i - 1]
+                named.setdefault(f"p_{i}", params[i - 1])
                 return f":p_{i}"
 
+            # $n → :p_n BEFORE stripping the casts the translation table
+            # didn't cover (e.g. $1::text inside the IS NULL arm).
             pg_sql = _re.sub(r"\$(\d+)", _sub, pg_sql)
+            for pattern, replacement in self._TRANSLATIONS:
+                pg_sql = _re.sub(pattern, replacement, pg_sql)
             from sqlalchemy import text as _text
 
             async with self._factory() as db:
@@ -343,9 +344,11 @@ def test_spend_endpoint_reflects_engine_cost_exactly(db_factory, monkeypatch):
     try:
         app = FastAPI()
         app.include_router(router_api.router)
-        body = TestClient(app).get(
+        res = TestClient(app).get(
             "/api/v1/models/spend", params={"teamId": "team-a", "sinceDays": 7}
-        ).json()
+        )
+        assert res.status_code == 200, res.text
+        body = res.json()
 
         rows = run(_ledger_rows(f))
         expected_total = sum(_to_money(r["cost_usd"]) for r in rows)
