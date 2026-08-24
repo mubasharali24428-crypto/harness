@@ -25,11 +25,15 @@ import {
   RunDto,
   RunStatusValue,
   RunsPageDto,
-  formatRelativeTime,
   listRuns,
   runDetailHref,
   shortId,
 } from "./runsApi";
+// M13-G5b: times render through the ONE shared client formatter
+// (src/lib/format.ts) — same vocabulary as settings/checkpoints — instead of a
+// local helper. Relative label as the cell text; absolute localized timestamp
+// as the hover title.
+import { formatRelativeTime, formatTimestamp } from "@/lib/format";
 
 const cardStyle = { maxWidth: 980, marginBottom: 20 } as const;
 const tableStyle = { width: "100%", borderCollapse: "collapse", fontSize: 13 } as const;
@@ -133,13 +137,13 @@ export function RunsTable({ runs, now }: { runs: RunDto[]; now: number }) {
             <td style={thTdStyle}>
               <span className={statusPillClass[r.status] ?? "pill"}>{r.status}</span>
             </td>
-            <td style={thTdStyle} title={r.createdAt ?? undefined}>
+            <td style={thTdStyle} title={r.createdAt ? formatTimestamp(r.createdAt) : undefined}>
               {formatRelativeTime(r.createdAt, now)}
             </td>
-            <td style={thTdStyle} title={r.startedAt ?? undefined}>
+            <td style={thTdStyle} title={r.startedAt ? formatTimestamp(r.startedAt) : undefined}>
               {formatRelativeTime(r.startedAt, now)}
             </td>
-            <td style={thTdStyle} title={r.finishedAt ?? undefined}>
+            <td style={thTdStyle} title={r.finishedAt ? formatTimestamp(r.finishedAt) : undefined}>
               {formatRelativeTime(r.finishedAt, now)}
             </td>
           </tr>

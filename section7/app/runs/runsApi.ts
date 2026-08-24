@@ -132,21 +132,10 @@ export async function listRuns(
 }
 
 /** Pure: relative time ("4m ago") from an ISO timestamp against `now`.
- *  Null/unparseable input renders as "—" — never a fabricated time. */
-export function formatRelativeTime(iso: string | null, now: number = Date.now()): string {
-  if (!iso) return "—";
-  const then = Date.parse(iso);
-  if (Number.isNaN(then)) return "—";
-  const diffMs = now - then;
-  const seconds = Math.floor(Math.abs(diffMs) / 1000);
-  let span: string;
-  if (seconds < 5) return "just now";
-  if (seconds < 60) span = `${seconds}s`;
-  else if (seconds < 3600) span = `${Math.floor(seconds / 60)}m`;
-  else if (seconds < 86400) span = `${Math.floor(seconds / 3600)}h`;
-  else span = `${Math.floor(seconds / 86400)}d`;
-  return diffMs < 0 ? `in ${span}` : `${span} ago`;
-}
+ *  M13-G5b: the implementation moved to the shared src/lib/format.ts so every
+ *  page renders times identically; re-exported here so this module's callers
+ *  keep one import path. */
+export { formatRelativeTime } from "@/lib/format";
 
 /** Pure: short form of a run id for the table (full id stays in title attr). */
 export function shortId(id: string): string {
