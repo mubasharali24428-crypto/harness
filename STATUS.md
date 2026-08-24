@@ -1,5 +1,10 @@
 # STATUS — where the project stands (updated 2026-08-23, Mission 11 wave 1)
 
+> **Terminology (canonical — see also README.md):** "engine" = this platform's
+> Section 4 execution component; "DeepSeek Harness" (or "dsh", always referring
+> to that external product/SDK, never to our engine) = the upstream tool the
+> engine drives; "run" (not job/task); "team" (not org/workspace).
+
 ## Mission 11 / Wave 1 (2026-08-23) — CLIENTELA remediation: six CRITICALs + flow-blocking HIGHs
 
 Baseline d5d9619, 7 lanes (graph: docs/briefs/mission11-wave1-graph.md). Sole-owner
@@ -91,7 +96,9 @@ un-limited apps and install tuned limiters (double-install caught live at
 merge: 6 red tests → moved wiring → 134 green). Nav links added (Runs, Cost +
 settings-hub Workspace links). Gate sweep: S1 134 / S2 19 / S3 66 / S4 134+1
 known LIVEPROBE flake / S5 118+1skip / S6 38 / S8 38, S7 tsc OK + 73 vitest,
-section10 15, ruff clean everywhere, compose valid incl. walg profile.
+section10 15 *(historical M10 figure — re-counted 65 collected / 65 passed on
+2026-08-23, Mission 12 G4 docs-truth lane; the suite grew in W1/W2)*,
+ruff clean everywhere, compose valid incl. walg profile.
 
 ## Wave 9 (2026-08-23) — Phase 2 SaaS core begins: metering, budgets, orgs, notifications, security headers
 
@@ -144,8 +151,9 @@ certs (needs domain), Stripe billing flag, BYO keys UI.
 
 1. **RESUME DONE (S4)**: `resume_agent` previously flipped PAUSED→EXECUTING without
    re-spawning any engine task — UI said "executing" over a dead run (Appendix C lie).
-   Now resume re-invokes `execute_goal` with the SAME run_id as dsh session_id, so an
-   explicit human Resume CONTINUES the dsh session instead of restarting blind.
+   Now resume re-invokes `execute_goal` with the SAME run_id passed as the
+   DeepSeek Harness ("dsh") session id, so an explicit human Resume CONTINUES
+   the upstream engine session instead of restarting blind.
    Pause writes no terminal result (run stays resumable); stop stays terminal with an
    honest `cancelled`; live-run double-spawn guarded; same-tick pause→resume race fixed
    by awaiting the dying task. 5 new tests (`section4/tests/unit/test_resume.py`);
@@ -175,7 +183,7 @@ CI green (~36s runs); nightly probe schedule present.
    BLOCKED, which RESUME can legitimately resurrect.
 2. **LIVEPROBE**: flaky local-Ollama live test replaced by an OpenRouter probe
    (model stealth/ox-alpha, per user) asserting the real filesystem side effect;
-   fresh workspace/session dirs per run — reusing dsh session_root had poisoned
+   fresh workspace/session dirs per run — reusing the dsh session root had poisoned
    reruns with dead session history (completed-with-0-chars). Skips without
    OPENROUTER_API_KEY so CI stays green offline.
 3. Gate: 370 pytest (S4 72/72) + 58 vitest green; ruff clean; TS mirror in sync;

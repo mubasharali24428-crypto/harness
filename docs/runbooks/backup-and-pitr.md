@@ -84,7 +84,8 @@ Assumes the snapshot came from `backup.sh` and you are on the compose host.
    means stop and investigate — do not "just restart" over a failed restore.
 6. **Restart the stack**: `docker compose -f deploy/docker-compose.yml up -d`.
 7. **Verify**: `curl localhost:8001/health` → `{"ok":true}` on each backend
-   port (8001–8008), then log into the UI and confirm projects/teams render.
+   port (8001–8006 + 8008; there is no service on 8007), then log into the UI
+   and confirm projects/teams render.
 8. **Post-incident**: copy the incident snapshot + new post-restore snapshot
    offsite, note the event gap in the audit trail (event sourcing means
    writes during the lost window are simply absent — say so honestly in the

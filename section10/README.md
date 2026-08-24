@@ -29,23 +29,35 @@ no runtime import on any other section's code.
 
 ## Running
 
+The onboarding API currently runs **standalone** (it is not yet one of the
+compose services — `deploy/docker-compose.yml` boots the seven backend services
+plus frontend; see `deploy/ONBOARDING.md` for the full-stack flow):
+
 ```sh
 cd section10
 python -m venv .venv && .venv/bin/pip install -e ../contracts -e ".[dev]"
-./.venv/bin/uvicorn harness_onboarding.api:app --port 8010 --reload
+./.venv/bin/uvicorn --factory harness_onboarding.api:make_app --port 8010 --reload
 ```
 
-Or via the deployment packaging (see `deploy/README.md`):
+(`api.py` exposes a `make_app()` factory, not a module-level `app`, so pass
+`--factory`.)
 
-```sh
-cd deploy && docker compose up
-```
+Runtime configuration comes from environment variables — copy the repo-root
+[`../.env.example`](../.env.example) and set what you need (none are required
+for this service's tests).
 
 ## Testing
 
 ```sh
-./.venv/bin/python -m pytest tests/ -q     # 49 tests
+./.venv/bin/python -m pytest tests/ -q     # 65 tests (verified 2026-08-23)
 ./.venv/bin/ruff check src tests            # must be clean
+```
+
+The count above is hand-updated and has rotted before (it read "49" through
+three waves). Re-derive it rather than trusting it:
+
+```sh
+./.venv/bin/python -m pytest tests/ --collect-only -q | tail -1
 ```
 
 To regenerate golden fixtures after an intentional contract change:
