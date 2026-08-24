@@ -529,7 +529,7 @@ class TestEngineSingleModel:
                     live_mode="live",
                 )
 
-            def _run_live(self, goal, session_id, model=None):
+            def _run_live_events(self, goal, session_id, model=None):
                 raise RuntimeError(f"{model} down")
 
         out = ExplodingWrapper().execute_goal("goal", "s3")
