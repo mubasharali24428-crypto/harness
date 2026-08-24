@@ -4,30 +4,43 @@ import logging
 import os
 import secrets
 import socket
+import sys
+from pathlib import Path
 from typing import Any
 
 from harness_contracts.events import EventType
 from harness_contracts.plan import AgentPlan
 from harness_contracts.signatures import Orchestrator
 
-from harness_orchestrator.budget import BudgetStatus, check_budget
-from harness_orchestrator.engine import DeepSeekHarnessWrapper
-from harness_orchestrator.planner import PlanNotApprovedError, PlanService
-from harness_orchestrator.reviewer import ReviewerSubAgent, ReviewFindings
-from harness_orchestrator.rules_loader import build_rules_block, load_project_rules
-from harness_orchestrator.run_queue import (
+# Shared time helpers live in section1; this venv does not carry
+# harness_identity as an installed distribution, so the src tree is appended
+# exactly like api.py's wave-1 audit seam already does at call time. Module
+# level so imports stay order-independent under pytest (no partial-module
+# states if another module's seam appended section1/src first).
+_ROOT = Path(__file__).resolve().parents[3]
+if (_ROOT / "section1" / "src") not in sys.path:
+    sys.path.append(str(_ROOT / "section1" / "src"))
+
+from harness_identity.timeutil import db_now  # noqa: E402
+
+from harness_orchestrator.budget import BudgetStatus, check_budget  # noqa: E402
+from harness_orchestrator.engine import DeepSeekHarnessWrapper  # noqa: E402
+from harness_orchestrator.planner import PlanNotApprovedError, PlanService  # noqa: E402
+from harness_orchestrator.reviewer import ReviewerSubAgent, ReviewFindings  # noqa: E402
+from harness_orchestrator.rules_loader import build_rules_block, load_project_rules  # noqa: E402
+from harness_orchestrator.run_queue import (  # noqa: E402
     claim_next_run,
     enqueue_run,
     finish_run,
     heartbeat_run,
     reclaim_orphans,
 )
-from harness_orchestrator.signals import gate_done_signal
-from harness_orchestrator.state_machine import (
+from harness_orchestrator.signals import gate_done_signal  # noqa: E402
+from harness_orchestrator.state_machine import (  # noqa: E402
     PLAN_REJECTED_EVENT,
     AgentState,
     AgentStateMachine,
-)
+)  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -343,8 +356,8 @@ class OrchestratorService(Orchestrator):
         # created_at must be a real datetime object: asyncpg rejects ISO strings
         # for TIMESTAMPTZ (verified live 2026-08-23), while SQLite accepts the
         # object via its adapter. This column is never compared as text.
-        from datetime import UTC, datetime
-
+        # M13-H4b: instant sourced from harness_identity.timeutil.db_now()
+        # (aware UTC by construction — see timeutil module law).
         from sqlalchemy import text
 
         sql = text(
@@ -375,7 +388,7 @@ class OrchestratorService(Orchestrator):
                         "status": status,
                         # timezone-aware datetime: correct on asyncpg (TIMESTAMPTZ)
                         # and accepted by SQLite's adapter; never compared as text.
-                        "created_at": datetime.now(UTC),
+                        "created_at": db_now(),
                     },
                 )
                 await db.commit()

@@ -25,18 +25,29 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 import uuid
-from datetime import UTC, datetime
-from typing import Annotated, Any
+from pathlib import Path
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from harness_contracts.api import error_body
 from harness_contracts.roles import Principal, Role
 from pydantic import BaseModel, Field
 
-from harness_orchestrator.planner import PlanNotApprovedError
-from harness_orchestrator.service import OrchestratorService, PlanAlreadyDecidedError
-from harness_orchestrator.state_machine import AgentState, InvalidStateTransitionError
+# Shared time helpers live in section1; this venv does not carry
+# harness_identity as an installed distribution, so the src tree is appended
+# exactly like api.py's wave-1 audit seam already does at call time. Module
+# level so imports stay order-independent under pytest.
+_ROOT = Path(__file__).resolve().parents[3]
+if (_ROOT / "section1" / "src") not in sys.path:
+    sys.path.append(str(_ROOT / "section1" / "src"))
+
+from harness_identity.timeutil import db_now  # noqa: E402
+
+from harness_orchestrator.planner import PlanNotApprovedError  # noqa: E402
+from harness_orchestrator.service import OrchestratorService, PlanAlreadyDecidedError  # noqa: E402
+from harness_orchestrator.state_machine import AgentState, InvalidStateTransitionError  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +119,33 @@ class PlanActionResponse(BaseModel):
     runId: str
 
 
+class PlanRejectedResponse(BaseModel):
+    """202 body of /plans/{planId}/reject (persisted AND audited)."""
+
+    status: Literal["rejected"]
+    audited: bool
+    planId: str
+    runId: str
+
+
+class StartRunResponse(BaseModel):
+    """200 body of /runs/{runId}/start (plan-gate variant returns state)."""
+
+    runId: str
+    state: str
+
+
+class _ErrorDetail(BaseModel):
+    """M13-G5a: frozen contract error entry for responses={} documentation."""
+
+    code: str
+    message: str
+
+
+class _ErrorEnvelope(BaseModel):
+    error: _ErrorDetail
+
+
 # ---------------------------------------------------------------------------
 # Audit seam (local thin wrapper — see FLAG FOR ATLAS in module docstring)
 # ---------------------------------------------------------------------------
@@ -147,7 +185,7 @@ async def _audit_emit(
                     "ttype": target_type,
                     "tid": target_id,
                     "detail": payload_json,
-                    "ts": datetime.now(UTC),
+                    "ts": db_now(),
                 },
             )
             await db.commit()
@@ -198,7 +236,15 @@ _PROPOSE_ALLOWED = frozenset({Role.ADMIN, Role.ENGINEER})
 _DECIDE_ALLOWED = frozenset({Role.ADMIN, Role.ENGINEER})
 
 
-@router.post("/plans", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/plans",
+    status_code=status.HTTP_201_CREATED,
+    response_model=PlanProposedResponse,
+    responses={
+        400: {"model": _ErrorEnvelope, "description": "INVALID_STATE"},
+        403: {"model": _ErrorEnvelope, "description": "ROLE_DENIED"},
+    },
+)
 async def propose_plan(req: ProposePlanGateRequest, principal: RequirePrincipal) -> dict:
     """{goal} → 201 {planId, plan}. Mints a fresh run + plan, leaves the run at
     AWAITING_PLAN_APPROVAL via sm.plan_proposed() (state_machine vocabulary)."""
@@ -225,7 +271,16 @@ async def propose_plan(req: ProposePlanGateRequest, principal: RequirePrincipal)
         ) from e
 
 
-@router.post("/plans/{planId}/approve", status_code=status.HTTP_200_OK)
+@router.post(
+    "/plans/{planId}/approve",
+    status_code=status.HTTP_200_OK,
+    response_model=PlanActionResponse,
+    responses={
+        403: {"model": _ErrorEnvelope, "description": "ROLE_DENIED"},
+        404: {"model": _ErrorEnvelope, "description": "PLAN_NOT_FOUND"},
+        409: {"model": _ErrorEnvelope, "description": "PLAN_ALREADY_DECIDED / INVALID_STATE"},
+    },
+)
 async def approve_plan(planId: str, principal: RequirePrincipal) -> dict:
     """`/plans/{id}/approve` → 200 {runId}. admin/engineer only. Idempotent.
 
@@ -270,7 +325,16 @@ async def approve_plan(planId: str, principal: RequirePrincipal) -> dict:
         ) from e
 
 
-@router.post("/plans/{planId}/reject", status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/plans/{planId}/reject",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=PlanRejectedResponse,
+    responses={
+        403: {"model": _ErrorEnvelope, "description": "ROLE_DENIED"},
+        404: {"model": _ErrorEnvelope, "description": "PLAN_NOT_FOUND"},
+        409: {"model": _ErrorEnvelope, "description": "PLAN_ALREADY_DECIDED / INVALID_STATE"},
+    },
+)
 async def reject_plan(planId: str, principal: RequirePrincipal) -> dict:
     """`/plans/{id}/reject` → 202. Persisted AND audited. admin/engineer only.
 
@@ -353,7 +417,16 @@ async def reject_plan(planId: str, principal: RequirePrincipal) -> dict:
     }
 
 
-@router.post("/runs/{runId}/start", status_code=status.HTTP_200_OK)
+@router.post(
+    "/runs/{runId}/start",
+    status_code=status.HTTP_200_OK,
+    response_model=StartRunResponse,
+    responses={
+        400: {"model": _ErrorEnvelope, "description": "INVALID_STATE"},
+        403: {"model": _ErrorEnvelope, "description": "ROLE_DENIED"},
+        409: {"model": _ErrorEnvelope, "description": "PLAN_NOT_APPROVED"},
+    },
+)
 async def start_run(runId: str, principal: RequirePrincipal) -> dict:
     """propose→approve→startRun walk; leaves the run EXECUTING per contract note."""
     service = _require_service()

@@ -5,7 +5,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from harness_contracts.roles import Principal
@@ -290,12 +290,15 @@ def _authz_dep(action):
             await authorize_run(_service, runId, principal)
             require_role(principal, action)
         except OwnershipDeniedError as e:
+            # M13-G5a no-oracle law: a foreign team's run answers EXACTLY what
+            # an unknown run id answers — 404 NOT_FOUND, same envelope. A 403
+            # here would confirm the run exists across the tenant boundary.
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error": {
-                        "code": "TEAM_OWNERSHIP",
-                        "message": "run does not belong to your team",
+                        "code": "NOT_FOUND",
+                        "message": "run not found",
                     }
                 },
             ) from e
@@ -317,6 +320,80 @@ PlanApprover = Annotated[Principal, Depends(_authz_dep("approve"))]
 class PlanActionRequest(BaseModel):
     # M12-G3: bounded ids (limits are additive; see harness_identity.limits).
     planId: str = Field(max_length=PLAN_ACTION_PLAN_ID_MAX)
+
+
+# ---------------------------------------------------------------------------
+# M13-G5a OpenAPI typing islands — concrete response schemas for the
+# highest-traffic orchestrator routes.
+# ---------------------------------------------------------------------------
+
+
+class RunIdStatusResponse(BaseModel):
+    """Shared shape of the run-control verbs (start/pause/resume/stop/...)."""
+
+    runId: str
+    status: str
+
+
+class RunStateResponse(BaseModel):
+    """Shape of plan-gate startRun and the resume verb (state, not status)."""
+
+    runId: str
+    state: str
+
+
+class ProposePlanResponse(BaseModel):
+    runId: str
+    planId: str
+
+
+class PlanDecisionResponse(BaseModel):
+    runId: str
+    planId: str
+    status: Literal["approved", "rejected"]
+
+
+class ReviewFindingsOut(BaseModel):
+    """Mirror of harness_orchestrator.reviewer.ReviewFindings (camelCase wire)."""
+
+    passed: bool
+    modelUsed: str | None = None
+    syntaxOk: bool = True
+    conflictsDetected: bool = False
+    briefAligned: bool = True
+    summary: str = ""
+    issues: list[str] = Field(default_factory=list)
+
+
+class DoneSignalResponse(BaseModel):
+    runId: str
+    findings: ReviewFindingsOut
+
+
+class RunStatusResponse(BaseModel):
+    """M13-G5a typing island: the run aggregate read (camelCase wire shape)."""
+
+    runId: str
+    state: str
+    planId: str | None = None
+    planApproved: bool = False
+    isHumanEditing: bool = False
+    executing: bool = False
+    engineMode: str | None = None
+    prId: str | None = None
+
+
+class ErrorDetail(BaseModel):
+    """One error entry of the FROZEN contract envelope (ERROR_BODY_EXAMPLE)."""
+
+    code: str
+    message: str
+
+
+class ErrorEnvelope(BaseModel):
+    """The frozen contract error shape for OpenAPI responses={} docs."""
+
+    error: ErrorDetail
 
 
 class HumanEditRequest(BaseModel):
@@ -355,7 +432,15 @@ async def _project_belongs_to_team(project_id: str, principal: Principal) -> boo
     return row.team_id == principal.teamId
 
 
-@router.post("/runs/{runId}/plan", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/runs/{runId}/plan",
+    status_code=status.HTTP_201_CREATED,
+    response_model=ProposePlanResponse,
+    responses={
+        400: {"model": ErrorEnvelope, "description": "INVALID_STATE"},
+        404: {"model": ErrorEnvelope, "description": "foreign/unknown projectId (no-oracle)"},
+    },
+)
 async def propose_plan(
     runId: str, req: ProposePlanRequest | None = None, principal: RequirePrincipal = None
 ) -> dict[str, str]:
@@ -364,12 +449,15 @@ async def propose_plan(
         project_id = req.projectId if req else None
         # D5: proposing BINDS the run to projectId — reject another team's project.
         if project_id is not None and not await _project_belongs_to_team(project_id, principal):
+            # M13-G5a no-oracle law: foreign/unknown project ids are
+            # indistinguishable — 404 NOT_FOUND, never a 403 confirming the
+            # project exists in another team.
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail={
                     "error": {
-                        "code": "TEAM_OWNERSHIP",
-                        "message": "project does not belong to your team",
+                        "code": "NOT_FOUND",
+                        "message": "project not found",
                     }
                 },
             )
@@ -382,7 +470,15 @@ async def propose_plan(
         ) from e
 
 
-@router.post("/runs/{runId}/plan/approve", status_code=status.HTTP_200_OK)
+@router.post(
+    "/runs/{runId}/plan/approve",
+    status_code=status.HTTP_200_OK,
+    response_model=PlanDecisionResponse,
+    responses={
+        403: {"model": ErrorEnvelope, "description": "role may not approve"},
+        404: {"model": ErrorEnvelope, "description": "unknown or foreign run (no-oracle)"},
+    },
+)
 async def approve_plan(runId: str, req: PlanActionRequest, actor: PlanApprover) -> dict:
     # Identity comes from the session token, NEVER from the request body —
     # forgeable approver IDs would poison the audit trail.
@@ -390,7 +486,15 @@ async def approve_plan(runId: str, req: PlanActionRequest, actor: PlanApprover) 
     return {"runId": runId, "planId": req.planId, "status": "approved"}
 
 
-@router.post("/runs/{runId}/plan/reject", status_code=status.HTTP_200_OK)
+@router.post(
+    "/runs/{runId}/plan/reject",
+    status_code=status.HTTP_200_OK,
+    response_model=PlanDecisionResponse,
+    responses={
+        403: {"model": ErrorEnvelope, "description": "role may not reject"},
+        404: {"model": ErrorEnvelope, "description": "plan mismatch"},
+    },
+)
 async def reject_plan(runId: str, req: PlanActionRequest, actor: PlanApprover) -> dict:
     try:
         await _service.reject_plan(runId, req.planId, actor.userId)
@@ -402,7 +506,16 @@ async def reject_plan(runId: str, req: PlanActionRequest, actor: PlanApprover) -
     return {"runId": runId, "planId": req.planId, "status": "rejected"}
 
 
-@router.post("/runs/{runId}/start", status_code=status.HTTP_200_OK)
+@router.post(
+    "/runs/{runId}/start",
+    status_code=status.HTTP_200_OK,
+    response_model=RunIdStatusResponse,
+    responses={
+        400: {"model": ErrorEnvelope, "description": "INVALID_STATE"},
+        403: {"model": ErrorEnvelope, "description": "PLAN_NOT_APPROVED / role denial"},
+        404: {"model": ErrorEnvelope, "description": "unknown or foreign run (no-oracle)"},
+    },
+)
 async def start_execution(runId: str, actor: RunWriter) -> dict[str, str]:
     try:
         await _service.start_execution(runId)
@@ -419,19 +532,35 @@ async def start_execution(runId: str, actor: RunWriter) -> dict[str, str]:
         ) from e
 
 
-@router.post("/runs/{runId}/pause", status_code=status.HTTP_200_OK)
+@router.post(
+    "/runs/{runId}/pause",
+    status_code=status.HTTP_200_OK,
+    response_model=RunIdStatusResponse,
+)
 async def pause_agent(runId: str, actor: RunWriter) -> dict[str, str]:
     await _service.pause_agent(runId)
     return {"runId": runId, "status": "paused"}
 
 
-@router.post("/runs/{runId}/resume", status_code=status.HTTP_200_OK)
+@router.post(
+    "/runs/{runId}/resume",
+    status_code=status.HTTP_200_OK,
+    response_model=RunStateResponse,
+)
 async def resume_agent(runId: str, actor: RunWriter) -> dict[str, str]:
     await _service.resume_agent(runId)
-    return {"runId": runId, "status": "executing"}
+    # RunStateResponse carries `state`, not `status` — and resume is not
+    # statically EXECUTING: terminal runs no-op silently (resume-from-DONE is
+    # pinned by tests/unit/test_resume.py), so report the machine's real state.
+    status_after = await _service.get_status(runId)
+    return {"runId": runId, "state": status_after["state"]}
 
 
-@router.post("/runs/{runId}/stop", status_code=status.HTTP_200_OK)
+@router.post(
+    "/runs/{runId}/stop",
+    status_code=status.HTTP_200_OK,
+    response_model=RunIdStatusResponse,
+)
 async def stop_agent(runId: str, actor: RunWriter) -> dict[str, str]:
     await _service.stop_agent(runId)
     return {"runId": runId, "status": "stopped"}
@@ -445,7 +574,17 @@ async def submit_human_edit(
     return {"runId": runId, "status": "paused_on_human_edit", "path": req.path}
 
 
-@router.post("/runs/{runId}/done-signal", status_code=status.HTTP_200_OK)
+@router.post(
+    "/runs/{runId}/done-signal",
+    status_code=status.HTTP_200_OK,
+    response_model=DoneSignalResponse,
+    responses={
+        400: {"model": ErrorEnvelope, "description": "EMPTY_DIFF"},
+        403: {"model": ErrorEnvelope, "description": "DONE_SIGNAL_ROLE_DENIED"},
+        404: {"model": ErrorEnvelope, "description": "unknown or foreign run (no-oracle)"},
+        409: {"model": ErrorEnvelope, "description": "RUN_NOT_LIVE"},
+    },
+)
 async def signal_done(runId: str, req: DoneSignalRequest, actor: RunReader) -> dict:
     # H-007: the done-gate is enforced HERE, before any transition or review
     # spend. The route still declares RunReader so read-only principals reach
@@ -479,7 +618,11 @@ async def get_engine_result(runId: str, reader: RunReader) -> dict[str, Any]:
     return await _service.get_engine_result(runId)
 
 
-@router.get("/runs/{runId}/status", status_code=status.HTTP_200_OK)
+@router.get(
+    "/runs/{runId}/status",
+    status_code=status.HTTP_200_OK,
+    response_model=RunStatusResponse,
+)
 async def get_run_status(runId: str, reader: RunReader) -> dict[str, Any]:
     return await _service.get_status(runId)
 

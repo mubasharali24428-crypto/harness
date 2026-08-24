@@ -117,8 +117,11 @@ def test_route_rejects_run_of_other_team(monkeypatch, db_service):
         "/api/v1/orchestrator/runs/run-y1/plan",
         json={"goal": "g", "projectId": "proj-theirs"},
     )
-    assert res.status_code == 403
-    assert res.json()["detail"]["error"]["code"] == "TEAM_OWNERSHIP"
+    # M13-G5a no-oracle law: a foreign team's project answers exactly what an
+    # unknown project id answers — 404 NOT_FOUND. A 403 here would confirm the
+    # project exists across the tenant boundary.
+    assert res.status_code == 404
+    assert res.json()["detail"]["error"]["code"] == "NOT_FOUND"
 
 
 def test_route_accepts_project_of_own_team(monkeypatch, db_service):

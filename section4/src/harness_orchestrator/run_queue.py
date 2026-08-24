@@ -1,20 +1,37 @@
 """Durable run-claim queue: crash-resumable execution + per-team caps.
 
-All timestamps are UTC ISO-8601 TEXT so every statement runs identically on
-PostgreSQL (prod) and SQLite/aiosqlite (tests).
+Timestamps here stay UTC ISO-8601 TEXT because the FROZEN run_claims schema
+(section1/migrations/0006_run_claims.sql) deliberately types claimed_at /
+heartbeat_at as TEXT so every statement runs identically on PostgreSQL
+(prod) and SQLite/aiosqlite (tests). They are never bound to TIMESTAMPTZ.
+Every instant originates from harness_identity.timeutil (M13-H4b law: all
+DB timestamps timezone-aware UTC; asyncpg gets aware datetime objects for
+TIMESTAMPTZ columns and ISO text ONLY where the column is TEXT).
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime, timedelta
+import sys
+from datetime import timedelta
+from pathlib import Path
 from typing import Any
+
+# Shared time helpers live in section1; this venv does not carry
+# harness_identity as an installed distribution, so the src tree is appended
+# exactly like api.py's wave-1 audit seam does at call time.
+_ROOT = Path(__file__).resolve().parents[3]
+if (_ROOT / "section1" / "src") not in sys.path:
+    sys.path.append(str(_ROOT / "section1" / "src"))
+
+from harness_identity.timeutil import now_utc, utcnow_iso  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 
 def _now_iso() -> str:
-    return datetime.now(UTC).isoformat()
+    """Aware-UTC ISO text for the frozen TEXT-typed run_claims columns."""
+    return utcnow_iso()
 
 
 async def enqueue_run(factory, run_id: str, project_id: str) -> bool:
@@ -130,7 +147,7 @@ async def reclaim_orphans(factory, stale_seconds: int = 90) -> list[str]:
     """Flip silent running claims to orphaned; returns their run_ids."""
     from sqlalchemy import text
 
-    cutoff = (datetime.now(UTC) - timedelta(seconds=stale_seconds)).isoformat()
+    cutoff = (now_utc() - timedelta(seconds=stale_seconds)).isoformat()
     async with factory() as db:
         rows = (
             await db.execute(
