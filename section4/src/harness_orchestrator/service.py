@@ -30,6 +30,18 @@ from harness_orchestrator.state_machine import (
 
 logger = logging.getLogger(__name__)
 
+
+class PlanAlreadyDecidedError(Exception):
+    """Optimistic-concurrency loss (M12-F2): the plan's version column moved
+    under us, so a conditional decision UPDATE matched zero rows.
+
+    The API layer maps this to 409 with code PLAN_ALREADY_DECIDED; legacy
+    service-level callers treat it as best-effort (log + continue), matching
+    the mirror's never-break-planning posture.
+    """
+
+    code = "PLAN_ALREADY_DECIDED"
+
 _HEARTBEAT_INTERVAL_SECONDS = 10.0
 
 _REHYDRATE_SQL = """
@@ -396,7 +408,15 @@ class OrchestratorService(Orchestrator):
         self.planner.approve_plan(plan_id)
         sm: AgentStateMachine = run_data["state_machine"]
         sm.approve_plan(plan_id, principal_user_id)
-        await self._persist_plan_status(run_id, plan_id, "approved")
+        # M12-F2: legacy surface stays best-effort. A concurrent decision that
+        # won the version CAS must not 500 a caller of the in-process API.
+        try:
+            await self._persist_plan_status(run_id, plan_id, "approved", expected_version=0)
+        except PlanAlreadyDecidedError:
+            logger.info(
+                "approve_plan on already-decided plan %s (concurrent winner kept)",
+                plan_id,
+            )
 
     async def reject_plan(self, run_id: str, plan_id: str, principal_user_id: str) -> None:
         run_data = await self._ensure_run(run_id)
@@ -405,6 +425,15 @@ class OrchestratorService(Orchestrator):
         self.planner.reject_plan(plan_id)
         sm: AgentStateMachine = run_data["state_machine"]
         sm.reject_plan(plan_id, principal_user_id)
+        # M12-F2: same best-effort posture as approve_plan — a concurrent
+        # decision that won the version CAS is logged, never raised here.
+        try:
+            await self._persist_plan_status(run_id, plan_id, "rejected", expected_version=0)
+        except PlanAlreadyDecidedError:
+            logger.info(
+                "reject_plan on already-decided plan %s (concurrent winner kept)",
+                plan_id,
+            )
         # S-010: persist the rejection as an agent_events row (run-scoped, no
         # project FK) so it survives restart and is queryable alongside the
         # audit row. The S1 bus requires an EventType member + project FK and
@@ -691,13 +720,24 @@ class OrchestratorService(Orchestrator):
         return self.planner.get_plan(plan_id)
 
     async def get_status(self, run_id: str) -> dict[str, Any]:
+        return await self._run_aggregate(run_id)
+
+    async def _run_aggregate(self, run_id: str) -> dict[str, Any]:
+        """One minimal aggregate read for a single run (M12-W2 E4a).
+
+        Base shape is get_status()'s wire dict; when a DB is wired it adds
+        ``prId`` (agent_runs.pr_id, migration 0014 — set by S2's PR-open
+        producer) so the review flow can resolve run → PR without replaying
+        events. Read-only + failure-tolerant: any DB trouble degrades to
+        prId=None rather than breaking the status read.
+        """
         run_data = await self._ensure_run(run_id)
         sm: AgentStateMachine = run_data["state_machine"]
         task = run_data.get("task")
         # M11-W1-B1: expose the EXPLICIT engine mode on the wire so clients
         # never re-derive liveness from key presence (finding C-004).
         engine_mode = getattr(self.engine, "mode", None)
-        return {
+        aggregate: dict[str, Any] = {
             "runId": run_id,
             "state": sm.state,
             "planId": run_data.get("plan_id"),
@@ -705,22 +745,124 @@ class OrchestratorService(Orchestrator):
             "isHumanEditing": sm.is_human_editing,
             "executing": bool(task is not None and not task.done()),
             "engineMode": getattr(engine_mode, "value", engine_mode),
+            # camelCase per api-conventions; None until a PR is opened.
+            "prId": None,
         }
+        factory = self.session_factory
+        if factory is None:
+            return aggregate
+        from sqlalchemy import text
 
-    async def _persist_plan_status(self, run_id: str, plan_id: str, status: str) -> None:
+        try:
+            async with factory() as db:
+                row = (
+                    (
+                        await db.execute(
+                            text("SELECT pr_id FROM agent_runs WHERE id = :r"), {"r": run_id}
+                        )
+                    )
+                    .mappings()
+                    .first()
+                )
+            if row is not None and row["pr_id"]:
+                aggregate["prId"] = row["pr_id"]
+        except Exception:  # noqa: BLE001 — aggregate must never fail on prId
+            logger.exception("prId lookup failed for run %s", run_id)
+        return aggregate
+
+    async def _persist_plan_status(
+        self,
+        run_id: str,
+        plan_id: str,
+        status: str,
+        expected_version: int | None = None,
+    ) -> int | None:
+        """Mirror a decision into ``agent_plans`` (M12-F2 optimistic concurrency).
+
+        With ``expected_version`` set, the write is a compare-and-swap:
+        ``UPDATE ... WHERE id = :id AND version = :seen``. Zero rows updated
+        means another principal decided this plan first — the mirror is left
+        untouched and :class:`PlanAlreadyDecidedError` is raised so the API
+        layer can answer 409 PLAN_ALREADY_DECIDED instead of both callers
+        believing they won. On success the NEW version is returned.
+
+        With ``expected_version=None`` the update stays unconditional (legacy
+        behavior for non-decision writers). Best-effort posture is unchanged:
+        infrastructure failures are logged, never raised, into orchestration.
+        """
         if self.session_factory is None:
-            return
+            return None
         from sqlalchemy import text
 
         try:
             async with self.session_factory() as db:
-                await db.execute(
-                    text("UPDATE agent_plans SET status = :s WHERE id = :p"),
-                    {"s": status, "p": plan_id},
-                )
+                if expected_version is None:
+                    await db.execute(
+                        text("UPDATE agent_plans SET status = :s WHERE id = :p"),
+                        {"s": status, "p": plan_id},
+                    )
+                    await db.commit()
+                    return None
+                try:
+                    result = await db.execute(
+                        text(
+                            "UPDATE agent_plans SET status = :s,"
+                            " version = version + 1"
+                            " WHERE id = :p AND version = :v"
+                        ),
+                        {"s": status, "p": plan_id, "v": expected_version},
+                    )
+                except Exception:  # noqa: BLE001
+                    # Mirror predates migration 0013 (no ``version`` column):
+                    # concurrency enforcement cannot apply, so degrade to the
+                    # exact legacy behavior — one unconditional decision write
+                    # — instead of failing the decision.
+                    logger.info(
+                        "agent_plans CAS unavailable for %s;"
+                        " falling back to unconditional decision write",
+                        plan_id,
+                    )
+                    await db.rollback()
+                    await db.execute(
+                        text("UPDATE agent_plans SET status = :s WHERE id = :p"),
+                        {"s": status, "p": plan_id},
+                    )
+                    await db.commit()
+                    return None
+                if result.rowcount == 0:
+                    # Zero rows is ambiguous: stale version (someone decided
+                    # first → conflict) vs mirror row never written (legacy
+                    # silent-skip posture). Probe existence to tell them apart.
+                    exists = (
+                        await db.execute(
+                            text("SELECT 1 FROM agent_plans WHERE id = :p"),
+                            {"p": plan_id},
+                        )
+                    ).first()
+                    if exists is None:
+                        # No mirror row: nothing to compare-and-swap against;
+                        # behave exactly like the legacy unconditional update
+                        # on a missing row (log-free silent skip).
+                        await db.commit()
+                        return None
+                    await db.rollback()
+                    raise PlanAlreadyDecidedError(
+                        f"Plan '{plan_id}' was already decided (stale version"
+                        f" {expected_version})."
+                    )
+                new_version: int | None = (
+                    await db.execute(
+                        text("SELECT version FROM agent_plans WHERE id = :p"),
+                        {"p": plan_id},
+                    )
+                ).scalar()
                 await db.commit()
+                return new_version
+        except PlanAlreadyDecidedError:
+            raise
         except Exception:  # noqa: BLE001
             logger.exception("plan status update failed for %s", plan_id)
+            return None
 
     async def _persist_rejection_event(
         self, run_id: str, plan_id: str, principal_user_id: str

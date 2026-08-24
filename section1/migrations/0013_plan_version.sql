@@ -1,0 +1,15 @@
+-- Mission 12 Wave 2.1 lane F2 (Squad BETA): optimistic concurrency for plan
+-- decisions. Two principals hitting approve/reject on the same plan used to
+-- both "win" (last write wins on agent_plans.status). This column is the CAS
+-- token: decision writers now move it conditionally
+-- (UPDATE ... WHERE id = :id AND version = :seen), so exactly one wins and
+-- the loser sees a version mismatch instead of silently overwriting.
+--
+-- Semantics: version starts at 0 for every existing row (proposed/undecided).
+-- It is bumped ONLY by a decided transition (approved/rejected) landing via
+-- the conditional UPDATE in section4's _persist_plan_status. The propose-time
+-- mirror upsert (_persist_plan) intentionally does NOT touch it, so replayed
+-- proposes can't desync a seen version.
+--
+-- Purely additive — no frozen column altered, no backfill needed.
+ALTER TABLE agent_plans ADD COLUMN version INTEGER NOT NULL DEFAULT 0;
