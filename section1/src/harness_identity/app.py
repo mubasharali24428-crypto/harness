@@ -23,7 +23,7 @@ from .ephemeral import (
     mint_ws_ticket,
     redeem_ws_ticket,
 )
-from .eventbus import EventBus
+from .eventbus import EventBus, ReplayPage
 from .limits import (
     LOGIN_EMAIL_MAX,
     LOGIN_TEAM_ID_MAX,
@@ -401,6 +401,11 @@ class EventEnvelopeOut(BaseModel):
 class EventReplayResponse(BaseModel):
     items: list[EventEnvelopeOut]
     nextCursor: int
+    # M16-X3 (additive, optional): present only when the requested window was
+    # capped and the NEWEST-N slice was returned. oldestSeqSent is the lowest
+    # seq actually sent; anything below it in the gap was NOT delivered.
+    replayTruncated: bool | None = None
+    oldestSeqSent: int | None = None
 
 
 class CreateProjectBody(BaseModel):
@@ -630,10 +635,24 @@ async def project_ws(
 
     watcher = asyncio.ensure_future(_watch_disconnect())
     try:
+        # M16-X3: capped, streamed replay. A huge reconnect gap sends the
+        # NEWEST up-to-REPLAY_MAX_EVENTS batch; when the gap exceeded the cap
+        # the trailing marker frame tells the client exactly what it missed so
+        # it can backfill via GET /projects/{id}/events/replay instead of
+        # silently believing it has full history.
         last_seq = int(afterSeq)
-        for envelope in await bus.replay(project_id, last_seq):
+        page: ReplayPage = await bus.replay_page(project_id, last_seq)
+        for envelope in page.envelopes:
             await websocket.send_json(envelope.model_dump())
             last_seq = max(last_seq, envelope.seq)
+        if page.truncated and page.oldest_seq_sent is not None:
+            await websocket.send_json(
+                {
+                    "replayTruncated": True,
+                    "oldestSeqSent": page.oldest_seq_sent,
+                    "afterSeq": int(afterSeq),
+                }
+            )
         while True:
             getter = asyncio.ensure_future(queue.get())
             done, _pending = await asyncio.wait(
@@ -673,8 +692,15 @@ async def replay_events(
 ) -> dict:
     await _require_project_access(request.app.state.session_factory, principal, project_id)
     bus: EventBus = request.app.state.event_bus
-    envelopes = await bus.replay(project_id, after_seq, limit or 500)
+    page = await bus.replay_page(project_id, after_seq, limit or 500)
     return {
-        "items": [e.model_dump() for e in envelopes],
-        "nextCursor": envelopes[-1].seq if envelopes else after_seq,
+        "items": [e.model_dump() for e in page.envelopes],
+        "nextCursor": page.envelopes[-1].seq if page.envelopes else after_seq,
+        # M16-X3: truncation marker only when the cap bit; absent otherwise so
+        # existing consumers see the exact pre-X3 response shape.
+        **(
+            {"replayTruncated": True, "oldestSeqSent": page.oldest_seq_sent}
+            if page.truncated and page.oldest_seq_sent is not None
+            else {}
+        ),
     }
