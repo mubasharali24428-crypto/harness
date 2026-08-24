@@ -1,3 +1,11 @@
+# M13-H3b (lane convergence): every GATE step below is `make <target>` from the
+# repo Makefile — the single source of truth. What runs locally (`make test`,
+# `make lint`, `make gate`) is what runs here, byte-for-byte; drift between
+# local and CI is structurally impossible. Only PROVISIONING (venv creation,
+# npm ci, pip installs) stays native to CI.
+#
+# Job names are STABLE — branch protection references them. Mapping table:
+#   docs/ci-gates.md
 name: CI
 
 on:
@@ -19,11 +27,14 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: entrypoint.sh parses (GAP-F1 regression guard)
+      - name: entrypoint.sh parses (GAP-F1 regression guard) [make static-gates]
         run: sh -n deploy/entrypoint.sh
-      - name: compose file valid
+      - name: compose file valid [make static-gates]
         run: docker compose -f deploy/docker-compose.yml config -q
-      - name: TS contract mirror is current (E-codegen drift guard)
+      # Kept stepwise instead of one `make static-gates` line only because the
+      # runner's preinstalled docker/python differ per action image; the three
+      # commands are verbatim the Makefile recipe. See docs/ci-gates.md.
+      - name: TS contract mirror is current (E-codegen drift guard) [make static-gates]
         run: python3 contracts/ts/generate.py --check
 
   python-tests:
@@ -48,12 +59,13 @@ jobs:
           ./.venv/bin/pip install -q -e ../contracts
           ./.venv/bin/pip install -q -e ".[dev]" || ./.venv/bin/pip install -q -e .
         working-directory: ${{ matrix.section }}
-      - name: ruff
-        run: ./.venv/bin/ruff check src tests scripts || ./.venv/bin/ruff check src tests
-        working-directory: ${{ matrix.section }}
-      - name: pytest
-        run: ./.venv/bin/python -m pytest tests/ -q
-        working-directory: ${{ matrix.section }}
+      # The gates themselves are the Makefile recipes — identical lines locally.
+      - name: ruff [make lint-${{ matrix.section }}]
+        run: make --no-print-directory lint-${{ matrix.section }}
+        working-directory: ${{ github.workspace }}
+      - name: pytest [make test-${{ matrix.section }}]
+        run: make --no-print-directory test-${{ matrix.section }}
+        working-directory: ${{ github.workspace }}
 
   frontend:
     name: vitest + tsc (section7)
@@ -68,12 +80,10 @@ jobs:
           cache-dependency-path: section7/package-lock.json
       - run: npm ci --no-audit --no-fund
         working-directory: section7
-      - name: tsc
-        run: npx tsc --noEmit
-        working-directory: section7
-      - name: vitest
-        run: npx vitest run
-        working-directory: section7
+      - name: tsc [make frontend-tsc]
+        run: make --no-print-directory frontend-tsc
+      - name: vitest [make frontend-vitest]
+        run: make --no-print-directory frontend-vitest
 
   nightly-pg-probe:
     name: nightly real-PG integration probe
@@ -104,18 +114,16 @@ jobs:
           python -m venv .venv
           ./.venv/bin/pip install -q ../contracts -e .
         working-directory: section1
-      - name: Real-PG fanout + rehydration probes (G-LIVE regression guard)
-        run: |
-          HARNESS_TEST_PG=1 \
-          HARNESS_DATABASE_URL=postgresql+asyncpg://harness:harness@localhost:5499/harness \
-          ../section1/.venv/bin/python -m pytest test_checkpoint1.py -q
-        working-directory: integration
-      - name: S1 suite against real PG
-        run: |
-          HARNESS_TEST_PG=1 \
-          HARNESS_DATABASE_URL=postgresql+asyncpg://harness:harness@localhost:5499/harness \
-          ./.venv/bin/python -m pytest tests/ -q
-        working-directory: section1
+      - name: Real-PG fanout + rehydration probes (G-LIVE regression guard) [make pg-probe-integration]
+        run: make --no-print-directory pg-probe-integration
+        env:
+          HARNESS_TEST_PG: "1"
+          HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@localhost:5499/harness
+      - name: S1 suite against real PG [make pg-probe-s1]
+        run: make --no-print-directory pg-probe-s1
+        env:
+          HARNESS_TEST_PG: "1"
+          HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@localhost:5499/harness
 
   security-scan:
     # Wave9-E: supply-chain + secret scanning. pip-audit is WARN-posture this
@@ -137,13 +145,13 @@ jobs:
           ./.venv/bin/pip install -q -e ../contracts -e ".[dev]" \
             || ./.venv/bin/pip install -q -e ../contracts -e .
         working-directory: section1
-      - name: pip-audit (WARN only this wave)
+      - name: pip-audit (WARN only this wave) [make pip-audit]
         continue-on-error: true
         run: |
           ./.venv/bin/pip install -q pip-audit
           ./.venv/bin/pip-audit --progress-spinner off
+        working-directory: section1
       - name: gitleaks (official action, blocking)
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
