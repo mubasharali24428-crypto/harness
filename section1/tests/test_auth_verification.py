@@ -443,13 +443,15 @@ async def test_invite_mint_bucket_keys_on_route_template(otp_factory):
 def test_default_protection_set_covers_invite_mint():
     """Pin the shipped contract: the auth-edge pair (kept byte-equal because
     tests/test_ratelimit.py freezes it) PLUS the previously-unthrottled
-    invite-mint template, flowing into BOTH wire-up spellings."""
+    invite-mint template AND passwordless login (F2, V-Pair-1), flowing into
+    BOTH wire-up spellings."""
     assert rl.DEFAULT_ROUTES == ("/api/v1/auth/request-login", "/api/v1/auth/verify-otp")
     assert INVITE_MINT_TEMPLATE == "/api/v1/teams/{team_id}/invites"
     assert rl.DEFAULT_PROTECTED_ROUTES == (
         "/api/v1/auth/request-login",
         "/api/v1/auth/verify-otp",
         INVITE_MINT_TEMPLATE,
+        "/api/v1/auth/login",
     )
     import inspect
 

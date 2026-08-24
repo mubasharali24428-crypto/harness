@@ -2,7 +2,8 @@
 from tests.helpers import auth, login
 
 
-async def test_create_and_list_projects_scoped_to_team(client):
+async def test_create_and_list_projects_scoped_to_team(client_ownership_off):
+    client = client_ownership_off
     a = await login(client, "pa@x.com")
     b = await login(client, "pb@x.com")
 

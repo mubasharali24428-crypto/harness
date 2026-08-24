@@ -170,8 +170,9 @@ def test_key_hint_leaks_nothing_beyond_last_four_convention():
 
 
 async def test_store_api_key_redacts_plaintext_from_logs_and_audit_rows(
-    header_db, client, caplog
+    header_db, client_ownership_off, caplog
 ):
+    client = client_ownership_off
     """Wave9-E redaction regression: storing a key leaves ZERO traces of the
     plaintext in captured log output or in audit_log rows."""
     data = await _login(client)
@@ -200,7 +201,8 @@ async def test_store_api_key_redacts_plaintext_from_logs_and_audit_rows(
         assert await read_api_key(s, client.app.state.vault, row.id) == CANARY_KEY
 
 
-async def test_read_api_key_error_never_echoes_secret_values(header_db, client):
+async def test_read_api_key_error_never_echoes_secret_values(header_db, client_ownership_off):
+    client = client_ownership_off
     data = await _login(client)
     team = data["principal"]["teamId"]
     async with header_db() as s:

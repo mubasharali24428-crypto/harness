@@ -65,7 +65,8 @@ def base_settings(**kw):
         cors_origins: list[str] = CORS_ORIGINS
         # H2r ownership-proof knobs must exist here too — this local Settings
         # class replaces section1's for every deployed service.
-        require_ownership: bool = False
+        # C-001 (M11-W1): default True — unverified email cannot mint teams.
+        require_ownership: bool = True
         otp_ttl_minutes: int = 10
         otp_max_attempts: int = 5
         # S2 GitHub OAuth knobs (deploy replaces section Settings wholesale).

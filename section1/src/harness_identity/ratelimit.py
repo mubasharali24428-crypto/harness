@@ -75,7 +75,12 @@ DEFAULT_ROUTES = ("/api/v1/auth/request-login", "/api/v1/auth/verify-otp")
 # it, and the TEMPLATE keys the bucket, so one IP shares one budget across
 # every team id instead of farming a fresh bucket per forged team id.
 INVITE_MINT_TEMPLATE = "/api/v1/teams/{team_id}/invites"
-DEFAULT_PROTECTED_ROUTES = (*DEFAULT_ROUTES, INVITE_MINT_TEMPLATE)
+# F2 (V-Pair-1): passwordless /auth/login mints admin teams when
+# require_ownership is off — it belongs in the shipped protected set beside
+# the OTP edge. (In-process _login_rate_limited in app.py stays as a second
+# layer; this makes the DB-backed limiter cover the route too.)
+LOGIN_TEMPLATE = "/api/v1/auth/login"
+DEFAULT_PROTECTED_ROUTES = (*DEFAULT_ROUTES, INVITE_MINT_TEMPLATE, LOGIN_TEMPLATE)
 
 # Single-statement fixed-window counter (see module docstring for why this is
 # race-free). RETURNING yields the post-increment count in the same round trip;

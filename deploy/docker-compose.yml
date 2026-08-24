@@ -14,7 +14,8 @@ x-backend-env: &backend-env
   HARNESS_MASTER_KEY: ${HARNESS_MASTER_KEY:-}
   HARNESS_ALLOW_DEV_MASTER_KEY: ${HARNESS_ALLOW_DEV_MASTER_KEY:-}
   HARNESS_CORS_ORIGINS: ${HARNESS_CORS_ORIGINS:-["http://localhost:3000"]}
-  HARNESS_REQUIRE_OWNERSHIP: ${HARNESS_REQUIRE_OWNERSHIP:-false}
+  # C-001 (M11-W1): default ON — unverified email cannot mint admin teams.
+  HARNESS_REQUIRE_OWNERSHIP: ${HARNESS_REQUIRE_OWNERSHIP:-true}
   # C-004/H-006 (M11-W1-B1): engine mode is EXPLICIT and validated at
   # boot (deploy/runners/engine_boot.py). Placeholder/dev defaults are
   # gone: no placeholder API-key value, no implicit local-provider

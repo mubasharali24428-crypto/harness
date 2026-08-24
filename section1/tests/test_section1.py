@@ -20,13 +20,15 @@ async def make_factory():
     return async_sessionmaker(eng)
 
 
-async def test_login_solo_team(client):
+async def test_login_solo_team(client_ownership_off):
+    client = client_ownership_off
     data = await login(client)
     assert data["principal"]["role"] == "admin"
     assert data["token"]
 
 
-async def test_me_and_bad_token(client):
+async def test_me_and_bad_token(client_ownership_off):
+    client = client_ownership_off
     data = await login(client)
     r = await client.get("/api/v1/me", headers=auth(data["token"]))
     assert r.status_code == 200 and r.json()["role"] == "admin"
@@ -36,7 +38,8 @@ async def test_me_and_bad_token(client):
     assert r.status_code == 401
 
 
-async def test_second_login_same_team(client):
+async def test_second_login_same_team(client_ownership_off):
+    client = client_ownership_off
     a = await login(client, "a@x.com")
     team = a["principal"]["teamId"]
     b = await login(client, "b@x.com", team_id=None)  # own solo team
@@ -60,7 +63,8 @@ async def test_second_login_same_team(client):
     assert r.status_code == 403
 
 
-async def test_agent_seat_admin_only_solo_ok(client):
+async def test_agent_seat_admin_only_solo_ok(client_ownership_off):
+    client = client_ownership_off
     data = await login(client)
     team = data["principal"]["teamId"]
     r = await client.post(f"/api/v1/teams/{team}/seats/agent", headers=auth(data["token"]))
@@ -80,7 +84,8 @@ async def test_vault_roundtrip():
     assert KeyVault.hint("sk-secret-9999") == "…9999"
 
 
-async def test_api_key_stored_encrypted(client, db):
+async def test_api_key_stored_encrypted(client_ownership_off, db):
+    client = client_ownership_off
 
     data = await login(client)
     team = data["principal"]["teamId"]
@@ -106,7 +111,8 @@ async def test_audit_append_only(db, client):
         await s.rollback()
 
 
-async def test_event_bus_publish_replay_subscribe(db, client):
+async def test_event_bus_publish_replay_subscribe(db, client_ownership_off):
+    client = client_ownership_off
     from harness_contracts import EventType
 
     from harness_identity.models import Project as P
@@ -153,7 +159,8 @@ async def test_health_shallow_skips_db(client):
     assert r.status_code == 200
 
 
-async def test_list_projects_respects_limit(client):
+async def test_list_projects_respects_limit(client_ownership_off):
+    client = client_ownership_off
     body = await login(client, email="limiter@example.com")
     h = auth(body["token"])
     for i in range(3):

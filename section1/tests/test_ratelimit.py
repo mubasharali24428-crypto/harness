@@ -70,7 +70,11 @@ pytestmark = pytest.mark.filterwarnings(
 def _limited_app(session_factory, **kw):
     """Real identity app + rate limiting installed at factory time."""
     app = make_app(
-        session_factory, Settings(master_key=MASTER, cors_origins=[])
+        session_factory,
+        # C-001 (M11-W1): ownership defaults ON now; these limiter tests
+        # exercise throttling mechanics on the legacy login route, not the
+        # verification gate, so opt out explicitly.
+        Settings(master_key=MASTER, cors_origins=[], require_ownership=False),
     )
     # Burst/reset suites hammer /auth/request-login; swallow the dev OTP
     # printer instead of spamming one line per attempt into the test output.

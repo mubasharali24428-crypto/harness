@@ -10,7 +10,9 @@ class Settings(BaseSettings):
 
     # H2r: when True, passwordless /auth/login is refused (403 OWNERSHIP_REQUIRED)
     # and callers must prove inbox ownership via /auth/request-login + /auth/verify-otp.
-    require_ownership: bool = False
+    # C-001 (M11-W1): default ON — passwordless /auth/login is refused unless
+    # inbox ownership is proven via /auth/request-login + /auth/verify-otp.
+    require_ownership: bool = True
     otp_ttl_minutes: int = 10
     otp_max_attempts: int = 5
 
