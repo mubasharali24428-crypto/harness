@@ -8,7 +8,7 @@ import harness_contracts as contracts
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 from harness_contracts import Principal as ContractsPrincipal
 from harness_contracts import Role
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -18,6 +18,15 @@ from .config import Settings
 from .crypto import KeyVault
 from .ephemeral import mint_ws_ticket, redeem_ws_ticket
 from .eventbus import EventBus
+from .limits import (
+    LOGIN_EMAIL_MAX,
+    LOGIN_TEAM_ID_MAX,
+    LOGIN_TEAM_NAME_MAX,
+    OTP_CODE_MAX,
+    PROJECT_NAME_MAX,
+    PROJECT_REPO_FULL_NAME_MAX,
+    WS_TICKET_PROJECT_ID_MAX,
+)
 from .models import AuthSession, TeamMember
 from .models import Role as DbRole
 
@@ -125,6 +134,12 @@ def make_app(session_factory, settings: Settings):
     from .teams_api import router as teams_api_router
 
     app.include_router(teams_api_router)
+
+    # Mission12-G10 merge wiring: user-authored project rules CRUD
+    # (.cursorrules equivalent; advisory prompt block via S4 rules_loader).
+    from .rules_api import router as rules_router
+
+    app.include_router(rules_router)
     return app
 
 
@@ -161,9 +176,10 @@ async def _principal_from_token(
 
 
 class LoginRequest(BaseModel):
-    email: str
-    teamId: str | None = None
-    teamName: str | None = None
+    # M12-G3: bounded free-text (limits are additive; see harness_identity.limits).
+    email: str = Field(max_length=LOGIN_EMAIL_MAX)
+    teamId: str | None = Field(default=None, max_length=LOGIN_TEAM_ID_MAX)
+    teamName: str | None = Field(default=None, max_length=LOGIN_TEAM_NAME_MAX)
 
 
 def _dev_notifier(email: str, code: str) -> None:
@@ -187,8 +203,9 @@ async def request_login(body: LoginRequest, request: Request) -> dict:
 
 
 class VerifyOtpRequest(BaseModel):
-    email: str
-    code: str
+    # M12-G3: bounded fields (limits are additive; see harness_identity.limits).
+    email: str = Field(max_length=LOGIN_EMAIL_MAX)
+    code: str = Field(max_length=OTP_CODE_MAX)
 
 
 @router.post("/auth/verify-otp")
@@ -247,8 +264,9 @@ async def me(principal: Annotated[object, Depends(get_principal)]) -> dict:
 
 
 class CreateProjectBody(BaseModel):
-    name: str
-    repoFullName: str | None = None
+    # M12-G3: bounded free-text (limits are additive; see harness_identity.limits).
+    name: str = Field(max_length=PROJECT_NAME_MAX)
+    repoFullName: str | None = Field(default=None, max_length=PROJECT_REPO_FULL_NAME_MAX)
 
 
 @router.post("/projects", status_code=201)
@@ -332,7 +350,8 @@ async def add_agent_seat(
 
 
 class WsTicketRequest(BaseModel):
-    projectId: str
+    # M12-G3: bounded ids (limits are additive; see harness_identity.limits).
+    projectId: str = Field(max_length=WS_TICKET_PROJECT_ID_MAX)
 
 
 @router.post("/ws-ticket")
