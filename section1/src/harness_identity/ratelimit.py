@@ -1,11 +1,13 @@
 """Mission 10 node B5: Postgres fixed-window rate limiting for the auth edge.
 
-Guards the credential-spray surface (OTP request + verify) and the invite-mint
-write with per-IP+route fixed-window counters persisted in ``rate_buckets``
-(migration 0011). The
-counter lives in Postgres, not process memory, so the limit holds across
-uvicorn workers and restarts — in-memory buckets reset on every deploy and
-are invisible to sibling workers.
+M12-W2.2 lane G2 (H-021): guards the credential-spray surface (OTP request +
+verify), the invite-mint write, AND the platform's expensive ops — orchestrator
+run-start (spawn cost), model-call (S3 spend), brief-generate (LLM work).
+
+Per-IP+route fixed-window counters persist in ``rate_buckets`` (migration
+0011). The counter lives in Postgres, not process memory, so the limit holds
+across uvicorn workers and restarts — in-memory buckets reset on every deploy
+and are invisible to sibling workers.
 
 DESIGN CHOICE — DB failure FAILS OPEN (availability beats strictness):
 if the rate-limit store is unreachable or errors, requests are allowed
@@ -42,6 +44,7 @@ the same count and slip past the limit together.
 import json
 import logging
 import time
+from collections.abc import Mapping
 from datetime import UTC, datetime
 
 from harness_contracts import error_body
@@ -49,9 +52,18 @@ from sqlalchemy import text
 
 __all__ = [
     "DEFAULT_PROTECTED_ROUTES",
+    "EXPENSIVE_OP_LIMITS",
     "INVITE_MINT_TEMPLATE",
+    "MODEL_CALL_LIMIT",
+    "MODEL_CALL_TEMPLATE",
+    "RUN_START_LIMIT",
+    "RUN_START_TEMPLATE",
+    "BRIEF_GENERATE_LIMIT",
+    "BRIEF_GENERATE_TEMPLATE",
     "RateLimitMiddleware",
+    "expensive_op_limits",
     "install_rate_limit",
+    "limit_for_route",
     "route_matches",
 ]
 
@@ -59,6 +71,12 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_LIMIT = 10
 DEFAULT_WINDOW_SECONDS = 60
+
+# M12-W2.2 lane G2 (H-021) budgets: generous caps on the expensive ops —
+# abuse guards, not UX blockers (see the template block below).
+RUN_START_LIMIT = 30  # per minute per IP: agent spawn cost
+MODEL_CALL_LIMIT = 60  # per minute per IP: S3 provider spend
+BRIEF_GENERATE_LIMIT = 20  # per minute per IP: LLM generation work
 # M11-W1 rescue: guard the REAL auth edge. The legacy "/auth/otp/request"
 # path never existed in app.py (routes are /auth/request-login +
 # /auth/verify-otp); the old default limited a phantom route while leaving
@@ -81,6 +99,44 @@ INVITE_MINT_TEMPLATE = "/api/v1/teams/{team_id}/invites"
 # layer; this makes the DB-backed limiter cover the route too.)
 LOGIN_TEMPLATE = "/api/v1/auth/login"
 DEFAULT_PROTECTED_ROUTES = (*DEFAULT_ROUTES, INVITE_MINT_TEMPLATE, LOGIN_TEMPLATE)
+
+# M12-W2.2 lane G2 (H-021): rate-limit rebalance onto EXPENSIVE OPS.
+#
+# H-021 was a protection inversion: credential edges throttled at 10/min while
+# run-start (agent spawn), model-call (S3 spend per request) and brief-generate
+# (LLM work) answered unthrottled. These templates join the shipped protected
+# set with GENEROUS budgets — an abuse guard, not a UX blocker (a human driving
+# the UI cannot approach 30 run-starts or 60 model-calls in one minute; a
+# script draining someone's S3 budget can).
+#
+# Keying stays per-IP + ROUTE TEMPLATE exactly like the auth edge, so forging
+# fresh run ids / meeting ids cannot farm a fresh bucket.
+RUN_START_TEMPLATE = "/api/v1/orchestrator/runs/{runId}/start"  # spawn cost
+MODEL_CALL_TEMPLATE = "/api/v1/models/call"  # S3 provider spend
+BRIEF_GENERATE_TEMPLATE = "/api/v1/meetings/{meetingId}/brief"  # LLM generation
+EXPENSIVE_OP_LIMITS: dict[str, int] = {
+    RUN_START_TEMPLATE: RUN_START_LIMIT,
+    MODEL_CALL_TEMPLATE: MODEL_CALL_LIMIT,
+    BRIEF_GENERATE_TEMPLATE: BRIEF_GENERATE_LIMIT,
+}
+
+
+def expensive_op_limits() -> dict[str, int]:
+    """Copy of the expensive-op budget table (callers may mutate freely)."""
+    return dict(EXPENSIVE_OP_LIMITS)
+
+
+def limit_for_route(route_template: str) -> int | None:
+    """Per-route limit override for a TEMPLATE, or None to use ``limit``."""
+    return EXPENSIVE_OP_LIMITS.get(route_template)
+
+
+def _effective_limits(
+    route_template: str, limit: int, overrides: Mapping[str, int] | None
+) -> int:
+    if not overrides:
+        return limit
+    return int(overrides.get(route_template, limit))
 
 # Single-statement fixed-window counter (see module docstring for why this is
 # race-free). RETURNING yields the post-increment count in the same round trip;
@@ -144,6 +200,7 @@ class RateLimitMiddleware:
         limit: int = DEFAULT_LIMIT,
         window_seconds: int = DEFAULT_WINDOW_SECONDS,
         routes: tuple[str, ...] = DEFAULT_PROTECTED_ROUTES,
+        route_limits: Mapping[str, int] | None = None,
         bind_state=None,  # noqa: ANN001 — app.state for lazy factory lookup
     ) -> None:  # noqa: ANN001 — pure ASGI signature
         self.app = app
@@ -152,6 +209,16 @@ class RateLimitMiddleware:
         self.limit = limit
         self.window_seconds = window_seconds
         self.routes = tuple(routes)
+        # G2 (H-021): per-route budget overrides keyed by ROUTE TEMPLATE.
+        # Defaults to the shipped expensive-op table; passing an explicit dict
+        # replaces it wholesale (tests pin exact budgets that way). A None
+        # entry would mean "use limit", but get() already yields None → fall
+        # back below, so only positive ints are meaningful here.
+        self.route_limits: Mapping[str, int] | None = (
+            dict(route_limits)
+            if route_limits is not None
+            else dict(EXPENSIVE_OP_LIMITS)
+        )
         # Exact-hit fast path; templates checked in configured order (first
         # match wins, deterministic even if two templates overlap).
         self._exact = frozenset(r for r in self.routes if "{" not in r)
@@ -192,6 +259,8 @@ class RateLimitMiddleware:
 
         allowed, retry_after = await self._check(route, scope.get("client"))
         if not allowed:
+            # Message stays byte-stable: existing suites pin the exact 429 body
+            # ("too many attempts; slow down") as part of the auth-edge contract.
             body = json.dumps(error_body("RATE_LIMITED", "too many attempts; slow down"))
             await send(
                 {
@@ -211,6 +280,8 @@ class RateLimitMiddleware:
     async def _check(self, route_template: str, client) -> tuple[bool, int]:
         """Consume one slot; return (allowed, retry_after_seconds).
 
+        The effective budget is the per-route override for this TEMPLATE when
+        one exists (G2 expensive ops), else the middleware-wide ``limit``.
         Any store failure fails OPEN with a warning (see module docstring).
         """
         client_ip = str(client[0]) if isinstance(client, tuple) and client else "unknown"
@@ -234,8 +305,9 @@ class RateLimitMiddleware:
                 exc_info=True,
             )
             return True, 0
+        budget = _effective_limits(route_template, self.limit, self.route_limits)
         retry_after = max(1, self.window_seconds - int(time.time() - window_epoch))
-        return int(count) <= self.limit, retry_after
+        return int(count) <= budget, retry_after
 
 
 def install_rate_limit(
@@ -244,6 +316,7 @@ def install_rate_limit(
     limit: int = DEFAULT_LIMIT,
     window_seconds: int = DEFAULT_WINDOW_SECONDS,
     routes: tuple[str, ...] = DEFAULT_PROTECTED_ROUTES,
+    route_limits: Mapping[str, int] | None = None,
     session_factory=None,
 ):
     """Register the middleware stack entry and return the concrete class.
@@ -253,7 +326,8 @@ def install_rate_limit(
     By default the counter store is ``app.state.session_factory`` (resolved
     lazily on the first limited request, so wiring order doesn't matter);
     pass ``session_factory=`` explicitly to pin a dedicated/broken store
-    (tests do exactly that).
+    (tests do exactly that). ``route_limits`` overrides the shipped G2
+    expensive-op budgets wholesale (keyed by ROUTE TEMPLATE).
     """
 
     def _factory(inner):
@@ -263,6 +337,7 @@ def install_rate_limit(
             limit=limit,
             window_seconds=window_seconds,
             routes=routes,
+            route_limits=route_limits,
             bind_state=app.state,
         )
 
