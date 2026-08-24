@@ -25,9 +25,16 @@ class ModelRouterService(ModelRouter):
         role: ModelRole,
         messages: list[dict[str, str]],
         opts: ModelCallOpts | None = None,
+        api_key: str | None = None,
+        model_name: str | None = None,
     ) -> ModelResult:
-        model = self.role_models.get(role, config.default_primary_model)
-        result = self.client.call(model=model, messages=messages, opts=opts)
+        """One provider call. ``api_key`` is the team BYO secret — it goes to
+        the provider layer only, never into history or logs. ``model_name``
+        overrides the role default (the ``model`` REST body field)."""
+        model = model_name if model_name in MODEL_PRICING_CATALOG else self.role_models.get(
+            role, config.default_primary_model
+        )
+        result = self.client.call(model=model, messages=messages, opts=opts, api_key=api_key)
 
         self.call_history.append(
             {

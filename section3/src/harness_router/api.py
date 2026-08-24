@@ -13,7 +13,11 @@ from pydantic import BaseModel, Field
 from harness_router import ledger as cost_ledger
 from harness_router.catalog import catalog
 from harness_router.config import MODEL_PRICING_CATALOG
-from harness_router.providers import InvalidApiKeyError, RateLimitExceededError
+from harness_router.providers import (
+    InvalidApiKeyError,
+    ModelUnavailableError,
+    RateLimitExceededError,
+)
 from harness_router.service import ModelRouterService
 
 # Wave 8B: tiny self-written Prometheus collector (NO prometheus_client dep).
@@ -131,6 +135,12 @@ class CallModelRequest(BaseModel):
     role: ModelRole
     messages: list[dict[str, str]]
     opts: ModelCallOpts | None = None
+    # FIX-LOOP E1 (VT-2): the team's decrypted BYO key rides the REST body.
+    # It is forwarded to the provider layer ONLY (Authorization header on the
+    # outbound provider call) — never logged, never stored, never echoed, and
+    # deliberately NOT part of the frozen contracts/ protocol types.
+    apiKey: str | None = None
+    model: str | None = None
 
 
 class EstimateCostRequest(BaseModel):
@@ -156,6 +166,11 @@ async def call_model(req: CallModelRequest) -> ModelResult:
             role=req.role,
             messages=req.messages,
             opts=req.opts,
+            # FIX-LOOP E1: the decrypted team key survives the REST seam and
+            # reaches the provider layer (real-mode gate). The simulated
+            # fallback stays keyless-only and dev-gated.
+            api_key=req.apiKey,
+            model_name=req.model,
         )
     except InvalidApiKeyError as e:
         raise HTTPException(
@@ -166,6 +181,11 @@ async def call_model(req: CallModelRequest) -> ModelResult:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={"error": {"code": "RATE_LIMIT_EXCEEDED", "message": str(e)}},
+        ) from e
+    except ModelUnavailableError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": {"code": "PROVIDER_UNAVAILABLE", "message": str(e)}},
         ) from e
 
     # Wave 9A: record real usage on every successful provider call. The
