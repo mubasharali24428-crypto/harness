@@ -195,6 +195,22 @@ describe("Modal", () => {
     // no focusables: nothing to move to
     expect(resolveTabTarget(0, 0, false)).toBe(-1);
   });
+
+  // VT5 verifier addition (M14-W4): the Esc-close branch cannot be event-driven
+  // in this node-environment suite (no jsdom; no new deps allowed), so the
+  // keyboard contract is pinned at source level — same protocol AppShell
+  // .responsive uses against globals.css. A refactor dropping the overlay's
+  // onKeyDown wiring or the Escape branch now fails HERE instead of silently.
+  it("Esc-close contract wired on the overlay (source-pinned)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(
+      new URL("../../src/components/ui/Modal.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(src).toContain('onKeyDown={handleKeyDown}'); // overlay wires the handler
+    expect(src).toContain('e.key === "Escape"'); // Esc recognized...
+    expect(src).toMatch(/Escape"[\s\S]{0,120}onClose\(\)/); // ...and closes
+  });
 });
 
 describe("tokens.ts integrity", () => {
