@@ -18,8 +18,16 @@ from datetime import UTC, datetime
 from typing import Any
 
 from harness_contracts.signatures import ReviewGate
+from sqlalchemy import text
 
 from .diff_engine import extract_unchanged_context, parse_diff
+from .heuristic import (
+    ReviewerThresholds,
+    ReviewVerdict,  # noqa: E501 (re-export via ReviewData)
+    ThresholdSource,
+    diff_touches_tests,
+    evaluate_review_verdict,
+)
 from .models import (
     ReviewData,
     ReviewStatus,
@@ -87,6 +95,24 @@ class ReviewService(ReviewGate):
         self._summary_generator = SummaryGenerator(
             model_router=model_router, risk_analyzer=self._risk_analyzer
         )
+
+    async def _resolve_thresholds(
+        self, db, project_id: str
+    ) -> tuple[ReviewerThresholds, ThresholdSource]:
+        """Resolve the owning team's reviewer thresholds (M15-G6b).
+
+        Unknown projects answer defaults — the verdict must not depend on
+        whether a settings row happens to exist.
+        """
+        from .team_thresholds import get_team_reviewer_thresholds
+
+        row = (
+            await db.execute(
+                text("SELECT team_id FROM projects WHERE id = :pid"),
+                {"pid": project_id},
+            )
+        ).mappings().first()
+        return await get_team_reviewer_thresholds(db, row["team_id"] if row else None)
 
     async def _session(self):
         return self._session_factory()
@@ -317,6 +343,62 @@ class ReviewService(ReviewGate):
     ) -> ReviewData:
         """Re-generate and return the AI summary for a PR."""
         return await self.get_review_data(pr_id, diff_text=diff_text)
+
+    async def evaluate_verdict(
+        self, pr_id: str, diff_text: str | None = None
+    ) -> ReviewVerdict:
+        """Pass/fail verdict under the PR's team thresholds (M15-G6b).
+
+        The reviewer's decision-time consumer of team tuning: resolves the
+        owning team's stored document from Section 1's team_settings and runs
+        the documented heuristic. Missing config → defaults; malformed config
+        → defaults (never an unusable gate). Pure decision logic lives in
+        heuristic.evaluate_review_verdict so it stays calibration-testable.
+        """
+        async with await self._session() as db:
+            record = await get_pull_request_record(db, pr_id)
+            if record is None:
+                raise LookupError(f"PR record '{pr_id}' not found")
+
+            # Resolve diff (same chain as get_review_data).
+            if diff_text is None:
+                diff_text = await get_diff_from_summary(db, pr_id)
+            if diff_text is None and self._diff_provider is not None:
+                provided = self._diff_provider(
+                    record["project_id"], record["github_pr_number"]
+                )
+                diff_text = await provided if inspect.isawaitable(provided) else provided
+            if diff_text is None:
+                raise NoDiffAvailableError(
+                    f"No diff available for PR '{pr_id}'. "
+                    "Pass diff_text explicitly or provide a diff_provider."
+                )
+
+            changed_files = parse_diff(diff_text)
+            changed_file_paths = [f.path for f in changed_files]
+            risk_flags = self._risk_analyzer.analyze(changed_file_paths)
+
+            run_id = record.get("run_id")
+            has_passing_tests = False
+            if run_id:
+                test_events = await get_agent_test_events(db, run_id)
+                has_passing_tests = any(
+                    ev.get("payload", {}).get("passed", 0) > 0 for ev in test_events
+                )
+
+            thresholds, thresholds_source = await self._resolve_thresholds(
+                db, record["project_id"]
+            )
+            return evaluate_review_verdict(
+                thresholds,
+                risk_flags=risk_flags,
+                changed_file_count=len(changed_files),
+                added_lines=sum(f.additions for f in changed_files),
+                deleted_lines=sum(f.deletions for f in changed_files),
+                touches_test_files=diff_touches_tests(changed_file_paths),
+                has_passing_tests=has_passing_tests,
+                thresholds_source=thresholds_source,
+            )
 
 
 # System user ID used when Section 8 needs to look up PR data via Section 2

@@ -8,7 +8,11 @@ Endpoints:
   POST /reviews/{prId}/comments                 — add an inline review comment
   GET  /reviews/{prId}/comments                 — list inline review comments
   GET  /reviews/{prId}/risks                   — get risk flags for a PR
-  GET  /reviews/{prId}/deep-link                — deep-link to GitHub merge button
+  GET  /reviews/{prId}/deep-link               — deep-link to GitHub merge button
+  GET  /reviews/{prId}/verdict                 — pass/fail verdict under the
+                                 PR team's reviewer thresholds (M15-G6b)
+  GET  /reviews/settings/thresholds            — caller's team thresholds view
+                                 (admin writes go through Section 1)
 
 All endpoints use Section 1's auth middleware via make_bearer_dep.
 """
@@ -23,8 +27,10 @@ from harness_contracts.roles import Principal
 from pydantic import BaseModel, Field
 
 from .config import Settings
+from .heuristic import DEFAULT_REVIEWER_THRESHOLDS, REVIEWER_THRESHOLD_KEY
 from .models import ChangedFile, ReviewData, ReviewStatus, RiskFlag
 from .service import ReviewService
+from .team_thresholds import get_team_reviewer_thresholds
 
 router = APIRouter(prefix=contracts.API_PREFIX)
 
@@ -222,6 +228,52 @@ async def deep_link_to_github(
         "githubUrl": data.pr_url,
         "mergeButtonUrl": f"{data.pr_url}/new_branch",
         "note": "Merge is ALWAYS a manual action on GitHub. This app never calls a merge API.",
+    }
+
+
+@router.get("/reviews/{pr_id}/verdict")
+async def get_verdict(
+    pr_id: str, request: Request, principal: RequirePrincipal, diff_text: str | None = None
+) -> dict[str, Any]:
+    """Reviewer pass/fail verdict under the PR's team thresholds (M15-G6b).
+
+    ``thresholdsSource`` is ``"team"`` when a well-formed team config was
+    applied, ``"defaults"`` when none/malformed — tuning is observable.
+    """
+    svc: ReviewService = request.app.state.review_service
+    try:
+        verdict = await svc.evaluate_verdict(pr_id, diff_text=diff_text)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={"error": {"code": "REVIEW_VERDICT_ERROR", "message": str(exc)}},
+        ) from exc
+    return verdict.model_dump(by_alias=True)
+
+
+@router.get("/reviews/settings/thresholds")
+async def get_reviewer_threshold_settings(
+    request: Request, principal: RequirePrincipal
+) -> dict[str, Any]:
+    """Read-only view of the caller's team reviewer thresholds (M15-G6b).
+
+    The AUTHORITATIVE admin write path is Section 1's
+    ``GET/PUT /api/v1/teams/{teamId}/settings/reviewer-thresholds``; this
+    endpoint exists so the Review Area UI can show what's in force without
+    reaching across sections. Missing config answers the documented defaults
+    (never an error).
+    """
+    session_factory = request.app.state.session_factory
+    async with session_factory() as db:
+        thresholds, source = await get_team_reviewer_thresholds(db, principal.teamId)
+    return {
+        "teamId": principal.teamId,
+        "key": REVIEWER_THRESHOLD_KEY,
+        "thresholdsSource": source,
+        "thresholds": thresholds.model_dump(by_alias=True),
+        "defaults": DEFAULT_REVIEWER_THRESHOLDS.model_dump(by_alias=True),
     }
 
 
