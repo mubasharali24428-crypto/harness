@@ -9,6 +9,7 @@ import { clearSession, getToken, getProjectId, getRunId, setProjectId, loadSessi
 
 const AREAS = [
   { href: "/", label: "Command Center" },
+  { href: "/onboarding", label: "Get started" }, // M12-E7 (raw-04 M2): first-run checklist reachable from the nav
   { href: "/runs", label: "Runs" },
   { href: "/meeting", label: "Meeting" },
   { href: "/review", label: "Review" },
