@@ -9,6 +9,10 @@ dependencies = [
     "uvicorn[standard]>=0.30",
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
+    # M12-F1/G3: envelope middleware + caps tests import harness_identity's
+    # limiter/envelope modules, which need an ORM + sqlite driver present.
+    "sqlalchemy>=2.0",
+    "aiosqlite>=0.20",
 ]
 
 [project.optional-dependencies]
