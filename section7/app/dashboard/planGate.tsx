@@ -42,6 +42,22 @@ const PHASE_PILL_COLOR: Record<PlanGatePhase, string> = {
   done: "#9aa4b2",
 };
 
+// M14-F4 — optimistic UI. While an approve/reject wire call is in flight the
+// card RENDERS THE EXPECTED PHASE immediately instead of waiting for the
+// round-trip, then reconciles with the server snapshot; a failure rolls the
+// phase back to what the last server truth says and surfaces the error.
+/** Pure: the phase the card shows = optimistic guess until it is cleared. */
+export function effectivePhase(
+  serverPhase: PlanGatePhase,
+  optimistic: PlanGatePhase | null,
+): PlanGatePhase {
+  return optimistic ?? serverPhase;
+}
+
+/** Reject keeps its affordances pending until the 202 lands (W4-VT3 probe:
+ *  forced-error must visibly snap back, never silently vanish the controls). */
+export const OPTIMISTIC_PENDING_CAPTION = "Waiting for the server to confirm…";
+
 /** Wire-call bundle the card needs. Each method delegates to planGateApi.ts;
  *  PlanGateCard builds this from the session token + server-minted run id. */
 export interface GateWireActions {
@@ -80,6 +96,9 @@ export function PlanGateCard({
   const [note, setNote] = useState<string | null>(null);
   const [activeRunId, setActiveRunId] = useState<string | null>(initialRunId);
   const [status, setStatus] = useState<RunStatus | null>(initialStatus ?? null);
+  // M14-F4 — optimistic overlay: the phase the card pretends to be in while a
+  // decision is on the wire. Null = render the last server truth.
+  const [optimisticPhase, setOptimisticPhase] = useState<PlanGatePhase | null>(null);
 
   async function refresh() {
     if (!activeRunId) return;
@@ -117,17 +136,39 @@ export function PlanGateCard({
       void act("propose", "Plan proposed — awaiting approval.", async () => {
         await proposePlan(goal.trim(), token);
       }),
-    approve: () =>
+    // M14-F4 — approve flips the card to ready-to-start INSTANTLY; the server
+    // response reconciles it (real run binding) and a failure rolls back to
+    // the last snapshot with the mapped error.
+    approve: () => {
+      const planId = status?.planId;
       void act("approve", "Plan approved — start when ready.", async () => {
-        // The orchestrator mints and returns the run binding; we store what the
-        // server returned and nothing else.
-        const res = await approvePlan(status?.planId ?? "", token);
-        setActiveRunId(res.runId);
-      }),
-    reject: () =>
+        if (!planId) throw new Error("No active plan to act on.");
+        setOptimisticPhase("ready-to-start");
+        try {
+          const res = await approvePlan(planId, token);
+          setActiveRunId(res.runId);
+        } catch (err) {
+          setOptimisticPhase(null); // rollback to last server truth
+          throw err;
+        }
+      });
+    },
+    // M14-F4 — reject keeps its affordances visible but pending until the
+    // server 202 confirms (the run returns to IDLE with the plan still bound,
+    // so the card itself stays — only the decision affordance resolves).
+    reject: () => {
+      const planId = status?.planId;
       void act("reject", "Plan rejected and audited.", async () => {
-        await rejectPlan(status?.planId ?? "", token);
-      }),
+        if (!planId) throw new Error("No active plan to act on.");
+        setOptimisticPhase("awaiting-approval"); // keep card, decision pending
+        try {
+          await rejectPlan(planId, token);
+        } catch (err) {
+          setOptimisticPhase(null); // rollback to last server truth
+          throw err;
+        }
+      });
+    },
     start: () =>
       void act("start", "Run started.", async () => {
         if (!activeRunId) throw new Error("No run binding yet — approve the plan first.");
@@ -135,11 +176,19 @@ export function PlanGateCard({
       }),
   };
 
-  const phase = classifyGatePhase(status?.state, status?.planApproved, Boolean(status?.planId));
+  const serverPhase = classifyGatePhase(
+    status?.state,
+    status?.planApproved,
+    Boolean(status?.planId),
+  );
+  // M14-F4 — the card renders the optimistic guess over server truth; act()'s
+  // refresh() reconciles it against the real snapshot when the wire settles.
+  const phase = effectivePhase(serverPhase, optimisticPhase);
   return (
     <PlanGateView
       phase={phase}
       enabled={gateActionsFor(phase, principal?.role ?? null, busyAction !== null)}
+      optimisticPending={optimisticPhase !== null}
       // The card never holds the full AgentPlan object (parents fetch that via
       // GET /runs/{id}/plan); it only echoes the operator's typed goal.
       plan={goalDraft.trim() !== "" ? { goal: goalDraft } : null}
@@ -165,6 +214,9 @@ export function PlanGateView({
   error,
   note,
   actions,
+  // M14-F4 — true while an approve/reject decision is on the wire: the phase
+  // pill already shows the optimistic guess and the caption says "pending".
+  optimisticPending = false,
 }: {
   phase: PlanGatePhase;
   enabled: GateActions;
@@ -175,6 +227,7 @@ export function PlanGateView({
   error: string | null;
   note: string | null;
   actions: GateWireActions;
+  optimisticPending?: boolean;
 }) {
   const showProposeForm = phase === "no-plan" && !plan;
   return (
@@ -184,7 +237,9 @@ export function PlanGateView({
         <span style={pillStyle(PHASE_PILL_COLOR[phase])} data-testid="plan-gate-phase">
           {phase}
         </span>{" "}
-        <span style={{ color: "#9aa4b2", fontSize: 13 }}>{gateCaption(phase)}</span>
+        <span style={{ color: "#9aa4b2", fontSize: 13 }}>
+          {optimisticPending ? OPTIMISTIC_PENDING_CAPTION : gateCaption(phase)}
+        </span>
       </p>
 
       {showProposeForm ? (

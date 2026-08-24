@@ -7,7 +7,11 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ApiError, IDENTITY_BASE } from "@/lib/api";
 import { removeMember, updateMemberRole } from "./teamApi";
-import { MembersTable, type RosterActions } from "./page";
+// M14-F4 — row-scoped optimistic rollback + components live in tables.tsx:
+// Next 15's generated route-type check rejects any non-default export from a
+// page module, so importing them from ./page no longer typechecks (same
+// components/helpers, new module boundary).
+import { MembersTable, restoreRow, type RosterActions } from "./tables";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -136,7 +140,10 @@ describe("MembersTable admin gating", () => {
     expect(html).not.toContain('data-testid="ask-remove-u2"');
     expect(html).not.toContain("Remove");
     expect(html).not.toContain("<select");
-    expect(html).toContain("pill yellow"); // read-only role pill stays
+    // M14-DS: role pills render via ui/Pill token styles now (inline
+    // var(--yellow)) instead of the legacy .pill.yellow class — assert the
+    // visible vocabulary, which both forms satisfy.
+    expect(/yellow/.test(html)).toBe(true); // read-only role pill stays yellow
   });
 
   it("shows the inline confirm state for the pending member with confirm + cancel", () => {
@@ -154,5 +161,41 @@ describe("MembersTable admin gating", () => {
     expect(html).toContain("Remove this member?");
     // the other row still shows its plain Remove button
     expect(html).toContain('data-testid="ask-remove-u3"');
+  });
+});
+
+// M14-F4 — row-scoped optimistic rollback (pure, headless). Each mutation
+// restores ONLY the row it touched: a failed removal must not resurrect rows
+// other actions deleted (zombie rows), and a failed role change must not
+// clobber newer changes to other rows.
+describe("restoreRow — optimistic rollback", () => {
+  it("removal rollback re-inserts exactly the removed member", () => {
+    const bob = member({ id: "u2" });
+    const afterRemoval = [member({ id: "u1", role: "admin" })]; // u2 gone
+    expect(restoreRow(afterRemoval, bob)).toEqual([
+      member({ id: "u1", role: "admin" }),
+      bob,
+    ]);
+  });
+
+  it("role-change rollback snaps only that row back to its prior state", () => {
+    const bobBefore = member({ id: "u2", role: "engineer" });
+    const current = [
+      member({ id: "u1", role: "admin" }),
+      member({ id: "u2", role: "viewer" }), // failed optimistic change
+      member({ id: "u3", displayName: "Ada", role: "guest" }), // untouched
+    ];
+    expect(restoreRow(current, bobBefore)).toEqual([
+      member({ id: "u1", role: "admin" }),
+      bobBefore,
+      member({ id: "u3", displayName: "Ada", role: "guest" }),
+    ]);
+  });
+
+  it("does not resurrect rows other confirmed actions deleted (no zombie rows)", () => {
+    const bob = member({ id: "u2" });
+    const current = [] as ReturnType<typeof member>[]; // u3 was separately
+    // removed by another CONFIRMED action after u2's failed one rolled back.
+    expect(restoreRow(current, bob)).toEqual([bob]); // only u2 comes back
   });
 });

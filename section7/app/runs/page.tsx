@@ -18,6 +18,7 @@ import * as React from "react";
 import AppShell from "@/components/AppShell";
 import { listProjects } from "@/lib/api";
 import { loadSession } from "@/lib/auth";
+import { isRowActivateKey, RunsTable } from "./runsTable";
 import {
   RUNS_DEFAULT_LIMIT,
   RUNS_MAX_LIMIT,
@@ -70,96 +71,14 @@ const statusPillClass: Record<string, string> = {
 
 const PAGE_SIZES = [10, 25, 50, 100] as const;
 
+/** M14-F1b (raw-03 P2): the ONE predicate deciding which keys activate a run
+ *  row. Extracted so the W3 keyboard contract (Enter AND Space navigate) is
+ *  unit-testable without a DOM; the row's onKeyDown consumes it below. */
 /** Presentational runs table (H-009 click-through). Extracted as a named
  *  export so component tests can drive it without Next routing or a live
  *  session. Rows navigate to /projects/{projectId}/runs/{runId}: the Run +
  *  Project cells carry real <a> links for middle-click/copy-link, and the
  *  full <tr> is a click/keyboard (Enter/Space) target too. */
-export function RunsTable({ runs, now }: { runs: RunDto[]; now: number }) {
-  return (
-    <table style={tableStyle}>
-      <caption className="sr-only" style={{ textAlign: "left" }}>
-        Orchestrator runs, newest first
-      </caption>
-      <thead>
-        <tr>
-          <th style={thTdStyle}>Run</th>
-          <th style={thTdStyle}>Project</th>
-          <th style={thTdStyle}>Status</th>
-          <th style={thTdStyle}>Created</th>
-          <th style={thTdStyle}>Started</th>
-          <th style={thTdStyle}>Finished</th>
-        </tr>
-      </thead>
-      <tbody>
-        {runs.map((r) => (
-          <tr
-            key={r.id}
-            tabIndex={0}
-            aria-label={`Open run ${shortId(r.id)}`}
-            onClick={() => {
-              window.location.assign(runDetailHref(r));
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                window.location.assign(runDetailHref(r));
-              }
-            }}
-            style={{ cursor: "pointer", outlineOffset: -2 }}
-          >
-            <td style={thTdStyle}>
-              {/* Real links (not just row onClick) so open-in-new-tab and
-                  copy-link keep working; href is centralized in runsApi.ts. */}
-              <a
-                href={runDetailHref(r)}
-                title={r.id}
-                style={{
-                  color: "var(--accent)",
-                  textDecoration: "underline",
-                  fontFamily: "inherit",
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {shortId(r.id)}
-              </a>
-            </td>
-            <td style={thTdStyle}>
-              <a
-                href={runDetailHref(r)}
-                title={r.projectId}
-                style={{ color: "var(--accent)", textDecoration: "underline" }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {r.projectId}
-              </a>
-            </td>
-            <td style={thTdStyle}>
-              <span className={statusPillClass[r.status] ?? "pill"}>{r.status}</span>
-            </td>
-            <td style={thTdStyle} title={r.createdAt ? formatTimestamp(r.createdAt) : undefined}>
-              {formatRelativeTime(r.createdAt, now)}
-            </td>
-            <td style={thTdStyle} title={r.startedAt ? formatTimestamp(r.startedAt) : undefined}>
-              {formatRelativeTime(r.startedAt, now)}
-            </td>
-            <td style={thTdStyle} title={r.finishedAt ? formatTimestamp(r.finishedAt) : undefined}>
-              {formatRelativeTime(r.finishedAt, now)}
-            </td>
-          </tr>
-        ))}
-        {runs.length === 0 && (
-          <tr>
-            <td style={thTdStyle} colSpan={6}>
-              No runs match the current filters.
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
-  );
-}
-
 export default function RunsPage() {
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
   const [projectId, setProjectId] = useState<string>("");

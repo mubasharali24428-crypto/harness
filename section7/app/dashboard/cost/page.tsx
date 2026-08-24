@@ -7,6 +7,11 @@
 // (503 LEDGER_UNAVAILABLE, or any zero we cannot attribute to real activity);
 // and the by-day series exports as CSV via a client-side blob download.
 // No chart libraries — pure CSS/SVG. No crashes on honest failure modes.
+//
+// M14-W4 DS lane migration: page-local card/chip/table/button styles replaced
+// by the shared primitives in @/components/ui (Pill chips, Button, Card,
+// Table). Pixel-parity intent — same faces, token-sourced. All data-testids
+// and roles preserved for the existing suites and e2e journey.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
@@ -15,6 +20,8 @@ import { loadSession } from "@/lib/auth";
 // projects client (ProjectDto carries teamName).
 import { listProjects } from "@/lib/api";
 import { ApiError } from "@/lib/api";
+import { Button, Card, Pill, Table, cardTitleStyle, cellStyle } from "@/components/ui";
+import { colors, cssVar } from "@/components/tokens";
 import {
   COST_DOCS_URL,
   SpendSummary,
@@ -28,37 +35,7 @@ import {
 const RANGES = [7, 30, 90] as const;
 type RangeDays = (typeof RANGES)[number];
 
-const cardStyle = {
-  background: "var(--panel)",
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  padding: 14,
-} as const;
-
-const cardTitleStyle = {
-  fontSize: 11,
-  letterSpacing: 1,
-  textTransform: "uppercase",
-  color: "var(--muted)",
-  margin: "0 0 10px",
-} as const;
-
-const thTdStyle = {
-  textAlign: "left",
-  padding: "4px 8px",
-  borderBottom: "1px solid var(--border)",
-} as const;
-
-const chipStyle = (active: boolean) =>
-  ({
-    background: active ? "var(--accent)" : "var(--panel-2)",
-    border: "1px solid var(--border)",
-    color: active ? "#0b0e14" : "var(--text)",
-    borderRadius: 999,
-    padding: "5px 12px",
-    fontSize: 13,
-    cursor: "pointer",
-  }) as const;
+const kpiNumberStyle = { fontSize: 22 } as const;
 
 export default function CostDashboardPage() {
   const [rangeDays, setRangeDays] = useState<RangeDays>(30);
@@ -161,7 +138,8 @@ export default function CostDashboardPage() {
     <AppShell active="/dashboard/cost">
       <h1>Cost</h1>
 
-      {/* M12-G6: 7/30/90 preset chips — each drives fetchSpend's sinceDays. */}
+      {/* M12-G6: 7/30/90 preset chips — each drives fetchSpend's sinceDays.
+          Rendered as interactive Pills (real toggle buttons, aria-pressed). */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
         <span style={{ color: "var(--muted)" }}>Period</span>
         <div
@@ -171,16 +149,15 @@ export default function CostDashboardPage() {
           style={{ display: "flex", gap: 6 }}
         >
           {RANGES.map((d) => (
-            <button
+            <Pill
               key={d}
-              type="button"
-              aria-pressed={rangeDays === d}
-              data-testid={`cost-range-${d}`}
+              tone="blue"
+              testId={`cost-range-${d}`}
+              active={rangeDays === d}
               onClick={() => setRangeDays(d)}
-              style={chipStyle(rangeDays === d)}
             >
               {d}d
-            </button>
+            </Pill>
           ))}
         </div>
         <span aria-live="polite" style={{ color: "var(--muted)", fontSize: 12 }}>
@@ -198,19 +175,17 @@ export default function CostDashboardPage() {
           or the period came back all zeros (nothing recorded — which may mean
           metering never reached agent runs in the first place). */}
       {(view === "unwired" || view === "no-recorded-activity") && (
-        <div
+        <Card
+          as="div"
+          testId="metering-explainer"
           role="status"
-          data-testid="metering-explainer"
           style={{
-            border: "1px solid var(--yellow)",
-            background: "var(--panel)",
-            borderRadius: 8,
-            padding: 14,
             marginBottom: 16,
             lineHeight: 1.6,
+            borderColor: cssVar("yellow"),
           }}
         >
-          <strong style={{ color: "var(--yellow)" }}>Metering isn&apos;t connected to agent runs yet</strong>{" "}
+          <strong style={{ color: cssVar("yellow") }}>Metering isn&apos;t connected to agent runs yet</strong>{" "}
           — costs will appear here once wired.
           <br />
           <span style={{ color: "var(--muted)", fontSize: 13 }}>
@@ -219,10 +194,10 @@ export default function CostDashboardPage() {
               : "No usage was recorded for this period yet. Model calls work, but nothing has been metered — spend rows appear here after the first metered run."}
           </span>
           <br />
-          <a href={COST_DOCS_URL} target="_blank" rel="noreferrer" style={{ color: "#93c5fd" }}>
+          <a href={COST_DOCS_URL} target="_blank" rel="noreferrer" style={{ color: colors.accentSoft }}>
             Status &amp; docs reference ↗
           </a>
-        </div>
+        </Card>
       )}
 
       {text !== null && (
@@ -240,22 +215,18 @@ export default function CostDashboardPage() {
       {hasData && summary !== null && (
         <>
           <div className="grid">
-            <div style={cardStyle}>
-              <h2 style={cardTitleStyle}>Total cost</h2>
-              <div style={{ fontSize: 22 }}>{formatUsd(summary.totals.costUsd)}</div>
-            </div>
-            <div style={cardStyle}>
-              <h2 style={cardTitleStyle}>Input tokens</h2>
-              <div style={{ fontSize: 22 }}>{formatTokens(summary.totals.inputTokens)}</div>
-            </div>
-            <div style={cardStyle}>
-              <h2 style={cardTitleStyle}>Output tokens</h2>
-              <div style={{ fontSize: 22 }}>{formatTokens(summary.totals.outputTokens)}</div>
-            </div>
+            <Card title="Total cost">
+              <div style={kpiNumberStyle}>{formatUsd(summary.totals.costUsd)}</div>
+            </Card>
+            <Card title="Input tokens">
+              <div style={kpiNumberStyle}>{formatTokens(summary.totals.inputTokens)}</div>
+            </Card>
+            <Card title="Output tokens">
+              <div style={kpiNumberStyle}>{formatTokens(summary.totals.outputTokens)}</div>
+            </Card>
           </div>
 
-          <section aria-label="Spend by model" style={{ ...cardStyle, marginTop: 16 }}>
-            <h2 style={cardTitleStyle}>By model</h2>
+          <Card title="By model" aria-label="Spend by model" style={{ marginTop: 16 }}>
             <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
               {summary.byModel.map((m) => {
                 // Bar width = % of the most expensive model in the period.
@@ -294,7 +265,7 @@ export default function CostDashboardPage() {
                       aria-label={`${m.model}: ${formatUsd(m.costUsd)} (${formatTokens(m.tokens)} tokens)`}
                       style={{
                         height: 6,
-                        background: "var(--accent)",
+                        background: cssVar("accent"),
                         width: `${pct}%`,
                         borderRadius: 3,
                       }}
@@ -303,9 +274,9 @@ export default function CostDashboardPage() {
                 );
               })}
             </ul>
-          </section>
+          </Card>
 
-          <section aria-label="Spend by day" style={{ ...cardStyle, marginTop: 16 }}>
+          <Card title="By day" aria-label="Spend by day" style={{ marginTop: 16 }}>
             <div
               style={{
                 display: "flex",
@@ -316,23 +287,18 @@ export default function CostDashboardPage() {
             >
               <h2 style={{ ...cardTitleStyle, marginBottom: 0 }}>By day</h2>
               {/* M12-G6: client-side CSV export of the byDay series. Disabled
-                  (with the reason on the tooltip) while there is nothing to
-                  export — never downloads an empty file. */}
-              <span title={canExport ? undefined : exportDisabledReason}>
-                <button
-                  type="button"
-                  data-testid="export-csv"
-                  disabled={!canExport}
-                  onClick={() => downloadSpendCsv(byDayRows, teamName)}
-                  style={{
-                    ...chipStyle(false),
-                    cursor: canExport ? "pointer" : "not-allowed",
-                    opacity: canExport ? 1 : 0.55,
-                  }}
-                >
-                  Export CSV
-                </button>
-              </span>
+                  (with the reason below) while there is nothing to export —
+                  never downloads an empty file. */}
+              <Button
+                variant="accent"
+                size="sm"
+                testId="export-csv"
+                disabled={!canExport}
+                onClick={() => canExport && downloadSpendCsv(byDayRows, teamName)}
+                style={{ cursor: canExport ? "pointer" : "not-allowed", opacity: canExport ? 1 : 0.55 }}
+              >
+                Export CSV
+              </Button>
             </div>
             {!canExport && (
               <p style={{ color: "var(--muted)", fontSize: 12, margin: "6px 0 0" }}>
@@ -358,25 +324,23 @@ export default function CostDashboardPage() {
             ) : (
               <span style={{ color: "var(--muted)" }}>No daily breakdown available.</span>
             )}
-            <table
-              style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, marginTop: 10 }}
-            >
+            <Table caption="Daily spend" style={{ marginTop: 10 }}>
               <thead>
                 <tr>
-                  <th style={thTdStyle}>Day</th>
-                  <th style={thTdStyle}>Cost</th>
+                  <th style={cellStyle}>Day</th>
+                  <th style={cellStyle}>Cost</th>
                 </tr>
               </thead>
               <tbody>
-                {summary.byDay.map((d) => (
+                {byDayRows.map((d) => (
                   <tr key={d.day}>
-                    <td style={thTdStyle}>{d.day}</td>
-                    <td style={thTdStyle}>{formatUsd(d.costUsd)}</td>
+                    <td style={cellStyle}>{d.day}</td>
+                    <td style={cellStyle}>{formatUsd(d.costUsd)}</td>
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </section>
+            </Table>
+          </Card>
         </>
       )}
     </AppShell>

@@ -286,17 +286,19 @@ export default function KeysSettingsPage() {
 
       <section className="card" style={cardStyle}>
         <h2>Team keys</h2>
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thTdStyle}>Label</th>
-              <th style={thTdStyle}>Provider</th>
-              <th style={thTdStyle}>Key hint</th>
-              <th style={thTdStyle}>Created</th>
-              <th style={thTdStyle}>Status</th>
-              {canWrite && <th style={thTdStyle}>Actions</th>}
-            </tr>
-          </thead>
+        {/* M14-F2b (raw-03 P2): overflow-x wrapper + sticky first column (CSS). */}
+        <div className="table-scroll">
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thTdStyle}>Label</th>
+                <th style={thTdStyle}>Provider</th>
+                <th style={thTdStyle}>Key hint</th>
+                <th style={thTdStyle}>Created</th>
+                <th style={thTdStyle}>Status</th>
+                {canWrite && <th style={thTdStyle}>Actions</th>}
+              </tr>
+            </thead>
           <tbody>
             {keys.map((k) => {
               const revoked = k.revokedAt !== null && k.revokedAt !== undefined;
@@ -349,7 +351,8 @@ export default function KeysSettingsPage() {
               </tr>
             )}
           </tbody>
-        </table>
+          </table>
+        </div>
         <p style={{ color: "var(--muted)", fontSize: 12 }}>
           Keys are encrypted at rest; only masked hints are listed. Revoking is soft — the row is
           kept for audit and stops being usable immediately. Confirming starts a{" "}

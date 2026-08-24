@@ -11,6 +11,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { RunStatus } from "@contracts/api";
 import type { Principal } from "@contracts/roles";
 import { PlanGateCard, PlanGateView } from "./planGate";
+import { effectivePhase, OPTIMISTIC_PENDING_CAPTION } from "./planGate";
 
 function status(partial: Partial<RunStatus>): RunStatus {
   return {
@@ -44,6 +45,7 @@ function view(opts: {
   goalDraft?: string;
   note?: string | null;
   error?: string | null;
+  optimisticPending?: boolean;
 }) {
   const allOn = { propose: true, approve: true, reject: true, start: true };
   const allOff = { propose: false, approve: false, reject: false, start: false };
@@ -60,6 +62,7 @@ function view(opts: {
       error={opts.error ?? null}
       note={opts.note ?? null}
       actions={noopActions}
+      optimisticPending={opts.optimisticPending ?? false}
     />,
   );
 }
@@ -211,5 +214,52 @@ describe("PlanGateCard — connected card derives phase from RunStatus.state", (
     expect(html).toContain('data-testid="plan-gate-phase">awaiting-approval<');
     expect(buttonTag(html, "approve-plan")).toContain("disabled");
     expect(buttonTag(html, "reject-plan")).toContain("disabled");
+  });
+});
+
+// M14-F4 — optimistic phase overlay + pending affordances.
+describe("effectivePhase — optimistic guess over server truth", () => {
+  it("renders the optimistic guess while one is set", () => {
+    expect(effectivePhase("awaiting-approval", "ready-to-start")).toBe("ready-to-start");
+    expect(effectivePhase("no-plan", "awaiting-approval")).toBe("awaiting-approval");
+  });
+
+  it("falls back to the last server truth once the overlay clears", () => {
+    expect(effectivePhase("awaiting-approval", null)).toBe("awaiting-approval");
+    expect(effectivePhase("done", null)).toBe("done");
+  });
+});
+
+describe("PlanGateView — optimistic decision rendering", () => {
+  it("approve-in-flight shows ready-to-start pill + Start affordance immediately", () => {
+    const html = view({
+      phase: "ready-to-start", // optimistic guess over a stale awaiting snapshot
+      goalDraft: "g",
+      busy: true,
+      optimisticPending: true,
+    });
+    expect(html).toContain('data-testid="plan-gate-phase">ready-to-start<');
+    expect(html).toContain('data-testid="start-run"'); // next action teased instantly
+    expect(html).toContain(OPTIMISTIC_PENDING_CAPTION); // wire call visibly in flight
+  });
+
+  it("reject keeps its affordance visible-but-pending until the 202 confirms", () => {
+    const html = view({
+      phase: "awaiting-approval", // card STAYS — S4 returns rejected runs to idle
+      goalDraft: "g",
+      busy: true,
+      optimisticPending: true,
+    });
+    expect(html).toContain('data-testid="reject-plan"'); // never silently vanishes
+    expect(buttonTag(html, "reject-plan")).toContain("disabled");
+    expect(buttonTag(html, "approve-plan")).toContain("disabled");
+    expect(html).toContain(OPTIMISTIC_PENDING_CAPTION);
+  });
+
+  it("cleared overlay (rollback/confirm) restores the plain caption", () => {
+    const html = view({ phase: "awaiting-approval", goalDraft: "g" });
+    expect(html).not.toContain(OPTIMISTIC_PENDING_CAPTION);
+    expect(html).toContain("Plan awaiting approval.");
+    expect(html).toContain("Approve plan"); // normal labels back
   });
 });

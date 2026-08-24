@@ -103,6 +103,12 @@ nav {
   margin-left: 220px;
   padding: 20px 24px;
   flex: 1;
+  /* M14-F2b: .shell is a flex row, so .content's automatic minimum size is
+     the min-content of its children — without this, the 640px min-width
+     table inside .table-scroll stretches the whole page sideways on phones.
+     min-width:0 lets .content shrink and keeps the x-scroll inside the
+     wrapper where it belongs. */
+  min-width: 0;
 }
 
 h1 {
@@ -263,4 +269,215 @@ h1 {
 ul {
   margin: 0;
   padding-left: 18px;
+}
+
+/* ==========================================================================
+   M14-F2b (raw-03 P2) — responsive layout breakpoints
+   Breakpoints: ≤900px sidebar collapses to an off-canvas drawer behind a
+   hamburger toggle (AppShell owns the button + aria-expanded); content
+   grids stack to a single column; every data table sits in a .table-scroll
+   overflow-x wrapper with a sticky first column. Verified honestly at
+   375 / 768 / 1280 (see src/components/AppShell.responsive.test.tsx +
+   lane report for the layout math).
+   ========================================================================== */
+
+/* Visually-hidden text for icon-only controls (a11y labels). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Hamburger toggle lives in the top bar; hidden on desktop where the full
+   sidebar is always visible. 44x44 = WCAG 2.5.5 minimum tap target. */
+.topbar {
+  display: none;
+}
+
+.sidebar-toggle {
+  display: none;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  /* Keep the horizontal scroll contained here instead of the document. */
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-scroll table {
+  min-width: 640px; /* force internal scroll long before the page scrolls */
+}
+
+.table-scroll th:first-child,
+.table-scroll td:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--panel); /* opaque: cells must not show through while panning */
+  z-index: 1;
+}
+
+@media (max-width: 900px) {
+  /* --- Sidebar → off-canvas drawer ------------------------------------- */
+  .topbar {
+    display: flex; /* overrides display:none above */
+    align-items: center;
+    gap: 10px;
+    height: 52px; /* ≥44px tap target row */
+    padding: 0 8px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+
+  .topbar .brand {
+    font-size: 13px;
+  }
+
+  .sidebar-toggle {
+    display: inline-flex; /* overrides display:none above */
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    flex: none;
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 264px;
+    max-width: 82vw; /* narrow phones never get a full-width drawer */
+    transform: translateX(-100%);
+    transition: transform 0.18s ease-in-out;
+    z-index: 40;
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.45);
+    visibility: hidden;
+    overflow-y: auto;
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+    visibility: visible;
+  }
+
+  /* Scrim between drawer and page; click-through closes the drawer. */
+  .scrim {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 30;
+  }
+
+  /* Content spans the full viewport under the fixed top bar. */
+  .content {
+    margin-left: 0;
+    padding-top: 12px;
+  }
+
+  body.has-open-sidebar {
+    overflow: hidden; /* lock page scroll while the drawer is open */
+  }
+
+  /* --- Cards / grids stack to one column ------------------------------- */
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .card {
+    max-width: none; /* desktop maxWidth caps would clip on phones */
+    width: 100%;
+  }
+
+  /* --- Touch tap targets -------------------------------------------------
+     Drawer mode = touch mode: every interactive element gets the 44px
+     minimum hit area (WCAG 2.5.5 / Apple HIG) at tablet AND phone widths.
+     Compact non-interactive badges (.pill, .role-badge) are exempt. */
+  .nav-item {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .btn,
+  .chat-input input,
+  .text-input,
+  .switcher select {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 600px) {
+  .content {
+    padding: 12px; /* keep gutters but stop them eating a 375px screen */
+  }
+
+  h1 {
+    font-size: 15px;
+  }
+
+  /* Comfortable tap targets on touch screens (≥44px hit area without
+     changing the visual size of compact non-interactive badges). */
+  .btn,
+  .chat-input input,
+  .text-input,
+  .switcher select {
+    min-height: 44px;
+  }
+
+  /* Nav rows are primary touch targets: guarantee the full 44px regardless
+     of label length (WCAG 2.5.5 / Apple HIG). Flex keeps the label centered.
+     (Base rule already lives in the ≤900px block; nothing to add here.) */
+
+  .event-type {
+    min-width: 0; /* let long event names wrap instead of forcing x-scroll */
+  }
+}
+
+/* ===== M14-F1b (raw-03 P2): keyboard support + visible focus ============== */
+
+/* Skip link: first element of the shell, hidden until it receives keyboard
+   focus, then pinned to the top-left so sighted keyboard users see it too. */
+.skip-link {
+  position: absolute;
+  top: -48px;
+  left: 8px;
+  z-index: 100;
+  padding: 8px 14px;
+  background: var(--panel-2);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  transition: top 0.15s ease-in-out;
+}
+
+.skip-link:focus {
+  top: 8px;
+}
+
+.skip-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Visible focus rings, globally and ONLY for keyboard focus (:focus-visible),
+   so pointer clicks don't paint rings while every tabbed-to control shows a
+   clear 2px accent outline (raw-03 P2 requirement). */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Runs-table rows are tabindex=0 click/keyboard targets — give their focus
+   ring an inset offset so it isn't clipped by the table borders. */
+tr[tabindex="0"]:focus-visible {
+  outline-offset: -3px;
 }

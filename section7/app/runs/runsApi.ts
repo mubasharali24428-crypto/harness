@@ -141,3 +141,162 @@ export { formatRelativeTime } from "@/lib/format";
 export function shortId(id: string): string {
   return id.length > 12 ? id.slice(0, 8) : id;
 }
+
+// ---------------------------------------------------------------------------
+// M14-W4 F3b (W4-C2) — single-run AGGREGATE read for the run detail page.
+// Consumes F3a's enriched `GET /api/v1/orchestrator/runs/{runId}`
+// (Section 4 orchestrator). Pair-contract shape
+// {runId, state, costUsd?, prId?, url?, steps?} with EXPLICIT nullability:
+// every enriched field arrives present-but-null until its source exists, and
+// this client preserves null-vs-zero so the page can degrade honestly (never
+// a fabricated $0 or an invented PR link). The server side lands concurrently
+// in F3a's lane — this client is UNVERIFIED-until-server by design; ATLAS
+// diffs the pair at the gate.
+
+/** One bus-event shadow inside the aggregate's steps summary (last ≤100). */
+export interface RunStepDto {
+  seq: number;
+  /** Raw event type from agent_events (contracts EventType vocabulary). */
+  type: string;
+  /** ISO timestamp when the server had one; null stays null — never faked. */
+  ts: string | null;
+}
+
+/** W4-C2 run aggregate wire shape (camelCase per api-conventions.md). */
+export interface RunAggregateDto {
+  runId: string;
+  state: string;
+  planId: string | null;
+  planApproved: boolean;
+  isHumanEditing: boolean;
+  executing: boolean;
+  engineMode: string | null;
+  /** SUM(cost_ledger.cost_usd) for this run at NUMERIC-exact scale-6 money,
+   *  or null while metering has recorded nothing — NEVER defaulted to 0. */
+  costUsd: number | null;
+  /** agent_runs.pr_id once Section 2 binds a PR to this run; null before. */
+  prId: string | null;
+  /** The bound PR's url; independently nullable (prId can exist without it). */
+  url: string | null;
+  /** Last ≤100 events, wire order OLDEST→newest; the UI flips newest-first. */
+  steps: RunStepDto[];
+}
+
+/** Client cap mirroring F3a's _AGGREGATE_STEPS_MAX: even if a future server
+ *  lifts its cap, the timeline still renders at most this many events. */
+export const RUN_AGGREGATE_STEPS_MAX = 100;
+
+/** Pure: "$12.500000" from the NUMERIC-exact scale-6 wire number. Non-finite
+ *  garbage degrades to "—" — never a fake "$0.000000". A genuine server-sent
+ *  0 formats honestly as "$0.000000". */
+export function formatCostUsdExact(costUsd: number): string {
+  return Number.isFinite(costUsd) ? `$${costUsd.toFixed(6)}` : "—";
+}
+
+/** Run state → theme-var pill class over the REAL AgentState vocabulary —
+ *  the SAME color mapping as the runs-index table (app/runs/page.tsx):
+ *  active work yellow, human/waiting gates blue, success green, failure red.
+ *  Unknown values fall through honestly to the uncolored ".pill" base.
+ *  Local copy: that page's map is file-private and other lanes own the file. */
+const STATE_PILL_CLASS: Record<string, string> = {
+  idle: "pill blue",
+  planning: "pill yellow",
+  awaiting_plan_approval: "pill blue",
+  executing: "pill yellow",
+  paused: "pill yellow",
+  awaiting_done_signal: "pill blue",
+  reviewing: "pill yellow",
+  blocked: "pill red",
+  pr_opened: "pill blue",
+  done: "pill green",
+};
+
+/** Pure: pill class for a run state; unknown states stay uncolored. */
+export function statePillClass(state: string): string {
+  return STATE_PILL_CLASS[state] ?? "pill";
+}
+
+/** Human labels for the event-type vocabulary (contracts EventType). The raw
+ *  wire type stays reachable in each row's title attribute; unknown types are
+ *  humanized (underscores → spaces), never dropped. */
+const STEP_LABELS: Record<string, string> = {
+  plan_proposed: "Plan proposed",
+  plan_approved: "Plan approved",
+  execution_started: "Execution started",
+  paused: "Paused",
+  resumed: "Resumed",
+  blocked_awaiting_clarification: "Blocked — awaiting clarification",
+  done_signal_received: "Done signal received",
+  review_passed: "Review passed",
+  review_failed: "Review failed",
+  pr_opened: "PR opened",
+  terminal_output: "Terminal output",
+  diff_progress: "Diff progress",
+  engine_completed: "Engine completed",
+  engine_failed: "Engine failed",
+};
+
+/** Pure: human label for a raw event type. */
+export function stepLabel(type: string): string {
+  const known = STEP_LABELS[type];
+  if (known) return known;
+  return type.replace(/_/g, " ").trim() || "unknown event";
+}
+
+/** Pure: flip wire order (oldest→newest) into display order (newest-first),
+ *  defensively capped at `cap`. Non-mutating — the input array is untouched. */
+export function stepsNewestFirst(
+  steps: RunStepDto[],
+  cap: number = RUN_AGGREGATE_STEPS_MAX,
+): RunStepDto[] {
+  return [...steps].reverse().slice(0, Math.max(0, cap));
+}
+
+function asStringOrNull(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+/** GET /api/v1/orchestrator/runs/{runId} — W4-C2 aggregate (F3a server side).
+ *  Per-field light shape guard: a drifted/partial body degrades each field to
+ *  its explicit null default instead of crashing the page on data.steps.map. */
+export async function getRunAggregate(
+  runId: string,
+  token: string,
+): Promise<RunAggregateDto> {
+  const data = await request<Partial<RunAggregateDto>>(
+    `/api/v1/orchestrator/runs/${encodeURIComponent(runId)}`,
+    token,
+  );
+  const steps: RunStepDto[] = [];
+  if (Array.isArray(data.steps)) {
+    for (const raw of data.steps) {
+      if (!raw || typeof raw !== "object") continue;
+      const rec = raw as unknown as Record<string, unknown>;
+      steps.push({
+        seq:
+          typeof rec.seq === "number" && Number.isFinite(rec.seq)
+            ? rec.seq
+            : Number.NaN,
+        type: typeof rec.type === "string" ? rec.type : "unknown",
+        ts: asStringOrNull(rec.ts),
+      });
+      if (steps.length >= RUN_AGGREGATE_STEPS_MAX) break;
+    }
+  }
+  return {
+    runId: typeof data.runId === "string" ? data.runId : runId,
+    state: typeof data.state === "string" ? data.state : "unknown",
+    planId: asStringOrNull(data.planId),
+    planApproved: data.planApproved === true,
+    isHumanEditing: data.isHumanEditing === true,
+    executing: data.executing === true,
+    engineMode: asStringOrNull(data.engineMode),
+    costUsd:
+      typeof data.costUsd === "number" && Number.isFinite(data.costUsd)
+        ? data.costUsd
+        : null,
+    prId: asStringOrNull(data.prId),
+    url: asStringOrNull(data.url),
+    steps,
+  };
+}

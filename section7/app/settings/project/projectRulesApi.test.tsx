@@ -12,7 +12,9 @@ import {
   rulesByteLength,
   saveProjectRules,
 } from "./projectRulesApi";
-import { RulesEditor } from "./page";
+// W4 gate repair: RulesEditor lives in its own module now (the page module
+// keeps only Next's default export).
+import { RulesEditor } from "./rulesEditor";
 
 afterEach(() => {
   vi.unstubAllGlobals();

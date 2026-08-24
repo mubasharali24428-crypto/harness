@@ -6,13 +6,27 @@
 //
 // M12-E3b (H-010, pair contract W2-C1) — roster management UI:
 //   • per-member Remove button with INLINE CONFIRM; calls
-//     DELETE /api/v1/teams/{id}/members/{userId} (→ 204) and refreshes the
-//     list; failures surface the SERVER's error message verbatim (including
-//     the 409 last-admin protection text) — never a fabricated excuse;
+//     DELETE /api/v1/teams/{id}/members/{userId} (→ 204);
 //   • per-member role dropdown calling PATCH .../members/{userId} {role};
 //   • both controls are ADMIN-ONLY: hidden entirely from engineer/viewer/
 //     guest viewers (server enforces too — the client just doesn't tease).
+// M14-F4 — both mutations are OPTIMISTIC now (src/hooks/useOptimistic.ts):
+// the table reflects the change instantly, the wire response reconciles it
+// (role PATCH echoes {userId, role} — commit uses THAT, not the guess), and
+// any failure rolls the row back and surfaces the server's own message
+// verbatim (e.g. the 409 LAST_ADMIN protection text) — never a fabricated
+// excuse. No trailing refetch on success: the mutation response IS the
+// server truth for this change, and a refetch would clobber a concurrently
+//   in-flight optimistic row.
 // Client code is UNVERIFIED against the live server until lane E3a lands.
+//
+// M14-F2a — invite lifecycle admin UI: the invites panel renders the FULL
+// lifecycle (draft/sent/redeemed/expired/revoked) with color+text status
+// badges (a11y law: never color alone), Resend on live invites (fresh token
+// shown once; the old one is revoked server-side in the same transaction)
+// and Revoke on unredeemed ones. Honest empty state; every failure surfaces
+// the server's message verbatim. Statuses come from Section 1 — this page
+// renders them, it never re-derives them.
 
 import { useCallback, useEffect, useState } from "react";
 // Classic JSX transform (vitest/esbuild) needs React in scope for the .tsx
@@ -22,27 +36,39 @@ import AppShell from "@/components/AppShell";
 // M13-G5b (raw-14): visible way back — Command Center → Settings → Team.
 import { BreadcrumbTrail, settingsCrumbs } from "@/components/Breadcrumbs";
 import { loadSession } from "@/lib/auth";
+// M14-F4 — shared optimistic-mutation engine (apply → wire → commit/rollback).
+import { runOptimistic } from "@/hooks/useOptimistic";
 import {
   TEAM_ROLES,
   TeamInviteDto,
   TeamMemberDto,
   TeamRole,
   createInvite,
+  listInvites,
   listMembers,
-  listPendingInvites,
   redeemInvite,
   removeMember,
+  resendInvite,
   revokeInvite,
   updateMemberRole,
 } from "./teamApi";
+// M14-F2a/F4 — presentational tables live in tables.tsx: Next 15's generated
+// route-type check rejects any non-default export from a page module, so the
+// wave-9 "export MembersTable from the page" pattern moved out of page.tsx
+// (ATLAS gate). Same components, same props — only the module boundary moved.
+// M14-F4 note: MembersTable/RosterActions stay defined in THIS file (F4 owns
+// them here); only InvitesTable/InviteActions live in tables.tsx (F2a).
+// M14-F2b unblock: until F4 re-lands its in-page copy, MembersTable must come
+// from ./tables (its current home) or <MembersTable> below is undefined.
+import {
+  InvitesTable,
+  MembersTable,
+  restoreRow,
+  type InviteActions,
+  type RosterActions,
+} from "./tables";
 
 const cardStyle = { maxWidth: 760, marginBottom: 20 } as const;
-const tableStyle = { width: "100%", borderCollapse: "collapse", fontSize: 13 } as const;
-const thTdStyle = {
-  textAlign: "left",
-  padding: "6px 8px",
-  borderBottom: "1px solid var(--border)",
-} as const;
 
 const selectStyle = {
   background: "var(--panel-2)",
@@ -59,130 +85,35 @@ const rolePillClass: Record<string, string> = {
   guest: "pill red",
 };
 
+const tableStyle = { width: "100%", borderCollapse: "collapse", fontSize: 13 } as const;
+const thTdStyle = {
+  textAlign: "left",
+  padding: "6px 8px",
+  borderBottom: "1px solid var(--border)",
+} as const;
+
+// M14-F2a — badge classes for invite statuses (kept here only if referenced).
+
+/**
+ * M14-F4 — pure rollback merge for optimistic roster mutations. Restores the
+ * pre-mutation snapshot rows WITHOUT resurrecting rows the user deleted in
+ * the same session, and without clobbering rows mutated since (last-write
+ * wins for concurrent changes). Order follows the CURRENT list; snapshot-only
+ * survivors rejoin at their original depth.
+ */
+
 /** Callback bundle for the roster table. Kept explicit so the presentational
  *  component stays pure and SSR-testable without Next routing. */
-export interface RosterActions {
-  /** First tap on Remove — enters the inline-confirm state for that member. */
-  onAskRemove: (userId: string) => void;
-  /** Back out of the inline confirm without deleting anyone. */
-  onCancelRemove: (userId: string) => void;
-  /** Confirmed removal — caller owns the DELETE call + refresh + error text. */
-  onConfirmRemove: (userId: string) => void;
-  /** Role dropdown commit — caller owns the PATCH call + refresh + errors. */
-  onRoleChange: (userId: string, role: TeamRole) => void;
-}
 
-/** Presentational members table (H-010 core). Admins get a role <select> and
- *  a Remove flow per row (two-step, inline); non-admin viewers get the same
- *  read-only table Wave 9 shipped — zero management controls rendered. */
-export function MembersTable({
-  members,
-  isAdmin,
-  busyUserId,
-  pendingRemovalId,
-  actions,
-}: {
-  members: TeamMemberDto[];
-  isAdmin: boolean;
-  /** Member id whose mutation is in flight (disables that row's controls). */
-  busyUserId: string | null;
-  /** Member id showing the inline Remove confirmation. */
-  pendingRemovalId: string | null;
-  actions: RosterActions;
-}) {
-  return (
-    <table style={tableStyle}>
-      <thead>
-        <tr>
-          <th style={thTdStyle}>Name</th>
-          <th style={thTdStyle}>Email</th>
-          <th style={thTdStyle}>Type</th>
-          <th style={thTdStyle}>Role</th>
-          {isAdmin && <th style={thTdStyle}>Actions</th>}
-        </tr>
-      </thead>
-      <tbody>
-        {members.map((m) => (
-          <tr key={m.id}>
-            <td style={thTdStyle}>{m.displayName}</td>
-            <td style={thTdStyle}>{m.email ?? "—"}</td>
-            <td style={thTdStyle}>{m.memberType}</td>
-            <td style={thTdStyle}>
-              {isAdmin ? (
-                <select
-                  data-testid={`role-select-${m.id}`}
-                  aria-label={`Role for ${m.displayName}`}
-                  value={m.role}
-                  disabled={busyUserId === m.id}
-                  onChange={(e) => actions.onRoleChange(m.id, e.target.value as TeamRole)}
-                  style={selectStyle}
-                >
-                  {/* Unknown server roles still render as the selected option
-                      even though they're not in TEAM_ROLES. */}
-                  {(TEAM_ROLES.includes(m.role as TeamRole) ? TEAM_ROLES : [m.role as TeamRole, ...TEAM_ROLES]).map(
-                    (role) => (
-                      <option key={role} value={role}>
-                        {role}
-                      </option>
-                    ),
-                  )}
-                </select>
-              ) : (
-                <span className={rolePillClass[m.role] ?? "pill blue"}>{m.role}</span>
-              )}
-            </td>
-            {isAdmin && (
-              <td style={thTdStyle}>
-                {pendingRemovalId === m.id ? (
-                  <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-                    <span style={{ color: "var(--red)" }}>Remove this member?</span>
-                    <button
-                      type="button"
-                      className="btn danger"
-                      data-testid={`confirm-remove-${m.id}`}
-                      disabled={busyUserId === m.id}
-                      onClick={() => actions.onConfirmRemove(m.id)}
-                      aria-label={`Confirm removal of ${m.displayName}`}
-                    >
-                      {busyUserId === m.id ? "Removing…" : "Yes, remove"}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn"
-                      data-testid={`cancel-remove-${m.id}`}
-                      disabled={busyUserId === m.id}
-                      onClick={() => actions.onCancelRemove(m.id)}
-                    >
-                      Cancel
-                    </button>
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn danger"
-                    data-testid={`ask-remove-${m.id}`}
-                    disabled={busyUserId === m.id}
-                    onClick={() => actions.onAskRemove(m.id)}
-                    aria-label={`Remove ${m.displayName}`}
-                  >
-                    Remove
-                  </button>
-                )}
-              </td>
-            )}
-          </tr>
-        ))}
-        {members.length === 0 && (
-          <tr>
-            <td style={thTdStyle} colSpan={isAdmin ? 5 : 4}>
-              No members loaded.
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
-  );
-}
+// M14-F4 — roster rollback is ROW-SCOPED via restoreRow (./tables.tsx): each
+// mutation restores only the ONE row it touched, so a failed removal can never
+// zombie-resurrect rows other confirmed actions deleted, and a failed role
+// change never clobbers changes made since to other rows.
+
+// M14-DS migration completion (F2b cross-lane unblock): the roster table and
+// its RosterActions contract moved to ./tables.tsx; the stale copy that
+// remained here referenced deleted consts and broke tsc for every lane.
+// MembersTable is imported from ./tables at the top of this file.
 
 export default function TeamSettingsPage() {
   const [teamId, setTeamId] = useState<string | null>(null);
@@ -207,6 +138,10 @@ export default function TeamSettingsPage() {
   const [pendingRemovalId, setPendingRemovalId] = useState<string | null>(null);
   const [rosterError, setRosterError] = useState<string | null>(null);
 
+  // M14-F2a — invite lifecycle mutations
+  const [busyInviteId, setBusyInviteId] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+
   // Admin-only controls come straight from the frozen Principal contract
   // (contracts/ts/src/roles.ts): role "admin" sees management controls. Read
   // post-mount so the server prerender and first client render agree (the
@@ -219,11 +154,12 @@ export default function TeamSettingsPage() {
   // Members and invites load INDEPENDENTLY: the invites read is admin-only
   // server-side, so a non-admin viewer would otherwise 403 the whole page and
   // never see the roster. Members failing is a real error and still throws.
+  // M14-F2a: the invites read is the FULL lifecycle list now (every status).
   const refresh = useCallback(async (team: string) => {
     const token = loadSession()?.token ?? "";
     const [membersRes, invitesRes] = await Promise.allSettled([
       listMembers(team, token),
-      listPendingInvites(team, token),
+      listInvites(team, token),
     ]);
     if (membersRes.status === "rejected") throw membersRes.reason;
     setMembers(membersRes.value.items);
@@ -263,19 +199,46 @@ export default function TeamSettingsPage() {
     }
   };
 
-  const onRevoke = async (inviteId: string) => {
+  // M14-F2a — lifecycle actions on the InvitesTable. Both surface the SERVER's
+  // message verbatim on failure and refetch so badges always show server truth.
+  // Resend shows the fresh token exactly once, same law as mint: it is stored
+  // hashed server-side and never leaves the response again.
+  const onInviteResend = async (inviteId: string) => {
     if (!teamId) return;
     const token = loadSession()?.token ?? "";
-    setBusy(true);
-    setError(null);
+    setBusyInviteId(inviteId);
+    setInviteError(null);
+    setNotice(null);
     try {
-      await revokeInvite(teamId, inviteId, token);
+      const resent = await resendInvite(teamId, inviteId, token);
+      setMintedToken(resent.token); // one-time display, same as a fresh mint
+      setNotice(`Fresh invite link created for ${resent.email}. The old link no longer works.`);
       await refresh(teamId);
     } catch (e) {
-      setError(String((e as Error)?.message ?? e));
+      setInviteError(String((e as Error)?.message ?? e));
     } finally {
-      setBusy(false);
+      setBusyInviteId(null);
     }
+  };
+
+  const onInviteRevoke = async (inviteId: string) => {
+    if (!teamId) return;
+    const token = loadSession()?.token ?? "";
+    setBusyInviteId(inviteId);
+    setInviteError(null);
+    try {
+      await revokeInvite(teamId, inviteId, token);
+      await refresh(teamId); // row stays visible with status "revoked"
+    } catch (e) {
+      setInviteError(String((e as Error)?.message ?? e));
+    } finally {
+      setBusyInviteId(null);
+    }
+  };
+
+  const inviteActions = {
+    onResend: (id: string) => void onInviteResend(id),
+    onRevoke: (id: string) => void onInviteRevoke(id),
   };
 
   const onRedeem = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -303,46 +266,68 @@ export default function TeamSettingsPage() {
     }
   };
 
-  // W2-C1 — confirmed member removal. Failures surface the server's message
-  // verbatim (e.g. the 409 last-admin text); success clears the confirm state
-  // and refetches the roster so the table reflects server truth.
+  // M14-F4 — confirmed member removal, now OPTIMISTIC (W2-C1 semantics kept):
+  // the row vanishes the moment Remove is confirmed, the DELETE reconciles it,
+  // and any failure restores the exact prior row + surfaces the server's own
+  // message verbatim (e.g. the 409 LAST_ADMIN protection text). No trailing
+  // refetch on success — the mutation response IS server truth for this
+  // change, and a refetch would clobber a concurrently in-flight optimistic
+  // row. The confirm state clears immediately either way.
   const onConfirmRemove = async (userId: string) => {
     if (!teamId) return;
     const token = loadSession()?.token ?? "";
     setBusyUserId(userId);
     setRosterError(null);
-    try {
-      await removeMember(teamId, userId, token);
-      setPendingRemovalId(null);
+    setPendingRemovalId(null);
+    const outcome = await runOptimistic<TeamMemberDto[], null>({
+      apply: () => {
+        const snapshot = members;
+        setMembers(members.filter((m) => m.id !== userId)); // instant removal
+        return snapshot;
+      },
+      request: () => removeMember(teamId, userId, token),
+      rollback: (_snapshot) => {
+        // Restore only THIS row from the pre-mutation snapshot.
+        const prior = members.find((m) => m.id === userId);
+        if (prior) setMembers((cur) => restoreRow(cur, prior));
+      },
+      onError: (message) => setRosterError(message),
+    });
+    if (outcome === "confirmed") {
       setError(null);
       setNotice("Member removed from the team.");
-      await refresh(teamId);
-    } catch (e) {
-      setRosterError(String((e as Error)?.message ?? e));
-    } finally {
-      setBusyUserId(null);
     }
+    setBusyUserId(null);
   };
 
-  // W2-C1 — role change via PATCH. The dropdown keeps the SERVER's last known
-  // role until a successful refresh, so a failed change visibly snaps back
-  // instead of pretending it worked.
+  // M14-F4 — role change via PATCH, now OPTIMISTIC: the dropdown shows the
+  // chosen role instantly; commit reconciles with the SERVER's echoed role,
+  // and failure snaps the row back to its previous state + shows the error.
   const onRoleChange = async (userId: string, role: TeamRole) => {
     if (!teamId) return;
     const token = loadSession()?.token ?? "";
     setBusyUserId(userId);
     setRosterError(null);
-    try {
-      await updateMemberRole(teamId, userId, role, token);
-      setError(null);
-      setNotice(`Role changed to ${role}.`);
-      await refresh(teamId);
-    } catch (e) {
-      setRosterError(String((e as Error)?.message ?? e));
-      await refresh(teamId).catch(() => {}); // snap dropdown back to server truth
-    } finally {
-      setBusyUserId(null);
-    }
+    await runOptimistic<TeamMemberDto[], { userId: string; role: string }>({
+      apply: () => {
+        const snapshot = members;
+        setMembers(members.map((m) => (m.id === userId ? { ...m, role } : m)));
+        return snapshot;
+      },
+      request: () => updateMemberRole(teamId, userId, role, token),
+      // Reconcile with SERVER truth (the echoed {userId, role}), not the guess.
+      commit: (res) =>
+        setMembers((cur) =>
+          cur.map((m) => (m.id === res.userId ? { ...m, role: res.role } : m)),
+        ),
+      rollback: (_snapshot) => {
+        // Snap THIS row back to its pre-mutation state only.
+        const prior = members.find((m) => m.id === userId);
+        if (prior) setMembers((cur) => restoreRow(cur, prior));
+      },
+      onError: (message) => setRosterError(message),
+    });
+    setBusyUserId(null);
   };
 
   const rosterActions = {
@@ -448,46 +433,23 @@ export default function TeamSettingsPage() {
           </div>
         )}
 
-        <h2 style={{ marginTop: 18 }}>Pending invites</h2>
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thTdStyle}>Email</th>
-              <th style={thTdStyle}>Role</th>
-              <th style={thTdStyle}>Expires</th>
-              <th style={thTdStyle}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {invites.map((i) => (
-              <tr key={i.id}>
-                <td style={thTdStyle}>{i.email}</td>
-                <td style={thTdStyle}>
-                  <span className={rolePillClass[i.role] ?? "pill blue"}>{i.role}</span>
-                </td>
-                <td style={thTdStyle}>{new Date(i.expiresAt).toLocaleString()}</td>
-                <td style={thTdStyle}>
-                  <button
-                    type="button"
-                    className="btn danger"
-                    disabled={busy}
-                    onClick={() => onRevoke(i.id)}
-                    aria-label={`Revoke invite for ${i.email}`}
-                  >
-                    Revoke
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {invites.length === 0 && (
-              <tr>
-                <td style={thTdStyle} colSpan={4}>
-                  No pending invites.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        <h2 style={{ marginTop: 18 }}>Invites</h2>
+        {inviteError && (
+          <p role="alert" style={{ color: "var(--red)" }}>
+            {inviteError}
+          </p>
+        )}
+        {!isAdmin && (
+          <p style={{ color: "var(--muted)", fontSize: 12 }}>
+            Invite management (resend / revoke) is restricted to team admins.
+          </p>
+        )}
+        {/* M14-F2a — full lifecycle table with color+text status badges. */}
+        <InvitesTable
+          invites={invites}
+          busyInviteId={busyInviteId}
+          actions={inviteActions}
+        />
       </section>
 
       <section className="card" style={cardStyle}>

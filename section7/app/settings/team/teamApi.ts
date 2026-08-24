@@ -6,11 +6,26 @@
 // W2-C1: DELETE /api/v1/teams/{id}/members/{userId} → 204 and
 // PATCH .../members/{userId} {role} → 200 {userId, role}; errors come back
 // as error_body() and surface through parseApiError unchanged.
-// UNVERIFIED against the live server until lane E3a lands — ATLAS diffs at gate.
+//
+// M14-F2a — invite lifecycle: the list endpoint now returns EVERY status
+// (draft/sent/redeemed/expired/revoked derived server-side), resend re-mints
+// the token (old one revoked server-side in the same transaction) and revoke
+// stamps instead of deleting. Statuses arrive as strings; render them as-is —
+// never guess a status client-side.
 import { ApiError, IDENTITY_BASE, parseApiError } from "@/lib/api";
 
 export type TeamRole = "admin" | "engineer" | "viewer" | "guest";
 export const TEAM_ROLES: TeamRole[] = ["admin", "engineer", "viewer", "guest"];
+
+/** M14-F2a — lifecycle statuses exactly as Section 1 derives them. */
+export const INVITE_STATUSES = [
+  "draft",
+  "sent",
+  "redeemed",
+  "expired",
+  "revoked",
+] as const;
+export type InviteStatus = (typeof INVITE_STATUSES)[number];
 
 export interface TeamMemberDto {
   id: string;
@@ -28,7 +43,11 @@ export interface TeamInviteDto {
   role: string;
   expiresAt: string;
   redeemedAt: string | null;
+  /** M14-F2a: stamped when an admin revokes (row is kept, not deleted). */
+  revokedAt: string | null;
   createdAt: string;
+  /** M14-F2a: server-derived lifecycle status — render it, never re-derive. */
+  status: string;
 }
 
 export interface MintedInviteDto extends TeamInviteDto {
@@ -94,11 +113,22 @@ export function updateMemberRole(
   });
 }
 
-export function listPendingInvites(
+/** M14-F2a — full lifecycle list (every status). Admin-only server-side;
+ *  non-admin callers get 403/404 and the page degrades to the roster only. */
+export function listInvites(
   teamId: string,
   token: string,
 ): Promise<{ items: TeamInviteDto[] }> {
   return request(`/api/v1/teams/${teamId}/invites`, token);
+}
+
+/** Back-compat alias for the old pending-only read: ?status=sent narrows to
+ *  live invites exactly like the wave-9 endpoint did. */
+export function listPendingInvites(
+  teamId: string,
+  token: string,
+): Promise<{ items: TeamInviteDto[] }> {
+  return request(`/api/v1/teams/${teamId}/invites?status=sent`, token);
 }
 
 export function createInvite(
@@ -113,6 +143,20 @@ export function createInvite(
   });
 }
 
+/** M14-F2a — POST .../invites/{id}/resend → 201 {…invite, token}.
+ *  Server mints a fresh token and kills the old one in one transaction. */
+export function resendInvite(
+  teamId: string,
+  inviteId: string,
+  token: string,
+): Promise<MintedInviteDto> {
+  return request(`/api/v1/teams/${teamId}/invites/${inviteId}/resend`, token, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+/** M14-F2a — revoke now stamps revoked_at; the row stays visible as "revoked". */
 export function revokeInvite(
   teamId: string,
   inviteId: string,
