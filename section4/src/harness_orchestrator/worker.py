@@ -22,6 +22,13 @@ class RunQueueWorker:
             logger.exception("orphan recovery failed at worker start")
         while True:
             try:
+                # M13-H1b: release timed-out claims every cycle so a dead
+                # worker's run is blocked + emitted instead of stuck 'running'.
+                if hasattr(self.service, "reap_zombies"):
+                    await self.service.reap_zombies()
+            except Exception:  # noqa: BLE001 — one bad sweep must never kill the worker
+                logger.exception("zombie reaper sweep failed")
+            try:
                 await self.service.poll_once()
             except asyncio.CancelledError:
                 raise
