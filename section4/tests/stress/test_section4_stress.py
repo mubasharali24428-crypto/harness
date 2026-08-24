@@ -490,7 +490,7 @@ class TestEngineSingleModel:
                 )
                 self.calls = []
 
-            def _run_live(self, goal, session_id, model=None):
+            def _run_live_events(self, goal, session_id, model=None):
                 self.calls.append(model)
                 if model == failing_model:
                     # M14-W4 F1a: 4th element = raw SDK events (usage source).

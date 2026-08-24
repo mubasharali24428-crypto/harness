@@ -18,18 +18,17 @@ agent_plans/agent_events for rehydration), per test_budget.py's pattern.
 
 import asyncio
 
-import pytest
-from decimal import Decimal
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-
-from harness_contracts.events import EventType
-
 # Sibling section src trees (mirrors the runtime seams service.py/api.py use;
 # pyproject pythonpath only carries this section + contracts).
 import sys as _sys
+from decimal import Decimal
+
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from harness_contracts.events import EventType
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 _ROOT = None
 
@@ -50,8 +49,9 @@ _ensure_sibling_srcs()
 
 import harness_router.api as router_api  # noqa: E402
 from harness_identity.cost_ledger import _to_money  # noqa: E402  (exact money)
-from harness_orchestrator.service import OrchestratorService  # noqa: E402
 from harness_router.pricing import PricingEngine  # noqa: E402
+
+from harness_orchestrator.service import OrchestratorService  # noqa: E402
 
 DDL = """
 CREATE TABLE teams (
@@ -239,7 +239,6 @@ def test_estimated_tokens_when_engine_reports_no_usage(db_factory):
     assert len(rows) == 1
     row = rows[0]
     # ~4 chars/token estimate, same convention as the router's /call metering.
-    goal_len = len(svc.runs["m-run2"].get("goal") or "")
     assert row["output_tokens"] == max(1, len("done" * 50) // 4)
     assert row["input_tokens"] >= 1
 
