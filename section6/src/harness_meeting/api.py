@@ -223,8 +223,12 @@ class MessagePageOut(BaseModel):
     response_model=MeetingOut,
     responses={401: {"description": "bad or missing token"}},
 )
-def create_meeting(req: CreateMeetingRequest, principal: RequirePrincipal) -> dict[str, Any]:
-    meeting = _service.create_meeting(req.projectId, req.title)
+def create_meeting(
+    req: CreateMeetingRequest,
+    principal: RequirePrincipal,
+    svc: Annotated[MeetingService, Depends(get_meeting_service)],
+) -> dict[str, Any]:
+    meeting = svc.create_meeting(req.projectId, req.title)
     return meeting.model_dump()
 
 
@@ -252,10 +256,13 @@ def get_meeting(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
     responses={404: {"model": _ErrorEnvelope, "description": "unknown meeting"}},
 )
 def post_message(
-    meetingId: str, req: PostMessageRequest, principal: RequirePrincipal
+    meetingId: str,
+    principal: RequirePrincipal,
+    svc: Annotated[MeetingService, Depends(get_meeting_service)],
+    req: PostMessageRequest,
 ) -> dict[str, Any]:
     try:
-        msg = _service.post_message(meetingId, principal.userId, req.content)
+        msg = svc.post_message(meetingId, principal.userId, req.content)
         return msg.model_dump()
     except KeyError as e:
         raise HTTPException(
@@ -274,12 +281,16 @@ def post_message(
         404: {"model": _ErrorEnvelope, "description": "unknown meeting"},
     },
 )
-def close_meeting(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
+def close_meeting(
+    meetingId: str,
+    principal: RequirePrincipal,
+    svc: Annotated[MeetingService, Depends(get_meeting_service)],
+) -> dict[str, Any]:
     """Close a meeting (M16-X5, raw-18 §8). Terminal + idempotent (#53): the
     second close returns the SAME stamped meeting — never an error, never a
     moved closedAt. After close, message posts answer 410 MEETING_CLOSED."""
     try:
-        meeting = _service.close_meeting(meetingId)
+        meeting = svc.close_meeting(meetingId)
         return meeting.model_dump()
     except KeyError as e:
         raise HTTPException(
@@ -297,6 +308,7 @@ def close_meeting(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]
 def get_messages(
     meetingId: str,
     principal: RequirePrincipal,
+    svc: Annotated[MeetingService, Depends(get_meeting_service)],
     limit: int | None = Query(default=None, gt=0),
     before: str | None = None,
 ) -> dict[str, Any]:
@@ -323,7 +335,7 @@ def get_messages(
     try:
         if limit is not None and limit > MESSAGES_MAX_LIMIT:
             limit = MESSAGES_MAX_LIMIT  # clamp, never reject
-        items, has_more, first_seq = _service.get_message_page(
+        items, has_more, first_seq = svc.get_message_page(
             meetingId, limit=limit, before=before
         )
         return {
