@@ -23,13 +23,19 @@ H-019 — error envelope unification
 
 H-020 — Idempotency-Key middleware on mutating POSTs
     A POST carrying an ``Idempotency-Key`` header executes once per
-    (route template, principal, key); replays return the cached status+body
-    without re-running the handler. Keys are scoped per route TEMPLATE
-    (never raw path segments) and per principal. Storage is the DB-backed
-    ``idempotency_keys`` table (section1/migrations/0015_idempotency.sql);
-    TTL/cleanup is Wave 3's job (the table already carries ``expires_at``).
-    Every storage problem fails OPEN so the middleware can never take the
-    API down.
+    (concrete path, principal, key); replays return the cached status+body
+    without re-running the handler. Keys are scoped per CONCRETE path
+    (never collapsed onto the route template: recycling one key across two
+    resources must never false-replay) and per principal. Storage is the
+    DB-backed ``idempotency_keys`` table
+    (section1/migrations/0015_idempotency.sql); the reserve row carries a
+    JSONB placeholder — ``'{}'`` bound as $2 and cast ``::jsonb``. The
+    column is JSONB and asyncpg rejects a bare '' (the old literal made
+    every reserve fail open); an inline ``'{}'::jsonb`` literal cannot be
+    used either because statements go through ``str.format`` for the table
+    name, and ``{}`` is a format field. TTL/cleanup is Wave 3's job (the
+    table already carries ``expires_at``). Every storage problem fails OPEN
+    so the middleware can never take the API down.
 """
 
 from __future__ import annotations
@@ -118,12 +124,10 @@ def install_error_envelope(app: FastAPI) -> None:
 
 
 def route_template(path: str) -> str:
-    """Collapse raw ids in a concrete path onto its route template so keys stay
-    scoped per endpoint shape, not per object instance.
-
-    ``/api/v1/orchestrator/runs/run-9f2/start`` →
-    ``/api/v1/orchestrator/runs/{id}/start``. Numeric segments become ``{id}``
-    too (covers numeric routes). Real words like ``plan`` or ``keys`` survive."""
+    """Collapse raw ids in a concrete path onto its route template. Kept for
+    logging/metrics labeling; the idempotency fingerprint deliberately uses
+    the CONCRETE path instead, so recycling one Idempotency-Key across two
+    resources (/runs/a/start vs /runs/b/start) can never false-replay."""
     parts: list[str] = []
     for seg in path.split("/"):
         if not seg:
@@ -158,7 +162,7 @@ class IdempotencyMiddleware:
     the pool exists AND set ``app.state.idempotency_pool = <asyncpg pool>``.
     First request with an Idempotency-Key executes and stores (status, body);
     concurrent/replayed requests carrying the same key get the cached pair
-    back verbatim. Scoped by (route_template, principal, key); any storage
+    back verbatim. Scoped by (concrete path, principal, key); any storage
     failure fails OPEN.
     """
 
@@ -177,8 +181,9 @@ class IdempotencyMiddleware:
             return
 
         request = Request(scope)
-        route = route_template(request.url.path)
-        fingerprint = f"{route}|{principal_scope_key(request)}|{key}"
+        # Scope = concrete path (never a template collapse: two different
+        # resources must not share a key) + principal digest + client key.
+        fingerprint = f"{request.url.path}|{principal_scope_key(request)}|{key}"
         pool = getattr(request.app.state, "idempotency_pool", None)
         table = getattr(request.app.state, "idempotency_table", "idempotency_keys")
         if pool is None:
@@ -277,7 +282,13 @@ class IdempotencyMiddleware:
         if row is None:
             return None
         try:
-            return int(row["status_code"]), json.loads(row["response_body"])
+            status = int(row["status_code"])
+            if status == 0 or not row["response_body"]:
+                # status_code = 0 is the reserve sentinel: the holder is still
+                # executing. Treat as a miss so pollers keep waiting instead of
+                # replaying an invalid status-0 placeholder response.
+                return None
+            return status, json.loads(row["response_body"])
         except (ValueError, TypeError):
             return None
 
@@ -288,10 +299,11 @@ class IdempotencyMiddleware:
                     self._table_sql(
                         table,
                         "INSERT INTO {table} (fingerprint, status_code, response_body) "
-                        "VALUES ($1, 0, '') ON CONFLICT (fingerprint) DO NOTHING "
+                        "VALUES ($1, 0, $2::jsonb) ON CONFLICT (fingerprint) DO NOTHING "
                         "RETURNING fingerprint",
                     ),
                     fingerprint,
+                    "{}",
                 )
             return row is not None
         except Exception:
@@ -319,7 +331,8 @@ class IdempotencyMiddleware:
                 await conn.execute(
                     self._table_sql(
                         table,
-                        "UPDATE {table} SET status_code = $2, response_body = $3 "
+                        "UPDATE {table} SET status_code = $2, "
+                        "response_body = $3::jsonb "
                         "WHERE fingerprint = $1",
                     ),
                     fingerprint,

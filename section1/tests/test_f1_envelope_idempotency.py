@@ -18,6 +18,7 @@ Sessions are seeded straight into the store with contract-shaped token hashes
 so no login route is needed. Everything runs offline on aiosqlite.
 """
 
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -103,6 +104,12 @@ class FakeAsyncPgPool:
 
     def __init__(self):
         self.rows = {}
+        # Strict JSONB typing, asyncpg-style: the column is jsonb, so a
+        # non-JSON string (e.g. the old '' reserve literal) must raise —
+        # exactly what asyncpg does with InvalidTextRepresentationError.
+        # Without this validator the fake pool silently accepted '' and kept
+        # the F1 reserve blocker green in unit lanes while failing on real PG.
+        self.jsonb_validator = _JsonbValidator()
 
     class _Conn:
         def __init__(self, pool):
@@ -117,15 +124,22 @@ class FakeAsyncPgPool:
                 fp = args[0]
                 if fp in self._pool.rows:
                     return None  # ON CONFLICT DO NOTHING
+                literal = self._extract_jsonb_literal(stmt)
+                if literal.startswith("$"):
+                    payload = args[int(literal.lstrip("$").split("::")[0]) - 1]
+                else:
+                    payload = literal.strip("'")
+                self._pool.jsonb_validator.validate(payload)
                 self._pool.rows[fp] = {
                     "fingerprint": fp,
                     "status_code": 0,
-                    "response_body": "",
+                    "response_body": payload,
                 }
                 return {"fingerprint": fp}
             if stmt.startswith("UPDATE"):
                 rec = self._pool.rows.get(args[0])
                 if rec is not None:
+                    self._pool.jsonb_validator.validate(str(args[2]))
                     rec["status_code"], rec["response_body"] = args[1], str(args[2])
                 return None
             if stmt.startswith("DELETE"):
@@ -133,11 +147,39 @@ class FakeAsyncPgPool:
                 return None
             raise AssertionError(f"unexpected SQL: {stmt[:80]}")
 
+        @staticmethod
+        def _extract_jsonb_literal(sql: str):
+            import re
+
+            m = re.search(r"VALUES\s*\(([^)]*)\)", " ".join(sql.split()))
+            if not m:
+                raise AssertionError(f"no VALUES clause: {sql[:120]}")
+            lit = [c.strip() for c in m.group(1).split(",")][2]  # response_body
+            if not (lit.startswith("$") or lit.startswith("'")):
+                raise AssertionError(f"unrecognized placeholder {lit!r}: {sql[:120]}")
+            return lit
+
         async def execute(self, sql, *args):
             await self.fetchrow(sql, *args)
 
     def acquire(self):
         return _AcquireCtx(self._Conn(self))
+
+
+class _JsonbValidator:
+    """Rejects anything Postgres JSONB would reject (asyncpg strict typing).
+
+    Mirrors asyncpg's InvalidTextRepresentationError for empty/non-JSON
+    strings; valid JSON passes through unchanged.
+    """
+
+    def validate(self, value: str) -> None:
+        try:
+            json.loads(value)
+        except (ValueError, TypeError) as exc:
+            raise ValueError(
+                f"invalid input syntax for type json ({value!r})"
+            ) from exc
 
 
 class _AcquireCtx:
@@ -149,6 +191,11 @@ class _AcquireCtx:
 
     async def __aexit__(self, *exc):
         return False
+
+
+async def _noop_asgi(scope, receive, send):
+    """Placeholder ASGI app for direct storage-helper probes; never runs."""
+    raise AssertionError("middleware __call__ must not execute in helper probes")
 
 
 @pytest.fixture
@@ -324,3 +371,158 @@ def test_migration_0015_defines_table():
     sql = (migrations_dir / "0015_idempotency.sql").read_text()
     assert "CREATE TABLE idempotency_keys" in sql
     assert "fingerprint" in sql and "expires_at" in sql
+
+
+# ------------------------------------------------- F1 fix-loop: JSONB blocker
+
+
+async def test_reserve_placeholder_is_valid_json(idem_client):
+    """F1 fix-loop REGRESSION (VT-1): the reserve INSERT used the literal ''
+    for the JSONB ``response_body`` column. asyncpg rejects that
+    (InvalidTextRepresentationError), the broad except swallowed it, and the
+    middleware failed open on every request — idempotency never engaged in
+    production while this fake pool silently accepted ''.
+
+    The pool now validates what the middleware actually inserts against real
+    JSON semantics (mirroring asyncpg strict typing), so the old '' literal
+    fails right here instead of on live Postgres.
+    """
+    admin = await _seed_user(idem_client.app.state.session_factory, "f1e@x.com")
+    headers = {**_bearer(admin["token"]), "Idempotency-Key": "jsonb-placeholder"}
+    r = await idem_client.post("/api/v1/keys", json=KEY_PAYLOAD, headers=headers)
+    assert r.status_code == 201, r.text
+
+    pool = idem_client.app.state.idempotency_pool
+    reserved = [
+        row
+        for row in pool.rows.values()
+        if row["status_code"] == 0 or row["response_body"] == ""
+    ]
+    # The mint succeeded => its reserve row was already promoted by _store;
+    # any row still sitting at the placeholder proves the sentinel leaked.
+    assert reserved == []
+
+    # Direct probe of the storage helper: whatever _reserve writes must parse
+    # as JSON ('{}'::jsonb), never the bare '' that Postgres rejects.
+    from harness_identity.envelope_middleware import IdempotencyMiddleware
+
+    fresh_pool = FakeAsyncPgPool()
+    mw = IdempotencyMiddleware(_noop_asgi)
+    ok = await mw._reserve(fresh_pool, "idempotency_keys", "probe|principal|key")
+    assert ok is True
+    stored = fresh_pool.rows["probe|principal|key"]["response_body"]
+    assert isinstance(stored, str) and stored != ""
+    assert json.loads(stored) == {}  # valid JSON(B) placeholder
+
+
+def test_reserve_placeholder_is_bound_jsonb():
+    """The reserve INSERT must deliver a JSONB-valid placeholder ('{}') to a
+    column typed jsonb. Grep-level tripwire against BOTH failure modes VT-1
+    caught: the original bare '' literal (asyncpg rejects it), and an inline
+    ``'{}'::jsonb`` literal, which str.format(table=...) would eat as a
+    replacement field (IndexError -> fail-open)."""
+    src = Path(__file__).parents[1].joinpath(
+        "src/harness_identity/envelope_middleware.py"
+    ).read_text()
+    assert "\"VALUES ($1, 0, '')" not in src  # the exact old blocker
+    assert "$2::jsonb" in src  # placeholder bound + explicitly cast to jsonb
+    assert '"{}"' in src  # the '{}' placeholder is actually passed as an arg
+
+
+async def test_live_postgres_accepts_reserve_placeholder():
+    """If HARNESS_TEST_PG points at a live Postgres (compose maps 5499),
+    prove the reserve/store round-trip against REAL asyncpg + JSONB.
+    Skipped otherwise so the offline unit lane stays hermetic."""
+    import os
+
+    dsn = os.environ.get("HARNESS_TEST_PG")
+    if not dsn:
+        pytest.skip("HARNESS_TEST_PG not set; live-PG probe skipped")
+    try:
+        import asyncpg
+    except ImportError:  # pragma: no cover - asyncpg ships in every venv
+        pytest.skip("asyncpg unavailable")
+
+    from harness_identity.envelope_middleware import IdempotencyMiddleware
+
+    conn = await asyncpg.connect(dsn)
+    try:
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS f1_probe_idempotency (
+                fingerprint TEXT PRIMARY KEY,
+                status_code INTEGER NOT NULL DEFAULT 0,
+                response_body JSONB NOT NULL DEFAULT '{}'::jsonb,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                expires_at TIMESTAMPTZ NOT NULL DEFAULT now() + INTERVAL '24 hours'
+            )
+            """
+        )
+
+        class _OneConnPool:
+            def acquire(self):
+                return _OneConnCtx(conn)
+
+        class _OneConnCtx:
+            def __init__(self, c):
+                self._c = c
+
+            async def __aenter__(self):
+                return self._c
+
+            async def __aexit__(self, *exc):
+                return False
+
+        pool = _OneConnPool()
+        mw = IdempotencyMiddleware(_noop_asgi)
+        fp = f"f1-probe|{datetime.now(UTC).timestamp()}"
+        try:
+            assert await mw._reserve(pool, "f1_probe_idempotency", fp)
+            row = await conn.fetchrow(
+                "SELECT status_code, response_body FROM f1_probe_idempotency "
+                "WHERE fingerprint = $1",
+                fp,
+            )
+            assert row is not None
+            assert int(row["status_code"]) == 0
+            # Stock asyncpg hands jsonb back as text ('{}'); '' would have
+            # exploded at INSERT time with InvalidTextRepresentationError.
+            placeholder = row["response_body"]
+            if isinstance(placeholder, str):
+                placeholder = json.loads(placeholder)
+            assert placeholder == {}
+            await mw._store(pool, "f1_probe_idempotency", fp, 201, {"ok": True})
+            row = await conn.fetchrow(
+                "SELECT status_code, response_body FROM f1_probe_idempotency "
+                "WHERE fingerprint = $1",
+                fp,
+            )
+            stored = row["response_body"]
+            if isinstance(stored, str):
+                stored = json.loads(stored)
+            assert int(row["status_code"]) == 201 and stored == {"ok": True}
+            cached = await mw._lookup(pool, "f1_probe_idempotency", fp)
+            assert cached == (201, {"ok": True})
+        finally:
+            await conn.execute("DROP TABLE IF EXISTS f1_probe_idempotency")
+    finally:
+        await conn.close()
+
+
+async def test_lookup_treats_unstored_reserve_as_miss(idem_client):
+    """With the JSONB blocker fixed, reserve rows actually persist — so a
+    concurrent duplicate MUST see the status-0 placeholder as a miss (keep
+    polling), never replay an invalid status-0 response."""
+    mw = IdempotencyMiddleware(_noop_asgi)
+    pool = FakeAsyncPgPool()
+    fp = "/api/v1/keys|principal|sentinel"
+
+    # Seed exactly what a real PG reserve row looks like pre-store.
+    reserved = await mw._reserve(pool, "idempotency_keys", fp)
+    assert reserved is True
+    # Old _lookup returned (0, {}) here => caller replays status 0. Fixed
+    # _lookup must report a miss while the holder is still executing.
+    assert await mw._lookup(pool, "idempotency_keys", fp) is None
+
+    await mw._store(pool, "idempotency_keys", fp, 201, {"done": True})
+    assert await mw._lookup(pool, "idempotency_keys", fp) == (201, {"done": True})
