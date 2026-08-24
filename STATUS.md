@@ -498,3 +498,8 @@ To run the platform with ownership enforcement on:
   limit quick wins. Tests 392→415 total. GAP doc now 1055 lines.
 - 2026-08-22 wave 1: 9 FATAL + HIGH fixes, event-log rehydration, live authz
   proofs. See GAP doc Appendix E.
+
+## Mission 12 — Wave 2 CLOSED (2026-08-23)
+
+All 20 lanes landed and gated. Final suites: S1 262 · S4 274 · S6 64 · S7
+tsc-clean + vitest 281/281. Verifier teams VT-1..VT-5 next.
