@@ -535,7 +535,7 @@ async def project_ws(
     ticket: str = "", fingerprint: str = "",
 ):
     # M15-W5-S2: redemption result carries the mint-time client fingerprint
-    # (None when no ticket was presented, or for pre-0024 rows — grace path).
+    # (None when no ticket was presented, or for pre-0025 rows — grace path).
     redeemed = None
     if ticket:
         # One-time redemption binds the principal AND the project in one step,

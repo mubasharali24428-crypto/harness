@@ -9,7 +9,7 @@ recomputes it from the upgrading request. Matrix:
   - X-WS-Fingerprint wrong    -> close 4403
   - X-WS-Fingerprint correct  -> accepted
   - token/Bearer paths        -> untouched by binding (no ticket to validate)
-  - pre-0024 rows (fp NULL)   -> redeemable under the grace path
+  - pre-0025 rows (fp NULL)   -> redeemable under the grace path
 
 Dialects: SQLite in-memory-style file DB for the fast suite; live PostgreSQL
 (opt-in via HARNESS_TEST_PG, repo convention) proves the migration DDL and the
@@ -154,7 +154,7 @@ def _seed_sync(with_fingerprint_column: bool = True):
     )
     con.commit()
     con.close()
-    # Ephemeral-state tables (migration 0005 + 0024) — tests own their SQLite schema.
+    # Ephemeral-state tables (migration 0005 + 0025) — tests own their SQLite schema.
     fp_col = ",\n            fingerprint VARCHAR(32)" if with_fingerprint_column else ""
     con = __import__("sqlite3").connect(DB_FILE)
     con.executescript(
@@ -385,7 +385,7 @@ async def test_header_cannot_override_server_side_binding(db):
 
 
 # ================================================================
-# Backward compatibility: non-ticket paths and pre-0024 rows
+# Backward compatibility: non-ticket paths and pre-0025 rows
 # ================================================================
 
 
@@ -401,7 +401,7 @@ async def test_token_and_bearer_paths_unaffected(db):
 
 
 async def test_pre_migration_row_without_fingerprint_still_redeems(db):
-    """Grace path for rows minted before migration 0024 (fingerprint NULL)."""
+    """Grace path for rows minted before migration 0025 (fingerprint NULL)."""
     from harness_contracts import Principal
     from harness_contracts.roles import Role
 
@@ -515,7 +515,7 @@ class TestLivePostgresFingerprintMigration:
                     await conn.execute(stmt)
                 for stmt in _split_sql(_migration("0005_ephemeral_state.sql")):
                     await conn.execute(stmt)
-                for stmt in _split_sql(_migration("0024_ws_fingerprint.sql")):
+                for stmt in _split_sql(_migration("0025_ws_fingerprint.sql")):
                     await conn.execute(stmt)
 
                 cols = {
@@ -530,7 +530,7 @@ class TestLivePostgresFingerprintMigration:
                 assert int(cols["fingerprint"]["character_maximum_length"]) == 32
 
                 # Idempotent: re-running the migration is a no-op.
-                for stmt in _split_sql(_migration("0024_ws_fingerprint.sql")):
+                for stmt in _split_sql(_migration("0025_ws_fingerprint.sql")):
                     await conn.execute(stmt)
 
                 now_iso = datetime.now(UTC).isoformat()

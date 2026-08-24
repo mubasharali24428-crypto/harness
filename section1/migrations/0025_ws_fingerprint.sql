@@ -11,7 +11,11 @@
 -- header is OPTIONAL for this release: absent -> warn-log + allow; present but
 -- wrong -> reject. Clients that never send the header keep working.
 --
--- Migration slot: 0024 per the mission order (mission15-wave5-graph.md, S2).
+-- Migration slot: 0025. Originally written as 0024 per the mission order,
+-- but G6b's team_settings migration claimed that prefix first (commit order:
+-- 767b50f landed before this lane's 02f5fca). Duplicate prefixes crash
+-- migrate() on fresh installs (schema_migrations PK violation), so this lane
+-- renumbered to the next free slot during W5 close-out verification.
 -- Slots 0022/0023 are reserved by the same mission's KDF (S4) and FK-story
 -- (D1) lanes; this file is self-contained either way.
 --

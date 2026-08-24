@@ -89,7 +89,7 @@ async def mint_ws_ticket(
 class RedeemedTicket:
     """Redemption result: the principal plus the client-binding data needed to
     validate the upgrade (M15-W5-S2). fingerprint is the mint-time value —
-    NULL for rows minted before migration 0024 (grace path)."""
+    NULL for rows minted before migration 0025 (grace path)."""
 
     __slots__ = ("principal", "fingerprint")
 
@@ -123,6 +123,6 @@ async def redeem_ws_ticket(factory: async_sessionmaker, token: str, project_id: 
         role = Role(row.role.lower())
     return RedeemedTicket(
         principal=Principal(userId=row.user_id, teamId=row.team_id, role=role),
-        # Pre-0024 rows (and any DB where 0024 has not run) carry NULL here.
+        # Pre-0025 rows (and any DB where 0025 has not run) carry NULL here.
         fingerprint=row.fingerprint,
     )
