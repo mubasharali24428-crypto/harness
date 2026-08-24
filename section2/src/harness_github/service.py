@@ -3,6 +3,7 @@ from harness_contracts import KeyVault
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .client import GitHubClient
+from .pr_open import record_pr_opened
 from .store import connect_repo, get_repo_full_name, get_user_token
 
 
@@ -14,10 +15,14 @@ class GitHubService:
         db: AsyncSession,
         vault: KeyVault,
         transport: httpx.AsyncBaseTransport | None = None,
+        bus=None,
     ):
         self._db = db
         self._vault = vault
         self._transport = transport
+        # Duck-typed S1 EventBus (M12-W2 E4a): when wired, opening a PR for a
+        # run persists prId + emits pr_opened. None keeps the legacy behavior.
+        self._bus = bus
 
     async def _client_for(self, user_id: str) -> tuple[GitHubClient, str]:
         token = await get_user_token(self._db, self._vault, user_id)
@@ -68,6 +73,23 @@ class GitHubService:
         pr = await client.open_draft_pr(repo, branch, base_branch, title, body_md)
         if not pr["draft"]:
             raise RuntimeError("GitHub returned a non-draft PR; refusing to accept")
+        # M12-W2 E4a (W2-C2): persist the PR against its run + announce it.
+        # The runId arrives via the branch name (agent/<runId> convention);
+        # absent one there is no run to link and the response keeps its
+        # legacy shape (plus prId when bound). Never fails the PR open.
+        emitted = None
+        try:
+            from .pr_open import run_id_from_branch
+
+            run_id = run_id_from_branch(branch)
+            if run_id is not None:
+                emitted = await record_pr_opened(
+                    self._db, self._bus, project_id, run_id, pr
+                )
+        except Exception:  # noqa: BLE001 — producer must never fail the open
+            pass
+        if emitted is not None:
+            return {**pr, "prId": emitted["prId"]}
         return pr
 
     async def getPRStatus(self, user_id: str, project_id: str, pr_number: int) -> dict:

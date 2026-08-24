@@ -332,7 +332,8 @@ async def run_pr_id(project_id: str, run_id: str, request: Request) -> dict:
     {"runId", "prId", "url"} exactly like the event payload; prId is null
     when the run has not opened a PR yet.
     """
-    principal = await _start_principal(request)
+    # Auth enforcement only (ownership = project path segment); no body needs it.
+    await _start_principal(request)
     from sqlalchemy import text
 
     sql = text(

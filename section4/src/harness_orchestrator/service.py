@@ -21,6 +21,7 @@ from harness_orchestrator.run_queue import (
     heartbeat_run,
     reclaim_orphans,
 )
+from harness_orchestrator.rules_loader import build_rules_block, load_project_rules
 from harness_orchestrator.signals import gate_done_signal
 from harness_orchestrator.state_machine import (
     PLAN_REJECTED_EVENT,
@@ -393,6 +394,14 @@ class OrchestratorService(Orchestrator):
             run_data["projectId"] = project_id
 
         sm.start_planning()
+        # M12-G10: user-authored project rules are advisory prompt context.
+        # Loaded best-effort (missing table/DB ⇒ ""), never blocks planning;
+        # stored on the run so tests can assert the assembled prompt block
+        # and future engine calls can carry it into system context.
+        rules_text = await load_project_rules(
+            self.session_factory, run_data.get("projectId")
+        )
+        run_data["rules_prompt_block"] = build_rules_block(rules_text)
         plan_id, plan = self.planner.create_plan(goal=run_data["goal"])
         run_data["plan_id"] = plan_id
         await self._persist_plan(run_id, plan_id, plan, status="proposed")

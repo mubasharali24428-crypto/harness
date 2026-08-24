@@ -50,6 +50,39 @@ async def get_pr_by_github_number(
     return dict(row) if row else None
 
 
+async def get_run_pr_record(db: AsyncSession, run_id: str) -> dict[str, Any] | None:
+    """M12-W2 E4a (W2-C2 consumer half): resolve a run's opened PR.
+
+    Reads agent_runs.pr_id (migration 0014, written by Section 2's PR-open
+    producer) and joins the canonical pull_requests row. Returns the exact
+    W2-C2 wire triple plus the GitHub number::
+
+        {"runId", "prId", "url", "githubPrNumber"}
+
+    or None when the run has not opened a PR (or does not exist). camelCase
+    per api-conventions so callers can pass it straight to the UI.
+    """
+    row = (
+        await db.execute(
+            text(
+                "SELECT r.id AS run_id, r.pr_id AS pr_id, p.pr_url AS url, "
+                "p.github_pr_number AS github_pr_number "
+                "FROM agent_runs r JOIN pull_requests p ON p.id = r.pr_id "
+                "WHERE r.id = :run_id"
+            ),
+            {"run_id": run_id},
+        )
+    ).mappings().first()
+    if row is None:
+        return None
+    return {
+        "runId": row["run_id"],
+        "prId": row["pr_id"],
+        "url": row["url"],
+        "githubPrNumber": int(row["github_pr_number"]),
+    }
+
+
 async def update_review_status(
     db: AsyncSession,
     pr_id: str,

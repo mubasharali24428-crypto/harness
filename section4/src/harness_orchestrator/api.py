@@ -1,15 +1,33 @@
 import bisect
 import logging
+import sys
 import threading
 import time
 import uuid
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from harness_contracts.roles import Principal
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.routing import Match
+
+# M12-G3: shared cap constants live in section1; this venv does not carry
+# harness_identity as an installed distribution, so the src tree is appended
+# exactly like the wave-1 audit seam (service.py) already does at call time.
+_ROOT = Path(__file__).resolve().parents[3]
+if (_ROOT / "section1" / "src") not in sys.path:
+    sys.path.append(str(_ROOT / "section1" / "src"))
+
+from harness_identity.limits import (  # noqa: E402
+    DONE_DIFF_TEXT_MAX,
+    HUMAN_EDIT_CONTENT_MAX,
+    HUMAN_EDIT_PATH_MAX,
+    PLAN_ACTION_PLAN_ID_MAX,
+    PROPOSE_GOAL_MAX,
+    PROPOSE_PROJECT_ID_MAX,
+)
 
 from harness_orchestrator.authz import (
     OwnershipDeniedError,
@@ -297,21 +315,26 @@ PlanApprover = Annotated[Principal, Depends(_authz_dep("approve"))]
 
 
 class PlanActionRequest(BaseModel):
-    planId: str
+    # M12-G3: bounded ids (limits are additive; see harness_identity.limits).
+    planId: str = Field(max_length=PLAN_ACTION_PLAN_ID_MAX)
 
 
 class HumanEditRequest(BaseModel):
-    path: str
-    content: str
+    # M12-G3: bounded edit payloads — a multi-MB body used to reach the
+    # handler/DB unbounded (limits are additive; see harness_identity.limits).
+    path: str = Field(max_length=HUMAN_EDIT_PATH_MAX)
+    content: str = Field(max_length=HUMAN_EDIT_CONTENT_MAX)
 
 
 class DoneSignalRequest(BaseModel):
-    diffText: str = ""
+    # M12-G3: bounded evidence diff (additive; see harness_identity.limits).
+    diffText: str = Field(default="", max_length=DONE_DIFF_TEXT_MAX)
 
 
 class ProposePlanRequest(BaseModel):
-    goal: str | None = None
-    projectId: str | None = None
+    # M12-G3: bounded goal text + project id (additive; see limits).
+    goal: str | None = Field(default=None, max_length=PROPOSE_GOAL_MAX)
+    projectId: str | None = Field(default=None, max_length=PROPOSE_PROJECT_ID_MAX)
 
 
 async def _project_belongs_to_team(project_id: str, principal: Principal) -> bool:
@@ -458,6 +481,18 @@ async def get_engine_result(runId: str, reader: RunReader) -> dict[str, Any]:
 
 @router.get("/runs/{runId}/status", status_code=status.HTTP_200_OK)
 async def get_run_status(runId: str, reader: RunReader) -> dict[str, Any]:
+    return await _service.get_status(runId)
+
+
+@router.get("/runs/{runId}", status_code=status.HTTP_200_OK)
+async def get_run(runId: str, reader: RunReader) -> dict[str, Any]:
+    """Minimal single-run aggregate read (M12-W2 E4a).
+
+    Same wire shape as ``/status`` plus ``prId`` — the run's opened PR id
+    (agent_runs.pr_id, set by Section 2's PR-open producer), or None while
+    no PR exists. The review flow uses this to resolve run → PR without
+    replaying bus events.
+    """
     return await _service.get_status(runId)
 
 
