@@ -454,6 +454,62 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  # M15-W5-D2 (DB#12) — scheduled VACUUM (ANALYZE) for the three highest-churn
+  # tables (agent_events, rate_buckets, audit_log), opt-in via the
+  # 'maintenance' profile (mirrors the wave-8B 'proxy' / Mission-10 'walg' /
+  # Mission-12 'events-retention' pattern):
+  #   docker compose -f deploy/docker-compose.yml --profile maintenance up -d db-maintenance
+  #   docker compose -f deploy/docker-compose.yml --profile maintenance run --rm db-maintenance once
+  # Cadence is env-tunable: MAINTENANCE_INTERVAL_SECONDS (default 604800 = one
+  # week) drives loop mode; `once` exits after a single pass (host cron pair,
+  # see docs/runbooks/maintenance.md for the crontab). Reindexing is OFF by
+  # default and flips on with MAINTENANCE_REINDEX=1 (REINDEX TABLE
+  # CONCURRENTLY — no exclusive lock, but real I/O).
+  #
+  # Runs on the stock postgres:18-alpine image (NOT the slim backend image):
+  # it ships the psql client this job needs and nothing else. Talks to `db`
+  # over TCP with libpq env only — no superuser assumptions beyond the harness
+  # role owning the tables. Runs as root ONLY so the log/state volumes stay
+  # writable regardless of which uid created them first (same reasoning as the
+  # `walg` wrapper); psql itself needs no privileges.
+  #
+  # Scheduling honesty (M13 retired WALG_LOOP for hiding gaps): loop mode runs
+  # ONE pass immediately at startup and then every interval, so downtime
+  # collapses missed cycles into a single catch-up run instead of silently
+  # skipping them; failures log loudly every cycle and never exit 0 in `once`
+  # mode. Run logs append to the maintenance_logs volume, state (lock + last-
+  # run stamp) lives in maintenance_state — both survive --rm/restarts.
+  db-maintenance:
+    image: postgres:18-alpine
+    profiles:
+      - maintenance
+    entrypoint: ["sh", "/opt/harness/scripts/maintenance.sh"]
+    user: root
+    environment:
+      PGHOST: ${MAINTENANCE_PGHOST:-db}
+      PGPORT: "5432"
+      PGUSER: harness
+      PGPASSWORD: ${POSTGRES_PASSWORD:-harness}
+      PGDATABASE: harness
+      MAINTENANCE_MODE: ${MAINTENANCE_MODE:-loop}
+      MAINTENANCE_INTERVAL_SECONDS: ${MAINTENANCE_INTERVAL_SECONDS:-604800}
+      MAINTENANCE_TABLES: ${MAINTENANCE_TABLES:-agent_events rate_buckets audit_log}
+      MAINTENANCE_REINDEX: ${MAINTENANCE_REINDEX:-0}
+      MAINTENANCE_LOG_DIR: /var/log/harness-maintenance
+      MAINTENANCE_LOCK_DIR: /var/lib/harness-maintenance/lock
+      MAINTENANCE_STAMP_DIR: /var/lib/harness-maintenance/stamp
+    volumes:
+      # Read-only view of the repo scripts (the job lives here):
+      - ../scripts:/opt/harness/scripts:ro
+      # Persistent run logs survive one-shot containers (--rm) and restarts:
+      - maintenance_logs:/var/log/harness-maintenance
+      # Lock + last-run stamps (catch-up/dedup decisions need persistence):
+      - maintenance_state:/var/lib/harness-maintenance
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
   # M14-P2 — LEGACY all-in-one backend, opt-in via the 'legacy-backend'
   # profile so the default split-service topology stays untouched (mirrors
   # the wave-8B 'proxy' / Mission-10 'walg' pattern).
@@ -521,5 +577,12 @@ volumes:
   # Run logs of the one-shot backup wrapper (`walg` service) survive container
   # removal here (mounted at /var/log/harness-walg).
   walg_logs:
+  # M15-W5-D2: db-maintenance run logs (mounted at
+  # /var/log/harness-maintenance) survive --rm/restarts.
+  maintenance_logs:
+  # M15-W5-D2: db-maintenance lock dir + last-run stamps (mounted at
+  # /var/lib/harness-maintenance) — concurrency guard and catch-up decisions
+  # must outlive any single container run.
+  maintenance_state:
   caddy_data:
   caddy_config:
