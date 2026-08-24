@@ -192,10 +192,13 @@ async def main() -> int:
 
     database_url = os.environ.get("HARNESS_DATABASE_URL", DEFAULT_DATABASE_URL)
     cfg = retention_config_from_env()
-    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    # M13-W3-H1a: engines come from the shared factory (pool math + doc law);
+    # NullPool applies automatically on sqlite URLs.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from db import build_engine, make_session_factory
 
-    engine = create_async_engine(database_url)
-    factory = async_sessionmaker(engine, expire_on_commit=False)
+    engine = build_engine(database_url)
+    factory = make_session_factory(engine)
     try:
         if once:
             await sweep_once(

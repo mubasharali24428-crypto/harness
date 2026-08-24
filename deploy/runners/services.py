@@ -49,10 +49,12 @@ CORS_ORIGINS = _parse_cors_origins(os.environ.get("HARNESS_CORS_ORIGINS", _CORS_
 
 
 def get_factory():
-    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    # M13-W3-H1a: pool math is owned by deploy/runners/db.py — ONE shared
+    # factory so every service boots pool_size=8 / max_overflow=4
+    # (8+4=12 ×7 services = 84 ≤ PG max_connections=120; docs/pool-math.md).
+    from db import build_engine, make_session_factory
 
-    engine = create_async_engine(DATABASE_URL)
-    return async_sessionmaker(engine, expire_on_commit=False)
+    return make_session_factory(build_engine(DATABASE_URL))
 
 
 def base_settings(**kw):

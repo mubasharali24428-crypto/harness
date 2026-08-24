@@ -56,8 +56,30 @@ services:
       POSTGRES_USER: harness
       POSTGRES_PASSWORD: harness
       POSTGRES_DB: harness
+      # H-018 (M13-W3-H2): WAL-G PITR knobs, sourced from .env like every other
+      # secret/knob (never literal here). INERT on the stock postgres image —
+      # it has neither wal-g nor archiving enabled. They matter once either
+      # happens (see docs/runbooks/backup-and-pitr.md):
+      #   a) you run the opt-in `walg-db` service (same profile, reads the SAME
+      #      variables itself — declared twice because compose env is
+      #      per-service), or
+      #   b) you swap THIS service's image to harness-db-walg (built from
+      #      deploy/walg/Dockerfile.walg) and add the archive_mode/archive_command
+      #      command flags documented in the runbook — then these arrive
+      #      already wired, no further env edits.
+      WALG_S3_PREFIX: ${WALG_S3_PREFIX:-}
+      WALG_FILE_PREFIX: ${WALG_FILE_PREFIX:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      AWS_ENDPOINT: ${AWS_ENDPOINT:-}
     volumes:
       - pgdata:/var/lib/postgresql
+    # M13-W3-H1a pool math (docs/pool-math.md): 7 services × (pool_size=8 +
+    # max_overflow=4) = 84 connections worst case; 120 leaves 36 slots of
+    # headroom for migrations, admin tooling and operator psql.
+    command:
+      ["postgres", "-c", "max_connections=120"]
     # Survive Docker/host restarts: DB going away makes the backend crash-loop
     # on DNS until manually restarted (seen 2026-08-22).
     restart: unless-stopped
@@ -258,56 +280,133 @@ services:
       review:
         condition: service_healthy
 
-  # Mission 10 B4 — WAL-G PITR sidecar (base backups + retention). Opt-in via
-  # the 'walg' profile so the default `up` stays unchanged, mirroring the
-  # wave-8B 'proxy' pattern above:
-  #   docker compose -f deploy/docker-compose.yml --profile walg run --rm walg base   # one-shot
-  #   docker compose -f deploy/docker-compose.yml --profile walg up -d walg           # cron-ish loop
+  # H-018 (M13-W3-H2) — WAL-G PITR, end-to-end. Opt-in via the 'walg' profile
+  # so the default `up` stays unchanged (mirrors the wave-8B 'proxy' pattern).
+  # TWO services, replacing Mission 10's unexercised sidecar-only scaffold:
   #
-  # ONE-SHOT vs LOOP: the command is driven by WALG_MODE. `oneshot` runs a
-  # single base backup and exits (pair with host cron or an external scheduler).
-  # `loop` sleeps WALG_INTERVAL_SECONDS between runs (a poor man's scheduler —
-  # no catch-up if the container was down; prefer one-shot + host cron for
-  # exact timing). WAL archiving itself is NOT this container's job: it is
-  # done by archive_command inside the db container once the db image carries
-  # the wal-g binary (build deploy/walg/Dockerfile.walg; documented as a
-  # FUTURE compose db-service change in docs/runbooks/backup-and-pitr.md).
-  walg:
-    image: postgres:18-alpine
+  #   walg-db   THE ARCHIVING DATABASE. Same postgres:18 major as `db` but on
+  #             the wal-g-capable image (built from deploy/walg/Dockerfile.walg;
+  #             `--profile walg build walg-db`), started with
+  #             archive_mode=on + archive_command='wal-g wal-push %p'. It owns
+  #             its OWN volume (pgdata_walg) and NEVER touches the live
+  #             `pgdata`. No host port by default — reach it with
+  #             `docker exec`/`docker compose exec walg-db psql ...`; add a
+  #             port via a compose.override file if you really need one.
+  #   walg      backup wrapper (deploy/runners/backup.sh) doing base backups +
+  #             retention + inventory against walg-db.
+  #
+  # Why a separate archiving instance instead of flipping `db` itself: `db`
+  # serves every backend in the default dev stack; changing ITS image/command
+  # is outside this lane's ownership and would couple everyone's boot to the
+  # wal-g binary. walg-db gives continuous archiving + PITR drills today with
+  # zero effect on the default stack. Operators who later promote archiving
+  # onto the primary: swap `db`'s image to the same harness-db-walg image and
+  # add the identical command flags shown below — the WAL-G/AWS env knobs are
+  # already wired in `db`'s env block for exactly that move.
+  #
+  # 60-second quickstart (file:// storage — no cloud account needed):
+  #   export WALG_FILE_PREFIX=/tmp/harness-walg-drill
+  #   docker compose -f deploy/docker-compose.yml --profile walg up -d walg-db
+  #   docker compose -f deploy/docker-compose.yml --profile walg run --rm walg   # base backup
+  #   docker exec walg-db psql -U harness -d harness -tc 'select * from pg_stat_archiver;'
+  # Full restore drill with timed RTO/RPO slots: docs/runbooks/backup-and-pitr.md.
+  walg-db:
+    build:
+      context: ..
+      dockerfile: deploy/walg/Dockerfile.walg
+    image: harness-db-walg:${WALG_IMAGE_TAG:-v3.0.9}
     profiles:
       - walg
-    entrypoint: ["sh", "/opt/harness/deploy/walg/backup-walg.sh"]
     environment:
-      # Storage target — REQUIRED in real use; defaults keep `config` mode runnable.
+      POSTGRES_USER: harness
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-harness}
+      POSTGRES_DB: harness
+      # Storage target + credentials — the SAME variables `db` and `walg` take
+      # (declared per-service; compose environment maps don't merge across
+      # services). Secrets enter via .env/shell env only, never literals.
       WALG_S3_PREFIX: ${WALG_S3_PREFIX:-}
       WALG_FILE_PREFIX: ${WALG_FILE_PREFIX:-}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
       AWS_ENDPOINT: ${AWS_ENDPOINT:-}
-      # Same DB identity/env family as the db + backend services above.
-      PGHOST: ${WALG_PGHOST:-db}
+      # Identity wal-g uses when archive_command dials back into THIS server.
+      # Deliberately NO PGHOST: unset means libpq uses the default unix socket
+      # (/var/run/postgresql), which the official image's stock pg_hba trusts
+      # for local connections — so no password ever sits in the
+      # archive_command environment, visible in `pg_stat_activity` query text.
+      PGUSER: harness
+      PGDATABASE: harness
+    # Exec-form command (NOT a shell string): every element arrives as one
+    # exact argv word, so `%p` needs no shell-quoting gymnastics and cannot be
+    # mangled by an intermediary shell. archive_timeout bounds RPO even when
+    # the database is quiet (a segment is force-switched every interval).
+    command:
+      - postgres
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=wal-g wal-push %p
+      - -c
+      - archive_timeout=${WALG_ARCHIVE_TIMEOUT:-60s}
+    volumes:
+      - pgdata_walg:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U harness"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    restart: unless-stopped
+
+  # Backup wrapper (M10 B4 origin; repointed in M13-W3-H2). One-shot by
+  # design — schedule with host cron; the M10 WALG_LOOP knob was retired (a
+  # sleeping container has no catch-up after downtime and hides failures).
+  #   docker compose -f deploy/docker-compose.yml --profile walg run --rm walg              # base backup
+  #   docker compose -f deploy/docker-compose.yml --profile walg run --rm -e BACKUP_MODE=list walg
+  # Modes (see deploy/runners/backup.sh): base (default) | wal <seg> | list |
+  # retention | config. Targets the ARCHIVING db (PGHOST defaults to
+  # walg-db); override WALG_PGHOST=db to stream a base backup off the LIVE
+  # primary instead (its stock image lacks wal-g — that combination requires
+  # the image swap described at `db` above). Run logs append to the walg_logs
+  # volume (/var/log/harness-walg), surviving one-shot container removal.
+  # The container runs as root ONLY so the log file is writable on the shared
+  # volume regardless of which uid created it first; wal-g itself talks to
+  # Postgres over TCP as the harness role.
+  walg:
+    image: harness-db-walg:${WALG_IMAGE_TAG:-v3.0.9}
+    profiles:
+      - walg
+    entrypoint: ["sh", "/opt/harness/deploy/runners/backup.sh"]
+    user: root
+    environment:
+      # Mode precedence: CLI arg > BACKUP_MODE > legacy WALG_MODE > base.
+      BACKUP_MODE: ${BACKUP_MODE:-${WALG_MODE:-base}}
+      PGHOST: ${WALG_PGHOST:-walg-db}
       PGPORT: "5432"
       PGUSER: harness
       PGPASSWORD: ${POSTGRES_PASSWORD:-harness}
       PGDATABASE: harness
+      # Storage target — REQUIRED before anything touches storage.
+      WALG_S3_PREFIX: ${WALG_S3_PREFIX:-}
+      WALG_FILE_PREFIX: ${WALG_FILE_PREFIX:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      AWS_ENDPOINT: ${AWS_ENDPOINT:-}
       WALG_COMPRESSION_METHOD: ${WALG_COMPRESSION_METHOD:-lz4}
       WALG_RETENTION_KEEP: ${WALG_RETENTION_KEEP:-0}
-      # base | wal | list | retention | config (see backup-walg.sh usage)
-      WALG_MODE: ${WALG_MODE:-config}
-      # oneshot | loop (loop re-runs WALG_MODE every WALG_INTERVAL_SECONDS)
-      WALG_LOOP: ${WALG_LOOP:-oneshot}
-      WALG_INTERVAL_SECONDS: ${WALG_INTERVAL_SECONDS:-86400}
+      WALG_LIST_JSON: ${WALG_LIST_JSON:-}
+      WALG_EXTRA_ARGS: ${WALG_EXTRA_ARGS:-}
+      WALG_LOG_DIR: /var/log/harness-walg
     volumes:
-      # Read-only view of the repo (the backup script) + of the pgdata volume,
-      # for LOCAL-mode base backups (`backup-push <pgdata>` per upstream docs).
-      # Streaming mode (WALG_STREAM_BACKUP=1) needs only the env above.
+      # Read-only view of the repo (the wrapper script lives here):
       - ./:/opt/harness/deploy:ro
-      - pgdata:/var/lib/postgresql/data:ro
+      # Persistent run logs (one-shot containers vanish; their logs stay):
+      - walg_logs:/var/log/harness-walg
     depends_on:
-      db:
+      walg-db:
         condition: service_healthy
-    restart: unless-stopped
+    restart: "no"
 
   # Mission 12 G1 — agent_events retention sweep (raw-05 #1: unbounded growth).
   # Opt-in via the 'events-retention' profile so the default `up` stays
@@ -341,5 +440,11 @@ services:
 
 volumes:
   pgdata:
+  # H-018 (M13-W3-H2): the archiving database's own data volume — deliberately
+  # SEPARATE from `pgdata` so PITR drills can never collide with live data.
+  pgdata_walg:
+  # Run logs of the one-shot backup wrapper (`walg` service) survive container
+  # removal here (mounted at /var/log/harness-walg).
+  walg_logs:
   caddy_data:
   caddy_config:
