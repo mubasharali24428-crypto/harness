@@ -1,0 +1,28 @@
+-- Mission 15 Wave 5 lane S2 — WS ticket client-binding (L3).
+--
+-- WS tickets were bearer-style: anyone who read the ticket off the wire (or a
+-- referer/log) could redeem it from any host within its 30s TTL. Tickets are
+-- now bound to the issuing client via a fingerprint:
+--
+--     fingerprint = sha256(user_agent + "\n" + client_ip)[:16]  (hex)
+--
+-- Mint stamps it; upgrade recomputes it from the upgrading request and rejects
+-- mismatches with close 4403 TICKET_FINGERPRINT_MISMATCH. The X-WS-Fingerprint
+-- header is OPTIONAL for this release: absent -> warn-log + allow; present but
+-- wrong -> reject. Clients that never send the header keep working.
+--
+-- Migration slot: 0024 per the mission order (mission15-wave5-graph.md, S2).
+-- Slots 0022/0023 are reserved by the same mission's KDF (S4) and FK-story
+-- (D1) lanes; this file is self-contained either way.
+--
+-- ws_tickets lives in raw SQL (0005_ephemeral_state.sql), not ORM metadata,
+-- so the column lands here directly. Additive + nullable: pre-existing rows
+-- get NULL and stay redeemable under the absent-header grace path.
+
+ALTER TABLE ws_tickets ADD COLUMN IF NOT EXISTS fingerprint VARCHAR(32);
+
+-- SQLite has no ADD COLUMN IF NOT EXISTS: test fixtures own their SQLite
+-- schema and add the column in their seed DDL (see tests/test_ws_fingerprint.py
+-- and the updated ws_tickets DDL in tests/test_ws_auth.py). For scratch SQLite
+-- DBs built by hand, the equivalent statement is:
+--   ALTER TABLE ws_tickets ADD COLUMN fingerprint VARCHAR(32);

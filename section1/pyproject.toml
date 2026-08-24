@@ -28,7 +28,10 @@ where = ["src"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-pythonpath = [".", "src", "../contracts/src"]
+# ../section8/src: M15-G6b — settings_api validates reviewer-threshold PUTs
+# against harness_review.heuristic (the shared pure model), so its suite must
+# resolve that package. Same cross-section pattern S8 already uses for S1.
+pythonpath = [".", "src", "../contracts/src", "../section8/src"]
 
 [tool.ruff]
 line-length = 100
