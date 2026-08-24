@@ -254,6 +254,7 @@ immediate fresh base backup.
 | 2026-08-24 04:00 | manual (pre-script-validation) | `04:00:22+00` | ~1 s | ~2 s | **PASS** | markers {1,2} both present while paused; promoted → timeline 2, writable |
 | 2026-08-24 04:11 | `restore-walg.sh` run #1 | `04:00:22+00` | 1 s | 1 s | PASS | exit 0; stopped before txn 768 (the DELETE); cosmetic double-quoting found in emitted config, fixed after |
 | 2026-08-24 04:14 | `restore-walg.sh` run #2 (final form) | `04:00:22+00` | 1 s | ~2 s | **PASS** | canonical config emission; paused-server row check + promotion repeated |
+| 2026-08-24 05:09 | W3-VT2 verifier (independent re-execution) | `05:08:56+00` | ~1 s | ~2 s | **PASS** | own marker id=3 inserted→deleted→resurrected while paused; promoted (`pg_is_in_recovery()=f`) + post-promotion INSERT ok; base wall time 1 s (wrapper slot); bogus-PGHOST & missing-segment ⇒ exit 1; alpine ADD variant rebuilt ⇒ exit 127 confirmed |
 
 Base-backup wall times (⏱ RTO input, wrapper-reported): 03:57:39 → ~1.1 s
 (first successful full), 03:58:36 → ~1 s (green post-check run). Dataset is
