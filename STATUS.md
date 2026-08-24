@@ -511,3 +511,12 @@ VT-5 CONCURRENCY READY (after MINORs), VT-1+VT-2 FIX-LOOPs fixed
 (e5dc56a apiKey seam + synthesis kill; 96edf35 JSONB reserve) and
 re-verified READY-TO-MERGE. Final suites: S1 265 · S3 86 · S4 274 · S6 69 ·
 S7 vitest 281. CI green pending gitleaks rename run 32685579474.
+
+## Mission 13 — Wave 3 LANDED (2026-08-24)
+
+All 10 lanes committed: pool math (6dfa3b2), WAL-G PITR executed end-to-end
+(c3aead1), Playwright E2E suite (eae5a41), Makefile/CI convergence
+(4cd7074), NUMERIC money + Decimal sweep (da645f4/18918d5), timeutil tz
+normalization (e0c61ad group), oracle-404s + OpenAPI typing 8→39 routes,
+SKIP LOCKED + zombie reaper (06b8055). Suites: S1 309 · S3 91 · S4 287 ·
+S6 76 · S7 tsc-clean + 303 vitest. CI green on pushed stack. W3 verifiers next.
