@@ -520,3 +520,14 @@ All 10 lanes committed: pool math (6dfa3b2), WAL-G PITR executed end-to-end
 normalization (e0c61ad group), oracle-404s + OpenAPI typing 8→39 routes,
 SKIP LOCKED + zombie reaper (06b8055). Suites: S1 309 · S3 91 · S4 287 ·
 S6 76 · S7 tsc-clean + 303 vitest. CI green on pushed stack. W3 verifiers next.
+
+## Mission 13 — Wave 3 CLOSED (2026-08-24)
+
+CI 32694440516 SUCCESS. All five verifier teams READY:
+VT-1 DB-INFRA (caught + confirmed fixed: SKIP LOCKED placement before
+RETURNING), VT-2 PITR (independent drill re-execution, marker resurrected),
+VT-3 QA-INFRA (make/CI parity byte-proof), VT-4 MONEY/TIME (live-PG exact
+reserve proof), VT-5 API-HARDENING (oracle byte-compare; resume DTO MINOR
+fixed in-lane). Suites: S1 309 · S3 91 · S4 291 · S6 76 · S7 303 vitest.
+Operator note: NUMERIC(12,6) caps budgets at $999,999.999999.
+Waves 4-5 remain.
