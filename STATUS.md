@@ -549,3 +549,14 @@ S1 400 · S4 312 · S6 76 · S8 77 · S7 vitest 431 + tsc clean; guards green
 (routes: 15 modules, isolation: 374 files); live-PG probes passed (FK
 deletion story 3/3, ws fingerprint 15/15, KDF/WS suites 26). Ruff clean.
 Wave 5 CLOSED. Mission 16 (part4 §W5+ backlog) planning next.
+
+## Mission 16 — Wave 6 LANDED (2026-08-24)
+
+CI 32726153473 SUCCESS. All 5 lanes committed:
+X1 runs-index tuning at 100k (0026 + N+1 elimination, batched extremes),
+X2 meeting message pagination (keyset cursor, bounded windows),
+X3 WS replay cap + truncation markers,
+X4 UI systemization completion (all pages on DS primitives),
+X5 edge-case corpus wave A (19 seed-ID-traceable regression tests).
+Suites: S1 430 · S4 318 · S6 99 · S7 vitest 452/452. ALEX-FORCE
+verification sweep next → Wave 6 close.
