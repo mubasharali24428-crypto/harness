@@ -190,7 +190,9 @@ export function pauseAgent(runId: string, token: string): Promise<{ runId: strin
   });
 }
 
-export function resumeAgent(runId: string, token: string): Promise<{ runId: string; status: string }> {
+// M13-G5a: resume answers {runId, state} (RunStateResponse) — real machine
+// state, not a static "executing"; terminal runs no-op silently.
+export function resumeAgent(runId: string, token: string): Promise<{ runId: string; state: string }> {
   return apiFetch(`${ORCHESTRATOR_BASE}/api/v1/orchestrator/runs/${runId}/resume`, token, {
     method: "POST",
   });
