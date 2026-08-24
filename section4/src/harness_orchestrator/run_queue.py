@@ -35,11 +35,28 @@ def _now_iso() -> str:
     return utcnow_iso()
 
 
-# M13-H1b: heartbeat staleness threshold. Env override keeps the default (90s
-# = 9 missed beats at the service's 10s interval) tunable per deployment.
-HEARTBEAT_TIMEOUT_SECONDS = int(
-    os.environ.get("HEARTBEAT_TIMEOUT_SECONDS", "90")
-)
+# M13-H1b: heartbeat staleness threshold. Default 90s = 9 missed beats at the
+# service's 10s heartbeat interval; the HEARTBEAT_TIMEOUT_SECONDS env var
+# overrides it per deployment. This module constant is resolved ONCE at import;
+# every service resolves its OWN threshold at construction time via
+# resolve_heartbeat_timeout_seconds(), so a restart re-reads deployment env.
+_DEFAULT_HEARTBEAT_TIMEOUT_SECONDS = 90
+
+
+def resolve_heartbeat_timeout_seconds(environ=None) -> int:
+    """Heartbeat-staleness threshold in seconds: env override, default 90."""
+    env = os.environ if environ is None else environ
+    raw = str(env.get("HEARTBEAT_TIMEOUT_SECONDS", "")).strip()
+    if not raw:
+        return _DEFAULT_HEARTBEAT_TIMEOUT_SECONDS
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("ignoring non-integer HEARTBEAT_TIMEOUT_SECONDS=%r", raw)
+        return _DEFAULT_HEARTBEAT_TIMEOUT_SECONDS
+
+
+HEARTBEAT_TIMEOUT_SECONDS = resolve_heartbeat_timeout_seconds()
 
 
 def _parse_heartbeat(raw: Any) -> datetime | None:
@@ -71,27 +88,106 @@ def heartbeat_age_seconds(heartbeat_at: Any, now: datetime | None = None) -> flo
 
 
 def heartbeat_timed_out(heartbeat_at: Any) -> bool:
-    """True iff a stored heartbeat is older than HEARTBEAT_TIMEOUT_SECONDS."""
+    """True iff a stored heartbeat is older than the staleness threshold."""
     age = heartbeat_age_seconds(heartbeat_at)
     return age is not None and age >= HEARTBEAT_TIMEOUT_SECONDS
+
+
+# M13-H1b: staleness is decided by the DATABASE clock (now() vs the stored
+# TEXT instant), never by an application process's wall clock — a restarted
+# or clock-skewed worker must judge exactly as the DB does. SQLite exposes
+# julianday() over ISO-8601 text; PostgreSQL compares the cast timestamptz
+# against its own now(). Both predicates mean "heartbeat older than :timeout
+# seconds ago", evaluated inside the engine.
+_HEARTBEAT_STALE_SQL = {
+    "sqlite": (
+        "julianday(heartbeat_at) <= julianday("
+        "strftime('%Y-%m-%dT%H:%M:%f+00:00', 'now', -:timeout || ' seconds'))"
+    ),
+    "postgresql": "(heartbeat_at::timestamptz) <= (now() - make_interval(secs => :timeout))",
+}
+
+
+def _stale_predicate(dialect_name: str) -> str | None:
+    """DB-clock staleness predicate for this dialect, or None if unsupported.
+
+    An unsupported dialect fails CLOSED (returns None): the reaper reaps
+    nothing rather than guessing with the wrong clock.
+    """
+    return _HEARTBEAT_STALE_SQL.get(dialect_name)
+
+
+async def release_timed_out_claims(factory, timeout_seconds: int) -> list[dict[str, Any]]:
+    """Zombie reaper sweep: atomically release timed-out running claims.
+
+    One DELETE ... RETURNING selects ``running`` rows whose stored heartbeat
+    is stale **by the database's own clock** and deletes them — the same
+    terminal shape finish_run uses — so no worker can re-claim between the
+    staleness decision and the release. Returns one mapping per released
+    claim: run_id, project_id, worker_id.
+    """
+    from sqlalchemy import text
+
+    async with factory() as db:
+        predicate = _stale_predicate(db.bind.dialect.name)
+        if predicate is None:
+            logger.warning(
+                "no DB-clock staleness predicate for dialect %r; skipping zombie reap",
+                db.bind.dialect.name,
+            )
+            return []
+        rows = (
+            await db.execute(
+                text(
+                    "DELETE FROM run_claims WHERE state = 'running' AND "
+                    + predicate
+                    + " RETURNING run_id, project_id, worker_id"
+                ),
+                {"timeout": timeout_seconds},
+            )
+        ).mappings().all()
+        await db.commit()
+        return [dict(row) for row in rows]
+
+
+def _inject_skip_locked(sql: str) -> str:
+    """Place ``FOR UPDATE OF rc SKIP LOCKED`` inside the claim subquery.
+
+    The lock clause belongs where the ``rc`` alias rows are selected — before
+    the statement-level RETURNING — which is the only placement PostgreSQL
+    accepts for this shape (verified live against PostgreSQL 18). The seam is
+    ``)\\nRETURNING``: the closing paren of the candidate-row subquery. The
+    paren is REPLACED here, never duplicated (a stray second ``)`` is itself
+    a syntax error).
+    """
+    head, sep, tail = sql.partition(")\nRETURNING")
+    if not sep:  # defensive: unexpected template shape — return untouched
+        logger.warning("claim template missing RETURNING seam; SKIP LOCKED skipped")
+        return sql
+    return f"{head}\nFOR UPDATE OF rc SKIP LOCKED\n){sep[1:]}{tail}"
 
 
 async def claim_next_run(factory, worker_id: str, max_per_team: int) -> dict[str, Any] | None:
     """Atomically claim the oldest queued run under its team's running cap.
 
-    On PostgreSQL the inner SELECT takes ``FOR UPDATE SKIP LOCKED`` so two
+    On PostgreSQL the inner SELECT takes ``FOR UPDATE OF rc SKIP LOCKED`` so two
     workers polling concurrently can never serialize behind each other (or
     double-claim): rows already locked by another claim simply fall out of the
-    candidate set. SQLite (aiosqlite tests + single-writer reality) has no row
-    locks — the clause would be a syntax error — so it is appended only when
-    the bound engine's dialect is postgresql.
+    candidate set. The clause lives INSIDE the subquery (before RETURNING) —
+    that is where the rc alias's rows are selected and the only position PG
+    accepts for this statement shape (verified live against PostgreSQL 18:
+    a clause after RETURNING is a syntax error). SQLite (aiosqlite tests +
+    single-writer reality) has no row locks — the clause would be a syntax
+    error there — so the injection happens only when the bound engine's
+    dialect is postgresql.
     """
     from sqlalchemy import text
 
     async with factory() as db:
         sql = _CLAIM_SQL
         if db.bind.dialect.name == "postgresql":
-            sql += "\nFOR UPDATE OF rc SKIP LOCKED"
+            # Lock the candidate row inside its subquery, before RETURNING.
+            sql = _inject_skip_locked(sql)
         row = (
             await db.execute(
                 text(sql),

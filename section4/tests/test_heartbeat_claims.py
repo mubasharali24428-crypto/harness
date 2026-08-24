@@ -19,11 +19,14 @@ from sqlalchemy.pool import StaticPool
 from harness_orchestrator.run_queue import (
     _CLAIM_SQL,
     HEARTBEAT_TIMEOUT_SECONDS,
+    _inject_skip_locked,
+    _stale_predicate,
     claim_next_run,
     enqueue_run,
     get_queue_snapshot,
     heartbeat_age_seconds,
     heartbeat_timed_out,
+    release_timed_out_claims,
 )
 from harness_orchestrator.service import OrchestratorService
 from harness_orchestrator.state_machine import AgentState
@@ -343,3 +346,108 @@ def test_reaper_leaves_healthy_claims_untouched(db_factory):
             run(asyncio.wait_for(asyncio.shield(task), timeout=5))
         except asyncio.CancelledError:
             pass
+
+
+# --------------------------------------------------------------------------
+# 5. Attempt-2 pins: lock-clause placement, DB-clock staleness, per-instance
+#    threshold. All verified live against PostgreSQL 18 (probe evidence).
+# --------------------------------------------------------------------------
+def test_claim_sql_lock_clause_sits_inside_subquery():
+    """FOR UPDATE OF rc SKIP LOCKED lands INSIDE the candidate subquery —
+    before statement-level RETURNING, replacing (never duplicating) its
+    closing paren. PostgreSQL 18 rejects both the after-RETURNING placement
+    and a doubled ')': this shape is what the live probe accepted."""
+    injected = _inject_skip_locked(_CLAIM_SQL)
+    lock_pos = injected.index("FOR UPDATE OF rc SKIP LOCKED")
+    returning_pos = injected.index("RETURNING")
+    assert lock_pos < returning_pos, "lock clause must precede RETURNING"
+    assert injected.count("FOR UPDATE OF rc SKIP LOCKED") == 1
+    # Balanced parens preserved: exactly one ')' immediately before RETURNING.
+    before_returning = injected[:returning_pos].rstrip()
+    assert before_returning.endswith(")")
+    assert before_returning.endswith("\n)") and not before_returning.endswith("\n))")
+    # Idempotent seam handling: a template missing the seam passes through
+    # unchanged instead of emitting broken SQL.
+    assert _inject_skip_locked("SELECT 1") == "SELECT 1"
+
+    pg_compiled = text(injected).compile(dialect=postgresql.dialect())
+    rendered = str(pg_compiled)
+    assert rendered.index("FOR UPDATE OF rc SKIP LOCKED") < rendered.index("RETURNING")
+
+
+def test_reaper_staleness_is_decided_by_db_clock(db_factory):
+    """release_timed_out_claims judges staleness with the DATABASE's own
+    clock: heartbeats are written here by SQL strftime('now', ...) so the
+    Python process contributes no timestamp at all."""
+    f = db_factory
+
+    async def _seed_db_clock():
+        async with f() as db:
+            await db.execute(
+                text(
+                    "INSERT INTO run_claims (run_id, project_id, state, claimed_at,"
+                    " heartbeat_at, worker_id) VALUES ('db-old', 'proj-a', 'running',"
+                    " strftime('%Y-%m-%dT%H:%M:%f+00:00', 'now', '-200 seconds'),"
+                    " strftime('%Y-%m-%dT%H:%M:%f+00:00', 'now', '-95 seconds'),"
+                    " 'dead-worker')"
+                )
+            )
+            await db.execute(
+                text(
+                    "INSERT INTO run_claims (run_id, project_id, state, claimed_at,"
+                    " heartbeat_at, worker_id) VALUES ('db-new', 'proj-a', 'running',"
+                    " strftime('%Y-%m-%dT%H:%M:%f+00:00', 'now'),"
+                    " strftime('%Y-%m-%dT%H:%M:%f+00:00', 'now', '-10 seconds'),"
+                    " 'alive-worker')"
+                )
+            )
+            await db.commit()
+
+    run(_seed_db_clock())
+    released = run(release_timed_out_claims(f, timeout_seconds=90))
+    assert [row["run_id"] for row in released] == ["db-old"]
+    assert released[0]["worker_id"] == "dead-worker"
+    states = {row["run_id"]: row["state"] for row in run(get_queue_snapshot(f))}
+    assert states == {"db-new": "running"}
+
+
+def test_reaper_fail_closed_on_unknown_dialect():
+    """A dialect with no DB-clock predicate reaps NOTHING (fail closed)
+    rather than guessing staleness with the wrong clock."""
+
+    class FakeDialect:
+        name = "oracle"
+
+    class FakeBind:
+        dialect = FakeDialect()
+
+    class FakeDB:
+        bind = FakeBind()
+
+        async def execute(self, *a, **k):  # pragma: no cover - must not be hit
+            raise AssertionError("no statement may execute for unknown dialect")
+
+        async def commit(self):  # pragma: no cover
+            return None
+
+    assert _stale_predicate("oracle") is None
+    assert run(release_timed_out_claims(lambda: _ctx(FakeDB()), timeout_seconds=90)) == []
+
+
+def test_reaper_uses_per_instance_threshold_not_module_constant(db_factory):
+    """The sweep honors THIS service's heartbeat_timeout_seconds: a threshold
+    of 30s reaps a 60s-stale claim even though the imported module constant
+    says 90 (the pre-fix code read only the frozen module value)."""
+    f = db_factory
+    svc = OrchestratorService(run_queue_factory=f)
+    svc.heartbeat_timeout_seconds = 30
+    assert HEARTBEAT_TIMEOUT_SECONDS == 90  # module default untouched
+
+    run(enqueue_run(f, "mid-stale", "proj-a"))
+    run(claim_next_run(f, "dead-worker", max_per_team=4))
+    beat = (datetime.now(UTC) - timedelta(seconds=60)).isoformat()
+    run(_age_heartbeat(f, "mid-stale", beat))
+
+    assert run(svc.reap_zombies()) == ["mid-stale"]
+    sm = svc.runs["mid-stale"]["state_machine"]
+    assert sm.state is AgentState.BLOCKED

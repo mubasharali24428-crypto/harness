@@ -21,7 +21,7 @@ _ROOT = Path(__file__).resolve().parents[3]
 if (_ROOT / "section1" / "src") not in sys.path:
     sys.path.append(str(_ROOT / "section1" / "src"))
 
-from harness_identity.timeutil import db_now, now_utc  # noqa: E402
+from harness_identity.timeutil import db_now  # noqa: E402
 
 from harness_orchestrator.budget import BudgetStatus, check_budget  # noqa: E402
 from harness_orchestrator.engine import DeepSeekHarnessWrapper  # noqa: E402
@@ -29,15 +29,14 @@ from harness_orchestrator.planner import PlanNotApprovedError, PlanService  # no
 from harness_orchestrator.reviewer import ReviewerSubAgent, ReviewFindings  # noqa: E402
 from harness_orchestrator.rules_loader import build_rules_block, load_project_rules  # noqa: E402
 from harness_orchestrator.run_queue import (  # noqa: E402
-    HEARTBEAT_TIMEOUT_SECONDS,
     claim_next_run,
     enqueue_run,
     finish_run,
-    get_queue_snapshot,
     heartbeat_age_seconds,
     heartbeat_run,
-    heartbeat_timed_out,
     reclaim_orphans,
+    release_timed_out_claims,
+    resolve_heartbeat_timeout_seconds,
 )
 from harness_orchestrator.signals import gate_done_signal  # noqa: E402
 from harness_orchestrator.state_machine import (  # noqa: E402
@@ -129,12 +128,9 @@ class OrchestratorService(Orchestrator):
         self.stale_seconds = stale_seconds
         # M13-H1b: staleness threshold for the zombie reaper. Default 90s (9
         # missed beats at the 10s heartbeat interval); HEARTBEAT_TIMEOUT_SECONDS
-        # env var overrides per deployment.
-        self.heartbeat_timeout_seconds = int(
-            os.environ.get(
-                "HEARTBEAT_TIMEOUT_SECONDS", str(HEARTBEAT_TIMEOUT_SECONDS)
-            )
-        )
+        # env var overrides per deployment (resolved at construction so a
+        # restart re-reads the deployment's current value).
+        self.heartbeat_timeout_seconds = resolve_heartbeat_timeout_seconds()
 
         self.runs: dict[str, dict[str, Any]] = {}
         self._bg_tasks: set[asyncio.Task] = set()
@@ -686,32 +682,28 @@ class OrchestratorService(Orchestrator):
         """M13-H1b zombie reaper: release timed-out running claims.
 
         A claim whose stored ``heartbeat_at`` is older than
-        ``heartbeat_timeout_seconds`` (DB instant vs now, never wall-clock
-        bookkeeping) belongs to a dead worker. The claim row is released
-        (deleted — the same terminal shape ``finish_run`` uses) and the run's
-        state machine is moved to BLOCKED with an honest ENGINE_FAILED
-        emission carrying reason 'heartbeat_lost', so a human can see and
-        re-drive it instead of the queue silently forgetting the work.
-        Returns the reaped run_ids; best-effort per run (one bad claim must
-        not stop the sweep).
+        ``heartbeat_timeout_seconds`` **by the database's own clock** belongs
+        to a dead worker. :func:`release_timed_out_claims` atomically selects
+        and deletes those rows (the same terminal shape ``finish_run`` uses),
+        and each released run's state machine is moved to BLOCKED with an
+        honest ENGINE_FAILED emission carrying reason 'heartbeat_lost', so a
+        human can see and re-drive it instead of the queue silently forgetting
+        the work. Returns the reaped run_ids; best-effort per run (one bad
+        claim must not stop the sweep).
         """
         if self.run_queue_factory is None:
             return []
-        released: list[str] = []
         try:
-            snapshot = await get_queue_snapshot(self.run_queue_factory)
+            released_rows = await release_timed_out_claims(
+                self.run_queue_factory, timeout_seconds=self.heartbeat_timeout_seconds
+            )
         except Exception:  # noqa: BLE001 — no queue table: nothing to reap
             logger.info("run_claims unavailable; zombie reaper skipped")
             return []
-        for row in snapshot:
-            if row.get("state") != "running":
-                continue
-            if not heartbeat_timed_out(row.get("heartbeat_at")):
-                continue
+        released: list[str] = []
+        for row in released_rows:
             run_id = row["run_id"]
             try:
-                await finish_run(self.run_queue_factory, run_id)
-                released.append(run_id)
                 # Materialize the run's machine (replaying its event history
                 # when this process never saw it) so BLOCKED is real state,
                 # not a fiction.
@@ -723,17 +715,20 @@ class OrchestratorService(Orchestrator):
                 except Exception:  # noqa: BLE001 — machine loss must not stop release
                     logger.exception("state machine unavailable for reaped run %s", run_id)
                     sm = None
-                # The engine's work was lost mid-flight: say so honestly.
+                # The engine's mid-flight work was lost when its worker died:
+                # say so honestly, once, regardless of what replay shows.
                 self._emit(
                     EventType.ENGINE_FAILED,
                     {
                         "runId": run_id,
                         "reason": "heartbeat_lost",
+                        "workerId": row.get("worker_id"),
                         "heartbeatTimeoutSeconds": self.heartbeat_timeout_seconds,
                     },
                 )
                 if sm is not None:
                     sm.state = AgentState.BLOCKED
+                released.append(run_id)
             except Exception:  # noqa: BLE001 — one bad claim must not stop the sweep
                 logger.exception("zombie reaper failed on run %s", run_id)
         return released
@@ -741,9 +736,12 @@ class OrchestratorService(Orchestrator):
     def _is_heartbeat_stale(self, heartbeat_at: Any) -> bool:
         """True when a stored heartbeat exceeds this service's threshold.
 
-        Staleness is judged as DB-stored instant vs current aware-UTC time.
+        Application-side mirror of the DB-clock predicate the reaper sweep
+        uses (which is authoritative); for judging a single already-fetched
+        heartbeat value without another query. ``db_now`` keeps the instant
+        sourced from the shared timeutil seam.
         """
-        age = heartbeat_age_seconds(heartbeat_at, now=now_utc())
+        age = heartbeat_age_seconds(heartbeat_at, now=db_now())
         return age is not None and age >= self.heartbeat_timeout_seconds
 
     async def poll_once(self) -> str | None:
