@@ -309,6 +309,36 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Mission 12 G1 — agent_events retention sweep (raw-05 #1: unbounded growth).
+  # Opt-in via the 'events-retention' profile so the default `up` stays
+  # unchanged, mirroring the wave-8B 'proxy' / Mission-10 'walg' pattern:
+  #   docker compose -f deploy/docker-compose.yml --profile events-retention up -d events-retention
+  #   docker compose -f deploy/docker-compose.yml --profile events-retention run --rm events-retention --once
+  # The command is driven by EVENTS_RETENTION_MODE (`once` | `loop`) or the
+  # --once/--loop flags; default is `loop`, which sweeps every
+  # RUN_INTERVAL_SECONDS. `once` exits after a single sweep (pair with host
+  # cron or an external scheduler for exact timing).
+  events-retention:
+    <<: *backend-build
+    profiles:
+      - events-retention
+    # Bypass the shared entrypoint.sh: with HARNESS_SERVICE unset it would boot
+    # the whole legacy all-in-one stack, but this sidecar IS one python job.
+    entrypoint: ["python", "/opt/harness/deploy/runners/events_retention.py"]
+    environment:
+      HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@db:5432/harness
+      # Retention knobs (see deploy/runners/events_retention.py):
+      EVENTS_RETENTION_MODE: ${EVENTS_RETENTION_MODE:-loop}
+      RETENTION_DAYS: ${RETENTION_DAYS:-30}
+      BATCH_SIZE: ${BATCH_SIZE:-5000}
+      RUN_INTERVAL_SECONDS: ${RUN_INTERVAL_SECONDS:-21600}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
 volumes:
   pgdata:
   caddy_data:

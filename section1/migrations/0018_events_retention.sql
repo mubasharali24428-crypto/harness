@@ -1,0 +1,14 @@
+-- Mission 12 G1 (raw-05 #1): agent_events unbounded growth.
+--
+-- agent_events is the append-only source of truth (Section 1 owns delivery),
+-- but raw-05 flagged it as the table that grows forever: every envelope the
+-- EventBus persists lands here with no pruning, degrading replays and
+-- inflating pgdata backups (see deploy/walg).
+--
+-- Retention itself lives in deploy/runners/events_retention.py — the batched
+-- DELETE loop wired as the profiled 'events-retention' compose sidecar. This
+-- migration only adds the index that turns each batch's cutoff probe
+-- (`WHERE ts < :cutoff ORDER BY seq`) from a full scan/sort into an index
+-- range walk as the log grows. Purely additive — no frozen table altered
+-- (mirrors 0012's discipline).
+CREATE INDEX IF NOT EXISTS idx_agent_events_ts ON agent_events (ts);
