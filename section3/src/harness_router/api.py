@@ -155,6 +155,44 @@ class ConfigureRoleModelRequest(BaseModel):
     model: str
 
 
+class SpendTotals(BaseModel):
+    """M13-G5a typing island: spend totals block (camelCase wire shape)."""
+
+    inputTokens: int
+    outputTokens: int
+    costUsd: float
+
+
+class SpendByModel(BaseModel):
+    model: str
+    costUsd: float
+    tokens: int
+
+
+class SpendByDay(BaseModel):
+    day: str
+    costUsd: float
+
+
+class SpendSummaryResponse(BaseModel):
+    """Aggregate spend from cost_ledger (mirrors ledger.summarize_spend)."""
+
+    totals: SpendTotals
+    byModel: list[SpendByModel] = Field(default_factory=list)
+    byDay: list[SpendByDay] = Field(default_factory=list)
+
+
+class SpendErrorDetail(BaseModel):
+    """Frozen contract error entry for responses={} documentation."""
+
+    code: str
+    message: str
+
+
+class SpendErrorEnvelope(BaseModel):
+    error: SpendErrorDetail
+
+
 @router.post("/call", response_model=ModelResult, status_code=status.HTTP_200_OK)
 async def call_model(req: CallModelRequest) -> ModelResult:
     try:
@@ -197,7 +235,17 @@ async def call_model(req: CallModelRequest) -> ModelResult:
     return result
 
 
-@router.get("/spend", status_code=status.HTTP_200_OK)
+@router.get(
+    "/spend",
+    status_code=status.HTTP_200_OK,
+    response_model=SpendSummaryResponse,
+    responses={
+        503: {
+            "model": SpendErrorEnvelope,
+            "description": "LEDGER_UNAVAILABLE — cost ledger pool not wired",
+        },
+    },
+)
 async def model_spend(
     teamId: str | None = Query(default=None),
     projectId: str | None = Query(default=None),

@@ -15,6 +15,13 @@ must NEVER propagate into the model-call path. Timestamps are bound as
 ``now()`` lives in the column default, never in our SQL. The DB pool is
 duck-typed (asyncpg pool in prod; fakes in tests), so this module has no
 hard driver import.
+
+Money typing (H-023): every money value is a ``Decimal`` end to end.
+``cost_usd`` is BOUND AS TEXT — asyncpg infers NUMERIC from str and SQLite
+(numeric-affinity columns in scratch test schemas) stores it exactly — and
+read back via :func:`to_money`, which accepts whatever the driver returns
+(Decimal from Postgres, str/float/int from SQLite). Aggregation sums Decimals;
+the wire keeps JSON numbers per contract M10-C3.
 """
 
 from __future__ import annotations
@@ -22,6 +29,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import ROUND_HALF_EVEN, Decimal
 from typing import Any
 
 from harness_contracts.signatures import ModelRole
@@ -60,6 +68,8 @@ SPEND_SQL = (
     "ORDER BY day ASC, l.model ASC"
 )
 
+_MONEY_Q = Decimal("0.000001")
+
 
 @dataclass(frozen=True)
 class LedgerRow:
@@ -71,7 +81,7 @@ class LedgerRow:
     model: str
     input_tokens: int
     output_tokens: int
-    cost_usd: float
+    cost_usd: Decimal
     latency_ms: int
     created_at: datetime | None
 
@@ -80,6 +90,24 @@ def _role_str(role: ModelRole | str) -> str:
     """ModelRole is a str Enum; persist its bare value ('primary'), not repr."""
     value = getattr(role, "value", role)
     return str(value)
+
+
+def to_money(value: Any) -> Decimal:
+    """Normalize any driver's NUMERIC read into an exact Decimal at (12,6).
+
+    Accepts Decimal (asyncpg/SQLAlchemy), str (SQLite text storage), and the
+    historical float/int shapes. Floats convert via repr so the shortest
+    round-tripping decimal wins, never the binary expansion.
+    """
+    if value is None:
+        return Decimal("0")
+    if isinstance(value, Decimal):
+        dec = value
+    elif isinstance(value, str):
+        dec = Decimal(value)
+    else:
+        dec = Decimal(repr(value)) if isinstance(value, float) else Decimal(value)
+    return dec.quantize(_MONEY_Q, rounding=ROUND_HALF_EVEN)
 
 
 def build_usage_params(
@@ -94,6 +122,8 @@ def build_usage_params(
     """Bind-parameters tuple for INSERT_USAGE_SQL, in $1..$7 order.
 
     Exposed so tests can assert exact bind shapes without touching a driver.
+    Money binds as TEXT: asyncpg infers NUMERIC from str; SQLite takes it
+    natively (a raw Decimal bind crashes sqlite3).
     """
     cost_usd = PricingEngine.calculate_cost(model, input_tokens, output_tokens)
     return (
@@ -102,7 +132,7 @@ def build_usage_params(
         model[:120],  # model VARCHAR(120)
         int(input_tokens),
         int(output_tokens),
-        round(float(cost_usd), 6),  # NUMERIC(12,6)
+        f"{cost_usd:.6f}",  # NUMERIC(12,6) — exact base-10 bind
         int(latency_ms),
     )
 
@@ -139,7 +169,7 @@ async def record_usage(
             model=str(params[2]),
             input_tokens=int(params[3]),
             output_tokens=int(params[4]),
-            cost_usd=float(params[5]),
+            cost_usd=to_money(params[5]),
             latency_ms=int(params[6]),
             created_at=row[1] if row and len(row) > 1 else None,
         )
@@ -158,30 +188,45 @@ def summarize_spend(rows: list[tuple[Any, ...]]) -> dict[str, Any]:
     """Fold per-(model, day) rows into the wire shape (camelCase).
 
     Row shape: (model, input_tokens, output_tokens, cost_usd, day) where day
-    is a datetime from ``date_trunc('day', ...)``.
+    is a datetime from ``date_trunc('day', ...)``. Money folds EXACTLY in
+    Decimal (no float drift across many rows); only the serialized wire
+    values are converted back to JSON numbers (contract M10-C3).
     """
     total_in = 0
     total_out = 0
-    total_cost = 0.0
+    total_cost = Decimal("0")
     by_model: dict[str, dict[str, Any]] = {}
-    by_day: dict[str, float] = {}
+    by_day: dict[str, Decimal] = {}
     for model, input_tokens, output_tokens, cost_usd, day in rows:
         day_key = day.date().isoformat() if isinstance(day, datetime) else str(day or "unknown")
         total_in += int(input_tokens or 0)
         total_out += int(output_tokens or 0)
-        total_cost += float(cost_usd or 0)
-        entry = by_model.setdefault(model, {"model": model, "costUsd": 0.0, "tokens": 0})
-        entry["costUsd"] = round(entry["costUsd"] + float(cost_usd or 0), 6)
+        total_cost += to_money(cost_usd)
+        entry = by_model.setdefault(model, {"model": model, "costUsd": Decimal("0"), "tokens": 0})
+        entry["costUsd"] += to_money(cost_usd)
         entry["tokens"] += int(input_tokens or 0) + int(output_tokens or 0)
-        by_day[day_key] = round(by_day.get(day_key, 0.0) + float(cost_usd or 0), 6)
+        by_day[day_key] = by_day.get(day_key, Decimal("0")) + to_money(cost_usd)
+
+    def _usd(value: Decimal) -> float:
+        # Wire format unchanged (JSON numbers); conversion happens only here,
+        # after all arithmetic has already happened exactly.
+        return float(value.quantize(_MONEY_Q, rounding=ROUND_HALF_EVEN))
+
     return {
         "totals": {
             "inputTokens": total_in,
             "outputTokens": total_out,
-            "costUsd": round(total_cost, 6),
+            "costUsd": _usd(total_cost),
         },
-        "byModel": sorted(by_model.values(), key=lambda e: -e["costUsd"]),
-        "byDay": [{"day": d, "costUsd": c} for d, c in sorted(by_day.items())],
+        "byModel": [
+            {
+                "model": e["model"],
+                "costUsd": _usd(e["costUsd"]),
+                "tokens": e["tokens"],
+            }
+            for e in sorted(by_model.values(), key=lambda e: -e["costUsd"])
+        ],
+        "byDay": [{"day": d, "costUsd": _usd(c)} for d, c in sorted(by_day.items())],
     }
 
 
@@ -208,4 +253,5 @@ __all__ = [
     "record_usage",
     "spend_summary",
     "summarize_spend",
+    "to_money",
 ]

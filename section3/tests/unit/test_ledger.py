@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import time
 from datetime import UTC, datetime
+from decimal import Decimal
 
 import pytest
 from fastapi import FastAPI
@@ -68,8 +69,9 @@ def test_cost_math_matches_pricing_engine():
         latency_ms=120,
     )
     # deepseek-chat: 0.14/M in + 0.28/M out -> 0.14 + 0.14 = 0.28
-    assert params[5] == pytest.approx(0.28, abs=1e-9)
-    assert params[5] == PricingEngine.calculate_cost(
+    # H-023: cost binds as TEXT at NUMERIC(12,6); normalize via to_money.
+    assert ledger.to_money(params[5]) == Decimal("0.280000")
+    assert ledger.to_money(params[5]) == PricingEngine.calculate_cost(
         "deepseek/deepseek-chat", 1_000_000, 500_000
     )
 
@@ -82,7 +84,8 @@ def test_zero_token_local_model_costs_zero():
         output_tokens=512,
         latency_ms=5,
     )
-    assert params[5] == 0.0
+    # H-023: money binds as TEXT ("0.000000"), read back exactly via to_money.
+    assert ledger.to_money(params[5]) == Decimal("0")
 
 
 def test_role_enum_persists_as_bare_value():
@@ -157,7 +160,8 @@ def test_record_usage_binds_expected_params_in_order():
     assert row.seq == 1
     assert row.agent_role == "primary"
     assert row.model == "deepseek/deepseek-coder"
-    assert row.cost_usd == pytest.approx(params[5])
+    assert row.cost_usd == ledger.to_money(params[5])
+    assert isinstance(row.cost_usd, Decimal)
     assert isinstance(row.created_at, datetime)
 
 

@@ -24,6 +24,13 @@ Money-path posture: FAIL-CLOSED. Any ledger DB error => allowed=False with an
 explicit reason — never an open gate on infrastructure failure. Rejected work
 compensates via release(entry_id), which deletes the reserved ledger row in
 its own transaction.
+
+Money typing (H-023): ``estimated_cost_usd`` accepts any numeric shape
+(Decimal/float/int/str) and is normalized ONCE through :func:`to_money` into
+an exact NUMERIC(12,6)-scale Decimal, then bound as TEXT — asyncpg infers
+NUMERIC from str and SQLite takes str natively (a raw Decimal bind crashes
+sqlite3). The headroom comparison stays entirely inside SQL, where NUMERIC
+arithmetic is exact.
 """
 
 from __future__ import annotations
@@ -32,7 +39,10 @@ import logging
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from decimal import ROUND_HALF_EVEN, Decimal
 from typing import Any
+
+from harness_router.ledger import to_money
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +57,7 @@ RESERVE_SQL = """
 INSERT INTO cost_ledger (run_id, agent_role, model, input_tokens,
                          output_tokens, cost_usd, latency_ms)
 SELECT :run_id, :agent_role, :model, :input_tokens,
-       :output_tokens, :cost_usd, :latency_ms
+       :output_tokens, CAST(:cost_usd AS NUMERIC), :latency_ms
 WHERE COALESCE((
           SELECT SUM(l.cost_usd)
           FROM cost_ledger l
@@ -55,7 +65,7 @@ WHERE COALESCE((
           JOIN projects p ON p.id = r.project_id
           WHERE p.team_id = :team_id
             AND l.created_at >= date_trunc('month', now())
-      ), 0) + :cost_usd
+      ), 0) + CAST(:cost_usd AS NUMERIC)
       <= (
           SELECT bp.monthly_budget_usd
           FROM billing_plans bp
@@ -140,13 +150,16 @@ async def reserve(
     no row means over budget; any exception fails CLOSED.
     """
     try:
+        # Exact money normalization happens BEFORE the DB sees the value:
+        # quantize to NUMERIC(12,6) scale and bind as text (see module doc).
+        cost_bind = f"{to_money(estimated_cost_usd):.6f}"
         row = await pool.fetchrow(RESERVE_SQL, {
             "run_id": run_id,
             "agent_role": str(agent_role)[:20],  # agent_role VARCHAR(20)
             "model": str(model)[:120],  # model VARCHAR(120)
             "input_tokens": int(input_tokens),
             "output_tokens": int(output_tokens),
-            "cost_usd": round(float(estimated_cost_usd), 6),
+            "cost_usd": cost_bind,
             "latency_ms": int(latency_ms),
             "team_id": team_id,
         })

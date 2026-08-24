@@ -233,9 +233,13 @@ class ModelProviderClient:
     def _build_result(
         model: str, text: str, input_tokens: int, output_tokens: int, latency_ms: int
     ) -> ModelResult:
+        # H-023: cost math is exact Decimal internally (PricingEngine); the
+        # frozen contracts/ field is a JSON number, so convert only at this
+        # serialization edge. No float arithmetic ever touches money.
+        cost = PricingEngine.calculate_cost(model, input_tokens, output_tokens)
         return ModelResult(
             text=text,
-            costUsd=PricingEngine.calculate_cost(model, input_tokens, output_tokens),
+            costUsd=float(cost),
             model=model,
             latencyMs=latency_ms,
         )

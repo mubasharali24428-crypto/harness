@@ -49,7 +49,8 @@ class ModelRouterService(ModelRouter):
 
     def estimate_cost(self, role: ModelRole, input_tokens: int, output_tokens: int) -> float:
         model = self.role_models.get(role, config.default_primary_model)
-        return PricingEngine.calculate_cost(model, input_tokens, output_tokens)
+        # Wire edge: /estimate-cost answers in JSON numbers; math stays exact.
+        return float(PricingEngine.calculate_cost(model, input_tokens, output_tokens))
 
     def list_available_models(self) -> list[str]:
         return list(MODEL_PRICING_CATALOG.keys())

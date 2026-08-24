@@ -1,5 +1,7 @@
 """Comprehensive stress tests for Section 3: Model Routing & BYOK Layer."""
 
+from decimal import Decimal
+
 import pytest
 from harness_contracts.signatures import ModelResult, ModelRole
 
@@ -18,17 +20,19 @@ from harness_router.service import ModelRouterService
 class TestPricingEdgeCases:
     def test_zero_token_cost(self):
         cost = PricingEngine.calculate_cost("openai/gpt-4o", 0, 0)
-        assert cost == 0.0
+        # H-023: zero-cost is an exact Decimal too — never compared as float
+        assert cost == Decimal("0")
+        assert isinstance(cost, Decimal)
 
     def test_single_token_cost(self):
         cost = PricingEngine.calculate_cost("openai/gpt-4o", 1, 0)
-        assert cost > 0.0
-        assert cost < 0.001
+        assert cost > Decimal("0")
+        assert cost < Decimal("0.001")
 
     def test_very_large_token_count(self):
         cost = PricingEngine.calculate_cost("openai/gpt-4o", 1_000_000_000, 1_000_000_000)
-        assert cost > 0.0
-        assert isinstance(cost, float)
+        assert cost > Decimal("0")
+        assert isinstance(cost, Decimal)
 
     def test_all_catalog_models_have_nonnegative_pricing(self):
         for model_name, pricing in MODEL_PRICING_CATALOG.items():
@@ -163,7 +167,10 @@ class TestModelRouterServiceStress:
         service = ModelRouterService()
         est = service.estimate_cost(ModelRole.PRIMARY, 10_000, 2_000)
         direct = PricingEngine.calculate_cost(config.default_primary_model, 10_000, 2_000)
-        assert est == direct
+        # Wire decision (H-023/M10-C3): service.estimate_cost serializes to a
+        # JSON number for /estimate-cost; PricingEngine stays exact Decimal.
+        # Same value across that boundary — compare exactly via repr round-trip.
+        assert Decimal(repr(est)) == direct
 
     def test_history_entry_shape(self):
         service = ModelRouterService()
