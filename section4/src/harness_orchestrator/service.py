@@ -5,12 +5,14 @@ import os
 import secrets
 import socket
 import sys
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 from harness_contracts.events import EventType
 from harness_contracts.plan import AgentPlan
 from harness_contracts.signatures import Orchestrator
+from sqlalchemy import text
 
 # Shared time helpers live in section1; this venv does not carry
 # harness_identity as an installed distribution, so the src tree is appended
@@ -58,6 +60,17 @@ class PlanAlreadyDecidedError(Exception):
     """
 
     code = "PLAN_ALREADY_DECIDED"
+
+
+class RunNotFoundError(KeyError):
+    """M14-W4 F3a: the requested run has no durable existence.
+
+    Raised by ``_run_aggregate`` only when a DB is wired AND the run has no
+    ``agent_runs`` row AND it carries no in-memory lifecycle (never bound,
+    planned, executed, or rehydrated from events). The API layer maps this to
+    the 404 NOT_FOUND envelope; a foreign team's run answers the exact same
+    envelope (no-oracle law lives in the authz dependency).
+    """
 
 _HEARTBEAT_INTERVAL_SECONDS = 10.0
 
@@ -851,14 +864,59 @@ class OrchestratorService(Orchestrator):
     async def get_status(self, run_id: str) -> dict[str, Any]:
         return await self._run_aggregate(run_id)
 
-    async def _run_aggregate(self, run_id: str) -> dict[str, Any]:
-        """One minimal aggregate read for a single run (M12-W2 E4a).
+    # M14-W4 F3a (W4-C2): steps summary is capped at the LAST 100 events so a
+    # long-lived run cannot bloat the aggregate payload unboundedly.
+    _AGGREGATE_STEPS_MAX = 100
 
-        Base shape is get_status()'s wire dict; when a DB is wired it adds
-        ``prId`` (agent_runs.pr_id, migration 0017 — set by S2's PR-open
-        producer) so the review flow can resolve run → PR without replaying
-        events. Read-only + failure-tolerant: any DB trouble degrades to
-        prId=None rather than breaking the status read.
+    _RUN_ENRICH_SQL = text(
+        """
+        SELECT r.pr_id AS pr_id,
+               pr.pr_url AS pr_url,
+               (SELECT SUM(cl.cost_usd)
+                  FROM cost_ledger cl
+                 WHERE cl.run_id = r.id) AS cost_usd
+        FROM agent_runs r
+        LEFT JOIN pull_requests pr ON pr.id = r.pr_id
+        WHERE r.id = :r
+        """
+    )
+
+    _STEPS_SQL = text(
+        """
+        SELECT seq, type, ts
+          FROM agent_events
+         WHERE run_id = :run_id
+         ORDER BY seq DESC
+         LIMIT :cap
+        """
+    )
+
+    @staticmethod
+    def _cost_wire(cost_usd: Any) -> float | None:
+        """Decimal→wire number at EXACT scale-6 money (H-023 law).
+
+        NUMERIC(12,6) arrives as Decimal; ``quantize`` pins the 6-dp exponent,
+        then one float() conversion. The quantize guarantees the shortest repr
+        round-trips to the same value, so JSON carries no binary-float drift.
+        Returns None for an absent/NULL total (no ledger rows yet).
+        """
+        if cost_usd is None:
+            return None
+        if not isinstance(cost_usd, Decimal):
+            cost_usd = Decimal(str(cost_usd))
+        return float(cost_usd.quantize(Decimal("0.000001")))
+
+    async def _run_aggregate(self, run_id: str) -> dict[str, Any]:
+        """One aggregate read for a single run — W4-C2 shape.
+
+        History: M12-W2 E4a added ``prId`` on top of get_status()'s base wire
+        dict; M14-W4 F3a extends to the full pair-contract shape with
+        ``costUsd``/``url`` (agent_runs ⟕ pull_requests ⟵ cost_ledger) and
+        ``steps`` (ordered [{seq, type, ts}] from agent_events, capped at the
+        last :data:`_AGGREGATE_STEPS_MAX`). Nullability is explicit per W4-C2:
+        every enriched field is present and None when its source row/column
+        does not exist yet. Read-only + failure-tolerant: any DB trouble
+        degrades each enriched field to None rather than breaking the read.
         """
         run_data = await self._ensure_run(run_id)
         sm: AgentStateMachine = run_data["state_machine"]
@@ -874,29 +932,58 @@ class OrchestratorService(Orchestrator):
             "isHumanEditing": sm.is_human_editing,
             "executing": bool(task is not None and not task.done()),
             "engineMode": getattr(engine_mode, "value", engine_mode),
-            # camelCase per api-conventions; None until a PR is opened.
+            # ---- W4-C2 enrichment; explicit nulls until the source exists --
             "prId": None,
+            "url": None,
+            "costUsd": None,
+            "steps": [],
         }
         factory = self.session_factory
         if factory is None:
-            return aggregate
-        from sqlalchemy import text
-
+            return aggregate  # bare unit mode: no durable existence to consult
         try:
             async with factory() as db:
-                row = (
-                    (
-                        await db.execute(
-                            text("SELECT pr_id FROM agent_runs WHERE id = :r"), {"r": run_id}
-                        )
-                    )
+                enrich_row = (
+                    (await db.execute(self._RUN_ENRICH_SQL, {"r": run_id}))
                     .mappings()
                     .first()
                 )
-            if row is not None and row["pr_id"]:
-                aggregate["prId"] = row["pr_id"]
-        except Exception:  # noqa: BLE001 — aggregate must never fail on prId
-            logger.exception("prId lookup failed for run %s", run_id)
+                step_rows = (
+                    (
+                        await db.execute(
+                            self._STEPS_SQL,
+                            {"run_id": run_id, "cap": self._AGGREGATE_STEPS_MAX},
+                        )
+                    )
+                    .mappings()
+                    .all()
+                )
+            if enrich_row is None:
+                # No agent_runs row: the run only exists if this process is
+                # currently driving a lifecycle for it (bound project, plan,
+                # or live task). Otherwise it is genuinely unknown → 404.
+                in_memory = bool(
+                    run_data.get("projectId")
+                    or run_data.get("plan_id")
+                    or (task is not None and not task.done())
+                )
+                if not in_memory and not run_data.get("_rehydrated"):
+                    raise RunNotFoundError(run_id)
+            else:
+                if enrich_row["pr_id"]:
+                    aggregate["prId"] = enrich_row["pr_id"]
+                if enrich_row["pr_url"]:
+                    aggregate["url"] = enrich_row["pr_url"]
+                aggregate["costUsd"] = self._cost_wire(enrich_row["cost_usd"])
+            # DESC+LIMIT grabs the last N cheaply; re-reverse to wire order.
+            aggregate["steps"] = [
+                {"seq": int(row["seq"]), "type": str(row["type"]), "ts": row["ts"]}
+                for row in reversed(step_rows)
+            ]
+        except RunNotFoundError:
+            raise
+        except Exception:  # noqa: BLE001 — aggregate must never fail on enrichment
+            logger.exception("aggregate enrichment failed for run %s", run_id)
         return aggregate
 
     async def _persist_plan_status(

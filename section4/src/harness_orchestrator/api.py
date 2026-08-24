@@ -4,6 +4,7 @@ import sys
 import threading
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -41,7 +42,10 @@ from harness_orchestrator.logging_utils import (  # noqa: E402
     set_request_id,
 )
 from harness_orchestrator.planner import PlanNotApprovedError  # noqa: E402
-from harness_orchestrator.service import OrchestratorService  # noqa: E402
+from harness_orchestrator.service import (  # noqa: E402
+    OrchestratorService,
+    RunNotFoundError,
+)  # noqa: E402
 from harness_orchestrator.signals import (  # noqa: E402
     DoneSignalRejectedError,
     EmptyDiffTextError,
@@ -383,6 +387,36 @@ class RunStatusResponse(BaseModel):
     prId: str | None = None
 
 
+class AggregateStepOut(BaseModel):
+    """One ordered step of the W4-C2 aggregate (agent_events summary row)."""
+
+    seq: int
+    type: str
+    ts: datetime
+
+
+class RunAggregateResponse(BaseModel):
+    """M14-W4 F3a — the FROZEN pair-contract W4-C2 aggregate shape.
+
+    ``costUsd``/``prId``/``url``/``steps`` are explicit-null when their source
+    does not exist yet (no ledger rows, no PR opened, …); the detail page (F3b)
+    degrades honestly per missing field. ``costUsd`` is exact scale-6 money.
+    """
+
+    runId: str
+    state: str
+    costUsd: float | None = None
+    prId: str | None = None
+    url: str | None = None
+    steps: list[AggregateStepOut] = Field(default_factory=list)
+    # Base status fields stay part of the aggregate (superset of /status).
+    planId: str | None = None
+    planApproved: bool = False
+    isHumanEditing: bool = False
+    executing: bool = False
+    engineMode: str | None = None
+
+
 class ErrorDetail(BaseModel):
     """One error entry of the FROZEN contract envelope (ERROR_BODY_EXAMPLE)."""
 
@@ -627,16 +661,36 @@ async def get_run_status(runId: str, reader: RunReader) -> dict[str, Any]:
     return await _service.get_status(runId)
 
 
-@router.get("/runs/{runId}", status_code=status.HTTP_200_OK)
+@router.get(
+    "/runs/{runId}",
+    status_code=status.HTTP_200_OK,
+    response_model=RunAggregateResponse,
+    responses={
+        404: {
+            "model": ErrorEnvelope,
+            "description": "unknown or foreign run (no-oracle: identical envelope)",
+        },
+    },
+)
 async def get_run(runId: str, reader: RunReader) -> dict[str, Any]:
-    """Minimal single-run aggregate read (M12-W2 E4a).
+    """Single-run aggregate read — pair-contract W4-C2 (M14-W4 F3a).
 
-    Same wire shape as ``/status`` plus ``prId`` — the run's opened PR id
-    (agent_runs.pr_id, set by Section 2's PR-open producer), or None while
-    no PR exists. The review flow uses this to resolve run → PR without
-    replaying bus events.
+    Wire shape ``{runId, state, costUsd?, prId?, url?, steps?}`` plus the
+    legacy status fields (superset of ``/status``). Nullability is explicit:
+    ``costUsd`` is None until cost_ledger rows exist for the run; ``prId``/
+    ``url`` stay None until S2's PR-open producer binds one; ``steps`` lists
+    the run's agent_events as ordered ``{seq, type, ts}`` summaries, capped at
+    the LAST 100 (wire order = seq order). Unknown runs and foreign teams'
+    runs both answer 404 NOT_FOUND with the identical frozen error envelope
+    (M13-G5a no-oracle law).
     """
-    return await _service.get_status(runId)
+    try:
+        return await _service.get_status(runId)
+    except RunNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": {"code": "NOT_FOUND", "message": "run not found"}},
+        ) from e
 
 
 @router.get("/runs/{runId}/plan", status_code=status.HTTP_200_OK)
