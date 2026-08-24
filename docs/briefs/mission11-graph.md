@@ -1,7 +1,7 @@
 # Mission 11 Graph — ALEX-250: 5 Teams × 5 Fire Teams × 10 Agents
 
 Base: harness repo @ mission-10 state. Runtime change shipped first:
-`delegation.max_concurrent_children = 30` (was 10) — verified via
+`delegation.max_concurrent_children = 70` (was 30, before that 10) — verified via
 `hermes config get`.
 
 ## Topology
@@ -23,9 +23,9 @@ ATLAS-PRIME (ox-alpha session, depth-1 spawner)
 1. **Depth-1 spawn:** Hermes nesting max is 1. Fire teams and teams are
    SCHEDULING DOMAINS in the dispatch ledger, not parent agents. Every one of
    the 250 builders is a direct leaf child of ATLAS-Prime.
-2. **Concurrency 30:** at most 30 children run simultaneously — exactly one
-   fire team's worth. The scheduler rotates fire teams through the 30 slots;
-   five teams never run literally at once, they interleave.
+2. **Concurrency 70:** at most 70 children run simultaneously — two full fire
+   teams plus headroom. The scheduler rotates the 25 fire teams through the 70
+   slots; teams interleave rather than run wholesale.
 3. **Disjoint file ownership:** every agent gets a lane table row; any two
    agents sharing a file = graph bug = stop-the-line.
 4. **Verify-as-you-go:** each completed lane triggers its verifier pair
@@ -49,8 +49,8 @@ ATLAS-PRIME (ox-alpha session, depth-1 spawner)
 
 ```
 while queue nonempty:
-    ready = next fire team with all dependencies met (layer order)
-    dispatch up to (30 - running_count) builders from that fire team
+    ready = next fire team(s) with all dependencies met (layer order)
+    dispatch up to (70 - running_count) builders, mixing fire teams to fill slots
     on each completion: trigger verifier pair for that lane
     on pair READY verdict: ATLAS-Prime merges lane into staging branch
     dead(503)/budget-death → footprint audit → re-dispatch identical brief
