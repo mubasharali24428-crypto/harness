@@ -109,7 +109,17 @@ def test_response_model_filters_handler_output():
     )
     assert created.status_code == 201, created.text
     body = created.json()
-    assert set(body) == {"id", "projectId", "title", "createdAt", "briefId"}
+    # M16-X5 (additive, reconciled): lifecycle status/closedAt joined the
+    # meeting wire shape; response_model still filters anything unlisted.
+    assert set(body) == {
+        "id",
+        "projectId",
+        "title",
+        "createdAt",
+        "briefId",
+        "status",
+        "closedAt",
+    }
     assert body["projectId"] == "proj-g5a"
 
 
@@ -128,4 +138,20 @@ def test_messages_roundtrip_matches_schema():
 
     history = client.get(f"/api/v1/meetings/{meeting_id}/messages")
     assert history.status_code == 200
-    assert isinstance(history.json(), list)
+    # M16-X2: the GET body is now the pagination envelope {items, hasMore}.
+    page = history.json()
+    assert set(page) == {"items", "hasMore"}
+    assert isinstance(page["items"], list)
+    assert isinstance(page["hasMore"], bool)
+    assert len(page["items"]) == 1
+    # M16-X2: page items are the base message PLUS its stable pagination
+    # cursor (additive per docs/api-versioning.md); POST stays unpaged.
+    assert set(page["items"][0]) == {
+        "id",
+        "meetingId",
+        "userId",
+        "content",
+        "timestamp",
+        "isAiGenerated",
+        "messageSeq",
+    }

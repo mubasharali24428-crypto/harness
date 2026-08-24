@@ -24,7 +24,7 @@ def test_full_meeting_lifecycle():
     # 2. Post chat messages
     for user_id, content in GOLDEN_MESSAGES:
         svc.post_message(meeting.id, user_id, content)
-    messages = svc.get_messages(meeting.id)
+    messages, _has_more = svc.get_messages(meeting.id)  # M16-X2: (items, hasMore)
     # @ai messages now auto-invoke a server-side AI reply (brief §76-84)
     ai_invoked = sum(1 for _, c in GOLDEN_MESSAGES if c.lstrip().startswith("@ai"))
     assert len(messages) == len(GOLDEN_MESSAGES) + ai_invoked
@@ -108,7 +108,10 @@ def test_rest_api_conformance():
     # 4. Get messages
     res = client.get(f"/api/v1/meetings/{meeting_id}/messages")
     assert res.status_code == 200
-    assert len(res.json()) == 1
+    # M16-X2: paginated envelope {items, hasMore}; one message, no older page.
+    assert set(res.json()) == {"items", "hasMore"}
+    assert len(res.json()["items"]) == 1
+    assert res.json()["hasMore"] is False
 
     # 5. Invoke AI (not invoked)
     res = client.post(

@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from harness_contracts.roles import Principal
 from pydantic import BaseModel, Field
 
@@ -87,6 +87,9 @@ class MeetingOut(BaseModel):
     title: str
     createdAt: str
     briefId: str | None = None
+    # M16-X5 (raw-18 §8): lifecycle status on the wire (open | closed).
+    status: str = "open"
+    closedAt: str | None = None
 
 
 class ChatMessageOut(BaseModel):
@@ -155,6 +158,65 @@ class PromptOut(BaseModel):
     linkedBranch: str | None = None
 
 
+# ---------------------------------------------------------------------------
+# M16-X2 — meeting message pagination (raw-16 H1.06 unbounded-render fix).
+#
+# GET /{meetingId}/messages used to return the FULL history as a bare JSON
+# list; a long-running meeting rendered every message on every load. The
+# route now pages with the frozen api-conventions cursor shape:
+#   ?limit=<1..500>         page size (default MESSAGES_DEFAULT_LIMIT = 200,
+#                           hard-capped at 500; oversized values are clamped,
+#                           never rejected)
+#   ?before=<messageSeq>    keyset cursor: messages strictly OLDER than
+#                           that stable 1-based transcript position
+# returning {"items": [...], "hasMore": bool} — items chronological, each
+# carrying its messageSeq; hasMore true iff older messages remain beyond
+# the returned page.
+#
+# ONE-RELEASE BEHAVIOR CHANGE (documented per docs/api-versioning.md): a
+# NO-param GET returns the LAST MESSAGES_DEFAULT_LIMIT (=200) messages
+# instead of the entire history. Legacy bare-list readers must migrate to
+# `body.items` this release.
+# ---------------------------------------------------------------------------
+
+#: Bounds live in service.py (single source of truth); re-exported here so
+#: route defaults, tests, and the service path can never drift apart.
+from harness_meeting.service import (  # noqa: E402
+    MEETING_CLOSED,  # noqa: F401 -- deliberate re-export (tests pin it)
+    MESSAGES_DEFAULT_LIMIT,  # noqa: F401 -- deliberate re-export (tests pin it)
+    MESSAGES_MAX_LIMIT,  # noqa: F401 -- deliberate re-export
+    MeetingClosedError,  # noqa: F401 -- deliberate re-export
+)
+
+
+def _meeting_closed_410(e: MeetingClosedError) -> HTTPException:
+    """M16-X5 (raw-18 #54): traffic to a closed meeting answers honest 410
+    GONE — the resource existed and is permanently gone (terminal), which is
+    exactly what 410 tells a client not to retry. Unknown meetings stay 404."""
+    return HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail={"error": {"code": "MEETING_CLOSED", "message": str(e)}},
+    )
+
+
+class PagedChatMessageOut(ChatMessageOut):
+    """A page item: chat message PLUS its stable transcript cursor.
+
+    messageSeq is the 1-based position in the room's append-only history —
+    monotonic, gap-free, and usable directly as ``?before=``. Kept OUT of
+    the plain ChatMessageOut so POST /messages' wire shape is untouched.
+    """
+
+    messageSeq: int
+
+
+class MessagePageOut(BaseModel):
+    """Paginated GET-messages body (api-conventions pagination shape)."""
+
+    items: list[PagedChatMessageOut]
+    hasMore: bool
+
+
 @router.post(
     "",
     status_code=status.HTTP_201_CREATED,
@@ -200,18 +262,77 @@ def post_message(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": {"code": "NOT_FOUND", "message": str(e)}},
         ) from e
+    except MeetingClosedError as e:  # M16-X5 raw-18 #54: ingest after close
+        raise _meeting_closed_410(e) from e
+
+
+@router.post(
+    "/{meetingId}/close",
+    status_code=status.HTTP_200_OK,
+    response_model=MeetingOut,
+    responses={
+        404: {"model": _ErrorEnvelope, "description": "unknown meeting"},
+    },
+)
+def close_meeting(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
+    """Close a meeting (M16-X5, raw-18 §8). Terminal + idempotent (#53): the
+    second close returns the SAME stamped meeting — never an error, never a
+    moved closedAt. After close, message posts answer 410 MEETING_CLOSED."""
+    try:
+        meeting = _service.close_meeting(meetingId)
+        return meeting.model_dump()
+    except KeyError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": {"code": "NOT_FOUND", "message": str(e)}},
+        ) from e
 
 
 @router.get(
     "/{meetingId}/messages",
     status_code=status.HTTP_200_OK,
-    response_model=list[ChatMessageOut],
+    response_model=MessagePageOut,
     responses={404: {"model": _ErrorEnvelope, "description": "unknown meeting"}},
 )
-def get_messages(meetingId: str, principal: RequirePrincipal) -> list[dict[str, Any]]:
+def get_messages(
+    meetingId: str,
+    principal: RequirePrincipal,
+    limit: int | None = Query(default=None, gt=0),
+    before: str | None = None,
+) -> dict[str, Any]:
+    """Cursor-paginated transcript (M16-X2).
+
+    ``limit`` (default 100, hard-capped at 500 — larger values are clamped,
+    not rejected) sizes the page. ``before=<messageSeq>`` returns the page
+    of messages strictly OLDER than that stable 1-based transcript position.
+    Body shape is ``{items, hasMore}`` per the frozen api-conventions
+    pagination rule; every item carries its ``messageSeq``.
+
+    OLDER-MESSAGES FETCH PATTERN (frontend / X-lane consumers):
+      1. First paint:      GET .../messages                -> newest window
+         (last 100 by default); render bottom-anchored.
+      2. Scroll to top:    if body.hasMore is true, GET
+         .../messages?limit=N&before=<items[0].messageSeq>
+         and PREPEND the returned items — pages chain with no gap and no
+         overlap because every page ends exactly where the previous began.
+      3. Repeat until hasMore is false: the transcript head is reached.
+      Do NOT cache messageSeq across meetings; seqs are per-transcript
+      positions, not global ids. A cursor for a message that no longer
+      exists resolves to an honest empty page ({items: [], hasMore: false}).
+    """
     try:
-        messages = _service.get_messages(meetingId)
-        return [m.model_dump() for m in messages]
+        if limit is not None and limit > MESSAGES_MAX_LIMIT:
+            limit = MESSAGES_MAX_LIMIT  # clamp, never reject
+        items, has_more, first_seq = _service.get_message_page(
+            meetingId, limit=limit, before=before
+        )
+        return {
+            "items": [
+                {**m.model_dump(), "messageSeq": (first_seq or 0) + i}
+                for i, m in enumerate(items)
+            ],
+            "hasMore": has_more,
+        }
     except KeyError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

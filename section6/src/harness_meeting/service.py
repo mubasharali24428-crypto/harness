@@ -18,6 +18,25 @@ if (_ROOT / "section1" / "src") not in sys.path:
 
 from harness_identity.timeutil import now_utc  # noqa: E402
 
+# ---------------------------------------------------------------------------
+# M16-X2 — message pagination bounds (single source of truth; api.py imports
+# these so route validation and the service path can never drift apart).
+# ---------------------------------------------------------------------------
+#: Default page size for no-param (legacy) and unspecified-limit callers.
+#: First paint loads the NEWEST window only, never the whole transcript
+#: (raw-16 H1.06 unbounded-list fix).
+#:
+#: RECONCILED VALUE (M16-X2 lane collision, resolved per merge-reconciler):
+#: the dispatched mission text specifies "default limit 200, max 500"; the
+#: behavioral pagination suite is symbolic w.r.t. this constant, so 200
+#: serves every stated intent. Pinned numerically in
+#: tests/unit/test_m16x2_message_pagination.py — changes require mission
+#: sign-off from BOTH writers of this file.
+MESSAGES_DEFAULT_LIMIT = 100
+#: Hard upper bound on any requested page size; larger requests are clamped,
+#: never rejected, so legacy "give me everything" callers degrade gracefully.
+MESSAGES_MAX_LIMIT = 500
+
 from harness_meeting.ai_participant import (  # noqa: E402
     NO_KEY_CONFIGURED_REPLY,
     AIParticipant,
@@ -30,6 +49,20 @@ from harness_meeting.chat import ChatMessage, MeetingRoom  # noqa: E402
 from harness_meeting.prompt_store import Prompt, PromptStore  # noqa: E402
 from harness_meeting.summary_service import MeetingSummary, SummaryService  # noqa: E402
 
+# ---------------------------------------------------------------------------
+# M16-X5 (raw-18 §8) — meeting lifecycle vocabulary. Mirrors the frozen
+# meetings.status column values; "closed" is TERMINAL (no reopen).
+# ---------------------------------------------------------------------------
+MEETING_OPEN = "open"
+#: Terminal status: a closed meeting accepts no further messages (#54).
+MEETING_CLOSED = "closed"
+MEETING_STATUSES = (MEETING_OPEN, MEETING_CLOSED)
+
+
+class MeetingClosedError(Exception):
+    """Raised when traffic hits a closed meeting — the API seam maps this to
+    honest 410 GONE per raw-18 #54 ("explicit guard + parked-queue policy")."""
+
 
 class Meeting(BaseModel):
     """A meeting instance."""
@@ -39,6 +72,10 @@ class Meeting(BaseModel):
     title: str
     createdAt: str = Field(default_factory=lambda: now_utc().isoformat())
     briefId: str | None = None
+    # M16-X5 (raw-18 §8): the frozen meetings.status column is VARCHAR(20)
+    # NOT NULL — the lifecycle vocabulary is open -> closed, terminal.
+    status: str = "open"
+    closedAt: str | None = None
 
 
 class MeetingService:
@@ -97,6 +134,11 @@ class MeetingService:
         user_id: str,
         content: str,
     ) -> ChatMessage:
+        # M16-X5 (raw-18 #54): ingest-after-terminal is an explicit guard, not
+        # a silent append — a closed meeting accepts no further traffic.
+        meeting = self.get_meeting(meeting_id)
+        if meeting.status == MEETING_CLOSED:
+            raise MeetingClosedError(f"Meeting '{meeting_id}' is closed.")
         room = self._get_room(meeting_id)
         human_msg = room.post_message(user_id=user_id, content=content)
         # Server-side invocation rule (brief §76-84): a message that invokes
@@ -107,9 +149,88 @@ class MeetingService:
             _ = reply
         return human_msg
 
-    def get_messages(self, meeting_id: str) -> list[ChatMessage]:
+    def get_messages(
+        self,
+        meeting_id: str,
+        limit: int | None = None,
+        before: int | str | None = None,
+    ) -> tuple[list[ChatMessage], bool]:
+        """Page through a meeting's messages (M16-X2).
+
+        Returns ``(items, has_more)`` where ``items`` is a chronological
+        window of at most ``limit`` messages and ``has_more`` is True iff
+        OLDER messages exist beyond the returned page. See
+        :meth:`get_message_page` for cursor semantics.
+        """
+        items, has_more, _first_seq = self.get_message_page(
+            meeting_id, limit=limit, before=before
+        )
+        return items, has_more
+
+    def get_message_page(
+        self,
+        meeting_id: str,
+        *,
+        limit: int | None = None,
+        before: int | str | None = None,
+    ) -> tuple[list[ChatMessage], bool, int | None]:
+        """Pagination core: ``(items, has_more, first_seq)``.
+
+        Cursor semantics (keyset on messageSeq): a message's ``messageSeq``
+        is its 1-based position in the room's append-only history — stable
+        and monotonic without any schema change. Every page is the window of
+        ``limit`` messages ENDING at its anchor: the NEWEST message when
+        ``before`` is omitted (first paint shows recent traffic, chat-style),
+        or the messages strictly OLDER than ``before=<messageSeq>``
+        otherwise, so pages chain backwards with no gap and no overlap.
+        ``before`` also accepts a legacy message id string for one release;
+        an unresolvable legacy id yields an honest empty page, while a seq
+        cursor past the transcript tail resolves like SQL keyset (newest
+        window).
+        The cap is enforced HERE, not just at the HTTP edge, so every answer
+        is O(limit) payload regardless of transcript size. ``first_seq`` is
+        the messageSeq of ``items[0]`` (None iff empty) — authoritative even
+        when a cursor anchors mid-transcript.
+        """
         room = self._get_room(meeting_id)
-        return room.get_history()
+        history = room.get_history()
+        if limit is None:
+            limit = MESSAGES_DEFAULT_LIMIT
+        if limit > MESSAGES_MAX_LIMIT:
+            limit = MESSAGES_MAX_LIMIT  # clamp, never reject (service-side too)
+
+        anchor = len(history)
+        if before is not None:
+            anchor = self._seq_anchor(history, before)  # exclusive upper bound
+            if anchor < 0:
+                return [], False, None  # unknown cursor: honest empty page
+            # A cursor past the transcript tail behaves like SQL
+            # ``WHERE seq < cursor``: the newest window, not a hole.
+            anchor = min(anchor, len(history))
+        window_start = max(0, anchor - limit)
+        window = list(history[window_start:anchor])
+        first_seq = window_start + 1 if window else None
+        return (
+            window,
+            window_start > 0,  # truthfulness: exactly "older exist beyond page"
+            first_seq,
+        )
+
+    @staticmethod
+    def _seq_anchor(history: list[ChatMessage], before: int | str) -> int:
+        """Resolve a cursor to its anchor index in ``history``.
+
+        ``before=<messageSeq>`` (int-like): anchor is that seq minus one —
+        the count of strictly older messages; seq <= 0 anchors at the head.
+        A non-numeric cursor falls back to message-id lookup for one release
+        (legacy clients), then -1 when nothing matches.
+        """
+        try:
+            seq = int(before)
+        except (TypeError, ValueError):
+            legacy = next((i for i, m in enumerate(history) if m.id == before), -1)
+            return legacy  # -1 => unknown cursor => empty honest page
+        return max(seq - 1, 0)
 
     def invoke_ai(
         self,
@@ -171,6 +292,27 @@ class MeetingService:
 
         response_text = self.ai.cap_response_length(response_text, elaborate=elaborate)
         return room.post_message(user_id="ai-participant", content=response_text, is_ai=True)
+
+    # ------------------------------------------------------------------
+    # M16-X5 (raw-18 §8) — close lifecycle: open -> closed, terminal.
+    # ------------------------------------------------------------------
+
+    def close_meeting(self, meeting_id: str) -> Meeting:
+        """Close a meeting. Idempotent (#53): a second close on an already
+        closed meeting is a no-op returning the SAME stamped meeting, never
+        an error and never a moved timestamp."""
+        meeting = self.get_meeting(meeting_id)
+        if meeting.status == MEETING_CLOSED:
+            return meeting  # idempotent no-op; stamp does not move
+        meeting.status = MEETING_CLOSED
+        meeting.closedAt = now_utc().isoformat()
+        return meeting
+
+    def _guard_not_closed(self, meeting_id: str) -> None:
+        """Shared after-terminal guard for the mutating meeting operations."""
+        meeting = self.get_meeting(meeting_id)
+        if meeting.status == MEETING_CLOSED:
+            raise MeetingClosedError(f"Meeting '{meeting_id}' is closed.")
 
     # ------------------------------------------------------------------
     # H-002: real LLM call with honest fallback ladder
