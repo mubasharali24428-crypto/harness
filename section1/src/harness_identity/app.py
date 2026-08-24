@@ -120,6 +120,11 @@ def make_app(session_factory, settings: Settings):
     from .billing import router as billing_router
 
     app.include_router(billing_router)
+
+    # Mission12-E3a merge wiring: roster removal/role-change (W2-C1 server).
+    from .teams_api import router as teams_api_router
+
+    app.include_router(teams_api_router)
     return app
 
 
