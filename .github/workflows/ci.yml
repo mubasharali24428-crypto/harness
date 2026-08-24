@@ -36,6 +36,14 @@ jobs:
       # commands are verbatim the Makefile recipe. See docs/ci-gates.md.
       - name: TS contract mirror is current (E-codegen drift guard) [make static-gates]
         run: python3 contracts/ts/generate.py --check
+      # M15-G6a (W4 carryover #4 + M13 isolation law): route modules export
+      # default ONLY; sections import ONLY contracts/. One step runs both law
+      # guards; the script prints file:line per violation. Kept stepwise like
+      # the three gates above (runner sh is dash; the Makefile invokes bash).
+      - name: Route-module + isolation laws (M15-G6a) [make guard-routes + make guard-isolation]
+        run: |
+          make --no-print-directory guard-routes
+          make --no-print-directory guard-isolation
 
   python-tests:
     name: pytest (${{ matrix.section }})

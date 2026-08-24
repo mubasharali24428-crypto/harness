@@ -21,7 +21,9 @@ works end-to-end and fails loudly with exit 2 while specs are absent).
 
 | Makefile target | What runs | CI job / step | Notes |
 |---|---|---|---|
-| `make static-gates` | `sh -n deploy/entrypoint.sh` · `docker compose -f deploy/docker-compose.yml config -q` · `python3 contracts/ts/generate.py --check` | `static-gates` | Three steps carry the same three commands verbatim; kept stepwise only because runner tooling differs per action image. |
+| `make static-gates` | `sh -n deploy/entrypoint.sh` · `docker compose -f deploy/docker-compose.yml config -q` · `python3 contracts/ts/generate.py --check` · M15-G6a law guards (below) | `static-gates` | Three tool steps carry the same three commands verbatim; kept stepwise only because runner tooling differs per action image. Since M15-G6a the aggregate ALSO runs the two law-guard targets below first. |
+| `make guard-routes` | `bash section7/scripts/ci_route_module_guard.sh routes` | `static-gates` → route/isolation laws step (M15-G6a) | Route-module law: every `section*/app/**/page.tsx` default-export-only (W4 carryover #4). |
+| `make guard-isolation` | `bash section7/scripts/ci_route_module_guard.sh isolation` | `static-gates` → route/isolation laws step (M15-G6a) | Section isolation: imports cross `sectionN→sectionM` boundaries fail; `contracts/` is the only legal shared dependency. |
 | `make lint-section<N>` | `cd sectionN && ./.venv/bin/ruff check src tests scripts \|\| ./.venv/bin/ruff check src tests` | `python-tests` matrix → ruff step | The `\|\|` fallback mirrors the original CI line: sections without a `scripts/` tree would fail ruff on the missing path. |
 | `make test-section<N>` | `cd sectionN && ./.venv/bin/python -m pytest tests/ -q` | `python-tests` matrix → pytest step | Uses each section's OWN venv (editable `harness_contracts` + section) — same as CI's provisioning step builds. N ∈ {1,2,3,4,5,6,8,10}, CI matrix order. |
 | `make frontend-tsc` | `cd section7 && npx tsc --noEmit` | `frontend` → tsc step | |
@@ -34,6 +36,55 @@ works end-to-end and fails loudly with exit 2 while specs are absent).
 Aggregators: `make lint`, `make test`, `make frontend`, `make pg-probe`,
 `make gate`. Per-section targets exist so you can iterate exactly like the CI
 matrix does: `make test-section6`, `make lint-section8`, …
+
+## Route-module + isolation law guards (M15-G6a)
+
+Two architectural laws that used to live only in convention are now static
+gates, enforced by one POSIX-sh script with two modes:
+
+| Guard | Law | Fails when |
+|---|---|---|
+| `make guard-routes` | **Route-module law** (W4 carryover #4) | any `section*/app/**/page.tsx` contains a non-default export (`export const metadata = …`, helpers, types, …). Next.js route modules must default-export ONLY — this is the index-signature violation class that cost us a Wave-4 fix cycle. Move extras into a sibling module and import them. |
+| `make guard-isolation` | **Section-isolation law** (AGENTS.md layout rules; M13 audit) | code in `sectionN/` imports from `sectionM/` (N≠M), either Python-style (`from section1.models import …`) or module-specifier-style (`'../section2/foo'`). Sections share via `contracts/` alone (the `harness_contracts` package or its `@contracts/*` TS mirror); cross-section data reads go through raw SQL against frozen table names. |
+
+Behavior both modes share:
+
+- Violations print `file:line` plus the offending source line and the law
+  text, then the target exits 1 — CI goes red.
+- Exit codes: 0 clean · 1 violations · 2 usage/internal error (a broken or
+  missing guard script can never silently pass: every Makefile invocation
+  first runs `sh -n` on the script).
+- Scope: all `section*/app/**/page.tsx` (routes mode); all source files under
+  `section*/` excluding `node_modules`, `.next`, venvs, build dirs (isolation
+  mode). `contracts/` itself and `integration/` checkpoint tests are outside
+  the isolation guard on purpose. A section naming its own tree is legal.
+- CI wiring: ONE step in the `static-gates` job runs both targets back to
+  back; `make static-gates` (and therefore `make gate`) includes them too.
+
+Trip-test evidence (violation planted, guard run, fixture removed):
+
+```console
+$ printf 'export const metadata = { title: %s };\n\nexport default function TripTestPage() {\n\treturn <main>x</main>;\n}\n' "'trip-test'" > section7/app/trip-test/page.tsx
+$ make guard-routes; echo "exit=$?"
+GUARD[routes] FAIL: section7/app/trip-test/page.tsx:1: non-default export in route module: export const metadata = { title: 'trip-test' };
+                route modules (app/**/page.tsx) may only 'export default'
+                ...
+GUARD[routes] RESULT: 1 violation(s) across 16 route module(s).
+exit=1
+
+$ printf 'from section1.models import Project  # noqa: F401\n' > section3/tests/test_guard_trip.py
+$ make guard-isolation; echo "exit=$?"
+GUARD[isolation] FAIL: section3/tests/test_guard_trip.py:4: cross-section import: from section1.models import Project  # noqa: F401
+                'section3' references 'section1' — sections may depend ONLY on contracts/
+                ...
+GUARD[isolation] RESULT: 1 violation(s) across 374 source file(s) in 9 section(s).
+exit=1
+```
+
+Both fixtures were deleted immediately after; clean-tree runs print
+`GUARD[routes] OK: 15 route module(s)` / `GUARD[isolation] OK: ~372 source
+file(s)` with exit 0.
+
 
 ## Provisioning vs gating
 

@@ -11,6 +11,7 @@
 #   make test            pytest matrix, one venv per section (CI matrix order)
 #   make frontend        section7 tsc --noEmit + vitest run
 #   make static-gates    entrypoint.sh parse + compose config + TS mirror sync
+#                        + M15-G6a route/isolation law guards
 #   make e2e             section7 Playwright hero-journey (specs: lane H3a)
 #   make pg-probe        nightly parity: real-PG integration + S1 suite (needs PG)
 #   make gate            EVERYTHING a PR must pass (static-gates lint test frontend)
@@ -25,7 +26,8 @@ PG_URL ?= postgresql+asyncpg://harness:harness@localhost:5499/harness
 
 .PHONY: gate help $(foreach s,$(SECTIONS),lint-$(s) test-$(s)) \
         lint test frontend frontend-tsc frontend-vitest static-gates e2e \
-        pg-probe pg-probe-integration pg-probe-s1 pip-audit
+        pg-probe pg-probe-integration pg-probe-s1 pip-audit \
+        guard-routes guard-isolation guard-route-law
 
 help:
 	@echo "Harness gates — single source of truth shared by CI (.github/workflows/ci.yml):"
@@ -33,6 +35,9 @@ help:
 	@echo "  make test            pytest matrix (same sections, CI order)"
 	@echo "  make frontend        section7: tsc --noEmit + vitest run"
 	@echo "  make static-gates    sh -n entrypoint.sh; compose config; TS mirror --check"
+	@echo "                       + route/isolation law guards (M15-G6a)"
+	@echo "  make guard-routes    app/**/page.tsx default-export-only law (W4 carryover)"
+	@echo "  make guard-isolation sections import ONLY contracts/ (M13 isolation law)"
 	@echo "  make e2e             section7 Playwright suite (specs land via lane H3a)"
 	@echo "  make pg-probe        real-PG probe: integration checkpoint + S1 suite (needs PG :5499)"
 	@echo "  make pip-audit       dependency audit (WARN-posture parity with CI)"
@@ -40,7 +45,10 @@ help:
 	@echo "  make lint-section<N> / test-section<N>   one section, exactly CI's command"
 
 # ---------------------------------------------------------------- static gates
-static-gates:
+# M15-G6a added the route-module + isolation law guards (guard-route-law) to
+# this aggregate so `make gate` locally covers byte-for-byte what the CI
+# static-gates JOB enforces on PRs (the job lists the same commands stepwise).
+static-gates: guard-route-law
 	sh -n deploy/entrypoint.sh
 	docker compose -f deploy/docker-compose.yml config -q
 	python3 contracts/ts/generate.py --check
@@ -158,6 +166,28 @@ pg-guard:
 # WARN-posture parity for the security-scan job (continue-on-error in CI).
 pip-audit:
 	cd section1 && ./.venv/bin/pip install -q pip-audit && ./.venv/bin/pip-audit --progress-spinner off
+
+# ------------------------------------------------------------- route law (M15-G6a)
+# W4-carryover architectural laws as CI gates: route modules export default
+# ONLY; sections import only contracts/. Both modes run in ONE static-gates
+# step via the aggregator; granular targets exist so a red run names its law.
+GUARD_SCRIPT := section7/scripts/ci_route_module_guard.sh
+
+guard-routes:
+	@$(MAKE) --no-print-directory guard-script-check
+	@bash $(GUARD_SCRIPT) routes
+
+guard-isolation:
+	@$(MAKE) --no-print-directory guard-script-check
+	@bash $(GUARD_SCRIPT) isolation
+
+guard-route-law: guard-routes guard-isolation
+
+# sh -n parse gate for the guard itself — a broken guard must fail LOUDLY,
+# never silently skip. Same posture as entrypoint.sh's static gate.
+guard-script-check:
+	sh -n $(GUARD_SCRIPT)
+
 
 # ----------------------------------------------------------------------- gate
 # Everything branch protection blocks a PR on. (e2e joins here when H3a's
