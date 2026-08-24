@@ -382,7 +382,7 @@ async def reencrypt_all_payloads(session: AsyncSession, master_key: bytes) -> di
             failed += 1
             continue
         try:
-            was_already_new = legacy_read.decrypt(token.encode()) != plaintext
+            was_already_new = legacy_read.decrypt(token.encode()).decode() != plaintext
         except InvalidToken:
             # Legacy key cannot read this token at all => already under the
             # derived key from a previous pass.
