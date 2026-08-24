@@ -1,3 +1,7 @@
 node_modules/
 .next/
 next-env.d.ts
+
+# Playwright (M13-H3a) transient artifacts
+test-results/
+playwright-report/
