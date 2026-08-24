@@ -26,6 +26,9 @@ APPEND_ONLY_ACTIONS = frozenset(
         "run.started",
         "run.stopped",
         "forbidden.command_blocked",
+        # Mission 12 E3a (H-010): roster management transitions.
+        "member.removed",
+        "member.role_changed",
     }
 )
 

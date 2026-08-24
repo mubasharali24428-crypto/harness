@@ -340,3 +340,60 @@ async def emit_plan_rejected(
         actor_kind=actor_kind,
         session_owner=session_owner,
     )
+
+
+async def emit_member_removed(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """member.removed — Mission 12 E3a: admin deletes a team membership.
+
+    Call from the DELETE /teams/{id}/members/{uid} handler AFTER the membership
+    row commits; target_id is the (now-gone) TeamMember.id, detail carries the
+    removed userId + former role only.
+    """
+    return await _emit(
+        session,
+        "member.removed",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_member",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_member_role_changed(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """member.role_changed — Mission 12 E3a: admin PATCHes a member's role.
+
+    Call from the PATCH /teams/{id}/members/{uid} handler AFTER the role
+    commits; detail carries {targetUserId, fromRole, toRole}.
+    """
+    return await _emit(
+        session,
+        "member.role_changed",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_member",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
