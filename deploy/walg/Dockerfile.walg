@@ -1,47 +1,77 @@
-# deploy/walg/Dockerfile.walg — postgres:18-alpine + the WAL-G binary.
+# deploy/walg/Dockerfile.walg — postgres:18 + the WAL-G binary.
 #
-# Mission 10 node B4. The stock `postgres:18-alpine` db image has no wal-g, so
-# archive_command='wal-g wal-push %p' cannot run inside it yet; build THIS
-# image and point a future wave's db service at it:
+# Mission 10 node B4 origin; FIXED in Mission 13 Wave 3 lane H2 after the
+# first real build attempt failed. History matters here:
 #
-#     docker build -f deploy/walg/Dockerfile.walg -t harness-db-walg --build-arg WALG_VERSION=v3.0.9 .
-#     # then in compose:  db: { image: harness-db-walg, ... }
+#   * M10 shipped `FROM postgres:18-alpine` + ADD of the upstream release
+#     binary, validated only on paper (`sh -n`, manifest name checks) — never
+#     built. First actual build (2026-08-23, lane H2) failed at RUN with
+#     exit 127: upstream ships **glibc-linked** binaries
+#     (`interpreter /lib/ld-linux-aarch64.so.1`, verified with `file`), which
+#     cannot execute on Alpine's musl — no amount of renaming fixes that.
+#   * Fix: base image moves to `postgres:18` (Debian glibc userspace; the
+#     PGDATA layout for a given major version is identical across both
+#     flavors, so volumes stay compatible), and the binary is fetched in a
+#     multi-stage `fetch` layer with checksum verification before COPY.
 #
-# Binary provenance (asset names/URLs verified against the upstream GitHub
-# release manifest on 2026-08-22):
-#     https://github.com/wal-g/wal-g/releases/download/<WALG_VERSION>/wal-g-pg-24.04-<amd64|aarch64>
-#   Each asset ships with a sibling `.sha256` checksum file, which is verified
-#   below before the binary is installed. Update WALG_VERSION deliberately;
-#   re-run the PITR drill after every bump.
+# Binary provenance (asset names/URLs re-verified against the upstream GitHub
+# release manifest on 2026-08-23 for v3.0.9):
+#     https://github.com/wal-g/wal-g/releases/download/<WALG_VERSION>/wal-g-pg-<UBU>-<aarch64|amd64>
+#   Each asset ships with a sibling `.sha256` checksum file, verified below
+#   before installation. Update WALG_VERSION deliberately; re-run the PITR
+#   drill in docs/runbooks/backup-and-pitr.md after every bump.
 #
-# NOTE (honest limits): NOT built or run locally for Mission 10 — the build
-# environment has no mandate to pull images. Syntax follows the standard
-# multi-arch pattern; a credentialed operator should build it once and record
-# the result in docs/runbooks/backup-and-pitr.md.
+# Build (BuildKit auto-fills TARGETARCH for your platform; amd64 maps to the
+# upstream `amd64` asset, arm64 to `aarch64`):
+#     docker build -f deploy/walg/Dockerfile.walg -t harness-db-walg:v3.0.9 .
+# Smoke test:
+#     docker run --rm harness-db-walg:v3.0.9 wal-g --version
 
-FROM postgres:18-alpine
+# --- stage 1: fetch + checksum-verify the upstream binary -------------------
+FROM debian:trixie-slim AS fetch
 
 ARG WALG_VERSION=v3.0.9
-ARG TARGETARCH=amd64
+# Upstream asset naming uses Ubuntu arch tokens: aarch64 | amd64. Translate
+# Docker/BuildKit's TARGETARCH (arm64 | amd64) so the same command builds on
+# Apple Silicon and x86 hosts without manual overrides.
+ARG TARGETARCH
 
-LABEL org.opencontainers.image.title="harness-postgres-walg" \
-      org.opencontainers.image.description="postgres:18-alpine + WAL-G ${WALG_VERSION} for harness PITR" \
-      org.opencontainers.image.source="https://github.com/wal-g/wal-g"
-
-ADD https://github.com/wal-g/wal-g/releases/download/${WALG_VERSION}/wal-g-pg-24.04-${TARGETARCH} /tmp/wal-g-pg-24.04-${TARGETARCH}
-ADD https://github.com/wal-g/wal-g/releases/download/${WALG_VERSION}/wal-g-pg-24.04-${TARGETARCH}.sha256 /tmp/wal-g-pg-24.04-${TARGETARCH}.sha256
-
-# Verify-then-rename: the .sha256 asset's checksum line names the ORIGINAL
-# upstream filename (wal-g-pg-24.04-${TARGETARCH}), so `sha256sum -c` must run
-# while the binary still carries that name. Renaming before verifying made the
-# check unsatisfiable on every first build.
 RUN set -eu; \
+    case "${TARGETARCH}" in \
+        arm64) UARCH=aarch64 ;; \
+        amd64) UARCH=amd64 ;; \
+        *) echo "unsupported TARGETARCH '${TARGETARCH}' (want arm64|amd64)" >&2; exit 1 ;; \
+    esac; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates wget; \
     cd /tmp; \
-    sha256sum -c "wal-g-pg-24.04-${TARGETARCH}.sha256"; \
-    chmod +x "wal-g-pg-24.04-${TARGETARCH}"; \
-    mv "wal-g-pg-24.04-${TARGETARCH}" /usr/local/bin/wal-g; \
-    rm "wal-g-pg-24.04-${TARGETARCH}.sha256"; \
+    BASE="https://github.com/wal-g/wal-g/releases/download/${WALG_VERSION}/wal-g-pg-24.04-${UARCH}"; \
+    wget -q "${BASE}"; \
+    wget -q "${BASE}.sha256"; \
+    # Verify-then-rename: the .sha256 asset's checksum line names the ORIGINAL
+    # upstream filename, so `sha256sum -c` must run while the binary still
+    # carries that name. Renaming before verifying made the check
+    # unsatisfiable on every first build (M10 lesson, kept).
+    sha256sum -c "wal-g-pg-24.04-${UARCH}.sha256"; \
+    chmod +x "wal-g-pg-24.04-${UARCH}"; \
+    mv "wal-g-pg-24.04-${UARCH}" /usr/local/bin/wal-g; \
     /usr/local/bin/wal-g --version
 
-# Nothing else changes: same postgres user/layout as the stock image so the
-# pgdata volume stays byte-compatible.
+# --- stage 2: the actual image ----------------------------------------------
+FROM postgres:18
+
+ARG WALG_VERSION=v3.0.9
+
+LABEL org.opencontainers.image.title="harness-postgres-walg" \
+      org.opencontainers.image.description="postgres:18 + WAL-G ${WALG_VERSION} for harness PITR" \
+      org.opencontainers.image.source="https://github.com/wal-g/wal-g"
+
+COPY --from=fetch /usr/local/bin/wal-g /usr/local/bin/wal-g
+RUN /usr/local/bin/wal-g --version
+
+# Nothing else changes: same postgres major/layout so the pgdata volume stays
+# byte-compatible. NOTE for operators coming from the old alpine-flavored db
+# image: Debian-flavored postgres runs as uid 999 (alpine used 70). The
+# official entrypoint chowns a mounted data dir on first boot, but prefer
+# initializing fresh volumes with THIS image (see the walg-db compose service)
+# rather than replaying chown churn on the live one.

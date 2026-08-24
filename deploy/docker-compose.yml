@@ -349,8 +349,22 @@ services:
       - archive_command=wal-g wal-push %p
       - -c
       - archive_timeout=${WALG_ARCHIVE_TIMEOUT:-60s}
+      # Custom HBA (deploy/walg/pg_hba.conf): the stock image's generated
+      # pg_hba.conf has no `host replication` rule, which every streaming
+      # base backup needs — first drill failed on exactly that. The whole
+      # DIR is mounted, not the single file: on Docker Desktop/macOS a
+      # host-side rewrite of a bind-mounted FILE leaves the container staring
+      # at a stale unlinked inode (observed live: nlink=0, open() → ENOENT).
+      - -c
+      - hba_file=/etc/harness/pg_hba.conf
     volumes:
       - pgdata_walg:/var/lib/postgresql
+      - ./walg:/etc/harness:ro
+      # file:// drills: share the SAME storage directory between host and the
+      # walg-profile containers so a fresh restore container can read what the
+      # archiver wrote (container /tmp is otherwise per-container and
+      # ephemeral). Same path inside and outside; S3 users can ignore this.
+      - "${WALG_FILE_PREFIX:-/tmp/harness-walg-drill}:${WALG_FILE_PREFIX:-/tmp/harness-walg-drill}"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U harness"]
       interval: 2s
@@ -403,6 +417,8 @@ services:
       - ./:/opt/harness/deploy:ro
       # Persistent run logs (one-shot containers vanish; their logs stay):
       - walg_logs:/var/log/harness-walg
+      # file:// drills: same storage dir as walg-db (see the note there):
+      - "${WALG_FILE_PREFIX:-/tmp/harness-walg-drill}:${WALG_FILE_PREFIX:-/tmp/harness-walg-drill}"
     depends_on:
       walg-db:
         condition: service_healthy

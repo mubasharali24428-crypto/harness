@@ -6,395 +6,359 @@ Scope: the `db` service of `deploy/docker-compose.yml` — container
 (dev defaults — change in any real deployment), exposed host-side on
 `127.0.0.1:5499`.
 
-Tooling (this directory's sibling scripts, all POSIX `sh`, no deps beyond
-`docker` + coreutils):
+Status line (M13-W3-H2, 2026-08-24): **WAL-G PITR is implemented and was
+executed end-to-end against file:// storage inside Docker** — archive_command,
+base backup, retention, inventory, and two full point-in-time recoveries into
+a scratch volume (one hand-driven, one via `restore-walg.sh`) all ran for real;
+see the drill log and the validated/unexecuted table at the end. What is still
+UNEXECUTED is anything needing real S3 credentials or touching the live
+volume.
 
-| Script | What it does |
-|---|---|
-| `deploy/backup/backup.sh` | `pg_dump` (custom format, gzip) → `deploy/backup/backups/<UTC-timestamp>.dump`, integrity-checks it via `pg_restore --list`, prunes to newest `BACKUP_KEEP` (default 7) |
-| `deploy/backup/restore.sh <dump> [expectations]` | Drops + recreates a target DB (confirmation prompt unless `RESTORE_FORCE=1`; override `RESTORE_TARGET_DB` to rehearse), restores with `pg_restore --exit-on-error`, row-count sanity check of `users`, `teams`, `projects`, `agent_events` against an optional expectations file |
-| `deploy/backup/verify_restore.sh` | One-shot drill: scratch DB inside the running container ← newest snapshot, compares key-table counts vs live db, prints PASS/FAIL per table, always drops the scratch DB |
+Tooling map:
 
-Snapshots are logical dumps (schema **and** data) and are **not encrypted at
-rest**. They contain app-layer-encrypted secrets (`api_keys.key_encrypted`,
+| Layer | Files | What it does |
+|---|---|---|
+| Logical snapshots | `deploy/backup/backup.sh`, `restore.sh`, `verify_restore.sh` | `pg_dump` (custom format, gzip) → `deploy/backup/backups/<UTC>.dump`; restore + row-count verify into scratch DB |
+| Physical PITR | `deploy/walg/Dockerfile.walg`, `deploy/walg/pg_hba.conf`, `deploy/runners/backup.sh`, `deploy/walg/restore-walg.sh`, compose services `walg-db` + `walg` (`--profile walg`) | Continuous WAL archiving (`archive_command='wal-g wal-push %p'`) + streaming base backups + timed restore drills |
+
+Snapshots (both kinds) are **not encrypted at rest**. They contain
+app-layer-encrypted secrets (`api_keys.key_encrypted`,
 `github_connections.access_token_encrypted`) which are only decryptable with
 the **same `HARNESS_MASTER_KEY`** as the environment that produced them —
 restoring into a new host with a different master key yields undecryptable
 secrets.
 
-## RPO / RTO statement
+## RPO / RTO statement (updated 2026-08-24)
 
-| Metric | Chosen value | Basis | How to tighten |
+Two independent recovery paths exist. Pick per incident:
+
+| Path | RPO | Measured RTO (2026-08-24 drill, dev-sized data) | Notes |
 |---|---|---|---|
-| **RPO** | **24 h** | Nightly cron keeps one dump per day; worst case loses up to 24 h of writes | Cron hourly → RPO ≤ 1 h; every 15 min → RPO ≤ 15 min. Below that, logical dumps stop making sense — go to WAL archiving (PITR section below) for seconds-level RPO |
-| **RTO** | **30 min** target | Measured on the current dataset: full backup ≈ 1.2 s, restore + verify ≈ 1–2 s (2026-08-23 live proof). Even at 100× data volume the mechanics stay in minutes; the budget is dominated by human decision-making, stopping services, and restarting the stack | Automate the checklist below; pre-stage offsite copies near the restore host |
+| **WAL-G PITR** (`--profile walg`) | ≤ `WALG_ARCHIVE_TIMEOUT` (60 s default) + detection time; **demonstrated: recovered to 4 s before a destructive DELETE** | fetch 1 s + replay-to-pause ≈ 2 s wall clock on the drill dataset; budget minutes for human verification + cutover | Physical, whole-cluster; recovers to ANY timestamp covered by base + WAL |
+| Nightly `pg_dump` (`deploy/backup/`) | 24 h (cron cadence) | backup ≈ 1.2 s, restore+verify ≈ 1–2 s (2026-08-23 live proof) | Logical, per-database; survives even if physical tooling breaks |
 
 These values are appropriate for this single-host dev/small-team deployment.
-They are NOT appropriate for a multi-team production instance without WAL
-archiving and offsite copies.
+For multi-team production: real object storage (S3/R2/MinIO) with versioning +
+lifecycle rules, tighter `archive_timeout`, offsite copies of BOTH layers, and
+a scheduled drill cadence (monthly minimum).
 
-## Scheduling (nightly backup)
-
-Cron (Linux; also works on macOS):
+## Scheduling
 
 ```
 # m  h dom mon dow  command
 17 2 * * * cd /path/to/harness && ./deploy/backup/backup.sh >> deploy/backup/backup.log 2>&1
+03 3 * * * cd /path/to/harness && docker compose -f deploy/docker-compose.yml --profile walg run --rm walg >> deploy/backup/walg.log 2>&1
 ```
 
-(`17 2` = 02:17 local time; use `17 2 * * *` with `CRON_TZ=UTC` or convert if
-you care about the exact UTC instant. The script logs UTC timestamps either
-way.)
+(First line: nightly logical dump. Second: daily WAL-G base backup via the
+one-shot wrapper — host cron is deliberately preferred over any in-container
+sleep loop: exact timing, catch-up semantics, failures surface in cron mail.)
+macOS launchd equivalent: `StartCalendarInterval` agents running the same
+commands.
 
-macOS launchd equivalent (cron still works but is semi-deprecated there):
-a `RunAtLoad=false`, `StartCalendarInterval={Hour=2, Minute=17}` agent running
-the same command line.
-
-**Offsite copy is mandatory for real deployments** — as shipped, snapshots sit
-on the same filesystem as the stack, so host/disk loss takes both down
-together. Add a second crontab line after the backup:
+**Offsite copy is mandatory for real deployments** — as shipped, everything
+sits on the same filesystem as the stack:
 
 ```
 20 2 * * * rsync -a --delete /path/to/harness/deploy/backup/backups/ backup-host:/srv/harness-backups/
 # or: rclone copy /path/to/harness/deploy/backup/backups remote:harness-backups
 ```
 
-## Restore procedure (step by step)
+With real S3 the object store IS the offsite copy for the PITR layer; enable
+bucket **versioning** (ransomware protection) and a lifecycle rule (e.g.
+expire noncurrent versions after 30 days), prefer SSE encryption at rest.
 
-Assumes the snapshot came from `backup.sh` and you are on the compose host.
+## Restore procedure — logical snapshots (unchanged)
 
-1. **Freeze the writers** (keep the db itself up for now):
-   ```
-   docker compose -f deploy/docker-compose.yml stop identity github models orchestrator sandbox meeting review frontend
-   ```
-2. **Protect the broken state**: run `./deploy/backup/backup.sh` once more.
-   If the restore goes wrong you now have a snapshot of the damaged state too,
-   and its timestamp marks the incident boundary.
-3. **Generate expectations from the healthy source**, if you have any way to
-   know what the data should look like (see the header comment of
-   `restore.sh` for the exact loop). Skip if you don't — the restore still
-   runs; only the automated comparison is lost.
-4. **Restore** (this DROPS the live `harness` database):
-   - Interactive, with confirmation prompt:
-     `./deploy/backup/restore.sh deploy/backup/backups/<timestamp>.dump expectations.txt`
-     Type `YES` when prompted.
-   - Non-interactive: prefix with `RESTORE_FORCE=1`.
-5. **Read the script output**: every restore logs restored row counts and,
-   with an expectations file, an explicit pass/fail per table. A non-zero exit
-   means stop and investigate — do not "just restart" over a failed restore.
-6. **Restart the stack**: `docker compose -f deploy/docker-compose.yml up -d`.
-7. **Verify**: `curl localhost:8001/health` → `{"ok":true}` on each backend
-   port (8001–8006 + 8008; there is no service on 8007), then log into the UI
-   and confirm projects/teams render.
-8. **Post-incident**: copy the incident snapshot + new post-restore snapshot
-   offsite, note the event gap in the audit trail (event sourcing means
-   writes during the lost window are simply absent — say so honestly in the
-   incident report).
+Assumes the snapshot came from `backup.sh`:
 
-**Rehearse regularly**: run `./deploy/backup/verify_restore.sh` weekly and
-after any schema migration lands. It never touches production tables — it
-exercises restore into a throwaway `harness_verify_restore` DB and cleans up
-after itself. A backup that has never been restored is a hope, not a backup.
+1. Freeze writers: `docker compose -f deploy/docker-compose.yml stop identity github models orchestrator sandbox meeting review frontend`
+2. Protect the broken state: one more `./deploy/backup/backup.sh` run.
+3. Generate expectations from the healthy source if possible.
+4. Restore (DROPS the live `harness` DB):
+   `./deploy/backup/restore.sh deploy/backup/backups/<timestamp>.dump expectations.txt` (+ type `YES`; or prefix `RESTORE_FORCE=1`).
+5. Read the output: restored counts + pass/fail per table. Non-zero exit ⇒
+   stop and investigate.
+6. Restart the stack: `docker compose -f deploy/docker-compose.yml up -d`.
+7. Verify: `curl localhost:8001/health` … 8008 (no service on 8007), UI login.
+8. Post-incident: copy snapshots offsite; note the event gap honestly.
 
-## PITR — documented NEXT STEP, not implemented
+Rehearse weekly with `./deploy/backup/verify_restore.sh` (scratch DB, always
+self-cleaning). A backup that has never been restored is a hope, not a backup.
 
-**Honest status:** point-in-time recovery does **not exist** in this
-deployment today. Evidence (checked live 2026-08-23): the db container runs
-with `wal_level=replica, archive_mode=off` and no archive/restore commands are
-configured anywhere. Snapshots are discrete nightly dumps; between two dumps
-there is no recoverable intermediate state.
+## PITR architecture (H-018, M13-W3-H2 — replaces the Mission-10 sketch)
 
-What PITR would add: continuous archiving of write-ahead-log segments on top
-of periodic *base backups* lets you replay to **any** timestamp — e.g.
-"restore to 30 seconds before the bad migration ran" — turning RPO from hours
-to seconds/minutes.
+History: Mission 10 B4 shipped unexercised scaffolding (sidecar script +
+Dockerfile, `archive_mode` flip documented as a future change). Wave 3 lane
+H2 made it real: archiving instance running, archive_command proven pushing,
+base backups taken, retention pruning, and PITR restores executed twice.
 
-Recommended implementation path (**not built yet** — this is the next work
-item, estimated ~half a day plus testing):
+### What runs where
 
-1. Pick a tool: **WAL-G** (simpler, good S3/local support) or **pgBackRest**
-   (more features, stricter config). Both ship for postgres:18 containers.
-2. Add to the db service (compose env / mount):
-   - WAL-G: `WALG_S3_PREFIX` (or `WALG_FILE_PREFIX` for local/NFS),
-     `PGWAL_DIR`-appropriate wiring, and set `archive_mode=on`,
-     `archive_command='wal-g wal-push %p'`, adequate `archive_timeout`
-     (e.g. 60s bounds RPO even on quiet databases).
-3. Schedule base backups (cron inside a sidecar or on the host:
-   `wal-g backup-push /var/lib/postgresql`) — e.g. daily, keeping ≥ 2.
-4. Define retention & encryption at the object store (lifecycle rules,
-   SSE, bucket versioning against ransomware).
-5. Document + test `wal-g backup-fetch` restore into a fresh volume, and add
-   a `verify_pitr.sh` analog of `verify_restore.sh`.
-6. Only then update this runbook's RPO row.
+| Piece | Compose | Detail |
+|---|---|---|
+| Archiving DB | service `walg-db`, profile `walg` | image `harness-db-walg:${WALG_IMAGE_TAG:-v3.0.9}` (postgres:18 + checksum-verified wal-g binary); exec-form command sets `archive_mode=on`, `archive_command=wal-g wal-push %p`, `archive_timeout=${WALG_ARCHIVE_TIMEOUT:-60s}`, `hba_file=/etc/harness/pg_hba.conf`. Own volume `pgdata_walg` — NEVER touches live `pgdata`. No host port (reach via `docker exec`). |
+| Backup wrapper | service `walg`, profile `walg` | same image, entrypoint `sh /opt/harness/deploy/runners/backup.sh`; modes `base` (streaming BASE_BACKUP over TCP), `wal <seg>` (what archive_command calls), `list`, `retention`, `config` (secrets-masked dump). One-shot; run logs append to the `walg_logs` volume at `/var/log/harness-walg/backup.log` so they survive `--rm`. |
+| Restore driver | `deploy/walg/restore-walg.sh` (host) | inventory → fresh scratch volume → `wal-g backup-fetch LATEST` → wires `restore_command`/`recovery_target_time`/`recovery.signal` → starts scratch server (pauses at target) → prints human promote/cutover checklist. |
 
-Until that lands: the nightly `backup.sh` cron + offsite rsync IS the disaster
-recovery story, with RPO 24 h as stated above.
+Why a separate archiving instance instead of flipping `db` itself: `db`
+serves every backend in the default dev stack; changing ITS image/command is
+outside this lane's ownership and would couple everyone's boot to the wal-g
+binary. Operators who later promote archiving onto the primary: swap `db`'s
+image to `harness-db-walg:*` and add the identical four `-c` flags shown
+above to its command — the WAL-G/AWS env knobs are already wired in `db`'s
+environment block (inert until then).
 
-> **Update (Mission 10, node B4):** the tooling below now EXISTS as opt-in,
-> unexercised scaffolding — see **"WAL-G operation"** (next section). The db
-> container still runs with `archive_mode=off` until a future wave switches it
-> to the wal-g-enabled image, so the RPO statement above still describes the
-> live deployment.
+Verified live inside `harness-walg-db-1` (2026-08-24):
+`archive_mode=on · archive_command=wal-g wal-push %p · archive_timeout=1min`
+and after activity: `pg_stat_archiver → archived_count=12, failed_count=0`.
 
-## Disaster scenario checklists
+### The two gotchas this design exists around (both hit for real)
 
-### A. Disk loss / `harness_pgdata` volume destroyed / host dead
+1. **Stock images can't do either half.** `postgres:18-alpine` has no wal-g
+   binary AND no `host replication` pg_hba rule (streaming base backups use
+   the replication protocol). Hence the purpose-built image + the explicit
+   `pg_hba.conf` (mounted read-only, selected via `-c hba_file=`).
+2. **glibc vs musl.** Upstream wal-g release binaries are glibc-linked
+   (`interpreter /lib/ld-linux-aarch64.so.1`, verified with `file`) — they
+   cannot execute on Alpine. That is why `Dockerfile.walg` moved from
+   `postgres:18-alpine` (M10) to Debian `postgres:18` with a multi-stage
+   checksum-verifying fetch stage. Consequence: uid 999 (debian postgres),
+   not 70 (alpine).
 
-- Symptoms: container crash-looping or gone; `docker volume inspect
-  harness_pgdata` fails or shows zero usage; backends DNS-crash-looping.
-- Accept up to RPO (24 h) of data loss before starting; announce the window.
-- Steps:
-  1. Reprovision disk/host; install Docker; restore the repo checkout.
-  2. Recreate an empty volume: `docker volume create harness_pgdata`.
-  3. Bring up only the db: `docker compose -f deploy/docker-compose.yml up -d db`
-     (let `migrate` do nothing yet — the restore will bring the schema).
-  4. Copy the newest offsite snapshot back if the local `backups/` died too.
-  5. Restore: `./deploy/backup/restore.sh <snapshot>.dump` (+ `YES`).
-  6. Full stack up, verify per the restore procedure steps 6–8.
-- If the snapshots were on the same dead disk and no offsite copy exists:
-  total data loss. This is exactly why the offsite copy step is mandatory.
+Build/tag the image once per host (compose does it automatically on first
+`--profile walg up`):
 
-### B. Bad migration / schema corruption
+```
+docker build -f deploy/walg/Dockerfile.walg -t harness-db-walg:v3.0.9 .
+docker run --rm harness-db-walg:v3.0.9 wal-g --version
+# → wal-g version v3.0.9  3e49318  2026.08.20_14:32:45  PostgreSQL
+```
 
-- Symptoms: backends 500-ing on specific routes, `schema_migrations` showing a
-  migration whose code change is broken, tests failing against real PG only.
-- Do **not** drop anything immediately — the broken state is evidence.
-- Steps:
-  1. Stop the app containers (step 1 of the restore procedure) but leave db up.
-  2. Emergency-dump the broken state (`backup.sh`) for post-mortem.
-  3. Identify the last known-good snapshot taken **before** the migration ran
-     (`ls deploy/backup/backups/` and cross-check with git log / STATUS.md).
-  4. Restore it: `./deploy/backup/restore.sh <pre-migration>.dump` (+ `YES`).
-  5. Re-apply migrations deliberately: fix or revert the offending numbered
-     migration first (per AGENTS.md: new numbered migration, never edit an
-     applied one), re-run `migrate`, then `verify_restore.sh`.
-- Prevention: every schema change lands with tests against real PG
-  (`HARNESS_TEST_PG=1 ... integration/test_checkpoint1.py`).
+Binary provenance: asset names/checksums verified against the upstream
+release manifest (2026-08-23, v3.0.9):
+`wal-g-pg-24.04-{amd64,aarch64}` + `.sha256`. NOTE the upstream arch token is
+`aarch64` (NOT Docker's `arm64`) — the Dockerfile's fetch stage translates.
 
-### C. Ransomware-style corruption (encrypted/garbage rows, malicious wipe)
+### Storage targets
 
-- Symptoms: rows suddenly unreadable/gibberish, tables truncated, ransom
-  notes, unexpected auth activity in `audit_log`.
-- Steps:
-  1. **Isolate**: stop the whole stack (`docker compose down`), disconnect the
-     host from the network if compromise is suspected beyond the db. Every
-     further command happens read-only until you understand entry point.
-  2. **Preserve evidence**: copy `harness_pgdata` (`docker run --rm -v
-     harness_pgdata:/data -v "$PWD":/out alpine tar czf /out/pgdata-evidence.tgz
-     /data`) and keep the newest pre-corruption snapshots untouched/read-only.
-  3. **Find the corruption boundary** (timestamp T): audit_log / agent_events
-     seq gaps, file mtimes, application logs. This decides which snapshot to
-     trust — must be strictly older than T. *(This is precisely where PITR
-     would shine — restoring to T minus epsilon — and precisely what we cannot
-     do until WAL archiving ships; today the granularity is the nightly
-     snapshot.)*
-  4. **Rebuild clean**: new volume, restore chosen snapshot, per procedure A.
-  5. **Rotate everything that could have leaked**: `POSTGRES_PASSWORD`,
-     `HARNESS_MASTER_KEY` (note: rotating it invalidates previously encrypted
-     secrets — re-mint API keys / reconnect GitHub afterwards), bearer-token
-     ecosystem, host SSH keys.
-  6. **Root-cause** via audit_log + access logs; close the hole; only then
-     reconnect the network and unfreeze writers.
-- Prevention: offsite *versioned* backups (object-store versioning or
-  `rsnapshot`-style history) so a wiped live site can't destroy the backups;
-  restrict who can `docker exec` on the host.
+- Drills/no-cloud: `WALG_FILE_PREFIX=/some/dir`. Compose bind-mounts the SAME
+  host dir into `walg-db` and `walg` at the identical in-container path, so a
+  freshly-created restore container sees the archive (container `/tmp` would
+  otherwise be per-container and ephemeral).
+- Real deployments: `WALG_S3_PREFIX=s3://bucket/path` (+ AWS keys/region, or
+  `AWS_ENDPOINT` for MinIO/R2). Secrets enter ONLY via `.env`/shell env —
+  never literals in compose (hard rule). Minimal writer IAM policy:
+  PutObject/GetObject/DeleteObject/ListBucket/GetBucketLocation on bucket +
+  `bucket/*`.
 
-## Environment variable reference (all three scripts)
+### Operating the profile
+
+```sh
+export WALG_FILE_PREFIX=/tmp/harness-walg-drill        # or your S3 env
+docker compose -f deploy/docker-compose.yml --profile walg up -d walg-db
+docker compose -f deploy/docker-compose.yml --profile walg run --rm walg                    # base backup
+docker compose -f deploy/docker-compose.yml --profile walg run --rm -e BACKUP_MODE=list walg # inventory
+docker compose -f deploy/docker-compose.yml --profile walg run --rm -e BACKUP_MODE=config walg
+```
+
+Health signals after enabling: `pg_stat_archiver.failed_count == 0`;
+`last_archived_wal` advances within ~`archive_timeout` even on an idle db;
+wrapper post-check prints an archiver-age line and fails loudly when storage
+ends up empty (`post-check FAILED: … treat the backup as NOT taken`).
+
+## PITR RESTORE DRILL — full procedure with timed RTO/RPO evidence
+
+Run monthly and after every wal-g/image bump. Everything below is safe for
+the live stack: recovery happens in a SEPARATE container on the scratch
+volume `harness_pgdata_pitr`; the destructive cutover at the end is a
+separate, explicitly-manual decision. Evidence slots are marked ⏱ — record
+every number in the drill log table.
+
+### Preconditions
+
+- Stack healthy (`curl localhost:8001/health` → ok) OR at least `walg-db` up.
+- Storage target resolvable (`WALG_FILE_PREFIX` exported or S3 env set).
+- Scratch volume absent: `docker volume rm -f harness_pgdata_pitr` (idempotent).
+- Image present: `docker image inspect harness-db-walg:${WALG_IMAGE_TAG:-v3.0.9}`.
+
+### Steps
+
+```sh
+cd <repo>
+export WALG_FILE_PREFIX=/tmp/harness-walg-drill
+docker compose -f deploy/docker-compose.yml --profile walg up -d walg-db
+
+# [1] MARKER — business-level proof row
+docker exec harness-walg-db-1 psql -U harness -d harness -c \
+  "CREATE TABLE IF NOT EXISTS pitr_marker(id int, t timestamptz default now());"
+docker exec harness-walg-db-1 psql -U harness -d harness -c \
+  "INSERT INTO pitr_marker VALUES(2) RETURNING id, t;"          # ⏱ RPO anchor T0
+sleep 1; date -u +%Y-%m-%d\ %H:%M:%S+00 > /tmp/pitr_target.txt  # TARGET strictly between INSERT and DISASTER
+cat /tmp/pitr_target.txt
+
+# [2] FORCE the segment to storage immediately (don't wait for archive_timeout)
+docker exec harness-walg-db-1 psql -U harness -c "SELECT pg_switch_wal();"; sleep 4
+docker exec harness-walg-db-1 psql -U harness -d harness -tc \
+  "select archived_count, failed_count from pg_stat_archiver;"   # PASS: n,0
+
+# [3] BASE BACKUP via the wrapper                                    ⏱ RTO slot 1
+BACKUP_MODE=base docker compose -f deploy/docker-compose.yml --profile walg run --rm walg
+#    PASS: "Wrote backup with name base_…" + "base backup complete" + exit 0
+
+# [4] DISASTER — simulate the bad transaction
+docker exec harness-walg-db-1 psql -U harness -d harness -c \
+  "DELETE FROM pitr_marker WHERE id=2 RETURNING id;"             # the row you must resurrect
+
+# [5] RECOVER (scripted; pauses AT the target)                       ⏱ RTO slots 2–3
+./deploy/walg/restore-walg.sh --target-time "$(cat /tmp/pitr_target.txt)"
+#    PASS: exit 0, "recovery stopping before commit of transaction …",
+#          "UP and PAUSED at <target>", checklist printed
+
+# [6] VERIFY ON THE PAUSED SERVER — read-only, zero risk
+docker exec harness-pitr psql -U harness -d harness -c \
+  "select pg_is_in_recovery(), pg_last_wal_replay_lsn();"        # PASS: true, non-empty
+docker exec harness-pitr psql -U harness -d harness -c \
+  "select id, t from pitr_marker order by id;"                   # PASS: BOTH rows (1 AND 2)
+
+# [7] PROMOTE (opens writes; new timeline)
+docker exec harness-pitr psql -U harness -c "SELECT pg_wal_replay_resume();"
+sleep 3
+docker exec harness-pitr psql -U harness -d harness -tc "select pg_is_in_recovery();"  # PASS: f
+
+# [8] TEARDOWN the drill (do NOT cutover unless there is a real incident)
+docker rm -f harness-pitr && docker volume rm harness_pgdata_pitr
+```
+
+Pass/fail checklist (ALL boxes or the drill FAILED):
+
+- [ ] `[2]` archiver shows `failed_count = 0` and `archived_count ≥ 1`
+- [ ] `[3]` wrapper exit code 0; inventory lists the new `base_*`
+- [ ] `[5]` restore script exit 0; logs contain
+      `starting point-in-time recovery to <TARGET>` AND
+      `recovery stopping before commit of transaction …`
+- [ ] `[6]` `pg_is_in_recovery()` = true while paused; marker row present
+      (RPO proven: the post-target DELETE is absent)
+- [ ] `[7]` promotion succeeds; `pg_is_in_recovery()` flips false
+- [ ] ⏱ numbers recorded below (fetch s, replay-to-pause s, total s)
+
+Cutover (ONLY in a real incident, after step [7]-style verification): follow
+the printed MANUAL checklist in `restore-walg.sh` output — stop writers,
+tar-preserve the broken volume FIRST, swap volumes, `up -d`, health checks,
+immediate fresh base backup.
+
+### Drill evidence log (append every run)
+
+| Date (UTC) | Driver | Target | Fetch ⏱ | Replay→pause ⏱ | Result | Notes |
+|---|---|---|---|---|---|---|
+| 2026-08-24 04:00 | manual (pre-script-validation) | `04:00:22+00` | ~1 s | ~2 s | **PASS** | markers {1,2} both present while paused; promoted → timeline 2, writable |
+| 2026-08-24 04:11 | `restore-walg.sh` run #1 | `04:00:22+00` | 1 s | 1 s | PASS | exit 0; stopped before txn 768 (the DELETE); cosmetic double-quoting found in emitted config, fixed after |
+| 2026-08-24 04:14 | `restore-walg.sh` run #2 (final form) | `04:00:22+00` | 1 s | ~2 s | **PASS** | canonical config emission; paused-server row check + promotion repeated |
+
+Base-backup wall times (⏱ RTO input, wrapper-reported): 03:57:39 → ~1.1 s
+(first successful full), 03:58:36 → ~1 s (green post-check run). Dataset is
+tiny; expect linear-ish growth with data size — re-time on production-sized
+data before trusting these numbers.
+
+## Troubleshooting
+
+### Docker DNS crash-loop on backends (W2 carryover, VT-5 finding)
+
+Symptoms: an app container sits in `Restarting` forever;
+`docker inspect <c> --format '{{.RestartCount}}'` climbs (observed live
+2026-08-24: legacy `harness-backend-1` at RestartCount=154); logs show
+`socket.gaierror: [Errno -3] Temporary failure in name resolution` from
+`getaddrinfo` while resolving service names like `db`.
+
+Root cause chain: the db (or another dependency) went away/restarted while
+Docker's embedded DNS for that network got wedged; the app crashes on the
+failed lookup; restart races the wedged resolver; loop. The compose stack
+mitigates the trigger side with `restart: unless-stopped` on every long-running
+service (db included) so dependencies come back on their own — but a wedged
+network DNS needs manual repair:
+
+Fix (in order of increasing disruption):
+
+```sh
+# 1. Confirm it is really DNS (not the app failing for another reason):
+docker logs <crash-looping-container> 2>&1 | grep -i 'name resolution'
+# 2. Recreate the network (drops stale DNS state):
+cd <repo> && docker compose -f deploy/docker-compose.yml down
+docker network rm harness_default 2>/dev/null || true   # wedge-breaker
+docker compose -f deploy/docker-compose.yml up -d
+# 3. Verify resolution from inside a fresh container:
+docker exec harness-identity-1 python -c "import socket;print(socket.gethostbyname('db'))"
+# 4. Only if STILL looping: full Docker daemon restart (last resort).
+```
+
+Prevention: never let the db volume disappear out from under a running stack;
+prefer `stop`/`start` over `kill` during maintenance; keep `restart:
+unless-stopped` everywhere (already the case in this compose file). Note the
+crash-looping `harness-backend-1` seen in August 2026 is the LEGACY
+all-in-one container (not part of the current split-service topology) —
+removing it is safe: `docker rm -f harness-backend-1`.
+
+### PITR-specific failure signatures (all hit during the 2026-08-24 drill)
+
+| Signature | Cause | Fix |
+|---|---|---|
+| `FATAL: no pg_hba.conf entry for replication connection` | streaming base backup without the custom HBA | ensure `walg-db` runs with `-c hba_file=/etc/harness/pg_hba.conf` (compose does); after editing `deploy/walg/pg_hba.conf`, `SELECT pg_reload_conf();` or recreate the container |
+| Server can't open `/etc/harness/pg_hba.conf` though `ls` shows it (nlink=0, ENOENT) | macOS/Docker Desktop single-file bind mount pinned a stale inode after a host-side rewrite | mount the DIRECTORY (`./walg:/etc/harness:ro`), not the file — compose does this |
+| `Error: in 18+, these Docker images are configured to store database data in …` and exit | official postgres:18 ENTRYPOINT refuses data mounted at `.../data` | recovery containers run `--entrypoint postgres … -D /pgdata` (restore-walg.sh handles this); don't "fix" it by switching back to alpine images (glibc!) |
+| `sh: … walg-restore-command: not found` during recovery startup | helper written into a throwaway `--rm` container | restore_command is self-contained now (`wal-g wal-fetch "%f" "%p"` inline) |
+| `wal-g: not found` anywhere | stock postgres image in use | use `harness-db-walg` image (build per above) |
+| `Dry run: objects would be deleted … Run with --confirm` | wal-g ≥3.0 requires `--confirm` for deletes | already handled in `backup.sh prune()`; never remove that flag |
+| `tls error: server refused TLS connection` noise in wal-g errors | libpq tries TLS first, falls back; harmless when a later line shows the real cause | ignore unless it is the ONLY error |
+
+## Environment variable reference
+
+Compose reads `.env` next to `deploy/`; every knob below is documented in
+`.env.example` under “Backup / PITR sidecar”.
 
 | Var | Default | Notes |
 |---|---|---|
-| `CONTAINER` | `harness-db-1` | Used when `BACKUP_USE_COMPOSE != 1` |
-| `BACKUP_USE_COMPOSE` | `0` | `1` → drive `docker compose exec -T db` via `COMPOSE_FILE` instead of `docker exec` |
-| `COMPOSE_FILE` | `<script>/../docker-compose.yml` | Compose mode only |
-| `BACKUP_DIR` | `<script>/backups` | Where `.dump` files land |
-| `BACKUP_KEEP` | `7` | Newest-N retention; `0` disables pruning |
-| `PGUSER` / `PGDATABASE` | `harness` / `harness` | Backup source identity |
-| `RESTORE_TARGET_DB` | `harness` | **This DB gets dropped** by restore.sh; override to rehearse |
-| `RESTORE_FORCE` | unset | `1` skips the drop-recreate prompt |
-| `EXPECTATION_FILE` | — | Expectations file for restore.sh (arg 2 wins) |
-| `VERIFY_SCRATCH_DB` | `harness_verify_restore` | Throwaway DB used by verify_restore.sh |
-| `VERIFY_TABLES` | `users teams projects agent_events` | Tables compared by verify_restore.sh |
+| `WALG_S3_PREFIX` / `WALG_FILE_PREFIX` | — / — | exactly ONE required; S3 vs local/file |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_DEFAULT_REGION` / `AWS_ENDPOINT` | empty | secrets via env only |
+| `WALG_ARCHIVE_TIMEOUT` | `60s` | segment force-switch; bounds RPO on a quiet db |
+| `WALG_IMAGE_TAG` | `v3.0.9` | harness-db-walg tag (= Dockerfile `WALG_VERSION` minus `v`) |
+| `BACKUP_MODE` (legacy alias `WALG_MODE`) | `base` | `base\|wal\|list\|retention\|config` |
+| `WALG_PGHOST` | `walg-db` | backup source; `db` = live primary (needs image swap) |
+| `WALG_COMPRESSION_METHOD` | `lz4` | lz4/gzip/brotli/zstd/none |
+| `WALG_RETENTION_KEEP` | `0` | >0 prunes after each base (passes `--confirm`) |
+| `WALG_LIST_JSON` | unset | `1` → `backup-list --json` |
+| `WALG_EXTRA_ARGS` | empty | appended verbatim to wal-g calls |
+| `BACKUP_MIN_WAL_SECONDS` | `600` | warn when archiver idle this long post-base |
+| `BACKUP_STRICT` | unset | `1` escalates that warning to exit 1 |
+| `POSTGRES_PASSWORD` | `harness` | db/walg-db auth (change outside dev) |
+| `PITR_IMAGE` / `PITR_CONTAINER` / `PITR_VOLUME` | `harness-db-walg:$TAG` / `harness-pitr` / `harness_pgdata_pitr` | restore-walg.sh knobs |
 
-## WAL-G operation (Mission 10, node B4 — NEW tooling, see honesty note)
+Logical-layer vars (`CONTAINER`, `BACKUP_KEEP`, `RESTORE_FORCE`,
+`VERIFY_SCRATCH_DB`, …) are unchanged — see `deploy/backup/*.sh` headers.
+RETIRED M10 knobs: `WALG_LOOP`, `WALG_INTERVAL_SECONDS` (sleeping-container
+scheduling had no catch-up and hid failures — host cron owns scheduling now).
 
-**Honest status:** the scripts and compose profile below are **shipped but not
-exercised end-to-end**: they were validated with `sh -n`/`bash -n`,
-shellcheck, `docker compose config -q`, and each script's own `config`
-(dry-run) mode. The build environment has **no S3 credentials**, so no base
-backup has ever actually been pushed to or fetched from object storage by this
-tooling. Treat everything below as reviewed-but-unproven until a credentialed
-operator completes the first drill; see the validated/not-validated table at
-the end of this section.
-
-WAL-G gives continuous WAL archiving on top of periodic base backups: instead
-of nightly logical dumps with RPO ≈ 24 h, you get physical recovery to any
-timestamp (seconds/minutes of RPO). References followed:
-
-- WAL-G PostgreSQL usage: <https://github.com/wal-g/wal-g/blob/master/docs/PostgreSQL.md>
-  (rendered: <https://wal-g.readthedocs.io/PostgreSQL.html>)
-- `archive_command` / `restore_command` contract:
-  <https://www.postgresql.org/docs/current/runtime-config-wal.html>
-- PITR concepts (`recovery.signal`, targets):
-  <https://www.postgresql.org/docs/current/continuous-archiving.html>
-
-### What shipped
-
-| File | Purpose |
-|---|---|
-| `deploy/walg/backup-walg.sh` | Modes: `base` (base backup), `wal <seg>` (one WAL segment, i.e. what archive_command calls), `list`, `retention`, `config` (secrets-masked dry-run dump). Mode = first CLI arg, else `$WALG_MODE`, else `base`; `WALG_LOOP=1\|loop` re-runs the chosen mode every `WALG_INTERVAL_SECONDS` instead of single-shot |
-| `deploy/walg/restore-walg.sh --target-time '<ts>'` | Full PITR into a scratch volume + printed manual verification/cutover checklist; `--fetch-only` stops after `backup-fetch` |
-| `deploy/walg/Dockerfile.walg` | `postgres:18-alpine` + checksum-verified `wal-g-pg-24.04-{amd64,aarch64}` binary from upstream releases (pinned v3.0.9 at authoring time — re-check before building) |
-| `walg` service in `deploy/docker-compose.yml` | Opt-in sidecar behind `profiles: ["walg"]`; one-shot or interval loop; never starts with plain `up -d` |
-
-### Prerequisites
-
-1. **Object storage + IAM.** One private bucket, e.g. `s3://harness-backups/pg`.
-   Minimal IAM policy for the writer:
-
-   ```json
-   {
-     "Version": "2012-10-17",
-     "Statement": [{
-       "Effect": "Allow",
-       "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject", "s3:ListBucket", "s3:GetBucketLocation"],
-       "Resource": ["arn:aws:s3:::harness-backups", "arn:aws:s3:::harness-backups/*"]
-     }]
-   }
-   ```
-
-   Enable bucket **versioning** (ransomware protection) and a lifecycle rule
-   (e.g. expire noncurrent versions after 30 days); prefer SSE-S3/KMS
-   encryption at rest. For local drills only, `WALG_FILE_PREFIX=/some/dir`
-   works without any cloud account.
-2. **An image that contains wal-g.** The stock `postgres:18-alpine` does NOT.
-   Build once per host and pin the digest in your deployment notes:
-
-   ```
-   docker build -f deploy/walg/Dockerfile.walg -t harness-db-walg --build-arg WALG_VERSION=v3.0.9 .
-   ```
-
-3. **Env for the storage target** (compose reads them from your shell/env
-   file): `WALG_S3_PREFIX`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
-   `AWS_DEFAULT_REGION` (or `AWS_ENDPOINT` for MinIO/R2-compatible stores).
-   Never commit these; they enter the containers via `environment:` mapping.
-
-### Turning WAL archiving on — REQUIRES A COMPOSE DB CHANGE (future wave)
-
-The `db` service must run an image containing `wal-g` and set two GUCs. This
-is deliberately NOT done in Mission 10 (the compose db service is owned by no
-B4 lane and changing it would break the default dev stack for everyone).
-When approved, the change is exactly:
-
-```yaml
-  db:
-    image: harness-db-walg        # built from deploy/walg/Dockerfile.walg
-    environment:
-      # ...existing vars...
-      WALG_S3_PREFIX: ${WALG_S3_PREFIX}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
-    command:
-      - postgres
-      - -c
-      - archive_mode=on
-      - -c
-      - archive_command=wal-g wal-push %p
-      - -c
-      - archive_timeout=60s       # bounds RPO even when the db is quiet
-```
-
-(`%p` is the absolute path of the finished segment — precisely what
-`backup-walg.sh wal` expects. Until this lands you can still point
-`archive_command` at a wrapper script mounted from outside **only if** the db
-image can execute something that reaches wal-g — which stock images cannot;
-external config hosts are the interim alternative documented here.) Verify
-afterwards: `docker exec harness-db-1 psql -U harness -c 'SELECT * FROM
-pg_stat_archiver;'` — `failed_count` should stay at 0 and `last_archived_wal`
-should advance within ~archive_timeout. Also schedule `./deploy/walg/
-backup-walg.sh list && ./deploy/walg/backup-walg.sh retention` next to the
-base backup cron.
-
-### Base backup cadence (suggestion)
-
-- Base backup: **daily** (`17 3 * * * ./deploy/walg/backup-walg.sh base`),
-  keep ≥ 2 fulls before the oldest WAL you might need (`WALG_RETENTION_KEEP=7`
-  matches the pg_dump retention philosophy).
-- WAL archiving: continuous via `archive_command`; `archive_timeout=60s`
-  means a quiet database still cuts a segment every minute → worst-case RPO ≈
-  1 min + detection time. Tighten to 15 s if needed (more small objects in S3).
-- After any schema migration lands: take one extra manual base backup.
-- Retention/DR hygiene: versioned bucket + lifecycle rules (prerequisites §1);
-  the wave8 offsite-rsync rule stays satisfied because the object store IS
-  offsite now.
-
-### Operating the sidecar (one-shot vs loop)
-
-```sh
-# Dry-run / config check (secrets masked; a storage target must be resolvable,
-# e.g. WALG_FILE_PREFIX=/tmp/drill for a local rehearsal):
-docker compose -f deploy/docker-compose.yml --profile walg run --rm walg
-
-# One-shot base backup right now:
-docker compose -f deploy/docker-compose.yml --profile walg run --rm \
-  -e WALG_MODE=base walg
-
-# Cron-ish loop instead (base backup every 24 h inside the container;
-# WALG_LOOP accepts "1" or "loop"):
-docker compose -f deploy/docker-compose.yml --profile walg up -d \
-  -e WALG_MODE=base -e WALG_LOOP=1 -e WALG_INTERVAL_SECONDS=86400 walg
-```
-
-One-shot + host cron is recommended over `loop` (exact timing, catch-up after
-downtime, no long-lived container). `loop` exists for hosts without cron
-access. Inspect inventory any time: `... run --rm -e WALG_MODE=list walg`.
-
-### PITR drill (do this BEFORE you need it, with WALG_FILE_PREFIX)
-
-```sh
-# 1. Local-storage rehearsal env (no cloud needed):
-export WALG_FILE_PREFIX=/tmp/harness-walg-drill
-export PGHOST=127.0.0.1 PGPORT=5499 PGUSER=harness PGPASSWORD=harness
-
-# 2. Baseline + a data marker:
-./deploy/walg/backup-walg.sh base
-docker exec harness-db-1 psql -U harness -d harness \
-  -c "CREATE TABLE pitr_marker(t timestamp default now()); INSERT INTO pitr_marker VALUES (now());"
-date -u    # <-- choose TARGET between marker insert and the destructive step
-
-# 3. Generate some WAL, then simulate disaster (drop the table):
-docker exec harness-db-1 psql -U harness -d harness -c "SELECT pg_switch_wal();"
-sleep 5
-docker exec harness-db-1 psql -U harness -d harness -c "DROP TABLE pitr_marker;"
-
-# 4. Recover into the scratch volume (NEVER touches live harness_pgdata):
-unset PGHOST   # restore-walg.sh talks to storage, then uses docker networking
-./deploy/walg/restore-walg.sh --target-time "$(date -u -v-2M '+%Y-%m-%d %H:%M:%S+00')"
-#    (GNU date: date -u -d '2 minutes ago' ...)
-
-# 5. Follow its printed MANUAL VERIFICATION STEPS: confirm the paused server
-#    still sees pitr_marker, promote, cutover, verify stack health.
-```
-
-A drill passes when `SELECT count(*) FROM pitr_marker` = 1 inside the paused
-recovery container and the post-cutover stack passes the standard health
-checks. Record every drill (date/target-time/result) below the table at the
-end of this section.
-
-### Validated vs not validated (Mission 10 B4, 2026-08-22)
+## Validated vs UNEXECUTED (M13-W3-H2, 2026-08-24)
 
 | Item | Status | Evidence |
 |---|---|---|
-| Shell syntax of both scripts | ✅ validated | `bash -n deploy/walg/backup-walg.sh deploy/walg/restore-walg.sh` clean |
-| Style/static analysis | ✅ validated | shellcheck (where available) — see mission report for exact output |
-| Compose file validity incl. profile | ✅ validated | `docker compose config -q` and `--profile walg config -q` both exit 0 |
-| Config/dry-run path of backup script logic | ✅ validated | `config` mode runs locally without wal-g installed only for argument handling; full check requires the binary — operator rerun required. Post-review re-validation (2026-08-23): `WALG_MODE=config ./deploy/walg/backup-walg.sh` now honors the env knob and fails on the same wal-g-binary guard as plain invocation |
-| Docker image build (Dockerfile.walg) | ❌ NOT validated | No image pulls from build env; asset names verified against upstream release manifest only |
-| Base backup push to real storage | ❌ NOT validated | No S3 credentials in build env |
-| WAL push/fetch round-trip | ❌ NOT validated | Same |
-| End-to-end PITR restore + promote | ❌ NOT validated | Same — first credentialed operator MUST run the drill above and record results here |
-| archive_mode flip on the live db service | ❌ NOT done (by design) | Future-wave compose change, section above |
+| Image build (Dockerfile.walg, glibc fix) | ✅ EXECUTED | built locally (arm64/aarch64) → `wal-g version v3.0.9 3e49318 PostgreSQL`; checksum verify ran inside build |
+| `archive_mode=on` + `archive_command` live | ✅ EXECUTED | `show` outputs recorded; segments landed in storage (`000000010000000000000001.lz4` …); `pg_stat_archiver` 12/0 after forced switches |
+| Streaming base backup via wrapper | ✅ EXECUTED | two fulls (`base_…007`, `base_…009`), exit 0, post-check inventory verified |
+| `wal` push mode | ✅ EXECUTED (via archiver) | every archived segment IS a `wal-push %p` execution; CLI arg-guard also tested (bad path ⇒ exit 1) |
+| `list` / `config` modes | ✅ EXECUTED | inventory tables pasted in drill log; secrets masked (`<set,masked>`) |
+| `retention` prune | ✅ EXECUTED | dry-run discovered → `--confirm` added → `Objects deleted successfully: count=14`, inventory reduced to newest |
+| Failure honesty | ✅ EXECUTED | bogus `PGHOST` ⇒ exit 1; missing segment ⇒ exit 1; empty-storage post-check ⇒ die |
+| PITR restore → scratch, pause-at-target | ✅ EXECUTED ×3 | see drill evidence log; `recovery stopping before commit of transaction 768` reproduced identically |
+| Promotion + write-after-recovery | ✅ EXECUTED | `pg_is_in_recovery()=false`, new timeline 2, INSERT succeeded |
+| Run-log persistence | ✅ EXECUTED | `walg_logs` volume holds appended runs across `--rm` invocations |
+| Static gates | ✅ EXECUTED | `docker compose config -q` (default AND `--profile walg`) exit 0; `sh -n` clean; shellcheck clean on both scripts |
+| Live-stack safety | ✅ VERIFIED | `harness_db-1`/backends untouched & healthy throughout; PITR confined to `pgdata_walg`/`harness_pgdata_pitr` |
+| Real S3 round-trip | ❌ UNEXECUTED-needs-S3 | no credentials in build env; file:// backend proven instead |
+| Bucket versioning/lifecycle/IAM hardening | ❌ UNEXECUTED-needs-S3 | operator task on first real bucket |
+| Cutover onto LIVE `harness_pgdata` | ❌ UNEXECUTED by design | destructive; drill covers everything except the volume swap itself |
+| `restore-walg.sh --fetch-only`, `BACKUP_STRICT=1`, `WALG_LIST_JSON=1`, `WALG_EXTRA_ARGS`, non-arm64 image build | ❌ UNEXECUTED | implemented but not individually exercised this wave |
+| amd64/linux CI build of the image | ❌ UNEXECUTED | built/verified on Apple Silicon only; multi-stage fetch is arch-generic |
 
-**First credentialed operator checklist:** build image → run the drill with
-`WALG_FILE_PREFIX` → repeat against real S3 → fill in evidence rows above →
-only then update the RPO row at the top of this runbook.
+**Next credentialed operator:** set the S3 env, rerun the DRILL section
+verbatim against `WALG_S3_PREFIX`, move rows from UNEXECUTED here, then
+tighten the RPO row at the top.
