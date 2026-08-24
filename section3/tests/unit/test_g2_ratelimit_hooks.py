@@ -24,14 +24,14 @@ from pathlib import Path
 # G3-style seam: the shared limiter lives in section1 and this venv does not
 # carry harness_identity as an installed distribution, so append its src tree
 # BEFORE importing it.
-_ROOT = Path(__file__).resolve().parents[2]
+_ROOT = Path(__file__).resolve().parents[3]
 if (_ROOT / "section1" / "src") not in sys.path:
     sys.path.append(str(_ROOT / "section1" / "src"))
 
 import harness_identity.ratelimit as rl  # noqa: E402
 import pytest  # noqa: E402
 from fastapi import FastAPI  # noqa: E402
-from harness_contracts.roles import ModelRole  # noqa: E402
+from harness_contracts.signatures import ModelRole  # noqa: E402
 from harness_identity.models import Base  # noqa: E402
 from harness_identity.ratelimit import MODEL_CALL_LIMIT, MODEL_CALL_TEMPLATE  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
@@ -43,7 +43,6 @@ from harness_router.ratelimit_hooks import (  # noqa: E402
     ROUTER_ROUTE_LIMITS,
     install_router_rate_limit,
 )
-from harness_router.service import ModelRouterService  # noqa: E402
 
 RATE_BUCKETS_DDL = """
 CREATE TABLE rate_buckets (
