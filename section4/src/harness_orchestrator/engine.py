@@ -92,8 +92,42 @@ class DeepSeekHarnessWrapper:
         """Backward-compat boolean view of :attr:`mode`."""
         return self.live_config is LiveMode.LIVE
 
+    @staticmethod
+    def _fold_usage(events: list[Any]) -> dict[str, int] | None:
+        """Fold dsh ``assistant/chunk`` usage chunks into one totals dict.
+
+        Live runs surface real token accounting as events shaped
+        ``{"type": "assistant/chunk", "data": {"chunk": {"type": "usage",
+        "usage": {"inputTokens": .., "outputTokens": .., ...}}}}`` — one per
+        billed step. Summing keeps multi-step runs honest; None when the run
+        surfaced no usage (stubs/dry mode → caller estimates from text).
+        """
+        totals: dict[str, int] | None = None
+        for event in events or []:
+            if not isinstance(event, dict) or event.get("type") != "assistant/chunk":
+                continue
+            data = event.get("data")
+            chunk = data.get("chunk") if isinstance(data, dict) else None
+            usage = chunk.get("usage") if isinstance(chunk, dict) else None
+            if not isinstance(usage, dict):
+                continue
+            try:
+                step = {
+                    "inputTokens": int(usage.get("inputTokens") or 0),
+                    "outputTokens": int(usage.get("outputTokens") or 0),
+                }
+            except (TypeError, ValueError):
+                continue
+            if totals is None:
+                totals = step
+            else:
+                totals["inputTokens"] += step["inputTokens"]
+                totals["outputTokens"] += step["outputTokens"]
+        return totals
+
     def execute_goal(self, goal: str, session_id: str = "session-001") -> dict[str, Any]:
         used_model: str | None = None
+        usage: dict[str, int] | None = None
         if self.backend_runner:
             result_text = self.backend_runner(goal)
             status = "completed"
@@ -101,13 +135,18 @@ class DeepSeekHarnessWrapper:
             # The configured model is THE model: passed explicitly so no
             # callee ever picks another one (no-downgrade law).
             try:
-                result_text, status, used_model = self._run_live(
+                result_text, status, used_model, events = self._run_live_events(
                     goal, session_id, model=self.model
                 )
+                # M14-W4 F1a: real token accounting rides the SDK's usage
+                # chunks; folded onto the result so the orchestrator's
+                # completion hook can meter ACTUAL usage, not estimates.
+                usage = self._fold_usage(events)
             except Exception as exc:  # noqa: BLE001 — honest error, never escape
                 result_text = f"DeepSeek Harness run failed on {self.model}: {exc}"
                 status = "error"
                 used_model = self.model
+                events = []
             if status == "completed" and not (result_text or "").strip():
                 # Wave 6 (D2) honesty rule, preserved after ladder deletion:
                 # an empty/whitespace response is a FAILED answer, never a
@@ -127,6 +166,9 @@ class DeepSeekHarnessWrapper:
             "engine": self._engine_name(used_model),
             "status": status,
             "finalResponse": result_text,
+            # M14-W4 F1a: real token usage when the SDK surfaced it. Absent
+            # (never None-valued) so stub/dry results keep their exact shape.
+            **({"usage": usage} if usage is not None else {}),
         }
 
     def _engine_name(self, model_used: str | None = None) -> str:
@@ -143,9 +185,18 @@ class DeepSeekHarnessWrapper:
     def _run_live(self, goal: str, session_id: str, model: str | None = None) -> tuple[
         str, str, str | None
     ]:
+        """Legacy 3-tuple surface: (text, status, model_that_answered)."""
+        text, status, used_model, _events = self._run_live_events(goal, session_id, model)
+        return text, status, used_model
+
+    def _run_live_events(self, goal: str, session_id: str, model: str | None = None) -> tuple[
+        str, str, str | None, list[Any]
+    ]:
         """One attempt against exactly one model — no ladder, no retries on
-        other models. Returns (text, status, model_that_answered); the third
-        element keeps attribution honest even on failure paths."""
+        other models. Returns (text, status, model_that_answered, events); the
+        third element keeps attribution honest even on failure paths and the
+        fourth carries the raw SDK events so real token usage can be metered
+        (M14-W4 F1a)."""
         model = model or self.model
         try:
             from deepseek_harness import DeepSeekHarness
@@ -174,6 +225,7 @@ class DeepSeekHarnessWrapper:
                 with DeepSeekHarness(**kwargs) as harness:
                     result = harness.run(goal, session_id=session_id)
                 text = result.final_response
+                events = list(result.events or [])
             finally:
                 if saved_key is not None:
                     os.environ["DEEPSEEK_API_KEY"] = saved_key
@@ -183,12 +235,13 @@ class DeepSeekHarnessWrapper:
                     else:
                         os.environ.pop("DEEPSEEK_BASE_URL", None)
                 _ = base64
-            return text, "completed", model
+            return text, "completed", model, events
         except ImportError:
             return (
                 "deepseek-harness-sdk is not installed in this environment.",
                 "sdk_missing",
                 model,
+                [],
             )
         except Exception as exc:  # noqa: BLE001 — surface engine failures to the UI
-            return f"DeepSeek Harness run failed: {exc}", "error", model
+            return f"DeepSeek Harness run failed: {exc}", "error", model, []

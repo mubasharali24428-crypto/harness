@@ -126,11 +126,13 @@ def _wrapper_with_spy(monkeypatch, text, status):
     )
     calls: list[str | None] = []
 
-    def fake_run(goal, session_id, model=None):
+    def fake_run_events(goal, session_id, model=None):
+        # M14-W4 F1a: the live path now reads (text, status, model, events);
+        # events stay empty so results carry no usage block (estimates apply).
         calls.append(model)
-        return text, status, model
+        return text, status, model, []
 
-    monkeypatch.setattr(w, "_run_live", fake_run)
+    monkeypatch.setattr(w, "_run_live_events", fake_run_events)
     return w, calls
 
 

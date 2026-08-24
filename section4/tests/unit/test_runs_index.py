@@ -1,5 +1,11 @@
 """M10-A4 tests: runs index API (contract M10-C2, server side).
 
+M14-W4 F3a update: the index paginates by CURSOR (?limit=&cursor= -> {items,
+nextCursor}) per frozen api-conventions.md; legacy ``?offset=`` is accepted
+but ignored during its one-release deprecation window, and ``total`` is gone
+(keyset paging has no stable total). Garbage cursors answer 400
+INVALID_CURSOR.
+
 Seeding/fixture approach copied from test_authz.py: sqlite+aiosqlite engine,
 minimal frozen-schema tables (projects / agent_runs / agent_events /
 auth_sessions / team_members), async_sessionmaker factory, TestClient with
@@ -155,8 +161,6 @@ def _principal(
 def _client(monkeypatch, factory, principal: Principal) -> TestClient:
     from harness_orchestrator import api as orch_api
 
-    monkeypatch.setattr(orch_api, "_service", None)
-
     class _Stub:
         session_factory = factory
 
@@ -167,7 +171,7 @@ def _client(monkeypatch, factory, principal: Principal) -> TestClient:
     return TestClient(app)
 
 
-# -------------------------------------------------------------------- clamps
+# -------------------------------------------------------------------- paging
 
 
 def test_default_paging_and_shape(monkeypatch, seeded_db):
@@ -175,8 +179,7 @@ def test_default_paging_and_shape(monkeypatch, seeded_db):
     res = client.get("/api/v1/orchestrator/runs")
     assert res.status_code == 200
     body = res.json()
-    assert body["total"] == 3
-    assert body["limit"] == 25 and body["offset"] == 0
+    assert body["nextCursor"] is None  # fewer than one page: end of collection
     assert [i["id"] for i in body["items"]] == ["run-1", "run-2", "run-3"]
     item = body["items"][0]
     assert set(item) == {
@@ -189,23 +192,110 @@ def test_default_paging_and_shape(monkeypatch, seeded_db):
     }
 
 
-def test_limit_clamped_and_offset_floored(monkeypatch, seeded_db):
+def test_limit_clamped(monkeypatch, seeded_db):
     client = _client(monkeypatch, seeded_db, _principal())
 
-    res = client.get("/api/v1/orchestrator/runs", params={"limit": 500, "offset": -7})
+    res = client.get("/api/v1/orchestrator/runs", params={"limit": 500})
     assert res.status_code == 200
-    body = res.json()
-    assert body["limit"] == 100 and body["offset"] == 0
-    assert len(body["items"]) == 3
+    assert len(res.json()["items"]) == 3
 
     res = client.get("/api/v1/orchestrator/runs", params={"limit": 2})
     body = res.json()
-    assert body["total"] == 3
     assert [i["id"] for i in body["items"]] == ["run-1", "run-2"]
+    assert body["nextCursor"]  # more pages exist
 
-    # offset walks the same result set without re-reading dropped rows.
-    res = client.get("/api/v1/orchestrator/runs", params={"limit": 2, "offset": 2})
-    assert [i["id"] for i in res.json()["items"]] == ["run-3"]
+
+# ------------------------------------------------------------ cursor walking
+
+
+def test_cursor_round_trip_walks_every_row_once(monkeypatch, seeded_db):
+    """Full pagination walk: pages chain via nextCursor until it goes null,
+    yielding each run exactly once in stable (created_at DESC, id DESC) order.
+    """
+    _seed_run(seeded_db, "run-4", "proj-ours", "planning", 50)
+    client = _client(monkeypatch, seeded_db, _principal())
+
+    seen: list[str] = []
+    cursor: str | None = None
+    pages = 0
+    while True:
+        params: dict[str, str | int] = {"limit": 2}
+        if cursor is not None:
+            params["cursor"] = cursor
+        body = client.get("/api/v1/orchestrator/runs", params=params).json()
+        seen.extend(i["id"] for i in body["items"])
+        pages += 1
+        if body["nextCursor"] is None:
+            break
+        assert body["nextCursor"] != cursor  # cursor must advance
+        cursor = body["nextCursor"]
+        assert pages < 10  # safety: never loop forever
+
+    assert seen == ["run-1", "run-2", "run-3", "run-4"]
+    assert pages == 2  # two full pages of two, second page ends the collection
+
+
+def test_cursor_pages_are_stable_against_inserts(monkeypatch, seeded_db):
+    """A new run landing between pages must not shift the keyset window."""
+    client = _client(monkeypatch, seeded_db, _principal())
+    first = client.get("/api/v1/orchestrator/runs", params={"limit": 2}).json()
+    assert [i["id"] for i in first["items"]] == ["run-1", "run-2"]
+
+    # Newest-possible row arrives AFTER the caller took their first page.
+    _seed_run(seeded_db, "run-new", "proj-ours", "planning", 1)
+
+    second = client.get(
+        "/api/v1/orchestrator/runs",
+        params={"limit": 2, "cursor": first["nextCursor"]},
+    ).json()
+    # Offset paging would have skipped run-3 here; the cursor does not.
+    assert [i["id"] for i in second["items"]] == ["run-3"]
+    assert second["nextCursor"] is None
+
+
+def test_cursor_respects_filters(monkeypatch, seeded_db):
+    client = _client(monkeypatch, seeded_db, _principal())
+    # team-a owns exactly one 'executing' run: a single-row collection must
+    # end after one page (nextCursor null), never fabricate another page.
+    first = client.get(
+        "/api/v1/orchestrator/runs", params={"status": "executing", "limit": 1}
+    ).json()
+    assert [i["id"] for i in first["items"]] == ["run-2"]
+    assert first["nextCursor"] is None
+
+    # With two matching runs the cursor walk stays scoped to the filter AND
+    # the team — run-f (team-b) is invisible across the boundary. run-2b is
+    # seeded older than run-2 so it lands on page two.
+    _seed_run(seeded_db, "run-2b", "proj-ours", "executing", 25)
+    first = client.get(
+        "/api/v1/orchestrator/runs", params={"status": "executing", "limit": 1}
+    ).json()
+    assert [i["id"] for i in first["items"]] == ["run-2"]
+    second = client.get(
+        "/api/v1/orchestrator/runs",
+        params={"status": "executing", "limit": 1, "cursor": first["nextCursor"]},
+    ).json()
+    assert [i["id"] for i in second["items"]] == ["run-2b"]
+    assert second["nextCursor"] is None
+
+
+def test_garbage_cursor_answers_400_invalid_cursor(monkeypatch, seeded_db):
+    client = _client(monkeypatch, seeded_db, _principal())
+    res = client.get("/api/v1/orchestrator/runs", params={"cursor": "not-a-cursor"})
+    assert res.status_code == 400
+    detail = res.json()["detail"]
+    assert detail["error"]["code"] == "INVALID_CURSOR"
+
+
+def test_legacy_offset_accepted_but_ignored(monkeypatch, seeded_db):
+    """One-release deprecation window: offset neither errors nor applies."""
+    client = _client(monkeypatch, seeded_db, _principal())
+    res = client.get(
+        "/api/v1/orchestrator/runs", params={"limit": 2, "offset": 99}
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert [i["id"] for i in body["items"]] == ["run-1", "run-2"]  # page ONE
 
 
 # ------------------------------------------------------------------- filters
@@ -218,22 +308,21 @@ def test_project_filter(monkeypatch, seeded_db):
     )
     # proj-theirs belongs to team-b: filtered out by team scoping before the
     # projectId filter even applies — never leaks across teams.
-    assert res.json()["total"] == 0
+    assert res.json()["items"] == []
 
 
 def test_status_filter(monkeypatch, seeded_db):
     client = _client(monkeypatch, seeded_db, _principal())
     res = client.get("/api/v1/orchestrator/runs", params={"status": "executing"})
     body = res.json()
-    assert body["total"] == 1
-    assert body["items"][0]["id"] == "run-2"
+    assert [i["id"] for i in body["items"]] == ["run-2"]
     assert body["items"][0]["status"] == "executing"
 
     res = client.get(
         "/api/v1/orchestrator/runs",
         params={"status": "executing", "projectId": "proj-ours"},
     )
-    assert res.json()["total"] == 1
+    assert [i["id"] for i in res.json()["items"]] == ["run-2"]
 
 
 def test_combined_filters_narrow(monkeypatch, seeded_db):
@@ -242,8 +331,7 @@ def test_combined_filters_narrow(monkeypatch, seeded_db):
         "/api/v1/orchestrator/runs",
         params={"projectId": "proj-ours", "status": "planning"},
     )
-    body = res.json()
-    assert body["total"] == 1 and body["items"][0]["id"] == "run-1"
+    assert [i["id"] for i in res.json()["items"]] == ["run-1"]
 
 
 # ------------------------------------------------------- derived timestamps
@@ -347,5 +435,6 @@ def test_valid_bearer_reaches_data(seeded_db, monkeypatch):
     )
     assert res.status_code == 200
     body = res.json()
-    assert body["total"] == 3  # team-a scope applied end to end
+    ids = [i["id"] for i in body["items"]]
+    assert len(ids) == 3  # team-a scope applied end to end
     assert all(i["projectId"] == "proj-ours" for i in body["items"])

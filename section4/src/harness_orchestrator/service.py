@@ -30,6 +30,7 @@ from harness_orchestrator.engine import DeepSeekHarnessWrapper  # noqa: E402
 from harness_orchestrator.planner import PlanNotApprovedError, PlanService  # noqa: E402
 from harness_orchestrator.reviewer import ReviewerSubAgent, ReviewFindings  # noqa: E402
 from harness_orchestrator.rules_loader import build_rules_block, load_project_rules  # noqa: E402
+from harness_orchestrator.run_metering import record_run_cost  # noqa: E402
 from harness_orchestrator.run_queue import (  # noqa: E402
     claim_next_run,
     enqueue_run,
@@ -590,6 +591,10 @@ class OrchestratorService(Orchestrator):
             status = str(result.get("status") or "")
             if status == "completed":
                 sm.execution_completed(summary[:4000])
+                # M14-W4 F1a: the run's ACTUAL cost lands in cost_ledger when
+                # the engine completes (H-011 run-cost gap). Fire-and-forget —
+                # metering must never break or delay the completion path.
+                await record_run_cost(self, run_data, plan)
             else:
                 sm.execution_failed(summary or f"engine status={status or 'unknown'}")
         finally:
