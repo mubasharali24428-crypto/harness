@@ -6,9 +6,16 @@
 // revoke-with-confirm, minted keyHint shown once. Real fetches against the
 // contract shapes; no mocks outside keysApi.ts's single fetch layer.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
+// M13-G5b (raw-14): visible way back — Command Center → Settings → Provider keys.
+import { BreadcrumbTrail, settingsCrumbs } from "@/components/Breadcrumbs";
 import { loadSession } from "@/lib/auth";
+// M13-G5b (raw-14): revoke gains a 5s undo window (countdown cell + helpers).
+import {
+  REVOKE_UNDO_SECONDS,
+  RevokeActionsCell,
+} from "./revokeCell";
 import {
   KEY_PROVIDERS,
   ApiKeyDto,
@@ -59,6 +66,10 @@ export default function KeysSettingsPage() {
   const [showKey, setShowKey] = useState(false);
 
   const [confirmRevokeFor, setConfirmRevokeFor] = useState<string | null>(null); // key id
+  // M13-G5b (raw-14): the 5s undo window. After Confirm, the DELETE is held
+  // back while this counts down to 0; "Keep key" cancels with no request.
+  const [undoKey, setUndoKey] = useState<{ keyId: string; label: string; secondsLeft: number } | null>(null);
+  const busyRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -117,6 +128,7 @@ export default function KeysSettingsPage() {
     if (!teamId) return;
     const token = loadSession()?.token ?? "";
     setBusy(true);
+    busyRef.current = true;
     setError(null);
     setConfirmRevokeFor(null);
     try {
@@ -126,11 +138,52 @@ export default function KeysSettingsPage() {
       setError(String((e as Error)?.message ?? e));
     } finally {
       setBusy(false);
+      busyRef.current = false;
     }
   };
 
+  // M13-G5b (raw-14): Confirm no longer deletes — it opens a 5s undo window.
+  // The DELETE fires only when the countdown expires; "Keep key" cancels the
+  // pending revoke with zero network calls made.
+  const onConfirmRevoke = (keyId: string, label: string) => {
+    setConfirmRevokeFor(null);
+    setError(null);
+    setNotice(null);
+    setMintedHint(null);
+    setUndoKey({ keyId, label, secondsLeft: REVOKE_UNDO_SECONDS });
+  };
+
+  const onKeepKey = () => {
+    setUndoKey(null);
+    setNotice("Revoke cancelled — key kept.");
+  };
+
+  // Undo-window countdown: one interval while a window is open. At zero the
+  // real DELETE runs; if "Keep key" already cleared the window this is a no-op.
+  useEffect(() => {
+    if (undoKey === null) return;
+    const t = window.setInterval(() => {
+      setUndoKey((cur) => {
+        if (cur === null || cur.secondsLeft <= 0) return cur;
+        return { ...cur, secondsLeft: cur.secondsLeft - 1 };
+      });
+    }, 1000);
+    return () => window.clearInterval(t);
+  }, [undoKey === null]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (undoKey !== null && undoKey.secondsLeft <= 0 && !busyRef.current) {
+      void onRevoke(undoKey.keyId).then(() => {
+        // Only clear OUR OWN window: a newer undo (another key) must survive.
+        setUndoKey((cur) => (cur !== null && cur.secondsLeft <= 0 ? null : cur));
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [undoKey]);
+
   return (
     <AppShell active="/settings">
+      <BreadcrumbTrail items={settingsCrumbs("Provider keys")} />
       <h1>Provider keys</h1>
 
       {!canWrite && (
@@ -270,37 +323,18 @@ export default function KeysSettingsPage() {
                     <td style={thTdStyle}>
                       {revoked ? (
                         "—"
-                      ) : confirmRevokeFor === k.id ? (
-                        <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-                          Revoke “{k.label}”?
-                          <button
-                            type="button"
-                            className="btn danger"
-                            disabled={busy}
-                            onClick={() => onRevoke(k.id)}
-                            aria-label={`Confirm revoking key ${k.label}`}
-                          >
-                            Confirm
-                          </button>
-                          <button
-                            type="button"
-                            className="btn"
-                            disabled={busy}
-                            onClick={() => setConfirmRevokeFor(null)}
-                          >
-                            Cancel
-                          </button>
-                        </span>
                       ) : (
-                        <button
-                          type="button"
-                          className="btn danger"
-                          disabled={busy}
-                          onClick={() => setConfirmRevokeFor(k.id)}
-                          aria-label={`Revoke key ${k.label}`}
-                        >
-                          Revoke
-                        </button>
+                        <RevokeActionsCell
+                          label={k.label}
+                          keyId={k.id}
+                          busy={busy}
+                          confirmOpen={confirmRevokeFor === k.id}
+                          undoSecondsLeft={undoKey !== null && undoKey.keyId === k.id ? undoKey.secondsLeft : null}
+                          onAsk={() => setConfirmRevokeFor(k.id)}
+                          onCancelConfirm={() => setConfirmRevokeFor(null)}
+                          onConfirm={() => onConfirmRevoke(k.id, k.label)}
+                          onKeepKey={onKeepKey}
+                        />
                       )}
                     </td>
                   )}
@@ -318,7 +352,8 @@ export default function KeysSettingsPage() {
         </table>
         <p style={{ color: "var(--muted)", fontSize: 12 }}>
           Keys are encrypted at rest; only masked hints are listed. Revoking is soft — the row is
-          kept for audit and stops being usable immediately.
+          kept for audit and stops being usable immediately. Confirming starts a{" "}
+          {REVOKE_UNDO_SECONDS}-second grace period: “Keep key” cancels before anything is sent.
         </p>
       </section>
     </AppShell>

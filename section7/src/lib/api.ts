@@ -421,17 +421,9 @@ export function postMessage(
   });
 }
 
-export function invokeAi(
-  meetingId: string,
-  userId: string,
-  content: string,
-  token: string,
-): Promise<{ reply?: string }> {
-  return meetingFetch(`/api/v1/meetings/${meetingId}/ai`, token, {
-    method: "POST",
-    body: JSON.stringify({ userId, content }),
-  });
-}
+// M13-G5b: the old `invokeAi` export is GONE. The single-call send path is
+// `sendWithAi` in lib/meetingSend.ts (S6 replies server-side; the client's
+// second POST to /ai was a duplicate that raced it).
 
 export function generateBrief(meetingId: string, token: string): Promise<BriefDto> {
   return meetingFetch(`/api/v1/meetings/${meetingId}/brief`, token, { method: "POST" });

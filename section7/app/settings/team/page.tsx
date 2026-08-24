@@ -19,6 +19,8 @@ import { useCallback, useEffect, useState } from "react";
 // extension; Next's compiler accepts this import too, so one source fits both.
 import * as React from "react";
 import AppShell from "@/components/AppShell";
+// M13-G5b (raw-14): visible way back — Command Center → Settings → Team.
+import { BreadcrumbTrail, settingsCrumbs } from "@/components/Breadcrumbs";
 import { loadSession } from "@/lib/auth";
 import {
   TEAM_ROLES,
@@ -357,6 +359,7 @@ export default function TeamSettingsPage() {
 
   return (
     <AppShell active="/settings">
+      <BreadcrumbTrail items={settingsCrumbs("Team")} />
       <h1>Team</h1>
 
       {error && (

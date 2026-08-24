@@ -7,6 +7,8 @@
 // byDay series. All new logic is exported as PURE functions (no DOM, no fetch)
 // so vitest covers it directly; the page owns the DOM side (blob download).
 import { ApiError, parseApiError } from "@/lib/api";
+// M13-G5b (raw-14): the export filename carries a slugified team name.
+import { teamNameSlug } from "@/lib/format";
 
 // The model-router base is not exported from @/lib/api today; this file owns
 // its own constant rather than touching shared code outside this lane.
@@ -150,19 +152,25 @@ export function buildSpendCsv(byDay: SpendByDayEntry[]): string {
   return `${lines.join("\r\n")}\r\n`;
 }
 
-/** Filename for the byDay export, e.g. harness-spend-20260821T101500Z.csv. */
-export function csvFileName(now: Date = new Date()): string {
+/**
+ * Filename for the byDay export. M13-G5b (raw-14): carries a team-name slug so
+ * exports from different teams are distinguishable at a glance, e.g.
+ * harness-spend-acme-robotics-20260821T101500Z.csv. A blank/unavailable name
+ * falls back to the literal "team" marker rather than dropping the segment.
+ */
+export function csvFileName(now: Date = new Date(), teamName?: string): string {
   const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
-  return `harness-spend-${stamp}.csv`;
+  const slug = teamNameSlug(teamName ?? "") || "team";
+  return `harness-spend-${slug}-${stamp}.csv`;
 }
 
 /**
  * Trigger a client-side download of `byDay` as CSV via an object URL.
  * Returns the generated filename. DOM-side counterpart of buildSpendCsv.
  */
-export function downloadSpendCsv(byDay: SpendByDayEntry[]): string {
+export function downloadSpendCsv(byDay: SpendByDayEntry[], teamName?: string): string {
   const blob = new Blob([buildSpendCsv(byDay)], { type: "text/csv;charset=utf-8" });
-  const name = csvFileName();
+  const name = csvFileName(new Date(), teamName);
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

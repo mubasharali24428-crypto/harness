@@ -9,7 +9,6 @@ import {
   getBrief,
   getMessages,
   getReviewData,
-  invokeAi,
   postMessage,
   requestChanges,
 } from "@/lib/api";
@@ -50,14 +49,8 @@ describe("meeting clients (Section 6)", () => {
     expect(JSON.parse(String(init.body))).toEqual({ userId: "u1", content: "hello" });
   });
 
-  it("invokeAi hits the /ai route", async () => {
-    const f = stubOk({ reply: "ok" });
-    vi.stubGlobal("fetch", f);
-    await invokeAi("mtg-9", "u1", "status?", TOKEN);
-    const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe(`${MEETING_BASE}/api/v1/meetings/mtg-9/ai`);
-    expect(JSON.parse(String(init.body))).toEqual({ userId: "u1", content: "status?" });
-  });
+  // M13-G5b: the `invokeAi` test entry is gone with the export — the
+  // single-call send path (sendWithAi) posts to /messages, never to /ai.
 
   it("generateBrief posts to the brief collection endpoint", async () => {
     const f = stubOk({ id: "brf-1", requirements: [] });

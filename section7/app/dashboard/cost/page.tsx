@@ -11,6 +11,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
 import { loadSession } from "@/lib/auth";
+// M13-G5b (raw-14): team name for the export filename comes from the shared
+// projects client (ProjectDto carries teamName).
+import { listProjects } from "@/lib/api";
 import { ApiError } from "@/lib/api";
 import {
   COST_DOCS_URL,
@@ -62,6 +65,10 @@ export default function CostDashboardPage() {
   const [summary, setSummary] = useState<SpendSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState<string | null>(null);
+  // M13-G5b (raw-14): team name for the CSV export filename. The session
+  // principal carries only the teamId, so the name comes from the projects
+  // endpoint's teamName field; blank/absent degrades to the "team" marker.
+  const [teamName, setTeamName] = useState<string>("");
   // Distinguishes the endpoint's honest 503 LEDGER_UNAVAILABLE ("cost metering
   // is not wired in this deployment") from any other failure.
   const [unwired, setUnwired] = useState(false);
@@ -83,6 +90,11 @@ export default function CostDashboardPage() {
         session.token,
       );
       setSummary(data);
+      // M13-G5b (raw-14): best-effort team-name lookup for the export file
+      // name — a failure here must never take the dashboard down.
+      listProjects(session.token)
+        .then((items) => setTeamName(items.find((p) => p.id === session.principal.teamId)?.name ?? ""))
+        .catch(() => {});
     } catch (e) {
       setSummary(null);
       if (e instanceof ApiError && e.status === 503) {
@@ -311,7 +323,7 @@ export default function CostDashboardPage() {
                   type="button"
                   data-testid="export-csv"
                   disabled={!canExport}
-                  onClick={() => downloadSpendCsv(byDayRows)}
+                  onClick={() => downloadSpendCsv(byDayRows, teamName)}
                   style={{
                     ...chipStyle(false),
                     cursor: canExport ? "pointer" : "not-allowed",

@@ -102,16 +102,38 @@ describe("buildSpendCsv", () => {
 describe("csvFileName", () => {
   it("derives a timestamped name from the given date", () => {
     const d = new Date("2026-08-21T10:15:30.123Z");
-    expect(csvFileName(d)).toBe("harness-spend-20260821T101530Z.csv");
+    // M13-G5b: no team name available → literal "team" marker keeps the segment.
+    expect(csvFileName(d)).toBe("harness-spend-team-20260821T101530Z.csv");
+  });
+
+  it("carries a slugified team name (M13-G5b raw-14)", () => {
+    const d = new Date("2026-08-21T10:15:30.123Z");
+    expect(csvFileName(d, "Acme Robotics!")).toBe(
+      "harness-spend-acme-robotics-20260821T101530Z.csv",
+    );
+  });
+
+  it("falls back to the team marker for blank/unavailable names", () => {
+    const d = new Date("2026-08-21T10:15:30.123Z");
+    expect(csvFileName(d, "")).toBe("harness-spend-team-20260821T101530Z.csv");
+    expect(csvFileName(d, "   ")).toBe("harness-spend-team-20260821T101530Z.csv");
+  });
+
+  it("keeps the filename filesystem-safe for hostile team names", () => {
+    const d = new Date("2026-08-21T10:15:30.123Z");
+    const name = csvFileName(d, "../../etc/passwd");
+    expect(name).toMatch(/^harness-spend-[a-z0-9-]+-20260821T101530Z\.csv$/);
+    expect(name).not.toContain("/");
+    expect(name).not.toContain("..");
   });
 
   it("produces a .csv name for now()", () => {
-    expect(csvFileName()).toMatch(/^harness-spend-\d{8}T\d{6}Z\.csv$/);
+    expect(csvFileName()).toMatch(/^harness-spend-[a-z0-9]+(?:-[a-z0-9]+)*-\d{8}T\d{6}Z\.csv$/);
   });
 });
 
 describe("downloadSpendCsv (DOM side)", () => {
-  it("downloads the serialized CSV under a timestamped .csv name", () => {
+  it("downloads the serialized CSV under a timestamped .csv name", async () => {
     const revoke = vi.fn();
     const createdBlobs: unknown[] = [];
     class StubBlob {
@@ -145,9 +167,9 @@ describe("downloadSpendCsv (DOM side)", () => {
       body: { appendChild },
     };
 
-    const name = downloadSpendCsv([{ day: "2026-08-21", costUsd: 0.42 }]);
+    const name = await downloadSpendCsv([{ day: "2026-08-21", costUsd: 0.42 }]);
 
-    expect(name).toMatch(/^harness-spend-\d{8}T\d{6}Z\.csv$/);
+    expect(name).toMatch(/^harness-spend-team-\d{8}T\d{6}Z\.csv$/);
     expect(anchor.download).toBe(name);
     expect(anchor.href).toBe("blob:fake-1");
     expect(anchor.click).toHaveBeenCalledTimes(1);
