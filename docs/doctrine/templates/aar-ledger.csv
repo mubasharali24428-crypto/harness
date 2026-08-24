@@ -1,0 +1,10 @@
+wave,item,class,evidence,owner,next_mission
+0,migration numbering race — ls migrations/ immediately before naming + after saving,IMPROVE,"0013→0017 taken underneath us; M12-G1 retention migration ended up at 0018",ATLAS,M15
+0,gate scope must equal CI scope — whole-section pytest,IMPROVE,"M10: endpoint without golden fixture passed local gate, red'd CI on test_every_endpoint_has_a_golden",leads,M15
+0,cross-section middleware installs at assembly level only,IMPROVE,"double-install double-counted every request — 6 red tests until wiring moved from make_app to app_identity",ATLAS,M15
+0,independent rerun of delegated agents' suites (never trust self-report),SUSTAIN,"Codex P1a claimed 50 passed while an expiry test silently failed",ATLAS,standing
+0,verifier pairs file FIX-LOOP blockers with evidence to originating lane,SUSTAIN,"shape-drift + check-without-increment quota classes caught only adversarially",verifiers,standing
+0,integration-sweep verifier owns cross-team seams explicitly,SUSTAIN,"wired-but-never-called routers shipped dead twice in one mission",ATLAS,standing
+0,honest BLOCK over fake success on fallback exhaustion,SUSTAIN,"D2 guard: engine returned completed with empty output vs missing model — now blocks",ATLAS,standing
+0,flaw-hunt parallel auditor lenses with file:line evidence rule,SUSTAIN,"90+ genuine findings from 2 squads feeding next-mission backlog",RED,M15
+0,live boot E2E probe pastes raw responses into verdict,SUSTAIN,"catches shape drift + dead wiring + env-name mismatches in one walk",verifiers,standing
