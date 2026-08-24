@@ -29,6 +29,9 @@ APPEND_ONLY_ACTIONS = frozenset(
         # Mission 12 E3a (H-010): roster management transitions.
         "member.removed",
         "member.role_changed",
+        # Mission 12 G10: user-authored project rules lifecycle.
+        "rules.saved",
+        "rules.deleted",
     }
 )
 

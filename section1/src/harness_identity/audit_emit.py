@@ -397,3 +397,58 @@ async def emit_member_role_changed(
         actor_kind=actor_kind,
         session_owner=session_owner,
     )
+
+async def emit_rules_saved(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """rules.saved — Mission 12 G10: project rules PUT (create or update).
+
+    Call from the PUT /projects/{projectId}/rules handler AFTER the row
+    commits; target_id is the projectId, detail carries {chars, created}.
+    """
+    return await _emit(
+        session,
+        "rules.saved",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="project_rules",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_rules_deleted(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """rules.deleted — Mission 12 G10: project rules DELETE.
+
+    Emitted only when a row actually existed; the idempotent no-row 204 stays
+    silent. Call AFTER the delete commits.
+    """
+    return await _emit(
+        session,
+        "rules.deleted",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="project_rules",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )

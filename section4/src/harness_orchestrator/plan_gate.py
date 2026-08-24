@@ -35,12 +35,23 @@ from harness_contracts.roles import Principal, Role
 from pydantic import BaseModel, Field
 
 from harness_orchestrator.planner import PlanNotApprovedError
-from harness_orchestrator.service import OrchestratorService
+from harness_orchestrator.service import OrchestratorService, PlanAlreadyDecidedError
 from harness_orchestrator.state_machine import AgentState, InvalidStateTransitionError
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/orchestrator", tags=["plan-gate"])
+
+# M12-F2: frozen error code for a lost optimistic-concurrency race on a plan
+# decision. Both losers (second approver / second rejector) map here.
+PLAN_ALREADY_DECIDED_CODE = "PLAN_ALREADY_DECIDED"
+
+
+def _http_plan_already_decided(detail_message: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=error_body(PLAN_ALREADY_DECIDED_CODE, detail_message),
+    )
 
 
 def get_plan_gate_service() -> OrchestratorService:
@@ -216,7 +227,14 @@ async def propose_plan(req: ProposePlanGateRequest, principal: RequirePrincipal)
 
 @router.post("/plans/{planId}/approve", status_code=status.HTTP_200_OK)
 async def approve_plan(planId: str, principal: RequirePrincipal) -> dict:
-    """/plans/{id}/approve → 200 {runId}. admin/engineer only. Idempotent."""
+    """`/plans/{id}/approve` → 200 {runId}. admin/engineer only. Idempotent.
+
+    M12-F2: the durable decision is a compare-and-swap on agent_plans.version.
+    The CAS runs BEFORE any in-memory mutation, so a loser of the race leaves
+    planner/state-machine/memory untouched and gets 409 PLAN_ALREADY_DECIDED
+    instead of both callers believing they won (last-write-wins eliminated).
+    A sequential re-approve still short-circuits to the same runId.
+    """
     service = _require_service()
     try:
         _require_role(principal, _DECIDE_ALLOWED)
@@ -233,10 +251,18 @@ async def approve_plan(planId: str, principal: RequirePrincipal) -> dict:
     already_approved = bool(sm.plan_approved)
     try:
         if not already_approved:
+            # Durable first: exactly one concurrent approve can flip version
+            # 0 → 1; everyone else loses and must not touch memory.
+            await service._persist_plan_status(
+                run_id, planId, "approved", expected_version=0
+            )
             service.planner.approve_plan(planId)
             sm.approve_plan(planId, principal.userId)
-            await service._persist_plan_status(run_id, planId, "approved")
         return {"runId": run_id}
+    except PlanAlreadyDecidedError as e:
+        # Another principal's approve or reject landed first — this caller
+        # lost the race. Memory deliberately left untouched.
+        raise _http_plan_already_decided(str(e)) from e
     except InvalidStateTransitionError as e:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -246,7 +272,13 @@ async def approve_plan(planId: str, principal: RequirePrincipal) -> dict:
 
 @router.post("/plans/{planId}/reject", status_code=status.HTTP_202_ACCEPTED)
 async def reject_plan(planId: str, principal: RequirePrincipal) -> dict:
-    """/plans/{id}/reject → 202. Persisted AND audited. admin/engineer only."""
+    """`/plans/{id}/reject` → 202. Persisted AND audited. admin/engineer only.
+
+    M12-F2: same CAS-before-memory discipline as approve. The decision window
+    is AWAITING_PLAN_APPROVAL — a plan that already moved (approved, rejected,
+    executing) rejects with 409 PLAN_ALREADY_DECIDED, so reject-after-reject
+    and mixed approve/reject races resolve to exactly one winner.
+    """
     service = _require_service()
     try:
         _require_role(principal, _DECIDE_ALLOWED)
@@ -260,10 +292,43 @@ async def reject_plan(planId: str, principal: RequirePrincipal) -> dict:
         )
     run_id, run_data = located
     sm = run_data["state_machine"]
+    if sm.state is not AgentState.AWAITING_PLAN_APPROVAL:
+        raise _http_plan_already_decided(
+            f"Plan '{planId}' was already decided"
+            f" (run state '{sm.state.value}'); rejection window closed."
+        )
+    # M12-F2: the durable mirror is the tiebreaker. A restart-rehydrated run
+    # boots IDLE, so the in-memory window above cannot be trusted alone — a
+    # plan whose persisted status is still 'proposed' stays decidable.
+    # Stores whose agent_plans predates 0013 (no version column yet) simply
+    # yield no window information here; the CAS below degrades the same way,
+    # matching the house "participates when the column exists" posture.
+    factory = getattr(service, "session_factory", None)
+    if factory is not None:
+        from sqlalchemy import text
+
+        row = None
+        try:
+            async with factory() as db:
+                row = (
+                    await db.execute(
+                        text("SELECT status, version FROM agent_plans WHERE id = :p"),
+                        {"p": planId},
+                    )
+                ).first()
+        except Exception:  # noqa: BLE001 — window probe must never crash the route
+            logger.exception("plan-decision window probe failed for %s", planId)
+        if row is not None and (row.status != "proposed" or row.version != 0):
+            raise _http_plan_already_decided(
+                f"Plan '{planId}' was already decided"
+                f" (persisted status '{row.status}'); rejection window closed."
+            )
     try:
+        # Durable first: exactly one concurrent decision can move version
+        # 0 → 1; the loser sees zero rows updated and stops here.
+        await service._persist_plan_status(run_id, planId, "rejected", expected_version=0)
         service.planner.reject_plan(planId)
         sm.reject_plan(planId, principal.userId)  # → IDLE per state machine
-        await service._persist_plan_status(run_id, planId, "rejected")
         await _audit_emit(
             getattr(service, "session_factory", None),
             action=AUDIT_ACTION_PLAN_REJECTED,
@@ -272,6 +337,9 @@ async def reject_plan(planId: str, principal: RequirePrincipal) -> dict:
             target_id=planId,
             detail={"runId": run_id},
         )
+    except PlanAlreadyDecidedError as e:
+        # Winner kept its decision; memory untouched by this loser.
+        raise _http_plan_already_decided(str(e)) from e
     except InvalidStateTransitionError as e:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

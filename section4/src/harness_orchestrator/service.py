@@ -14,6 +14,7 @@ from harness_orchestrator.budget import BudgetStatus, check_budget
 from harness_orchestrator.engine import DeepSeekHarnessWrapper
 from harness_orchestrator.planner import PlanNotApprovedError, PlanService
 from harness_orchestrator.reviewer import ReviewerSubAgent, ReviewFindings
+from harness_orchestrator.rules_loader import build_rules_block, load_project_rules
 from harness_orchestrator.run_queue import (
     claim_next_run,
     enqueue_run,
@@ -21,7 +22,6 @@ from harness_orchestrator.run_queue import (
     heartbeat_run,
     reclaim_orphans,
 )
-from harness_orchestrator.rules_loader import build_rules_block, load_project_rules
 from harness_orchestrator.signals import gate_done_signal
 from harness_orchestrator.state_machine import (
     PLAN_REJECTED_EVENT,
@@ -624,7 +624,26 @@ class OrchestratorService(Orchestrator):
         sm: AgentStateMachine = run_data["state_machine"]
         run_data["_cancel_reason"] = "stop"  # terminal: overwrites any earlier 'pause'
         sm.finish()
+        # M12-G7: the only transition that reaches DONE without a bus event
+        # (finish() is deliberately silent). Emit a paused envelope so
+        # notification consumers see a truthful "stopped by user, not an
+        # engine failure". Best-effort: telemetry must never break stopping.
+        self._emit_paused_event(run_data, reason="user_requested_stop")
         self._cancel_live_task(run_data)
+
+    def _emit_paused_event(self, run_data: dict[str, Any], reason: str) -> None:
+        """M12-G7: fire-and-forget PAUSED emission for silent terminal paths.
+
+        Uses EventType.PAUSED (frozen contracts) with a G7-specific reason;
+        payload keys stay camelCase per api-conventions. Never raises.
+        """
+        try:
+            self._emit(
+                EventType.PAUSED,
+                {"runId": run_data["runId"], "reason": reason},
+            )
+        except Exception:  # noqa: BLE001 — telemetry must never break stopping
+            logger.exception("paused-event emission failed for %s", run_data.get("runId"))
 
     def _cancel_live_task(self, run_data: dict[str, Any]) -> None:
         task = run_data.get("task")

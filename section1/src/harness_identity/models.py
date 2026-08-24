@@ -208,6 +208,30 @@ class ApiKey(Base, TimestampMixin):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class ProjectRule(Base, TimestampMixin):
+    """M12-G10: user-authored project rules (.cursorrules equivalent).
+
+    One advisory rules document per project; the S4 planner injects it into
+    its prompt at plan-proposal time. Advisory only — Section 5's sandbox
+    allow-list and forbidden_paths remain the hard enforcement layer.
+    """
+
+    __tablename__ = "project_rules"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id"), nullable=False, unique=True, index=True
+    )
+    # 64KB cap mirrors MAX_RULES_BYTES in the API layer and the migration CHECK.
+    rules_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    updated_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    # Explicit (not server_default) so the API can bump it on every save;
+    # real datetime object per the asyncpg TIMESTAMPTZ rule, never text-compared.
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class ModelConfig(Base, TimestampMixin):
     __tablename__ = "model_configs"
 
@@ -293,4 +317,23 @@ class TeamInvite(Base):
     redeemed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class UserSetting(Base):
+    """M12-G7: per-user settings KV (mirror of 0016_user_settings.sql).
+
+    Deliberately generic (user_id, key) -> text value so future preferences
+    land without another migration. Known keys live as module constants next
+    to their readers — notifier.py reads ``notify_email`` ("true"/"false");
+    absent row means the documented default, never an error.
+    """
+
+    __tablename__ = "user_settings"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    key: Mapped[str] = mapped_column(String(80), primary_key=True)
+    value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )

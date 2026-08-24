@@ -1,11 +1,12 @@
--- migration 0014: agent_runs.pr_id (M12-W2 lane E4a, pair contract W2-C2)
+-- migration 0017: agent_runs.pr_id (M12-W2 lane E4a, pair contract W2-C2)
 --
 -- The PR-open producer (Section 2 openDraftPR) persists the opened PR against
 -- its run so the review flow can resolve run -> prId without replaying events.
 -- Nullable until that run opens a PR; NULL means "no PR yet", never "unknown".
 --
--- Numbering note: 0013_plan_version.sql belongs to lane F2 (optimistic
--- concurrency) per docs/briefs/mission12-wave2-graph.md; this file takes 0014.
+-- Numbering note: authored as 0014 per the wave-2 graph (0013 = F2 plan
+-- version); renumbered 0017 at ATLAS merge after lanes F1 (0015) and G10
+-- (0016) claimed intervening numbers. Content unchanged.
 ALTER TABLE agent_runs ADD COLUMN pr_id VARCHAR(36);
 
 ALTER TABLE agent_runs

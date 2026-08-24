@@ -46,6 +46,14 @@ function SettingsInner() {
     <AppShell active="/settings">
       <h1>Settings</h1>
 
+      {/* M12-G10: project rules editor (.cursorrules equivalent) lives here */}
+      <p style={{ marginBottom: 16 }}>
+        <a href="/settings/project">Project rules →</a>{" "}
+        <span style={{ color: "var(--muted)", fontSize: 12 }}>
+          conventions every agent plan must honor
+        </span>
+      </p>
+
       {(params.get("connected") || error) && (
         <div
           role="status"
