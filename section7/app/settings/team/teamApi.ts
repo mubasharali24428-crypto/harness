@@ -1,6 +1,12 @@
 // Wave 9 node C — team/invites API client for the /settings/team page.
 // Lives next to the page (node C's file boundary); talks to Section 1's
 // identity service with the same bearer/error conventions as src/lib/api.ts.
+//
+// M12-E3b — extended for H-010 (roster management) under pair contract
+// W2-C1: DELETE /api/v1/teams/{id}/members/{userId} → 204 and
+// PATCH .../members/{userId} {role} → 200 {userId, role}; errors come back
+// as error_body() and surface through parseApiError unchanged.
+// UNVERIFIED against the live server until lane E3a lands — ATLAS diffs at gate.
 import { ApiError, IDENTITY_BASE, parseApiError } from "@/lib/api";
 
 export type TeamRole = "admin" | "engineer" | "viewer" | "guest";
@@ -57,6 +63,35 @@ async function request<T>(path: string, token: string, init?: RequestInit): Prom
 
 export function listMembers(teamId: string, token: string): Promise<{ items: TeamMemberDto[] }> {
   return request(`/api/v1/teams/${teamId}/members`, token);
+}
+
+/** W2-C1 — DELETE /api/v1/teams/{teamId}/members/{userId} → 204.
+ *  Admin-only server-side; audited as member.removed by E3a. The 204 carries
+ *  no body, so this resolves to null. UNVERIFIED until E3a lands. */
+export async function removeMember(
+  teamId: string,
+  userId: string,
+  token: string,
+): Promise<null> {
+  await request(`/api/v1/teams/${teamId}/members/${userId}`, token, {
+    method: "DELETE",
+  });
+  return null;
+}
+
+/** W2-C1 — PATCH /api/v1/teams/{teamId}/members/{userId} {role} →
+ *  200 {userId, role}. Admin-only server-side; audited as
+ *  member.role_changed by E3a. UNVERIFIED until E3a lands. */
+export function updateMemberRole(
+  teamId: string,
+  userId: string,
+  role: TeamRole,
+  token: string,
+): Promise<{ userId: string; role: string }> {
+  return request(`/api/v1/teams/${teamId}/members/${userId}`, token, {
+    method: "PATCH",
+    body: JSON.stringify({ role }),
+  });
 }
 
 export function listPendingInvites(

@@ -3,8 +3,21 @@
 // Wave 9 node C — /settings/team: roster with roles, admin invite flow
 // (mint → token shown ONCE), pending-invites table with revoke, and
 // join-by-token redemption. Real fetches against Section 1, no mocks.
+//
+// M12-E3b (H-010, pair contract W2-C1) — roster management UI:
+//   • per-member Remove button with INLINE CONFIRM; calls
+//     DELETE /api/v1/teams/{id}/members/{userId} (→ 204) and refreshes the
+//     list; failures surface the SERVER's error message verbatim (including
+//     the 409 last-admin protection text) — never a fabricated excuse;
+//   • per-member role dropdown calling PATCH .../members/{userId} {role};
+//   • both controls are ADMIN-ONLY: hidden entirely from engineer/viewer/
+//     guest viewers (server enforces too — the client just doesn't tease).
+// Client code is UNVERIFIED against the live server until lane E3a lands.
 
 import { useCallback, useEffect, useState } from "react";
+// Classic JSX transform (vitest/esbuild) needs React in scope for the .tsx
+// extension; Next's compiler accepts this import too, so one source fits both.
+import * as React from "react";
 import AppShell from "@/components/AppShell";
 import { loadSession } from "@/lib/auth";
 import {
@@ -16,7 +29,9 @@ import {
   listMembers,
   listPendingInvites,
   redeemInvite,
+  removeMember,
   revokeInvite,
+  updateMemberRole,
 } from "./teamApi";
 
 const cardStyle = { maxWidth: 760, marginBottom: 20 } as const;
@@ -27,12 +42,145 @@ const thTdStyle = {
   borderBottom: "1px solid var(--border)",
 } as const;
 
+const selectStyle = {
+  background: "var(--panel-2)",
+  border: "1px solid var(--border)",
+  color: "var(--text)",
+  borderRadius: 6,
+  padding: "6px 8px",
+} as const;
+
 const rolePillClass: Record<string, string> = {
   admin: "pill green",
   engineer: "pill blue",
   viewer: "pill yellow",
   guest: "pill red",
 };
+
+/** Callback bundle for the roster table. Kept explicit so the presentational
+ *  component stays pure and SSR-testable without Next routing. */
+export interface RosterActions {
+  /** First tap on Remove — enters the inline-confirm state for that member. */
+  onAskRemove: (userId: string) => void;
+  /** Back out of the inline confirm without deleting anyone. */
+  onCancelRemove: (userId: string) => void;
+  /** Confirmed removal — caller owns the DELETE call + refresh + error text. */
+  onConfirmRemove: (userId: string) => void;
+  /** Role dropdown commit — caller owns the PATCH call + refresh + errors. */
+  onRoleChange: (userId: string, role: TeamRole) => void;
+}
+
+/** Presentational members table (H-010 core). Admins get a role <select> and
+ *  a Remove flow per row (two-step, inline); non-admin viewers get the same
+ *  read-only table Wave 9 shipped — zero management controls rendered. */
+export function MembersTable({
+  members,
+  isAdmin,
+  busyUserId,
+  pendingRemovalId,
+  actions,
+}: {
+  members: TeamMemberDto[];
+  isAdmin: boolean;
+  /** Member id whose mutation is in flight (disables that row's controls). */
+  busyUserId: string | null;
+  /** Member id showing the inline Remove confirmation. */
+  pendingRemovalId: string | null;
+  actions: RosterActions;
+}) {
+  return (
+    <table style={tableStyle}>
+      <thead>
+        <tr>
+          <th style={thTdStyle}>Name</th>
+          <th style={thTdStyle}>Email</th>
+          <th style={thTdStyle}>Type</th>
+          <th style={thTdStyle}>Role</th>
+          {isAdmin && <th style={thTdStyle}>Actions</th>}
+        </tr>
+      </thead>
+      <tbody>
+        {members.map((m) => (
+          <tr key={m.id}>
+            <td style={thTdStyle}>{m.displayName}</td>
+            <td style={thTdStyle}>{m.email ?? "—"}</td>
+            <td style={thTdStyle}>{m.memberType}</td>
+            <td style={thTdStyle}>
+              {isAdmin ? (
+                <select
+                  data-testid={`role-select-${m.id}`}
+                  aria-label={`Role for ${m.displayName}`}
+                  value={m.role}
+                  disabled={busyUserId === m.id}
+                  onChange={(e) => actions.onRoleChange(m.id, e.target.value as TeamRole)}
+                  style={selectStyle}
+                >
+                  {/* Unknown server roles still render as the selected option
+                      even though they're not in TEAM_ROLES. */}
+                  {(TEAM_ROLES.includes(m.role as TeamRole) ? TEAM_ROLES : [m.role as TeamRole, ...TEAM_ROLES]).map(
+                    (role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ),
+                  )}
+                </select>
+              ) : (
+                <span className={rolePillClass[m.role] ?? "pill blue"}>{m.role}</span>
+              )}
+            </td>
+            {isAdmin && (
+              <td style={thTdStyle}>
+                {pendingRemovalId === m.id ? (
+                  <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                    <span style={{ color: "var(--red)" }}>Remove this member?</span>
+                    <button
+                      type="button"
+                      className="btn danger"
+                      data-testid={`confirm-remove-${m.id}`}
+                      disabled={busyUserId === m.id}
+                      onClick={() => actions.onConfirmRemove(m.id)}
+                      aria-label={`Confirm removal of ${m.displayName}`}
+                    >
+                      {busyUserId === m.id ? "Removing…" : "Yes, remove"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      data-testid={`cancel-remove-${m.id}`}
+                      disabled={busyUserId === m.id}
+                      onClick={() => actions.onCancelRemove(m.id)}
+                    >
+                      Cancel
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn danger"
+                    data-testid={`ask-remove-${m.id}`}
+                    disabled={busyUserId === m.id}
+                    onClick={() => actions.onAskRemove(m.id)}
+                    aria-label={`Remove ${m.displayName}`}
+                  >
+                    Remove
+                  </button>
+                )}
+              </td>
+            )}
+          </tr>
+        ))}
+        {members.length === 0 && (
+          <tr>
+            <td style={thTdStyle} colSpan={isAdmin ? 5 : 4}>
+              No members loaded.
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  );
+}
 
 export default function TeamSettingsPage() {
   const [teamId, setTeamId] = useState<string | null>(null);
@@ -52,14 +200,32 @@ export default function TeamSettingsPage() {
   const [redeemMsg, setRedeemMsg] = useState<string | null>(null);
   const [redeemErr, setRedeemErr] = useState<string | null>(null);
 
+  // roster management (H-010)
+  const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  const [pendingRemovalId, setPendingRemovalId] = useState<string | null>(null);
+  const [rosterError, setRosterError] = useState<string | null>(null);
+
+  // Admin-only controls come straight from the frozen Principal contract
+  // (contracts/ts/src/roles.ts): role "admin" sees management controls. Read
+  // post-mount so the server prerender and first client render agree (the
+  // session lives in localStorage, invisible to SSR).
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    setIsAdmin(loadSession()?.principal?.role === "admin");
+  }, []);
+
+  // Members and invites load INDEPENDENTLY: the invites read is admin-only
+  // server-side, so a non-admin viewer would otherwise 403 the whole page and
+  // never see the roster. Members failing is a real error and still throws.
   const refresh = useCallback(async (team: string) => {
     const token = loadSession()?.token ?? "";
-    const [membersRes, invitesRes] = await Promise.all([
+    const [membersRes, invitesRes] = await Promise.allSettled([
       listMembers(team, token),
       listPendingInvites(team, token),
     ]);
-    setMembers(membersRes.items);
-    setInvites(invitesRes.items);
+    if (membersRes.status === "rejected") throw membersRes.reason;
+    setMembers(membersRes.value.items);
+    setInvites(invitesRes.status === "fulfilled" ? invitesRes.value.items : []);
   }, []);
 
   useEffect(() => {
@@ -135,6 +301,60 @@ export default function TeamSettingsPage() {
     }
   };
 
+  // W2-C1 — confirmed member removal. Failures surface the server's message
+  // verbatim (e.g. the 409 last-admin text); success clears the confirm state
+  // and refetches the roster so the table reflects server truth.
+  const onConfirmRemove = async (userId: string) => {
+    if (!teamId) return;
+    const token = loadSession()?.token ?? "";
+    setBusyUserId(userId);
+    setRosterError(null);
+    try {
+      await removeMember(teamId, userId, token);
+      setPendingRemovalId(null);
+      setError(null);
+      setNotice("Member removed from the team.");
+      await refresh(teamId);
+    } catch (e) {
+      setRosterError(String((e as Error)?.message ?? e));
+    } finally {
+      setBusyUserId(null);
+    }
+  };
+
+  // W2-C1 — role change via PATCH. The dropdown keeps the SERVER's last known
+  // role until a successful refresh, so a failed change visibly snaps back
+  // instead of pretending it worked.
+  const onRoleChange = async (userId: string, role: TeamRole) => {
+    if (!teamId) return;
+    const token = loadSession()?.token ?? "";
+    setBusyUserId(userId);
+    setRosterError(null);
+    try {
+      await updateMemberRole(teamId, userId, role, token);
+      setError(null);
+      setNotice(`Role changed to ${role}.`);
+      await refresh(teamId);
+    } catch (e) {
+      setRosterError(String((e as Error)?.message ?? e));
+      await refresh(teamId).catch(() => {}); // snap dropdown back to server truth
+    } finally {
+      setBusyUserId(null);
+    }
+  };
+
+  const rosterActions = {
+    onAskRemove: (userId: string) => {
+      setRosterError(null);
+      setPendingRemovalId(userId);
+    },
+    onCancelRemove: (userId: string) => {
+      setPendingRemovalId((cur) => (cur === userId ? null : cur));
+    },
+    onConfirmRemove,
+    onRoleChange,
+  };
+
   return (
     <AppShell active="/settings">
       <h1>Team</h1>
@@ -152,35 +372,23 @@ export default function TeamSettingsPage() {
 
       <section className="card" style={cardStyle}>
         <h2>Members</h2>
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={thTdStyle}>Name</th>
-              <th style={thTdStyle}>Email</th>
-              <th style={thTdStyle}>Type</th>
-              <th style={thTdStyle}>Role</th>
-            </tr>
-          </thead>
-          <tbody>
-            {members.map((m) => (
-              <tr key={m.id}>
-                <td style={thTdStyle}>{m.displayName}</td>
-                <td style={thTdStyle}>{m.email ?? "—"}</td>
-                <td style={thTdStyle}>{m.memberType}</td>
-                <td style={thTdStyle}>
-                  <span className={rolePillClass[m.role] ?? "pill blue"}>{m.role}</span>
-                </td>
-              </tr>
-            ))}
-            {members.length === 0 && (
-              <tr>
-                <td style={thTdStyle} colSpan={4}>
-                  No members loaded.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        {!isAdmin && (
+          <p style={{ color: "var(--muted)", fontSize: 12 }}>
+            Roster management (remove / change roles) is restricted to team admins.
+          </p>
+        )}
+        {rosterError && (
+          <p role="alert" style={{ color: "var(--red)" }}>
+            {rosterError}
+          </p>
+        )}
+        <MembersTable
+          members={members}
+          isAdmin={isAdmin}
+          busyUserId={busyUserId}
+          pendingRemovalId={pendingRemovalId}
+          actions={rosterActions}
+        />
       </section>
 
       <section className="card" style={cardStyle}>
@@ -206,13 +414,7 @@ export default function TeamSettingsPage() {
             id="invite-role"
             value={inviteRole}
             onChange={(e) => setInviteRole(e.target.value as TeamRole)}
-            style={{
-              background: "var(--panel-2)",
-              border: "1px solid var(--border)",
-              color: "var(--text)",
-              borderRadius: 6,
-              padding: "6px 8px",
-            }}
+            style={selectStyle}
           >
             {TEAM_ROLES.map((role) => (
               <option key={role} value={role}>

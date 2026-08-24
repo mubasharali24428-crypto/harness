@@ -1,10 +1,17 @@
-// Mission 10 node A5 — runs-index API client for the /runs page.
-// Lives next to the page (A5's file boundary); consumes contract M10-C2
-// (`GET /api/v1/orchestrator/runs`, bearer auth) served by Section 4's
-// orchestrator, with the same bearer/error conventions as src/lib/api.ts.
-// The backend side (A4 runs_index.py) lands in parallel — this client codes
-// against the contract, not against any particular implementation.
+// M12-E3b — runs-index API client, extended for the H-009 click-through.
+// Lives next to the page; consumes contract M10-C2 (`GET
+// /api/v1/orchestrator/runs`, bearer auth) served by Section 4's orchestrator,
+// with the same bearer/error conventions as src/lib/api.ts. The backend side
+// landed separately — this client codes against the contract, not against any
+// particular implementation.
+
 import { ApiError, ORCHESTRATOR_BASE, parseApiError } from "@/lib/api";
+
+/** Pure: the detail route a run row deep-links to (H-009). Centralized so the
+ *  table and any future consumer share one URL shape: /projects/{projectId}/runs/{id}. */
+export function runDetailHref(run: Pick<RunDto, "id" | "projectId">): string {
+  return `/projects/${run.projectId}/runs/${run.id}`;
+}
 
 /** Orchestrator run statuses — mirrors Section 4's REAL AgentState enum
  *  (section4/src/harness_orchestrator/state_machine.py), as also mirrored in
@@ -102,7 +109,10 @@ async function request<T>(path: string, token: string): Promise<T> {
 
 /** GET /api/v1/orchestrator/runs — M10-C2. Team scoping happens server-side
  *  via the bearer token; the client only narrows with the given filters. */
-export async function listRuns(query: RunsQuery, token: string): Promise<RunsPageDto> {
+export async function listRuns(
+  query: RunsQuery,
+  token: string,
+): Promise<RunsPageDto> {
   const qs = buildRunsQueryString(query);
   const data = await request<Partial<RunsPageDto>>(
     `/api/v1/orchestrator/runs${qs ? `?${qs}` : ""}`,
@@ -113,7 +123,10 @@ export async function listRuns(query: RunsQuery, token: string): Promise<RunsPag
   return {
     items: Array.isArray(data.items) ? data.items : [],
     total: typeof data.total === "number" ? data.total : 0,
-    limit: typeof data.limit === "number" && data.limit > 0 ? data.limit : RUNS_DEFAULT_LIMIT,
+    limit:
+      typeof data.limit === "number" && data.limit > 0
+        ? data.limit
+        : RUNS_DEFAULT_LIMIT,
     offset: typeof data.offset === "number" && data.offset >= 0 ? data.offset : 0,
   };
 }

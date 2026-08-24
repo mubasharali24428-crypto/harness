@@ -1,12 +1,20 @@
 "use client";
 
-// Mission 10 node A5 — /runs: run history across projects, client of
-// contract M10-C2 (`GET /api/v1/orchestrator/runs`, served by Section 4's
-// orchestrator). Filter bar (project/status/page size), server-driven paging
-// via limit/offset/total, status pills, relative times with absolute titles.
+// M12-E3b (H-009) — /runs: run history across projects, client of contract
+// M10-C2 (`GET /api/v1/orchestrator/runs`, served by Section 4's orchestrator).
+// Filter bar (project/status/page size), server-driven paging via
+// limit/offset/total, status pills, relative times with absolute titles.
 // Real fetches against the orchestrator — no mocks.
+//
+// H-009: every row is now a click-through to the run detail route
+// /projects/{projectId}/runs/{id} (data already on the row): id + goal cells
+// wrap a real next/link, the whole <tr> is clickable with keyboard support
+// (tabIndex 0 + Enter/Space), and accent color makes it read as a link.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+// Classic JSX transform (vitest/esbuild) needs React in scope for the .tsx
+// extension; Next's compiler accepts this import too, so one source fits both.
+import * as React from "react";
 import AppShell from "@/components/AppShell";
 import { listProjects } from "@/lib/api";
 import { loadSession } from "@/lib/auth";
@@ -19,6 +27,7 @@ import {
   RunsPageDto,
   formatRelativeTime,
   listRuns,
+  runDetailHref,
   shortId,
 } from "./runsApi";
 
@@ -57,6 +66,96 @@ const statusPillClass: Record<string, string> = {
 
 const PAGE_SIZES = [10, 25, 50, 100] as const;
 
+/** Presentational runs table (H-009 click-through). Extracted as a named
+ *  export so component tests can drive it without Next routing or a live
+ *  session. Rows navigate to /projects/{projectId}/runs/{runId}: the Run +
+ *  Project cells carry real <a> links for middle-click/copy-link, and the
+ *  full <tr> is a click/keyboard (Enter/Space) target too. */
+export function RunsTable({ runs, now }: { runs: RunDto[]; now: number }) {
+  return (
+    <table style={tableStyle}>
+      <caption className="sr-only" style={{ textAlign: "left" }}>
+        Orchestrator runs, newest first
+      </caption>
+      <thead>
+        <tr>
+          <th style={thTdStyle}>Run</th>
+          <th style={thTdStyle}>Project</th>
+          <th style={thTdStyle}>Status</th>
+          <th style={thTdStyle}>Created</th>
+          <th style={thTdStyle}>Started</th>
+          <th style={thTdStyle}>Finished</th>
+        </tr>
+      </thead>
+      <tbody>
+        {runs.map((r) => (
+          <tr
+            key={r.id}
+            tabIndex={0}
+            aria-label={`Open run ${shortId(r.id)}`}
+            onClick={() => {
+              window.location.assign(runDetailHref(r));
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                window.location.assign(runDetailHref(r));
+              }
+            }}
+            style={{ cursor: "pointer", outlineOffset: -2 }}
+          >
+            <td style={thTdStyle}>
+              {/* Real links (not just row onClick) so open-in-new-tab and
+                  copy-link keep working; href is centralized in runsApi.ts. */}
+              <a
+                href={runDetailHref(r)}
+                title={r.id}
+                style={{
+                  color: "var(--accent)",
+                  textDecoration: "underline",
+                  fontFamily: "inherit",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {shortId(r.id)}
+              </a>
+            </td>
+            <td style={thTdStyle}>
+              <a
+                href={runDetailHref(r)}
+                title={r.projectId}
+                style={{ color: "var(--accent)", textDecoration: "underline" }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {r.projectId}
+              </a>
+            </td>
+            <td style={thTdStyle}>
+              <span className={statusPillClass[r.status] ?? "pill"}>{r.status}</span>
+            </td>
+            <td style={thTdStyle} title={r.createdAt ?? undefined}>
+              {formatRelativeTime(r.createdAt, now)}
+            </td>
+            <td style={thTdStyle} title={r.startedAt ?? undefined}>
+              {formatRelativeTime(r.startedAt, now)}
+            </td>
+            <td style={thTdStyle} title={r.finishedAt ?? undefined}>
+              {formatRelativeTime(r.finishedAt, now)}
+            </td>
+          </tr>
+        ))}
+        {runs.length === 0 && (
+          <tr>
+            <td style={thTdStyle} colSpan={6}>
+              No runs match the current filters.
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  );
+}
+
 export default function RunsPage() {
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
   const [projectId, setProjectId] = useState<string>("");
@@ -69,7 +168,8 @@ export default function RunsPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Ticking clock so relative times ("4m ago") stay honest without polling
-  // the API; the data itself only refetches on filter/paging changes.
+  // the API; the data itself only refetches on filter/paging changes. The
+  // clock value is passed into the table so rows re-render honestly.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = window.setInterval(() => setNow(Date.now()), 30_000);
@@ -239,59 +339,12 @@ export default function RunsPage() {
       )}
 
       <section className="card" style={cardStyle} aria-busy={loading}>
-        <table style={tableStyle}>
-          <caption className="sr-only" style={{ textAlign: "left" }}>
-            Orchestrator runs, newest first
-          </caption>
-          <thead>
-            <tr>
-              <th style={thTdStyle}>Run</th>
-              <th style={thTdStyle}>Project</th>
-              <th style={thTdStyle}>Status</th>
-              <th style={thTdStyle}>Created</th>
-              <th style={thTdStyle}>Started</th>
-              <th style={thTdStyle}>Finished</th>
-            </tr>
-          </thead>
-          <tbody>
-            {runs.map((r) => (
-              <tr key={r.id}>
-                <td style={thTdStyle}>
-                  <span title={r.id} style={{ fontFamily: "inherit" }}>
-                    {shortId(r.id)}
-                  </span>
-                </td>
-                <td style={thTdStyle}>{r.projectId}</td>
-                <td style={thTdStyle}>
-                  <span className={statusPillClass[r.status] ?? "pill"}>{r.status}</span>
-                </td>
-                <td style={thTdStyle} title={r.createdAt ?? undefined}>
-                  {formatRelativeTime(r.createdAt, now)}
-                </td>
-                <td style={thTdStyle} title={r.startedAt ?? undefined}>
-                  {formatRelativeTime(r.startedAt, now)}
-                </td>
-                <td style={thTdStyle} title={r.finishedAt ?? undefined}>
-                  {formatRelativeTime(r.finishedAt, now)}
-                </td>
-              </tr>
-            ))}
-            {!loading && runs.length === 0 && !error && (
-              <tr>
-                <td style={thTdStyle} colSpan={6}>
-                  No runs match the current filters.
-                </td>
-              </tr>
-            )}
-            {!loading && runs.length === 0 && error === null && total > 0 && (
-              <tr>
-                <td style={thTdStyle} colSpan={6}>
-                  Server reported {total} runs but returned none at this offset.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        <RunsTable runs={runs} now={now} />
+        {!loading && runs.length === 0 && error === null && total > 0 && (
+          <p style={{ color: "var(--muted)" }}>
+            Server reported {total} runs but returned none at this offset.
+          </p>
+        )}
 
         <div
           style={{
@@ -335,7 +388,8 @@ export default function RunsPage() {
       </section>
 
       <p style={{ color: "var(--muted)", fontSize: 12 }}>
-        Times are relative to your machine&apos;s clock ({RUNS_MAX_LIMIT} runs per page maximum).
+        Times are relative to your machine&apos;s clock ({RUNS_MAX_LIMIT} runs per page maximum). Rows link to
+        the run detail view.
       </p>
     </AppShell>
   );
