@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+// Classic JSX transform (vitest/esbuild) needs React in scope for the .tsx
+// extension; Next's compiler accepts this import too — same as planGate.tsx.
+import * as React from "react";
 import AppShell from "@/components/AppShell";
 import {
+  ApiError,
   approveBrief,
   createMeeting,
   generateBrief,
@@ -13,8 +17,23 @@ import {
   type BriefDto,
   type MeetingMsg,
 } from "@/lib/api";
-import { getUserId, getProjectId, getToken, setGoal } from "@/lib/auth";
+import { getUserId, getProjectId, getToken, loadSession, setGoal } from "@/lib/auth";
+// M12-E6: the meeting pointer survives refresh. Persisted per team under
+// `harness.meeting.<teamId>`; restored on mount and rehydrated through the
+// existing GET messages/brief endpoints — no new backend surface.
+import {
+  clearMeeting,
+  RESTORED_NOTE_LEAD,
+  runMeetingRestore,
+  saveMeeting,
+} from "@/lib/session";
 
+/** What the restore-time GET discovered about the saved meeting. */
+type RestoreOutcome = "ok" | "missing" | "unreachable";
+
+// M12-E6: restore orchestration for the mount effect lives in src/lib/session
+// (runMeetingRestore) so the page file only default-exports the component —
+// Next's generated page type check rejects extra exports from page files.
 export default function Meeting() {
   const [meetingId, setMeetingId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MeetingMsg[]>([]);
@@ -24,19 +43,24 @@ export default function Meeting() {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // M12-E6: true once a persisted meeting was successfully brought back on mount.
+  const [restoredFromStorage, setRestoredFromStorage] = useState(false);
 
-  const guard = async (fn: () => Promise<void>) => {
+  // Generalized so reload can report how the GET went (restore needs to know
+  // missing vs unreachable); every existing caller still ignores the result.
+  const guard = async function guardFn<T>(fn: () => Promise<T>): Promise<T | undefined> {
     const token = getToken();
     if (!token) {
       setError("Not signed in — go to /login first.");
-      return;
+      return undefined;
     }
     setBusy(true);
     setError(null);
     try {
-      await fn();
+      return await fn();
     } catch (err) {
       setError(`${err instanceof Error ? err.message : String(err)} (is S6 up on :8006?)`);
+      return undefined;
     } finally {
       setBusy(false);
     }
@@ -47,14 +71,23 @@ export default function Meeting() {
   const projectId = () => getProjectId();
   const hasProject = () => Boolean(projectId());
 
+  // M12-E6: every time a meeting becomes current, remember it per team so a
+  // refresh lands back in the same room instead of an idle empty one.
+  const teamId = () => loadSession()?.principal?.teamId ?? null;
+  const persist = (id: string, pid: string) => {
+    const tid = teamId();
+    if (tid) saveMeeting(tid, id, pid);
+  };
+
   const reload = (id: string) =>
-    guard(async () => {
+    guard(async (): Promise<RestoreOutcome> => {
       try {
         const msgs = await getMessages(id, getToken()!);
         if (msgs.length) setLive(true);
         setMessages(msgs);
-      } catch {
-        /* keep whatever we have */
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) return "missing";
+        return "unreachable"; // S6 down/network blip — keep whatever we have
       }
       try {
         const b = await getBrief(id, getToken()!);
@@ -62,10 +95,29 @@ export default function Meeting() {
       } catch {
         /* no brief yet — 404 expected pre-generation */
       }
+      return "ok";
     });
 
+  // M12-E6: restore the latest persisted meeting for this team exactly once on
+  // mount. All orchestration + state disposition lives in runMeetingRestore
+  // (src/lib/session.ts, unit-tested); this effect is its once-per-mount caller.
+  const restoreAttemptedRef = useRef(false);
   useEffect(() => {
-    // No auto-create: an explicit user action mints the S6 resource.
+    if (restoreAttemptedRef.current) return;
+    restoreAttemptedRef.current = true;
+    runMeetingRestore({
+      teamId: loadSession()?.principal?.teamId ?? null,
+      token: getToken(),
+      getProjectId: projectId,
+      getMessages,
+      getBrief,
+      setMeetingId,
+      setMessages,
+      setLive,
+      setBrief,
+      setRestoredFromStorage,
+      setError,
+    });
   }, []);
 
   const startMeeting = () =>
@@ -77,12 +129,15 @@ export default function Meeting() {
       }
       const m = await createMeeting(pid, "UI meeting", getToken()!);
       setMeetingId(m.id);
+      setRestoredFromStorage(false);
+      persist(m.id, pid); // latest wins — replaces any previously saved meeting
       await reload(m.id);
     });
 
   const send = (withAi: boolean) =>
     guard(async () => {
       let id = meetingId;
+      let createdHere = false;
       if (!id) {
         const pid = projectId();
         if (!pid) {
@@ -91,6 +146,7 @@ export default function Meeting() {
         }
         const m = await createMeeting(pid, "UI meeting", getToken()!);
         id = m.id;
+        createdHere = true;
         setMeetingId(id);
       }
       const content = draft.trim() || "Please review the plan.";
@@ -98,6 +154,10 @@ export default function Meeting() {
       await postMessage(id, uid, withAi ? `@ai ${content}` : content, getToken()!);
       if (withAi) await invokeAi(id, uid, content, getToken()!);
       setDraft("");
+      if (createdHere && id) {
+        const pid = projectId();
+        if (pid) persist(id, pid);
+      }
       await getMessages(id, getToken()!)
         .then(setMessages)
         .catch(() => {});
@@ -126,16 +186,30 @@ export default function Meeting() {
       <h1>
         Meeting Area{" "}
         <span className={`pill ${live ? "green" : "yellow"}`}>
-          {live ? "live" : "idle"}
+          {restoredFromStorage ? "restored" : live ? "live" : "idle"}
           {meetingId ? ` · ${meetingId.slice(0, 8)}…` : ""}
         </span>
       </h1>
+      {restoredFromStorage && (
+        <p style={{ color: "var(--green)" }} data-testid="meeting-restored-note">
+          {RESTORED_NOTE_LEAD} — picked up where you left off (transcript reloaded).
+        </p>
+      )}
       {!meetingId && (
         <p>
           <button className="btn primary" disabled={busy || !hasProject()} onClick={startMeeting}>
             Start a live meeting (creates in S6)
           </button>{" "}
           — or just send a message and one is created for you.
+        </p>
+      )}
+      {meetingId && (
+        <p>
+          {/* M12-E6 explicit override: a persisted meeting never traps the user —
+              clicking this deliberately starts fresh and replaces the pointer. */}
+          <button className="btn" disabled={busy || !hasProject()} onClick={startMeeting}>
+            Start a new meeting (replaces the current one)
+          </button>
         </p>
       )}
       <div className="grid">
