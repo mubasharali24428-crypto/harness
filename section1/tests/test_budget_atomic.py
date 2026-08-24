@@ -286,6 +286,12 @@ def test_eight_threads_dollar_claims_against_five_dollar_budget(tmp_path):
     ).fetchone()[0]
     final.close()
     assert round(float(total) - float(before), 6) == 5.0
+    # H-023: reconciliation asserts EXACT Decimal equality — the ledger sum
+    # must equal the claims' decimal total with zero float tolerance.
+    from decimal import Decimal as _Dec
+
+    assert _Dec(str(total)) - _Dec(str(before)) == _Dec("5.000000")
+    assert _Dec("1.0") * len(successes) == _Dec(str(total)) - _Dec(str(before))
     assert round(sum(1.0 for _ in successes), 6) == round(float(total) - float(before), 6)
     assert float(budget_row) == 5.0  # plan row never mutated by reserves
 

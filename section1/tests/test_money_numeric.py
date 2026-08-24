@@ -27,7 +27,7 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import Numeric, event, select, text
@@ -210,7 +210,7 @@ async def bind_capture_factory():
                 captured.append(dict(inner))
             else:
                 # positional (compiled) form: cost_usd is the 6th of 7 columns
-                captured.append({k: v for k, v in zip(cols, inner)})
+                captured.append({k: v for k, v in zip(cols, inner, strict=False)})
         elif isinstance(parameters, dict):
             captured.append(dict(parameters))
 
@@ -247,8 +247,6 @@ async def test_s1_writer_binds_cost_usd_as_exact_six_digit_text():
     )["cost_usd"] == "0.100000"
 
     # And the writer end-to-end still lands the same value in the ledger.
-    factory_holder: dict = {}
-
     engine = create_async_engine("sqlite+aiosqlite://")
     try:
         async with engine.begin() as conn:
@@ -494,10 +492,16 @@ _pg_reason = "HARNESS_TEST_PG not set; live-PG money-migration probe skipped"
 
 
 def _pg_dsn() -> str:
-    dsn = os.environ.get("HARNESS_TEST_PG")
-    if dsn and "://" not in dsn:
+    """HARNESS_TEST_PG semantics follow this repo's two conventions:
+    '1'/'true' => flag, use the compose PG on localhost:5499; any other
+    non-empty value is taken as an explicit DSN."""
+    raw = os.environ.get("HARNESS_TEST_PG")
+    if not raw or raw.strip().lower() in {"1", "true", "yes", "on"}:
+        return "postgresql://harness:harness@localhost:5499/harness"
+    dsn = raw
+    if "://" not in dsn:
         dsn = f"postgresql://{dsn}"
-    return dsn or "postgresql://harness:harness@localhost:5499/harness"
+    return dsn
 
 
 def _split_sql(sql_text: str) -> list[str]:
@@ -515,7 +519,7 @@ def _split_ddl(ddl: str) -> list[str]:
     return [s.strip() for s in ddl.split(";") if s.strip()]
 
 
-async def _fresh_pg_db() -> tuple["asyncpg.Connection", str]:
+async def _fresh_pg_db() -> tuple[asyncpg.Connection, str]:
     """Create a uniquely-named scratch database; return (admin_conn, dbname)."""
     import asyncpg
 
@@ -605,14 +609,15 @@ class TestLivePostgresMoneyMigration:
 
                 # float arithmetic CANNOT represent this sum exactly...
                 fl = await conn.fetchval(
-                    "SELECT 100000.000000::float8 + 0.000001::float8"
+                    "SELECT 100000.000001::float8 + 0.000001::float8"
                 )
-                assert Decimal(str(fl)) != Decimal("100000.000001")
+                assert Decimal(str(fl)) == Decimal("100000.00000199999")
+                assert Decimal(str(fl)) != Decimal("100000.000002")
                 # ...but NUMERIC can:
                 ex = await conn.fetchval(
-                    "SELECT 100000.000000::numeric + 0.000001::numeric"
+                    "SELECT 100000.000001::numeric + 0.000001::numeric"
                 )
-                assert ex == Decimal("100000.000001")
+                assert ex == Decimal("100000.000002")
 
                 # Guard decision on the exact boundary: fits exactly once,
                 # then over budget — float math would double-allow.

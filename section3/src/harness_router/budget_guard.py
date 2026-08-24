@@ -39,7 +39,6 @@ import logging
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from decimal import ROUND_HALF_EVEN, Decimal
 from typing import Any
 
 from harness_router.ledger import to_money
@@ -150,16 +149,16 @@ async def reserve(
     no row means over budget; any exception fails CLOSED.
     """
     try:
-        # Exact money normalization happens BEFORE the DB sees the value:
-        # quantize to NUMERIC(12,6) scale and bind as text (see module doc).
-        cost_bind = f"{to_money(estimated_cost_usd):.6f}"
+        # Exact money normalization happens BEFORE the DB sees the value;
+        # usage_bind_params quantizes to NUMERIC(12,6) and binds as text
+        # (see its docstring).
         row = await pool.fetchrow(RESERVE_SQL, {
             "run_id": run_id,
             "agent_role": str(agent_role)[:20],  # agent_role VARCHAR(20)
             "model": str(model)[:120],  # model VARCHAR(120)
             "input_tokens": int(input_tokens),
             "output_tokens": int(output_tokens),
-            "cost_usd": cost_bind,
+            "cost_usd": f"{to_money(estimated_cost_usd):.6f}",
             "latency_ms": int(latency_ms),
             "team_id": team_id,
         })

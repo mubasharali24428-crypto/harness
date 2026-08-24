@@ -34,6 +34,16 @@ where = ["src"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["src", "tests", "../contracts/src"]
+# M13-H3b (W2 carryover #3): silence third-party datetime deprecations that S6
+# cannot fix from here. Both roots live outside this section:
+#  - aiosqlite's default datetime adapter fires inside the SHARED section1
+#    rate-limit store (test_g2_ratelimit_hooks drives it over aiosqlite);
+#    the real cure is ISO-8601 TEXT storage, owned by lane H4b (timeutil).
+#  - starlette's httpx notice comes from fastapi's own testclient module import.
+filterwarnings = [
+    "ignore:The default datetime adapter is deprecated:DeprecationWarning",
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]
 
 [tool.ruff]
 line-length = 100
