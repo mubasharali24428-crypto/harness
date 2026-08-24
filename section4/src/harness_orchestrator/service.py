@@ -661,6 +661,20 @@ class OrchestratorService(Orchestrator):
         run_data = await self._ensure_run(run_id)
         run_data["human_edits"].append({"path": path, "content": content})
         sm: AgentStateMachine = run_data["state_machine"]
+        # M12-G9 (first slice): mark this human-edit batch on the bus so the
+        # checkpoint panel can correlate the pause with a snapshot pair. The
+        # actual pre/post-edit git commits are taken where the files live —
+        # S5's SandboxService.apply_edit brackets each sandbox edit batch with
+        # ``checkpoint: pre-edit``/``post-edit`` commits. UNVERIFIED seam
+        # note: engine-internal edit batches remain E1-owned this wave.
+        self._emit(
+            EventType.DIFF_PROGRESS,
+            {
+                "runId": run_id,
+                "path": path,
+                "checkpoint": {"kind": "human-edit", "source": "orchestrator"},
+            },
+        )
         run_data["_cancel_reason"] = "pause"  # human edit pauses, keeps run resumable
         sm.submit_human_edit(path=path)
         self._cancel_live_task(run_data)
@@ -726,7 +740,7 @@ class OrchestratorService(Orchestrator):
         """One minimal aggregate read for a single run (M12-W2 E4a).
 
         Base shape is get_status()'s wire dict; when a DB is wired it adds
-        ``prId`` (agent_runs.pr_id, migration 0014 — set by S2's PR-open
+        ``prId`` (agent_runs.pr_id, migration 0017 — set by S2's PR-open
         producer) so the review flow can resolve run → PR without replaying
         events. Read-only + failure-tolerant: any DB trouble degrades to
         prId=None rather than breaking the status read.

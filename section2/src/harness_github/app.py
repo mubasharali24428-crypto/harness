@@ -39,6 +39,16 @@ def make_app(session_factory, settings: Settings):
     app.state.oauth_start_tickets: dict[str, tuple[str, float]] = {}
     get_principal = make_bearer_dep(session_factory)
     app.state.get_principal = get_principal
+    # M12-W2 E4a: the PR-open producer publishes pr_opened through the shared
+    # S1 EventBus (persist + pg_notify fan-out). Every process owns a bus
+    # instance (migration 0003); guard the import so bare installs degrade
+    # gracefully to persistence-only instead of failing app assembly.
+    try:
+        from harness_identity.eventbus import EventBus
+
+        app.state.bus = EventBus(session_factory)
+    except Exception:  # noqa: BLE001 — no S1 package wired: emit nothing
+        app.state.bus = None
 
     @app.get("/health")
     async def health():
@@ -55,7 +65,15 @@ async def service_dep(request: Request):
     principal = await get_principal(request)
     db = request.app.state.session_factory()
     try:
-        yield GitHubService(db, request.app.state.vault, request.app.state.transport), principal
+        yield (
+            GitHubService(
+                db,
+                request.app.state.vault,
+                request.app.state.transport,
+                bus=getattr(request.app.state, "bus", None),
+            ),
+            principal,
+        )
     finally:
         await db.close()
 
@@ -303,6 +321,33 @@ async def open_draft_pr(project_id: str, body: DraftPRBody, service: ServiceDep)
     return await svc.openDraftPR(
         principal.userId, project_id, body.branch, body.baseBranch, body.title, body.bodyMd
     )
+
+
+@router.get("/projects/{project_id}/runs/{run_id}/pr")
+async def run_pr_id(project_id: str, run_id: str, request: Request) -> dict:
+    """W2-C2 consumer fallback (E4b): resolve a run's opened PR.
+
+    Reads agent_runs.pr_id (migration 0017) straight off the frozen schema —
+    the REST twin of the pr_opened event for clients that missed it. Returns
+    {"runId", "prId", "url"} exactly like the event payload; prId is null
+    when the run has not opened a PR yet.
+    """
+    principal = await _start_principal(request)
+    from sqlalchemy import text
+
+    sql = text(
+        "SELECT r.pr_id AS pr_id, p.pr_url AS url "
+        "FROM agent_runs r JOIN pull_requests p ON p.id = r.pr_id "
+        "WHERE r.id = :run_id AND r.project_id = :project_id"
+    )
+    async with request.app.state.session_factory() as db:
+        res = await db.execute(sql, {"run_id": run_id, "project_id": project_id})
+        row = res.mappings().first()
+    return {
+        "runId": run_id,
+        "prId": row["pr_id"] if row else None,
+        "url": row["url"] if row else None,
+    }
 
 
 @router.get("/projects/{project_id}/pulls/{pr_number}")
