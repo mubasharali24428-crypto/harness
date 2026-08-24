@@ -9,6 +9,98 @@ docs-truth lane, 2026-08-23). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Mission 14 · Wave 4 (2026-08-24)
+
+Product features: metering, a11y/responsive frontend fleet, invites,
+aggregate run API + detail page, optimistic UI, design system, Docker DNS
+fix. Baseline `9141e39`; closed at `baf2299` with all five verifier teams
+READY and CI run 32701744809 SUCCESS. Suites at close: S1 315 · S3 91 ·
+S4 291 · S6 76 · S7 vitest 415/415 + tsc clean.
+
+#### Added
+
+- **F1a** — Cost metering live end-to-end (W4-C1): engine completion → S3
+  `record_usage` via the internal API; `GET /api/v1/models/spend?sinceDays=N`
+  returns real NUMERIC-exact numbers `{total, byDay[], unwired:false}`; the
+  cost page drops the "unwired" explainer and renders actual run costs.
+- **F1b** — Keyboard support + focus management across section7: full
+  tab-order audit page-by-page, Enter/Space on interactive cells, visible
+  focus rings, skip-link (`lib/focus.ts`).
+- **F2a** — Invite lifecycle admin UI: mint/resend/revoke with status badges
+  (draft/sent/redeemed/expired/revoked), audited actions; server half landed
+  as resend/revoke routes + status derivation (`4c09072`).
+- **F2b** — Responsive layout: sidebar collapses <900px, cards stack, tables
+  scroll-x; zero fixed-px layout breaks verified at 375/768/1280.
+- **F3a/F3b** — Aggregate run read endpoint (W4-C2):
+  `GET /api/v1/orchestrator/runs/{id}` enriched
+  `{runId,state,costUsd?,prId?,url?,steps?}` with explicit nullability plus
+  runs-index cursor pagination; Runs detail page consumes it with honest
+  degradation per missing field (state machine view, cost line, PR link,
+  step timeline from events) (`84608eb`).
+- **F4** — Optimistic UI for plan approve/reject and roster remove/
+  role-change: instant update, reconcile on response, rollback with toast on
+  error (`hooks/useOptimistic.ts`).
+- **DS** — Design-system lane: shared primitives (Pill, Button, Card, Table,
+  Modal) extracted to `section7/src/components/ui/**` with tokens; cost +
+  team-settings pages migrated as proof; DS owns the directory exclusively.
+
+#### Fixed
+
+- **P2** — Docker DNS crash-loop on the legacy all-in-one backend
+  root-caused and fixed (W2/W3 carryover): orphaned detached container →
+  EAI_AGAIN resolution failure; compose now declares the `backend` service
+  under the opt-in `legacy-backend` profile so the state cannot re-enter;
+  ops runbook documents diagnosis (`26f8c49`, `docs/runbooks/ops.md`).
+
+### Mission 13 · Wave 3 (2026-08-23)
+
+Hardening & performance. Baseline Wave-2 close (CI 32685579474 SUCCESS);
+10 lanes committed (`d22e18c`), closed with all five verifier teams READY,
+CI run 32694440516 SUCCESS, resume-DTO MINOR fixed in-lane (`d539b87`).
+Suites at close: S1 309 · S3 91 · S4 291 · S6 76 · S7 303 vitest.
+
+#### Added
+
+- **H2** — WAL-G PITR end-to-end (H-018): archive_command wired through an
+  archiving `walg-db` sidecar, credentialed restore drill executed with
+  timed RTO/RPO evidence; opt-in `walg` compose profile + `.env.example`
+  knobs (`c3aead1`, `docs/runbooks/backup-and-pitr.md`).
+- **H3a** — Playwright E2E hero-journey suite against the compose stack:
+  login→project→meeting→brief→plan→approve→run→detail→review, plus OTP-flow
+  spec (`eae5a41`, `section7/e2e/`); consumed via `make e2e`.
+- **H3b** — CI/local gate convergence (H-024/H-025): Makefile is the single
+  source of truth — ci.yml jobs call its targets verbatim so drift between
+  "passed locally" and "what CI ran" is structurally impossible;
+  version-pin conformance test revived as the 4-way contracts-version rot
+  detector (`4cd7074`, `test_version_pin_conformance.py`, `6254fe5`).
+- **H4a** — NUMERIC money migration (H-023): cost columns → NUMERIC(12,6)
+  (migration **0020**), Decimal sweep across S1/S3 money paths, budget
+  guard/pricing tests Decimalized. Operator note: caps budgets at
+  $999,999.999999.
+- **H4b** — TIMESTAMPTZ normalization: shared timeutil helpers in
+  harness_identity, S6 conversion + tz-stamp tests; naive-datetime write
+  sites zeroed (`e0c61ad` group, `9575287`).
+- **G5a** — Oracle-consistent 403/404s across sections + OpenAPI response-
+  model typing islands grown 8 → 39 routes (`d2922ff`, hardening suites in
+  S1/S3/S4/S6).
+
+#### Changed
+
+- **H1a** — Pool math fix (H-017): shared engine factory, documented 84 ≤
+  120 connection budget (7 services × (pool_size=8 + max_overflow=4), PG
+  max_connections=120 with 36 slots headroom), CI-enforced
+  (`6dfa3b2`, `docs/pool-math.md`).
+- **G5b** — invokeAi dead-export prune + frontend DX batch (VT-2 MINOR +
+  raw-14 top items) (`d116460`, `ba05ada`).
+
+#### Fixed
+
+- **H1b** — Run-queue correctness (H-017 final): heartbeat comparison now
+  judged by the database's own clock; `run_claims` candidate selection uses
+  SKIP LOCKED inside the subquery; zombie reaper releases timed-out claims
+  and moves runs to BLOCKED with honest `heartbeat_lost` events; live-PG
+  race proofs (`06b8055`, `4db60d5`).
+
 ### Mission 12 · Wave 2.1 (2026-08-23)
 
 Baseline `ebdfeb7`; campaign graph `docs/briefs/mission12-wave2-graph.md`.
