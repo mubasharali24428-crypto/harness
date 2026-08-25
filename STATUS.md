@@ -581,3 +581,15 @@ hygiene (email binding, ?token= deprecated, fingerprint enforced, bucket GC);
 C6 rollback v0 rehearsed (drift gate refused old image vs 0027 DB).
 Suites: S1 496 · S3 91 · S4 369 · S7 vitest 452. Next: BASELINE sweep +
 Horizon NEXT per mission17-10x-plan.md.
+
+## Mission 19 — BASELINE + Horizon NEXT phase 1 CLOSED (2026-08-25)
+
+CI 32852228986 SUCCESS. N1 stateless orchestrator (CAS approvals, durable-
+first, two-replica exactly-once); N2 slim bus (0029 signals ~70 bytes,
+8KB publish cap); N3 partitioned retention (0028 monthly partitions,
+outbox+audit prune, migrate walk proven); N4 canned demo (zero-key 8-min
+value, recorded-truth replay); N5 Python SDK v0 (91 paths/104 ops generated);
+B1 BASELINE published — ceiling ~1.9 journeys/s, wall = worker single-claim
+poll cycle (worker.py), $0.000051/run metered. Suites: S1 526 · S4 399 ·
+S7 vitest 460. Next: claim batching (first 10x lever) + Horizon NEXT part 2
+(C12 observability, C13 docs truth) per mission17-10x-plan.md.
