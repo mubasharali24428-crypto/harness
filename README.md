@@ -4,8 +4,11 @@ Self-hosted platform where AI coding agents do real engineering work under
 human governance: mandatory human plan approval, sandboxed execution,
 event-sourced audit log, **manual merges only** — no auto-merge anywhere.
 
-- New operator? Start with **[`deploy/ONBOARDING.md`](deploy/ONBOARDING.md)**:
-  `cp .env.example .env`, then `docker compose -f deploy/docker-compose.yml up -d`.
+- New operator? Start with **[`docs/TUTORIAL.md`](docs/TUTORIAL.md)** — a
+  verified walkthrough: boot the stack, log in, run one governed agent task,
+  read its events.
+- Deploying? **[`deploy/ONBOARDING.md`](deploy/ONBOARDING.md)**:
+  `cp .env.example .env`, then `docker compose --env-file .env -f deploy/docker-compose.yml up -d`.
   `.env.example` documents every environment variable (name, purpose, default,
   required-or-optional).
 - Notable changes per release: **[CHANGELOG.md](CHANGELOG.md)**.
@@ -25,11 +28,42 @@ event-sourced audit log, **manual merges only** — no auto-merge anywhere.
 ## Quick start
 
 ```sh
-cp .env.example .env        # then set HARNESS_MASTER_KEY=$(openssl rand -hex 32)
-docker compose -f deploy/docker-compose.yml up -d
-docker compose -f deploy/docker-compose.yml logs identity | grep HARNESS-OTP   # dev OTP codes
+cp .env.example .env
+printf '\nHARNESS_MASTER_KEY=%s\n' "$(openssl rand -hex 32)" >> .env   # required to boot
+docker compose --env-file .env -f deploy/docker-compose.yml up -d      # first boot builds images
 open http://localhost:3000
 ```
+
+Log in with **Request login code** (email OTP). With no SMTP configured, dev
+OTP codes print to the identity logs:
+
+```sh
+docker compose -f deploy/docker-compose.yml logs identity | grep HARNESS-OTP
+```
+
+> **Why `--env-file .env`:** invoked as `docker compose -f deploy/…` from the
+> repo root, some Docker Compose versions do not read a repo-root `.env` (they
+> look next to the compose file) — your master key and provider config would
+> be silently ignored. `--env-file .env` works on every version.
+
+The first run you start will end `blocked` with an honest `not_configured`
+engine result — shipped defaults use dry mode (`ENGINE_LIVE_MODE=dry`) so no
+run ever pretends to have a model behind it. To see real agent work in five
+minutes, point the engine at any OpenAI-compatible endpoint (local Ollama
+counts):
+
+```sh
+cat >> .env <<'EOF'
+ENGINE_LIVE_MODE=live
+DEEPSEEK_API_KEY=ollama-local          # value ignored by local providers; must be non-empty
+DEEPSEEK_BASE_URL=http://host.docker.internal:11434/v1
+DSH_MODEL=qwen3.5:9b                   # any tag from `ollama list`
+EOF
+docker compose --env-file .env -f deploy/docker-compose.yml up -d
+```
+
+**[docs/TUTORIAL.md](docs/TUTORIAL.md)** walks login → project → propose →
+approve → live run → done-signal → events, command by command.
 
 The stack boots as split services behind compose: frontend on **:3000**,
 identity on **:8001**, github on **:8002**, models on **:8003**,
@@ -43,9 +77,11 @@ backup sidecar (`walg`), events-retention sweep, scheduled VACUUM
 ## Development
 
 Python ≥3.11 venvs live inside each section; the unified gates are Makefile
-targets shared byte-for-byte with CI (M13-H3b):
+targets shared byte-for-byte with CI (M13-H3b). A fresh clone has no venvs —
+`make bootstrap` creates all of them (plus frontend deps) exactly as CI does:
 
 ```sh
+make bootstrap              # one-time: 8 section venvs + section7 node_modules
 make test-section1          # cd section1 && ./.venv/bin/python -m pytest tests/ -q
 make lint-section1          # cd section1 && ./.venv/bin/ruff check src tests [scripts]
 make gate                   # static-gates + lint + test + frontend (what PRs must pass)
@@ -57,9 +93,9 @@ Frontend (section7, Next.js): `npm run dev` / `npm run typecheck` /
 `npm run test` (vitest) / `npm run e2e` (Playwright).
 Schema changes are new numbered migrations in `section1/migrations/`
 (0001 is the frozen baseline — never edit an applied migration; pick the
-next free number, checking `ls section1/migrations/` first). Apply the
-frozen baseline with
-`psql -q harness_fresh -f migrations/0001_initial.sql` from `section1/`.
+next free number, checking `ls section1/migrations/` first). You normally
+never apply migrations by hand: the compose `migrate` one-shot service runs
+the whole ledger on every stack boot.
 
 ## Terminology
 

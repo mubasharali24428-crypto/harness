@@ -7,6 +7,7 @@
 # Provisioning (venv creation, npm ci, pip installs) stays in CI as setup steps;
 # the GATES themselves live only in this file. Full mapping: docs/ci-gates.md.
 #
+#   make bootstrap       one-time contributor setup: per-section venvs + frontend deps
 #   make lint            ruff across all backend sections (CI matrix order)
 #   make test            pytest matrix, one venv per section (CI matrix order)
 #   make frontend        section7 tsc --noEmit + vitest run
@@ -20,17 +21,24 @@
 # make lint-section<N> for N in 1 2 3 4 5 6 8 10.
 
 SECTIONS := section1 section2 section3 section4 section5 section6 section8 section10
+FRONTEND := section7
+
+# CI pins python-version "3.13" (ci.yml). Locally, use the newest interpreter
+# that satisfies every section's requires-python (>=3.11); fall back to `python3`.
+PYTHON ?= $(shell command -v python3.13 || command -v python3.12 || command -v python3)
 
 # Nightly probe DSN — identical to the ci.yml service container mapping (5499->5432).
 PG_URL ?= postgresql+asyncpg://harness:harness@localhost:5499/harness
 
-.PHONY: gate help $(foreach s,$(SECTIONS),lint-$(s) test-$(s)) \
+.PHONY: help bootstrap clean-venvs guard-script-check \
+        gate $(foreach s,$(SECTIONS),lint-$(s) test-$(s)) \
         lint test frontend frontend-tsc frontend-vitest static-gates e2e \
-        pg-probe pg-probe-integration pg-probe-s1 pip-audit \
+        pg-probe pg-probe-integration pg-probe-s1 pg-probe-migrate pip-audit \
         guard-routes guard-isolation guard-route-law
 
 help:
 	@echo "Harness gates — single source of truth shared by CI (.github/workflows/ci.yml):"
+	@echo "  make bootstrap       one-time contributor setup (venvs + frontend deps)"
 	@echo "  make lint            ruff across: $(SECTIONS)"
 	@echo "  make test            pytest matrix (same sections, CI order)"
 	@echo "  make frontend        section7: tsc --noEmit + vitest run"
@@ -39,10 +47,41 @@ help:
 	@echo "  make guard-routes    app/**/page.tsx default-export-only law (W4 carryover)"
 	@echo "  make guard-isolation sections import ONLY contracts/ (M13 isolation law)"
 	@echo "  make e2e             section7 Playwright suite (specs land via lane H3a)"
-	@echo "  make pg-probe        real-PG probe: integration checkpoint + S1 suite (needs PG :5499)"
+	@echo "  make pg-probe        real-PG probes: integration checkpoint + S1 suite + migrate runner (needs PG :5499)"
 	@echo "  make pip-audit       dependency audit (WARN-posture parity with CI)"
 	@echo "  make gate            static-gates + lint + test + frontend"
 	@echo "  make lint-section<N> / test-section<N>   one section, exactly CI's command"
+
+# ------------------------------------------------------------------ bootstrap
+# F-1 (M17-B6): a fresh clone ships no .venv anywhere — the very first
+# documented gate (`make test-section1`) died on `./.venv/bin/python: No such
+# file or directory`. This is the one command that provisions what CI does in
+# its setup steps, using CI's own recipe (contracts first — it is a path
+# dependency — then the section itself; dev extras when declared). Idempotent:
+# re-run any time; pip treats satisfied requirements as no-ops. Frontend deps
+# come from the committed lockfile via npm ci.
+bootstrap:
+	@echo "== bootstrap: python = $(PYTHON) =="
+	@for s in $(SECTIONS); do \
+		echo "== $$s =="; \
+		cd $$s && $(PYTHON) -m venv .venv && \
+			./.venv/bin/pip install --quiet --upgrade pip && \
+			{ ./.venv/bin/pip install --quiet -e ../contracts && \
+			  { ./.venv/bin/pip install --quiet -e ".[dev]" || \
+			    ./.venv/bin/pip install --quiet -e .; }; } && cd .. || exit 1; \
+	done
+	@if [ -f "$(FRONTEND)/package-lock.json" ]; then \
+		echo "== $(FRONTEND) (npm ci) =="; \
+		cd $(FRONTEND) && npm ci --no-audit --no-fund || exit 1; \
+	else \
+		echo "== $(FRONTEND): package-lock.json not found, skipping npm ci =="; \
+	fi
+	@echo ""
+	@echo "Bootstrap complete. Try: make test-section1"
+
+clean-venvs:
+	@for s in $(SECTIONS); do rm -rf $$s/.venv; done
+	@echo "Removed all section venvs. Re-run 'make bootstrap' to recreate."
 
 # ---------------------------------------------------------------- static gates
 # M15-G6a added the route-module + isolation law guards (guard-route-law) to
@@ -118,10 +157,10 @@ test-section10:
 # -------------------------------------------------------------------- frontend
 # Granular halves so ci.yml steps map 1:1 (tsc and vitest report separately).
 frontend-tsc:
-	cd section7 && npx tsc --noEmit
+	cd $(FRONTEND) && npx tsc --noEmit
 
 frontend-vitest:
-	cd section7 && npx vitest run
+	cd $(FRONTEND) && npx vitest run
 
 frontend: frontend-tsc frontend-vitest
 
@@ -144,7 +183,7 @@ e2e:
 # Prereqs: Postgres reachable at :5499 (compose stack) with harness/harness creds.
 PG_ENV := HARNESS_TEST_PG=1 HARNESS_DATABASE_URL="$(PG_URL)"
 
-pg-probe: pg-probe-integration pg-probe-s1
+pg-probe: pg-probe-integration pg-probe-s1 pg-probe-migrate
 
 pg-probe-integration:
 	@$(MAKE) --no-print-directory pg-guard
@@ -153,6 +192,17 @@ pg-probe-integration:
 pg-probe-s1:
 	@$(MAKE) --no-print-directory pg-guard
 	cd section1 && $(PG_ENV) ./.venv/bin/python -m pytest tests/ -q
+
+# M17-B2 (OPS-15): execute deploy/runners/migrate.py ITSELF against real PG on
+# a per-run scratch database — 0001→latest must apply clean and re-run as a
+# no-op. This is the gate CI never ran before: backend suites build schemas via
+# SQLite Base.metadata.create_all and even the nightly PG probe used create_all,
+# so the dollar-quote splitter ($$ DO-blocks), statement ordering, the
+# legacy-marking branch and the compose-up re-run path all shipped unexercised.
+# Never touches the live cluster: scratch DB only, dropped on exit.
+pg-probe-migrate:
+	@$(MAKE) --no-print-directory pg-guard
+	$(PG_ENV) ./section1/.venv/bin/python deploy/runners/migrate_selftest.py
 
 pg-guard:
 	@test "$${HARNESS_TEST_PG:-}" = "1" || { \

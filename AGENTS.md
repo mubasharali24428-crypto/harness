@@ -24,7 +24,8 @@ harness/
 cd section1
 ./.venv/bin/python -m pytest tests/ -q     # tests (must pass before any PR)
 ./.venv/bin/ruff check src tests scripts    # lint (must be clean)
-psql -q harness_fresh -f migrations/0001_initial.sql   # apply frozen schema
+docker compose --env-file .env -f deploy/docker-compose.yml up -d migrate
+                                            # apply migration ledger (one-shot `migrate`)
 ```
 
 ## Rules recap (full list in HARNESS_PLAN_V2.md)
