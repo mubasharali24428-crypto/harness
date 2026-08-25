@@ -1,0 +1,46 @@
+# M18-C6 rehearsal-only override. NOT part of the deployment topology.
+# Purpose: exercise the rollback runbook against a THROWAWAY copy of the
+# stack — different compose project name (c6rehearsal), no host ports, no
+# volumes, so the live `harness` project and its pgdata are untouchable.
+name: c6rehearsal
+
+services:
+  db:
+    ports: !reset []
+    command: !reset
+      - postgres
+      - -c
+      - max_connections=120
+  migrate:
+    ports: !reset []
+  identity:
+    ports: !reset []
+  github:
+    ports: !reset []
+  models:
+    ports: !reset []
+  orchestrator:
+    ports: !reset []
+  sandbox:
+    ports: !reset []
+  meeting:
+    ports: !reset []
+  review:
+    ports: !reset []
+  frontend:
+    ports: !reset []
+
+volumes:
+  pgdata:
+
+# CRITICAL: the base file pins networks.default.name to a SHARED name
+# (`harness_default`), so WITHOUT this block a second compose project
+# silently JOINS the live network and Docker DNS round-robins `db` between
+# the live and rehearsal Postgres (hit live 2026-08-25: the drift gate read
+# the LIVE db while migrate() hit the fresh one — both projects, one wire).
+# Pinning a distinct network name here keeps the rehearsal fully isolated.
+networks:
+  default:
+    name: c6rehearsal_default
+    driver: bridge
+    attachable: true

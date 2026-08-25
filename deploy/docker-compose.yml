@@ -1,9 +1,24 @@
 name: harness
 
 x-backend-build: &backend-build
+  # M18-C6 (OPS-24): every image gets an explicit, immutable version tag —
+  # INCLUDING the service's resolved `image:` ref (top-level key below), so
+  # flipping HARNESS_IMAGE_TAG actually recreates every backend on the new
+  # tag. No floating :latest anywhere: a rollback needs the previous tag to
+  # still exist by NAME. Tag scheme (docs/runbooks/rollback.md §1):
+  #   vYYYYMMDD-HHMM  — UTC timestamp when the image was built/tagged,
+  #                     monotonically increasing, one per deploy; the active
+  #                     value lives in deploy/.env as HARNESS_IMAGE_TAG.
+  #                     Rolling back = set it to the previous tag + up -d.
+  #   latest          — convenience ALIAS emitted alongside each build;
+  #                     compose itself never resolves through it.
+  image: harness-backend:v${HARNESS_IMAGE_TAG:-dev-local}
   build:
     context: ..
     dockerfile: deploy/backend.Dockerfile
+    tags:
+      - "harness-backend:v${HARNESS_IMAGE_TAG:-dev-local}"
+      - "harness-backend:latest"
 
 x-backend-env: &backend-env
   HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@db:5432/harness
@@ -282,9 +297,16 @@ services:
     depends_on: *backend-depends
 
   frontend:
+    # M18-C6 (OPS-24): explicit tag, same scheme as the backend tier —
+    # docs/runbooks/rollback.md §1. Frontend and backend roll back together
+    # (one HARNESS_IMAGE_TAG drives both).
     build:
       context: ..
       dockerfile: deploy/frontend.Dockerfile
+      tags:
+        - "harness-frontend:v${HARNESS_IMAGE_TAG:-dev-local}"
+        - "harness-frontend:latest"
+    image: harness-frontend:v${HARNESS_IMAGE_TAG:-dev-local}
     environment:
       NEXT_PUBLIC_API_PREFIX: /api/v1
       NEXT_PUBLIC_IDENTITY_BASE_URL: http://localhost:8001
@@ -507,6 +529,33 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  # M18-C3 (m17-findings F6) — daily per-team cost rollup feeding
+  # cost_ledger_daily (migration 0027) so the budget gate reads closed-day
+  # spend O(1) instead of SUMming the whole cost_ledger per run start.
+  # Opt-in via the 'cost-rollup' profile (mirrors 'events-retention'):
+  #   docker compose -f deploy/docker-compose.yml --profile cost-rollup up -d cost-rollup
+  #   docker compose -f deploy/docker-compose.yml --profile cost-rollup run --rm cost-rollup --once
+  # The first pass backfills ALL history (flipping the gate onto the rollup
+  # path); loop mode recomputes every RUN_INTERVAL_SECONDS. Until it runs,
+  # the gate keeps its exact whole-ledger fallback.
+  cost-rollup:
+    <<: *backend-build
+    profiles:
+      - cost-rollup
+    # Bypass the shared entrypoint.sh: with HARNESS_SERVICE unset it would boot
+    # the whole legacy all-in-one stack, but this sidecar IS one python job.
+    entrypoint: ["python", "/opt/harness/deploy/runners/cost_rollup.py"]
+    environment:
+      HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@db:5432/harness
+      COST_ROLLUP_MODE: ${COST_ROLLUP_MODE:-loop}
+      RUN_INTERVAL_SECONDS: ${RUN_INTERVAL_SECONDS:-21600}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   # M15-W5-D2 (DB#12) — scheduled VACUUM (ANALYZE) for the three highest-churn
   # tables (agent_events, rate_buckets, audit_log), opt-in via the
   # 'maintenance' profile (mirrors the wave-8B 'proxy' / Mission-10 'walg' /
@@ -611,6 +660,124 @@ services:
     restart: unless-stopped
     depends_on: *backend-depends
 
+  # M18-C4 — throughput truth probe (scripts/loadtest/). An ISOLATED stack for
+  # load testing: its own Postgres volume + ports (15499/18001/18004), so probe
+  # traffic never touches live data and live traffic never pollutes numbers.
+  # Engine boots DRY (ENGINE_LIVE_MODE=dry) — no provider calls, zero model
+  # spend; HARNESS_REQUIRE_OWNERSHIP=false lets the passwordless login the
+  # loadtest flow drives mint teams. Usage:
+  #
+  #   docker compose -f deploy/docker-compose.yml -p harness-loadtest \
+  #     --profile loadtest up -d db-loadtest migrate-loadtest identity-loadtest orchestrator-loadtest
+  #   python3 scripts/loadtest/smoke_probe.py \
+  #     --identity http://localhost:18001 --orchestrator http://localhost:18004
+  #   ... drive locust per scripts/loadtest/README.md ...
+  #   docker compose -f deploy/docker-compose.yml -p harness-loadtest --profile loadtest down -v
+  db-loadtest:
+    image: postgres:18-alpine
+    profiles:
+      - loadtest
+    environment:
+      POSTGRES_USER: harness
+      POSTGRES_PASSWORD: harness
+      POSTGRES_DB: harness
+    command:
+      - postgres
+      - -c
+      - max_connections=120
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U harness"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    ports:
+      - "127.0.0.1:15499:5432"
+
+  migrate-loadtest:
+    <<: *backend-build
+    profiles:
+      - loadtest
+    environment:
+      <<: *backend-env
+      HARNESS_SERVICE: migrate
+      HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@db-loadtest:5432/harness
+      # Throwaway isolated DB + dev key opt-in (services.py F9 fail-fast).
+      HARNESS_ALLOW_DEV_MASTER_KEY: "1"
+    depends_on:
+      db-loadtest:
+        condition: service_healthy
+    restart: "no"
+
+  identity-loadtest:
+    <<: *backend-build
+    profiles:
+      - loadtest
+    environment:
+      <<: *backend-env
+      HARNESS_SERVICE: identity
+      HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@db-loadtest:5432/harness
+      # The probe flow drives the passwordless login endpoint.
+      HARNESS_REQUIRE_OWNERSHIP: "false"
+      # Throwaway isolated DB + dev key opt-in (services.py F9 fail-fast).
+      HARNESS_ALLOW_DEV_MASTER_KEY: "1"
+      # M18-C4 gotcha (hit live): x-backend-env always exports
+      # HARNESS_MASTER_KEY=""; pydantic-settings (env_prefix=HARNESS_,
+      # field master_key) then OVERRIDES services.py's module-level dev-key
+      # fallback with that empty string -> KeyVault "master_key must be
+      # non-empty". Give the isolated stack an explicit throwaway key (the
+      # same public constant services.py would have used).
+      HARNESS_MASTER_KEY: ${PROBE_MASTER_KEY:-dev-master-key-change-me-in-prod!}
+    ports:
+      - "127.0.0.1:18001:8001"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)\""]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    depends_on:
+      migrate-loadtest:
+        condition: service_completed_successfully
+      db-loadtest:
+        condition: service_healthy
+
+  orchestrator-loadtest:
+    <<: *backend-build
+    profiles:
+      - loadtest
+    environment:
+      <<: *backend-env
+      HARNESS_SERVICE: orchestrator
+      HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@db-loadtest:5432/harness
+      # C-004/H-006 engine-boot law: mode is explicit. DRY = honest stub, no
+      # provider credentials needed, zero spend — the probe measures platform
+      # throughput, not provider network latency.
+      ENGINE_LIVE_MODE: dry
+      # Probe knobs (documented in docs/benchmarks/BASELINE.md):
+      ENGINE_MAX_CONCURRENCY: ${PROBE_ENGINE_MAX_CONCURRENCY:-8}
+      HARNESS_RUN_CONCURRENCY: ${PROBE_RUN_CONCURRENCY:-4}
+      HARNESS_WORKER_POLL_SECONDS: ${PROBE_WORKER_POLL_SECONDS:-0.5}
+      HARNESS_TEAM_BUDGET_USD: ${PROBE_TEAM_BUDGET_USD:-}
+      # Throwaway isolated DB + dev key opt-in (services.py F9 fail-fast).
+      HARNESS_ALLOW_DEV_MASTER_KEY: "1"
+      # Same pydantic-settings override gotcha as identity-loadtest above.
+      HARNESS_MASTER_KEY: ${PROBE_MASTER_KEY:-dev-master-key-change-me-in-prod!}
+    ports:
+      - "127.0.0.1:18004:8004"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8004/health', timeout=3)\""]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    depends_on:
+      migrate-loadtest:
+        condition: service_completed_successfully
+      db-loadtest:
+        condition: service_healthy
+
 # M14-P2 network hardening: declare the default network EXPLICITLY instead of
 # letting compose synthesize it. Pinning name/attachable/driver makes
 # `docker compose up` deterministic after any external `docker network rm`
@@ -624,6 +791,10 @@ networks:
 
 volumes:
   pgdata:
+  # M18-C4: isolated load-test database volume (db-loadtest service). Lives
+  # only under the harness-loadtest project; `... --profile loadtest down -v`
+  # removes it with the stack.
+  pgdata_loadtest:
   # H-018 (M13-W3-H2): the archiving database's own data volume — deliberately
   # SEPARATE from `pgdata` so PITR drills can never collide with live data.
   pgdata_walg:

@@ -15,6 +15,45 @@ if [ -n "${HARNESS_SERVICE:-}" ]; then
   esac
 
   if [ "$HARNESS_SERVICE" = migrate ]; then
+# M18-C6 (OPS-24/OPS-16): deploy-time SCHEMA-DRIFT GATE. Before this image's
+# code touches the ledger, applied migrations must be a subset of the
+# migrations shipped in THIS image. applied > declared = rolled-forward
+# database meeting an older image (bad rollback, or two image generations
+# sharing one DB): REFUSE with an operator-facing message naming the versions
+# and which image tag matches them. Pending migrations (declared > applied)
+# are normal and pass straight through.
+python - <<'PYGATE'
+import asyncio
+import sys
+
+sys.path.insert(0, "/opt/harness/deploy/runners")
+
+from migrate import check_drift
+from services import get_factory
+
+
+async def main():
+    factory = get_factory()
+    engine = factory.kw["bind"]
+    try:
+        await check_drift(engine)
+        print("drift gate: OK (applied migrations match this image's chain)")
+    finally:
+        await engine.dispose()
+
+
+try:
+    asyncio.run(main())
+except Exception as exc:
+    print(f"DRIFT GATE REFUSED BOOT: {exc}", file=sys.stderr)
+    sys.exit(37)
+PYGATE
+    if [ $? -eq 37 ]; then
+      echo "migrate: schema drift — refusing to apply anything or start the app tier." >&2
+      echo "Run the decision tree in docs/runbooks/rollback.md §3." >&2
+      exit 1
+    fi
+
 python - <<'PYBOOT'
 import asyncio
 import sys
@@ -61,6 +100,38 @@ asyncio.run(main())
 PYBOOT
     exit 0
   fi
+
+  # M18-C6: app-tier pre-flight — the SAME drift gate as the migrate branch,
+  # but read-only (no migrations are applied here). If the DB is ahead of this
+  # image's chain (bad rollback / two image generations on one DB), every
+  # backend refuses to boot instead of serving against a schema it does not
+  # understand. Exit code 37 = drift; anything else is a normal boot failure.
+  python - <<'PYGATE' || { [ $? -eq 37 ] && exit 1 || exit $?; }
+import asyncio
+import sys
+
+sys.path.insert(0, "/opt/harness/deploy/runners")
+
+from migrate import check_drift
+from services import get_factory
+
+
+async def main():
+    factory = get_factory()
+    engine = factory.kw["bind"]
+    try:
+        await check_drift(engine)
+        print("drift gate: OK")
+    finally:
+        await engine.dispose()
+
+
+try:
+    asyncio.run(main())
+except Exception as exc:
+    print(f"DRIFT GATE REFUSED BOOT: {exc}", file=sys.stderr)
+    sys.exit(37)
+PYGATE
 
   case "$HARNESS_SERVICE" in
     sandbox|orchestrator)
