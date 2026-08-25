@@ -27,6 +27,11 @@ from harness_identity.timeutil import db_now  # noqa: E402
 
 from harness_orchestrator.budget import BudgetStatus, check_budget  # noqa: E402
 from harness_orchestrator.engine import DeepSeekHarnessWrapper  # noqa: E402
+from harness_orchestrator.engine_runtime import (  # noqa: E402
+    CircuitOpenError,
+    EngineRuntime,
+    EngineRunTimeout,
+)
 from harness_orchestrator.planner import PlanNotApprovedError, PlanService  # noqa: E402
 from harness_orchestrator.reviewer import ReviewerSubAgent, ReviewFindings  # noqa: E402
 from harness_orchestrator.rules_loader import build_rules_block, load_project_rules  # noqa: E402
@@ -129,6 +134,7 @@ class OrchestratorService(Orchestrator):
         max_per_team: int = 4,
         worker_id: str | None = None,
         stale_seconds: int = 90,
+        engine_runtime: EngineRuntime | None = None,
     ) -> None:
         self.planner = planner or PlanService()
         self.reviewer = reviewer or ReviewerSubAgent()
@@ -145,6 +151,12 @@ class OrchestratorService(Orchestrator):
         # env var overrides per deployment (resolved at construction so a
         # restart re-reads the deployment's current value).
         self.heartbeat_timeout_seconds = resolve_heartbeat_timeout_seconds()
+
+        # M17-B5 (PBC1 F2): engine calls leave the inherited default thread
+        # pool for a DEDICATED bounded executor with a hard per-run deadline
+        # and a hung-provider circuit breaker (see engine_runtime.py). One
+        # runtime per service; tests may inject their own via engine_runtime=.
+        self.engine_runtime = engine_runtime or EngineRuntime()
 
         self.runs: dict[str, dict[str, Any]] = {}
         self._bg_tasks: set[asyncio.Task] = set()
@@ -557,8 +569,12 @@ class OrchestratorService(Orchestrator):
             if await self._budget_gate(run_data, plan):  # Wave 9 B: no model call over cap
                 return
             try:
-                result = await asyncio.to_thread(
-                    self.engine.execute_goal, goal=plan.goal, session_id=run_id
+                # M17-B5 (PBC1 F2): the dedicated bounded executor + hard
+                # deadline replaces asyncio.to_thread's invisible ~16–36 slot
+                # pool. A hung provider now fails THIS run at the deadline
+                # instead of occupying a slot forever.
+                result = await self.engine_runtime.run(
+                    self.engine, goal=plan.goal, session_id=run_id
                 )
             except asyncio.CancelledError:
                 # Pause keeps the run resumable: no terminal result written. Stop and
@@ -570,6 +586,36 @@ class OrchestratorService(Orchestrator):
                         "status": "cancelled",
                         "finalResponse": "Execution cancelled via pause/stop.",
                     }
+                return
+            except CircuitOpenError as exc:
+                # Hung-provider circuit OPEN: fail fast BEFORE burning a
+                # bounded slot behind a provider that is already timing out.
+                logger.error("run %s refused by provider circuit breaker: %s", run_id, exc)
+                reason = f"provider circuit open ({exc})"
+                run_data["engine_result"] = {
+                    "sessionId": run_id,
+                    "engine": "circuit_open",
+                    "status": "error",
+                    "finalResponse": f"DeepSeek Harness run failed: {reason}",
+                }
+                sm.execution_failed(reason)
+                return
+            except EngineRunTimeout as exc:
+                # Deadline expired: this run fails honestly (ENGINE_FAILED,
+                # reason 'timeout: …') and its queue claim is released by the
+                # finish path below. The timeout also counts toward the
+                # provider's breaker streak. NOTE: the OS thread itself cannot
+                # be killed — the deadline stops the RUN, not the thread;
+                # the breaker is what stops the pile-up.
+                logger.error("run %s hit its engine deadline: %s", run_id, exc)
+                reason = f"timeout: {exc}"
+                run_data["engine_result"] = {
+                    "sessionId": run_id,
+                    "engine": "timeout",
+                    "status": "error",
+                    "finalResponse": f"DeepSeek Harness run failed: {reason}",
+                }
+                sm.execution_failed(reason)
                 return
             except Exception as exc:  # noqa: BLE001 — surface engine failures to the UI
                 run_data["engine_result"] = {
@@ -689,6 +735,14 @@ class OrchestratorService(Orchestrator):
         if task is not None and not task.done():
             run_data["cancel_requested"] = True
             task.cancel()
+
+    def shutdown(self) -> None:
+        """M17-B5: release the dedicated engine executor (app-shutdown seam).
+
+        Queued-but-unstarted engine calls are dropped; already-running ones
+        cannot be interrupted (OS threads) — see EngineRuntime.shutdown.
+        """
+        self.engine_runtime.shutdown()
 
     async def recover_orphans(self) -> list[str]:
         """Requeue claims whose worker went silent (crash detector)."""

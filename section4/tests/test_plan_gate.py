@@ -361,7 +361,11 @@ def test_unknown_plan_is_404(service):
     for suffix in ("approve", "reject"):
         res = _post(client, f"/api/v1/orchestrator/plans/plan-does-not-exist/{suffix}")
         assert res.status_code == 404
-        assert res.json()["detail"]["error"]["code"] == "PLAN_NOT_FOUND"
+        # M17-B4 (MAC2-F2): unknown and FOREIGN plans now answer one shared
+        # NOT_FOUND code (no-oracle law, mirroring api.py's run routes) —
+        # the old PLAN_NOT_FOUND named the resource's existence class and
+        # would have confirmed foreign ids across the tenant boundary.
+        assert res.json()["detail"]["error"]["code"] == "NOT_FOUND"
 
 
 # ------------------------------------------------------- contract conformance

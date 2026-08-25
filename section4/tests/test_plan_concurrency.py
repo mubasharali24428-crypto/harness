@@ -513,4 +513,6 @@ def test_unknown_plan_is_404_not_409(db_parts):
     for suffix in ("approve", "reject"):
         res = client.post(f"/api/v1/orchestrator/plans/plan-nope/{suffix}")
         assert res.status_code == 404
-        assert res.json()["detail"]["error"]["code"] == "PLAN_NOT_FOUND"
+        # M17-B4 (MAC2-F2): unknown and FOREIGN plans share one NOT_FOUND
+        # code now — the no-oracle law beats naming the existence class.
+        assert res.json()["detail"]["error"]["code"] == "NOT_FOUND"

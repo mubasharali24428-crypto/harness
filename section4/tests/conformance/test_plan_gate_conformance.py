@@ -142,7 +142,10 @@ def test_plan_gate_role_gates_and_error_envelopes_are_frozen(gate_service):
             assert res.status_code == 403, path
             assert res.json()["detail"]["error"]["code"] == "ROLE_DENIED"
 
-    # unknown plan id: 404 with the contracted envelope code
+    # unknown plan id: 404 with the contracted envelope code. M17-B4
+    # (MAC2-F2): unknown and FOREIGN plans deliberately share ONE plain
+    # NOT_FOUND code — the M13-G5a no-oracle law outranks naming the
+    # existence class, so a foreign team cannot confirm plan ids exist.
     missing = admin_client.post("/api/v1/orchestrator/plans/plan-does-not-exist/reject")
     assert missing.status_code == 404
-    assert missing.json()["detail"]["error"]["code"] == "PLAN_NOT_FOUND"
+    assert missing.json()["detail"]["error"]["code"] == "NOT_FOUND"

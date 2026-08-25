@@ -19,6 +19,17 @@ wrapper (``_audit_emit``) writing the frozen ``audit_log`` table directly.
 FLAGGED FOR ATLAS: swap to W1-A2's symbol at merge coordination with W1-A2.
 
 Wire models are camelCase per api-conventions (planId, runId, …).
+
+M17-B4 (MAC2-F2): the decision routes are TEAM-SCOPED now. approve/reject
+(and start_run, which drives the same runs) prove the caller's team owns the
+plan's project before any state change: same join discipline as
+authz.authorize_run (agent_runs.project_id → projects.team_id, frozen table
+names only). M13-G5a no-oracle law: a foreign team's plan answers EXACTLY
+what an unknown plan id answers — 404 NOT_FOUND with an indistinguishable
+envelope — so ids cannot be probed for existence across teams. Role gates
+stay first (viewer/guest keep their uniform 403 for every id). Bare-unit
+mode (no session factory) keeps the historical behavior: nothing to check
+against, exactly like rehydration already degrades without a DB.
 """
 
 from __future__ import annotations
@@ -228,6 +239,20 @@ def _http_for_role(exc: _RoleDeniedError) -> HTTPException:
     )
 
 
+def _http_plan_not_found() -> HTTPException:
+    """The ONE 404 shape for every unknown OR foreign plan (M17-B4 no-oracle).
+
+    Deliberately NOT the legacy PLAN_NOT_FOUND code: that named the resource's
+    existence class, and api.py's run routes already collapse foreign probes
+    into plain NOT_FOUND. A foreign team probing plan ids gets byte-identical
+    answers for "exists elsewhere" and "never existed".
+    """
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=error_body("NOT_FOUND", "plan not found"),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Route handlers
 # ---------------------------------------------------------------------------
@@ -258,6 +283,10 @@ async def propose_plan(req: ProposePlanGateRequest, principal: RequirePrincipal)
         run_data = await service._ensure_run(run_id)
         sm = run_data["state_machine"]
         run_data["goal"] = req.goal
+        # M17-B4: attribute the run to the proposer's team at mint time, so
+        # later decisions are team-scoped even in bare-unit mode where there
+        # is no projects table to join against.
+        run_data["teamId"] = principal.teamId
         sm.start_planning()
         plan_id, plan = service.planner.create_plan(goal=req.goal)
         run_data["plan_id"] = plan_id
@@ -295,13 +324,7 @@ async def approve_plan(planId: str, principal: RequirePrincipal) -> dict:
         _require_role(principal, _DECIDE_ALLOWED)
     except _RoleDeniedError as e:
         raise _http_for_role(e) from e
-    located = await _locate_plan(service, planId)
-    if located is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=error_body("PLAN_NOT_FOUND", f"Plan '{planId}' not found."),
-        )
-    run_id, run_data = located
+    run_id, run_data = await _locate_scoped_plan(service, planId, principal)
     sm = run_data["state_machine"]
     already_approved = bool(sm.plan_approved)
     try:
@@ -348,13 +371,7 @@ async def reject_plan(planId: str, principal: RequirePrincipal) -> dict:
         _require_role(principal, _DECIDE_ALLOWED)
     except _RoleDeniedError as e:
         raise _http_for_role(e) from e
-    located = await _locate_plan(service, planId)
-    if located is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=error_body("PLAN_NOT_FOUND", f"Plan '{planId}' not found."),
-        )
-    run_id, run_data = located
+    run_id, run_data = await _locate_scoped_plan(service, planId, principal)
     sm = run_data["state_machine"]
     if sm.state is not AgentState.AWAITING_PLAN_APPROVAL:
         raise _http_plan_already_decided(
@@ -434,7 +451,9 @@ async def start_run(runId: str, principal: RequirePrincipal) -> dict:
         _require_role(principal, _PROPOSE_ALLOWED)
     except _RoleDeniedError as e:
         raise _http_for_role(e) from e
-    run_data = await service._ensure_run(runId)
+    # M17-B4: scoped resolution — a DB-backed foreign/unknown run id must not
+    # be seeded into memory before the team check fires.
+    run_data = await _resolve_scoped_run(service, runId, principal)
     sm = run_data["state_machine"]
     if sm.state is AgentState.EXECUTING:
         return {"runId": runId, "state": str(AgentState.EXECUTING.value)}
@@ -462,7 +481,16 @@ async def _locate_plan(
     service: OrchestratorService, plan_id: str
 ) -> tuple[str, dict[str, Any]] | None:
     """Find the run owning plan_id. In-memory registry first (covers runs minted
-    by /plans), then agent_plans mirror when a DB is wired."""
+    by /plans), then agent_plans mirror when a DB is wired.
+
+    M17-B4 repair (found while team-scoping): the DB branch previously ran
+    ``SELECT id, run_id FROM agent_runs`` — but agent_runs has NO run_id
+    column (0001: id, project_id, brief_id, …; 0023's rebuild adds only
+    pr_id), so the statement threw on every dialect, the blanket except
+    swallowed it, and the fallback answered None forever while looking like a
+    legitimate miss. The projection now names real columns and returns
+    ``(run_id, project_id)`` so callers can scope on the owning project.
+    """
     for run_id, run_data in service.runs.items():
         if run_data.get("plan_id") == plan_id:
             return run_id, run_data
@@ -475,14 +503,125 @@ async def _locate_plan(
         async with factory() as db:
             row = (
                 await db.execute(
-                    text("SELECT id, run_id FROM agent_runs WHERE id IN"
-                         " (SELECT run_id FROM agent_plans WHERE id = :p)"),
-                    {"p": plan_id},
+                    text(
+                        "SELECT r.id AS run_id, r.project_id AS project_id"
+                        " FROM agent_runs r"
+                        " WHERE r.id IN"
+                        " (SELECT p.run_id FROM agent_plans p WHERE p.id = :plan)"
+                    ),
+                    {"plan": plan_id},
                 )
             ).first()
     except Exception:  # noqa: BLE001 — lookup must never crash the route
+        logger.exception("agent_plans mirror lookup failed for %s", plan_id)
         return None
     if row is None:
         return None
-    run_data = await service._ensure_run(row.run_id, project_id=row.id)
+    run_data = await service._ensure_run(row.run_id, project_id=row.project_id)
     return row.run_id, run_data
+
+
+async def _locate_scoped_plan(
+    service: OrchestratorService, plan_id: str, principal: Principal
+) -> tuple[str, dict[str, Any]]:
+    """M17-B4 (MAC2-F2) — _locate_plan plus TEAM OWNERSHIP enforcement.
+
+    The decision routes must never act across the tenant boundary: once the
+    owning run resolves, its bound project's team is compared against the
+    principal's via :func:`_deny_if_foreign_project` (same 404 either way).
+    """
+    located = await _locate_plan(service, plan_id)
+    if located is None:
+        raise _http_plan_not_found()
+    await _deny_if_foreign_project(service, located[1], principal)
+    return located
+
+
+async def _deny_if_foreign_project(
+    service: OrchestratorService, run_data: dict[str, Any], principal: Principal
+) -> None:
+    """Confirmed cross-team attribution denies with the SAME 404 an unknown
+    plan gets (M13-G5a no-oracle law).
+
+    Two attribution sources, checked in order:
+      1. ``run_data["teamId"]`` — stamped by propose_plan at mint time
+         (M17-B4), so even bare-unit mode enforces the tenant boundary.
+      2. ``projects.team_id`` via agent_runs.project_id — the DB join, same
+         discipline as authz.authorize_run (frozen table names only).
+    A run with neither (no stamp, no project binding, or bare unit mode) has
+    nothing attributable to compare and passes: those attribution gaps are
+    authz.py F1 territory (another lane), inherited on purpose — this guard
+    closes every CONFIRMED cross-team WRITE hole.
+    """
+    project_id = run_data.get("projectId") or ""
+    factory = getattr(service, "session_factory", None)
+    if factory is None:
+        # Bare-unit mode: the mint-time stamp is the only possible witness.
+        if run_data.get("teamId") not in (None, principal.teamId):
+            raise _http_plan_not_found()
+        return
+
+    from sqlalchemy import text
+
+    if project_id:
+        try:
+            async with factory() as db:
+                row = (
+                    await db.execute(
+                        text("SELECT team_id FROM projects WHERE id = :p"),
+                        {"p": project_id},
+                    )
+                ).first()
+        except Exception:  # noqa: BLE001 — probe must never crash the route
+            # Same posture as reject_plan's window probe above: a store
+            # problem degrades THIS request to "no ownership information"
+            # instead of 500ing the governance surface. Deliberately logged
+            # (never silent); confirmed mismatches below still deny.
+            logger.exception(
+                "plan-gate ownership probe failed for project %s", project_id
+            )
+            return
+        if row is not None and row.team_id != principal.teamId:
+            raise _http_plan_not_found()
+        return
+
+    # No project binding but a store exists: fall back to the mint-time
+    # stamp when present (rehydrated runs may lack it entirely).
+    if run_data.get("teamId") not in (None, principal.teamId):
+        raise _http_plan_not_found()
+
+
+async def _resolve_scoped_run(
+    service: OrchestratorService, run_id: str, principal: Principal
+) -> dict[str, Any]:
+    """start_run's twin of _locate_scoped_plan: resolve BY RUN ID with team
+    enforcement. Unlike _ensure_run it never SEEDS an unattributed DB-backed
+    run into memory — an unknown-or-foreign id must not leave a writable
+    state machine behind (the pre-fix mint-then-authorize shape)."""
+
+    async def _scoped_ensure() -> dict[str, Any]:
+        if run_id in service.runs:
+            return service.runs[run_id]
+        factory = getattr(service, "session_factory", None)
+        row = None
+        if factory is not None:
+            from sqlalchemy import text
+
+            async with factory() as db:
+                row = (
+                    await db.execute(
+                        text(
+                            "SELECT r.id AS run_id, r.project_id AS project_id"
+                            " FROM agent_runs r WHERE r.id = :r"
+                        ),
+                        {"r": run_id},
+                    )
+                ).first()
+        if row is None:
+            # Genuinely unknown (or bare unit mode): historical behavior.
+            return await service._ensure_run(run_id)
+        return await service._ensure_run(row.run_id, project_id=row.project_id)
+
+    run_data = await _scoped_ensure()
+    await _deny_if_foreign_project(service, run_data, principal)
+    return run_data
