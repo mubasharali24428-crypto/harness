@@ -51,35 +51,85 @@ x-backend-depends: &backend-depends
 
 services:
   db:
-    image: postgres:18-alpine
+    # OPS-01 (M17-B2): the LIVE primary now archives WAL itself. Same wiring
+    # as the walg-db drill sidecar below: harness-db-walg image (postgres:18 +
+    # checksum-verified wal-g binary — stock postgres:*-alpine can never run
+    # it, glibc vs musl) + archive_mode/archive_command/hba_file flags.
+    # The WAL-G/AWS env knobs below were pre-wired for exactly this move
+    # (M13-W3-H2 comment history); they are INERT until a storage prefix is
+    # set — with both prefixes empty wal-g fails every push LOUDLY in
+    # pg_stat_archiver.failed_count and the log (never silently drops WAL),
+    # so an operator cannot mistake archiving for healthy while unset.
+    image: harness-db-walg:${WALG_IMAGE_TAG:-v3.0.9}
+    build:
+      context: ..
+      dockerfile: deploy/walg/Dockerfile.walg
     environment:
       POSTGRES_USER: harness
-      POSTGRES_PASSWORD: harness
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-harness}
       POSTGRES_DB: harness
-      # H-018 (M13-W3-H2): WAL-G PITR knobs, sourced from .env like every other
-      # secret/knob (never literal here). INERT on the stock postgres image —
-      # it has neither wal-g nor archiving enabled. They matter once either
-      # happens (see docs/runbooks/backup-and-pitr.md):
-      #   a) you run the opt-in `walg-db` service (same profile, reads the SAME
-      #      variables itself — declared twice because compose env is
-      #      per-service), or
-      #   b) you swap THIS service's image to harness-db-walg (built from
-      #      deploy/walg/Dockerfile.walg) and add the archive_mode/archive_command
-      #      command flags documented in the runbook — then these arrive
-      #      already wired, no further env edits.
+      # Identity wal-g uses when archive_command dials back into THIS server
+      # (same trick as walg-db): NO PGHOST — libpq falls back to the default
+      # unix socket, which the official image's pg_hba trusts for local
+      # connections, so no password sits in archive_command-visible env/query
+      # text. NOTE: the stock image's generated pg_hba has no `host
+      # replication` rule, which streaming base backups need — hence the
+      # hba_file flag below pointing at deploy/walg/pg_hba.conf (mount the
+      # DIR, not the file; see the gotcha comment on walg-db).
+      PGUSER: harness
+      PGDATABASE: harness
       WALG_S3_PREFIX: ${WALG_S3_PREFIX:-}
       WALG_FILE_PREFIX: ${WALG_FILE_PREFIX:-}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
       AWS_ENDPOINT: ${AWS_ENDPOINT:-}
+      # OPS-09/OPS-08 adjacent: autovacuum knobs for the churn tables
+      # (agent_events/rate_buckets/audit_log). All env-tunable, sane defaults
+      # documented in .env.example under "Postgres server tuning".
+      POSTGRES_INITDB_ARGS: --data-checksums
     volumes:
       - pgdata:/var/lib/postgresql
+      # Custom HBA (same file as walg-db): streaming base backups need a
+      # `host replication` rule the stock generated pg_hba lacks. Mount the
+      # DIR — on macOS a bind-mounted FILE pins a stale inode after host-side
+      # rewrites (nlink=0/ENOENT, hit live 2026-08-24).
+      - ./walg:/etc/harness:ro
+      # file:// archive target for THIS cluster (M17-B2): same-path-in-and-out
+      # like the walg-db/walg pair below. wal-g's FS backend refuses to mkdir
+      # its own root (hit live 2026-08-25), so create it once on the host:
+      #   mkdir -p "${WALG_FILE_PREFIX:-/tmp/harness-walg-live}"
+      # S3 users ignore this (the mount just sits unused).
+      - "${WALG_FILE_PREFIX:-/tmp/harness-walg-live}:${WALG_FILE_PREFIX:-/tmp/harness-walg-live}"
     # M13-W3-H1a pool math (docs/pool-math.md): 7 services × (pool_size=8 +
     # max_overflow=4) = 84 connections worst case; 120 leaves 36 slots of
     # headroom for migrations, admin tooling and operator psql.
+    #
+    # OPS-01 (M17-B2): archiving flags — identical exec-form argv style as the
+    # walg-db sidecar (every element one exact argv word, so `%p` needs no
+    # shell-quoting gymnastics). archive_timeout bounds RPO on a quiet db;
+    # hba_file selects deploy/walg/pg_hba.conf so streaming base backups can
+    # authenticate (stock generated pg_hba lacks `host replication`).
     command:
-      ["postgres", "-c", "max_connections=120"]
+      - postgres
+      - -c
+      - max_connections=120
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=wal-g wal-push %p
+      - -c
+      - archive_timeout=${WALG_ARCHIVE_TIMEOUT:-60s}
+      - -c
+      - hba_file=/etc/harness/pg_hba.conf
+      - -c
+      - autovacuum_naptime=${PG_AUTOVACUUM_NAPTIME:-30s}
+      - -c
+      - autovacuum_vacuum_scale_factor=${PG_AUTOVACUUM_VACUUM_SCALE:-0.05}
+      - -c
+      - autovacuum_analyze_scale_factor=${PG_AUTOVACUUM_ANALYZE_SCALE:-0.02}
+      - -c
+      - autovacuum_max_workers=${PG_AUTOVACUUM_MAX_WORKERS:-5}
     # Survive Docker/host restarts: DB going away makes the backend crash-loop
     # on DNS until manually restarted (seen 2026-08-22).
     restart: unless-stopped
@@ -293,16 +343,16 @@ services:
   #             `docker exec`/`docker compose exec walg-db psql ...`; add a
   #             port via a compose.override file if you really need one.
   #   walg      backup wrapper (deploy/runners/backup.sh) doing base backups +
-  #             retention + inventory against walg-db.
+  #             retention + inventory. Default source: the LIVE `db` (OPS-01);
+  #             WALG_PGHOST=walg-db re-points one-off runs at this sidecar.
   #
-  # Why a separate archiving instance instead of flipping `db` itself: `db`
-  # serves every backend in the default dev stack; changing ITS image/command
-  # is outside this lane's ownership and would couple everyone's boot to the
-  # wal-g binary. walg-db gives continuous archiving + PITR drills today with
-  # zero effect on the default stack. Operators who later promote archiving
-  # onto the primary: swap `db`'s image to the same harness-db-walg image and
-  # add the identical command flags shown below — the WAL-G/AWS env knobs are
-  # already wired in `db`'s env block for exactly that move.
+  # OPS-01 (M17-B2) role update: this is now the DRILL/REHEARSAL instance.
+  # The live `db` archives WAL itself (same image, same four `-c` flags as
+  # below), so the nightly base backup defaults to PGHOST=db and nothing real
+  # depends on this sidecar anymore. Its separate `pgdata_walg` volume stays
+  # deliberately isolated so restore drills can never collide with live data;
+  # point one-off rehearsals at it via WALG_PGHOST=walg-db. Full topology
+  # matrix: docs/runbooks/backup-and-pitr.md.
   #
   # 60-second quickstart (file:// storage — no cloud account needed):
   #   export WALG_FILE_PREFIX=/tmp/harness-walg-drill
@@ -378,14 +428,17 @@ services:
   #   docker compose -f deploy/docker-compose.yml --profile walg run --rm walg              # base backup
   #   docker compose -f deploy/docker-compose.yml --profile walg run --rm -e BACKUP_MODE=list walg
   # Modes (see deploy/runners/backup.sh): base (default) | wal <seg> | list |
-  # retention | config. Targets the ARCHIVING db (PGHOST defaults to
-  # walg-db); override WALG_PGHOST=db to stream a base backup off the LIVE
-  # primary instead (its stock image lacks wal-g — that combination requires
-  # the image swap described at `db` above). Run logs append to the walg_logs
-  # volume (/var/log/harness-walg), surviving one-shot container removal.
-  # The container runs as root ONLY so the log file is writable on the shared
-  # volume regardless of which uid created it first; wal-g itself talks to
-  # Postgres over TCP as the harness role.
+  # retention | config.
+  #
+  # OPS-01 (M17-B2): default backup source is now the LIVE primary `db`
+  # (archive_mode=on + wal-g binary since this lane) — the documented daily
+  # base backup protects the cluster that actually holds data. The old drill
+  # sidecar remains available for rehearsals via WALG_PGHOST=walg-db; see
+  # docs/runbooks/backup-and-pitr.md "Topology" for the full matrix. Run logs
+  # append to the walg_logs volume (/var/log/harness-walg), surviving one-shot
+  # container removal. The container runs as root ONLY so the log file is
+  # writable on the shared volume regardless of which uid created it first;
+  # wal-g itself talks to Postgres over TCP as the harness role.
   walg:
     image: harness-db-walg:${WALG_IMAGE_TAG:-v3.0.9}
     profiles:
@@ -395,7 +448,7 @@ services:
     environment:
       # Mode precedence: CLI arg > BACKUP_MODE > legacy WALG_MODE > base.
       BACKUP_MODE: ${BACKUP_MODE:-${WALG_MODE:-base}}
-      PGHOST: ${WALG_PGHOST:-walg-db}
+      PGHOST: ${WALG_PGHOST:-db}
       PGPORT: "5432"
       PGUSER: harness
       PGPASSWORD: ${POSTGRES_PASSWORD:-harness}

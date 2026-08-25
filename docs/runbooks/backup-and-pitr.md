@@ -1,18 +1,19 @@
 # Runbook: Postgres Backup & Point-in-Time Recovery (PITR)
 
 Scope: the `db` service of `deploy/docker-compose.yml` — container
-`harness-db-1`, image `postgres:18-alpine`, data in named volume
+`harness-db-1`, image `harness-db-walg:${WALG_IMAGE_TAG:-v3.0.9}`
+(postgres:18 + wal-g; M17-B2 promoted the live primary onto it from
+`postgres:18-alpine`), data in named volume
 **`harness_pgdata`**, database/user/password `harness`/`harness`/`harness`
 (dev defaults — change in any real deployment), exposed host-side on
 `127.0.0.1:5499`.
 
-Status line (M13-W3-H2, 2026-08-24): **WAL-G PITR is implemented and was
-executed end-to-end against file:// storage inside Docker** — archive_command,
-base backup, retention, inventory, and two full point-in-time recoveries into
-a scratch volume (one hand-driven, one via `restore-walg.sh`) all ran for real;
-see the drill log and the validated/unexecuted table at the end. What is still
-UNEXECUTED is anything needing real S3 credentials or touching the live
-volume.
+Status line (M17-B2 / OPS-01, 2026-08-25): **the LIVE primary archives WAL
+itself** (`archive_mode=on`, `archive_command='wal-g wal-push %p'`) and the
+nightly base-backup wrapper targets it by default (`WALG_PGHOST=db`). The
+M13-W3-H2 sidecar-only design below is history: `walg-db` survives only as a
+throwaway drill instance. What is still UNEXECUTED is anything needing real
+S3 credentials or touching the live volume.
 
 Tooling map:
 
@@ -34,7 +35,7 @@ Two independent recovery paths exist. Pick per incident:
 
 | Path | RPO | Measured RTO (2026-08-24 drill, dev-sized data) | Notes |
 |---|---|---|---|
-| **WAL-G PITR** (`--profile walg`) | ≤ `WALG_ARCHIVE_TIMEOUT` (60 s default) + detection time; **demonstrated: recovered to 4 s before a destructive DELETE** | fetch 1 s + replay-to-pause ≈ 2 s wall clock on the drill dataset; budget minutes for human verification + cutover | Physical, whole-cluster; recovers to ANY timestamp covered by base + WAL |
+| **WAL-G PITR** (live `db`; drills via `--profile walg`) | ≤ `WALG_ARCHIVE_TIMEOUT` (60 s default) + detection time; **demonstrated: recovered to 4 s before a destructive DELETE** | fetch 1 s + replay-to-pause ≈ 2 s wall clock on the drill dataset; budget minutes for human verification + cutover | Physical, whole-cluster; recovers to ANY timestamp covered by base + WAL |
 | Nightly `pg_dump` (`deploy/backup/`) | 24 h (cron cadence) | backup ≈ 1.2 s, restore+verify ≈ 1–2 s (2026-08-23 live proof) | Logical, per-database; survives even if physical tooling breaks |
 
 These values are appropriate for this single-host dev/small-team deployment.
@@ -51,8 +52,11 @@ a scheduled drill cadence (monthly minimum).
 ```
 
 (First line: nightly logical dump. Second: daily WAL-G base backup via the
-one-shot wrapper — host cron is deliberately preferred over any in-container
-sleep loop: exact timing, catch-up semantics, failures surface in cron mail.)
+one-shot wrapper — since M17-B2 its `PGHOST` defaults to the LIVE `db`, so
+the scheduled backup protects the real cluster with zero overrides; point a
+one-off rehearsal back at the drill sidecar with `-e WALG_PGHOST=walg-db`.
+Host cron is deliberately preferred over any in-container sleep loop: exact
+timing, catch-up semantics, failures surface in cron mail.)
 macOS launchd equivalent: `StartCalendarInterval` agents running the same
 commands.
 
@@ -102,11 +106,19 @@ Dockerfile, `archive_mode` flip documented as a future change). Wave 3 lane
 H2 made it real: archiving instance running, archive_command proven pushing,
 base backups taken, retention pruning, and PITR restores executed twice.
 
-### What runs where
+### What runs where (topology updated M17-B2 / OPS-01, 2026-08-25)
+
+**M17-B2 topology change:** the LIVE `db` service now archives WAL itself
+(same `harness-db-walg` image + the identical four `-c` flags below), and the
+nightly base-backup wrapper's `WALG_PGHOST` defaults to **`db`** — so the
+documented daily backup protects the cluster that actually holds data. The
+sidecar remains as a throwaway DRILL/REHEARSAL instance (`WALG_PGHOST=walg-db`)
+with its own volume, so restore drills can never collide with live data.
 
 | Piece | Compose | Detail |
 |---|---|---|
-| Archiving DB | service `walg-db`, profile `walg` | image `harness-db-walg:${WALG_IMAGE_TAG:-v3.0.9}` (postgres:18 + checksum-verified wal-g binary); exec-form command sets `archive_mode=on`, `archive_command=wal-g wal-push %p`, `archive_timeout=${WALG_ARCHIVE_TIMEOUT:-60s}`, `hba_file=/etc/harness/pg_hba.conf`. Own volume `pgdata_walg` — NEVER touches live `pgdata`. No host port (reach via `docker exec`). |
+| Live primary | service `db`, default profile | image `harness-db-walg:${WALG_IMAGE_TAG:-v3.0.9}`; exec-form command sets `archive_mode=on`, `archive_command=wal-g wal-push %p`, `archive_timeout=${WALG_ARCHIVE_TIMEOUT:-60s}`, `hba_file=/etc/harness/pg_hba.conf` (+ `max_connections=120` and autovacuum knobs, see `.env.example`). Data stays in the same **`pgdata`** volume. With no storage prefix set, every wal-push fails loudly in `pg_stat_archiver.failed_count` — set `WALG_S3_PREFIX` or `WALG_FILE_PREFIX`. |
+| Archiving DB | service `walg-db`, profile `walg` | Same image/flags as `db`, but on its OWN `pgdata_walg` volume — never touches live data. Now a drill/rehearsal target only. No host port (reach via `docker exec`). |
 | Backup wrapper | service `walg`, profile `walg` | same image, entrypoint `sh /opt/harness/deploy/runners/backup.sh`; modes `base` (streaming BASE_BACKUP over TCP), `wal <seg>` (what archive_command calls), `list`, `retention`, `config` (secrets-masked dump). One-shot; run logs append to the `walg_logs` volume at `/var/log/harness-walg/backup.log` so they survive `--rm`. |
 | Restore driver | `deploy/walg/restore-walg.sh` (host) | inventory → fresh scratch volume → `wal-g backup-fetch LATEST` → wires `restore_command`/`recovery_target_time`/`recovery.signal` → starts scratch server (pauses at target) → prints human promote/cutover checklist. |
 
@@ -116,7 +128,9 @@ outside this lane's ownership and would couple everyone's boot to the wal-g
 binary. Operators who later promote archiving onto the primary: swap `db`'s
 image to `harness-db-walg:*` and add the identical four `-c` flags shown
 above to its command — the WAL-G/AWS env knobs are already wired in `db`'s
-environment block (inert until then).
+environment block (inert until then). *(M17-B2 did exactly this — the live
+`db` now archives; this paragraph remains as the history of the original
+sidecar-only design.)*
 
 Verified live inside `harness-walg-db-1` (2026-08-24):
 `archive_mode=on · archive_command=wal-g wal-push %p · archive_timeout=1min`
@@ -268,7 +282,9 @@ immediate fresh base backup.
 Base-backup wall times (⏱ RTO input, wrapper-reported): 03:57:39 → ~1.1 s
 (first successful full), 03:58:36 → ~1 s (green post-check run). Dataset is
 tiny; expect linear-ish growth with data size — re-time on production-sized
-data before trusting these numbers.
+data before trusting these numbers. 2026-08-25 (M17-B2) → ~2 s: **first base
+backup taken off the LIVE cluster** via the default `PGHOST=db` path (the
+command in Scheduling above, verbatim).
 
 ## Troubleshooting
 
@@ -332,7 +348,7 @@ Compose reads `.env` next to `deploy/`; every knob below is documented in
 | `WALG_ARCHIVE_TIMEOUT` | `60s` | segment force-switch; bounds RPO on a quiet db |
 | `WALG_IMAGE_TAG` | `v3.0.9` | harness-db-walg tag (= Dockerfile `WALG_VERSION` minus `v`) |
 | `BACKUP_MODE` (legacy alias `WALG_MODE`) | `base` | `base\|wal\|list\|retention\|config` |
-| `WALG_PGHOST` | `walg-db` | backup source; `db` = live primary (needs image swap) |
+| `WALG_PGHOST` | `db` | backup source; since M17-B2/OPS-01 the nightly base backup targets the LIVE primary by default (`walg-db` = drill sidecar for rehearsals) |
 | `WALG_COMPRESSION_METHOD` | `lz4` | lz4/gzip/brotli/zstd/none |
 | `WALG_RETENTION_KEEP` | `0` | >0 prunes after each base (passes `--confirm`) |
 | `WALG_LIST_JSON` | unset | `1` → `backup-list --json` |
@@ -353,6 +369,7 @@ scheduling had no catch-up and hid failures — host cron owns scheduling now).
 |---|---|---|
 | Image build (Dockerfile.walg, glibc fix) | ✅ EXECUTED | built locally (arm64/aarch64) → `wal-g version v3.0.9 3e49318 PostgreSQL`; checksum verify ran inside build |
 | `archive_mode=on` + `archive_command` live | ✅ EXECUTED | `show` outputs recorded; segments landed in storage (`000000010000000000000001.lz4` …); `pg_stat_archiver` 12/0 after forced switches |
+| **LIVE-primary archiving + live base backup (M17-B2/OPS-01)** | ✅ EXECUTED (2026-08-25, file://) | `harness-db-1`: `archive_mode=on · archive_command='wal-g wal-push %p'`; `pg_stat_archiver` 12/0 with segments in `/tmp/harness-walg-live/wal_005/`; nightly wrapper (`--profile walg run --rm walg`, zero overrides) wrote `base_…00000E` OFF THE LIVE CLUSTER, exit 0, post-check green. Real-S3 round-trip still pending below |
 | Streaming base backup via wrapper | ✅ EXECUTED | two fulls (`base_…007`, `base_…009`), exit 0, post-check inventory verified |
 | `wal` push mode | ✅ EXECUTED (via archiver) | every archived segment IS a `wal-push %p` execution; CLI arg-guard also tested (bad path ⇒ exit 1) |
 | `list` / `config` modes | ✅ EXECUTED | inventory tables pasted in drill log; secrets masked (`<set,masked>`) |

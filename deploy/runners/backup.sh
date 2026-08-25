@@ -37,7 +37,10 @@
 #                          one of the two above MUST be set
 #   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_DEFAULT_REGION / AWS_ENDPOINT
 #   PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE   libpq env consumed by wal-g;
-#                          compose defaults: walg-db/5432/harness/harness/harness
+#                          compose sets PGHOST=${WALG_PGHOST:-db} — the LIVE
+#                          primary since M17-B2 (set WALG_PGHOST=walg-db for a
+#                          drill). Host-side runs without env still fall back
+#                          to walg-db below (loud connection error if absent).
 #   WALG_COMPRESSION_METHOD lz4|gzip|brotli|zstd|none                  lz4
 #   WALG_RETENTION_KEEP    if > 0, prune after each base backup           0
 #   WALG_LIST_JSON         1 = `list` emits --json                        0

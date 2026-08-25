@@ -133,6 +133,48 @@ jobs:
           HARNESS_TEST_PG: "1"
           HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@localhost:5499/harness
 
+  # M17-B2 (OPS-15): the migration runner finally runs in CI against real PG.
+  # Backend suites build schemas with SQLite create_all and even the nightly
+  # probe used create_all — deploy/runners/migrate.py (dollar-quote splitter,
+  # statement ordering, legacy marking, re-run idempotency) had NEVER been
+  # executed by any gate. Runs on EVERY PR (not just the nightly schedule):
+  # a migration that passes review but breaks the runner must land red here,
+  # not fail at the next `docker compose up`. Executes migrate() itself on a
+  # per-run scratch database (never the service DB) via make pg-probe-migrate.
+  migrations-pg:
+    name: migrations apply clean on real PG (migrate.py)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: harness
+          POSTGRES_PASSWORD: harness
+          POSTGRES_DB: harness
+        ports:
+          - 5499:5432
+        options: >-
+          --health-cmd "pg_isready -U harness"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install section1 (sqlalchemy/asyncpg for the migrate runner)
+        run: |
+          python -m venv .venv
+          ./.venv/bin/pip install -q ../contracts -e .
+        working-directory: section1
+      - name: migrate.py applies 0001→latest clean [make pg-probe-migrate]
+        run: make --no-print-directory pg-probe-migrate
+        env:
+          HARNESS_TEST_PG: "1"
+          HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@localhost:5499/harness
+
   security-scan:
     # Wave9-E: supply-chain + secret scanning. pip-audit is WARN-posture this
     # wave (continue-on-error); gitleaks blocks. Do not restructure existing jobs.

@@ -175,11 +175,13 @@ def app_orchestrator():
 
     from harness_contracts.fastapi_auth import make_bearer_dep
     from harness_identity.eventbus import EventBus
+
     from harness_orchestrator.api import (
         RequestContextMiddleware,
         configure_orchestrator,
         router,
     )
+    from harness_orchestrator.engine_runtime import EngineRuntime
     from harness_orchestrator.logging_utils import configure_logging
     from harness_orchestrator.service import OrchestratorService
     from harness_orchestrator.worker import RunQueueWorker
@@ -190,10 +192,16 @@ def app_orchestrator():
 
     factory = get_factory()
     bus = EventBus(factory)
+    # M17-B5: engine runs execute on a DEDICATED bounded executor
+    # (ENGINE_MAX_CONCURRENCY, default 8 = shipped per-team cap × 2 seeded
+    # teams — see docs/engine-concurrency.md) with a hard per-run deadline
+    # (ENGINE_RUN_TIMEOUT_SECONDS, default 600) and a hung-provider circuit
+    # breaker. The advertised per-team caps are real only up to THIS bound.
     service = OrchestratorService(
         session_factory=factory,
         bus=bus,
         max_per_team=int(os.environ.get("HARNESS_RUN_CONCURRENCY", "4")),
+        engine_runtime=EngineRuntime(),
     )  # F8/H3: persisted + rehydrated; Phase 1 durable run queue
     configure_orchestrator(service)
 
@@ -213,6 +221,8 @@ def app_orchestrator():
     @app.on_event("shutdown")
     async def _stop_run_queue_worker():
         worker.stop()
+        # M17-B5: release the dedicated engine executor's queued work.
+        service.shutdown()
 
     # ------------------------------------------------------------------
     # Wave 9 node D — email notifications via the durable outbox.
