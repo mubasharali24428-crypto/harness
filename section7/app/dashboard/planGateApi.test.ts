@@ -58,16 +58,19 @@ describe("plan-gate clients — pair-contract W1-C1↔W1-C2 wire shapes", () => 
     expect(res.plan.expectedResult).toBe("done");
   });
 
-  it("proposePlan tolerates optional AgentPlan fields being absent on the wire", async () => {
+  it("proposePlan treats AgentPlan list fields as always-serialized (H-1: pydantic v2 emits defaulted fields)", async () => {
     const f = stubOk({ planId: "p2", plan: { goal: "g", expectedResult: "e" } }, 201);
     vi.stubGlobal("fetch", f);
     const res = await proposePlan("g", TOKEN);
+    // H-1 (M17): the TS mirror marks these REQUIRED — a real server always
+    // serializes them. The client must tolerate a degenerate stub, but the
+    // contract no longer enshrines absence as legal wire shape.
     expect(res.plan.steps).toBeUndefined();
     expect(res.plan.filesLikelyToChange).toBeUndefined();
     expect(res.plan.tests).toBeUndefined();
     expect(res.plan.risks).toBeUndefined();
     expect(res.plan.forbiddenPaths).toBeUndefined();
-    expect(res.plan.estimatedCostUsd).toBeUndefined(); // optional on the TS mirror
+    expect(res.plan.estimatedCostUsd).toBeUndefined();
   });
 
   it("approvePlan POSTs /plans/{id}/approve and mirrors {runId} — the server mints the run", async () => {

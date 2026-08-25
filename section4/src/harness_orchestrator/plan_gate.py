@@ -36,28 +36,17 @@ from __future__ import annotations
 
 import json
 import logging
-import sys
 import uuid
-from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from harness_contracts.api import error_body
 from harness_contracts.roles import Principal, Role
+from harness_contracts.timeutil import db_now
 from pydantic import BaseModel, Field
 
-# Shared time helpers live in section1; this venv does not carry
-# harness_identity as an installed distribution, so the src tree is appended
-# exactly like api.py's wave-1 audit seam already does at call time. Module
-# level so imports stay order-independent under pytest.
-_ROOT = Path(__file__).resolve().parents[3]
-if (_ROOT / "section1" / "src") not in sys.path:
-    sys.path.append(str(_ROOT / "section1" / "src"))
-
-from harness_identity.timeutil import db_now  # noqa: E402
-
-from harness_orchestrator.planner import PlanNotApprovedError  # noqa: E402
-from harness_orchestrator.service import OrchestratorService, PlanAlreadyDecidedError  # noqa: E402
+from harness_orchestrator.planner import PlanNotApprovedError
+from harness_orchestrator.service import OrchestratorService, PlanAlreadyDecidedError
 from harness_orchestrator.state_machine import AgentState, InvalidStateTransitionError  # noqa: E402
 
 logger = logging.getLogger(__name__)

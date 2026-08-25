@@ -40,14 +40,17 @@ def make_app(session_factory, settings: Settings):
     get_principal = make_bearer_dep(session_factory)
     app.state.get_principal = get_principal
     # M12-W2 E4a: the PR-open producer publishes pr_opened through the shared
-    # S1 EventBus (persist + pg_notify fan-out). Every process owns a bus
-    # instance (migration 0003); guard the import so bare installs degrade
-    # gracefully to persistence-only instead of failing app assembly.
+    # event bus (persist + pg_notify fan-out). M17-B3: the bus is a LOCAL
+    # duck-typed publisher now — S2 can no longer import section1's EventBus
+    # class (isolation law), but the wire behavior is identical for this
+    # producer: INSERT into agent_events (seq from BIGSERIAL, ts from the
+    # column default) + the migration-0003 trigger fires pg_notify. Bare
+    # installs degrade to persistence-only exactly as before.
     try:
-        from harness_identity.eventbus import EventBus
+        from harness_github.event_bus import LocalEventBus
 
-        app.state.bus = EventBus(session_factory)
-    except Exception:  # noqa: BLE001 — no S1 package wired: emit nothing
+        app.state.bus = LocalEventBus(session_factory)
+    except Exception:  # noqa: BLE001 — no DB wired: emit nothing
         app.state.bus = None
 
     @app.get("/health")

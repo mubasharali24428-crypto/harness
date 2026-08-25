@@ -18,8 +18,10 @@ Endpoints (both under /api/v1):
       blocks org-wide, a strictly stronger action than rules editing.
       Malformed documents answer 422 VALIDATION_ERROR and persist NOTHING:
       unknown keys are rejected outright (typos must not silently no-op),
-      values are validated against the shared model imported from Section 8's
-      harness_review.heuristic (single source of truth for shape + ranges).
+      values are validated against the shared model in
+      harness_contracts.reviewer_thresholds (single source of truth for shape
+      + ranges; M17-B3 promoted it out of section8 so this module stops
+      importing an S8 package).
 - DELETE /teams/{team_id}/settings/reviewer-thresholds -> 204. Idempotent;
       deleting restores defaults-by-absence.
 
@@ -44,9 +46,11 @@ from .models import TeamSetting
 
 router = APIRouter(prefix="/api/v1")
 
-# Must match harness_review.heuristic.REVIEWER_THRESHOLD_KEY — the writer and
-# reader agree on one storage key. (Imported lazily below; S1 imports S8's
-# pure validation model, never its DB layer.)
+# Storage key for reviewer thresholds. M17-B3: the canonical constant and
+# validation model live in harness_contracts.reviewer_thresholds (promoted
+# from section8's heuristic module so S1 no longer imports an S8 package —
+# the s1→s8 reverse isolation edge). The parity check below keeps writer
+# (this module) and reader (S8) on one key.
 SETTINGS_KEY_REVIEWER_THRESHOLDS = "reviewer_thresholds"
 
 
@@ -60,13 +64,14 @@ class ThresholdsBody(BaseModel):
 
 
 def _shared_thresholds_model():
-    """Import the single validation definition from Section 8.
+    """Import the single validation definition from harness_contracts.
 
-    Only the PURE pydantic model is imported (harness_review.heuristic) —
-    this keeps one source of truth for the document contract while respecting
-    the section-isolation law (no S1→S8 store/db/service imports).
+    M17-B3: the model was promoted from section8's harness_review.heuristic
+    to harness_contracts.reviewer_thresholds, restoring the isolation law
+    (S1 depends ONLY on contracts) while keeping one source of truth for the
+    document contract.
     """
-    from harness_review.heuristic import ReviewerThresholds
+    from harness_contracts.reviewer_thresholds import ReviewerThresholds
 
     return ReviewerThresholds
 
@@ -80,7 +85,7 @@ def _validate_thresholds_document(raw: dict[str, Any]) -> dict[str, Any]:
     though the Section 8 lenient READER ignores them for forward
     compatibility — write-side strict, read-side forgiving.
     """
-    from harness_review.heuristic import REVIEWER_THRESHOLD_KEY
+    from harness_contracts.reviewer_thresholds import REVIEWER_THRESHOLD_KEY
 
     if SETTINGS_KEY_REVIEWER_THRESHOLDS != REVIEWER_THRESHOLD_KEY:  # pragma: no cover
         # Guard against silent key drift between the two constants.
@@ -105,7 +110,7 @@ def _public(row: TeamSetting | None, team_id: str) -> dict[str, Any]:
     """camelCase projection per api-conventions.md. Lenient exactly like the
     Section 8 reader: a stored-but-corrupt value projects the documented
     defaults with thresholdsSource "defaults" instead of erroring."""
-    from harness_review.heuristic import DEFAULT_REVIEWER_THRESHOLDS
+    from harness_contracts.reviewer_thresholds import DEFAULT_REVIEWER_THRESHOLDS
 
     if row is None or not row.value:
         return {

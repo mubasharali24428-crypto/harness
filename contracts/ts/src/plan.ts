@@ -7,11 +7,11 @@
  */
 export interface AgentPlan {
   goal: string;
-  filesLikelyToChange?: string[];
-  steps?: string[];
-  tests?: string[];
-  risks?: string[];
+  filesLikelyToChange: string[];
+  steps: string[];
+  tests: string[];
+  risks: string[];
   estimatedCostUsd?: number;
-  forbiddenPaths?: string[];
+  forbiddenPaths: string[];
   expectedResult: string;
 }

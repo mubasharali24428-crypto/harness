@@ -392,7 +392,10 @@ async def test_cursor_predicate_becomes_index_range_bounds(scale_db):
     # Row-value keyset comparison compiles to explicit index bounds...
     assert "(created_at,id)<" in line.replace(" ", "")
     # ...and the ordering columns ride the index (no separate sort step on r).
-    assert "created_at" in line and '"id"' in line or "id=?" in line or True
+    # H-2 (M17): real assertion (was `... and ... or ... or True`, a tautology):
+    # the compiled line must reference the ordering columns — either the
+    # quoted SQL identifier or the bound-parameter spelling.
+    assert ("created_at" in line and '"id"' in line) or "id=?" in line
     assert "TEMP B-TREE FOR ORDER BY" not in " ".join(
         d for d in plans["team_and_cursor"] if "SEARCH r" in d or d.startswith("SCAN r")
     )

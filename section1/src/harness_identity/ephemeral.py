@@ -23,6 +23,17 @@ WS_TICKET_TTL_SECONDS = 30
 # It is a correlation/anti-replay guard, NOT a cryptographic secret: both
 # inputs travel on the wire, so its job is to make a stolen ticket worthless
 # from another host, not to authenticate the client.
+#
+# SPOOFING CAVEAT (M17-B4 / MAC2-F5, documented not fixed): an attacker who
+# knows BOTH inputs — User-Agent and client IP — can compute this exact value
+# and present a "matching" fingerprint. That is realistic when victim and
+# attacker share a NAT/egress proxy (same IP) or the ticket+UA leak together
+# through access logs. The absent-header grace path in app.py additionally
+# makes binding opt-in-by-header this release. What the check DOES stop:
+# blind replay of a captured ticket from a different host, and replay with
+# only the ticket (no UA knowledge). Raising it to a real control needs a
+# secret-bearing credential (e.g. DPoP-style proof or a minted HMAC over the
+# upgrade handshake) — out of scope for B4.
 FINGERPRINT_HEX_LEN = 16
 
 

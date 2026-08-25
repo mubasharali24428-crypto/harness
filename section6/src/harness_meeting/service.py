@@ -1,22 +1,12 @@
 """Top-level Meeting Area service."""
 
 import os
-import sys
 import uuid
-from pathlib import Path
 from typing import Any
 
 from harness_contracts.brief import EngineeringBrief
+from harness_contracts.timeutil import now_utc
 from pydantic import BaseModel, Field
-
-# M13-H4b: the single source of "now" is harness_identity.timeutil (aware
-# UTC law). The section1 src tree is appended exactly like api.py's M12-G3
-# limits seam already does; module level so imports stay order-independent.
-_ROOT = Path(__file__).resolve().parents[3]
-if (_ROOT / "section1" / "src") not in sys.path:
-    sys.path.append(str(_ROOT / "section1" / "src"))
-
-from harness_identity.timeutil import now_utc  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # M16-X2 — message pagination bounds (single source of truth; api.py imports

@@ -25,7 +25,7 @@ export type EventType = (typeof EventType)[keyof typeof EventType];
  */
 export interface EventEnvelope {
   type: EventType;
-  payload?: Record<string, unknown>;
+  payload: Record<string, unknown>;
   ts: string;
   seq: number;
   projectId: string;

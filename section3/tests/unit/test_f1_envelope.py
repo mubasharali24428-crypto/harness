@@ -7,13 +7,27 @@ mutating POSTs in scope for H-020 this wave (brief: "S3 if trivially safe"
 — envelope only; idempotency wiring arrives with its pool owner).
 
 Scratch-app pattern per tests/unit/test_ledger.py.
+
+M17-B3: install_error_envelope now comes from harness_identity (the ONE
+canonical middleware copy); the byte-identical S3 fork is deleted. The S3
+test venv reaches it through the same section1/src seam the limiter hooks
+historically used (tests only).
 """
+
+import sys
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+_ROOT = Path(__file__).resolve().parents[3]
+_S1_SRC = str(_ROOT / "section1" / "src")
+if _S1_SRC not in sys.path:
+    sys.path.append(_S1_SRC)
+
+from harness_identity.envelope_middleware import install_error_envelope
+
 from harness_router import api as router_api
-from harness_router.envelope_middleware import install_error_envelope
 
 
 def test_validation_error_envelope_on_models_router():

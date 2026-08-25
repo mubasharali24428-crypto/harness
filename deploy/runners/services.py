@@ -103,6 +103,14 @@ def simple_app(router, title):
     from harness_identity.security_headers import install_security_headers
 
     install_security_headers(app)
+    # M17-B3 / C-2: EVERY deployed service answers the frozen error envelope
+    # {"error": {code, message}} (+ legacy detail mirror). Previously only S1
+    # installed it, so bare HTTPException details from S3/S4/S5/S8 leaked as
+    # raw strings and section7's api.ts had to normalize three wire shapes
+    # client-side. The canonical middleware lives in harness_identity.
+    from harness_identity.envelope_middleware import install_error_envelope
+
+    install_error_envelope(app)
     return app
 
 
@@ -341,6 +349,11 @@ def app_meeting():
     from harness_identity.security_headers import install_security_headers
 
     install_security_headers(app)
+    # M17-B3 / C-2: the meeting app answers the frozen error envelope like
+    # every other deployed service (canonical middleware in harness_identity).
+    from harness_identity.envelope_middleware import install_error_envelope
+
+    install_error_envelope(app)
     app.include_router(router)
     return app
 
@@ -395,6 +408,13 @@ def app_review():
     from harness_identity.security_headers import install_security_headers
 
     install_security_headers(app)
+    # M17-B3 / C-2: the review app answers the frozen error envelope like
+    # every other deployed service. This also normalizes S8's blanket-except
+    # routes that raise HTTPException(500, str(exc)) (P-BETA M-3): the raw
+    # string becomes {"error": {"code": "REQUEST_ERROR", ...}} + mirror.
+    from harness_identity.envelope_middleware import install_error_envelope
+
+    install_error_envelope(app)
     app.include_router(review_router)
     return app
 

@@ -7,14 +7,13 @@ directly in-process), so a completed agent run never landed in the ledger.
 The hook below records ONE team-attributed ``cost_ledger`` row when an engine
 run settles, so GET /api/v1/models/spend reflects real run costs.
 
-Writer choice: Section 1's :func:`harness_identity.cost_ledger.record_usage`.
-Section 3's own writer is asyncpg-shaped (positional ``pool.execute``) and
-cannot write through S4's SQLAlchemy session factory; the S1 writer takes
-exactly the factory this service already holds, attributes through the frozen
-chain (cost_ledger.run_id → agent_runs.project_id → projects.team_id), binds
-money as exact NUMERIC(12,6)-scale TEXT (H-023), and is fire-and-forget — it
-never raises into orchestration. It is imported lazily inside the hook via the
-same section1/src seam api.py already appends at import time.
+Writer choice: Section 1's :func:`record_usage` (M17-B3: promoted verbatim to
+``harness_contracts.cost_ledger`` so sections stop importing each other's
+packages). The writer is SQLAlchemy-session-shaped and takes exactly the
+factory this service already holds, attributes through the frozen chain
+(cost_ledger.run_id → agent_runs.project_id → projects.team_id), binds money
+as exact NUMERIC(12,6)-scale TEXT (H-023), and is fire-and-forget — it never
+raises into orchestration. It is imported lazily inside the hook.
 
 Token accounting: live dsh runs surface usage as ``assistant/chunk`` events
 with ``chunk.type == "usage"`` ({inputTokens, outputTokens, cacheReadTokens,
@@ -24,15 +23,14 @@ goal/response text at ~4 chars/token — the same convention the router's
 ``_estimate_tokens`` uses for contract results without token fields — and the
 row's model stays the configured one, so attribution is honest either way.
 
-Cost math lives ONLY in S3's :class:`PricingEngine.calculate_cost` (exact
+Cost math lives ONLY in :class:`harness_contracts.pricing.PricingEngine`
+(M17-B3: promoted from section3's pricing.py — same catalog values, exact
 Decimal at NUMERIC(12,6)); this module never invents prices.
 """
 
 from __future__ import annotations
 
 import logging
-import sys
-from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -100,18 +98,10 @@ async def record_run_cost(service: Any, run_data: dict[str, Any], plan: Any) -> 
         logger.debug("run-cost metering skipped: no DB wired")
         return
     try:
-        # Lazy imports: harness_identity rides the section1/src seam api.py
-        # appends at import time; harness_router is a sibling section src tree.
-        # Both resolve at RUNTIME (deploy assembly puts every section's src on
-        # sys.path) — keeping them lazy keeps this module importable in
-        # unit-only contexts where neither tree is present.
-        _ROOT = Path(__file__).resolve().parents[3]
-        for seam in ("section1", "section3"):
-            src = str(_ROOT / seam / "src")
-            if src not in sys.path:
-                sys.path.append(src)
-        from harness_identity.cost_ledger import record_usage
-        from harness_router.pricing import PricingEngine
+        # Lazy imports keep this module importable in unit-only contexts where
+        # only harness_contracts is installed.
+        from harness_contracts.cost_ledger import record_usage
+        from harness_contracts.pricing import PricingEngine
 
         run_id = str(run_data.get("runId") or "") or None
         goal = str(run_data.get("goal") or "")

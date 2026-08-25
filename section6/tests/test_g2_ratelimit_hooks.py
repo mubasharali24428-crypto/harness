@@ -33,12 +33,12 @@ if (_ROOT / "section1" / "src") not in sys.path:
 import harness_identity.ratelimit as rl  # noqa: E402
 import pytest  # noqa: E402
 from fastapi import FastAPI  # noqa: E402
-from harness_contracts.roles import Principal, Role  # noqa: E402
-from harness_identity.models import Base  # noqa: E402
-from harness_identity.ratelimit import (  # noqa: E402
+from harness_contracts.ratelimit import (  # noqa: E402
     BRIEF_GENERATE_LIMIT,
     BRIEF_GENERATE_TEMPLATE,
 )
+from harness_contracts.roles import Principal, Role  # noqa: E402
+from harness_identity.models import Base  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # noqa: E402

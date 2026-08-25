@@ -4,7 +4,7 @@ Timestamps here stay UTC ISO-8601 TEXT because the FROZEN run_claims schema
 (section1/migrations/0006_run_claims.sql) deliberately types claimed_at /
 heartbeat_at as TEXT so every statement runs identically on PostgreSQL
 (prod) and SQLite/aiosqlite (tests). They are never bound to TIMESTAMPTZ.
-Every instant originates from harness_identity.timeutil (M13-H4b law: all
+Every instant originates from harness_contracts.timeutil (M13-H4b law: all
 DB timestamps timezone-aware UTC; asyncpg gets aware datetime objects for
 TIMESTAMPTZ columns and ISO text ONLY where the column is TEXT).
 """
@@ -13,19 +13,10 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Any
 
-# Shared time helpers live in section1; this venv does not carry
-# harness_identity as an installed distribution, so the src tree is appended
-# exactly like api.py's wave-1 audit seam does at call time.
-_ROOT = Path(__file__).resolve().parents[3]
-if (_ROOT / "section1" / "src") not in sys.path:
-    sys.path.append(str(_ROOT / "section1" / "src"))
-
-from harness_identity.timeutil import as_utc, now_utc, utcnow_iso  # noqa: E402
+from harness_contracts.timeutil import as_utc, now_utc, utcnow_iso
 
 logger = logging.getLogger(__name__)
 

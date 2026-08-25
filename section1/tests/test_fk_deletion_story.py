@@ -383,7 +383,10 @@ async def test_optional_back_references_survive_as_null(fk_db):
         ).scalar_one()
         pr = (await db.execute(select(PullRequest).where(PullRequest.id == ids["pr"]))).scalar_one()
         assert member.user_id is None
-        assert pr.approved_by is None or True  # approved_by was never set in seed
+        # H-2 (M17): kept as a comment (was `... or True`, a tautology). The
+        # seed never sets approved_by; if that changes, the FK deletion story
+        # for this column needs a real assertion, not a no-op one.
+        assert pr.approved_by is None  # approved_by was never set in seed
         assert member.id == ids["member"]
 
         await db.execute(text("DELETE FROM pull_requests WHERE id = :i"), {"i": ids["pr"]})

@@ -477,7 +477,25 @@ async def test_batch_size_stays_capped_regardless_of_gap_size(app, monkeypatch):
     # ...and resuming from the watermark keeps every subsequent batch bounded:
     resumed = await bus.replay_page("p1", page.oldest_seq_sent)
     assert len(resumed.envelopes) <= 25
-    assert all(e.seq < page.oldest_seq_sent or True for e in resumed.envelopes)
+    # H-2 (M17): real window assertion (was `... or True`, a tautology).
+    # Resuming from the truncation watermark must return only events strictly
+    # ABOVE that watermark (afterSeq filtering is exclusive).
+    assert all(e.seq > page.oldest_seq_sent for e in resumed.envelopes)
+    # Walking forward with the true cursor (each batch's last-seen seq) must
+    # tile the served window exactly: a contiguous suffix of the log — no
+    # duplicates, no fabricated holes — with every batch still bounded.
+    seen: list[int] = []
+    cursor = 0
+    while True:
+        batch = await bus.replay_page("p1", cursor)
+        assert len(batch.envelopes) <= 25
+        if not batch.envelopes:
+            break
+        seen.extend(e.seq for e in batch.envelopes)
+        cursor = batch.envelopes[-1].seq
+    assert seen == sorted(set(seen)), "duplicate delivery along the resume walk"
+    assert seen == list(range(min(seen), max(seen) + 1)), "hole in served window"
+    assert min(seen) == page.oldest_seq_sent
 
 
 # --------------------------------------------------------- empty-gap fast path

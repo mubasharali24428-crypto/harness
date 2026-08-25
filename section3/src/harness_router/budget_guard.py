@@ -23,7 +23,13 @@ new dependencies.
 Money-path posture: FAIL-CLOSED. Any ledger DB error => allowed=False with an
 explicit reason — never an open gate on infrastructure failure. Rejected work
 compensates via release(entry_id), which deletes the reserved ledger row in
-its own transaction.
+its own transaction. Cost estimates outside the NUMERIC(12,6) envelope
+(|cost| > 999999.999999) are rejected BEFORE any DB contact with an explicit
+reason — never silently dropped, never mislabeled as an outage.
+
+Concurrency (M17-B1): on the production asyncpg path the reserve transaction
+first takes pg_advisory_xact_lock over the team, so concurrent reserves
+serialize and the $8-vs-$5 overspend is impossible (see RESERVE_SQL below).
 
 Money typing (H-023): ``estimated_cost_usd`` accepts any numeric shape
 (Decimal/float/int/str) and is normalized ONCE through :func:`to_money` into
@@ -39,16 +45,28 @@ import logging
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
 from harness_router.ledger import to_money
 
 logger = logging.getLogger(__name__)
 
-# One statement = one decision. The INSERT..SELECT runs under the row locks
-# taken by the aggregate scan + the billing_plans read inside a single
-# implicit transaction, so concurrent reserves serialize instead of racing:
-# each sees all previously COMMITTED ledger rows for the team's month.
+# One statement = one decision. The INSERT..SELECT runs the headroom check
+# and the ledger INSERT atomically, so a losing claim writes NOTHING (there
+# is no compensation to run).
+#
+# Serialization (M17-B1, M-ALPHA F-2): this statement ALONE does not
+# serialize — under READ COMMITTED, N racing reserves snapshot the same
+# pre-race SUM and ALL win (live probe: 8x$1 vs $5 => 8 winners, 60%
+# overrun). The production asyncpg path therefore takes
+# pg_advisory_xact_lock(hashtextextended(team_id)) inside the SAME
+# transaction, immediately before this statement (see ADVISORY_LOCK_SQL);
+# contenders queue on the lock and each evaluation sees every earlier
+# COMMITTED claim. SQLite/SQLAlchemy consumers run the bare statement —
+# their suites serialize writers via BEGIN IMMEDIATE and SQLite is
+# single-writer anyway — which keeps this file runnable on both backends
+# verbatim (pg_* functions must stay OUT of RESERVE_SQL).
 #
 # Named binds: :run_id, :agent_role, :model, :input_tokens, :output_tokens,
 # :cost_usd, :latency_ms, :team_id.
@@ -74,6 +92,19 @@ WHERE COALESCE((
       )
 RETURNING seq
 """
+
+# Transaction-scoped team serialization (asyncpg path only). Taken INSIDE the
+# same transaction as RESERVE_SQL so the headroom SUM cannot race a concurrent
+# reserve: the second contender blocks here until the first commits/rolls
+# back. Xact-scoped => self-releasing on commit/rollback/disconnect; no
+# session state to clean up. Keyed by 64-bit hash of team_id — collision risk
+# across two teams is ~2^-64 and a false share only costs contention, never
+# correctness. hashtextextended is stable within a cluster lifetime, which is
+# all a lock needs to be.
+ADVISORY_LOCK_SQL = "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))"
+
+# NUMERIC(12,6) envelope: max |value| that fits without overflow.
+MONEY_MAX = Decimal("999999.999999")
 
 # Compensation for rejected-after-reserve: remove the reservation row. Single
 # DELETE, own transaction, idempotent-by-absence (deleting an already-released
@@ -129,6 +160,17 @@ def to_positional_params(sql: str, params: Mapping[str, Any]) -> tuple[str, list
     return translated, [params[name] for name in ordered]
 
 
+def _is_asyncpg_pool(pool: Any) -> bool:
+    """True when ``pool`` is a real asyncpg pool (production driver).
+
+    asyncpg only accepts $n-positional SQL and returns plain strings from
+    execute(); SQLAlchemy session adapters take named binds and RowMapping
+    status objects. The guard supports both by sniffing the pool's origin
+    module — fakes in tests keep the SQLAlchemy shape.
+    """
+    return pool.__class__.__module__.startswith("asyncpg")
+
+
 async def reserve(
     pool: Any,
     *,
@@ -143,25 +185,50 @@ async def reserve(
 ) -> ReserveResult:
     """Atomically check-and-reserve budget as a cost_ledger row.
 
-    Runs the single-statement INSERT..SELECT..WHERE..RETURNING above against
-    the duck-typed asyncpg-style pool. A returned row means the estimate fit
-    under the team's remaining monthly budget and is now recorded as spend;
-    no row means over budget; any exception fails CLOSED.
+    On the production asyncpg driver this runs inside one explicit
+    transaction that FIRST takes pg_advisory_xact_lock over ``team_id``
+    (ADVISORY_LOCK_SQL), then runs the single-statement INSERT..SELECT..
+    WHERE..RETURNING (RESERVE_SQL, binds translated via
+    :func:`to_positional_params`). Concurrent reserves serialize on the
+    advisory lock and each evaluation sees every earlier committed claim —
+    the 8x$1-vs-$5 overspend M-ALPHA probed is impossible. A returned row
+    means the estimate fit under the team's remaining monthly budget and is
+    now recorded as spend; no row means over budget; any exception fails
+    CLOSED.
+
+    Estimates outside the NUMERIC(12,6) envelope (|cost| > MONEY_MAX) are
+    rejected before any DB contact with reason "cost out of range" — honest,
+    never a silent ledger drop.
     """
     try:
         # Exact money normalization happens BEFORE the DB sees the value;
-        # usage_bind_params quantizes to NUMERIC(12,6) and binds as text
-        # (see its docstring).
-        row = await pool.fetchrow(RESERVE_SQL, {
+        # quantized to NUMERIC(12,6) scale and bound as text (H-023).
+        cost_dec = to_money(estimated_cost_usd)
+        if abs(cost_dec) > MONEY_MAX:
+            logger.warning(
+                "budget reserve rejected: cost %s outside NUMERIC(12,6) envelope",
+                cost_dec,
+            )
+            return ReserveResult(allowed=False, reason="cost out of range")
+        params = {
             "run_id": run_id,
             "agent_role": str(agent_role)[:20],  # agent_role VARCHAR(20)
             "model": str(model)[:120],  # model VARCHAR(120)
             "input_tokens": int(input_tokens),
             "output_tokens": int(output_tokens),
-            "cost_usd": f"{to_money(estimated_cost_usd):.6f}",
+            "cost_usd": f"{cost_dec:.6f}",
             "latency_ms": int(latency_ms),
             "team_id": team_id,
-        })
+        }
+        if _is_asyncpg_pool(pool):
+            sql, args = to_positional_params(RESERVE_SQL, params)
+            async with pool.acquire() as conn:
+                async with conn.transaction():
+                    await conn.fetchval(ADVISORY_LOCK_SQL, team_id)
+                    row = await conn.fetchrow(sql, *args)
+        else:
+            # SQLAlchemy / test adapter path: named binds run unmodified.
+            row = await pool.fetchrow(RESERVE_SQL, params)
     except Exception:  # noqa: BLE001 — money path must fail closed
         logger.warning("budget reserve failed; failing closed", exc_info=True)
         return ReserveResult(allowed=False, reason="ledger unavailable")
@@ -179,12 +246,17 @@ async def release(pool: Any, entry_id: int) -> bool:
     id) returns False and is not an error. Never raises into the caller.
     """
     try:
+        if _is_asyncpg_pool(pool):
+            sql, args = to_positional_params(RELEASE_SQL, {"entry_id": int(entry_id)})
+            status = await pool.execute(sql, *args)  # e.g. the string "DELETE 1"
+            match = re.search(r"(\d+)\s*$", str(status))
+            return bool(match and int(match.group(1)) > 0)
         status = await pool.execute(RELEASE_SQL, {"entry_id": int(entry_id)})
+        deleted = getattr(status, "rowcount", None)
+        try:
+            return bool(deleted) and int(deleted) > 0
+        except (TypeError, ValueError):
+            return False
     except Exception:  # noqa: BLE001 — release failure logged, not propagated
         logger.warning("budget release failed", exc_info=True)
-        return False
-    deleted = getattr(status, "rowcount", None)
-    try:
-        return bool(deleted) and int(deleted) > 0
-    except (TypeError, ValueError):
         return False

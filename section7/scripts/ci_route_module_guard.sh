@@ -12,11 +12,31 @@
 #   isolation  SECTION-ISOLATION LAW (M13 audit; AGENTS.md layout rules):
 #              sections depend ONLY on contracts/ (imported as the
 #              harness_contracts package or @contracts/* TS mirror). Code in
-#              sectionN must never import code from sectionM (N != M) —
-#              neither relatively (../sectionM/...) nor package-style.
+#              sectionN must never import code from sectionM (N != M).
 #              Self-references within a section are fine; contracts/ and
 #              integration/ are outside this guard by design (integration
 #              checkpoint tests exist precisely to touch several sections).
+#
+# M17-B3 upgrade — the law is now enforced against the threat model that
+# actually exists (P-BETA finding C-1: 17 production files imported sibling
+# sections by installed PACKAGE NAME or via runtime sys.path injection and
+# passed every gate). The isolation mode detects:
+#
+#   1. literal tree imports   ../sectionM/... / 'sectionM/...' (py + js)
+#   2. package-name imports   from harness_<name>[.sub] import x
+#                             where <name> belongs to ANOTHER section
+#                             (identity/github/router/orchestrator/sandbox/
+#                              meeting/review/onboarding)
+#   3. sys.path seams         sys.path.append/insert of a sibling section's
+#                             src tree ("../sectionN/src") inside sections/
+#   4. re-export chains       a section-local module whose body is just
+#                             `from harness_<foreign>... import *`
+#
+# SCOPE NOTE (deliberate, keep in sync with docs/ci-gates.md): rules 2-4 are
+# enforced on section SRC trees only (section*/src). Test files may reach a
+# sibling's internals to pin cross-section parity (the G3/G2 parity tests do
+# exactly that); production coupling may not. deploy/, scripts/, task0/,
+# debug_canon/ and Makefile wiring are outside section isolation by design.
 #
 # Usage:      ci_route_module_guard.sh routes|isolation
 # Exit codes: 0 = clean, 1 = violations found, 2 = usage/internal error.
@@ -59,11 +79,14 @@ note_fail() { # note_fail <file> <line> <detail>
 # Iterate a grep "file:line:content" blob WITHOUT word splitting: exactly one
 # row per loop pass, executed in the CURRENT shell (fd redirect, not a pipe)
 # so fail_count mutations survive. Callback gets the raw row as $1.
-each_line() { # each_line <blob> <callback-fn>
-	printf '%s\n' "$1" >"$TMP"
+each_line() { # each_line <blob> <callback-fn> [extra args passed to callback...]
+	_blob=$1
+	_cb=$2
+	shift 2 || true
+	printf '%s\n' "$_blob" >"$TMP"
 	while IFS= read -r ROW; do
 		[ -n "$ROW" ] || continue
-		"$2" "$ROW"
+		"$_cb" "$ROW" "$@"
 	done <"$TMP"
 }
 
@@ -74,24 +97,26 @@ split_grep_row() { # split_grep_row <row> -> F, LN, BODY
 	BODY=${_rest#*:}
 }
 
+own_pkg_for() { # own_pkg_for <section-dir> -> prints owning package name
+	case "$1" in
+	section1) echo harness_identity ;;
+	section2) echo harness_github ;;
+	section3) echo harness_router ;;
+	section4) echo harness_orchestrator ;;
+	section5) echo harness_sandbox ;;
+	section6) echo harness_meeting ;;
+	section8) echo harness_review ;;
+	section10) echo harness_onboarding ;;
+	*) echo "" ;;
+	esac
+}
+
 parse_routes_hit() { # <grep row>
 	split_grep_row "$1"
 	note_fail "$F" "$LN" "non-default export in route module: ${BODY}"
 	echo "                route modules (app/**/page.tsx) may only 'export default'"
 	echo "                (Next index-signature law, W4 carryover — move helpers/metadata"
 	echo "                into a non-route module and import them, default-exporting only)."
-}
-
-parse_isolation_hit() { # <grep row>
-	split_grep_row "$1"
-	own=$(printf '%s' "$F" | cut -d/ -f1)
-	ref=$(printf '%s\n' "$BODY" | grep -oE 'section[0-9]+' | head -n 1)
-	# Self-references (a section naming its own tree) are legal.
-	[ "$ref" = "$own" ] && return 0
-	note_fail "$F" "$LN" "cross-section import: ${BODY}"
-	echo "                '$own' references '$ref' — sections may depend ONLY on contracts/"
-	echo "                (harness_contracts / @contracts/*). M13-audit isolation law:"
-	echo "                share schemas via contracts, never import sibling-section code."
 }
 
 # ------------------------------------------------------------------ routes ---
@@ -136,46 +161,127 @@ $found"
 fi
 
 # -------------------------------------------------------------- isolation ----
-files=''
+
+# Scan set: section src trees ONLY for the package/sys.path/re-export rules;
+# full section trees still get the literal-tree rule (cheap, zero FPs there).
+src_files=''
 sections_scanned=0
 for sdir in section*/; do
 	[ -d "$sdir" ] || continue
-	list=$(find "$sdir" \
+	[ -d "${sdir}src" ] || continue
+	list=$(find "${sdir}src" \
 		\( -name node_modules -o -name .next -o -name .venv -o -name venv \
-		-o -name __pycache__ -o -name dist -o -name build -o -name .ruff_cache \) -prune \
+		-o -name __pycache__ -o -name dist -o -name build -o -name .ruff_cache \
+		-o -name '*.egg-info' \) -prune \
 		-o -type f \( -name '*.py' -o -name '*.ts' -o -name '*.tsx' \
 		-o -name '*.js' -o -name '*.jsx' -o -name '*.mjs' -o -name '*.cjs' \) -print)
 	[ -n "$list" ] || continue
 	sections_scanned=$((sections_scanned + 1))
-	if [ -n "$files" ]; then
-		files="$files
+	if [ -n "$src_files" ]; then
+		src_files="$src_files
 $list"
 	else
-		files="$list"
+		src_files="$list"
 	fi
 done
 
-total=$(printf '%s\n' "$files" | grep -c '^')
+total=$(printf '%s\n' "$src_files" | grep -c '^')
 
-# Two forbidden shapes:
-#  PY: python import statements naming another section's package
-#      (from section3.x import y / import section4 / from ..section2 import z)
-#  JS: module specifiers resolving into another section's tree
-#      ('...sectionN/', incl. ../sectionN/ and ./sectionN/)
-RE_PY='^[[:space:]]*(from|import)[[:space:]]+(\.+)?section[0-9]+([^0-9a-zA-Z_]|$)'
-RE_JS="['\"](\.\./)*(\./)*section[0-9]+/"
+# Rule 1 — literal tree references (any section file, incl. tests/app):
+#   PY: python import statements naming another section's tree
+#       (from section3.x import y / import section4 / from ..section2 import z)
+#   JS: module specifiers resolving into another section's tree
+#       ('...sectionN/', incl. ../sectionN/ and ./sectionN/)
+RE_PY_TREE='^[[:space:]]*(from|import)[[:space:]]+(\.+)?section[0-9]+([^0-9a-zA-Z_]|$)'
+RE_JS_TREE="['\"](\.\./)*(\./)*section[0-9]+/"
 
-raw_hits=$(printf '%s\n' "$files" | xargs grep -nE -e "$RE_PY" -e "$RE_JS" || true)
+raw_tree_hits=$(find section*/ -type d \
+	\( -name node_modules -o -name .next -o -name .venv -o -name venv \
+	-o -name __pycache__ -o -name dist -o -name build -o -name .ruff_cache \
+	-o -name '*.egg-info' \) -prune \
+	-o -type f \( -name '*.py' -o -name '*.ts' -o -name '*.tsx' \
+	-o -name '*.js' -o -name '*.jsx' -o -name '*.mjs' -o -name '*.cjs' \) -print |
+	xargs grep -nE -e "$RE_PY_TREE" -e "$RE_JS_TREE" || true)
 
-if [ -n "$raw_hits" ]; then
-	each_line "$raw_hits" parse_isolation_hit
+# Rule 2 — package-name imports (src trees): any import of a harness_* package
+# that does not belong to the importing section. contracts (harness_contracts)
+# and self-imports are legal; everything else fails.
+RE_PKG_IMPORT='^[[:space:]]*(from|import)[[:space:]]+harness_(identity|github|router|orchestrator|sandbox|meeting|review|onboarding)([^0-9a-zA-Z_]|$)'
+
+pkg_hits=$(printf '%s\n' "$src_files" | xargs grep -nE "$RE_PKG_IMPORT" || true)
+
+# Rule 3 — sys.path seams (src trees): runtime path injection pointing at a
+# SIBLING section's src tree. Appending one's OWN section src is legal
+# (self-reference); anything naming sectionM/src from sectionN/src is not.
+RE_SYSPATH='path\.(append|insert)[^#]*section[0-9]+'
+
+syspath_hits=$(printf '%s\n' "$src_files" | xargs grep -nE "$RE_SYSPATH" || true)
+
+parse_isolation_hit() { # parse_isolation_hit <grep row> <rule-label> <remedy1> [remedy2...]
+	ROW=$1
+	LABEL=$2
+	split_grep_row "$ROW"
+	own_dir=$(printf '%s' "$F" | cut -d/ -f1)
+	own=$(own_pkg_for "$own_dir")
+	# Self-references (a section naming its own package/tree) are legal.
+	if [ -n "$own" ]; then
+		case "$BODY" in
+		*"$own"*) return 0 ;;
+		esac
+	fi
+	note_fail "$F" "$LN" "${LABEL}: ${BODY}"
+	# Remaining args = remedy lines (shift past row + label first).
+	shift 2 || true
+	for _line in "$@"; do
+		echo "                $_line"
+	done
+}
+
+fail_before=0
+
+if [ -n "$raw_tree_hits" ]; then
+	each_line "$raw_tree_hits" parse_isolation_hit "cross-section import" \
+		"'sections may depend ONLY on contracts/' (harness_contracts / @contracts/*)." \
+		"M13-audit isolation law: share schemas via contracts, never import sibling code." ||
+		true
+fi
+
+if [ -n "$pkg_hits" ]; then
+	each_line "$pkg_hits" parse_isolation_hit "package-name import" \
+		"this harness_* package belongs to another section — sections depend ONLY on" \
+		"harness_contracts. Promote shared code into contracts/ (version bump + TS" \
+		"mirror regen) or inline the needed logic locally (M17-B3 / P-BETA C-1)." ||
+		true
+fi
+
+if [ -n "$syspath_hits" ]; then
+	each_line "$syspath_hits" parse_isolation_hit "sys.path seam" \
+		"runtime sys.path injection of a sibling section's src tree defeats both the" \
+		"isolation law AND the venv dependency contract. Import harness_contracts or" \
+		"inline; deploy/runners/services.py is the ONLY sanctioned multi-src assembly." ||
+		true
+fi
+
+# Rule 4 — re-export chains: `from harness_X... import *` where X is foreign.
+# (Star-imports are how a dead fork masquerades as its own module.)
+reexport_hits=$(printf '%s\n' "$src_files" |
+	xargs grep -nE '^[[:space:]]*from[[:space:]]+harness_(identity|github|router|orchestrator|sandbox|meeting|review|onboarding)[a-zA-Z_.]*[[:space:]]+import[[:space:]]+\*' || true)
+
+if [ -n "$reexport_hits" ]; then
+	each_line "$reexport_hits" parse_isolation_hit "re-export chain (star)" \
+		"star-re-exporting a sibling section's package hides the dependency while" \
+		"keeping it whole. Route through harness_contracts or delete the shim." ||
+		true
 fi
 
 if [ "$fail_count" -gt 0 ]; then
 	echo ""
-	echo "GUARD[isolation] RESULT: $fail_count violation(s) across $total source file(s) in $sections_scanned section(s)."
+	echo "GUARD[isolation] RESULT: $fail_count violation(s) across $total src file(s) in $sections_scanned section(s)."
+	echo "                 Scope note: package/sys.path rules cover section*/src;"
+	echo "                 tests may pin cross-section parity by design (docs/ci-gates.md)."
 	exit 1
 fi
 
-echo "GUARD[isolation] OK: $total source file(s) across $sections_scanned section(s) — no cross-section imports."
+echo "GUARD[isolation] OK: $total src file(s) across $sections_scanned section(s) —"
+echo "                 no cross-section tree/package/sys.path/star-reexport edges."
 exit 0

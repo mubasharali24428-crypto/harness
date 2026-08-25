@@ -250,7 +250,10 @@ async def test_x18_33b_invite_redeem_after_expiry_honest_410_on_every_retry(
     answer (expiry is checked inside the same conditional claim)."""
     from datetime import UTC, datetime, timedelta
 
+    from harness_identity.envelope_middleware import install_error_envelope
+
     app = make_scratch_app(invites_router)
+    install_error_envelope(app)  # H-019 handlers, exactly like make_app() wires
     app.state.session_factory = x5_factory
     admin = await seed_user(x5_factory, "x18-33b-admin@x.com")
     joiner = await seed_user(x5_factory, "x18-33b-joiner@y.com")
@@ -279,7 +282,15 @@ async def test_x18_33b_invite_redeem_after_expiry_honest_410_on_every_retry(
             assert r.status_code == 410, (attempt, r.text)
             body = r.json()
             assert body["detail"]["error"]["code"] == "INVITE_EXPIRED"
-            assert "error" in body or True  # detail mirror always present
+            # H-2 (M17): real assertion (was `... or True`, a tautology).
+            # With the envelope middleware wired exactly like make_app()
+            # does, the body carries BOTH the frozen contract envelope and
+            # the legacy ``detail`` mirror on every error path.
+            assert set(body) == {"error", "detail"}
+            assert body["error"]["code"] == "INVITE_EXPIRED"
+            assert body["detail"]["error"] == body["error"], (
+                "legacy mirror identical"
+            )
 
         # No membership was created by any of the rejected attempts.
         from sqlalchemy import func, select

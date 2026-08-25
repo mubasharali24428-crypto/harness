@@ -28,9 +28,9 @@ _ROOT = Path(__file__).resolve().parents[3]
 if (_ROOT / "section1" / "src") not in sys.path:
     sys.path.append(str(_ROOT / "section1" / "src"))
 
-import harness_identity.ratelimit as rl  # noqa: E402
 import pytest  # noqa: E402
 from fastapi import FastAPI  # noqa: E402
+from harness_contracts import ratelimit as crl  # noqa: E402
 from harness_contracts.signatures import ModelRole  # noqa: E402
 from harness_identity.models import Base  # noqa: E402
 from harness_identity.ratelimit import MODEL_CALL_LIMIT, MODEL_CALL_TEMPLATE  # noqa: E402
@@ -159,7 +159,10 @@ async def test_other_routes_unaffected_by_spent_call_bucket(store_engine):
 async def test_window_reset_restores_call_budget(store_engine, monkeypatch):
     """Crossing the fixed-window boundary restarts the SAME bucket at 1."""
     clock = _Clock(4_000_000.0)
-    monkeypatch.setattr(rl, "time", clock)
+    # M17-B3 dedupe made harness_identity.ratelimit a thin re-export of the
+    # canonical harness_contracts.ratelimit; the middleware reads ITS module
+    # global, so the fake clock must be injected at the canonical home.
+    monkeypatch.setattr(crl, "time", clock)
     app = _client_app(
         _factory(store_engine),
         routes=(MODEL_CALL_TEMPLATE,),

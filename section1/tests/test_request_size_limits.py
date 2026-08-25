@@ -224,9 +224,40 @@ def test_platform_caps_registry_shape():
 
 
 def test_mirrored_section_limit_copies_match_registry():
-    """S4/S6 carry byte-equal mirrors of limits.py; drift here fails CI."""
-    if not (_S4_LIMITS.exists() and _S6_LIMITS.exists()):
-        pytest.skip("mirrors land with their sections' G3 commits")
-    shared = _SHARED_LIMITS.read_text()
+    """S4/S6 limit shims stay in lockstep with the canonical registry.
+
+    M17-B3 dedupe: the byte-equal ``_limits.py`` copies are gone; each
+    section ships a thin re-export of its slice from the canonical frozen
+    registry in ``harness_contracts.limits``. This test now pins THAT seam:
+    every name a shim exports must exist in PLATFORM_CAPS and carry the same
+    value, so a drive-by cap edit desyncing any section still fails CI.
+    """
+    import importlib.util
+    import sys
+
+    assert _S4_LIMITS.exists() and _S6_LIMITS.exists()
+    contracts_limits = importlib.import_module("harness_contracts.limits")
     for mirror in (_S4_LIMITS, _S6_LIMITS):
-        assert mirror.read_text() == shared, f"{mirror} drifted from shared limits.py"
+        section_name = mirror.parent.parent.parent.name  # .../sectionN/src/pkg/_limits.py
+        # Load the shim module under a synthetic name (the section packages
+        # themselves are not installed into this venv).
+        spec = importlib.util.spec_from_file_location(
+            f"_mirror_parity_{section_name}", mirror
+        )
+        assert spec is not None and spec.loader is not None
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = mod
+        try:
+            spec.loader.exec_module(mod)
+            exported = getattr(mod, "__all__", [])
+            assert exported, f"{mirror} re-exports nothing"
+            for name in exported:
+                value = getattr(mod, name)
+                key = f"S{section_name.split('section', 1)[-1]}.{name}"
+                assert key in PLATFORM_CAPS, f"{name} missing from PLATFORM_CAPS"
+                assert PLATFORM_CAPS[key] == value, (
+                    f"{mirror}: {name} drifted from {key}"
+                )
+                assert contracts_limits.__dict__[name] == value
+        finally:
+            sys.modules.pop(spec.name, None)

@@ -3,7 +3,7 @@
 Adds explicit Pydantic ``max_length`` caps to every free-text/id request field
 (CreateMeetingRequest, PostMessageRequest, InvokeAIRequest, ApproveBriefRequest,
 CreatePromptRequest) backed by the shared platform registry
-(``harness_identity.limits``, mirrored in ``harness_meeting._limits``).
+(``harness_contracts.limits``, re-exported for S6 via ``harness_meeting._limits``).
 Caps are additive: generous enough that no legitimate payload trips them.
 
 Covered here at the HTTP seam:
@@ -12,7 +12,7 @@ Covered here at the HTTP seam:
   ``{"error": {"code": "VALIDATION_ERROR", ...}}`` shape);
 * at-limit → accepted: validation passes and the handler's normal semantics
   take over;
-* parity — this section's mirror equals section1's shared limits module.
+* parity — this section's caps equal the canonical contracts registry.
 
 Harness note: mirrors tests/conformance/test_meeting_conformance.py — a bare
 FastAPI app with the router mounted and ``get_principal`` overridden via
@@ -27,13 +27,15 @@ from types import SimpleNamespace
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-# section1 ships the shared cap constants; this venv does not install
-# harness_identity, so its src tree is appended explicitly.
+# M17-B3: the canonical middleware + caps live in harness_identity /
+# harness_contracts; this venv installs neither, so section1's src tree is
+# appended explicitly (tests only).
 _ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(_ROOT / "section1" / "src"))
 
 from harness_identity.envelope_middleware import install_error_envelope  # noqa: E402
-from harness_identity.limits import (  # noqa: E402
+
+from harness_contracts.limits import (  # noqa: E402
     MEETING_PROJECT_ID_MAX,
     MEETING_TITLE_MAX,
     MEETING_USER_ID_MAX,

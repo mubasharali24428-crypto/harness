@@ -69,6 +69,15 @@ SPEND_SQL = (
 )
 
 _MONEY_Q = Decimal("0.000001")
+# NUMERIC(12,6) envelope (M17-B1 / M-ALPHA F-4): max |value| the column can
+# store. Anything larger raises NumericValueOutOfRangeError on Postgres and
+# used to vanish into record_usage's blanket except — silent metering loss.
+MONEY_MAX = Decimal("999999.999999")
+
+
+class CostOutOfRangeError(ValueError):
+    """Money magnitude cannot be represented in the frozen NUMERIC(12,6)
+    column (|value| > 999999.999999)."""
 
 
 @dataclass(frozen=True)
@@ -98,6 +107,10 @@ def to_money(value: Any) -> Decimal:
     Accepts Decimal (asyncpg/SQLAlchemy), str (SQLite text storage), and the
     historical float/int shapes. Floats convert via repr so the shortest
     round-tripping decimal wins, never the binary expansion.
+
+    Raises :class:`CostOutOfRangeError` when |value| exceeds the column's
+    representable magnitude — writers convert that into an explicit,
+    honest rejection instead of a silently dropped ledger row.
     """
     if value is None:
         return Decimal("0")
@@ -107,7 +120,12 @@ def to_money(value: Any) -> Decimal:
         dec = Decimal(value)
     else:
         dec = Decimal(repr(value)) if isinstance(value, float) else Decimal(value)
-    return dec.quantize(_MONEY_Q, rounding=ROUND_HALF_EVEN)
+    out = dec.quantize(_MONEY_Q, rounding=ROUND_HALF_EVEN)
+    if abs(out) > MONEY_MAX:
+        raise CostOutOfRangeError(
+            f"cost {out} exceeds NUMERIC(12,6) envelope (+/-{MONEY_MAX})"
+        )
+    return out
 
 
 def build_usage_params(
@@ -173,6 +191,17 @@ async def record_usage(
             latency_ms=int(params[6]),
             created_at=row[1] if row and len(row) > 1 else None,
         )
+    except CostOutOfRangeError:
+        # Distinct from "ledger unavailable": a DATA problem — the computed
+        # estimate itself overflows NUMERIC(12,6). The row is refused with an
+        # explicit warning, never silently dropped; exc_info carries the value.
+        # Fire-and-forget contract holds: no exception into the call path.
+        logger.warning(
+            "cost_ledger write REJECTED — spend NOT metered, computed cost "
+            "out of range (check pricing inputs; do not retry blindly)",
+            exc_info=True,
+        )
+        return None
     except Exception:
         logger.warning("cost_ledger write failed; continuing without metering", exc_info=True)
         return None
@@ -246,8 +275,10 @@ async def spend_summary(
 
 
 __all__ = [
+    "CostOutOfRangeError",
     "INSERT_USAGE_SQL",
     "LedgerRow",
+    "MONEY_MAX",
     "SPEND_SQL",
     "build_usage_params",
     "record_usage",

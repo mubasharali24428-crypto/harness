@@ -130,15 +130,28 @@ async def test_real_get_factory_routes_through_shared_db_module(monkeypatch):
 
 def test_zero_adhoc_create_async_engine_call_sites_outside_db_py():
     """Grep-equivalent: deploy/**.py containing create_async_engine( must be
-    db.py alone. A second hit means someone built an engine around the
-    documented pool math — change db.py + docs/pool-math.md instead."""
+    db.py plus the sanctioned exceptions. A second hit means someone built an
+    engine around the documented pool math — change db.py + docs/pool-math.md
+    instead."""
+    # M17-B2 sanctioned exception: migrate_selftest.py builds its own
+    # NullPool/AUTOCOMMIT admin engine — CREATE/DROP DATABASE cannot run
+    # inside a transaction block and must never draw from a pooled factory.
+    # It is a scratch-DB probe (drops what it creates), so it holds no slot
+    # in the 84-of-120 connection budget. See docs/pool-math.md.
+    sanctioned = {
+        "deploy/runners/db.py",
+        "deploy/runners/migrate_selftest.py",
+    }
     offenders = []
     for path in sorted(DEPLOY.rglob("*.py")):
         if "__pycache__" in path.parts:
             continue
+        rel = str(path.relative_to(REPO_ROOT))
+        if rel in sanctioned:
+            continue
         if re.search(r"create_async_engine\s*\(", path.read_text()):
-            offenders.append(str(path.relative_to(REPO_ROOT)))
-    assert offenders == ["deploy/runners/db.py"], (
+            offenders.append(rel)
+    assert offenders == [], (
         f"ad-hoc engine construction bypassing deploy/runners/db.py: {offenders}"
     )
 
@@ -185,9 +198,14 @@ def test_doc_numbers_match_shipped_code_constants():
 
 
 def test_compose_caps_postgres_at_120_connections():
+    """The pool equation's ceiling: exactly ONE max_connections flag, =120.
+    M17-B2 (916e325) appended WAL-G archiving + autovacuum tuning to
+    db.command, so this pins the CAP ITSELF instead of exact list equality —
+    sibling postgres flags may evolve without touching the budget math."""
     compose = yaml.safe_load(_COMPOSE.read_text())
     cmd = compose["services"]["db"]["command"]
-    assert cmd == ["postgres", "-c", "max_connections=120"], f"drifted: {cmd}"
+    caps = [a for a in cmd if a.startswith("max_connections=")]
+    assert caps == ["max_connections=120"], f"drifted: {cmd}"
 
 
 @pytest.mark.parametrize(

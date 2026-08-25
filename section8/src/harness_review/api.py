@@ -93,8 +93,10 @@ def make_app(session_factory, settings: Settings):
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    # Wave9-E: baseline security headers via shared S1 middleware (append-only wire).
-    from harness_identity.security_headers import install_security_headers
+    # Wave9-E: baseline security headers. M17-B3: the middleware is a LOCAL
+    # module now (S8 may not import section1's package; deploy keeps wiring
+    # the richer S1 original for its own assemblies).
+    from .security_headers import install_security_headers
 
     install_security_headers(app)
     app.state.session_factory = session_factory

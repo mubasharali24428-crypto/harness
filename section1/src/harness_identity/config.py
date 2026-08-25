@@ -23,3 +23,18 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from: str = "harness@noreply.local"
     smtp_starttls: bool = True
+
+    # M17-B4 (MAC2-F8) proxy-header policy: X-Forwarded-For is honored ONLY
+    # when the direct peer is inside one of these CIDRs; otherwise the peer
+    # address is used verbatim and XFF is ignored (spoof-proof default).
+    # Override per deployment with HARNESS_TRUSTED_PROXY_CIDRS (JSON array).
+    trusted_proxy_cidrs: list[str] = [
+        "127.0.0.0/8",
+        "::1/128",
+        "::/128",
+        "fc00::/7",
+        "fe80::/10",
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+    ]

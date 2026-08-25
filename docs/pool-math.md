@@ -42,9 +42,12 @@ Every deploy-side engine is built by **`build_engine()` in
   function — there is no server ceiling to honor there.
 
 The test suite greps the deploy tree for `create_async_engine(` and asserts
-the only hit is inside `db.py` itself. If you genuinely need another call
-site, you need to change that test and this doc in the same commit — which is
-the point.
+the only hits are inside `db.py` itself plus one sanctioned exception:
+`migrate_selftest.py` (M17-B2) builds its own NullPool/AUTOCOMMIT admin
+engine because CREATE/DROP DATABASE cannot run inside a transaction block
+and the probe targets throwaway scratch databases it drops afterwards. If
+you genuinely need another call site, you need to change that test and this
+doc in the same commit — which is the point.
 
 ## Operator overrides (retuning ≠ drifting)
 

@@ -1,27 +1,13 @@
 import bisect
 import logging
-import sys
 import threading
 import time
 import uuid
 from datetime import datetime
-from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from harness_contracts.roles import Principal
-from pydantic import BaseModel, Field
-from starlette.datastructures import Headers, MutableHeaders
-from starlette.routing import Match
-
-# M12-G3: shared cap constants live in section1; this venv does not carry
-# harness_identity as an installed distribution, so the src tree is appended
-# exactly like the wave-1 audit seam (service.py) already does at call time.
-_ROOT = Path(__file__).resolve().parents[3]
-if (_ROOT / "section1" / "src") not in sys.path:
-    sys.path.append(str(_ROOT / "section1" / "src"))
-
-from harness_identity.limits import (  # noqa: E402
+from harness_contracts.limits import (
     DONE_DIFF_TEXT_MAX,
     HUMAN_EDIT_CONTENT_MAX,
     HUMAN_EDIT_PATH_MAX,
@@ -29,8 +15,12 @@ from harness_identity.limits import (  # noqa: E402
     PROPOSE_GOAL_MAX,
     PROPOSE_PROJECT_ID_MAX,
 )
+from harness_contracts.roles import Principal
+from pydantic import BaseModel, Field
+from starlette.datastructures import Headers, MutableHeaders
+from starlette.routing import Match
 
-from harness_orchestrator.authz import (  # noqa: E402
+from harness_orchestrator.authz import (
     OwnershipDeniedError,
     RoleDeniedError,
     authorize_run,

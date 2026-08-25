@@ -224,3 +224,86 @@ format change away from breaking. Consolidate on the DB-clock predicate.
 2. F-3: pick one cap source (recommend teams.budget > billing_plans > env)
    and one posture; route S4 through the fixed guard.
 3. F-4/F-8: small, independent, low-risk.
+
+---
+
+# M17 PHASE B — B1 SALVAGE RECORD (2026-08-24)
+
+Scope executed: items 1 and 3 of the dispatch list above (F-1, F-2, F-4).
+F-3 remains open for its own lane. No git writes performed.
+
+## Fixes landed
+
+- **F-1 (section3/src/harness_router/budget_guard.py)**: `reserve()` now
+  detects the production driver (`_is_asyncpg_pool`) and routes through
+  `to_positional_params()` — named binds are translated to $n positional
+  form with CAST/duplicate-fold preservation before asyncpg ever sees them.
+  SQLAlchemy/SQLite consumers keep running RESERVE_SQL verbatim with named
+  binds, so both suites and prod share one SQL string. `release()` gained
+  the asyncpg status-string parse ("DELETE n") alongside the .rowcount path.
+- **F-2 (same file)**: new ADVISORY_LOCK_SQL =
+  `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`. On the asyncpg
+  path reserve() opens ONE explicit transaction that takes the team lock,
+  then runs RESERVE_SQL inside it — contenders queue on the advisory lock
+  and each evaluation sees every earlier committed claim. Xact-scoped:
+  self-releasing, crash-safe, no session state. pg_* stays OUT of
+  RESERVE_SQL so SQLite mirrors run it unchanged.
+- **F-4 (section1/src/harness_identity/cost_ledger.py +
+  section3/src/harness_router/ledger.py)**: `_to_money`/`to_money` now
+  enforce the NUMERIC(12,6) envelope (`MONEY_MAX = 999999.999999`,
+  exported) and raise `CostOutOfRangeError`; both `record_usage`s catch it
+  into a distinct "write REJECTED — spend NOT metered" warning and return
+  None. Overflow is now an honest data rejection instead of a silent row
+  drop mislabeled as an outage. budget_guard.reserve() rejects
+  out-of-envelope estimates pre-DB with reason "cost out of range".
+
+## Regression coverage (section1/tests/test_money_numeric.py)
+
+- Unit: envelope rejection incl. negative overflow; S1/S3 envelope parity;
+  writer rejects overflow without persisting anything.
+- Live-PG (HARNESS_TEST_PG=1): `TestAsyncpgReserveSerialization` — raw
+  asyncpg pool through the PRODUCTION reserve() (no fixture writer lock),
+  migrations 0001/0007/0010/0020 on a throwaway DB, 8 concurrent $1 claims
+  vs $5 plan => exactly 5 winners, 3 "over budget", 0 errors, ledger sum
+  Decimal("5.000000"); release() compensation frees headroom and a further
+  reserve succeeds.
+
+## Verification evidence
+
+```
+$ cd section3 && pytest tests/ -q   (greenlet installed into venv — see env note)
+91 passed in 0.68s                  ; ruff check src tests: clean
+$ cd section1 && HARNESS_TEST_PG=1 pytest tests/test_money_numeric.py -q
+18 passed in 0.40s                  (SQLite mode: 27 passed, 2 skipped)
+$ python /tmp/malpha_probe/probe_pg_race.py 6      # post-fix
+PG-PROBE r0> winners=5 over-budget=3 fail-closed-errors=0 ledger_sum=5.000000 rows=5
+PG-PROBE r1> winners=5 over-budget=3 fail-closed-errors=0 ledger_sum=5.000000 rows=5
+PG-PROBE r2> winners=5 over-budget=3 fail-closed-errors=0 ledger_sum=5.000000 rows=5
+PG-PROBE r3> winners=5 over-budget=3 fail-closed-errors=0 ledger_sum=5.000000 rows=5
+PG-PROBE r4> winners=5 over-budget=3 fail-closed-errors=0 ledger_sum=5.000000 rows=5
+PG-PROBE r5> winners=5 over-budget=3 fail-closed-errors=0 ledger_sum=5.000000 rows=5
+```
+
+Commander's intent met: the $8-vs-$5 concurrent overspend is impossible on
+real PG — six consecutive race rounds, zero violations, reserve() executes
+on asyncpg paths.
+
+Control: /tmp/malpha_probe/probe_pg4_race.py (raw RESERVE_SQL through a pool,
+bypassing reserve()) STILL yields 7-8 winners -> VIOLATION post-fix — as it
+should. The serialization lives in reserve()'s advisory-lock transaction;
+the bare predicate alone remains unsafe on READ COMMITTED, so any future
+caller MUST go through reserve(), not hand-run RESERVE_SQL.
+
+## Environment note / attribution
+
+- section3/.venv was missing `greenlet` (SQLAlchemy async hard-requires it);
+  4 ratelimit-hook tests ERRORED at setup before any money-path code ran.
+  Installed greenlet 3.5.5 into that venv; suite went 87+4E -> 91 passed.
+- FULL section1 suite currently shows 2 FAILURES in
+  tests/test_deploy_pool_math.py — introduced by commit 916e325 (M17-B2:
+  deploy/runners/migrate_selftest.py adds an ad-hoc create_async_engine,
+  tripping the zero-adhoc-engines law pin; compose-cap pin same family).
+  NOT money-path, NOT B1's files; left for B2 per attribution protocol.
+- Files touched by this lane: section3/src/harness_router/{budget_guard,ledger}.py,
+  section1/src/harness_identity/cost_ledger.py, section1/tests/test_money_numeric.py,
+  docs/briefs/m17-findings-malpha.md (this section).

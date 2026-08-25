@@ -127,9 +127,16 @@ def parse_module(path: Path) -> tuple[dict[str, EnumDef], dict[str, ModelDef]]:
                     optional = False
                     value = stmt.value
                     if isinstance(value, ast.Call):
-                        # Field(default_factory=...) or Field(default=...) — optional on the wire
                         keywords = {kw.arg for kw in value.keywords if kw.arg}
-                        if {"default", "default_factory"} & keywords:
+                        if "default_factory" in keywords:
+                            # H-1 (M17): pydantic v2 ALWAYS serializes
+                            # default_factory fields (list/dict factories run
+                            # for every model_dump), so these are present on
+                            # every response and must stay REQUIRED in TS.
+                            # Marking them optional taught clients to expect
+                            # absent data that never is.
+                            pass
+                        elif "default" in keywords:
                             optional = True
                     elif value is not None:
                         optional = True

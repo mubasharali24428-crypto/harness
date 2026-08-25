@@ -362,9 +362,13 @@ def test_x18_propose_empty_goal_422_unified_envelope_and_nothing_created():
     service = OrchestratorService(bus=RecordingBus())  # bare unit mode
     app = FastAPI()
     app.include_router(plan_router)
-    from harness_orchestrator.envelope_middleware import install_error_envelope
+    import sys as _sys, pathlib as _pl
+    _s1src = _pl.Path(__file__).resolve().parents[3] / 'section1' / 'src'
+    if str(_s1src) not in _sys.path:
+        _sys.path.insert(0, str(_s1src))  # test-only: canonical middleware lives in S1
+    from harness_identity.envelope_middleware import install_error_envelope
 
-    install_error_envelope(app)  # H-019 handlers, like deploy wiring
+    install_error_envelope(app)  # H-019 handlers; canonical middleware (B3 dedupe)
 
     async def _override() -> Principal:
         return _principal()

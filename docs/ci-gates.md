@@ -30,6 +30,7 @@ works end-to-end and fails loudly with exit 2 while specs are absent).
 | `make frontend-vitest` | `cd section7 && npx vitest run` | `frontend` → vitest step | `make frontend` runs both halves. |
 | `make pg-probe-integration` | real-PG checkpoint probe (`integration/test_checkpoint1.py`) | `nightly-pg-probe` (schedule/dispatch only) | Requires `HARNESS_TEST_PG=1` + Postgres on :5499 (compose stack); the target refuses to fake-run without them. |
 | `make pg-probe-s1` | S1 suite against real PG | `nightly-pg-probe` (schedule/dispatch only) | Same env contract as above. |
+| `make pg-probe-migrate` | `deploy/runners/migrate_selftest.py`: executes **deploy/runners/migrate.py itself** against real PG on a per-run scratch database — full disk chain must apply clean (0001→latest) and a second pass must be a no-op | `migrations-pg` (every PR + push) | M17-B2 / OPS-15: before this gate the migration runner had never been executed by CI — suites used SQLite `create_all`, even the nightly probe built schema via ORM. Same env guard as the other pg-probes (`HARNESS_TEST_PG=1`, Postgres on :5499); never touches the live cluster's data. |
 | `make pip-audit` | pip-audit over the S1 venv | `security-scan` → pip-audit step | WARN-posture this wave (`continue-on-error: true`). gitleaks stays a blocking action and has no make equivalent by design. |
 | `make e2e` | `cd section7 && npx playwright test` | *(CI job joins via ATLAS when the suite stabilizes)* | Live since H3a's scaffolding landed: requires the compose stack (frontend :3000); exits **246** (skip, distinguishable from failure) if the stack health-check fails. |
 
@@ -45,7 +46,7 @@ gates, enforced by one POSIX-sh script with two modes:
 | Guard | Law | Fails when |
 |---|---|---|
 | `make guard-routes` | **Route-module law** (W4 carryover #4) | any `section*/app/**/page.tsx` contains a non-default export (`export const metadata = …`, helpers, types, …). Next.js route modules must default-export ONLY — this is the index-signature violation class that cost us a Wave-4 fix cycle. Move extras into a sibling module and import them. |
-| `make guard-isolation` | **Section-isolation law** (AGENTS.md layout rules; M13 audit) | code in `sectionN/` imports from `sectionM/` (N≠M), either Python-style (`from section1.models import …`) or module-specifier-style (`'../section2/foo'`). Sections share via `contracts/` alone (the `harness_contracts` package or its `@contracts/*` TS mirror); cross-section data reads go through raw SQL against frozen table names. |
+| `make guard-isolation` | **Section-isolation law** (AGENTS.md layout rules; M13 audit; M17-B3 upgrade) | code in `sectionN/src` imports from `sectionM/` (N≠M) in ANY of four shapes: (1) literal tree imports (`from section1.models import …`, `'../section2/foo'`), (2) **package-name imports** (`from harness_identity.timeutil import …` from outside section1 — the P-BETA C-1 class: 17 production files did this invisibly), (3) **runtime sys.path seams** (`sys.path.append("../sectionN/src")` inside another section's src), or (4) **star-re-export chains** (`from harness_X… import *`). Sections share via `contracts/` alone (`harness_contracts` / `@contracts/*`); cross-section data reads go through raw SQL against frozen table names. |
 
 Behavior both modes share:
 
@@ -54,36 +55,45 @@ Behavior both modes share:
 - Exit codes: 0 clean · 1 violations · 2 usage/internal error (a broken or
   missing guard script can never silently pass: every Makefile invocation
   first runs `sh -n` on the script).
-- Scope: all `section*/app/**/page.tsx` (routes mode); all source files under
-  `section*/` excluding `node_modules`, `.next`, venvs, build dirs (isolation
-  mode). `contracts/` itself and `integration/` checkpoint tests are outside
-  the isolation guard on purpose. A section naming its own tree is legal.
+- Scope: all `section*/app/**/page.tsx` (routes mode); isolation mode runs
+  the literal-tree rule over every source file under `section*/`, while the
+  package-name / sys.path / star-re-export rules cover **section src trees**
+  (`section*/src`) — tests may reach a sibling's internals to pin cross-
+  section parity (the G3 caps-parity and G2 limiter tests do exactly that);
+  production coupling may not. `contracts/` itself, `integration/`
+  checkpoint tests, `deploy/` (the sanctioned multi-src assembler),
+  `scripts/`, `task0/` and `debug_canon/` are outside the isolation guard on
+  purpose. A section naming its own package/tree is legal.
 - CI wiring: ONE step in the `static-gates` job runs both targets back to
   back; `make static-gates` (and therefore `make gate`) includes them too.
 
-Trip-test evidence (violation planted, guard run, fixture removed):
+Trip-test evidence for the M17-B3 upgrade (violation planted into
+`section6/src/harness_meeting/summary_service.py`, guard run, fixture
+restored from backup — real transcripts):
 
 ```console
-$ printf 'export const metadata = { title: %s };\n\nexport default function TripTestPage() {\n\treturn <main>x</main>;\n}\n' "'trip-test'" > section7/app/trip-test/page.tsx
-$ make guard-routes; echo "exit=$?"
-GUARD[routes] FAIL: section7/app/trip-test/page.tsx:1: non-default export in route module: export const metadata = { title: 'trip-test' };
-                route modules (app/**/page.tsx) may only 'export default'
-                ...
-GUARD[routes] RESULT: 1 violation(s) across 16 route module(s).
-exit=1
+$ printf '\nfrom harness_identity.timeutil import now_utc\n' >> \
+    section6/src/harness_meeting/summary_service.py
+$ sh section7/scripts/ci_route_module_guard.sh isolation; echo "EXIT=$?"
+GUARD[isolation] FAIL: section6/src/harness_meeting/summary_service.py:75: package-name import: from harness_identity.timeutil import now_utc
+                this harness_* package belongs to another section — sections depend ONLY on
+                harness_contracts. Promote shared code into contracts/ (version bump + TS
+                mirror regen) or inline the needed logic locally (M17-B3 / P-BETA C-1).
+GUARD[isolation] RESULT: 1 violation(s) across 144 src file(s) in 9 section(s).
+EXIT=1
 
-$ printf 'from section1.models import Project  # noqa: F401\n' > section3/tests/test_guard_trip.py
-$ make guard-isolation; echo "exit=$?"
-GUARD[isolation] FAIL: section3/tests/test_guard_trip.py:4: cross-section import: from section1.models import Project  # noqa: F401
-                'section3' references 'section1' — sections may depend ONLY on contracts/
+$ printf '\n_s.path.append(str(_R / "section1" / "src"))\n' >> \
+    section6/src/harness_meeting/summary_service.py   # after the same imports
+$ sh section7/scripts/ci_route_module_guard.sh isolation; echo "EXIT=$?"
+GUARD[isolation] FAIL: section6/src/harness_meeting/summary_service.py:78: sys.path seam:     _s.path.append(str(_R / "section1" / "src"))
+                runtime sys.path injection of a sibling section's src tree defeats both the
                 ...
-GUARD[isolation] RESULT: 1 violation(s) across 374 source file(s) in 9 section(s).
-exit=1
+EXIT=1
 ```
 
-Both fixtures were deleted immediately after; clean-tree runs print
-`GUARD[routes] OK: 15 route module(s)` / `GUARD[isolation] OK: ~372 source
-file(s)` with exit 0.
+Both fixtures were reverted immediately after (`cp backup back`; verified by
+an immediate green re-run). The pre-M17-B3 literal-tree trip-test in the
+console block above remains valid for rule 1.
 
 
 ## Provisioning vs gating
@@ -93,7 +103,15 @@ service containers). That is deliberate: it is environment-specific and cannot
 drift semantically. Every command whose result decides red/green lives in the
 Makefile.
 
-Local venvs must exist first (one-time per machine):
+Local venvs must exist first (one-time per machine). Since M17-B6 a single
+target provisions them exactly as CI does — contracts first (path dependency),
+then each section with dev extras where declared, plus `npm ci` for section7:
+
+```sh
+make bootstrap
+```
+
+The equivalent manual loop (kept here so CI setup steps stay auditable):
 
 ```sh
 for s in 1 2 3 4 5 6 8 10; do

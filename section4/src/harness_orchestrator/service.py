@@ -4,39 +4,27 @@ import logging
 import os
 import secrets
 import socket
-import sys
 from decimal import Decimal
-from pathlib import Path
 from typing import Any
 
 from harness_contracts.events import EventType
 from harness_contracts.plan import AgentPlan
 from harness_contracts.signatures import Orchestrator
+from harness_contracts.timeutil import db_now
 from sqlalchemy import text
 
-# Shared time helpers live in section1; this venv does not carry
-# harness_identity as an installed distribution, so the src tree is appended
-# exactly like api.py's wave-1 audit seam already does at call time. Module
-# level so imports stay order-independent under pytest (no partial-module
-# states if another module's seam appended section1/src first).
-_ROOT = Path(__file__).resolve().parents[3]
-if (_ROOT / "section1" / "src") not in sys.path:
-    sys.path.append(str(_ROOT / "section1" / "src"))
-
-from harness_identity.timeutil import db_now  # noqa: E402
-
-from harness_orchestrator.budget import BudgetStatus, check_budget  # noqa: E402
-from harness_orchestrator.engine import DeepSeekHarnessWrapper  # noqa: E402
-from harness_orchestrator.engine_runtime import (  # noqa: E402
+from harness_orchestrator.budget import BudgetStatus, check_budget
+from harness_orchestrator.engine import DeepSeekHarnessWrapper
+from harness_orchestrator.engine_runtime import (
     CircuitOpenError,
     EngineRuntime,
     EngineRunTimeout,
 )
-from harness_orchestrator.planner import PlanNotApprovedError, PlanService  # noqa: E402
-from harness_orchestrator.reviewer import ReviewerSubAgent, ReviewFindings  # noqa: E402
-from harness_orchestrator.rules_loader import build_rules_block, load_project_rules  # noqa: E402
-from harness_orchestrator.run_metering import record_run_cost  # noqa: E402
-from harness_orchestrator.run_queue import (  # noqa: E402
+from harness_orchestrator.planner import PlanNotApprovedError, PlanService
+from harness_orchestrator.reviewer import ReviewerSubAgent, ReviewFindings
+from harness_orchestrator.rules_loader import build_rules_block, load_project_rules
+from harness_orchestrator.run_metering import record_run_cost
+from harness_orchestrator.run_queue import (
     claim_next_run,
     enqueue_run,
     finish_run,
@@ -46,12 +34,12 @@ from harness_orchestrator.run_queue import (  # noqa: E402
     release_timed_out_claims,
     resolve_heartbeat_timeout_seconds,
 )
-from harness_orchestrator.signals import gate_done_signal  # noqa: E402
-from harness_orchestrator.state_machine import (  # noqa: E402
+from harness_orchestrator.signals import gate_done_signal
+from harness_orchestrator.state_machine import (
     PLAN_REJECTED_EVENT,
     AgentState,
     AgentStateMachine,
-)  # noqa: E402
+)
 
 logger = logging.getLogger(__name__)
 
@@ -390,7 +378,7 @@ class OrchestratorService(Orchestrator):
         # created_at must be a real datetime object: asyncpg rejects ISO strings
         # for TIMESTAMPTZ (verified live 2026-08-23), while SQLite accepts the
         # object via its adapter. This column is never compared as text.
-        # M13-H4b: instant sourced from harness_identity.timeutil.db_now()
+        # M13-H4b: instant sourced from harness_contracts.timeutil.db_now()
         # (aware UTC by construction — see timeutil module law).
         from sqlalchemy import text
 
@@ -500,22 +488,68 @@ class OrchestratorService(Orchestrator):
         # W1-A2 seam: audited money-adjacent decision (plan.rejected is in the
         # frozen append-only allowlist). The event above carries runId/planId/
         # rejectedBy on the bus; this row makes it queryable + tamper-evident.
-        # Best-effort by construction — the S1 helper never raises into us.
         if self.session_factory is not None:
             try:
-                from harness_identity.audit_emit import emit_plan_rejected
-
-                async with self.session_factory() as db:
-                    await emit_plan_rejected(
-                        db,
-                        actor_user_id=principal_user_id,
-                        team_id=await self._team_for_run(run_data) or "",
-                        target_id=run_id,
-                        detail={"planId": plan_id},
-                        session_owner=True,
-                    )
+                await self._audit_plan_rejected(
+                    run_id,
+                    plan_id=plan_id,
+                    actor_user_id=principal_user_id,
+                    team_id=await self._team_for_run(run_data) or "",
+                )
             except Exception:  # noqa: BLE001 — audit must never break rejection
                 logger.exception("plan.rejected audit emission failed for %s", run_id)
+
+    async def _audit_plan_rejected(
+        self,
+        run_id: str,
+        *,
+        plan_id: str,
+        actor_user_id: str,
+        team_id: str,
+    ) -> None:
+        """Persist the plan.rejected audit row directly into the FROZEN
+        ``audit_log`` table (M17-B3 inline of the former cross-section import
+        of harness_identity.audit_emit.emit_plan_rejected — S1 helpers pull
+        S1 ORM models, which sections may not import).
+
+        Same contract as the helper it replaces: best-effort by construction
+        is enforced by the CALLER (blanket except above); member resolution,
+        secret scrubbing and the append-only action registry live in Section
+        1 — this writer only fills the frozen columns it needs:
+
+            audit_log(actor_member_id NULL, actor_kind, action='plan.rejected',
+                      target_type='agent_run', target_id=run_id, detail JSONB)
+        """
+        detail = {"planId": plan_id}
+        async with self.session_factory() as db:
+            member_id = None
+            if actor_user_id and team_id:
+                row = (
+                    await db.execute(
+                        text(
+                            "SELECT m.id FROM team_members m "
+                            "WHERE m.user_id = :uid AND m.team_id = :tid LIMIT 1"
+                        ),
+                        {"uid": actor_user_id, "tid": team_id},
+                    )
+                ).first()
+                member_id = row[0] if row else None
+            await db.execute(
+                text(
+                    "INSERT INTO audit_log "
+                    "(actor_member_id, actor_kind, action, target_type, target_id, detail) "
+                    "VALUES (:actor_member_id, :actor_kind, :action, :target_type, :target_id, :detail)"
+                ),
+                {
+                    "actor_member_id": member_id,
+                    "actor_kind": "agent",
+                    "action": "plan.rejected",
+                    "target_type": "agent_run",
+                    "target_id": run_id,
+                    "detail": json.dumps(detail),
+                },
+            )
+            await db.commit()
 
     async def start_execution(self, run_id: str) -> None:
         run_data = await self._ensure_run(run_id)

@@ -35,6 +35,7 @@ from .limits import (
 )
 from .models import AuthSession, TeamMember
 from .models import Role as DbRole
+from .ratelimit import effective_client_ip
 
 LOGIN_RATE_LIMIT = 20  # attempts
 LOGIN_RATE_WINDOW_S = 60
@@ -55,20 +56,32 @@ async def _issue_ws_ticket(
 
 
 def _client_ip(request: Request) -> str:
-    """Peer address of the direct connection. Deliberately NOT
-    X-Forwarded-For: that header is client-controlled until a trusted proxy
-    strips/rewrites it, and a spoofed XFF would both forge fingerprints at
-    mint and break them at upgrade. Deployments behind a proxy terminate TLS
-    and present the proxy address — same value at mint and upgrade, so the
-    binding still holds (it just binds to the proxy)."""
-    if request.client is None:
-        return ""
-    return request.client.host or ""
+    """Client identity for WS-ticket fingerprint binding (M17-B4 policy).
+
+    X-Forwarded-For is trusted ONLY when the direct peer sits inside
+    ``settings.trusted_proxy_cidrs`` (M17-B4 / MAC2-F8); otherwise the peer
+    address is used verbatim and a client-supplied XFF is ignored — exactly
+    so it can neither forge fingerprints at mint nor break them at upgrade.
+    Behind a reverse proxy the mint and upgrade peers are both the proxy, so
+    the binding still holds either way (it just binds to the proxy).
+    """
+    settings: Settings = request.app.state.settings
+    return effective_client_ip(
+        request.headers,
+        request.client.host if request.client else "",
+        settings.trusted_proxy_cidrs,
+    )
 
 
 def _login_rate_limited(app_state, client_ip: str) -> bool:
     """Per-app sliding window keyed by client IP (module-global would leak across
-    apps and trip multi-tenant test suites sharing one localhost address)."""
+    apps and trip multi-tenant test suites sharing one localhost address).
+
+    M17-B4 (MAC2-F8): ``client_ip`` is the NORMALIZED identity (IPv6 → /64,
+    XFF only through trusted proxies), so rotating addresses inside one IPv6
+    block cannot mint fresh login budgets here either — same policy as the
+    DB-backed limiter in ratelimit.py.
+    """
     if not hasattr(app_state, "login_buckets"):
         app_state.login_buckets = defaultdict(deque)
     now = time.monotonic()
@@ -281,7 +294,15 @@ def _dev_notifier(email: str, code: str) -> None:
 
 @router.post("/auth/request-login", response_model=OkResponse)
 async def request_login(body: LoginRequest, request: Request) -> dict:
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = (
+        effective_client_ip(
+            request.headers,
+            request.client.host if request.client else "",
+            request.app.state.settings.trusted_proxy_cidrs,
+        )
+        if request.client
+        else "unknown"
+    )
     if _login_rate_limited(request.app.state, client_ip):
         raise HTTPException(status_code=429, detail="too many login attempts; slow down")
     settings: Settings = request.app.state.settings
@@ -334,7 +355,15 @@ async def login(body: LoginRequest, request: Request) -> dict:
                 }
             },
         )
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = (
+        effective_client_ip(
+            request.headers,
+            request.client.host if request.client else "",
+            request.app.state.settings.trusted_proxy_cidrs,
+        )
+        if request.client
+        else "unknown"
+    )
     if _login_rate_limited(request.app.state, client_ip):
         raise HTTPException(status_code=429, detail="too many login attempts; slow down")
     async with request.app.state.session_factory() as db:
@@ -576,6 +605,13 @@ async def project_ws(
     # stolen ticket replayed from a different host is dead regardless of what
     # the header says. The same value is also accepted via the `fingerprint`
     # query param, the only channel a browser WS can actually carry.
+    #
+    # M17-B4 (MAC2-F5) honesty note: this binding is a correlation guard, not
+    # an authentication control — UA+IP are both client-knowable values (see
+    # the spoofing caveat in ephemeral.py), and the absent-header grace path
+    # above makes the header half opt-in by design. It stops blind replay
+    # from a different host; it does not stop a replaying attacker who knows
+    # both inputs.
     if ticket and redeemed is not None:
         ws_user_agent = websocket.headers.get("user-agent", "")
         upgrade_ip = websocket.client.host if websocket.client else ""

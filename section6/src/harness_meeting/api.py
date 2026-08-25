@@ -1,28 +1,18 @@
 """REST API endpoints for Section 6: Meeting Area."""
 
-import sys
-from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from harness_contracts.roles import Principal
-from pydantic import BaseModel, Field
-
-# M12-G3: shared cap constants live in section1; this venv does not carry
-# harness_identity as an installed distribution, so the src tree is appended
-# exactly like section4's wave-1 audit seam already does at call time.
-_ROOT = Path(__file__).resolve().parents[3]
-if (_ROOT / "section1" / "src") not in sys.path:
-    sys.path.append(str(_ROOT / "section1" / "src"))
-
-from harness_identity.limits import (  # noqa: E402
+from harness_contracts.limits import (
     MEETING_PROJECT_ID_MAX,
     MEETING_TITLE_MAX,
     MEETING_USER_ID_MAX,
     MESSAGE_CONTENT_MAX,
 )
+from harness_contracts.roles import Principal
+from pydantic import BaseModel, Field
 
-from harness_meeting.service import MeetingService  # noqa: E402
+from harness_meeting.service import MeetingService
 
 router = APIRouter(prefix="/api/v1/meetings", tags=["meetings"])
 _service = MeetingService()

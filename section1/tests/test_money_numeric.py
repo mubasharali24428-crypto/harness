@@ -657,3 +657,164 @@ class TestLivePostgresMoneyMigration:
         finally:
             await admin.execute(f'DROP DATABASE IF EXISTS "{dbname}" WITH (FORCE)')
             await admin.close()
+
+
+# ============================== M17-B1 (F-1/F-2/F-4 regressions) ==========================
+
+from harness_router.budget_guard import MONEY_MAX as _BG_MONEY_MAX  # noqa: E402
+from harness_router.ledger import CostOutOfRangeError as _S3OutOfRange  # noqa: E402
+
+from harness_identity.cost_ledger import (  # noqa: E402
+    CostOutOfRangeError,
+    _to_money,
+)
+
+
+def test_to_money_rejects_magnitude_beyond_numeric_12_6():
+    """F-4: overflow must be REJECTED loudly at normalization time, never
+    left to die as a swallowed driver error downstream."""
+    assert _to_money(Decimal("999999.999999")) == Decimal("999999.999999")
+    assert _to_money(Decimal("-999999.999999")) == Decimal("-999999.999999")
+    with pytest.raises(CostOutOfRangeError):
+        _to_money(Decimal("1000000.000000"))  # 7 integer digits > precision 12
+    with pytest.raises(CostOutOfRangeError):
+        _to_money("1234567.891234")  # same shape as the writer-level rejection
+    with pytest.raises(CostOutOfRangeError):
+        _to_money(-1000000.0)
+
+
+def test_s3_guard_and_ledger_share_the_same_money_envelope():
+    """One envelope across sections: the S3 writer and the S3 guard agree
+    with Section 1's writer on what fits NUMERIC(12,6)."""
+    assert _BG_MONEY_MAX == Decimal("999999.999999")
+    with pytest.raises(_S3OutOfRange):
+        __import__("harness_router.ledger", fromlist=["to_money"]).to_money(
+            Decimal("1000000.000001")
+        )
+
+
+async def test_record_usage_rejects_out_of_range_without_silent_drop(
+    money_factory, caplog
+):
+    """F-4 honest envelope: an overflowing estimate returns None (fire-and-
+    forget contract preserved) but logs an explicit DATA rejection — and
+    writes NOTHING to the ledger."""
+    team_id, run_id = await _seed_attribution(money_factory)
+    with caplog.at_level("WARNING", logger="harness_identity.cost_ledger"):
+        written = await record_usage(
+            money_factory, team_id=team_id, model="m", input_tokens=1,
+            output_tokens=1, cost_usd=Decimal("1234567.891234"), run_id=run_id,
+        )
+    assert written is None
+    assert any("REJECTED" in r.message for r in caplog.records), (
+        "out-of-envelope spend must be called out as DATA rejection, "
+        "not drowned in generic outage warnings"
+    )
+    async with money_factory() as db:
+        rows = (await db.execute(text("SELECT COUNT(*) FROM cost_ledger"))).scalar_one()
+    assert rows == 0
+
+
+@pytest.mark.skipif(not os.environ.get("HARNESS_TEST_PG"), reason=_pg_reason)
+class TestAsyncpgReserveSerialization:
+    """M17-B1: the REAL production path — raw asyncpg pool, binds translated,
+    advisory lock held — races 8 x $1 against a $5 plan and MUST let exactly
+    five win. This is the in-suite twin of /tmp/malpha_probe/probe_pg_race.py,
+    minus the fixture BEGIN IMMEDIATE that used to hide the bug."""
+
+    async def test_eight_concurrent_reserves_against_five_dollar_plan(self):
+        import asyncio as _asyncio
+
+        import asyncpg
+        from harness_router.budget_guard import reserve
+
+        admin, dbname = await _fresh_pg_db()
+        try:
+            dsn = f"{_pg_dsn().rsplit('/', 1)[0]}/{dbname}"
+            conn = await asyncpg.connect(dsn)
+            try:
+                for name in (
+                    "0001_initial.sql",
+                    "0007_team_budget.sql",
+                    "0010_billing_plans.sql",
+                    "0020_money_numeric.sql",
+                ):
+                    for stmt in _split_sql(_migration(name)):
+                        await conn.execute(stmt)
+                team_id = str(uuid.uuid4())
+                project_id = str(uuid.uuid4())
+                await conn.execute(
+                    "INSERT INTO teams (id, name) VALUES ($1, 'b1')", team_id
+                )
+                await conn.execute(
+                    "INSERT INTO projects (id, team_id, name) VALUES ($1, $2, 'p')",
+                    project_id, team_id,
+                )
+                run_ids = [str(uuid.uuid4()) for _ in range(8)]
+                for rid in run_ids:
+                    await conn.execute(
+                        "INSERT INTO agent_runs (id, project_id, state) "
+                        "VALUES ($1, $2, 'running')",
+                        rid, project_id,
+                    )
+                await conn.execute(
+                    "INSERT INTO billing_plans (id, team_id, plan, monthly_budget_usd) "
+                    "VALUES ($1, $2, 'pro', 5.0)",
+                    str(uuid.uuid4()), team_id,
+                )
+            finally:
+                await conn.close()
+
+            pool = await asyncpg.create_pool(dsn, min_size=8, max_size=8)
+            results = await _asyncio.gather(
+                *[
+                    reserve(
+                        pool,
+                        team_id=team_id,
+                        estimated_cost_usd=Decimal("1.0"),
+                        run_id=rid,
+                        agent_role="primary",
+                        model="gpt-test",
+                        input_tokens=100,
+                        output_tokens=10,
+                        latency_ms=5,
+                    )
+                    for rid in run_ids
+                ]
+            )
+
+            wins = [r for r in results if r.allowed]
+            overs = [r for r in results if not r.allowed and r.reason == "over budget"]
+            errs = [r for r in results if not r.allowed and r.reason != "over budget"]
+            assert len(wins) == 5, f"expected exactly 5 winners, got {results}"
+            assert len(overs) == 3
+            assert not errs, f"no claim may fail closed on the happy path: {errs}"
+            assert all(r.entry_id is not None for r in wins)
+
+            conn = await asyncpg.connect(dsn)
+            try:
+                total = await conn.fetchval(
+                    "SELECT COALESCE(SUM(l.cost_usd), 0) FROM cost_ledger l "
+                    "JOIN agent_runs ar ON ar.id = l.run_id "
+                    "JOIN projects p ON p.id = ar.project_id WHERE p.team_id = $1",
+                    team_id,
+                )
+            finally:
+                await conn.close()
+            assert total == Decimal("5.000000"), f"overspend survived: {total!r}"
+
+            # Compensation on the asyncpg path: release parses the plain
+            # "DELETE n" status string; freed headroom becomes reservable again.
+            assert await release(pool, wins[0].entry_id) is True
+            assert await release(pool, wins[0].entry_id) is False
+            again = await reserve(
+                pool, team_id=team_id, estimated_cost_usd=Decimal("1.0"),
+                run_id=run_ids[0], agent_role="primary", model="gpt-test",
+                input_tokens=100, output_tokens=10, latency_ms=5,
+            )
+            assert again.allowed
+            await pool.close()
+        finally:
+            await admin.execute(f'DROP DATABASE IF EXISTS "{dbname}" WITH (FORCE)')
+            await admin.close()
+

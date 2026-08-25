@@ -151,7 +151,26 @@ def test_at_limit_requests_pass_validation():
 
 
 def test_section4_mirror_matches_shared_limits():
-    """The byte-equal mirror of limits.py must not drift from section1."""
-    shared = (_ROOT / "section1" / "src" / "harness_identity" / "limits.py").read_text()
-    mirror = (_ROOT / "section4" / "src" / "harness_orchestrator" / "_limits.py").read_text()
-    assert mirror == shared
+    """S4's caps slice must stay in lockstep with the canonical registry.
+
+    M17-B3: the byte-equal mirror is gone — the canonical registry lives in
+    harness_contracts.limits and S4 imports it directly (via the _limits
+    shim), so drift is now structurally impossible. The parity pin becomes a
+    value-parity check: every S4 cap re-read from BOTH surfaces must agree.
+    """
+    import importlib
+
+    import harness_contracts.limits as contracts_limits
+
+    s4 = importlib.import_module("harness_orchestrator._limits")
+    for name in s4.__all__:
+        assert getattr(s4, name) == getattr(
+            contracts_limits, name
+        ), f"S4 cap {name} drifted from harness_contracts.limits"
+    # And the S1 shim must expose the same registry (no per-section values).
+    _sys_path = str(_ROOT / "section1" / "src")
+    if _sys_path not in sys.path:
+        sys.path.insert(0, _sys_path)
+    s1 = importlib.import_module("harness_identity.limits")
+    for name in ("PLATFORM_CAPS", "LOGIN_EMAIL_MAX", "OTP_CODE_MAX"):
+        assert getattr(s1, name) == getattr(contracts_limits, name)
