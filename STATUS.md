@@ -569,3 +569,15 @@ guards green (15 routes, 395 files isolation); X1 N+1 spot-check clean
 (2 batched GROUP BYs per request, zero correlated probes); X5 seed-ID
 traceability confirmed against raw-18; migration chain 0001→0026 unique.
 Wave 6 CLOSED.
+
+## Mission 18 — Horizon NOW LANDED & CLOSED (2026-08-25)
+
+10x-plan Horizon NOW executed by ELITE-FORCE dual teams. CI 32843200308
+SUCCESS. C1 authz fail-closed (triple fail-open dead, audited denies);
+C2 one budget truth (contracts/budget.py resolve_cap canonical, fail-CLOSED
++ degraded flag); C3 cost-gate O(1) (0027 indexes + daily rollup runner);
+C4 loadtest harness live (BASELINE sweep carried to M19); C5 invite/ticket
+hygiene (email binding, ?token= deprecated, fingerprint enforced, bucket GC);
+C6 rollback v0 rehearsed (drift gate refused old image vs 0027 DB).
+Suites: S1 496 · S3 91 · S4 369 · S7 vitest 452. Next: BASELINE sweep +
+Horizon NEXT per mission17-10x-plan.md.
