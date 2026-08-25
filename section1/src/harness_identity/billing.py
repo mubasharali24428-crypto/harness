@@ -48,16 +48,18 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from harness_contracts import (
     DEGRADED_FLAG_WIRE,
     MONTH_WINDOW_SQL,
+    Principal,
+    Role,
+    error_body,
     resolve_cap,
 )
-from harness_contracts import Principal, Role, error_body
 from pydantic import BaseModel
 from sqlalchemy import DateTime, ForeignKey, Numeric, String, func, select, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .audit_emit import emit_billing_plan_changed
 from .auth import get_principal
-from .models import AgentRun, Base, CostLedger, Project, uid
+from .models import Base, uid
 
 router = APIRouter(prefix="/api/v1")
 

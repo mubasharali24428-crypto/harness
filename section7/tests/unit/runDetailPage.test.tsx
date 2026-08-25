@@ -25,6 +25,7 @@ function fullAgg(partial: Partial<RunAggregateDto> = {}): RunAggregateDto {
     executing: partial.executing ?? false,
     engineMode: partial.engineMode ?? "live",
     costUsd: partial.costUsd !== undefined ? partial.costUsd : 12.5,
+    budget: partial.budget ?? { degraded: false },
     prId:
       partial.prId !== undefined ? partial.prId : "pr-777",
     url:
