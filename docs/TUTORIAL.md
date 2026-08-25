@@ -290,7 +290,75 @@ A completed tutorial run leaves ten:
 
 Each envelope also carries `ts`, `projectId`, and `runId`. Live tailing from a
 browser uses the ws-ticket dance (`POST /api/v1/ws-ticket`, single-use 30 s
-ticket, then WebSocket); REST replay covers scripting.
+ticket, then WebSocket); for scripting, keep reading — the Python SDK does
+that dance for you.
+
+## 9. Scripting the API — the Python SDK
+
+Everything above works from plain `curl`, but the same hour in a script is
+one import away. `clients/python` ships `harness_sdk`: every section's REST
+surface generated from its OpenAPI spec, plus the ws-ticket /
+X-WS-Fingerprint / replay-dedupe runtime extracted from the S7 browser
+client. Install it against your checkout:
+
+```sh
+pip install -e clients/python        # deps: httpx, websockets; Python ≥ 3.11
+```
+
+### Authenticate
+
+```python
+from harness_sdk import Harness, ApiError
+
+try:
+    sdk = Harness.login("you@example.com")          # legacy passwordless login
+except ApiError as err:
+    assert err.code == "OWNERSHIP_REQUIRED"         # default since H2r
+    sdk = Harness()
+    sdk.request_otp("you@example.com")
+    code = input("code (dev: docker logs <identity> | grep HARNESS-OTP): ")
+    sdk.verify_otp("you@example.com", code)
+```
+
+Already have a token? `sdk = Harness(token)` skips straight to work.
+
+### One call per section
+
+```python
+projects   = sdk.identity.list_projects(5)
+models     = sdk.router.list_models()
+runs       = sdk.orchestrator.list_runs(project_id=pid, limit=10)
+tree       = sdk.sandbox.get_project_tree(pid)
+meeting    = sdk.meeting.create_meeting({"projectId": pid, "title": "sync"})
+thresholds = sdk.review.get_reviewer_threshold_settings()
+conn       = sdk.github.connection_status()
+```
+
+Methods return the decoded JSON body. Errors raise `ApiError` with the frozen
+envelope parsed out (`err.code`, `err.status`) — e.g. starting an unapproved
+plan surfaces exactly the `PLAN_NOT_APPROVED` you saw in step 5. Transient
+failures (429/502/503/504, connection errors on idempotent calls) retry
+automatically with exponential backoff + jitter.
+
+### Watch the bus live (step 8 as a generator)
+
+```python
+for env in sdk.events.stream(PROJECT_ID, sdk.token):
+    print(env["seq"], env["type"])     # plan_proposed, engine_completed, …
+```
+
+The stream mints single-use tickets, presents the server's fingerprint echo,
+resumes from the highest seq seen after any drop, dedupes, and backs off —
+the same lifecycle the dashboard uses. A one-time `{"replayTruncated": true}`
+marker tells you when a huge gap was capped; backfill with
+`sdk.replay_events(PROJECT_ID, after_seq)`.
+
+Prove it end to end without writing anything:
+
+```sh
+cd clients/python && ./.venv/bin/python ../../scripts/sdk-gen/smoke_sdk.py
+# …walks auth → one call per section → live event stream, SMOKE PASS at the end
+```
 
 ## Where to go next
 

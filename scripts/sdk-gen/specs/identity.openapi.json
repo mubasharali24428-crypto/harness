@@ -1,0 +1,2106 @@
+{
+ "components": {
+  "schemas": {
+   "CreateProjectBody": {
+    "properties": {
+     "name": {
+      "maxLength": 200,
+      "title": "Name",
+      "type": "string"
+     },
+     "repoFullName": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Repofullname"
+     }
+    },
+    "required": [
+     "name"
+    ],
+    "title": "CreateProjectBody",
+    "type": "object"
+   },
+   "ErrorDetail": {
+    "description": "One error entry of the FROZEN contract envelope (ERROR_BODY_EXAMPLE).",
+    "properties": {
+     "code": {
+      "title": "Code",
+      "type": "string"
+     },
+     "message": {
+      "title": "Message",
+      "type": "string"
+     }
+    },
+    "required": [
+     "code",
+     "message"
+    ],
+    "title": "ErrorDetail",
+    "type": "object"
+   },
+   "ErrorEnvelope": {
+    "description": "M13-G5a: the frozen contract error shape for OpenAPI responses={} docs.",
+    "properties": {
+     "error": {
+      "$ref": "#/components/schemas/ErrorDetail"
+     }
+    },
+    "required": [
+     "error"
+    ],
+    "title": "ErrorEnvelope",
+    "type": "object"
+   },
+   "EventEnvelopeOut": {
+    "description": "M13-G5a typing island: the FROZEN contracts EventEnvelope on the wire.",
+    "properties": {
+     "payload": {
+      "additionalProperties": true,
+      "title": "Payload",
+      "type": "object"
+     },
+     "projectId": {
+      "title": "Projectid",
+      "type": "string"
+     },
+     "runId": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Runid"
+     },
+     "seq": {
+      "title": "Seq",
+      "type": "integer"
+     },
+     "ts": {
+      "title": "Ts",
+      "type": "string"
+     },
+     "type": {
+      "title": "Type",
+      "type": "string"
+     }
+    },
+    "required": [
+     "type",
+     "ts",
+     "seq",
+     "projectId"
+    ],
+    "title": "EventEnvelopeOut",
+    "type": "object"
+   },
+   "EventReplayResponse": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/EventEnvelopeOut"
+      },
+      "title": "Items",
+      "type": "array"
+     },
+     "nextCursor": {
+      "title": "Nextcursor",
+      "type": "integer"
+     },
+     "oldestSeqSent": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Oldestseqsent"
+     },
+     "replayTruncated": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Replaytruncated"
+     }
+    },
+    "required": [
+     "items",
+     "nextCursor"
+    ],
+    "title": "EventReplayResponse",
+    "type": "object"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "title": "Detail",
+      "type": "array"
+     }
+    },
+    "title": "HTTPValidationError",
+    "type": "object"
+   },
+   "InviteCreateBody": {
+    "properties": {
+     "email": {
+      "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+      "title": "Email",
+      "type": "string"
+     },
+     "role": {
+      "pattern": "^(admin|engineer|viewer|guest)$",
+      "title": "Role",
+      "type": "string"
+     }
+    },
+    "required": [
+     "email",
+     "role"
+    ],
+    "title": "InviteCreateBody",
+    "type": "object"
+   },
+   "InviteRedeemBody": {
+    "properties": {
+     "token": {
+      "maxLength": 256,
+      "minLength": 16,
+      "title": "Token",
+      "type": "string"
+     }
+    },
+    "required": [
+     "token"
+    ],
+    "title": "InviteRedeemBody",
+    "type": "object"
+   },
+   "KeyCreateBody": {
+    "properties": {
+     "key": {
+      "maxLength": 4096,
+      "minLength": 4,
+      "title": "Key",
+      "type": "string"
+     },
+     "label": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Label",
+      "type": "string"
+     },
+     "provider": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$",
+      "title": "Provider",
+      "type": "string"
+     }
+    },
+    "required": [
+     "label",
+     "provider",
+     "key"
+    ],
+    "title": "KeyCreateBody",
+    "type": "object"
+   },
+   "KeyCreatedResponse": {
+    "description": "M13-G5a typing island: the 201 mint view \u2014 exactly the M10-C1 fields.",
+    "properties": {
+     "createdAt": {
+      "format": "date-time",
+      "title": "Createdat",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "keyHint": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Keyhint"
+     },
+     "label": {
+      "title": "Label",
+      "type": "string"
+     },
+     "provider": {
+      "title": "Provider",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "label",
+     "provider",
+     "keyHint",
+     "createdAt"
+    ],
+    "title": "KeyCreatedResponse",
+    "type": "object"
+   },
+   "KeyItemResponse": {
+    "properties": {
+     "createdAt": {
+      "format": "date-time",
+      "title": "Createdat",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "keyHint": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Keyhint"
+     },
+     "label": {
+      "title": "Label",
+      "type": "string"
+     },
+     "provider": {
+      "title": "Provider",
+      "type": "string"
+     },
+     "revokedAt": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Revokedat"
+     }
+    },
+    "required": [
+     "id",
+     "label",
+     "provider",
+     "keyHint",
+     "createdAt"
+    ],
+    "title": "KeyItemResponse",
+    "type": "object"
+   },
+   "KeyListResponse": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/KeyItemResponse"
+      },
+      "title": "Items",
+      "type": "array"
+     }
+    },
+    "required": [
+     "items"
+    ],
+    "title": "KeyListResponse",
+    "type": "object"
+   },
+   "LoginRequest": {
+    "properties": {
+     "email": {
+      "maxLength": 320,
+      "title": "Email",
+      "type": "string"
+     },
+     "teamId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Teamid"
+     },
+     "teamName": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Teamname"
+     }
+    },
+    "required": [
+     "email"
+    ],
+    "title": "LoginRequest",
+    "type": "object"
+   },
+   "MemberItem": {
+    "description": "M13-G5a typing island: one roster row (camelCase per api-conventions).",
+    "properties": {
+     "createdAt": {
+      "format": "date-time",
+      "title": "Createdat",
+      "type": "string"
+     },
+     "displayName": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Displayname"
+     },
+     "email": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Email"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "memberType": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Membertype"
+     },
+     "role": {
+      "title": "Role",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "role",
+     "createdAt"
+    ],
+    "title": "MemberItem",
+    "type": "object"
+   },
+   "MemberListResponse": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/MemberItem"
+      },
+      "title": "Items",
+      "type": "array"
+     }
+    },
+    "required": [
+     "items"
+    ],
+    "title": "MemberListResponse",
+    "type": "object"
+   },
+   "MemberRoleBody": {
+    "properties": {
+     "role": {
+      "maxLength": 20,
+      "title": "Role",
+      "type": "string"
+     }
+    },
+    "required": [
+     "role"
+    ],
+    "title": "MemberRoleBody",
+    "type": "object"
+   },
+   "OkResponse": {
+    "properties": {
+     "ok": {
+      "title": "Ok",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "ok"
+    ],
+    "title": "OkResponse",
+    "type": "object"
+   },
+   "PlanUpdateBody": {
+    "properties": {
+     "plan": {
+      "enum": [
+       "free",
+       "pro",
+       "team"
+      ],
+      "title": "Plan",
+      "type": "string"
+     }
+    },
+    "required": [
+     "plan"
+    ],
+    "title": "PlanUpdateBody",
+    "type": "object"
+   },
+   "PrincipalResponse": {
+    "description": "The authenticated caller (camelCase wire shape per api-conventions.md).",
+    "properties": {
+     "role": {
+      "title": "Role",
+      "type": "string"
+     },
+     "teamId": {
+      "title": "Teamid",
+      "type": "string"
+     },
+     "userId": {
+      "title": "Userid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "userId",
+     "teamId",
+     "role"
+    ],
+    "title": "PrincipalResponse",
+    "type": "object"
+   },
+   "ProjectCreatedResponse": {
+    "description": "201 mint view of POST /projects (same fields as the projection).",
+    "properties": {
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "repoFullName": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Repofullname"
+     }
+    },
+    "required": [
+     "id",
+     "name"
+    ],
+    "title": "ProjectCreatedResponse",
+    "type": "object"
+   },
+   "ProjectListResponse": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/ProjectOut"
+      },
+      "title": "Items",
+      "type": "array"
+     }
+    },
+    "required": [
+     "items"
+    ],
+    "title": "ProjectListResponse",
+    "type": "object"
+   },
+   "ProjectOut": {
+    "description": "M13-G5a typing island: a project row on the wire (camelCase).",
+    "properties": {
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "repoFullName": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Repofullname"
+     }
+    },
+    "required": [
+     "id",
+     "name"
+    ],
+    "title": "ProjectOut",
+    "type": "object"
+   },
+   "RulesBody": {
+    "properties": {
+     "rulesText": {
+      "maxLength": 1048576,
+      "title": "Rulestext",
+      "type": "string"
+     }
+    },
+    "required": [
+     "rulesText"
+    ],
+    "title": "RulesBody",
+    "type": "object"
+   },
+   "SessionResponse": {
+    "description": "M13-G5a OpenAPI typing island: the auth session minted on login.",
+    "properties": {
+     "principal": {
+      "$ref": "#/components/schemas/PrincipalResponse"
+     },
+     "token": {
+      "title": "Token",
+      "type": "string"
+     }
+    },
+    "required": [
+     "token",
+     "principal"
+    ],
+    "title": "SessionResponse",
+    "type": "object"
+   },
+   "ThresholdsBody": {
+    "additionalProperties": false,
+    "description": "Raw PUT payload. Shape/range validation is delegated to the shared\nSection 8 model so both sections can never drift apart.",
+    "properties": {
+     "thresholds": {
+      "additionalProperties": true,
+      "title": "Thresholds",
+      "type": "object"
+     }
+    },
+    "required": [
+     "thresholds"
+    ],
+    "title": "ThresholdsBody",
+    "type": "object"
+   },
+   "ValidationError": {
+    "properties": {
+     "ctx": {
+      "title": "Context",
+      "type": "object"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "title": "Location",
+      "type": "array"
+     },
+     "msg": {
+      "title": "Message",
+      "type": "string"
+     },
+     "type": {
+      "title": "Error Type",
+      "type": "string"
+     }
+    },
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError",
+    "type": "object"
+   },
+   "VerifyOtpRequest": {
+    "properties": {
+     "code": {
+      "maxLength": 12,
+      "title": "Code",
+      "type": "string"
+     },
+     "email": {
+      "maxLength": 320,
+      "title": "Email",
+      "type": "string"
+     }
+    },
+    "required": [
+     "email",
+     "code"
+    ],
+    "title": "VerifyOtpRequest",
+    "type": "object"
+   },
+   "WsTicketRequest": {
+    "properties": {
+     "projectId": {
+      "maxLength": 64,
+      "title": "Projectid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "projectId"
+    ],
+    "title": "WsTicketRequest",
+    "type": "object"
+   },
+   "WsTicketResponse": {
+    "properties": {
+     "expiresInSeconds": {
+      "title": "Expiresinseconds",
+      "type": "integer"
+     },
+     "ticket": {
+      "title": "Ticket",
+      "type": "string"
+     }
+    },
+    "required": [
+     "ticket",
+     "expiresInSeconds"
+    ],
+    "title": "WsTicketResponse",
+    "type": "object"
+   }
+  }
+ },
+ "info": {
+  "title": "harness-identity",
+  "version": "0.1.0"
+ },
+ "openapi": "3.1.0",
+ "paths": {
+  "/api/v1/auth/login": {
+   "post": {
+    "operationId": "login_api_v1_auth_login_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LoginRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SessionResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "bad or missing credentials"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "ownership proof required (H2r)"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     },
+     "429": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "login rate limit exceeded"
+     }
+    },
+    "summary": "Login"
+   }
+  },
+  "/api/v1/auth/logout": {
+   "post": {
+    "description": "Revoke the presenting session immediately.",
+    "operationId": "logout_api_v1_auth_logout_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/OkResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Logout"
+   }
+  },
+  "/api/v1/auth/request-login": {
+   "post": {
+    "operationId": "request_login_api_v1_auth_request_login_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LoginRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/OkResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Request Login"
+   }
+  },
+  "/api/v1/auth/verify-otp": {
+   "post": {
+    "operationId": "verify_otp_route_api_v1_auth_verify_otp_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/VerifyOtpRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SessionResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "OTP invalid, expired or already redeemed"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Verify Otp Route"
+   }
+  },
+  "/api/v1/billing/plan": {
+   "put": {
+    "description": "Upsert the team's billing_plans row (admin-only) and return the state.",
+    "operationId": "update_billing_plan_api_v1_billing_plan_put",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PlanUpdateBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Update Billing Plan Api V1 Billing Plan Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Update Billing Plan"
+   }
+  },
+  "/api/v1/billing/state": {
+   "get": {
+    "description": "Current billing state for the caller's team (any authenticated role).",
+    "operationId": "billing_state_api_v1_billing_state_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Billing State Api V1 Billing State Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Billing State"
+   }
+  },
+  "/api/v1/csp-report": {
+   "post": {
+    "description": "Accept a browser CSP violation report (204, no content).",
+    "operationId": "collect_csp_report_api_v1_csp_report_post",
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Collect Csp Report"
+   }
+  },
+  "/api/v1/invites/redeem": {
+   "post": {
+    "description": "Any authed user redeems a token and joins the invited team with the\ninvited role. Atomic single-statement claim: expired/redeemed/unknown are\nrejected with honest codes; membership insert rides the same transaction.",
+    "operationId": "redeem_invite_api_v1_invites_redeem_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/InviteRedeemBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Redeem Invite Api V1 Invites Redeem Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Redeem Invite"
+   }
+  },
+  "/api/v1/keys": {
+   "get": {
+    "description": "List the caller's team keys (hint only, never the raw key).\n\n?teamId= is honored only when it matches the caller's membership \u2014\nanything else answers 404 NOT_FOUND, identical to an unknown team id\n(M13-G5a no-oracle law; was 403 FORBIDDEN).",
+    "operationId": "list_keys_api_v1_keys_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "teamId",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Teamid"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/KeyListResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "description": "bad or missing token"
+     },
+     "404": {
+      "description": "teamId does not match the caller's membership (no-oracle)"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Keys"
+   },
+   "post": {
+    "description": "Store a BYO provider key for the caller's team, encrypted at rest.",
+    "operationId": "mint_key_api_v1_keys_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/KeyCreateBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/KeyCreatedResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "description": "bad or missing token"
+     },
+     "403": {
+      "description": "viewer/guest roles cannot manage keys"
+     },
+     "422": {
+      "description": "validation error"
+     }
+    },
+    "summary": "Mint Key"
+   }
+  },
+  "/api/v1/keys/{key_id}": {
+   "delete": {
+    "description": "Soft-revoke (sets revoked_at). Idempotent; foreign-team keys 404.",
+    "operationId": "revoke_key_api_v1_keys__key_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "key_id",
+      "required": true,
+      "schema": {
+       "title": "Key Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "401": {
+      "description": "bad or missing token"
+     },
+     "403": {
+      "description": "viewer/guest roles cannot manage keys"
+     },
+     "404": {
+      "description": "unknown id OR another team's key (no-oracle)"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Revoke Key"
+   }
+  },
+  "/api/v1/me": {
+   "get": {
+    "operationId": "me_api_v1_me_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PrincipalResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     }
+    },
+    "summary": "Me"
+   }
+  },
+  "/api/v1/projects": {
+   "get": {
+    "operationId": "list_projects_api_v1_projects_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 100,
+       "title": "Limit",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProjectListResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Projects"
+   },
+   "post": {
+    "operationId": "create_project_api_v1_projects_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CreateProjectBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProjectCreatedResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Unprocessable Content"
+     }
+    },
+    "summary": "Create Project"
+   }
+  },
+  "/api/v1/projects/{project_id}/events/replay": {
+   "get": {
+    "operationId": "replay_events_api_v1_projects__project_id__events_replay_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "after_seq",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "title": "After Seq",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "title": "Limit",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/EventReplayResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Replay Events"
+   }
+  },
+  "/api/v1/projects/{project_id}/rules": {
+   "delete": {
+    "description": "Remove the rules document entirely (\"no rules configured\"). Idempotent.",
+    "operationId": "delete_rules_api_v1_projects__project_id__rules_delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Rules"
+   },
+   "get": {
+    "description": "Read the project's rules document (\"\" when none was ever saved).",
+    "operationId": "get_rules_api_v1_projects__project_id__rules_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Rules Api V1 Projects  Project Id  Rules Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Rules"
+   },
+   "put": {
+    "description": "Upsert the single rules document for an owned project (admin/engineer).",
+    "operationId": "save_rules_api_v1_projects__project_id__rules_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RulesBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Save Rules Api V1 Projects  Project Id  Rules Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Save Rules"
+   }
+  },
+  "/api/v1/teams/{team_id}/invites": {
+   "get": {
+    "description": "M14-F2a \u2014 full invite lifecycle list for the admin UI.\n\nEvery status is returned (draft/sent/redeemed/expired/revoked derived per\ninvite via _invite_status); ``?status=<s>`` narrows to one bucket. The old\npending-only behavior stays available as ``?status=sent``.\n\nAdmin-only: any other caller (foreign OR in-team non-admin) gets 404/403\nwithout leaking whether any invites exist (enumeration guard, M13-G5a).",
+    "operationId": "list_invites_api_v1_teams__team_id__invites_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Invites Api V1 Teams  Team Id  Invites Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Invites"
+   },
+   "post": {
+    "description": "Admin-only: mint an invite. The raw token appears exactly once, here.",
+    "operationId": "create_invite_api_v1_teams__team_id__invites_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/InviteCreateBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Invite Api V1 Teams  Team Id  Invites Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Invite"
+   }
+  },
+  "/api/v1/teams/{team_id}/invites/{invite_id}": {
+   "delete": {
+    "description": "M14-F2a \u2014 admin-only revoke. The row is KEPT (revoked_at stamped) so the\nlifecycle list can show \"revoked\" and audit rows keep a real target; the\ntoken dies either way. Revoking an already-terminal invite is idempotent.",
+    "operationId": "revoke_invite_api_v1_teams__team_id__invites__invite_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "invite_id",
+      "required": true,
+      "schema": {
+       "title": "Invite Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Revoke Invite Api V1 Teams  Team Id  Invites  Invite Id  Delete",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Revoke Invite"
+   }
+  },
+  "/api/v1/teams/{team_id}/invites/{invite_id}/resend": {
+   "post": {
+    "description": "M14-F2a \u2014 admin-only resend: mint a fresh token for the SAME invite and\nrevoke the old one in ONE transaction. An intercepted stale token dies the\nmoment a fresh one is issued. Only live invites can be resent \u2014 redeemed,\nexpired, revoked or draft-less rows answer honest 409/410 codes.",
+    "operationId": "resend_invite_api_v1_teams__team_id__invites__invite_id__resend_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "invite_id",
+      "required": true,
+      "schema": {
+       "title": "Invite Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Resend Invite Api V1 Teams  Team Id  Invites  Invite Id  Resend Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Resend Invite"
+   }
+  },
+  "/api/v1/teams/{team_id}/members": {
+   "get": {
+    "description": "Team roster with roles (any member of the team). Backs the S7 team page;\nS1 previously exposed no members read, so node C owns this one too.",
+    "operationId": "list_members_api_v1_teams__team_id__members_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MemberListResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "description": "bad or missing token"
+     },
+     "404": {
+      "description": "caller is not a member of the team (no-oracle)"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Members"
+   }
+  },
+  "/api/v1/teams/{team_id}/members/{user_id}": {
+   "delete": {
+    "description": "Admin-only removal. 204 on success; foreign/unknown members 404.",
+    "operationId": "remove_member_api_v1_teams__team_id__members__user_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Remove Member"
+   },
+   "patch": {
+    "description": "Admin-only role change. 200 {userId, role}; invalid role 422.",
+    "operationId": "change_member_role_api_v1_teams__team_id__members__user_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/MemberRoleBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Change Member Role Api V1 Teams  Team Id  Members  User Id  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Change Member Role"
+   }
+  },
+  "/api/v1/teams/{team_id}/seats/agent": {
+   "post": {
+    "operationId": "add_agent_seat_api_v1_teams__team_id__seats_agent_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Add Agent Seat Api V1 Teams  Team Id  Seats Agent Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Add Agent Seat"
+   }
+  },
+  "/api/v1/teams/{team_id}/settings/reviewer-thresholds": {
+   "delete": {
+    "description": "Reset to defaults by removing the stored document. Idempotent.",
+    "operationId": "delete_reviewer_thresholds_api_v1_teams__team_id__settings_reviewer_thresholds_delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Reviewer Thresholds"
+   },
+   "get": {
+    "description": "Read the team's reviewer thresholds (\"\" config = documented defaults).",
+    "operationId": "get_reviewer_thresholds_api_v1_teams__team_id__settings_reviewer_thresholds_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Reviewer Thresholds Api V1 Teams  Team Id  Settings Reviewer Thresholds Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Reviewer Thresholds"
+   },
+   "put": {
+    "description": "Upsert the team's reviewer thresholds (admin-only).\n\nValidation happens BEFORE any write: a malformed document answers 422 and\nleaves the stored row untouched.",
+    "operationId": "put_reviewer_thresholds_api_v1_teams__team_id__settings_reviewer_thresholds_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ThresholdsBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Put Reviewer Thresholds Api V1 Teams  Team Id  Settings Reviewer Thresholds Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put Reviewer Thresholds"
+   }
+  },
+  "/api/v1/ws-ticket": {
+   "post": {
+    "description": "Mint a one-time, 30s, project-bound ticket so the WS upgrade never needs\na long-lived bearer token in a URL (H8). M15-W5-S2: the ticket is also\nbound to this client's fingerprint (UA + peer IP hash) and only upgrades\nfrom a request that reproduces it.",
+    "operationId": "issue_ws_ticket_api_v1_ws_ticket_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/WsTicketRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WsTicketResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Issue Ws Ticket"
+   }
+  },
+  "/health": {
+   "get": {
+    "operationId": "health_health_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "deep",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "title": "Deep",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Health"
+   }
+  }
+ }
+}

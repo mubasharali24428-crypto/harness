@@ -1,0 +1,1868 @@
+{
+ "components": {
+  "schemas": {
+   "AggregateStepOut": {
+    "description": "One ordered step of the W4-C2 aggregate (agent_events summary row).",
+    "properties": {
+     "seq": {
+      "title": "Seq",
+      "type": "integer"
+     },
+     "ts": {
+      "format": "date-time",
+      "title": "Ts",
+      "type": "string"
+     },
+     "type": {
+      "title": "Type",
+      "type": "string"
+     }
+    },
+    "required": [
+     "seq",
+     "type",
+     "ts"
+    ],
+    "title": "AggregateStepOut",
+    "type": "object"
+   },
+   "DoneSignalRequest": {
+    "properties": {
+     "diffText": {
+      "default": "",
+      "maxLength": 200000,
+      "title": "Difftext",
+      "type": "string"
+     }
+    },
+    "title": "DoneSignalRequest",
+    "type": "object"
+   },
+   "DoneSignalResponse": {
+    "properties": {
+     "findings": {
+      "$ref": "#/components/schemas/ReviewFindingsOut"
+     },
+     "runId": {
+      "title": "Runid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "runId",
+     "findings"
+    ],
+    "title": "DoneSignalResponse",
+    "type": "object"
+   },
+   "ErrorDetail": {
+    "description": "One error entry of the FROZEN contract envelope (ERROR_BODY_EXAMPLE).",
+    "properties": {
+     "code": {
+      "title": "Code",
+      "type": "string"
+     },
+     "message": {
+      "title": "Message",
+      "type": "string"
+     }
+    },
+    "required": [
+     "code",
+     "message"
+    ],
+    "title": "ErrorDetail",
+    "type": "object"
+   },
+   "ErrorEnvelope": {
+    "description": "The frozen contract error shape for OpenAPI responses={} docs.",
+    "properties": {
+     "error": {
+      "$ref": "#/components/schemas/ErrorDetail"
+     }
+    },
+    "required": [
+     "error"
+    ],
+    "title": "ErrorEnvelope",
+    "type": "object"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "title": "Detail",
+      "type": "array"
+     }
+    },
+    "title": "HTTPValidationError",
+    "type": "object"
+   },
+   "HumanEditRequest": {
+    "properties": {
+     "content": {
+      "maxLength": 100000,
+      "title": "Content",
+      "type": "string"
+     },
+     "path": {
+      "maxLength": 512,
+      "title": "Path",
+      "type": "string"
+     }
+    },
+    "required": [
+     "path",
+     "content"
+    ],
+    "title": "HumanEditRequest",
+    "type": "object"
+   },
+   "PlanActionRequest": {
+    "properties": {
+     "planId": {
+      "maxLength": 64,
+      "title": "Planid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "planId"
+    ],
+    "title": "PlanActionRequest",
+    "type": "object"
+   },
+   "PlanActionResponse": {
+    "properties": {
+     "runId": {
+      "title": "Runid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "runId"
+    ],
+    "title": "PlanActionResponse",
+    "type": "object"
+   },
+   "PlanDecisionResponse": {
+    "properties": {
+     "planId": {
+      "title": "Planid",
+      "type": "string"
+     },
+     "runId": {
+      "title": "Runid",
+      "type": "string"
+     },
+     "status": {
+      "enum": [
+       "approved",
+       "rejected"
+      ],
+      "title": "Status",
+      "type": "string"
+     }
+    },
+    "required": [
+     "runId",
+     "planId",
+     "status"
+    ],
+    "title": "PlanDecisionResponse",
+    "type": "object"
+   },
+   "PlanOut": {
+    "description": "Mirror of AgentPlan on the wire (camelCase).",
+    "properties": {
+     "estimatedCostUsd": {
+      "default": 0.0,
+      "title": "Estimatedcostusd",
+      "type": "number"
+     },
+     "expectedResult": {
+      "title": "Expectedresult",
+      "type": "string"
+     },
+     "filesLikelyToChange": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Fileslikelytochange",
+      "type": "array"
+     },
+     "forbiddenPaths": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Forbiddenpaths",
+      "type": "array"
+     },
+     "goal": {
+      "title": "Goal",
+      "type": "string"
+     },
+     "risks": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Risks",
+      "type": "array"
+     },
+     "steps": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Steps",
+      "type": "array"
+     },
+     "tests": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Tests",
+      "type": "array"
+     }
+    },
+    "required": [
+     "goal",
+     "expectedResult"
+    ],
+    "title": "PlanOut",
+    "type": "object"
+   },
+   "PlanProposedResponse": {
+    "properties": {
+     "plan": {
+      "$ref": "#/components/schemas/PlanOut"
+     },
+     "planId": {
+      "title": "Planid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "planId",
+     "plan"
+    ],
+    "title": "PlanProposedResponse",
+    "type": "object"
+   },
+   "PlanRejectedResponse": {
+    "description": "202 body of /plans/{planId}/reject (persisted AND audited).",
+    "properties": {
+     "audited": {
+      "title": "Audited",
+      "type": "boolean"
+     },
+     "planId": {
+      "title": "Planid",
+      "type": "string"
+     },
+     "runId": {
+      "title": "Runid",
+      "type": "string"
+     },
+     "status": {
+      "const": "rejected",
+      "title": "Status",
+      "type": "string"
+     }
+    },
+    "required": [
+     "status",
+     "audited",
+     "planId",
+     "runId"
+    ],
+    "title": "PlanRejectedResponse",
+    "type": "object"
+   },
+   "ProposePlanGateRequest": {
+    "properties": {
+     "goal": {
+      "minLength": 1,
+      "title": "Goal",
+      "type": "string"
+     }
+    },
+    "required": [
+     "goal"
+    ],
+    "title": "ProposePlanGateRequest",
+    "type": "object"
+   },
+   "ProposePlanRequest": {
+    "properties": {
+     "goal": {
+      "anyOf": [
+       {
+        "maxLength": 20000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Goal"
+     },
+     "projectId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Projectid"
+     }
+    },
+    "title": "ProposePlanRequest",
+    "type": "object"
+   },
+   "ProposePlanResponse": {
+    "properties": {
+     "planId": {
+      "title": "Planid",
+      "type": "string"
+     },
+     "runId": {
+      "title": "Runid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "runId",
+     "planId"
+    ],
+    "title": "ProposePlanResponse",
+    "type": "object"
+   },
+   "ReviewFindingsOut": {
+    "description": "Mirror of harness_orchestrator.reviewer.ReviewFindings (camelCase wire).",
+    "properties": {
+     "briefAligned": {
+      "default": true,
+      "title": "Briefaligned",
+      "type": "boolean"
+     },
+     "conflictsDetected": {
+      "default": false,
+      "title": "Conflictsdetected",
+      "type": "boolean"
+     },
+     "issues": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Issues",
+      "type": "array"
+     },
+     "modelUsed": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Modelused"
+     },
+     "passed": {
+      "title": "Passed",
+      "type": "boolean"
+     },
+     "summary": {
+      "default": "",
+      "title": "Summary",
+      "type": "string"
+     },
+     "syntaxOk": {
+      "default": true,
+      "title": "Syntaxok",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "passed"
+    ],
+    "title": "ReviewFindingsOut",
+    "type": "object"
+   },
+   "RunAggregateResponse": {
+    "description": "M14-W4 F3a \u2014 the FROZEN pair-contract W4-C2 aggregate shape.\n\n``costUsd``/``prId``/``url``/``steps`` are explicit-null when their source\ndoes not exist yet (no ledger rows, no PR opened, \u2026); the detail page (F3b)\ndegrades honestly per missing field. ``costUsd`` is exact scale-6 money.",
+    "properties": {
+     "costUsd": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Costusd"
+     },
+     "engineMode": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Enginemode"
+     },
+     "executing": {
+      "default": false,
+      "title": "Executing",
+      "type": "boolean"
+     },
+     "isHumanEditing": {
+      "default": false,
+      "title": "Ishumanediting",
+      "type": "boolean"
+     },
+     "planApproved": {
+      "default": false,
+      "title": "Planapproved",
+      "type": "boolean"
+     },
+     "planId": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Planid"
+     },
+     "prId": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Prid"
+     },
+     "runId": {
+      "title": "Runid",
+      "type": "string"
+     },
+     "state": {
+      "title": "State",
+      "type": "string"
+     },
+     "steps": {
+      "items": {
+       "$ref": "#/components/schemas/AggregateStepOut"
+      },
+      "title": "Steps",
+      "type": "array"
+     },
+     "url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Url"
+     }
+    },
+    "required": [
+     "runId",
+     "state"
+    ],
+    "title": "RunAggregateResponse",
+    "type": "object"
+   },
+   "RunIdStatusResponse": {
+    "description": "Shared shape of the run-control verbs (start/pause/resume/stop/...).",
+    "properties": {
+     "runId": {
+      "title": "Runid",
+      "type": "string"
+     },
+     "status": {
+      "title": "Status",
+      "type": "string"
+     }
+    },
+    "required": [
+     "runId",
+     "status"
+    ],
+    "title": "RunIdStatusResponse",
+    "type": "object"
+   },
+   "RunItem": {
+    "description": "One row of the M10-C2 index payload (camelCase per api-conventions).",
+    "properties": {
+     "createdAt": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Createdat"
+     },
+     "finishedAt": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Finishedat"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "projectId": {
+      "title": "Projectid",
+      "type": "string"
+     },
+     "startedAt": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Startedat"
+     },
+     "status": {
+      "title": "Status",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "projectId",
+     "status"
+    ],
+    "title": "RunItem",
+    "type": "object"
+   },
+   "RunStateResponse": {
+    "description": "Shape of plan-gate startRun and the resume verb (state, not status).",
+    "properties": {
+     "runId": {
+      "title": "Runid",
+      "type": "string"
+     },
+     "state": {
+      "title": "State",
+      "type": "string"
+     }
+    },
+    "required": [
+     "runId",
+     "state"
+    ],
+    "title": "RunStateResponse",
+    "type": "object"
+   },
+   "RunStatusResponse": {
+    "description": "M13-G5a typing island: the run aggregate read (camelCase wire shape).",
+    "properties": {
+     "engineMode": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Enginemode"
+     },
+     "executing": {
+      "default": false,
+      "title": "Executing",
+      "type": "boolean"
+     },
+     "isHumanEditing": {
+      "default": false,
+      "title": "Ishumanediting",
+      "type": "boolean"
+     },
+     "planApproved": {
+      "default": false,
+      "title": "Planapproved",
+      "type": "boolean"
+     },
+     "planId": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Planid"
+     },
+     "prId": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Prid"
+     },
+     "runId": {
+      "title": "Runid",
+      "type": "string"
+     },
+     "state": {
+      "title": "State",
+      "type": "string"
+     }
+    },
+    "required": [
+     "runId",
+     "state"
+    ],
+    "title": "RunStatusResponse",
+    "type": "object"
+   },
+   "RunsPage": {
+    "description": "Frozen api-conventions pagination shape: items + opaque nextCursor.",
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/RunItem"
+      },
+      "title": "Items",
+      "type": "array"
+     },
+     "nextCursor": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Nextcursor"
+     }
+    },
+    "required": [
+     "items"
+    ],
+    "title": "RunsPage",
+    "type": "object"
+   },
+   "StartRunResponse": {
+    "description": "200 body of /runs/{runId}/start (plan-gate variant returns state).",
+    "properties": {
+     "runId": {
+      "title": "Runid",
+      "type": "string"
+     },
+     "state": {
+      "title": "State",
+      "type": "string"
+     }
+    },
+    "required": [
+     "runId",
+     "state"
+    ],
+    "title": "StartRunResponse",
+    "type": "object"
+   },
+   "ValidationError": {
+    "properties": {
+     "ctx": {
+      "title": "Context",
+      "type": "object"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "title": "Location",
+      "type": "array"
+     },
+     "msg": {
+      "title": "Message",
+      "type": "string"
+     },
+     "type": {
+      "title": "Error Type",
+      "type": "string"
+     }
+    },
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError",
+    "type": "object"
+   },
+   "_ErrorDetail": {
+    "description": "M13-G5a: frozen contract error entry for responses={} documentation.",
+    "properties": {
+     "code": {
+      "title": "Code",
+      "type": "string"
+     },
+     "message": {
+      "title": "Message",
+      "type": "string"
+     }
+    },
+    "required": [
+     "code",
+     "message"
+    ],
+    "title": "_ErrorDetail",
+    "type": "object"
+   },
+   "_ErrorEnvelope": {
+    "properties": {
+     "error": {
+      "$ref": "#/components/schemas/_ErrorDetail"
+     }
+    },
+    "required": [
+     "error"
+    ],
+    "title": "_ErrorEnvelope",
+    "type": "object"
+   }
+  }
+ },
+ "info": {
+  "title": "harness-orchestrator",
+  "version": "0.1.0"
+ },
+ "openapi": "3.1.0",
+ "paths": {
+  "/api/v1/orchestrator/plans": {
+   "post": {
+    "description": "{goal} \u2192 201 {planId, plan}. Mints a fresh run + plan, leaves the run at\nAWAITING_PLAN_APPROVAL via sm.plan_proposed() (state_machine vocabulary).",
+    "operationId": "propose_plan_api_v1_orchestrator_plans_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ProposePlanGateRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PlanProposedResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "400": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "INVALID_STATE"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "ROLE_DENIED"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Propose Plan",
+    "tags": [
+     "plan-gate"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/plans/{planId}/approve": {
+   "post": {
+    "description": "`/plans/{id}/approve` \u2192 200 {runId}. admin/engineer only. Idempotent.\n\nM12-F2: the durable decision is a compare-and-swap on agent_plans.version.\nThe CAS runs BEFORE any in-memory mutation, so a loser of the race leaves\nplanner/state-machine/memory untouched and gets 409 PLAN_ALREADY_DECIDED\ninstead of both callers believing they won (last-write-wins eliminated).\nA sequential re-approve still short-circuits to the same runId.",
+    "operationId": "approve_plan_api_v1_orchestrator_plans__planId__approve_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "planId",
+      "required": true,
+      "schema": {
+       "title": "Planid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PlanActionResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "ROLE_DENIED"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "PLAN_NOT_FOUND"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "PLAN_ALREADY_DECIDED / INVALID_STATE"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Approve Plan",
+    "tags": [
+     "plan-gate"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/plans/{planId}/reject": {
+   "post": {
+    "description": "`/plans/{id}/reject` \u2192 202. Persisted AND audited. admin/engineer only.\n\nM12-F2: same CAS-before-memory discipline as approve. The decision window\nis AWAITING_PLAN_APPROVAL \u2014 a plan that already moved (approved, rejected,\nexecuting) rejects with 409 PLAN_ALREADY_DECIDED, so reject-after-reject\nand mixed approve/reject races resolve to exactly one winner.",
+    "operationId": "reject_plan_api_v1_orchestrator_plans__planId__reject_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "planId",
+      "required": true,
+      "schema": {
+       "title": "Planid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "202": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PlanRejectedResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "ROLE_DENIED"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "PLAN_NOT_FOUND"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "PLAN_ALREADY_DECIDED / INVALID_STATE"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Reject Plan",
+    "tags": [
+     "plan-gate"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs": {
+   "get": {
+    "description": "List the caller's team's runs, newest first (contract M10-C2).\n\nCursor pagination per api-conventions.md: pass ``nextCursor`` back as\n``?cursor=`` for the next page. ``?offset=`` is accepted but IGNORED\nduring the one-release deprecation window (M14-W4 F3a).",
+    "operationId": "list_runs_api_v1_orchestrator_runs_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "projectId",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Projectid"
+      }
+     },
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 25,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "offset",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Offset"
+      }
+     },
+     {
+      "in": "query",
+      "name": "cursor",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Cursor"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RunsPage"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Runs",
+    "tags": [
+     "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}": {
+   "get": {
+    "description": "Single-run aggregate read \u2014 pair-contract W4-C2 (M14-W4 F3a).\n\nWire shape ``{runId, state, costUsd?, prId?, url?, steps?}`` plus the\nlegacy status fields (superset of ``/status``). Nullability is explicit:\n``costUsd`` is None until cost_ledger rows exist for the run; ``prId``/\n``url`` stay None until S2's PR-open producer binds one; ``steps`` lists\nthe run's agent_events as ordered ``{seq, type, ts}`` summaries, capped at\nthe LAST 100 (wire order = seq order). Unknown runs and foreign teams'\nruns both answer 404 NOT_FOUND with the identical frozen error envelope\n(M13-G5a no-oracle law).",
+    "operationId": "get_run_api_v1_orchestrator_runs__runId__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RunAggregateResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "unknown or foreign run (no-oracle: identical envelope)"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Run",
+    "tags": [
+     "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/done-signal": {
+   "post": {
+    "operationId": "signal_done_api_v1_orchestrator_runs__runId__done_signal_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DoneSignalRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DoneSignalResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "400": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "EMPTY_DIFF"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "DONE_SIGNAL_ROLE_DENIED"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "unknown or foreign run (no-oracle)"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "RUN_NOT_LIVE"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Signal Done",
+    "tags": [
+     "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/engine": {
+   "get": {
+    "operationId": "get_engine_result_api_v1_orchestrator_runs__runId__engine_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Engine Result Api V1 Orchestrator Runs  Runid  Engine Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Engine Result",
+    "tags": [
+     "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/human-edit": {
+   "post": {
+    "operationId": "submit_human_edit_api_v1_orchestrator_runs__runId__human_edit_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/HumanEditRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "string"
+         },
+         "title": "Response Submit Human Edit Api V1 Orchestrator Runs  Runid  Human Edit Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Submit Human Edit",
+    "tags": [
+     "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/pause": {
+   "post": {
+    "operationId": "pause_agent_api_v1_orchestrator_runs__runId__pause_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RunIdStatusResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Pause Agent",
+    "tags": [
+     "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/plan": {
+   "get": {
+    "operationId": "get_plan_api_v1_orchestrator_runs__runId__plan_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Plan Api V1 Orchestrator Runs  Runid  Plan Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Plan",
+    "tags": [
+     "orchestrator"
+    ]
+   },
+   "post": {
+    "operationId": "propose_plan_api_v1_orchestrator_runs__runId__plan_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/ProposePlanRequest"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Req"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProposePlanResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "400": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "INVALID_STATE"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "foreign/unknown projectId (no-oracle)"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Propose Plan",
+    "tags": [
+     "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/plan/approve": {
+   "post": {
+    "operationId": "approve_plan_api_v1_orchestrator_runs__runId__plan_approve_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PlanActionRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PlanDecisionResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "role may not approve"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "unknown or foreign run (no-oracle)"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Approve Plan",
+    "tags": [
+     "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/plan/reject": {
+   "post": {
+    "operationId": "reject_plan_api_v1_orchestrator_runs__runId__plan_reject_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PlanActionRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PlanDecisionResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "role may not reject"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "plan mismatch"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Reject Plan",
+    "tags": [
+     "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/resume": {
+   "post": {
+    "operationId": "resume_agent_api_v1_orchestrator_runs__runId__resume_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RunStateResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Resume Agent",
+    "tags": [
+     "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/start": {
+   "post": {
+    "description": "propose\u2192approve\u2192startRun walk; leaves the run EXECUTING per contract note.",
+    "operationId": "start_run_api_v1_orchestrator_runs__runId__start_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/StartRunResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "400": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "INVALID_STATE"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "ROLE_DENIED"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "PLAN_NOT_APPROVED"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Start Run",
+    "tags": [
+     "plan-gate"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/status": {
+   "get": {
+    "operationId": "get_run_status_api_v1_orchestrator_runs__runId__status_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RunStatusResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Run Status",
+    "tags": [
+     "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/stop": {
+   "post": {
+    "operationId": "stop_agent_api_v1_orchestrator_runs__runId__stop_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RunIdStatusResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Stop Agent",
+    "tags": [
+     "orchestrator"
+    ]
+   }
+  },
+  "/health": {
+   "get": {
+    "operationId": "health_health_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Health"
+   }
+  }
+ }
+}
