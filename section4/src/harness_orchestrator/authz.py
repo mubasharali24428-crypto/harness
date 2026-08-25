@@ -1,19 +1,46 @@
-"""D5 authorization guards (wave 6 Phase 0 / P0.5).
+"""D5 authorization guards (wave 6 Phase 0 / P0.5) — M18-C1 fail-closed sweep.
 
 Route-layer enforcement of two previously-missing checks:
 
 1. Team ownership — every run route must prove ``agent_runs.project_id``
    belongs to the caller's team before touching state. The join speaks only to
    frozen table names (``agent_runs`` → ``projects``), mirroring AGENTS.md's
-   cross-section rule. When no session factory is wired (bare unit-test mode),
-   the DB-backed half is skipped exactly like rehydration is today.
+   cross-section rule.
 2. Role permission — mutating actions require ``roles.can()`` from the frozen
    contracts package (viewer/guest cannot drive runs; only admin/engineer can
    approve or reject plans). ``can(..., "read")`` is True for everyone, which
    is why read-only routes call only the ownership guard.
+
+M18-C1 (P-BETA H-3 / MAC2-F1): the guard used to fail OPEN three separate
+ways — an unwired session factory returned the run unchecked, a run without
+``projectId`` returned it unchecked, and a dangling ``projects`` row
+(``row is None``) was allowed through. Every branch that cannot PROVE
+ownership now denies with :class:`AuthzUnavailableError`, which api.py maps
+to a 403 ``AUTHZ_UNAVAILABLE`` envelope; the two auditable gaps (no project
+binding, dangling project row) additionally write an ``authz.denied`` row to
+the frozen ``audit_log`` table. The only remaining allow-without-proof path
+is the explicit ``HARNESS_AUTHZ_TEST_MODE=1`` escape hatch for bare unit
+tests — legacy suites set it in ``tests/conftest.py``; production wiring
+(deploy/runners/services.py) never does.
 """
 
+import json
+import logging
+import os
+from typing import Any
+
 from harness_contracts.roles import Principal, TeamScopedAction, can
+from harness_contracts.timeutil import db_now
+
+logger = logging.getLogger(__name__)
+
+#: Escape hatch for bare unit tests (no session factory wired). Production
+#: assemblies MUST NOT set this: the default posture for every unverifiable
+#: ownership check is DENY. The value must be exactly ``"1"``.
+AUTHZ_TEST_MODE_ENV = "HARNESS_AUTHZ_TEST_MODE"
+
+#: Frozen append-only audit action for denied-but-unprovable authorizations.
+AUDIT_ACTION_AUTHZ_DENIED = "authz.denied"
 
 
 class OwnershipDeniedError(Exception):
@@ -33,35 +60,172 @@ class RoleDeniedError(Exception):
         super().__init__(f"user '{user_id}' with role '{role}' may not {action}")
 
 
+class AuthzUnavailableError(Exception):
+    """The ownership check could not be evaluated, so the request is DENIED.
+
+    M18-C1: replaces the former silent ``return run_data`` branches.
+    ``reason`` is a stable machine code (``unwired_session_factory`` /
+    ``no_project`` / ``dangling_project``) surfaced verbatim in the API
+    envelope so operators can tell "unverifiable" from "not yours".
+    """
+
+    def __init__(self, reason: str, detail: str) -> None:
+        self.reason = reason
+        super().__init__(f"ownership check unavailable ({reason}): {detail}")
+
+
+def authz_test_mode() -> bool:
+    """True only when ``HARNESS_AUTHZ_TEST_MODE`` is explicitly ``"1"``.
+
+    Consulted per evaluation (never cached at import) so deployments and
+    tests can flip it via the environment at any point in the process
+    lifetime; any other value (including "true") keeps the deny posture.
+    """
+    return os.environ.get(AUTHZ_TEST_MODE_ENV, "") == "1"
+
+
 def require_role(principal: Principal, action: TeamScopedAction) -> None:
     """Raise :class:`RoleDeniedError` unless ``principal.role`` allows ``action``."""
     if not can(principal, action):
         raise RoleDeniedError(principal.userId, str(principal.role), action)
 
 
-async def authorize_run(service, run_id: str, principal: Principal) -> dict:
+async def _emit_authz_denied(
+    service,
+    *,
+    reason: str,
+    run_id: str,
+    project_id: str | None,
+    principal: Principal,
+) -> None:
+    """Best-effort ``authz.denied`` audit row for an unevaluable ownership check.
+
+    Writes the frozen ``audit_log`` table directly through the service's own
+    session factory (same discipline as plan_gate's local audit wrapper).
+    Audit failure is logged, never raised: the denial itself must reach the
+    caller regardless of the audit store's health.
+    """
+    from sqlalchemy import text
+
+    detail = {
+        "reason": reason,
+        "runId": run_id,
+        "projectId": project_id,
+        "userId": principal.userId,
+        "teamId": principal.teamId,
+    }
+    try:
+        async with service.session_factory() as db:
+            await db.execute(
+                text(
+                    "INSERT INTO audit_log (actor_member_id, actor_kind, action,"
+                    " target_type, target_id, detail, ts)"
+                    " VALUES (:actor, 'human', :action, 'agent_run', :run_id,"
+                    " :detail, :ts)"
+                ),
+                {
+                    "actor": principal.userId,
+                    "action": AUDIT_ACTION_AUTHZ_DENIED,
+                    "run_id": run_id,
+                    "detail": json.dumps(detail, default=str),
+                    "ts": db_now(),
+                },
+            )
+            await db.commit()
+    except Exception:  # noqa: BLE001 — audit must never mask the denial
+        logger.exception(
+            "authz_denied audit emit failed (reason=%s run=%s)", reason, run_id
+        )
+
+
+async def authorize_run(service, run_id: str, principal: Principal) -> dict[str, Any]:
     """Resolve the run and enforce team ownership; returns the run record.
 
-    ``service`` is the OrchestratorService: ``_ensure_run`` rehydrates or seeds
-    the run as usual, then the project→team ownership check reads the frozen
-    schema through the service's own session factory when one is wired.
+    Fail-closed (M18-C1): every branch that cannot prove ownership denies —
+
+    - no ``session_factory`` wired → deny, unless ``HARNESS_AUTHZ_TEST_MODE=1``
+      (legacy bare unit mode);
+    - run with no ``projectId`` anywhere (memory + ``agent_runs``) → deny +
+      ``authz.denied`` audit row (``no_project``): an unattributable run is
+      owned by nobody;
+    - a genuinely unknown run id (no ``agent_runs`` row at all) denies via
+      :class:`OwnershipDeniedError` so the API seam's existing no-oracle 404
+      answers exactly as it did before this sweep;
+    - ``projects`` row missing for the bound id → deny + ``authz.denied``
+      audit row (``dangling_project``): deleted/orphaned bindings never
+      widen access;
+    - row belongs to another team → deny with :class:`OwnershipDeniedError`
+      (mapped to the no-oracle 404 by api.py).
     """
     run_data = await service._ensure_run(run_id)
     factory = getattr(service, "session_factory", None)
     if factory is None:
-        return run_data  # bare unit mode: no DB, nothing to check against
+        if authz_test_mode():
+            return run_data  # explicit test-mode escape hatch (conftest sets it)
+        raise AuthzUnavailableError(
+            "unwired_session_factory",
+            f"no session factory wired while authorizing run '{run_id}'"
+            f" (set {AUTHZ_TEST_MODE_ENV}=1 only in unit tests)",
+        )
 
     from sqlalchemy import text
 
     project_id = run_data.get("projectId")
     if not project_id:
-        return run_data  # run never bound to a project — first propose owns it below
+        # Memory lost/never had the binding. Consult agent_runs directly
+        # (rehydration is best-effort and may have failed wholesale).
+        try:
+            async with factory() as db:
+                run_row = (
+                    await db.execute(
+                        text("SELECT project_id FROM agent_runs WHERE id = :r"),
+                        {"r": run_id},
+                    )
+                ).first()
+        except Exception:  # noqa: BLE001 — store trouble must never ALLOW
+            # Existence itself is unverifiable: deny with the same shape an
+            # unknown id gets (M13-G5a). Never an open endpoint.
+            logger.exception(
+                "run-existence probe failed for %s; denying as unknown", run_id
+            )
+            raise OwnershipDeniedError(run_id, principal.teamId) from None
+        if run_row is None:
+            # No row anywhere: the run does not exist in this store. Same
+            # answer a foreign id gets (M13-G5a no-oracle) — never an
+            # existence oracle, never an allow.
+            raise OwnershipDeniedError(run_id, principal.teamId)
+        project_id = run_row.project_id
+        if not project_id:
+            await _emit_authz_denied(
+                service,
+                reason="no_project",
+                run_id=run_id,
+                project_id=None,
+                principal=principal,
+            )
+            raise AuthzUnavailableError(
+                "no_project",
+                f"run '{run_id}' carries no projectId; ownership unprovable",
+            )
+
     async with factory() as db:
         row = (
             await db.execute(
                 text("SELECT team_id FROM projects WHERE id = :p"), {"p": project_id}
             )
         ).first()
-    if row is not None and row.team_id != principal.teamId:
+    if row is None:
+        await _emit_authz_denied(
+            service,
+            reason="dangling_project",
+            run_id=run_id,
+            project_id=project_id,
+            principal=principal,
+        )
+        raise AuthzUnavailableError(
+            "dangling_project",
+            f"project '{project_id}' of run '{run_id}' has no projects row",
+        )
+    if row.team_id != principal.teamId:
         raise OwnershipDeniedError(run_id, principal.teamId)
     return run_data

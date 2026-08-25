@@ -59,7 +59,11 @@ from harness_orchestrator.service import OrchestratorService  # noqa: E402
 DDL = """
 CREATE TABLE teams (
     id VARCHAR(36) PRIMARY KEY,
-    name VARCHAR(200) NOT NULL
+    name VARCHAR(200) NOT NULL,
+    -- M18-C2 tier 1: cap override (NULL = unset). Scratch mirrors without
+    -- this column fail closed at the budget gate and every run blocks before
+    -- the engine call (teams unreadable ⇒ degraded denial).
+    budget_usd REAL NULL
 );
 CREATE TABLE projects (
     id VARCHAR(36) PRIMARY KEY,

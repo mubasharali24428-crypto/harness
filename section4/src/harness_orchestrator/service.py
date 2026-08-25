@@ -206,11 +206,15 @@ class OrchestratorService(Orchestrator):
     # ------------------------------------------------------------- budget
 
     async def _budget_gate(self, run_data: dict[str, Any], plan: AgentPlan | None) -> bool:
-        """Wave 9 node B: refuse to spend before a model call happens.
+        """Wave 9 node B / M18-C2: refuse to spend before a model call happens.
 
-        Returns True when the team is over budget (run blocked honestly via
-        ENGINE_FAILED — a frozen contract event). Any budget-read failure
-        degrades to "allowed" so an outage cannot brick orchestration.
+        Returns True when the team is over budget OR the budget store is
+        unreachable — both block the run honestly via ENGINE_FAILED (a frozen
+        contract event). M18-C2 failure posture is ONE, FAIL-CLOSED: a DB
+        error can no longer degrade to "allowed"; the denial carries
+        ``status.degraded=True`` and this gate (1) labels the reason so
+        operators see an outage-shaped denial, and (2) records the flag on
+        run_data for the run-aggregate API response.
         """
         factory = self.run_queue_factory or self.session_factory
         if factory is None:
@@ -226,8 +230,16 @@ class OrchestratorService(Orchestrator):
             ),
         )
         if status.allowed:
+            run_data.pop("budget_degraded", None)
             return False
-        reason = f"Budget cap reached: {status.reason}"
+        if status.degraded:
+            # Operator-visible degradation: the money store was down, the
+            # spend was denied BECAUSE of that, not because a cap was hit.
+            run_data["budget_degraded"] = True
+            reason = f"Budget gate degraded (fail-closed): {status.reason}"
+        else:
+            run_data.pop("budget_degraded", None)
+            reason = f"Budget cap reached: {status.reason}"
         logger.warning("blocking run %s pre-call: %s", run_data.get("runId"), reason)
         sm: AgentStateMachine = run_data["state_machine"]
         sm.execution_failed(reason)
@@ -921,9 +933,10 @@ class OrchestratorService(Orchestrator):
         sm.signal_done()
         self._cancel_live_task(run_data)
 
-        # Wave 9 node B: the reviewer's model_router call is a real spend —
-        # check the cap BEFORE invoking it. Over budget ⇒ no model call; the
-        # reviewer falls back to deterministic heuristics and records why.
+        # Wave 9 node B / M18-C2: the reviewer's model_router call is a real
+        # spend — check the cap BEFORE invoking it. Over budget OR a degraded
+        # (unreachable) budget store ⇒ no model call; the reviewer falls back
+        # to deterministic heuristics and records why.
         budget_block: str | None = None
         factory = self.run_queue_factory or self.session_factory
         if factory is not None and self.reviewer.model_router is not None:
@@ -931,7 +944,13 @@ class OrchestratorService(Orchestrator):
             if team_id:
                 status: BudgetStatus = await check_budget(factory, team_id)
                 if not status.allowed:
-                    budget_block = status.reason
+                    budget_block = (
+                        f"budget gate degraded (fail-closed): {status.reason}"
+                        if status.degraded
+                        else status.reason
+                    )
+                    if status.degraded:
+                        run_data["budget_degraded"] = True
                     logger.warning(
                         "reviewer model call withheld for run %s: %s", run_id, budget_block
                     )
@@ -1031,6 +1050,11 @@ class OrchestratorService(Orchestrator):
             "url": None,
             "costUsd": None,
             "steps": [],
+            # M18-C2: explicit degraded=false — operators read the aggregate
+            # and see at a glance that this run's budget decisions were made
+            # against a healthy money store (flips true when a gate ran
+            # fail-closed on a DB error).
+            "budget": {"degraded": bool(run_data.get("budget_degraded"))},
         }
         factory = self.session_factory
         if factory is None:

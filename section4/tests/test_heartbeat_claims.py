@@ -37,6 +37,14 @@ def _utc_now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 DDL = """
+CREATE TABLE teams (
+    id VARCHAR(36) PRIMARY KEY,
+    name VARCHAR(200) NOT NULL,
+    -- M18-C2 tier 1: cap override (NULL = unset). Scratch mirrors without
+    -- this table fail closed at the budget gate and every run blocks before
+    -- the engine call (teams unreadable ⇒ degraded denial).
+    budget_usd REAL NULL
+);
 CREATE TABLE projects (
     id VARCHAR(36) PRIMARY KEY,
     team_id VARCHAR(36) NOT NULL
@@ -48,6 +56,20 @@ CREATE TABLE run_claims (
     claimed_at TEXT NOT NULL,
     heartbeat_at TEXT NOT NULL,
     worker_id VARCHAR(80) NOT NULL
+);
+CREATE TABLE cost_ledger (
+    seq INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id VARCHAR(36),
+    agent_role VARCHAR(20) NOT NULL DEFAULT 'primary',
+    model VARCHAR(120) NOT NULL DEFAULT 'stub',
+    input_tokens INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    cost_usd NUMERIC(12,6) NOT NULL,
+    latency_ms INTEGER NOT NULL DEFAULT 0,
+    -- M18-C2: the spend window is the DB-clock month. Frozen column (0001).
+    -- In-month rows pass this default window, pre-month rows fail it —
+    -- identical semantics to date_trunc on PG.
+    created_at TEXT NOT NULL DEFAULT '2026-01-01T00:00:00+00:00'
 );
 CREATE TABLE agent_events (
     seq INTEGER PRIMARY KEY AUTOINCREMENT,

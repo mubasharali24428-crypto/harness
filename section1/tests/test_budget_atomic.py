@@ -59,6 +59,9 @@ _MIRROR_DDL = """
 CREATE TABLE teams (
     id VARCHAR(36) PRIMARY KEY,
     name VARCHAR(200) NOT NULL,
+    -- M18-C2: the cap resolver reads teams.budget_usd (migration 0007);
+    -- scratch mirrors carry the frozen column like every real schema.
+    budget_usd NUMERIC(12,6),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE projects (
@@ -109,7 +112,16 @@ def _register_sqlite_funcs(dbapi_conn: sqlite3.Connection, _rec=None) -> None:
 
 
 def _claim_params(team_id: str, run_id: str | None, cost: float) -> dict:
-    return {**CLAIM_PARAMS_BASE, "team_id": team_id, "run_id": run_id, "cost_usd": cost}
+    # M18-C2: :env_budget_usd is part of RESERVE_SQL's bind surface (the
+    # cap-resolution env tier); production reserve() binds the parsed
+    # HARNESS_TEAM_BUDGET_USD value here — None in these probes unless set.
+    return {
+        **CLAIM_PARAMS_BASE,
+        "team_id": team_id,
+        "run_id": run_id,
+        "cost_usd": cost,
+        "env_budget_usd": None,
+    }
 
 
 class _RawConn:
@@ -184,6 +196,11 @@ async def budget_db():
     event.listen(engine.sync_engine, "connect", _register_sqlite_funcs)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # M18-C2: the cap resolver reads teams.budget_usd (migration 0007),
+        # which the frozen Team model deliberately does not map — scratch
+        # mirrors apply the additive column exactly like migrate() does on a
+        # real schema.
+        await conn.execute(text("ALTER TABLE teams ADD COLUMN budget_usd NUMERIC(12,6)"))
     factory = async_sessionmaker(engine, expire_on_commit=False)
     yield factory
     await engine.dispose()
@@ -346,6 +363,8 @@ async def test_exception_injected_into_real_ledger_fails_closed():
     event.listen(engine.sync_engine, "connect", _register_sqlite_funcs)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # M18-C2: cap resolution reads teams.budget_usd (migration 0007).
+        await conn.execute(text("ALTER TABLE teams ADD COLUMN budget_usd NUMERIC(12,6)"))
     factory = async_sessionmaker(engine, expire_on_commit=False)
     try:
         team_id, run_id = await _seed_team(factory, budget_usd=100.0)
@@ -455,5 +474,7 @@ def test_named_binds_translate_to_asyncpg_positional():
         RESERVE_SQL, _claim_params("team-1", "run-1", 1.5)
     )
     assert "$1" in sql and ":" not in sql.replace("::", "")
-    assert args[0] == "run-1" and args[-1] == "team-1"
-    assert len(args) == 8
+    assert args[0] == "run-1" and args[-2] == "team-1"
+    # M18-C2: the cap-resolution env tier (:env_budget_usd) binds LAST.
+    assert args[-1] is None
+    assert len(args) == 9

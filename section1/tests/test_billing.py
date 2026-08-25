@@ -16,7 +16,7 @@ import pytest
 from fastapi import FastAPI
 from harness_contracts import hash_token
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select, text
+from sqlalchemy import event, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from harness_identity.billing import BillingPlan, router
@@ -37,8 +37,25 @@ from harness_identity.models import (
 @pytest.fixture
 async def billing_factory():
     engine = create_async_engine("sqlite+aiosqlite://")
+
+    # M18-C2: the quota usage window is the ONE DB-clock definition —
+    # date_trunc('month', now()) — so this mirror registers identical-
+    # semantics user functions (same pattern as test_budget_atomic).
+    def _register(dbapi_conn, _rec=None):
+        dbapi_conn.create_function(
+            "now", 0, lambda: datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+        )
+        dbapi_conn.create_function(
+            "date_trunc", 2, lambda unit, value: f"{str(value)[:7]}-01 00:00:00"
+        )
+
+    event.listen(engine.sync_engine, "connect", _register)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # M18-C2: cap resolution reads teams.budget_usd (migration 0007),
+        # unmapped on the frozen Team model — applied additively here like a
+        # real migrated schema.
+        await conn.execute(text("ALTER TABLE teams ADD COLUMN budget_usd NUMERIC(12,6)"))
     yield async_sessionmaker(engine, expire_on_commit=False)
     await engine.dispose()
 
@@ -210,13 +227,14 @@ async def test_enabled_local_zero_ledger_rows_quota_is_zero(
 
 
 async def test_teams_budget_usd_0007_feeds_quota_max(billing_factory, billing_client, monkeypatch):
-    """teams.budget_usd (migration 0007) participates when the column exists:
-    effective budget = max(plan row, team override)."""
+    """M18-C2 ONE budget truth: teams.budget_usd (migration 0007) participates
+    in the SAME resolution every consumer uses — team override WINS over the
+    plan row (previously this display took max(plan, team), a fourth
+    disagreeing truth). The column ships with the fixture's migrated schema,
+    so the test only sets its value."""
     monkeypatch.setenv("HARNESS_BILLING", "local")
     actor = await _seed_user(billing_factory, "cap@x.com")
     async with billing_factory() as db:
-        # mirror migration 0007 onto the scratch schema (Team model is frozen)
-        await db.execute(text("ALTER TABLE teams ADD COLUMN budget_usd NUMERIC(12,2)"))
         await db.execute(
             text("UPDATE teams SET budget_usd = :b WHERE id = :t"),
             {"b": 25.5, "t": actor["teamId"]},
@@ -227,7 +245,22 @@ async def test_teams_budget_usd_0007_feeds_quota_max(billing_factory, billing_cl
     r = await billing_client.get("/api/v1/billing/state", headers=_bearer(actor["token"]))
     body = r.json()
     assert body["plan"] == "pro"
-    assert body["quota"]["monthlyBudgetUsd"] == pytest.approx(25.5)  # max(10, 25.5)
+    # Resolution order: teams.budget_usd (25.5) > billing_plans (10).
+    assert body["quota"]["monthlyBudgetUsd"] == pytest.approx(25.5)
+
+    # A LOWER plan row under a NULL override resolves to the plan tier.
+    async with billing_factory() as db:
+        await db.execute(
+            text("UPDATE teams SET budget_usd = NULL WHERE id = :t"),
+            {"t": actor["teamId"]},
+        )
+        await db.execute(
+            text("UPDATE billing_plans SET monthly_budget_usd = 12 WHERE team_id = :t"),
+            {"t": actor["teamId"]},
+        )
+        await db.commit()
+    r = await billing_client.get("/api/v1/billing/state", headers=_bearer(actor["token"]))
+    assert r.json()["quota"]["monthlyBudgetUsd"] == pytest.approx(12.0)
 
 
 # ------------------------------------------------------------ PUT /plan

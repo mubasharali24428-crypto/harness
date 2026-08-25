@@ -1,5 +1,17 @@
 from .api import API_PREFIX, error_body, ws_envelope
 from .brief import EngineeringBrief
+from .budget import (
+    CAP_RESOLUTION_ORDER,
+    DEGRADED_FLAG_WIRE,
+    DEGRADED_REASON,
+    ENV_TEAM_BUDGET_USD,
+    MONTH_WINDOW_SQL,
+    ResolvedCap,
+    env_budget_default,
+    parse_env_budget_usd,
+    resolve_cap,
+    to_cap_decimal,
+)
 from .events import EVENT_TYPES, EventEnvelope, EventType, event_envelope
 
 try:  # sqlalchemy-dependent modules stay optional at import (S5 has no SA)
@@ -21,7 +33,7 @@ from .roles import Principal, Role, can
 from .security import KeyVault
 from .timeutil import as_utc, db_now, now_utc, utcnow_iso
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 
 __all__ = [
     "Principal",
@@ -49,4 +61,14 @@ __all__ = [
     "db_now",
     "now_utc",
     "utcnow_iso",
+    # M18-C2: the one budget truth (cap resolution / month window / posture):
+    "CAP_RESOLUTION_ORDER",
+    "DEGRADED_FLAG_WIRE",
+    "DEGRADED_REASON",
+    "ENV_TEAM_BUDGET_USD",
+    "MONTH_WINDOW_SQL",
+    "ResolvedCap",
+    "env_budget_default",
+    "parse_env_budget_usd",
+    "resolve_cap",
 ]

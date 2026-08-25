@@ -42,12 +42,19 @@ arithmetic is exact.
 from __future__ import annotations
 
 import logging
+import os
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
+from harness_contracts import (
+    DEGRADED_REASON,
+    ENV_TEAM_BUDGET_USD,
+    MONTH_WINDOW_SQL,
+    parse_env_budget_usd,
+)
 from harness_router.ledger import to_money
 
 logger = logging.getLogger(__name__)
@@ -69,7 +76,21 @@ logger = logging.getLogger(__name__)
 # verbatim (pg_* functions must stay OUT of RESERVE_SQL).
 #
 # Named binds: :run_id, :agent_role, :model, :input_tokens, :output_tokens,
-# :cost_usd, :latency_ms, :team_id.
+# :cost_usd, :team_id, :env_budget_usd.
+#
+# Cap truth (M18-C2 — ONE budget truth): the subselect resolves the cap in the
+# SAME order every other consumer uses (contracts.CAP_RESOLUTION_ORDER):
+# teams.budget_usd > billing_plans.monthly_budget_usd > env
+# HARNESS_TEAM_BUDGET_USD > unlimited(explicit). The env tier is resolved in
+# PYTHON via contracts.budget.parse_env_budget_usd and bound as
+# :env_budget_usd so all three tiers share one parser and SQLite mirrors need
+# no SQL-side env access. Unlimited is EXPLICIT and uniform: when no tier is
+# set (:env_budget_usd IS NULL AND both columns are NULL) the COALESCE falls
+# to +infinity and the claim is ALLOWED — the same "uncapped" answer every
+# other consumer resolves, labeled by contracts.budget. A stored 0 at any
+# tier WINS (zero cap = block everything); only NULL / missing rows fall
+# through to the next tier. The month window is the ONE definition
+# (contracts.MONTH_WINDOW_SQL): DB-clock date_trunc('month', now()).
 RESERVE_SQL = """
 INSERT INTO cost_ledger (run_id, agent_role, model, input_tokens,
                          output_tokens, cost_usd, latency_ms)
@@ -83,15 +104,28 @@ WHERE COALESCE((
           WHERE p.team_id = :team_id
             AND l.created_at >= date_trunc('month', now())
       ), 0) + CAST(:cost_usd AS NUMERIC)
-      <= (
-          SELECT bp.monthly_budget_usd
-          FROM billing_plans bp
-          WHERE bp.team_id = :team_id
-          ORDER BY bp.updated_at DESC
-          LIMIT 1
+      <= COALESCE(
+          (
+              SELECT t.budget_usd
+              FROM teams t
+              WHERE t.id = :team_id AND t.budget_usd IS NOT NULL
+          ),
+          (
+              SELECT bp.monthly_budget_usd
+              FROM billing_plans bp
+              WHERE bp.team_id = :team_id
+              ORDER BY bp.updated_at DESC
+              LIMIT 1
+          ),
+          CAST(:env_budget_usd AS NUMERIC),
+          1e30
       )
 RETURNING seq
 """
+
+# M18-C2 law: the guard's month window IS the one contracts month window —
+# if someone edits either side independently this module refuses to import.
+assert MONTH_WINDOW_SQL.split("created_at ")[1] in RESERVE_SQL
 
 # Transaction-scoped team serialization (asyncpg path only). Taken INSIDE the
 # same transaction as RESERVE_SQL so the headroom SUM cannot race a concurrent
@@ -182,6 +216,7 @@ async def reserve(
     output_tokens: int,
     latency_ms: int,
     run_id: str | None = None,
+    env_budget_usd=None,
 ) -> ReserveResult:
     """Atomically check-and-reserve budget as a cost_ledger row.
 
@@ -199,6 +234,13 @@ async def reserve(
     Estimates outside the NUMERIC(12,6) envelope (|cost| > MONEY_MAX) are
     rejected before any DB contact with reason "cost out of range" — honest,
     never a silent ledger drop.
+
+    M18-C2: the cap comes from the ONE resolver order (contracts
+    CAP_RESOLUTION_ORDER); the env tier is parsed once here via
+    ``parse_env_budget_usd`` and bound as ``:env_budget_usd`` so the SQL
+    predicate needs no environment access. With no cap tier set anywhere the
+    predicate resolves to explicit-unlimited and allows — the same labeled
+    answer every consumer resolves; DB errors still fail CLOSED below.
     """
     try:
         # Exact money normalization happens BEFORE the DB sees the value;
@@ -210,6 +252,13 @@ async def reserve(
                 cost_dec,
             )
             return ReserveResult(allowed=False, reason="cost out of range")
+        # Env tier of the ONE cap resolution (M18-C2): explicit kwarg wins,
+        # else today's HARNESS_TEAM_BUDGET_USD via the contract parser. None
+        # when unset/garbage — the SQL COALESCEs it after the two DB tiers.
+        if env_budget_usd is not None:
+            env_budget = parse_env_budget_usd(env_budget_usd)
+        else:
+            env_budget = parse_env_budget_usd(os.environ.get(ENV_TEAM_BUDGET_USD))
         params = {
             "run_id": run_id,
             "agent_role": str(agent_role)[:20],  # agent_role VARCHAR(20)
@@ -219,6 +268,9 @@ async def reserve(
             "cost_usd": f"{cost_dec:.6f}",
             "latency_ms": int(latency_ms),
             "team_id": team_id,
+            # Bound as NUMERIC(12,6) text; NULL + no DB tier means
+            # unlimited-explicit (predicate falls to 1e30, claims allowed).
+            "env_budget_usd": None if env_budget is None else f"{env_budget:.6f}",
         }
         if _is_asyncpg_pool(pool):
             sql, args = to_positional_params(RESERVE_SQL, params)
@@ -230,11 +282,13 @@ async def reserve(
             # SQLAlchemy / test adapter path: named binds run unmodified.
             row = await pool.fetchrow(RESERVE_SQL, params)
     except Exception:  # noqa: BLE001 — money path must fail closed
-        logger.warning("budget reserve failed; failing closed", exc_info=True)
+        logger.warning("%s", DEGRADED_REASON, exc_info=True)
         return ReserveResult(allowed=False, reason="ledger unavailable")
     if row is None:
         # Predicate false => projected month-to-date + this claim exceeds the
-        # plan budget. Nothing was inserted; the caller must not proceed.
+        # resolved cap ("over budget"). Nothing was inserted; the caller must
+        # not proceed. (Unlimited-explicit resolves to +Infinity in the
+        # predicate, so a refusal always means a REAL cap was hit.)
         return ReserveResult(allowed=False, reason="over budget")
     return ReserveResult(allowed=True, reason=None, entry_id=int(row["seq"]))
 

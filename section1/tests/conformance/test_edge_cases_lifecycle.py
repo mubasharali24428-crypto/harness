@@ -151,8 +151,11 @@ async def test_x18_36_invite_mint_double_invocation_two_rows_independent_tokens(
 
         # ...and token #2 still redeems into real membership while token #1,
         # though revoked, is answered with its own honest 410 INVITE_REVOKED.
+        # M18-C5 (F3): redemption presents the invited email.
         r_join = await c.post(
-            "/api/v1/invites/redeem", json={"token": tok2}, headers=bearer(joiner["token"])
+            "/api/v1/invites/redeem",
+            json={"token": tok2, "email": "dupe@x.com"},
+            headers=bearer(joiner["token"]),
         )
         assert r_join.status_code == 200, r_join.text
         assert r_join.json()["membership"]["teamId"] == team
@@ -160,7 +163,7 @@ async def test_x18_36_invite_mint_double_invocation_two_rows_independent_tokens(
         other = await seed_user(x5_factory, "x18-36-other@y.com")
         r_dead = await c.post(
             "/api/v1/invites/redeem",
-            json={"token": tok1},
+            json={"token": tok1, "email": "dupe@x.com"},  # M18-C5 (F3)
             headers=bearer(other["token"]),
         )
         assert r_dead.status_code == 410, r_dead.text
@@ -199,7 +202,7 @@ async def test_x18_37_invite_revoke_after_redeem_keeps_membership_token_stays_de
 
         r_redeem = await c.post(
             "/api/v1/invites/redeem",
-            json={"token": token},
+            json={"token": token, "email": "late@x.com"},  # M18-C5 (F3)
             headers=bearer(joiner["token"]),
         )
         assert r_redeem.status_code == 200, r_redeem.text
@@ -226,7 +229,7 @@ async def test_x18_37_invite_revoke_after_redeem_keeps_membership_token_stays_de
         # ...while the token itself remains permanently dead.
         r_again = await c.post(
             "/api/v1/invites/redeem",
-            json={"token": token},
+            json={"token": token, "email": "late@x.com"},  # M18-C5 (F3)
             headers=bearer(await _fresh_user_token(x5_factory)),
         )
         assert r_again.status_code == 409, r_again.text
@@ -276,7 +279,7 @@ async def test_x18_33b_invite_redeem_after_expiry_honest_410_on_every_retry(
         for attempt in (1, 2, 3):
             r = await c.post(
                 "/api/v1/invites/redeem",
-                json={"token": raw},
+                json={"token": raw, "email": "stale@x.com"},  # M18-C5 (F3)
                 headers=bearer(joiner["token"]),
             )
             assert r.status_code == 410, (attempt, r.text)

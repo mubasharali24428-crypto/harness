@@ -724,9 +724,11 @@ services:
       # HARNESS_MASTER_KEY=""; pydantic-settings (env_prefix=HARNESS_,
       # field master_key) then OVERRIDES services.py's module-level dev-key
       # fallback with that empty string -> KeyVault "master_key must be
-      # non-empty". Give the isolated stack an explicit throwaway key (the
-      # same public constant services.py would have used).
-      HARNESS_MASTER_KEY: ${PROBE_MASTER_KEY:-dev-master-key-change-me-in-prod!}
+      # non-empty". Give the isolated stack an explicit throwaway key: empty
+      # by default, so the runner's own F9 dev fallback supplies the public
+      # constant under the already-set ALLOW_DEV opt-in — no baked-in secret
+      # default ships in compose (H-005/C-004 compose law).
+      HARNESS_MASTER_KEY: ${PROBE_MASTER_KEY:-}
     ports:
       - "127.0.0.1:18001:8001"
     healthcheck:
@@ -754,6 +756,10 @@ services:
       # provider credentials needed, zero spend — the probe measures platform
       # throughput, not provider network latency.
       ENGINE_LIVE_MODE: dry
+      # M18-C4: injected echo backend (see deploy/runners/services.py) so runs
+      # COMPLETE deterministically and the executor/queue ceiling is real.
+      ENGINE_BACKEND_ECHO: ${PROBE_ENGINE_ECHO:-1}
+      ENGINE_ECHO_WORK_MS: ${PROBE_ENGINE_WORK_MS:-50}
       # Probe knobs (documented in docs/benchmarks/BASELINE.md):
       ENGINE_MAX_CONCURRENCY: ${PROBE_ENGINE_MAX_CONCURRENCY:-8}
       HARNESS_RUN_CONCURRENCY: ${PROBE_RUN_CONCURRENCY:-4}
@@ -761,8 +767,10 @@ services:
       HARNESS_TEAM_BUDGET_USD: ${PROBE_TEAM_BUDGET_USD:-}
       # Throwaway isolated DB + dev key opt-in (services.py F9 fail-fast).
       HARNESS_ALLOW_DEV_MASTER_KEY: "1"
-      # Same pydantic-settings override gotcha as identity-loadtest above.
-      HARNESS_MASTER_KEY: ${PROBE_MASTER_KEY:-dev-master-key-change-me-in-prod!}
+      # Same pydantic-settings override gotcha as identity-loadtest above:
+      # empty default ⇒ runner's own F9 dev fallback supplies the key under
+      # the ALLOW_DEV opt-in — no baked-in secret default ships in compose.
+      HARNESS_MASTER_KEY: ${PROBE_MASTER_KEY:-}
     ports:
       - "127.0.0.1:18004:8004"
     healthcheck:

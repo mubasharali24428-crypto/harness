@@ -299,6 +299,9 @@ _DDL = """
 CREATE TABLE teams (
     id VARCHAR(36) PRIMARY KEY,
     name VARCHAR(200) NOT NULL,
+    -- M18-C2: the cap resolver reads teams.budget_usd (migration 0007);
+    -- scratch mirrors carry the frozen column like every real schema.
+    budget_usd NUMERIC,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE projects (
@@ -447,7 +450,7 @@ async def test_guard_boundary_is_exact_not_float(guard_factory):
     for _ in range(5):
         result = await reserve(
             pool, team_id=team_id, estimated_cost_usd=Decimal("0.25"),
-            run_id=run_id, **_BASE,
+            run_id=run_id, env_budget_usd=None, **_BASE,
         )
         allowed += bool(result.allowed)
     assert allowed == 4
@@ -462,7 +465,7 @@ async def test_release_keeps_ledger_sum_exact(guard_factory):
     team_id, run_id = await _seed_guard_team(guard_factory, budget=Decimal("5.00"))
     pool = _SessionPool(guard_factory)
     ok = await reserve(pool, team_id=team_id, estimated_cost_usd=Decimal("2.50"),
-                       run_id=run_id, **_BASE)
+                       run_id=run_id, env_budget_usd=None, **_BASE)
     assert ok.allowed
     assert await release(pool, ok.entry_id) is True
     async with guard_factory() as db:
@@ -515,8 +518,9 @@ def _split_sql(sql_text: str) -> list[str]:
 
 
 def _split_ddl(ddl: str) -> list[str]:
-    """Split a bare multi-statement DDL script for SQLite."""
-    return [s.strip() for s in ddl.split(";") if s.strip()]
+    """Split a bare multi-statement DDL script for SQLite (comments stripped)."""
+    lines = [ln for ln in ddl.splitlines() if not ln.strip().startswith("--")]
+    return [s.strip() for s in "\n".join(lines).split(";") if s.strip()]
 
 
 async def _fresh_pg_db() -> tuple[asyncpg.Connection, str]:

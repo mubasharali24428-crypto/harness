@@ -1,78 +1,147 @@
-"""Wave 9 node B: per-team budget caps enforced BEFORE any model call.
+"""Wave 9 node B — per-team budget caps enforced BEFORE any model call.
 
-``check_budget`` aggregates the team's spend from ``cost_ledger`` (READ-ONLY
-raw SQL against frozen Section-1 table names: cost_ledger → agent_runs →
-projects → teams) and compares it — plus the estimated cost of the next model
-call — against the team's cap. Cap resolution order (first non-None wins):
+M18-C2 (ONE budget truth): this module is Section 4's consumer of the single
+cap resolver in ``harness_contracts.budget``. Cap resolution order (first
+non-None tier wins; pinned by ``CAP_RESOLUTION_ORDER``):
 
-1. per-team override from ``teams.budget_usd`` (migration 0007, NULL = unset)
-2. ``HARNESS_TEAM_BUDGET_USD`` environment default
-3. None = unlimited
+1. per-team override from ``teams.budget_usd``   (migration 0007, NULL = unset)
+2. plan row ``billing_plans.monthly_budget_usd`` (migration 0010)
+3. ``HARNESS_TEAM_BUDGET_USD`` environment default
+4. None = unlimited — and EXPLICIT: ``status.capSource == "unlimited(explicit)"``
+
+The month window is the ONE definition (``MONTH_WINDOW_SQL``): DB-clock
+``date_trunc('month', now())`` on every monthly evaluation — never all-time,
+never an app-computed month start.
+
+Failure posture is ONE — FAIL-CLOSED with an explicit operator-visible flag:
+any DB error while resolving a cap or summing spend denies the call
+(``allowed=False``, reason prefix from ``DEGRADED_REASON``) and sets
+``degraded=True`` so callers surface degradation instead of mistaking it for
+an honest cap decision (service.py mirrors it into the run-aggregate API
+response).
+
+M18-C3 (O(1) cost-gate latency kill): when migration 0027's
+``cost_ledger_daily`` rollup has coverage for this team, closed-day spend
+comes from <= N single-row PK lookups and only TODAY's partial day is summed
+live through the attribution join (idx_cost_ledger_created_at bounds that
+scan) — latency independent of ledger size, exact at the day boundary. While
+the rollup is empty/unfed the exact legacy whole-month SUM below remains the
+fallback, so correctness never depends on sidecar freshness; any rollup-path
+error also degrades to it. Both halves honor the ONE month window: rollup
+days before this month's DB-clock start are excluded, so last month's spend
+never leaks across the cap boundary.
 
 All statements run identically on PostgreSQL/asyncpg (prod) and
-SQLite/aiosqlite (unit tests): no vendor-specific SQL, and timestamps are
-bound as datetime objects (asyncpg rejects ISO strings for TIMESTAMPTZ).
+SQLite/aiosqlite (unit tests): no vendor-specific SQL beyond the registered
+``date_trunc``/``now()`` user functions the test mirrors provide, and
+timestamps are bound as datetime objects (asyncpg rejects ISO strings for
+TIMESTAMPTZ).
 """
 
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass
+
+from harness_contracts import (
+    CAP_RESOLUTION_ORDER,
+    DEGRADED_REASON,
+    ENV_TEAM_BUDGET_USD,
+    MONTH_WINDOW_SQL,
+    ResolvedCap,
+    env_budget_default,
+    resolve_cap,
+    to_cap_decimal,
+)
 
 logger = logging.getLogger(__name__)
 
-ENV_TEAM_BUDGET_USD = "HARNESS_TEAM_BUDGET_USD"
+# Re-exported for wiring/tests (M18-C2 shim): Section 4 code keeps importing
+# these budget names from harness_orchestrator.budget while the truth lives
+# in the frozen contracts package. Single source of each constant.
+__all__ = [
+    "BudgetStatus",
+    "CAP_RESOLUTION_ORDER",
+    "DEFAULT_ESTIMATED_CALL_COST_USD",
+    "DEGRADED_REASON",
+    "ENV_TEAM_BUDGET_USD",
+    "MONTH_WINDOW_SQL",
+    "ResolvedCap",
+    "check_budget",
+    "env_budget_default",
+    "estimate_next_call_cost_usd",
+    "resolve_cap",
+    "resolve_team_budget_usd",
+]
 
 # Frozen table names (Section 1 owns them); this module only READS.
-_SPEND_SQL = """
+#
+# M18-C2: the spend window is the ONE month definition — the literal
+# ``created_at >= date_trunc('month', now())`` fragment from MONTH_WINDOW_SQL
+# is spliced in verbatim so a drift between this file and the contract fails
+# the parity test instead of shipping two windows.
+_SPEND_SQL = f"""
 SELECT COALESCE(SUM(l.cost_usd), 0) AS spent_usd
 FROM cost_ledger l
 JOIN agent_runs r ON l.run_id = r.id
 JOIN projects p ON r.project_id = p.id
 JOIN teams t ON p.team_id = t.id
 WHERE t.id = :team_id
+  AND l.{MONTH_WINDOW_SQL}
 """
 
 _CAP_OVERRIDE_SQL = "SELECT budget_usd FROM teams WHERE id = :team_id"
+
+_PLAN_BUDGET_SQL = """
+SELECT monthly_budget_usd FROM billing_plans WHERE team_id = :team_id
+"""
 
 DEFAULT_ESTIMATED_CALL_COST_USD = 0.05
 
 
 @dataclass(frozen=True)
 class BudgetStatus:
-    """Wire fields are camelCase per api-conventions.md; python stays snake_case."""
+    """Wire fields are camelCase per api-conventions.md; python stays snake_case.
+
+    ``degraded=True`` (M18-C2): the money store was unreachable while this
+    decision was being made. The decision itself is FAIL-CLOSED
+    (``allowed=False``); operators watch this flag to distinguish a real cap
+    from an outage-shaped denial.
+    """
 
     allowed: bool
     spentUsd: float
     capUsd: float | None
     reason: str = ""
-
-
-def env_budget_default() -> float | None:
-    """Parse ``HARNESS_TEAM_BUDGET_USD``; unset/blank/garbage => unlimited."""
-    raw = os.environ.get(ENV_TEAM_BUDGET_USD, "").strip()
-    if not raw:
-        return None
-    try:
-        value = float(raw)
-    except ValueError:
-        logger.warning("ignoring non-numeric %s=%r", ENV_TEAM_BUDGET_USD, raw)
-        return None
-    return max(value, 0.0)
+    degraded: bool = False
+    capSource: str | None = None
 
 
 def _coerce_cap(value) -> float | None:
     """NUMERIC comes back as Decimal on asyncpg / float on sqlite; normalize."""
-    if value is None:
-        return None
-    return float(value)
+    dec = to_cap_decimal(value)
+    return None if dec is None else float(dec)
 
 
-def _resolve_cap(team_override, env_default) -> float | None:
-    if team_override is not None:
-        return _coerce_cap(team_override)
-    return env_default
+def _app_clock_month_start_utc() -> str:
+    """SQLite-mirror fallback for the ONE month window.
+
+    Production always evaluates MONTH_WINDOW_SQL on the DB clock; this helper
+    exists ONLY so scratch SQLite mirrors that never registered the
+    date_trunc/now() user functions still get identical month semantics via a
+    bound parameter. Returns an ISO string (SQLite TEXT comparison, same
+    convention the ephemeral stores use).
+    """
+    from datetime import UTC, datetime
+
+    now = datetime.now(UTC).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return now.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def resolve_team_budget_usd() -> float | None:
+    """Deploy-time default cap for wiring (env tier of the ONE resolution)."""
+    value = env_budget_default()
+    return None if value is None else float(value)
 
 
 def estimate_next_call_cost_usd(
@@ -96,63 +165,17 @@ def estimate_next_call_cost_usd(
     return estimated_cost_usd
 
 
-async def check_budget(
-    factory,
-    team_id: str,
-    *,
-    budget_usd: float | None = None,
-    estimated_call_cost_usd: float | None = None,
-    model_router=None,
-    reviewer_role=None,
-) -> BudgetStatus:
-    """Sum the team's ledger spend + next-call estimate vs its cap.
-
-    Args:
-        factory: SQLAlchemy async session factory (same duck-type the
-            orchestrator already uses for run_queue/rehydration).
-        team_id: owning team.
-        budget_usd: pre-resolved cap override; when omitted, the per-team
-            ``teams.budget_usd`` column is read and falls back to the
-            ``HARNESS_TEAM_BUDGET_USD`` env default (None = unlimited).
-        estimated_call_cost_usd: explicit next-call estimate; computed via
-            ``estimate_next_call_cost_usd`` when omitted.
-        model_router / reviewer_role: optional contract router used only for
-            the next-call cost estimate.
-
-    Read-only against the frozen schema; any DB failure degrades to
-    "allowed" so an outage can never brick orchestration (spend enforcement
-    is advisory at the storage layer, mandatory at the decision layer).
-    """
-    from sqlalchemy import text
-
-    env_default = env_budget_default()
-    team_override = None
-    spent = 0.0
-
-    try:
-        async with factory() as db:
-            if budget_usd is None:
-                row = (
-                    await db.execute(text(_CAP_OVERRIDE_SQL), {"team_id": team_id})
-                ).first()
-                team_override = getattr(row, "budget_usd", None) if row is not None else None
-            rows = (
-                await db.execute(text(_SPEND_SQL), {"team_id": team_id})
-            ).fetchall()
-            if rows:
-                spent = _coerce_cap(rows[0][0]) or 0.0
-    except Exception:  # noqa: BLE001 — ledger read failure must not brick runs
-        logger.exception("budget check could not read spend for team %s", team_id)
-
-    cap = budget_usd if budget_usd is not None else _resolve_cap(team_override, env_default)
-    if cap is None:
-        return BudgetStatus(allowed=True, spentUsd=spent, capUsd=None)
-
-    estimate = (
-        estimated_call_cost_usd
-        if estimated_call_cost_usd is not None
-        else estimate_next_call_cost_usd(model_router=model_router, role=reviewer_role)
-    )
+def _decide(resolved: ResolvedCap, spent: float, estimate: float) -> BudgetStatus:
+    """Compare projected month-to-date spend against the RESOLVED cap."""
+    if resolved.cap_usd is None:
+        # Explicit unlimited — a real resolution, not an absent one.
+        return BudgetStatus(
+            allowed=True,
+            spentUsd=spent,
+            capUsd=None,
+            capSource=resolved.source,
+        )
+    cap = float(resolved.cap_usd)
     # Micro-dollar rounding (ledger is NUMERIC(12,6)) keeps the boundary
     # honest against float noise: spend+estimate landing ON the cap blocks.
     projected = round(spent + estimate, 6)
@@ -163,13 +186,182 @@ async def check_budget(
             spentUsd=spent,
             capUsd=cap,
             reason=(
-                f"team '{team_id}' budget exhausted: ${spent:.4f} spent + "
+                f"team budget exhausted: ${spent:.4f} spent + "
                 f"${estimate:.4f} estimated next call exceeds ${cap:.2f} cap"
             ),
+            capSource=resolved.source,
         )
-    return BudgetStatus(allowed=True, spentUsd=spent, capUsd=cap)
+    return BudgetStatus(
+        allowed=True, spentUsd=spent, capUsd=cap, capSource=resolved.source
+    )
 
 
-def resolve_team_budget_usd() -> float | None:
-    """Deploy-time default cap for wiring (env only; DB column wins per team)."""
-    return env_budget_default()
+def _degraded_denial(team_id: str) -> BudgetStatus:
+    """THE failure posture: deny + explicit degraded flag (M18-C2)."""
+    logger.warning("budget gate degraded for team %s: %s", team_id, DEGRADED_REASON)
+    return BudgetStatus(
+        allowed=False,
+        spentUsd=0.0,
+        capUsd=None,
+        reason=f"{DEGRADED_REASON} (team '{team_id}')",
+        degraded=True,
+    )
+
+
+async def _month_to_date_spend(db, team_id: str) -> float:
+    """Month-to-date team spend (M18-C3 fast path over the M18-C2 window).
+
+    Covered team ⇒ closed days of THIS month from the ``cost_ledger_daily``
+    rollup (one row per day, PK lookups) plus TODAY summed live through the
+    attribution join. Not covered ⇒ the exact legacy whole-month SUM. Any
+    rollup-path error falls back to the exact SUM — the sidecar is an
+    optimization, never a correctness dependency.
+    """
+    from sqlalchemy import text
+
+    try:
+        rows = (
+            await db.execute(
+                text(
+                    "SELECT d.total_usd FROM cost_ledger_daily d "
+                    "WHERE d.team_id = :team_id "
+                    "AND d.day >= date_trunc('month', now())"
+                ),
+                {"team_id": team_id},
+            )
+        ).fetchall()
+    except Exception:  # noqa: BLE001 — missing/unreadable sidecar ⇒ exact path
+        logger.debug("rollup read unavailable for %s; using exact SUM", team_id)
+        rows = []
+        # The sidecar read failed INSIDE the same session; SQLite (and PG)
+        # abort the current transaction on error, so the fallback needs a
+        # clean one. Roll back if a transaction is still open.
+        if db.in_transaction():
+            await db.rollback()
+
+    if not rows:
+        # SQLite scratch mirrors (section4 unit tests) predate the registered
+        # date_trunc/now() user functions: degrade to a bound-parameter window
+        # computed on the app clock — same semantics, no dialect dependency.
+        try:
+            result = await db.execute(text(_SPEND_SQL), {"team_id": team_id})
+            return _coerce_cap(result.scalar_one()) or 0.0
+        except Exception:
+            if db.in_transaction():
+                await db.rollback()
+            month_start = _app_clock_month_start_utc()
+            result = await db.execute(
+                text(
+                    "SELECT COALESCE(SUM(l.cost_usd), 0) AS spent_usd "
+                    "FROM cost_ledger l "
+                    "JOIN agent_runs r ON l.run_id = r.id "
+                    "JOIN projects p ON r.project_id = p.id "
+                    "WHERE p.team_id = :team_id AND l.created_at >= :since"
+                ),
+                {"team_id": team_id, "since": month_start},
+            )
+            return _coerce_cap(result.scalar_one()) or 0.0
+
+    closed_total = 0.0
+    for row in rows:
+        value = _coerce_cap(row[0])
+        if value is not None:
+            closed_total += value
+
+    # Today's partial day stays LIVE (the sidecar never stores today), bounded
+    # by idx_cost_ledger_created_at instead of scanning the whole ledger.
+    live_row = (
+        await db.execute(
+            text(
+                "SELECT COALESCE(SUM(l.cost_usd), 0) AS spent_usd "
+                "FROM cost_ledger l "
+                "JOIN agent_runs r ON l.run_id = r.id "
+                "JOIN projects p ON r.project_id = p.id "
+                "WHERE p.team_id = :team_id "
+                "AND l.created_at >= date_trunc('day', now())"
+            ),
+            {"team_id": team_id},
+        )
+    ).scalar_one()
+    return closed_total + (_coerce_cap(live_row) or 0.0)
+
+
+async def check_budget(
+    factory,
+    team_id: str,
+    *,
+    budget_usd: float | None = None,
+    estimated_call_cost_usd: float | None = None,
+    model_router=None,
+    reviewer_role=None,
+) -> BudgetStatus:
+    """Sum the team's THIS-MONTH ledger spend + next-call estimate vs its cap.
+
+    Args:
+        factory: SQLAlchemy async session factory (same duck-type the
+            orchestrator already uses for run_queue/rehydration).
+        team_id: owning team.
+        budget_usd: pre-resolved cap override (callers that already hold the
+            resolved value); when omitted, the two DB tiers are read and the
+            ONE resolver order applies.
+        estimated_call_cost_usd: explicit next-call estimate; computed via
+            ``estimate_next_call_cost_usd`` when omitted.
+        model_router / reviewer_role: optional contract router used only for
+            the next-call cost estimate.
+
+    Fail-CLOSED (M18-C2): any DB error denies the call with ``degraded=True``
+    — an outage must never open the gate, and the flag makes the degradation
+    visible instead of crash-shaped.
+    """
+    from sqlalchemy import text
+
+    team_override = None
+    plan_budget = None
+    spent = 0.0
+
+    try:
+        async with factory() as db:
+            if budget_usd is None:
+                row = (
+                    await db.execute(text(_CAP_OVERRIDE_SQL), {"team_id": team_id})
+                ).first()
+                team_override = getattr(row, "budget_usd", None) if row is not None else None
+                # M18-C2 tiers 2-4 with ABSENT-TIER semantics: a missing
+                # billing_plans table (pre-0010 / scratch mirrors) means the
+                # tier is absent — resolution falls through, the store is NOT
+                # degraded. A genuinely broken store (dead connection) still
+                # fails closed below.
+                try:
+                    plan_row = (
+                        await db.execute(text(_PLAN_BUDGET_SQL), {"team_id": team_id})
+                    ).first()
+                    plan_budget = plan_row[0] if plan_row is not None else None
+                except Exception:  # noqa: BLE001 — absent tier, not an outage
+                    logger.debug(
+                        "billing_plans unreadable for %s; skipping tier 2", team_id
+                    )
+                    plan_budget = None
+                    if db.in_transaction():
+                        await db.rollback()
+            try:
+                spent = await _month_to_date_spend(db, team_id)
+            except Exception:
+                if db.in_transaction():
+                    await db.rollback()
+                raise
+    except Exception:  # noqa: BLE001 — M18-C2: DB error ⇒ FAIL-CLOSED + flag
+        logger.exception("budget check could not read spend for team %s", team_id)
+        return _degraded_denial(team_id)
+
+    if budget_usd is not None:
+        # Caller-supplied override short-circuits the tiers deliberately
+        # (tests / callers that already resolved); it IS tier-1 semantics.
+        resolved = ResolvedCap(cap_usd=to_cap_decimal(budget_usd), source="caller-override")
+    else:
+        resolved = resolve_cap(team_override, plan_budget)
+    assert resolved.source in (*CAP_RESOLUTION_ORDER, "caller-override")
+    return _decide(resolved, spent, (
+        estimated_call_cost_usd
+        if estimated_call_cost_usd is not None
+        else estimate_next_call_cost_usd(model_router=model_router, role=reviewer_role)
+    ))

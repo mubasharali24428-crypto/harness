@@ -52,7 +52,13 @@ async def _issue_ws_ticket(
         session_factory, principal, project_id,
         user_agent=user_agent, client_ip=client_ip,
     )
-    return {"ticket": ticket, "expiresInSeconds": ttl}
+    return {
+        "ticket": ticket,
+        "expiresInSeconds": ttl,
+        # M18-C5 (MAC2-F5): echo the stored binding so the upgrading request
+        # can present it as X-WS-Fingerprint / ?fingerprint=.
+        "fingerprint": compute_client_fingerprint(user_agent, client_ip),
+    }
 
 
 def _client_ip(request: Request) -> str:
@@ -414,6 +420,11 @@ class ProjectCreatedResponse(ProjectOut):
 class WsTicketResponse(BaseModel):
     ticket: str
     expiresInSeconds: int
+    # M18-C5 (MAC2-F5): the exact client-binding value this ticket was minted
+    # with. Since X-WS-Fingerprint presentation is now REQUIRED at upgrade,
+    # non-browser callers need the authoritative value to present; browser
+    # clients keep their UA-only local derivation (useEventStream.ts).
+    fingerprint: str
 
 
 class EventEnvelopeOut(BaseModel):
@@ -579,6 +590,19 @@ async def project_ws(
         )
         principal = redeemed.principal if redeemed is not None else None
     elif token:
+        # M18-C5 (MAC2-F7) DEPRECATED CHANNEL — one-release warning first.
+        # A long-lived session credential in the URL query is exactly what H8
+        # forbids (query strings land in access/proxy logs and browser
+        # history). No internal caller relies on this anymore (repo-wide grep:
+        # only pre-transition tests); it dies next release. Route legacy
+        # callers through POST /api/v1/ws-ticket, which mints a short-lived,
+        # single-use, fingerprint-bound ticket instead.
+        logger.warning(
+            "WS upgrade via ?token= query param is DEPRECATED and will be "
+            "REMOVED next release (project=%s): mint a ticket at "
+            "POST /api/v1/ws-ticket and present ?ticket=… instead",
+            project_id,
+        )
         principal = await _principal_from_token(websocket.app.state.session_factory, token)
     else:
         header = websocket.headers.get("authorization", "")
@@ -596,22 +620,25 @@ async def project_ws(
     # M15-W5-S2 client-binding: recompute the fingerprint from THIS upgrade
     # request (its UA + peer address) and compare against what mint stored.
     #
-    # X-WS-Fingerprint is OPTIONAL for one release (backward-compat law):
-    #   absent            -> warn-log + allow (grace path; legacy clients and
-    #                        any browser WS keep working — browsers cannot set
-    #                        custom headers on new WebSocket(url)).
-    #   present + wrong   -> reject with 4403 TICKET_FINGERPRINT_MISMATCH.
-    # The server-side UA+IP recomputation below runs in every case, so a
-    # stolen ticket replayed from a different host is dead regardless of what
-    # the header says. The same value is also accepted via the `fingerprint`
-    # query param, the only channel a browser WS can actually carry.
-    #
-    # M17-B4 (MAC2-F5) honesty note: this binding is a correlation guard, not
-    # an authentication control — UA+IP are both client-knowable values (see
-    # the spoofing caveat in ephemeral.py), and the absent-header grace path
-    # above makes the header half opt-in by design. It stops blind replay
-    # from a different host; it does not stop a replaying attacker who knows
-    # both inputs.
+    # M18-C5 (MAC2-F5) — presentation is now REQUIRED when mint recorded a
+    # fingerprint. The old absent-header grace path let any replaying attacker
+    # evaporate the header half of the binding by simply omitting it, which
+    # reduced the whole control to the spoofable server-side recomputation.
+    #   absent            -> close 4403 TICKET_FINGERPRINT_MISMATCH
+    #                        (pre-0025 rows with a NULL stored fingerprint keep
+    #                        their grace path — that NULL case is the only one).
+    #   present + matches -> accepted.
+    #   present + wrong   -> close 4403 TICKET_FINGERPRINT_MISMATCH.
+    # X-WS-Fingerprint header first; the `fingerprint` query param is the
+    # browser channel (browsers cannot set custom WS headers). A presented
+    # value may be the full sha256(UA+IP)[:16] of THIS upgrade request OR its
+    # UA-ONLY derivation sha256(UA)[:16] — the S7 browser client cannot know
+    # its own IP and has always shipped the UA-only form (useEventStream.ts),
+    # while non-browser callers present the exact value echoed at mint time.
+    # Presentation proves the upgrading process COMPUTED the binding input;
+    # the authoritative anti-replay check stays server-side below: the stored
+    # mint fingerprint must equal the recomputed UA+IP of this request, so a
+    # ticket replayed from another host dies here regardless of headers.
     if ticket and redeemed is not None:
         ws_user_agent = websocket.headers.get("user-agent", "")
         upgrade_ip = websocket.client.host if websocket.client else ""
@@ -619,23 +646,29 @@ async def project_ws(
         presented = websocket.headers.get("x-ws-fingerprint", "").strip()
         if not presented:
             presented = fingerprint.strip()
-        if not presented:
-            logger.warning(
-                "WS upgrade without X-WS-Fingerprint (deprecated, allowed this "
-                "release): project=%s ua_hash=%s",
-                project_id,
-                upgrade_fp,
-            )
-        elif len(presented) != FINGERPRINT_HEX_LEN or presented != upgrade_fp:
-            logger.warning(
-                "WS upgrade rejected: TICKET_FINGERPRINT_MISMATCH "
-                "(project=%s, presented=%s…)",
-                project_id,
-                presented[:4],
-            )
-            await websocket.close(code=4403, reason="TICKET_FINGERPRINT_MISMATCH")
-            return
         bound = redeemed.fingerprint
+        if bound is not None:
+            if not presented:
+                logger.warning(
+                    "WS upgrade rejected: missing X-WS-Fingerprint/fingerprint "
+                    "(required since M18-C5; project=%s)",
+                    project_id,
+                )
+                await websocket.close(code=4403, reason="TICKET_FINGERPRINT_MISMATCH")
+                return
+            ua_only_fp = compute_client_fingerprint(ws_user_agent, "")
+            if (
+                len(presented) != FINGERPRINT_HEX_LEN
+                or presented not in (upgrade_fp, ua_only_fp)
+            ):
+                logger.warning(
+                    "WS upgrade rejected: TICKET_FINGERPRINT_MISMATCH "
+                    "(project=%s, presented=%s…)",
+                    project_id,
+                    presented[:4],
+                )
+                await websocket.close(code=4403, reason="TICKET_FINGERPRINT_MISMATCH")
+                return
         if bound is not None and bound != upgrade_fp:
             logger.warning(
                 "WS upgrade rejected: TICKET_FINGERPRINT_MISMATCH "

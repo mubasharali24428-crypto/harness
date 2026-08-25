@@ -21,16 +21,28 @@ Security posture:
   RETURNING ... so concurrent redemptions cannot double-join (one winner,
   everyone else gets 409/404/410).
 - TIMESTAMPTZ comparisons bind real datetime objects (asyncpg rejects strings).
+- M18-C5 (MAC2-F3): redemption binds to the INVITED IDENTITY, not merely to
+  token confidentiality. A forwarded/intercepted invite used to enroll
+  whichever account presented the token — admin included. Now the redeemer
+  must prove control of the invited mailbox by presenting ``email`` matching
+  the minted row (S1 accounts ARE their email: login registers/owns the typed
+  address), so a leaked token without the address is inert. Chosen over a
+  claim-link scheme because it needs no new tables/tokens/migrations and is
+  provable in one code path; the token stays the transport, the mailbox the
+  authority. Live tokens answer nothing to identity-less probes: they fail
+  closed with INVITE_IDENTITY_MISMATCH (dead tokens keep their honest
+  404/409/410 codes — revocation supersedes identity).
 """
 
 import hashlib
+import logging
 import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from harness_contracts import Principal, Role, error_body
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,6 +57,8 @@ from .models import Role as DbRole
 from .models import TeamInvite, TeamMember, User
 
 router = APIRouter(prefix="/api/v1")
+
+logger = logging.getLogger(__name__)
 
 INVITE_TTL_DAYS = 7
 INVITABLE_ROLES = frozenset(r.value for r in DbRole)
@@ -148,7 +162,19 @@ class InviteCreateBody(BaseModel):
 
 
 class InviteRedeemBody(BaseModel):
+    # M18-C5 (MAC2-F3): ``email`` binds redemption to the invited identity.
+    # The redeemer proves control of the invited mailbox (S1 accounts are
+    # created by logging in AS an address), so a forwarded/leaked token alone
+    # can no longer enroll a foreign account at the minted role. Same loose
+    # shape check as InviteCreateBody — dependency-free, case/space tolerant.
     token: str = Field(min_length=16, max_length=256)
+    email: str = Field(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+    @field_validator("token", "email", mode="before")
+    @classmethod
+    def _strip_inputs(cls, v: object) -> object:
+        # Tolerate client-side whitespace BEFORE the pattern/length checks.
+        return v.strip() if isinstance(v, str) else v
 
 
 @router.post("/teams/{team_id}/invites", status_code=201)
@@ -408,58 +434,111 @@ async def resend_invite(
         return out
 
 
+def _redeem_rejection(
+    row: TeamInvite | None, presented_email: str, now: datetime
+) -> HTTPException | None:
+    """Honest-code diagnosis for a row that cannot be claimed right now.
+
+    M18-C5 (MAC2-F3) ordering law: legacy codes keep their historical
+    precedence (redeemed > revoked > expired); the NEW identity gate sits
+    last, so a dead token answers its honest 404/409/410 regardless of what
+    email was presented, and a LIVE token answers nothing to an identity-less
+    probe except 403 INVITE_IDENTITY_MISMATCH (fail closed).
+    """
+    if row is None:
+        return HTTPException(
+            status_code=404,
+            detail=error_body("INVITE_NOT_FOUND", "unknown invite token"),
+        )
+    if row.redeemed_at is not None:
+        return HTTPException(
+            status_code=409, detail=error_body("INVITE_ALREADY_REDEEMED", "")
+        )
+    if row.revoked_at is not None:
+        # M14-F2a: admin revoke (or a resend superseding this token).
+        return HTTPException(
+            status_code=410,
+            detail=error_body("INVITE_REVOKED", "invite was revoked"),
+        )
+    if now >= _as_utc(row.expires_at):
+        return HTTPException(status_code=410, detail=error_body("INVITE_EXPIRED", ""))
+    # MAC2-F3: THE identity gate. Token confidentiality alone no longer
+    # enrolls anyone; the caller must present the invited mailbox.
+    if (row.email or "").strip().lower() != presented_email:
+        logger.info(
+            "invite redeem rejected: INVITE_IDENTITY_MISMATCH (invite=%s)", row.id
+        )
+        return HTTPException(
+            status_code=403,
+            detail=error_body(
+                "INVITE_IDENTITY_MISMATCH",
+                "this invite was issued to a different email",
+            ),
+        )
+    return None
+
+
 @router.post("/invites/redeem")
 async def redeem_invite(
     body: InviteRedeemBody,
     request: Request,
     principal: Annotated[Principal, Depends(get_principal)],
 ) -> dict:
-    """Any authed user redeems a token and joins the invited team with the
-    invited role. Atomic single-statement claim: expired/redeemed/unknown are
-    rejected with honest codes; membership insert rides the same transaction."""
+    """An authed user redeems a token into the invited team at the invited
+    role — M18-C5 (MAC2-F3): ONLY after presenting the invited ``email``.
+
+    Validate-first, then atomic single-statement claim: the identity gate runs
+    BEFORE any mutation, so a wrong/missing identity never consumes a live
+    token (no DoS-by-forwarding, no poisoned audit trail). The claim itself
+    keeps the exact historical WHERE clause (expired/redeemed/unknown answer
+    honest codes; concurrent redemptions cannot double-join), and a lost race
+    re-runs the diagnosis once so the caller hears the true reason.
+    """
     token = body.token.strip()
     digest = _hash_token(token)
+    presented_email = body.email.strip().lower()
     now = _now()
     factory = request.app.state.session_factory
     async with factory() as db:
-        claimed = (
-            (
-                await db.execute(
-                    update(TeamInvite)
-                    .where(
-                        TeamInvite.token_hash == digest,
-                        TeamInvite.redeemed_at.is_(None),
-                        TeamInvite.revoked_at.is_(None),  # M14-F2a: dead token
-                        TeamInvite.expires_at > now,
-                    )
-                    .values(redeemed_at=now)
-                    .returning(TeamInvite.__table__)
-                )
-            )
-            .mappings()
-            .first()
-        )
-        if claimed is None:
-            # Distinguish honestly WHY it failed for the caller.
+        claimed = None
+        for _attempt in range(2):
             row = (
-                await db.execute(select(TeamInvite).where(TeamInvite.token_hash == digest))
+                await db.execute(
+                    select(TeamInvite).where(TeamInvite.token_hash == digest)
+                )
             ).scalar_one_or_none()
-            if row is None:
-                raise HTTPException(
-                    status_code=404,
-                    detail=error_body("INVITE_NOT_FOUND", "unknown invite token"),
+            rejection = _redeem_rejection(row, presented_email, now)
+            if rejection is not None:
+                raise rejection
+            claimed = (
+                (
+                    await db.execute(
+                        update(TeamInvite)
+                        .where(
+                            TeamInvite.token_hash == digest,
+                            TeamInvite.redeemed_at.is_(None),
+                            TeamInvite.revoked_at.is_(None),  # M14-F2a: dead token
+                            TeamInvite.expires_at > now,
+                        )
+                        .values(redeemed_at=now)
+                        .returning(TeamInvite.__table__)
+                        # M18-C5: the validate-first SELECT above loads the row
+                        # into the identity map; the default "evaluate"
+                        # synchronize would re-evaluate the WHERE against that
+                        # Python object (and trip over SQLite's naive
+                        # datetimes). We consume RETURNING directly — no sync.
+                        .execution_options(synchronize_session=False)
+                    )
                 )
-            if row.redeemed_at is not None:
-                raise HTTPException(
-                    status_code=409, detail=error_body("INVITE_ALREADY_REDEEMED", "")
-                )
-            if row.revoked_at is not None:
-                # M14-F2a: admin revoke (or a resend superseding this token).
-                raise HTTPException(
-                    status_code=410,
-                    detail=error_body("INVITE_REVOKED", "invite was revoked"),
-                )
-            raise HTTPException(status_code=410, detail=error_body("INVITE_EXPIRED", ""))
+                .mappings()
+                .first()
+            )
+            if claimed is not None:
+                break
+            # Lost a race (the row decayed between the read and the claim):
+            # loop once more — the second diagnosis raises the honest code,
+            # because row state only ever moves toward a terminal form.
+        assert claimed is not None  # unreachable: rejection above raises first
 
         user = await db.get(User, principal.userId)
         display_name = user.name if user is not None else ""

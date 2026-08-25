@@ -39,6 +39,18 @@ Concurrency: one atomic statement per limited request —
 Under concurrent upserts Postgres serializes on the PK row lock: exactly one
 statement wins per key per instant, so two racing requests can never observe
 the same count and slip past the limit together.
+
+M18-C5 (MAC2-F9) — bucket garbage collection: ``rate_buckets`` rows were
+previously immortal (migration 0011 creates the table; nothing ever deleted),
+so every unique ``(ip|template)`` pair was a permanent PK row and an attacker
+rotating IPv6 addresses could grow the store unboundedly — with ``_check``
+failing OPEN under store pressure, the same attack then disabled limiting.
+Fix: an opportunistic sweep deletes buckets whose fixed window is fully in
+the past (they can only be reset by a NEW request, which re-inserts), riding
+the existing per-request DB session exactly like the ws_tickets sweep rides
+mint (ephemeral.py). Sweep cadence is bounded by BUCKET_GC_EVERY so the
+DELETE runs at most once per window instead of on every limited request;
+a sweep failure never affects the request's own limit decision.
 """
 
 import ipaddress
@@ -50,6 +62,7 @@ from datetime import UTC, datetime
 
 from harness_contracts import error_body
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 __all__ = [
     "DEFAULT_PROTECTED_ROUTES",
@@ -69,12 +82,20 @@ __all__ = [
     "limit_for_route",
     "normalize_client_ip",
     "route_matches",
+    "sweep_expired_buckets",
 ]
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_LIMIT = 10
 DEFAULT_WINDOW_SECONDS = 60
+
+# M18-C5 (MAC2-F9): bucket GC cadence — the sweep runs on at most one
+# ``_check`` per window per middleware instance. Buckets are fixed-window
+# counters: once their window_start is in the past they are inert (the next
+# request for that key resets to 1 via the upsert's CASE), so deleting them
+# loses nothing.
+BUCKET_GC_EVERY_WINDOWS = 1
 
 # M11-W1 rescue: guard the REAL auth edge. The legacy "/auth/otp/request"
 # path never existed in app.py (routes are /auth/request-login +
@@ -191,6 +212,38 @@ def current_window(window_seconds: int, now_epoch: float | None = None) -> tuple
         now_epoch = time.time()
     index = int(now_epoch // window_seconds)
     return index, index * window_seconds
+
+
+# M18-C5 (MAC2-F9): opportunistic bucket GC — the ws_tickets sweep pattern
+# (ephemeral.py deletes expired tickets at every mint) applied to rate_buckets.
+# A bucket whose window_start is strictly older than the CURRENT window start
+# is dead: its counter can never be consulted again without being reset first
+# (the upsert's CASE writes count=1 whenever stored window != current window),
+# so deleting it cannot change any limit decision. The cutoff binds a real
+# datetime because asyncpg rejects string params for TIMESTAMPTZ while SQLite
+# accepts datetime objects natively (repo dialect law).
+async def sweep_expired_buckets(
+    factory: async_sessionmaker,
+    *,
+    window_seconds: int = DEFAULT_WINDOW_SECONDS,
+    now_epoch: float | None = None,
+) -> int:
+    """DELETE buckets from fully-elapsed windows; return rows removed.
+
+    Called opportunistically by ``RateLimitMiddleware._check`` at most once
+    per window; also importable for direct use (maintenance runners, tests).
+    Raises on store failure — the CALLER decides the failure posture (the
+    limiter must keep failing OPEN; see module docstring).
+    """
+    _, current_epoch = current_window(window_seconds, now_epoch)
+    cutoff = datetime.fromtimestamp(current_epoch, tz=UTC)
+    async with factory() as db:
+        result = await db.execute(
+            text("DELETE FROM rate_buckets WHERE window_start < :cutoff"),
+            {"cutoff": cutoff},
+        )
+        await db.commit()
+        return int(result.rowcount or 0)
 
 
 # ---------------------------------------------------------------------------
@@ -376,6 +429,9 @@ class RateLimitMiddleware:
         # match wins, deterministic even if two templates overlap).
         self._exact = frozenset(r for r in self.routes if "{" not in r)
         self._templates = tuple(r for r in self.routes if "{" in r)
+        # M18-C5 (MAC2-F9): GC throttle — the fixed-window index whose sweep
+        # last ran; a window index may only run once per middleware instance.
+        self._gc_window_index: int | None = None
 
     @property
     def session_factory(self):
@@ -432,6 +488,28 @@ class RateLimitMiddleware:
 
         await self.app(scope, receive, send)
 
+    async def _maybe_gc(self, window_index: int) -> None:
+        """M18-C5 (MAC2-F9): opportunistic bucket GC, throttled to one sweep
+        per window per middleware instance.
+
+        Piggybacks the request's limiter session exactly like mint sweeps
+        expired ws_tickets (ephemeral.py). Deliberately OUTSIDE the try/except
+        below: a GC failure must fail OPEN together with the limiter's own
+        documented posture, never turn into a request-killing error path.
+        """
+        if window_index == self._gc_window_index:
+            return
+        self._gc_window_index = window_index
+        try:
+            removed = await sweep_expired_buckets(
+                self.session_factory, window_seconds=self.window_seconds
+            )
+        except Exception:  # noqa: BLE001 — GC is best-effort; limiter law holds
+            logger.warning("rate_buckets GC sweep failed; continuing", exc_info=True)
+            return
+        if removed:
+            logger.info("rate_buckets GC swept %d expired bucket(s)", removed)
+
     async def _check(self, route_template: str, client, headers=None) -> tuple[bool, int]:
         """Consume one slot; return (allowed, retry_after_seconds).
 
@@ -451,7 +529,8 @@ class RateLimitMiddleware:
             else {}
         )
         client_ip = effective_client_ip(header_view, peer_addr, self.trusted_proxy_cidrs)
-        _, window_epoch = current_window(self.window_seconds)
+        window_index, window_epoch = current_window(self.window_seconds)
+        await self._maybe_gc(window_index)
         try:
             async with self.session_factory() as db:
                 count = (

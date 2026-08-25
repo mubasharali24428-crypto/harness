@@ -249,10 +249,11 @@ async def test_invite_lifecycle_emits_and_never_leaks_token(factory, client):
     all_rows = await _audit_rows(factory)
     assert all(raw_token not in str(row.detail) for row in all_rows)
 
-    # --- redeem by a different user (atomic claim + membership insert)
+    # --- redeem by a different user (atomic claim + membership insert).
+    # M18-C5 (F3): redemption presents the invited email.
     r = await client.post(
         "/api/v1/invites/redeem",
-        json={"token": raw_token},
+        json={"token": raw_token, "email": "new@y.com"},
         headers=_bearer(joiner["token"]),
     )
     assert r.status_code == 200, r.text

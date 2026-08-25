@@ -46,6 +46,22 @@ export function RunDetailAggregate({
         </p>
       )}
 
+      {/* M18-C2: budget-gate health, surfaced ONLY when degraded — an
+          operator-visible marker that a budget decision on this run was made
+          fail-closed because the money store was unreachable. Healthy runs
+          render nothing (no noise for the normal case). */}
+      {agg.budget?.degraded === true && (
+        <p
+          data-testid="budget-degraded"
+          role="status"
+          className="pill red"
+          style={{ margin: "4px 0", fontSize: 13 }}
+        >
+          Budget gate degraded: a spend decision ran fail-closed (budget store
+          unreachable).
+        </p>
+      )}
+
       {/* PR card renders when the run is bound to a PR. prId alone still gets
           an identity line; url upgrades the title into a real link. url can
           legitimately arrive without prId (drift-tolerant) — still rendered. */}

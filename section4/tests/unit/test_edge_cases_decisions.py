@@ -105,6 +105,19 @@ def db_parts(tmp_path):
         async with engine.begin() as conn:
             await conn.execute(text(_EVENTS_DDL))
             await conn.execute(text(_AGENT_PLANS_DDL_V1))
+            # M18-C1: the plan-gate ownership guard probes projects.team_id
+            # for any run carrying a projectId; x18 seeds bind runs to
+            # 'proj-x5', so give that binding a same-team row.
+            await conn.execute(
+                text(
+                    "CREATE TABLE IF NOT EXISTS projects ("
+                    "id VARCHAR(36) PRIMARY KEY,"
+                    " team_id VARCHAR(36) NOT NULL)"
+                )
+            )
+            await conn.execute(
+                text("INSERT INTO projects (id, team_id) VALUES ('proj-x5', 'team-x5')")
+            )
 
     asyncio.run(_create())
     factory = async_sessionmaker(engine, expire_on_commit=False)

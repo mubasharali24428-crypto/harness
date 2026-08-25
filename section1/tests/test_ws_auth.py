@@ -260,13 +260,17 @@ async def test_ws_ticket_rejects_foreign_project(db):
 async def test_ws_ticket_happy_path(db):
     app = _mk(db)
     _seed_sync()
-    r = await _issue_ticket(app)
-    assert r.status_code == 200
-    body = r.json()
+    body = (await _issue_ticket(app)).json()
     assert body["ticket"]
     assert body["expiresInSeconds"] > 0
+    # M18-C5 (F5): fingerprint presentation required at upgrade; the mint
+    # response echoes the stored binding for exactly this purpose.
+    assert body["fingerprint"] == hashlib.sha256(
+        f"{MINT_UA}{MINT_IP}".encode()
+    ).hexdigest()[:16]
     async with MiniWs(app, f"/api/v1/ws/proj-1?ticket={body['ticket']}",
-                      headers={"User-Agent": MINT_UA},
+                      headers={"User-Agent": MINT_UA,
+                               "X-WS-Fingerprint": body["fingerprint"]},
                       client_addr=(MINT_IP, 123)) as ws:
         assert ws.accepted
 
@@ -274,15 +278,18 @@ async def test_ws_ticket_happy_path(db):
 async def test_ws_ticket_is_single_use(db):
     app = _mk(db)
     _seed_sync()
-    ticket = (await _issue_ticket(app)).json()["ticket"]
+    minted = (await _issue_ticket(app)).json()
+    ticket = minted["ticket"]
 
     async with MiniWs(app, f"/api/v1/ws/proj-1?ticket={ticket}",
-                      headers={"User-Agent": MINT_UA},
+                      headers={"User-Agent": MINT_UA,
+                               "X-WS-Fingerprint": minted["fingerprint"]},
                       client_addr=(MINT_IP, 123)) as ws:
         assert ws.accepted
     # ...and the replayed ticket MUST be rejected.
     async with MiniWs(app, f"/api/v1/ws/proj-1?ticket={ticket}",
-                      headers={"User-Agent": MINT_UA},
+                      headers={"User-Agent": MINT_UA,
+                               "X-WS-Fingerprint": minted["fingerprint"]},
                       client_addr=(MINT_IP, 123)) as ws:
         _expect_reject(ws, 4401)
 

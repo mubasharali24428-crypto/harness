@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    Date,
     DateTime,
     Enum,
     ForeignKey,
@@ -320,6 +321,29 @@ class CostLedger(Base):
     latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class CostLedgerDaily(Base):
+    """M18-C3: daily per-team spend rollup (migration 0027).
+
+    One row per (team_id, day) for CLOSED days only (created_at < UTC
+    midnight, DB clock); today's partial day is never stored -- the budget
+    gate always sums that live. Fed by deploy/runners/cost_rollup.py, which
+    recomputes closed days from source-of-truth cost_ledger (DELETE+INSERT,
+    self-healing against release() row deletions). The gate reads this table
+    when it has coverage and falls back to the legacy whole-ledger SUM while
+    it does not, so correctness never depends on feed freshness.
+    """
+
+    __tablename__ = "cost_ledger_daily"
+
+    team_id: Mapped[str] = mapped_column(
+        ForeignKey("teams.id", ondelete="CASCADE"), primary_key=True
+    )
+    day: Mapped[datetime] = mapped_column(Date(), primary_key=True)
+    total_usd: Mapped[Decimal] = mapped_column(
+        Numeric(12, 6), nullable=False, default=Decimal("0")
     )
 
 

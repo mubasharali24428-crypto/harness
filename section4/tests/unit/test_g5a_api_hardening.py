@@ -114,7 +114,12 @@ def test_propose_plan_rejects_foreign_project_with_404(monkeypatch):
         foreign_run = other.get("/api/v1/orchestrator/runs/run-g5a/status")
         unknown_run = other.get("/api/v1/orchestrator/runs/run-unknown/status")
         assert foreign_run.status_code == 404
-        assert unknown_run.status_code == 200  # unknown ids auto-seed in bare mode
+        # M18-C1: unknown ids no longer auto-seed-and-allow past the guard —
+        # the ownership half denies them (OwnershipDeniedError), which this
+        # seam maps to the SAME 404 NOT_FOUND envelope as a foreign run
+        # (M13-G5a: "unknown or foreign run" share one answer).
+        assert unknown_run.status_code == 404
+        assert _error_code(unknown_run.json()) == "NOT_FOUND"
         assert _error_code(foreign_run.json()) == "NOT_FOUND"
     finally:
         _asyncio.run(engine.dispose())

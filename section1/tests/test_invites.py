@@ -148,10 +148,11 @@ async def test_invite_lifecycle_mint_list_revoke_and_member_created(
     assert all("token" not in i and "tokenHash" not in i for i in items)
 
     # --- redeem by a second authed user: joins team with invited role
+    # M18-C5 (F3): redemption presents the INVITED email (identity binding).
     joiner = await _seed_user(invites_factory, "joiner@y.com")
     r = await invites_client.post(
         "/api/v1/invites/redeem",
-        json={"token": raw_token},
+        json={"token": raw_token, "email": "Newbie@X.com"},
         headers=_bearer(joiner["token"]),
     )
     assert r.status_code == 200, r.text
@@ -207,7 +208,7 @@ async def test_invite_lifecycle_mint_list_revoke_and_member_created(
     assert r.status_code == 200, r.text
     r = await invites_client.post(
         "/api/v1/invites/redeem",
-        json={"token": revoked["token"]},
+        json={"token": revoked["token"], "email": "shortlived@x.com"},
         headers=_bearer(joiner["token"]),
     )
     assert r.status_code == 410, r.text
@@ -270,7 +271,9 @@ async def test_expired_invite_rejected_honestly(invites_factory, invites_client)
         invites_factory, admin["teamId"], expires_in_days=-1  # already stale
     )
     r = await invites_client.post(
-        "/api/v1/invites/redeem", json={"token": raw}, headers=_bearer(joiner["token"])
+        "/api/v1/invites/redeem",
+        json={"token": raw, "email": "invitee@x.com"},
+        headers=_bearer(joiner["token"]),
     )
     assert r.status_code == 410, r.text
     assert r.json()["detail"]["error"]["code"] == "INVITE_EXPIRED"
@@ -290,11 +293,15 @@ async def test_double_redeem_rejected_and_single_membership(
     _, raw = await _insert_invite(invites_factory, admin["teamId"])
 
     r1 = await invites_client.post(
-        "/api/v1/invites/redeem", json={"token": raw}, headers=_bearer(joiner["token"])
+        "/api/v1/invites/redeem",
+        json={"token": raw, "email": "invitee@x.com"},
+        headers=_bearer(joiner["token"]),
     )
     assert r1.status_code == 200, r1.text
     r2 = await invites_client.post(
-        "/api/v1/invites/redeem", json={"token": raw}, headers=_bearer(joiner["token"])
+        "/api/v1/invites/redeem",
+        json={"token": raw, "email": "invitee@x.com"},
+        headers=_bearer(joiner["token"]),
     )
     assert r2.status_code == 409, r2.text
     assert r2.json()["detail"]["error"]["code"] == "INVITE_ALREADY_REDEEMED"
@@ -320,7 +327,7 @@ async def test_unknown_token_rejected_404(invites_factory, invites_client):
     anyone = await _seed_user(invites_factory, "any@x.com")
     r = await invites_client.post(
         "/api/v1/invites/redeem",
-        json={"token": "totally-unknown-token-value-here"},
+        json={"token": "totally-unknown-token-value-here", "email": "any@x.com"},
         headers=_bearer(anyone["token"]),
     )
     assert r.status_code == 404, r.text
@@ -333,7 +340,9 @@ async def test_redeem_requires_auth_and_valid_body(invites_factory, invites_clie
     # Auth solves before body validation, so junk tokens still need a session:
     anyone = await _seed_user(invites_factory, "auth@x.com")
     short = await invites_client.post(
-        "/api/v1/invites/redeem", json={"token": "short"}, headers=_bearer(anyone["token"])
+        "/api/v1/invites/redeem",
+        json={"token": "short", "email": "auth@x.com"},
+        headers=_bearer(anyone["token"]),
     )
     assert short.status_code == 422  # min-length guard rejects junk early
 
@@ -448,7 +457,9 @@ async def test_lifecycle_list_returns_every_status_and_filters(
         revoked_at=datetime.now(UTC) - timedelta(hours=1),
     )
     await invites_client.post(
-        "/api/v1/invites/redeem", json={"token": redeemed_raw}, headers=_bearer(joiner["token"])
+        "/api/v1/invites/redeem",
+        json={"token": redeemed_raw, "email": "r@x.com"},
+        headers=_bearer(joiner["token"]),
     )
 
     # full lifecycle list — one row per status bucket
@@ -527,7 +538,7 @@ async def test_resend_revokes_old_token_and_issues_new_one(
     # => 404; the security property is that it can NEVER join).
     r = await invites_client.post(
         "/api/v1/invites/redeem",
-        json={"token": old_token},
+        json={"token": old_token, "email": "rs@x.com"},
         headers=_bearer(joiner["token"]),
     )
     assert r.status_code == 404, r.text
@@ -536,7 +547,7 @@ async def test_resend_revokes_old_token_and_issues_new_one(
     # ...and the NEW token redeems into real membership.
     r = await invites_client.post(
         "/api/v1/invites/redeem",
-        json={"token": new_token},
+        json={"token": new_token, "email": "rs@x.com"},
         headers=_bearer(joiner["token"]),
     )
     assert r.status_code == 200, r.text

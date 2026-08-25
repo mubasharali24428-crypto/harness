@@ -92,7 +92,13 @@ async def test_authorize_run_allows_own_team_project(db_service):
 
 
 async def test_authorize_run_skips_check_without_db():
-    """Bare unit mode (no session factory): ownership check is not applicable."""
+    """Bare unit mode (no session factory): ownership check is not applicable.
+
+    M18-C1: this legacy convenience is now gated behind the explicit
+    HARNESS_AUTHZ_TEST_MODE=1 flag (set session-wide by tests/conftest.py);
+    production wiring without a factory denies (see
+    tests/unit/test_authz_failclosed.py).
+    """
     from harness_orchestrator.authz import authorize_run
 
     service = OrchestratorService()  # no factory
@@ -135,7 +141,9 @@ def test_route_accepts_project_of_own_team(monkeypatch, db_service):
 
 def test_route_viewer_cannot_start_but_can_read(monkeypatch, db_service):
     client = _client(monkeypatch, db_service, _principal(role=Role.VIEWER))
-    plan = client.post("/api/v1/orchestrator/runs/run-v1/plan").json()["planId"]
+    plan = client.post(
+        "/api/v1/orchestrator/runs/run-v1/plan", json={"projectId": "proj-ours"}
+    ).json()["planId"]
 
     res = client.post("/api/v1/orchestrator/runs/run-v1/plan/approve", json={"planId": plan})
     assert res.status_code == 403
@@ -146,7 +154,9 @@ def test_route_viewer_cannot_start_but_can_read(monkeypatch, db_service):
     assert res.json()["detail"]["error"]["code"] == "ROLE_DENIED"
 
     res = client.get("/api/v1/orchestrator/runs/run-v1/status")
-    assert res.status_code == 200  # read stays open to every authenticated role
+    # M18-C1: read stays open to every authenticated role for an attributable
+    # run (the propose above bound it to the viewer's own team's project).
+    assert res.status_code == 200
 
 
 def test_route_guest_cannot_pause(monkeypatch, db_service):

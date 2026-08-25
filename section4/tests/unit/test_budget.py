@@ -12,6 +12,7 @@ migration-0007 ``budget_usd`` column applied.
 """
 
 import asyncio
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -57,7 +58,13 @@ CREATE TABLE cost_ledger (
     input_tokens INTEGER NOT NULL DEFAULT 0,
     output_tokens INTEGER NOT NULL DEFAULT 0,
     cost_usd NUMERIC(12,6) NOT NULL,
-    latency_ms INTEGER NOT NULL DEFAULT 0
+    latency_ms INTEGER NOT NULL DEFAULT 0,
+    -- M18-C2: the spend window is the DB-clock month; the mirror carries the
+    -- frozen column (0001) so MONTH_WINDOW_SQL runs verbatim. SQLite's
+    -- date('now','start of month','-1 day') yields LAST day of PREVIOUS month
+    -- for any timestamp this month, so every in-month row passes and
+    -- last-month rows fail — identical semantics to date_trunc on PG.
+    created_at TEXT NOT NULL DEFAULT '2026-01-01T00:00:00+00:00'
 );
 CREATE TABLE run_claims (
     run_id VARCHAR(36) PRIMARY KEY,
@@ -116,7 +123,13 @@ def db_factory(tmp_path):
 
     async def _setup():
         async with engine.begin() as conn:
-            for statement in DDL.split(";"):
+            # Comments stripped before the semicolon split (M18-C2: the DDL
+            # now carries explanatory comments containing no semicolons, but
+            # a comment tail without ';' would otherwise merge statements).
+            body = "\n".join(
+                line for line in DDL.splitlines() if not line.strip().startswith("--")
+            )
+            for statement in body.split(";"):
                 stmt = statement.strip()
                 if stmt:
                     await conn.execute(text(stmt))
@@ -131,9 +144,17 @@ async def _add_spend(factory, run_id: str | None, cost_usd: float) -> None:
     async with factory() as db:
         await db.execute(
             text(
-                "INSERT INTO cost_ledger (run_id, cost_usd) VALUES (:r, :c)"
+                "INSERT INTO cost_ledger (run_id, cost_usd, created_at) "
+                "VALUES (:r, :c, :ts)"
             ),
-            {"r": run_id, "c": cost_usd},
+            {
+                "r": run_id,
+                "c": cost_usd,
+                # M18-C2: the gate sums THIS month's spend; the mirror rows
+                # must carry an in-month timestamp (the DDL default is
+                # 2026-01-01, outside every current window).
+                "ts": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S"),
+            },
         )
         await db.commit()
 
@@ -234,11 +255,12 @@ def test_ledger_rows_without_runs_do_not_count(db_factory, monkeypatch):
     assert status.spentUsd == pytest.approx(0.0)
 
 
-def test_unknown_team_degrades_to_allowed(tmp_path, monkeypatch):
-    """A team with no resolvable cap must never be bricked by a read failure:
-    unknown team → no override → unlimited env → allowed, even if the store
-    also errors (fail-open at the storage layer; enforcement stays honest
-    wherever the cap IS resolvable)."""
+def test_unknown_team_degrades_to_fail_closed(tmp_path, monkeypatch):
+    """M18-C2 INVERTED posture: a DB error while resolving a cap now DENIES
+    the call with the explicit degraded flag (fail-closed everywhere) — the
+    old wave-9 behavior degraded to 'allowed', which was the one fail-open
+    path in the system. Operators see degraded=True and an outage-shaped
+    reason instead of a silently opened gate."""
     monkeypatch.delenv(ENV_TEAM_BUDGET_USD, raising=False)
 
     class BrokenFactory:
@@ -246,8 +268,9 @@ def test_unknown_team_degrades_to_allowed(tmp_path, monkeypatch):
             raise RuntimeError("db down")
 
     status: BudgetStatus = run(check_budget(BrokenFactory(), "team-unknown"))
-    assert status.allowed is True
-    assert status.capUsd is None
+    assert status.allowed is False
+    assert status.degraded is True
+    assert "budget store unavailable" in status.reason
 
 
 # ------------------------------------------------------- estimate helper (contract)

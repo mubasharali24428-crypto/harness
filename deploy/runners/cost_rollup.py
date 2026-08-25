@@ -56,22 +56,16 @@ DEFAULT_DATABASE_URL = "postgresql+asyncpg://harness:harness@db:5432/harness"
 DEFAULT_RUN_INTERVAL_SECONDS = 6 * 60 * 60  # four sweeps a day
 
 # Two statements, ONE transaction (rollup_once executes them on a single
-# session): the DELETE clears exactly the recomputed keys, then the INSERT
-# refills them from source-of-truth cost_ledger through the frozen
-# attribution chain. Readers see either the previous complete snapshot or
-# the new one -- never a half-fed table. Released/deleted reserved ledger
-# rows cannot leave phantom spend behind. SQLite accepts this shape verbatim
-# (LIMIT-less grouped same-table subquery inside DELETE; same law
-# events_retention relies on; MySQL is the outlier that forbids it).
-ROLLUP_DELETE_SQL = (
-    "DELETE FROM cost_ledger_daily WHERE (team_id, day) IN ("
-    "SELECT p.team_id AS team_id, date_trunc('day', l.created_at) AS day "
-    "FROM cost_ledger l "
-    "JOIN agent_runs r ON r.id = l.run_id "
-    "JOIN projects p ON p.id = r.project_id "
-    "WHERE l.created_at < date_trunc('day', now()) "
-    "GROUP BY p.team_id, date_trunc('day', l.created_at))"
-)
+# session): the DELETE clears EVERY closed-day row, then the INSERT refills
+# from source-of-truth cost_ledger through the frozen attribution chain.
+# Clearing unconditionally (not just the currently-derived keys) is what
+# makes recompute truly self-healing: when release() deletes a day's LAST
+# ledger row, that day must VANISH from the rollup -- a key-set-derived
+# DELETE would never revisit it and phantom spend would survive forever.
+# Invariant after every pass: cost_ledger_daily == exact closed-day
+# aggregation of the CURRENT cost_ledger. Readers see either the previous
+# complete snapshot or the new one -- never a half-fed table.
+ROLLUP_DELETE_SQL = "DELETE FROM cost_ledger_daily WHERE day < date_trunc('day', now())"
 ROLLUP_INSERT_SQL = (
     "INSERT INTO cost_ledger_daily (team_id, day, total_usd) "
     "SELECT p.team_id AS team_id, date_trunc('day', l.created_at) AS day, "

@@ -1,0 +1,5 @@
+# Locust sweep artifacts (regenerable)
+results/
+.venv/
+__pycache__/
+*.pyc

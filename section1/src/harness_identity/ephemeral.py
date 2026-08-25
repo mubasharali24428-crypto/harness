@@ -28,12 +28,15 @@ WS_TICKET_TTL_SECONDS = 30
 # knows BOTH inputs — User-Agent and client IP — can compute this exact value
 # and present a "matching" fingerprint. That is realistic when victim and
 # attacker share a NAT/egress proxy (same IP) or the ticket+UA leak together
-# through access logs. The absent-header grace path in app.py additionally
-# makes binding opt-in-by-header this release. What the check DOES stop:
-# blind replay of a captured ticket from a different host, and replay with
-# only the ticket (no UA knowledge). Raising it to a real control needs a
+# through access logs. Since M18-C5 (MAC2-F5) the upgrade path REQUIRES
+# presenting X-WS-Fingerprint (or the browser `fingerprint` query param) when
+# a mint recorded one — the old absent-header grace path is gone — so the
+# binding can no longer be evaporated by omission; it remains a correlation
+# guard, not an authentication control. What the check DOES stop: blind
+# replay of a captured ticket from a different host, and replay with only the
+# ticket (no UA knowledge). Raising it to a real control needs a
 # secret-bearing credential (e.g. DPoP-style proof or a minted HMAC over the
-# upgrade handshake) — out of scope for B4.
+# upgrade handshake) — out of scope for B4/C5.
 FINGERPRINT_HEX_LEN = 16
 
 

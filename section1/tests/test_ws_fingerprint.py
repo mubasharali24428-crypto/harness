@@ -3,13 +3,14 @@
 The ticket mint stamps fingerprint = sha256(UA + IP)[:16]; the WS upgrade
 recomputes it from the upgrading request. Matrix:
 
-  - matching UA+IP            -> accepted
+  - matching UA+IP            -> accepted (with X-WS-Fingerprint presented)
   - different UA or IP        -> close 4403 TICKET_FINGERPRINT_MISMATCH
-  - X-WS-Fingerprint absent   -> warn-log + allow (grace path, one release)
+  - X-WS-Fingerprint absent   -> close 4403 (REQUIRED since M18-C5 / MAC2-F5;
+                                 the warn-and-allow grace path is GONE)
   - X-WS-Fingerprint wrong    -> close 4403
-  - X-WS-Fingerprint correct  -> accepted
+  - UA-only derivation        -> accepted (browser channel; S7 cannot know IP)
   - token/Bearer paths        -> untouched by binding (no ticket to validate)
-  - pre-0025 rows (fp NULL)   -> redeemable under the grace path
+  - pre-0025 rows (fp NULL)   -> redeemable under the NULL grace path
 
 Dialects: SQLite in-memory-style file DB for the fast suite; live PostgreSQL
 (opt-in via HARNESS_TEST_PG, repo convention) proves the migration DDL and the
@@ -249,10 +250,39 @@ async def test_mint_binds_ua_ip_fingerprint(db):
 async def test_upgrade_same_client_accepted(db):
     app = _mk(db)
     _seed_sync()
+    mint_body = (await _mint_ticket(app)).json()
+    ticket = mint_body["ticket"]
+    # M18-C5 (F5): mint echoes the stored binding; an honest non-browser
+    # client presents exactly that value back at upgrade.
+    assert mint_body["fingerprint"] == expected_fp(MINT_UA, MINT_IP)
+    # Same UA + same peer IP as at mint time, fingerprint presented.
+    async with MiniWs(
+        app,
+        f"/api/v1/ws/proj-1?ticket={ticket}",
+        headers={
+            "User-Agent": MINT_UA,
+            "X-WS-Fingerprint": mint_body["fingerprint"],
+        },
+        client_addr=(MINT_IP, 51000),
+    ) as ws:
+        assert ws.accepted
+
+
+async def test_browser_ua_only_derivation_accepted(db):
+    """M18-C5 (F5): browsers cannot know their own IP, so S7 ships the UA-only
+    derivation sha256(UA)[:16] as the fingerprint param. Presentation proves
+    the upgrading process computed the binding input; the authoritative
+    stored-vs-recomputed UA+IP check still runs server-side."""
+    app = _mk(db)
+    _seed_sync()
     ticket = (await _mint_ticket(app)).json()["ticket"]
-    # Same UA + same peer IP as at mint time.
-    async with MiniWs(app, f"/api/v1/ws/proj-1?ticket={ticket}",
-                      headers={"User-Agent": MINT_UA}, client_addr=(MINT_IP, 51000)) as ws:
+    ua_only = hashlib.sha256(MINT_UA.encode()).hexdigest()[:16]
+    async with MiniWs(
+        app,
+        f"/api/v1/ws/proj-1?ticket={ticket}&fingerprint={ua_only}",
+        headers={"User-Agent": MINT_UA},
+        client_addr=(MINT_IP, 51001),
+    ) as ws:
         assert ws.accepted
 
 
@@ -297,19 +327,21 @@ async def test_mismatch_on_foreign_project_still_answers_4401(db):
 # ================================================================
 
 
-async def test_absent_header_grace_path_allowed(db):
-    """Backward-compat law: no X-WS-Fingerprint -> warn-log + allow. The
-    server-side UA+IP recomputation still ran and matched."""
+async def test_absent_header_rejected_4403(db):
+    """M18-C5 (MAC2-F5): presentation is REQUIRED — the old warn-and-allow
+    grace path let a replaying attacker evaporate the header half of the
+    binding by omitting it. Absent header AND absent browser param now die
+    with 4403 even though UA and peer IP still match mint exactly."""
     app = _mk(db)
     _seed_sync()
     ticket = (await _mint_ticket(app)).json()["ticket"]
     async with MiniWs(
         app,
         f"/api/v1/ws/proj-1?ticket={ticket}",
-        headers={"User-Agent": MINT_UA},  # no X-WS-Fingerprint
+        headers={"User-Agent": MINT_UA},  # no X-WS-Fingerprint, no ?fingerprint=
         client_addr=(MINT_IP, 53000),
     ) as ws:
-        assert ws.accepted
+        _expect_reject(ws, 4403)
 
 
 async def test_wrong_header_rejected_4403(db):

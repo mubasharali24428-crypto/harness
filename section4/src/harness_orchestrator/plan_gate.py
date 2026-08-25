@@ -27,9 +27,14 @@ authz.authorize_run (agent_runs.project_id → projects.team_id, frozen table
 names only). M13-G5a no-oracle law: a foreign team's plan answers EXACTLY
 what an unknown plan id answers — 404 NOT_FOUND with an indistinguishable
 envelope — so ids cannot be probed for existence across teams. Role gates
-stay first (viewer/guest keep their uniform 403 for every id). Bare-unit
-mode (no session factory) keeps the historical behavior: nothing to check
-against, exactly like rehydration already degrades without a DB.
+stay first (viewer/guest keep their uniform 403 for every id). M18-C1
+posture pass: bare-unit mode no longer silently passes unattributed plans —
+without a session factory every decision route denies with 403
+AUTHZ_UNAVAILABLE unless ``HARNESS_AUTHZ_TEST_MODE=1`` is explicitly set at
+app construction (legacy unit suites set it in ``tests/conftest.py``);
+DB-backed runs whose attribution cannot be PROVEN (no project binding,
+dangling projects row, store probe failure) deny the same way. Only a
+confirmed same-team attribution allows.
 """
 
 from __future__ import annotations
@@ -45,6 +50,7 @@ from harness_contracts.roles import Principal, Role
 from harness_contracts.timeutil import db_now
 from pydantic import BaseModel, Field
 
+from harness_orchestrator.authz import authz_test_mode
 from harness_orchestrator.planner import PlanNotApprovedError
 from harness_orchestrator.service import OrchestratorService, PlanAlreadyDecidedError
 from harness_orchestrator.state_machine import AgentState, InvalidStateTransitionError  # noqa: E402
@@ -526,32 +532,73 @@ async def _locate_scoped_plan(
     return located
 
 
+def _http_authz_unavailable(reason: str) -> HTTPException:
+    """M18-C1 fail-closed denial for an unevaluable ownership check.
+
+    Deliberately NOT a 404: no-oracle law governs probes for resources that
+    exist in another team; an UNVERIFIABLE authorization is a wiring or
+    data-integrity fault, surfaced as 403 AUTHZ_UNAVAILABLE so deployments
+    cannot silently ship with attribution gaps. ``reason`` names the gap.
+    """
+    return HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=error_body(
+            "AUTHZ_UNAVAILABLE", f"authorization unavailable ({reason})"
+        ),
+    )
+
+
+async def _deny_unattributed(service: OrchestratorService) -> None:
+    """M18-C1: deny when NOTHING can attribute this run to any team.
+
+    Bare-unit mode (no session factory) has no witness at all and used to
+    pass silently — now it denies unless ``HARNESS_AUTHZ_TEST_MODE=1`` was
+    explicitly set at app construction (legacy unit suites set it in
+    tests/conftest.py).
+    """
+    if getattr(service, "session_factory", None) is None:
+        if authz_test_mode():
+            return
+        raise _http_authz_unavailable("unwired_session_factory")
+
+
 async def _deny_if_foreign_project(
     service: OrchestratorService, run_data: dict[str, Any], principal: Principal
 ) -> None:
-    """Confirmed cross-team attribution denies with the SAME 404 an unknown
-    plan gets (M13-G5a no-oracle law).
+    """Team-ownership gate for the decision routes — FAIL-CLOSED.
 
-    Two attribution sources, checked in order:
-      1. ``run_data["teamId"]`` — stamped by propose_plan at mint time
-         (M17-B4), so even bare-unit mode enforces the tenant boundary.
-      2. ``projects.team_id`` via agent_runs.project_id — the DB join, same
-         discipline as authz.authorize_run (frozen table names only).
-    A run with neither (no stamp, no project binding, or bare unit mode) has
-    nothing attributable to compare and passes: those attribution gaps are
-    authz.py F1 territory (another lane), inherited on purpose — this guard
-    closes every CONFIRMED cross-team WRITE hole.
+    A CONFIRMED cross-team attribution denies with the SAME 404 an unknown
+    plan gets (M13-G5a no-oracle law). An UNPROVABLE attribution denies too
+    since M18-C1, with 403 AUTHZ_UNAVAILABLE instead of the old silent pass:
+      - bare-unit mode (no session factory): only ``HARNESS_AUTHZ_TEST_MODE=1``
+        keeps the legacy allow (unit suites);
+      - no project binding on a DB-backed run → 403 AUTHZ_UNAVAILABLE
+        (``no_project``);
+      - projects row missing for the bound id (deleted/orphaned project) →
+        403 AUTHZ_UNAVAILABLE (``dangling_project``);
+      - store probe failure → logged, then 403 AUTHZ_UNAVAILABLE
+        (``store_probe_failed``) — a degraded store must never widen access.
+
+    Attribution witnesses, checked in order:
+      1. ``projects.team_id`` via agent_runs.project_id — the DB join, same
+         discipline as authz.authorize_run (frozen table names only). A
+         dangling projects row denies uniformly (no stamp-based bypass).
+      2. ``run_data["teamId"]`` — stamped by propose_plan at mint time;
+         consulted ONLY when the run carries no project binding at all
+         (plan_gate-proposed runs legitimately don't).
     """
-    project_id = run_data.get("projectId") or ""
     factory = getattr(service, "session_factory", None)
     if factory is None:
-        # Bare-unit mode: the mint-time stamp is the only possible witness.
+        # Bare-unit mode: the mint-time stamp is the only possible witness,
+        # and only behind the explicit test flag.
+        await _deny_unattributed(service)
         if run_data.get("teamId") not in (None, principal.teamId):
             raise _http_plan_not_found()
         return
 
     from sqlalchemy import text
 
+    project_id: str = run_data.get("projectId") or ""
     if project_id:
         try:
             async with factory() as db:
@@ -562,22 +609,30 @@ async def _deny_if_foreign_project(
                     )
                 ).first()
         except Exception:  # noqa: BLE001 — probe must never crash the route
-            # Same posture as reject_plan's window probe above: a store
-            # problem degrades THIS request to "no ownership information"
-            # instead of 500ing the governance surface. Deliberately logged
-            # (never silent); confirmed mismatches below still deny.
             logger.exception(
                 "plan-gate ownership probe failed for project %s", project_id
             )
+            # M18-C1 fail-closed: a store problem used to degrade THIS request
+            # to "no ownership information" and pass; it now denies loudly.
+            raise _http_authz_unavailable("store_probe_failed") from None
+        if row is None:
+            # Dangling binding: the store says this project does not exist.
+            # Nothing may resurrect ownership of an unresolvable binding
+            # (uniform with authz.authorize_run — no stamp-based bypass).
+            raise _http_authz_unavailable("dangling_project")
+        if row.team_id == principal.teamId:
             return
-        if row is not None and row.team_id != principal.teamId:
-            raise _http_plan_not_found()
-        return
+        raise _http_plan_not_found()  # confirmed foreign team (no-oracle)
 
-    # No project binding but a store exists: fall back to the mint-time
-    # stamp when present (rehydrated runs may lack it entirely).
-    if run_data.get("teamId") not in (None, principal.teamId):
-        raise _http_plan_not_found()
+    # No project binding: the mint-time stamp is the last remaining witness
+    # (plan_gate-proposed runs legitimately carry no projectId).
+    if run_data.get("teamId") != principal.teamId:
+        reason = "no_project"
+        if run_data.get("teamId") is not None:
+            # A stamp naming ANOTHER team is a confirmed cross-team
+            # attribution: answer the no-oracle 404, not a wiring fault.
+            raise _http_plan_not_found()
+        raise _http_authz_unavailable(reason)
 
 
 async def _resolve_scoped_run(

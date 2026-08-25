@@ -21,6 +21,7 @@ from starlette.datastructures import Headers, MutableHeaders
 from starlette.routing import Match
 
 from harness_orchestrator.authz import (
+    AuthzUnavailableError,
     OwnershipDeniedError,
     RoleDeniedError,
     authorize_run,
@@ -274,15 +275,32 @@ def _authz_dep(action):
     """D5 (P0.5): one dependency = identity + team ownership + role permission.
 
     ``action`` is a frozen TeamScopedAction ("read" for GETs, "write" for run
-    control, "approve" for plan approve/reject). The DB-backed ownership check
-    is a no-op when no session factory is wired (bare unit-test mode), matching
-    how rehydration already degrades without a DB.
+    control, "approve" for plan approve/reject). M18-C1: the DB-backed
+    ownership check is fail-closed — an unevaluable check (no session factory
+    outside test mode, no project binding, dangling projects row) denies with
+    403 AUTHZ_UNAVAILABLE instead of silently allowing.
     """
 
     async def guard(runId: str, principal: RequirePrincipal) -> Principal:
         try:
-            await authorize_run(_service, runId, principal)
+            # Role gate FIRST (M18-C1): viewer/guest keep their uniform
+            # ROLE_DENIED for every id, even when the ownership half would
+            # answer AUTHZ_UNAVAILABLE — no new oracle for low-priv roles.
             require_role(principal, action)
+            await authorize_run(_service, runId, principal)
+        except AuthzUnavailableError as e:
+            # M18-C1 fail-closed: "couldn't prove ownership" is an explicit,
+            # audited denial — distinct from both 404 (unknown/foreign) and
+            # ROLE_DENIED so operators can see the wiring/attribution gap.
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": {
+                        "code": "AUTHZ_UNAVAILABLE",
+                        "message": f"authorization unavailable ({e.reason})",
+                    }
+                },
+            ) from e
         except OwnershipDeniedError as e:
             # M13-G5a no-oracle law: a foreign team's run answers EXACTLY what
             # an unknown run id answers — 404 NOT_FOUND, same envelope. A 403
@@ -385,6 +403,17 @@ class AggregateStepOut(BaseModel):
     ts: datetime
 
 
+class BudgetDegradedOut(BaseModel):
+    """M18-C2 — operator-visible budget-gate health for this run.
+
+    ``degraded=true`` means at least one budget decision on this run was
+    made FAIL-CLOSED because the money store was unreachable (denial shaped
+    like an outage, never silently opened). Absent/false = healthy.
+    """
+
+    degraded: bool = False
+
+
 class RunAggregateResponse(BaseModel):
     """M14-W4 F3a — the FROZEN pair-contract W4-C2 aggregate shape.
 
@@ -405,6 +434,7 @@ class RunAggregateResponse(BaseModel):
     isHumanEditing: bool = False
     executing: bool = False
     engineMode: str | None = None
+    budget: BudgetDegradedOut = Field(default_factory=BudgetDegradedOut)
 
 
 class ErrorDetail(BaseModel):

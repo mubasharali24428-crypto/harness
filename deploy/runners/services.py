@@ -76,6 +76,20 @@ def base_settings(**kw):
         github_client_secret: str = ""
         github_redirect_uri: str = "http://localhost:8002/api/v1/github/oauth/callback"
         frontend_base: str = "http://localhost:3000"
+        # M17-B4 (MAC2-F8) mirror — M18-C4 fix (found live: the loadtest probe
+        # built at HEAD 500'd every login here): the login handler reads
+        # settings.trusted_proxy_cidrs, so the deploy Settings class MUST carry
+        # it too. Defaults match harness_identity.config.Settings exactly.
+        trusted_proxy_cidrs: list[str] = [
+            "127.0.0.0/8",
+            "::1/128",
+            "::/128",
+            "fc00::/7",
+            "fe80::/10",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16",
+        ]
 
     return S(**kw)
 
@@ -200,6 +214,25 @@ def app_orchestrator():
 
     factory = get_factory()
     bus = EventBus(factory)
+    # M18-C4 (throughput truth probe): an EXPLICIT, default-OFF injected engine
+    # backend for load testing. ENGINE_BACKEND_ECHO=1 makes every run complete
+    # deterministically WITHOUT a provider — the only way to measure the
+    # platform ceiling (queue + executor + DB + events), because dry mode
+    # answers status="not_configured" and blocks runs before the executor is
+    # ever touched. Never set in production; the live path is untouched when
+    # unset. Mirrors the backend_runner= injection section4's stress tests use.
+    engine = None
+    if os.environ.get("ENGINE_BACKEND_ECHO") == "1":
+        from harness_orchestrator.engine import DeepSeekHarnessWrapper
+
+        def _echo_backend(goal: str) -> str:
+            import time as _time
+
+            _time.sleep(float(os.environ.get("ENGINE_ECHO_WORK_MS", "50")) / 1000.0)
+            return f"echo-backend completed: {goal[:120]}"
+
+        engine = DeepSeekHarnessWrapper(backend_runner=_echo_backend)
+
     # M17-B5: engine runs execute on a DEDICATED bounded executor
     # (ENGINE_MAX_CONCURRENCY, default 8 = shipped per-team cap × 2 seeded
     # teams — see docs/engine-concurrency.md) with a hard per-run deadline
@@ -210,6 +243,7 @@ def app_orchestrator():
         bus=bus,
         max_per_team=int(os.environ.get("HARNESS_RUN_CONCURRENCY", "4")),
         engine_runtime=EngineRuntime(),
+        engine=engine,
     )  # F8/H3: persisted + rehydrated; Phase 1 durable run queue
     configure_orchestrator(service)
 

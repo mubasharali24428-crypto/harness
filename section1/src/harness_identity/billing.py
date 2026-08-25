@@ -25,11 +25,13 @@ restart-free env change and tests can monkeypatch it):
   * a missing or failing adapter degrades to "local" rather than erroring —
     availability over strictness (same posture as the wave9 rate-limit node).
 
-Quota math (local): effective budget = max(billing_plans.monthly_budget_usd,
-teams.budget_usd from migration 0020 when the column exists). The column
-is NOT mapped on the frozen Team model, so it is read with a guarded raw SQL
-SELECT that cleanly yields None on schemas predating 0007 (scratch sqlite test
-apps) — never a crash, never fabricated numbers.
+Quota math (local, M18-C2 ONE budget truth): the displayed cap is the SAME
+resolution every other consumer uses — contracts.budget.resolve_cap:
+teams.budget_usd > billing_plans.monthly_budget_usd > env
+HARNESS_TEAM_BUDGET_USD > unlimited-explicit. (This display previously used
+max(plan, team) — a fourth disagreeing truth.) The usage window is the ONE
+month definition: DB-clock date_trunc('month', now()) via MONTH_WINDOW_SQL,
+not an app-computed month start.
 
 PUT stores the plan row LOCALLY even in stripe mode (the local row stays the
 system of record until a provider-sync wiring lands); admin-only via the
@@ -43,6 +45,11 @@ from decimal import ROUND_HALF_EVEN, Decimal
 from typing import Annotated, Literal, Protocol
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from harness_contracts import (
+    DEGRADED_FLAG_WIRE,
+    MONTH_WINDOW_SQL,
+    resolve_cap,
+)
 from harness_contracts import Principal, Role, error_body
 from pydantic import BaseModel
 from sqlalchemy import DateTime, ForeignKey, Numeric, String, func, select, text
@@ -123,54 +130,35 @@ def _resolve_stripe_adapter(request: Request) -> StripeClient | None:
     return getattr(request.app.state, _STRIPE_CLIENT_ATTR, None)
 
 
-async def _team_budget_override(session_factory, team_id: str) -> Decimal | None:
-    """Read teams.budget_usd (migration 0007, now NUMERIC(12,6) via 0020)
-    without mapping it on Team.
-
-    Returns None when the column/table answer is unavailable (pre-0007 schema,
-    scratch sqlite apps) — callers fall back to the plan-row budget. A broad
-    guard is deliberate: quota display must never hard-fail on schema drift.
-    Money comes back as an exact Decimal (H-023); str reads (SQLite) convert
-    exactly too.
-    """
-    try:
-        async with session_factory() as db:
-            row = (
-                await db.execute(
-                    text("SELECT budget_usd FROM teams WHERE id = :team_id"),
-                    {"team_id": team_id},
-                )
-            ).first()
-    except Exception:  # noqa: BLE001 — degrade to None, see docstring
-        return None
-    if row is None or row[0] is None:
-        return None
-    try:
-        value = row[0]
-        return Decimal(str(value))
-    except Exception:  # noqa: BLE001 — malformed money degrades, never crashes
-        return None
-
-
 def _month_start_utc() -> datetime:
+    """DEPRECATED app-clock helper kept only for backwards-compatible imports.
+
+    M18-C2: quota math no longer uses it — the usage window is the ONE
+    definition (MONTH_WINDOW_SQL, DB clock). Retained because external
+    callers/tests imported it before the unification; do not use in new code.
+    """
     now = datetime.now(UTC)
     return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
 
 def _used_this_month_stmt(team_id: str):
-    """SUM(cost_ledger.cost_usd) for the team this month, READ-only join
+    """SUM(cost_ledger.cost_usd) for the team THIS month, READ-only join
     across the frozen tables cost_ledger -> agent_runs -> projects.
 
-    SUM runs in SQL over NUMERIC(12,6) — exact base-10 aggregation (H-023);
-    COALESCEs to exact Decimal zero, never a float.
+    M18-C2: the window is the ONE month definition — the literal DB-clock
+    ``created_at >= date_trunc('month', now())`` fragment from
+    contracts.MONTH_WINDOW_SQL is spliced in verbatim (a drift between this
+    file and the contract fails the parity test instead of shipping a second
+    window). SUM runs in SQL over NUMERIC(12,6) — exact base-10 aggregation
+    (H-023); COALESCEs to exact Decimal zero, never a float.
     """
-    return (
-        select(func.coalesce(func.sum(CostLedger.cost_usd), Decimal("0")))
-        .select_from(CostLedger)
-        .join(AgentRun, AgentRun.id == CostLedger.run_id)
-        .join(Project, Project.id == AgentRun.project_id)
-        .where(Project.team_id == team_id, CostLedger.created_at >= _month_start_utc())
-    )
+    return text(
+        "SELECT COALESCE(SUM(l.cost_usd), 0) AS used_usd "
+        "FROM cost_ledger l "
+        "JOIN agent_runs r ON r.id = l.run_id "
+        "JOIN projects p ON p.id = r.project_id "
+        f"WHERE p.team_id = :team_id AND l.{MONTH_WINDOW_SQL}"
+    ).bindparams(team_id=team_id)
 
 
 def _money_wire(value) -> float:
@@ -179,27 +167,51 @@ def _money_wire(value) -> float:
     return float(dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_EVEN))
 
 
-def _quota_money(value) -> Decimal:
-    """Any stored money shape (Decimal/str/int from PG or SQLite) -> Decimal."""
-    return Decimal(str(value)) if value is not None else Decimal("0")
-
-
 async def _quota_payload(session_factory, team_id: str) -> dict:
-    async with session_factory() as db:
-        plan_row = (
-            await db.execute(select(BillingPlan).where(BillingPlan.team_id == team_id))
-        ).scalar_one_or_none()
-        used_usd = (await db.execute(_used_this_month_stmt(team_id))).scalar_one()
+    """Quota block from the ONE budget truth (M18-C2).
 
-    monthly_budget = _quota_money(plan_row.monthly_budget_usd if plan_row else None)
-    override = await _team_budget_override(session_factory, team_id)
-    if override is not None:
-        # Both signals are caps someone set deliberately: the larger governs.
-        monthly_budget = max(monthly_budget, override)
-    return {
+    The displayed cap is contracts.budget.resolve_cap's answer — teams
+    override > plan row > env default > explicit unlimited — never the old
+    ``max(plan, team)`` heuristic. When the money store cannot be consulted
+    the payload degrades HONESTLY: zeros plus the contract
+    ``degraded: true`` flag (DEGRADED_FLAG_WIRE), so operators see
+    degradation instead of fabricated numbers. Availability-over-strictness
+    still holds for the DISPLAY path (200 + flag, not a 500); the ENFORCEMENT
+    paths fail closed in their own modules.
+    """
+    degraded = False
+    try:
+        async with session_factory() as db:
+            plan_row = (
+                await db.execute(select(BillingPlan).where(BillingPlan.team_id == team_id))
+            ).scalar_one_or_none()
+            used_usd = (await db.execute(_used_this_month_stmt(team_id))).scalar_one()
+            override_row = (
+                await db.execute(
+                    text("SELECT budget_usd FROM teams WHERE id = :team_id"),
+                    {"team_id": team_id},
+                )
+            ).first()
+    except Exception:  # noqa: BLE001 — display degrades with an honest flag
+        degraded = True
+        return {
+            "monthlyBudgetUsd": 0.0,
+            "usedUsd": 0.0,
+            DEGRADED_FLAG_WIRE: True,
+        }
+
+    resolved = resolve_cap(
+        getattr(override_row, "budget_usd", None) if override_row is not None else None,
+        plan_row.monthly_budget_usd if plan_row else None,
+    )
+    monthly_budget = Decimal("0") if resolved.cap_usd is None else resolved.cap_usd
+    payload = {
         "monthlyBudgetUsd": _money_wire(monthly_budget),
         "usedUsd": _money_wire(used_usd),
     }
+    if degraded:
+        payload[DEGRADED_FLAG_WIRE] = True
+    return payload
 
 
 async def _disabled_state() -> dict:

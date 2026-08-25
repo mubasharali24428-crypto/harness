@@ -1,4 +1,4 @@
-// TS mirror of harness_contracts v0.4.0 (Python is source of truth).
+// TS mirror of harness_contracts v0.4.1 (Python is source of truth).
 // Regenerate by hand only on a deliberate contracts version bump.
 
 export type Role = "admin" | "engineer" | "viewer" | "guest";
