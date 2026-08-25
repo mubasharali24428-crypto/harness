@@ -14,6 +14,11 @@ No repo conftest exists for section4; this module builds its own apps, same
 same as test_plan_gate.py / test_authz.py.
 """
 
+# M17-B3: the byte-identical S4 middleware fork is deleted; the canonical
+# copy lives in harness_identity (tests reach it via the section1/src seam).
+import sys as _sys
+from pathlib import Path as _Path
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -22,11 +27,6 @@ from harness_contracts.roles import Principal, Role
 from harness_orchestrator import api as orch_api
 from harness_orchestrator.api import get_principal, router
 from harness_orchestrator.service import OrchestratorService
-
-# M17-B3: the byte-identical S4 middleware fork is deleted; the canonical
-# copy lives in harness_identity (tests reach it via the section1/src seam).
-import sys as _sys
-from pathlib import Path as _Path
 
 _S1_SRC = str(_Path(__file__).resolve().parents[2] / "section1" / "src")
 if _S1_SRC not in _sys.path:

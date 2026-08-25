@@ -1,10 +1,17 @@
 from .api import API_PREFIX, error_body, ws_envelope
 from .brief import EngineeringBrief
 from .events import EVENT_TYPES, EventEnvelope, EventType, event_envelope
-from .fastapi_auth import hash_token, make_bearer_dep
+
+try:  # sqlalchemy-dependent modules stay optional at import (S5 has no SA)
+    from .fastapi_auth import hash_token, make_bearer_dep
+    from .ratelimit import install_rate_limit
+except ImportError:  # pragma: no cover — deployments without SA skip these
+    hash_token = None  # type: ignore[assignment]
+    make_bearer_dep = None  # type: ignore[assignment]
+    install_rate_limit = None  # type: ignore[assignment]
+
 from .limits import PLATFORM_CAPS
 from .plan import AgentPlan
-from .ratelimit import install_rate_limit
 from .reviewer_thresholds import (
     DEFAULT_REVIEWER_THRESHOLDS,
     REVIEWER_THRESHOLD_KEY,

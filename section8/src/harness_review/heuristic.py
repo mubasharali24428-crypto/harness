@@ -42,13 +42,12 @@ is never persisted in the first place.
 from collections.abc import Iterable
 from typing import Literal
 
-from pydantic import BaseModel, Field
-
 from harness_contracts.reviewer_thresholds import (
     DEFAULT_REVIEWER_THRESHOLDS,
     REVIEWER_THRESHOLD_KEY,
     ReviewerThresholds,
 )
+from pydantic import BaseModel, Field
 
 from .models import RiskFlag, RiskSeverity
 
@@ -104,16 +103,6 @@ def diff_touches_tests(changed_paths: Iterable[str]) -> bool:
         if any(m in lowered for m in TEST_PATH_MARKERS) or basename.startswith("test"):
             return True
     return False
-
-
-class RiskBandCounts(BaseModel):
-    """Per-severity flag counts feeding the verdict."""
-
-    critical: int = 0
-    high: int = 0
-    medium: int = 0
-    low: int = 0
-    total: int = 0
 
 
 class ReviewVerdict(BaseModel):

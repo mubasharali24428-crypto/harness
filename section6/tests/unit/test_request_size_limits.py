@@ -33,14 +33,13 @@ from fastapi.testclient import TestClient
 _ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(_ROOT / "section1" / "src"))
 
-from harness_identity.envelope_middleware import install_error_envelope  # noqa: E402
-
 from harness_contracts.limits import (  # noqa: E402
     MEETING_PROJECT_ID_MAX,
     MEETING_TITLE_MAX,
     MEETING_USER_ID_MAX,
     MESSAGE_CONTENT_MAX,
 )
+from harness_identity.envelope_middleware import install_error_envelope  # noqa: E402
 
 from harness_meeting.api import get_principal, router  # noqa: E402
 
@@ -157,7 +156,15 @@ def test_over_limit_without_envelope_handlers_is_still_422():
 
 
 def test_section6_mirror_matches_shared_limits():
-    """The byte-equal mirror of limits.py must not drift from section1."""
-    shared = (_ROOT / "section1" / "src" / "harness_identity" / "limits.py").read_text()
-    mirror = (_ROOT / "section6" / "src" / "harness_meeting" / "_limits.py").read_text()
-    assert mirror == shared
+    """S6's _limits shim must re-export the canonical contracts registry.
+
+    M17-B3 replaced the byte-equal copy with a re-export over
+    harness_contracts.limits — parity now means: every symbol S6's shim
+    exports exists in the canonical registry with the same value.
+    """
+    import harness_contracts.limits as shared
+    from harness_meeting import _limits as mirror
+
+    for name in mirror.__all__:
+        assert hasattr(shared, name), f"{name} missing from harness_contracts.limits"
+        assert getattr(mirror, name) == getattr(shared, name)

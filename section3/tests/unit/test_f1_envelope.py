@@ -25,9 +25,9 @@ _S1_SRC = str(_ROOT / "section1" / "src")
 if _S1_SRC not in sys.path:
     sys.path.append(_S1_SRC)
 
-from harness_identity.envelope_middleware import install_error_envelope
+from harness_identity.envelope_middleware import install_error_envelope  # noqa: E402
 
-from harness_router import api as router_api
+from harness_router import api as router_api  # noqa: E402  (path seam above is test-only)
 
 
 def test_validation_error_envelope_on_models_router():

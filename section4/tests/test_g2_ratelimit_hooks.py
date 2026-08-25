@@ -27,9 +27,9 @@ _ROOT = Path(__file__).resolve().parents[2]
 if (_ROOT / "section1" / "src") not in sys.path:
     sys.path.append(str(_ROOT / "section1" / "src"))
 
-from harness_contracts import ratelimit as rl  # noqa: E402  # canonical home (B3 dedupe)
 import pytest  # noqa: E402
 from fastapi import FastAPI  # noqa: E402
+from harness_contracts import ratelimit as rl  # noqa: E402  # canonical home (B3 dedupe)
 from harness_contracts.roles import Principal, Role  # noqa: E402
 from harness_identity.models import Base  # noqa: E402
 from harness_identity.ratelimit import RUN_START_LIMIT, RUN_START_TEMPLATE  # noqa: E402

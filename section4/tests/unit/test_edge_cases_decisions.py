@@ -362,7 +362,8 @@ def test_x18_propose_empty_goal_422_unified_envelope_and_nothing_created():
     service = OrchestratorService(bus=RecordingBus())  # bare unit mode
     app = FastAPI()
     app.include_router(plan_router)
-    import sys as _sys, pathlib as _pl
+    import pathlib as _pl
+    import sys as _sys
     _s1src = _pl.Path(__file__).resolve().parents[3] / 'section1' / 'src'
     if str(_s1src) not in _sys.path:
         _sys.path.insert(0, str(_s1src))  # test-only: canonical middleware lives in S1

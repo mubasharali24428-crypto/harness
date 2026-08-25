@@ -93,11 +93,11 @@ static-gates: guard-route-law
 	python3 contracts/ts/generate.py --check
 
 # ------------------------------------------------------------------------ lint
-# The 'scripts || no-scripts' fallback mirrors the original CI line verbatim:
-# not every section carries a scripts/ tree, and ruff exits nonzero on a
-# missing path. Same expression locally and in CI — no third variant allowed.
+# Sections WITH a scripts/ tree get the three-path check; sections without
+# get src+tests only (ruff exits nonzero on a missing path). Same expression
+# locally and in CI — no third variant allowed.
 define LINT_RECIPE
-cd $(1) && ./.venv/bin/ruff check src tests scripts || ./.venv/bin/ruff check src tests
+cd $(1) && if [ -d scripts ]; then ./.venv/bin/ruff check src tests scripts; else ./.venv/bin/ruff check src tests; fi
 endef
 
 lint:

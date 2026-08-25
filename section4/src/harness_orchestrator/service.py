@@ -538,7 +538,8 @@ class OrchestratorService(Orchestrator):
                 text(
                     "INSERT INTO audit_log "
                     "(actor_member_id, actor_kind, action, target_type, target_id, detail) "
-                    "VALUES (:actor_member_id, :actor_kind, :action, :target_type, :target_id, :detail)"
+                    "VALUES (:actor_member_id, :actor_kind, :action, "
+                    ":target_type, :target_id, :detail)"
                 ),
                 {
                     "actor_member_id": member_id,

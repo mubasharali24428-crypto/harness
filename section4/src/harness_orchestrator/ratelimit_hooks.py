@@ -22,9 +22,9 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 from harness_contracts.ratelimit import (
+    DEFAULT_PROTECTED_ROUTES,
     RUN_START_LIMIT,
     RUN_START_TEMPLATE,
-    DEFAULT_PROTECTED_ROUTES,
     install_rate_limit,
 )
 

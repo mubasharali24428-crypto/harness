@@ -23,9 +23,9 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 from harness_contracts.ratelimit import (
+    DEFAULT_PROTECTED_ROUTES,
     MODEL_CALL_LIMIT,
     MODEL_CALL_TEMPLATE,
-    DEFAULT_PROTECTED_ROUTES,
     install_rate_limit,
 )
 

@@ -14,6 +14,10 @@ Scratch-app pattern per tests/conformance/test_meeting_conformance.py
 (no repo conftest exists here either).
 """
 
+# M17-B3: the byte-identical S6 middleware fork is deleted; the canonical
+# copy lives in harness_identity (tests reach it via the section1/src seam).
+import sys as _sys
+from pathlib import Path as _Path
 from types import SimpleNamespace
 
 from fastapi import FastAPI
@@ -21,11 +25,6 @@ from fastapi.testclient import TestClient
 
 from harness_meeting.api import get_principal, router
 from harness_meeting.service import MeetingService
-
-# M17-B3: the byte-identical S6 middleware fork is deleted; the canonical
-# copy lives in harness_identity (tests reach it via the section1/src seam).
-import sys as _sys
-from pathlib import Path as _Path
 
 _S1_SRC = str(_Path(__file__).resolve().parents[2] / "section1" / "src")
 if _S1_SRC not in _sys.path:

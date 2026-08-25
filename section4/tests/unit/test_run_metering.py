@@ -48,6 +48,7 @@ def _ensure_sibling_srcs() -> None:
 _ensure_sibling_srcs()
 
 import harness_router.api as router_api  # noqa: E402
+
 # M17-B3: the canonical money/pricing code lives in harness_contracts now
 # (_to_money is a private of that module; S1/S3 keep re-export shims).
 from harness_contracts.cost_ledger import _to_money  # noqa: E402  (exact money)
