@@ -47,14 +47,32 @@ class PlanService:
             raise KeyError(f"Plan '{plan_id}' not found.")
         return self.plans[plan_id]
 
-    def approve_plan(self, plan_id: str) -> None:
+    def approve_plan(self, plan_id: str) -> str | None:
+        """Flip approval True; returns ``"approved"`` when THIS call decided.
+
+        M19-N1: already-approved plans short-circuit to ``None`` so the only
+        caller that flips memory is the one that owns the decision — a
+        replica converging on another replica's approval must not re-fire
+        the PLAN_APPROVED emission.
+        """
         if plan_id not in self.plans:
             raise KeyError(f"Plan '{plan_id}' not found.")
+        if self.plan_approvals.get(plan_id):
+            return None  # already approved: idempotent, no second decision
         self.plan_approvals[plan_id] = True
+        return "approved"
 
-    def reject_plan(self, plan_id: str) -> None:
-        if plan_id in self.plan_approvals:
-            self.plan_approvals[plan_id] = False
+    def reject_plan(self, plan_id: str) -> str | None:
+        """False-out a decided plan; returns ``"rejected"`` when THIS call did.
+
+        Same M19-N1 discipline as approve_plan: a plan that is absent or
+        already rejected is a no-op returning ``None``; only the caller that
+        actually flips True → False owns the rejection side effects.
+        """
+        if plan_id not in self.plan_approvals or not self.plan_approvals[plan_id]:
+            return None
+        self.plan_approvals[plan_id] = False
+        return "rejected"
 
     def is_approved(self, plan_id: str) -> bool:
         return self.plan_approvals.get(plan_id, False)

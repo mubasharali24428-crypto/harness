@@ -15,7 +15,15 @@
 #   PROBE_RUN_CONCURRENCY         default 4   (per-team queue cap)
 #   PROBE_WORKER_POLL_SECONDS     default 0.5
 #   PROBE_PROJECT                 default harness-loadtest (compose -p)
-set -euo pipefail
+#
+# M19-B1 (hit live): compose interpolates HARNESS_MASTER_KEY as
+# ${PROBE_MASTER_KEY:-} = EMPTY STRING, and pydantic-settings applies that
+# empty value OVER deploy/runners/services.py's module-level dev-key fallback,
+# so KeyVault boots with b"" and identity crash-loops ("master_key must be
+# non-empty"). Default here to the PUBLIC dev constant — legal because the
+# isolated stack sets HARNESS_ALLOW_DEV_MASTER_KEY=1 (services.py F9 gate).
+set -uo pipefail
+export PROBE_MASTER_KEY="${PROBE_MASTER_KEY:-dev-master-key-change-me-in-prod!}"
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 # Function, not a string var: the repo path contains spaces ("untitled folder 2")
@@ -60,7 +68,12 @@ case "${1:-}" in
     stack_up
     echo "[probe] locust: vus=$VUS seconds=$SECS label=$LABEL"
     cd "$REPO_ROOT/scripts/loadtest"
-    ./.venv/bin/locust -f locustfile.py --headless \
+    # M19-B1 (hit live): without these exports the flow client falls back to
+    # its localhost:8001 defaults and the sweep hits the LIVE compose stack
+    # instead of the isolated one (its ownership gate + login limiter then
+    # own the run: 158k RATE_LIMITED / OWNERSHIP_REQUIRED, zero samples).
+    HARNESS_IDENTITY_URL="$IDENTITY" HARNESS_ORCHESTRATOR_URL="$ORCH" \
+      ./.venv/bin/locust -f locustfile.py --headless \
       -u "$VUS" -r "${PROBE_SPAWN_RATE:-2}" --run-time "${SECS}s" \
       --csv "results/$LABEL" --only-summary --stop-timeout 180 \
       2>&1 | tee "results/$LABEL.console.log"

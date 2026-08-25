@@ -35,6 +35,7 @@ from harness_orchestrator.logging_utils import (  # noqa: E402
 from harness_orchestrator.planner import PlanNotApprovedError  # noqa: E402
 from harness_orchestrator.service import (  # noqa: E402
     OrchestratorService,
+    PlanAlreadyDecidedError,
     RunNotFoundError,
 )  # noqa: E402
 from harness_orchestrator.signals import (  # noqa: E402
@@ -536,7 +537,16 @@ async def propose_plan(
 async def approve_plan(runId: str, req: PlanActionRequest, actor: PlanApprover) -> dict:
     # Identity comes from the session token, NEVER from the request body —
     # forgeable approver IDs would poison the audit trail.
-    await _service.approve_plan(runId, req.planId, actor.userId)
+    try:
+        await _service.approve_plan(runId, req.planId, actor.userId)
+    except PlanAlreadyDecidedError as e:
+        # M19-N1: the durable CAS is now the service-level decision gate, so
+        # a lost decision race answers the same frozen 409 envelope the
+        # plan-gate routes have answered since M12-F2.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": {"code": "PLAN_ALREADY_DECIDED", "message": str(e)}},
+        ) from e
     return {"runId": runId, "planId": req.planId, "status": "approved"}
 
 
@@ -556,6 +566,12 @@ async def reject_plan(runId: str, req: PlanActionRequest, actor: PlanApprover) -
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": {"code": "PLAN_MISMATCH", "message": str(e)}},
+        ) from e
+    except PlanAlreadyDecidedError as e:
+        # M19-N1: same durable-CAS conflict surface as approve (above).
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": {"code": "PLAN_ALREADY_DECIDED", "message": str(e)}},
         ) from e
     return {"runId": runId, "planId": req.planId, "status": "rejected"}
 

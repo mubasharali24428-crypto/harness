@@ -40,6 +40,37 @@ RUN_TIMEOUT_S = float(os.environ.get("HARNESS_RUN_TIMEOUT_S", "180"))
 
 TERMINAL_STATES = {"done", "blocked"}
 
+# M19-B1: give each journey its own synthetic source identity via
+# X-Forwarded-For. The isolated stack trusts XFF from private-range peers
+# (settings.trusted_proxy_cidrs defaults include RFC1918; the compose port map
+# peers from docker's 172.16/12 gateway), so every journey keys its own
+# rate-limit buckets. One journey = one login, so no identity EVER repeats a
+# login/run-start and the per-IP abuse guards (app.py _login_rate_limited,
+# ratelimit.py fixed windows) model diverse traffic instead of collapsing the
+# whole sweep into one IP bucket — the M18-C4 sweep died to exactly that
+# (32,370 HTTP 429 RATE_LIMITED logins from localhost). Set
+# HARNESS_PROBE_XFF=0 to send unheadered requests (single shared identity).
+#
+# Addresses MUST be PUBLIC: effective_client_ip() walks the XFF chain
+# right-to-left and stops at the first NON-trusted hop (ratelimit.py), so a
+# private-range identity would be skipped as an apparent proxy hop and every
+# journey would collapse into the docker-gateway bucket (hit live: two
+# different 10.x probes keyed one 172.22.0.1|login row). Documentation
+# ranges (RFC 5737 TEST-NET-1/2/3) are routable-class public space reserved
+# for exactly this — never anyone's real client.
+PROBE_XFF = os.environ.get("HARNESS_PROBE_XFF", "1") != "0"
+
+_TEST_NET_BASES = ((192, 0, 2), (198, 51, 100), (203, 0, 113))
+
+
+def new_probe_xff() -> str | None:
+    """A fresh synthetic public source identity for one journey (None=off)."""
+    if not PROBE_XFF:
+        return None
+    b = uuid.uuid4().bytes
+    base = _TEST_NET_BASES[b[0] % 3]
+    return "%d.%d.%d.%d" % (base[0], base[1], base[2], 1 + b[1] % 254)
+
 
 class FlowError(RuntimeError):
     """A step of the journey failed hard (non-2xx where 2xx is required)."""
@@ -68,10 +99,14 @@ class HarnessFlowClient:
         *,
         token: str | None = None,
         body: dict[str, Any] | None = None,
+        xff: str | None = None,
     ) -> tuple[int, Any]:
         headers = {"content-type": "application/json"}
         if token:
             headers["authorization"] = f"Bearer {token}"
+        if xff:
+            # Synthetic per-journey source identity (see PROBE_XFF above).
+            headers["x-forwarded-for"] = xff
         resp = self._session.request(
             method,
             url,
@@ -92,10 +127,13 @@ class HarnessFlowClient:
         return data
 
     # ----------------------------------------------------------------- steps
-    def login(self, email: str) -> dict[str, Any]:
+    def login(self, email: str, *, xff: str | None = None) -> dict[str, Any]:
         """Passwordless login mints team + user + admin session."""
         status, data = self._call(
-            "POST", f"{IDENTITY_URL}/api/v1/auth/login", body={"email": email}
+            "POST",
+            f"{IDENTITY_URL}/api/v1/auth/login",
+            body={"email": email},
+            xff=xff,
         )
         if status == 403 and isinstance(data, dict):
             detail = data.get("detail")
@@ -139,12 +177,13 @@ class HarnessFlowClient:
         )
         self._require(status, data, "approve plan")
 
-    def start_run(self, token: str, run_id: str) -> None:
+    def start_run(self, token: str, run_id: str, *, xff: str | None = None) -> None:
         status, data = self._call(
             "POST",
             f"{ORCHESTRATOR_URL}/api/v1/orchestrator/runs/{run_id}/start",
             token=token,
             body={},
+            xff=xff,
         )
         self._require(status, data, "start run")
 
@@ -156,7 +195,9 @@ class HarnessFlowClient:
         )
         return dict(self._require(status, data, "get status"))
 
-    def signal_done(self, token: str, run_id: str) -> None:
+    def signal_done(
+        self, token: str, run_id: str, *, xff: str | None = None
+    ) -> None:
         """Accept engine output at the human done-gate (what the UI's accept
         button does). The deterministic reviewer passes clean diffs; a passed
         review on an engine-opened gate drives AWAITING_DONE_SIGNAL -> DONE."""
@@ -165,6 +206,7 @@ class HarnessFlowClient:
             f"{ORCHESTRATOR_URL}/api/v1/orchestrator/runs/{run_id}/done-signal",
             token=token,
             body={"diffText": "probe diff: no conflicts, no syntax errors"},
+            xff=xff,
         )
         self._require(status, data, "done-signal")
 
@@ -181,7 +223,10 @@ def run_flow(client: HarnessFlowClient, email: str, goal: str) -> dict[str, Any]
     t_total0 = time.perf_counter()
 
     t0 = time.perf_counter()
-    auth = client.login(email)
+    # One synthetic source identity per journey: every request of this journey
+    # keys the platform's per-IP abuse guards to the same fresh bucket.
+    xff = new_probe_xff()
+    auth = client.login(email, xff=xff)
     token = str(auth["token"])
     timings["login"] = time.perf_counter() - t0
 
@@ -202,7 +247,7 @@ def run_flow(client: HarnessFlowClient, email: str, goal: str) -> dict[str, Any]
     timings["approve"] = time.perf_counter() - t0
 
     t0 = time.perf_counter()
-    client.start_run(token, run_id)
+    client.start_run(token, run_id, xff=xff)
     timings["start"] = time.perf_counter() - t0
 
     t_wait0 = time.perf_counter()
@@ -228,7 +273,7 @@ def run_flow(client: HarnessFlowClient, email: str, goal: str) -> dict[str, Any]
     else:
         # Leg 2: human accepts + deterministic review closes the run.
         t1 = time.perf_counter()
-        client.signal_done(token, run_id)
+        client.signal_done(token, run_id, xff=xff)
         while True:
             snap = client.get_status(token, run_id)
             state = str(snap.get("state") or "").lower()

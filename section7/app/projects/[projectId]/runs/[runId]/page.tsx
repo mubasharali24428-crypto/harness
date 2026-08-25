@@ -42,6 +42,10 @@ export default function RunDetailPage({
   const [projectId, setProjectId] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  // M19-N4 (C10): the canned demo lands here with ?demo=1. The banner is a
+  // UI honesty marker ONLY — the run's own events carry the durable replay
+  // marker server-side; this just says it in words on the wow-moment page.
+  const [isDemoLanding, setIsDemoLanding] = useState(false);
 
   const [agg, setAgg] = useState<RunAggregateDto | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +68,14 @@ export default function RunDetailPage({
 
   useEffect(() => {
     setToken(loadSession()?.token ?? null);
+    // Read the marker off window so the statically prerendered page never
+    // needs a Suspense boundary (same pattern as the login page).
+    if (
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("demo") === "1"
+    ) {
+      setIsDemoLanding(true);
+    }
   }, []);
 
   const fetchAgg = useCallback(async () => {
@@ -102,6 +114,19 @@ export default function RunDetailPage({
         />
       )}
 
+      {isDemoLanding && (
+        // M19-N4 honest marker: this run is REPLAYED RECORDING, not a live
+        // execution. Rendered above the fold exactly where the demo lands.
+        <div
+          role="status"
+          data-testid="demo-replay-banner"
+          className="pill blue"
+          style={{ padding: "8px 12px", marginBottom: 16 }}
+        >
+          Demo replay — a recorded session, clearly labeled. No provider keys,
+          no live execution.
+        </div>
+      )}
       {notFound && (
         <div role="alert" className="pill red" style={{ padding: "8px 12px", marginBottom: 16 }}>
           Run not found (or not visible to your team).

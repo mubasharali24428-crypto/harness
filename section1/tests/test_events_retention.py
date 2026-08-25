@@ -183,6 +183,10 @@ def test_config_defaults_when_env_empty():
         "retention_days": 30,
         "batch_size": 5000,
         "run_interval_seconds": 6 * 60 * 60,
+        # M19-N3 (F8): additive windows — outbox matches the events window,
+        # audit_log is compliance-grade and prunes on the long window.
+        "outbox_retention_days": 30,
+        "audit_retention_days": 365,
     }
 
 
@@ -190,7 +194,13 @@ def test_config_parses_and_sanitizes():
     cfg = er.retention_config_from_env(
         {"RETENTION_DAYS": "7", "BATCH_SIZE": "1000", "RUN_INTERVAL_SECONDS": "60"}
     )
-    assert cfg == {"retention_days": 7, "batch_size": 1000, "run_interval_seconds": 60}
+    assert cfg == {
+        "retention_days": 7,
+        "batch_size": 1000,
+        "run_interval_seconds": 60,
+        "outbox_retention_days": 30,  # M19-N3: unset new knobs keep defaults
+        "audit_retention_days": 365,
+    }
     # Garbage falls back to the documented default instead of crashing boot.
     fallback = er.retention_config_from_env({"RETENTION_DAYS": "thirty"})
     assert fallback["retention_days"] == 30
@@ -226,7 +236,7 @@ def test_build_delete_sql_is_parameterized_and_dialect_aware():
 async def test_run_loop_repeats_until_cancelled(db, monkeypatch):
     runs = {"n": 0}
 
-    async def fake_sweep(factory, *, retention_days, batch_size):
+    async def fake_sweep(factory, *, retention_days, batch_size, now=None):  # now: M19-N3
         runs["n"] += 1
         return 0
 
@@ -250,7 +260,7 @@ async def test_run_loop_survives_a_failing_sweep(db, monkeypatch):
     """A transient DB error must not kill the sidecar: next interval retries."""
     attempts = {"n": 0}
 
-    async def flaky_sweep(factory, *, retention_days, batch_size):
+    async def flaky_sweep(factory, *, retention_days, batch_size, now=None):  # now: M19-N3
         attempts["n"] += 1
         if attempts["n"] == 1:
             raise RuntimeError("db restarted mid-sweep")

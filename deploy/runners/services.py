@@ -316,6 +316,15 @@ def app_orchestrator():
 
     configure_plan_gate(service)
     app.include_router(plan_gate_router)
+
+    # ------------------------------------------------------------------
+    # M19-N4 (C10): canned-demo seeder — POST /demo/seed replays the
+    # recorded demo run for the caller's team, zero provider keys.
+    # Shares the same service so seeded runs rehydrate like organic ones.
+    # ------------------------------------------------------------------
+    from harness_orchestrator.demo import router as demo_router
+
+    app.include_router(demo_router)
     return app
 
 

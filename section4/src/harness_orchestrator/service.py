@@ -14,6 +14,7 @@ from harness_contracts.timeutil import db_now
 from sqlalchemy import text
 
 from harness_orchestrator.budget import BudgetStatus, check_budget
+from harness_orchestrator.diffstore import resolve_diff, save_diff
 from harness_orchestrator.engine import DeepSeekHarnessWrapper
 from harness_orchestrator.engine_runtime import (
     CircuitOpenError,
@@ -30,6 +31,7 @@ from harness_orchestrator.run_queue import (
     finish_run,
     heartbeat_age_seconds,
     heartbeat_run,
+    queue_available,
     reclaim_orphans,
     release_timed_out_claims,
     resolve_heartbeat_timeout_seconds,
@@ -37,6 +39,7 @@ from harness_orchestrator.run_queue import (
 from harness_orchestrator.signals import gate_done_signal
 from harness_orchestrator.state_machine import (
     PLAN_REJECTED_EVENT,
+    TERMINAL_STATES,
     AgentState,
     AgentStateMachine,
 )
@@ -84,6 +87,35 @@ _PLAN_SQL = """
     LIMIT 1
 """
 
+# M19-N1 (stateless orchestrator phase 1): the mirror row IS the decision of
+# record. Reads consult it first; the in-RAM planner dict is a cache that a
+# replica converges FROM the store, never the other way around. ``version``
+# rides along so callers can hand the seen version straight back into the
+# decision CAS without a second round-trip.
+_PLAN_DECISION_SQL = """
+    SELECT status, version FROM agent_plans WHERE id = :plan_id
+"""
+
+# Terminal runs are evicted from RAM (cache-only): their lifecycle truth lives
+# entirely in agent_events + agent_plans + agent_runs, all of which replay.
+_ENGINE_RESULT_FALLBACK_SQL = """
+    SELECT payload AS payload FROM agent_events
+    WHERE run_id = :run_id AND type IN (:completed_type, :failed_type)
+    ORDER BY seq DESC
+    LIMIT 1
+"""
+
+# Durable liveness fence for start/resume: a run whose event history already
+# shows execution beginning may not be re-driven from another replica's
+# stale cache — exactly-once is decided by the STORE, not by whichever
+# process answers the request. plan.rejected rows are inert here by design.
+_LIFECYCLE_HEAD_SQL = """
+    SELECT type AS event_type FROM agent_events
+    WHERE run_id = :run_id AND type != :rejected_type
+    ORDER BY seq DESC
+    LIMIT 1
+"""
+
 _EVENT_STATE_MAP: dict[str, AgentState] = {
     EventType.PLAN_PROPOSED.value: AgentState.AWAITING_PLAN_APPROVAL,
     EventType.EXECUTION_STARTED.value: AgentState.EXECUTING,
@@ -108,6 +140,19 @@ class OrchestratorService(Orchestrator):
     ``agent_plans``; a run missing from memory is rehydrated by replaying its event
     history. Without a factory the service behaves exactly as a pure in-memory
     engine (unit tests).
+
+    M19-N1 (stateless orchestrator, phase 1): durable-first reads and N-replica
+    safety. The in-RAM ``self.runs`` dict is a CACHE of the durable lifecycle, not
+    the truth:
+
+    - plan decisions read ``agent_plans.status``/``version`` FIRST; the planner's
+      dict is refreshed FROM the store before any decision is acted on;
+    - approve/reject are compare-and-swap operations on migration 0013's version
+      column — exactly one concurrent decision across ALL replicas flips version
+      0 → 1, and only the winner emits/mutates memory (losers converge);
+    - TERMINAL runs are evicted from RAM: their state replays deterministically
+      from the event log on the next access, so no replica can resurrect a
+      finished run from stale cache.
     """
 
     def __init__(
@@ -146,6 +191,9 @@ class OrchestratorService(Orchestrator):
         # runtime per service; tests may inject their own via engine_runtime=.
         self.engine_runtime = engine_runtime or EngineRuntime()
 
+        # M19-N1: terminal runs are evicted from this cache — the durable
+        # lifecycle (agent_events/agent_plans/agent_runs) is the source of
+        # truth and replays deterministically, so RAM holds only live runs.
         self.runs: dict[str, dict[str, Any]] = {}
         self._bg_tasks: set[asyncio.Task] = set()
         # Wave 6 (D3): per-run publish chains. Fire-and-forget tasks raced under
@@ -309,10 +357,22 @@ class OrchestratorService(Orchestrator):
                 await self.bus.ensure_run(project_id or "", run_id)
             except Exception:  # noqa: BLE001 — FK seeding is best-effort pre-first-event
                 logger.exception("ensure_run failed for %s", run_id)
-        self.runs[run_id] = run_data
+        # M19-N1: a replay that lands on a TERMINAL state leaves the run
+        # cache-only — its truth lives in the event log, so RAM must NOT
+        # resurrect it (the old code cached every rehydrated run forever).
+        if not await self._evict_if_terminal(run_data):
+            self.runs[run_id] = run_data
         return run_data
 
     async def _rehydrate(self, run_id: str, sm: AgentStateMachine, rd: dict[str, Any]) -> bool:
+        """Replay a run's durable history into a fresh machine.
+
+        M19-N1 durable-first ordering: the ``agent_plans`` mirror row decides
+        plan/goal/approval when one exists (replica B sees replica A's
+        decision); PLAN_APPROVED events then only CONFIRM what the store
+        already said instead of being the sole source of approval. Terminal
+        replays are left uncached by ``_ensure_run``.
+        """
         if self.session_factory is None:
             return False
         from sqlalchemy import text
@@ -341,10 +401,13 @@ class OrchestratorService(Orchestrator):
             plan = self._plan_from_row(plan_row)
             if plan is not None:
                 self.planner.plans[plan_row["id"]] = plan
-                self.planner.plan_approvals[plan_row["id"]] = plan_row["status"] == "approved"
-                sm.plan_approved = plan_row["status"] == "approved"
+            # Durable decision FIRST: the mirror row outranks both the fresh
+            # machine's default and this process's planner cache.
+            sm.plan_approved = plan_row["status"] == "approved"
+            self.planner.plan_approvals[plan_row["id"]] = sm.plan_approved
 
         last_seq_state = False
+        done_gate = False
         for row in rows:
             etype = row["event_type"]
             payload = row["payload"]
@@ -354,11 +417,35 @@ class OrchestratorService(Orchestrator):
                 except Exception:  # noqa: BLE001
                     payload = {}
             if etype == EventType.PLAN_APPROVED.value:
-                sm.plan_approved = True
+                # Confirmation only: the mirror row above already decided.
                 approved_plan = (payload or {}).get("planId") if isinstance(payload, dict) else None
                 if approved_plan:
-                    rd["plan_id"] = approved_plan
-                    self.planner.plan_approvals[approved_plan] = True
+                    rd.setdefault("plan_id", approved_plan)
+                    if plan_row is None:
+                        # No mirror row to consult (pre-mirror legacy row):
+                        # the event itself is the only durable witness.
+                        sm.plan_approved = True
+                        self.planner.plan_approvals[approved_plan] = True
+                continue
+            # M19-N1: replay the done-gate PATH like the live machine does
+            # (H-008 semantics, previously missing from rehydration): a
+            # REVIEW_PASSED behind an opened done-gate seals DONE — the old
+            # flat map resurrected finished runs as eternal "executing".
+            if etype == EventType.ENGINE_COMPLETED.value and sm.state is AgentState.EXECUTING:
+                sm.state = AgentState.AWAITING_DONE_SIGNAL
+                done_gate = True
+                last_seq_state = True
+                continue
+            if etype == EventType.DONE_SIGNAL_RECEIVED.value:
+                if sm.state is AgentState.AWAITING_DONE_SIGNAL:
+                    done_gate = True
+                sm.state = AgentState.REVIEWING
+                last_seq_state = True
+                continue
+            if etype == EventType.REVIEW_PASSED.value:
+                sm.state = AgentState.DONE if done_gate else AgentState.EXECUTING
+                done_gate = False
+                last_seq_state = True
                 continue
             new_state = _EVENT_STATE_MAP.get(etype)
             if new_state is not None:
@@ -456,40 +543,98 @@ class OrchestratorService(Orchestrator):
         sm.plan_proposed(plan_id)
         return plan_id
 
-    async def approve_plan(self, run_id: str, plan_id: str, principal_user_id: str) -> None:
+    async def _decide_plan(
+        self,
+        run_id: str,
+        plan_id: str,
+        principal_user_id: str,
+        *,
+        decision: str,
+    ) -> None:
+        """Shared CAS-first decision walk (M19-N1): durable compare-and-swap
+        on migration 0013's version column BEFORE any memory mutation or
+        event emission.
+
+        Exactly one concurrent decision — across replicas, since the CAS lives
+        in the shared store — flips the undecided version row. The WINNER
+        emits the state-machine event and converges its cache; a LOSER raises
+        :class:`PlanAlreadyDecidedError` with memory untouched, so replica B
+        can never double-apply replica A's decision. Bare in-memory mode (no
+        factory) keeps legacy behavior: the planner flip is the only witness.
+        """
         run_data = await self._ensure_run(run_id)
         expected = run_data.get("plan_id")
         if plan_id != expected:
             raise KeyError(f"Plan '{plan_id}' does not belong to run '{run_id}'.")
-        self.planner.approve_plan(plan_id)
         sm: AgentStateMachine = run_data["state_machine"]
-        sm.approve_plan(plan_id, principal_user_id)
-        # M12-F2: legacy surface stays best-effort. A concurrent decision that
-        # won the version CAS must not 500 a caller of the in-process API.
-        try:
-            await self._persist_plan_status(run_id, plan_id, "approved", expected_version=0)
-        except PlanAlreadyDecidedError:
-            logger.info(
-                "approve_plan on already-decided plan %s (concurrent winner kept)",
+
+        factory = self.session_factory
+        if factory is None:
+            # Bare unit mode: no durable mirror, no CAS token — legacy walk.
+            flip = (
+                self.planner.approve_plan
+                if decision == "approved"
+                else self.planner.reject_plan
+            )
+            announce = (
+                sm.approve_plan if decision == "approved" else sm.reject_plan
+            )
+            flip(plan_id)
+            announce(plan_id, principal_user_id)
+            return
+
+        seen = await self._plan_decision_row(plan_id)
+        if seen is not None and seen["status"] != "proposed":
+            # Converge the cache with the store BEFORE refusing: this replica
+            # must not keep acting on a decision another replica overturned.
+            self._refresh_plan_cache(plan_id, seen["status"])
+            raise PlanAlreadyDecidedError(
+                f"Plan '{plan_id}' was already decided "
+                f"(durable status '{seen['status']}', version {seen['version']})."
+            )
+        expected_version = seen["version"] if seen is not None else 0
+        new_version = await self._persist_plan_status(
+            run_id, plan_id, decision, expected_version=expected_version
+        )
+        if new_version is None:
+            # Mirror row absent (legacy silent-skip posture) or store trouble:
+            # nothing durable raced us that we can see; keep the legacy
+            # best-effort walk instead of failing an undecidable request.
+            logger.warning(
+                "plan %s decided without a durable CAS (mirror absent); "
+                "continuing best-effort",
                 plan_id,
             )
 
-    async def reject_plan(self, run_id: str, plan_id: str, principal_user_id: str) -> None:
-        run_data = await self._ensure_run(run_id)
-        if plan_id != run_data.get("plan_id"):
-            raise KeyError(f"Plan '{plan_id}' does not belong to run '{run_id}'.")
-        self.planner.reject_plan(plan_id)
-        sm: AgentStateMachine = run_data["state_machine"]
-        sm.reject_plan(plan_id, principal_user_id)
-        # M12-F2: same best-effort posture as approve_plan — a concurrent
-        # decision that won the version CAS is logged, never raised here.
-        try:
-            await self._persist_plan_status(run_id, plan_id, "rejected", expected_version=0)
-        except PlanAlreadyDecidedError:
+        flipped = (
+            self.planner.approve_plan(plan_id)
+            if decision == "approved"
+            else self.planner.reject_plan(plan_id)
+        )
+        if new_version is not None and flipped is None:
+            # The durable CAS moved but this cache already showed the same
+            # decision: another path (or replica-convergence) got here first.
             logger.info(
-                "reject_plan on already-decided plan %s (concurrent winner kept)",
+                "plan %s CAS won at version %s but cache was pre-flipped; skipping emit",
                 plan_id,
+                new_version,
             )
+            return
+
+        if decision == "approved":
+            sm.approve_plan(plan_id, principal_user_id)
+        else:
+            sm.reject_plan(plan_id, principal_user_id)
+
+    async def approve_plan(self, run_id: str, plan_id: str, principal_user_id: str) -> None:
+        await self._decide_plan(
+            run_id, plan_id, principal_user_id, decision="approved"
+        )
+
+    async def reject_plan(self, run_id: str, plan_id: str, principal_user_id: str) -> None:
+        await self._decide_plan(
+            run_id, plan_id, principal_user_id, decision="rejected"
+        )
         # S-010: persist the rejection as an agent_events row (run-scoped, no
         # project FK) so it survives restart and is queryable alongside the
         # audit row. The S1 bus requires an EventType member + project FK and
@@ -506,7 +651,9 @@ class OrchestratorService(Orchestrator):
                     run_id,
                     plan_id=plan_id,
                     actor_user_id=principal_user_id,
-                    team_id=await self._team_for_run(run_data) or "",
+                    # M19-N1: _decide_plan no longer holds a run_data local;
+                    # team resolution re-reads the durable ownership chain.
+                    team_id=await self._team_for_run({"runId": run_id}) or "",
                 )
             except Exception:  # noqa: BLE001 — audit must never break rejection
                 logger.exception("plan.rejected audit emission failed for %s", run_id)
@@ -567,26 +714,48 @@ class OrchestratorService(Orchestrator):
     async def start_execution(self, run_id: str) -> None:
         run_data = await self._ensure_run(run_id)
         plan_id = run_data.get("plan_id")
-        if not plan_id or not self.planner.is_approved(plan_id):
+        # M19-N1: durable-first approval read — replica B must see replica A's
+        # approval through the mirror row, not its own cache.
+        if not plan_id or not await self._plan_is_approved(plan_id):
             raise PlanNotApprovedError(f"Cannot execute run '{run_id}': Plan is not approved.")
 
-        sm: AgentStateMachine = run_data["state_machine"]
-        sm.start_execution()
+        # M19-N1 durable exactly-once fence: the shared event log decides
+        # whether execution already began. Whichever replica answers a second
+        # start request, the engine is driven at most once per lifecycle;
+        # unwired stores answer False so bare unit mode keeps legacy behavior.
+        if await self._execution_already_started(run_id):
+            logger.info("run %s already started durably; ignoring re-start", run_id)
+            return
 
+        sm: AgentStateMachine = run_data["state_machine"]
+        # Durable proof above ⇒ the machine reflects it even when THIS process
+        # lost the original decision race on another replica (M19-N1
+        # convergence): the spawner must be able to announce the lifecycle.
+        sm.plan_approved = True
         plan = self.planner.get_plan(plan_id)
-        if self.run_queue_factory is not None:
-            queued = await enqueue_run(
+        if self.run_queue_factory is not None and await queue_available(
+            self.run_queue_factory
+        ):
+            # M19-N1 exactly-once spawner election: the INSERT race elects
+            # the ONE replica that may announce + queue this lifecycle. The
+            # loser returns BEFORE any state mutation or EXECUTION_STARTED
+            # emission, so the shared log carries exactly one announcement
+            # no matter how many replicas answer the request. (The winner's
+            # worker loop performs the actual claim + spawn.)
+            elected = await enqueue_run(
                 self.run_queue_factory, run_id, run_data.get("projectId") or ""
             )
-            if queued:
-                return  # worker loop will claim and spawn
-            # Not queued = a live claim already exists (double start) OR the
-            # queue table is absent (bare sqlite in-memory test DB). Spawn
-            # directly unless the run is genuinely executing right now.
-            live = run_data.get("task")
-            if live is not None and not live.done():
-                logger.info("run %s already has a live claim; ignoring double start", run_id)
+            if not elected:
+                logger.info(
+                    "run %s already queued/claimed; this replica will not re-drive it",
+                    run_id,
+                )
                 return
+            sm.start_execution()
+            return
+        # Bare / scratch-store mode: this process owns the lifecycle
+        # end-to-end (legacy direct-spawn semantics preserved).
+        sm.start_execution()
         self._spawn_execution(run_data, plan)
 
     def _spawn_execution(self, run_data: dict[str, Any], plan: AgentPlan) -> None:
@@ -698,10 +867,18 @@ class OrchestratorService(Orchestrator):
 
     async def get_engine_result(self, run_id: str) -> dict[str, Any]:
         run_data = await self._ensure_run(run_id)
-        return run_data.get(
-            "engine_result",
-            {"status": "not_started", "finalResponse": None},
-        )
+        result = run_data.get("engine_result")
+        if result is None:
+            # M19-N1: terminal runs are evicted from RAM; their settled
+            # outcome replays from the ENGINE_COMPLETED/ENGINE_FAILED event
+            # payloads instead of vanishing behind the eviction.
+            replayed = await self._load_engine_result(run_id)
+            if replayed is not None:
+                return replayed
+        return result or {
+            "status": "not_started",
+            "finalResponse": None,
+        }
 
     async def pause_agent(self, run_id: str) -> None:
         run_data = await self._ensure_run(run_id)
@@ -716,7 +893,12 @@ class OrchestratorService(Orchestrator):
         The pre-fix version only flipped the state machine to EXECUTING while no
         task existed — a state lie (Appendix C). Re-invoking execute_goal with
         the same run_id as session_id is the checkpoint continuation: dsh resumes
-        its own session history rather than restarting the goal blind."""
+        its own session history rather than restarting the goal blind.
+
+        M19-N1: approval is read durable-first, and a run whose DURABLE history
+        already shows execution cannot be resurrected by a replica holding a
+        stale cache — exactly-once outranks local memory.
+        """
         run_data = await self._ensure_run(run_id)
         sm: AgentStateMachine = run_data["state_machine"]
 
@@ -734,13 +916,17 @@ class OrchestratorService(Orchestrator):
                 pass
 
         plan_id = run_data.get("plan_id")
-        if not plan_id or not self.planner.is_approved(plan_id):
+        if not plan_id or not await self._plan_is_approved(plan_id):
             raise PlanNotApprovedError(f"Cannot resume run '{run_id}': Plan is not approved.")
-        plan = self.planner.get_plan(plan_id)
-
-        sm.resume()  # PAUSED/BLOCKED → EXECUTING (+ RESUMED event); no-op otherwise
-        if sm.state is not AgentState.EXECUTING:
-            return  # resume from IDLE/DONE/… is a no-op — nothing to resurrect
+        if await self._execution_already_started(run_id):
+            logger.info("run %s already started durably; resume re-queues instead", run_id)
+        else:
+            # M19-N1: the plan object itself is no longer needed here — the
+            # queue path re-reads everything durable at claim time, and the
+            # direct-spawn path re-reads it inside _spawn_execution callers.
+            sm.resume()  # PAUSED/BLOCKED → EXECUTING (+ RESUMED event); no-op otherwise
+            if sm.state is not AgentState.EXECUTING:
+                return  # resume from IDLE/DONE/… is a no-op — nothing to resurrect
         if self.run_queue_factory is not None:
             queued = await enqueue_run(
                 self.run_queue_factory, run_id, run_data.get("projectId") or ""
@@ -749,7 +935,7 @@ class OrchestratorService(Orchestrator):
                 logger.info("run %s already has a live claim; ignoring double resume", run_id)
                 return
             return  # worker loop will claim and spawn
-        self._spawn_execution(run_data, plan)
+        self._spawn_execution(run_data, self.planner.get_plan(plan_id))
 
     async def stop_agent(self, run_id: str) -> None:
         run_data = await self._ensure_run(run_id)
@@ -762,6 +948,9 @@ class OrchestratorService(Orchestrator):
         # engine failure". Best-effort: telemetry must never break stopping.
         self._emit_paused_event(run_data, reason="user_requested_stop")
         self._cancel_live_task(run_data)
+        # M19-N1: DONE is terminal and fully replayable from the event log —
+        # when the log corroborates it, the RAM entry dies with it (cache-only).
+        await self._evict_if_terminal(run_data)
 
     def _emit_paused_event(self, run_data: dict[str, Any], reason: str) -> None:
         """M12-G7: fire-and-forget PAUSED emission for silent terminal paths.
@@ -790,6 +979,278 @@ class OrchestratorService(Orchestrator):
         cannot be interrupted (OS threads) — see EngineRuntime.shutdown.
         """
         self.engine_runtime.shutdown()
+
+    # ------------------------------------------------- M19-N1 durable reads
+
+    async def _plan_decision_row(self, plan_id: str) -> dict[str, Any] | None:
+        """Durable decision of record for a plan: ``{status, version}`` or None.
+
+        Primary source is migration 0013's ``agent_plans`` row; the in-RAM
+        planner dict is demoted to a cache. Returns None when no DB is wired,
+        the mirror row is absent, or the store is unreadable — callers then
+        fall back to the cache (bare unit mode keeps working unchanged).
+        """
+        factory = self.run_queue_factory or self.session_factory
+        if factory is None or not plan_id:
+            return None
+        try:
+            async with factory() as db:
+                row = (
+                    await db.execute(
+                        text(_PLAN_DECISION_SQL), {"plan_id": plan_id}
+                    )
+                ).first()
+        except Exception:  # noqa: BLE001 — unreadable store degrades to cache
+            return None
+        if row is None:
+            return None
+        return {"status": row.status, "version": row.version}
+
+    def _refresh_plan_cache(self, plan_id: str, status: str) -> None:
+        """Converge the planner CACHE with the durable decision (never the
+        reverse). Approved stores flip the planner True; any other durable
+        status flips it False so a stale replica cannot keep executing on an
+        approval another replica has already overturned."""
+        was_approved = bool(self.planner.plan_approvals.get(plan_id))
+        now_approved = status == "approved"
+        self.planner.plan_approvals[plan_id] = now_approved
+        if was_approved and not now_approved:
+            logger.info(
+                "plan %s converged to durable status '%s'; dropping cached approval",
+                plan_id,
+                status,
+            )
+
+    async def _plan_is_approved(self, plan_id: str) -> bool:
+        """Durable-first approval check.
+
+        The mirror row decides when one exists (replica B must see replica A's
+        approval); only an absent/unreadable row falls back to the in-process
+        cache, preserving bare-unit behavior. Side-effect-free apart from the
+        cache convergence.
+        """
+        decision = await self._plan_decision_row(plan_id)
+        if decision is not None:
+            self._refresh_plan_cache(plan_id, decision["status"])
+        return self.planner.is_approved(plan_id)
+
+    async def _durable_lifecycle_head(self, run_id: str) -> str | None:
+        """Wire name of the run's latest non-rejection event, or None.
+
+        The event log is the lifecycle of record: whatever it says happened
+        LAST outranks this process's cache (which may be stale, or may belong
+        to a replica that never saw the run at all).
+        """
+        factory = self.run_queue_factory or self.session_factory
+        if factory is None:
+            return None
+        try:
+            async with factory() as db:
+                row = (
+                    await db.execute(
+                        text(_LIFECYCLE_HEAD_SQL),
+                        {
+                            "run_id": run_id,
+                            "rejected_type": PLAN_REJECTED_EVENT,
+                        },
+                    )
+                ).first()
+        except Exception:  # noqa: BLE001 — unreadable store: no durable opinion
+            return None
+        return row.event_type if row is not None else None
+
+    async def _execution_already_started(self, run_id: str) -> bool:
+        """True when the DURABLE history shows execution already began.
+
+        Gates start/resume across replicas: once ``execution_started`` (or any
+        later lifecycle event) is persisted, a second start — from this
+        process or another replica — must not re-drive the engine. Unknown /
+        unwired stores answer False so legacy single-process tests behave
+        exactly as before.
+        """
+        head = await self._durable_lifecycle_head(run_id)
+        if head is None:
+            return False
+        started_order = {
+            EventType.EXECUTION_STARTED.value: 0,
+            EventType.PAUSED.value: 1,
+            EventType.RESUMED.value: 2,
+            EventType.BLOCKED_AWAITING_CLARIFICATION.value: 3,
+            EventType.ENGINE_COMPLETED.value: 4,
+            EventType.ENGINE_FAILED.value: 5,
+            EventType.DONE_SIGNAL_RECEIVED.value: 6,
+            EventType.REVIEW_PASSED.value: 7,
+            EventType.REVIEW_FAILED.value: 8,
+            EventType.PR_OPENED.value: 9,
+        }
+        return head in started_order
+
+    async def _load_engine_result(self, run_id: str) -> dict[str, Any] | None:
+        """Rebuild a terminal run's engine result from the event log.
+
+        Terminal runs are evicted from RAM, but their result stays readable:
+        the ENGINE_COMPLETED/ENGINE_FAILED payload carries what the engine
+        returned (record_run_cost folds usage from it), so replay answers the
+        same read the live dict used to. None when nothing is persisted.
+        """
+        factory = self.run_queue_factory or self.session_factory
+        if factory is None:
+            return None
+        try:
+            async with factory() as db:
+                row = (
+                    await db.execute(
+                        text(_ENGINE_RESULT_FALLBACK_SQL),
+                        {
+                            "run_id": run_id,
+                            "completed_type": EventType.ENGINE_COMPLETED.value,
+                            "failed_type": EventType.ENGINE_FAILED.value,
+                        },
+                    )
+                ).first()
+        except Exception:  # noqa: BLE001 — fallback is best-effort by design
+            return None
+        if row is None:
+            return None
+        payload = row.payload
+        if isinstance(payload, str):  # sqlite JSON columns come back as str
+            try:
+                payload = json.loads(payload)
+            except Exception:  # noqa: BLE001
+                payload = {}
+        if not isinstance(payload, dict):
+            return None
+        summary = str(payload.get("summary") or "")
+        etype = str(payload.get("_etype") or "")
+        if etype == EventType.ENGINE_FAILED.value or "reason" in payload:
+            reason = str(payload.get("reason") or summary)
+            return {
+                "sessionId": run_id,
+                "engine": "replayed",
+                "status": "error",
+                "finalResponse": f"DeepSeek Harness run failed: {reason}",
+            }
+        return {
+            "sessionId": run_id,
+            "engine": "replayed",
+            "status": "completed",
+            "finalResponse": summary,
+        }
+
+    async def _replayed_durable_state(self, run_id: str | None) -> AgentState | None:
+        """Replay ONLY the event log (no memory) into a lifecycle state.
+
+        M19-N1 eviction safety: DONE is a property of the PATH taken (the
+        done-gate flag is not an event), so the replay emulates the machine's
+        transition rules — ENGINE_COMPLETED opens the gate from EXECUTING, a
+        REVIEW_PASSED behind an open gate seals DONE, otherwise the legacy
+        loop continues. Returns None when nothing usable is persisted, in
+        which case eviction must NOT happen: RAM would be the only remaining
+        witness and dropping the entry would destroy the run's truth.
+        """
+        factory = self.run_queue_factory or self.session_factory
+        if factory is None:
+            return None
+        try:
+            async with factory() as db:
+                rows = (
+                    (
+                        await db.execute(text(_REHYDRATE_SQL), {"run_id": run_id})
+                    )
+                    .mappings()
+                    .all()
+                )
+        except Exception:  # noqa: BLE001 — unreadable store: keep the cache
+            return None
+        state: AgentState | None = None
+        done_gate = False
+        for row in rows:
+            etype = row["event_type"]
+            if etype == EventType.EXECUTION_STARTED.value:
+                state = AgentState.EXECUTING
+            elif etype == EventType.PAUSED.value:
+                if state is AgentState.EXECUTING:
+                    state = AgentState.PAUSED
+            elif etype == EventType.RESUMED.value:
+                state = AgentState.EXECUTING
+            elif etype == EventType.BLOCKED_AWAITING_CLARIFICATION.value:
+                state = AgentState.BLOCKED
+            elif etype == EventType.ENGINE_COMPLETED.value:
+                if state is AgentState.EXECUTING:
+                    state = AgentState.AWAITING_DONE_SIGNAL
+                    done_gate = True
+            elif etype == EventType.ENGINE_FAILED.value:
+                if state is AgentState.EXECUTING:
+                    state = AgentState.BLOCKED
+            elif etype == EventType.DONE_SIGNAL_RECEIVED.value:
+                if state is AgentState.AWAITING_DONE_SIGNAL:
+                    done_gate = True
+                state = AgentState.REVIEWING
+            elif etype == EventType.REVIEW_PASSED.value:
+                state = AgentState.DONE if done_gate else AgentState.EXECUTING
+                done_gate = False
+            elif etype == EventType.REVIEW_FAILED.value:
+                state = AgentState.BLOCKED
+            elif etype == EventType.PR_OPENED.value:
+                state = AgentState.PR_OPENED
+        return state
+
+    async def _evict_if_terminal(self, rd: dict[str, Any]) -> bool:
+        """Drop a TERMINAL run from the RAM cache; True when evicted.
+
+        DONE seals a run (state_machine law): every later transition raises,
+        so keeping its dict buys nothing but unbounded memory (PBC1 F1) and
+        stale-cache risk across replicas. Eviction is CONDITIONAL on the
+        durable event log replaying the same terminal verdict — a store that
+        never persisted the lifecycle (test doubles, partially-wired deploys)
+        keeps its RAM entry, because there the dict is the only witness. With
+        a healthy bus the entry dies and every later read replays.
+        """
+        if self.session_factory is None:
+            return False
+        sm: AgentStateMachine | None = rd.get("state_machine")
+        if sm is None or sm.state not in TERMINAL_STATES:
+            return False
+        run_id: str | None = rd.get("runId")
+        # M19-N1 ordering law: this process's own announcements for the run
+        # must be FLUSHED to the store before RAM lets go — otherwise the
+        # log could miss the very event that justifies the eviction.
+        pending = self._publish_chains.get(run_id or "")
+        if pending is not None:
+            try:
+                await pending
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001 — a failed publish must not wedge the run in RAM forever
+                logger.exception("publish chain drained with error before evicting %s", run_id)
+        if await self._replayed_durable_state(run_id) is not AgentState.DONE:
+            return False
+        if run_id is not None and self.runs.get(run_id) is rd:
+            del self.runs[run_id]
+            logger.info("evicted terminal run %s from RAM cache", run_id)
+        return True
+
+    async def _has_durable_events(self, run_id: str) -> bool:
+        """True when the event log carries ANY history for this run (M19-N1).
+
+        A terminal run evicted from RAM stays a real run: its ``agent_events``
+        rows are durable existence even without an ``agent_runs`` anchor, so
+        the no-oracle 404 must not fire on an evicted-but-real lifecycle.
+        """
+        factory = self.run_queue_factory or self.session_factory
+        if factory is None:
+            return False
+        try:
+            async with factory() as db:
+                row = (
+                    await db.execute(
+                        text("SELECT 1 FROM agent_events WHERE run_id = :r LIMIT 1"),
+                        {"r": run_id},
+                    )
+                ).first()
+        except Exception:  # noqa: BLE001 — unreadable store: no durable witness
+            return False
+        return row is not None
 
     async def recover_orphans(self) -> list[str]:
         """Requeue claims whose worker went silent (crash detector)."""
@@ -874,13 +1335,21 @@ class OrchestratorService(Orchestrator):
         run_data = await self._ensure_run(run_id, project_id=claim.get("project_id"))
         sm: AgentStateMachine = run_data["state_machine"]
         if sm.state is not AgentState.EXECUTING:
-            await finish_run(self.run_queue_factory, run_id)
-            return None
+            # M19-N1: a STALE cache must not cost a durable claim. Another
+            # replica may have legitimately announced + enqueued this
+            # lifecycle while our copy still said "awaiting approval" — sync
+            # from the event log before deciding the claim is bogus.
+            if await self._replayed_durable_state(run_id) is AgentState.EXECUTING:
+                sm.state = AgentState.EXECUTING
+                sm.plan_approved = True
+            else:
+                await finish_run(self.run_queue_factory, run_id)
+                return None
         live = run_data.get("task")
         if live is not None and not live.done():
             return None
         plan_id = run_data.get("plan_id")
-        if not plan_id or not self.planner.is_approved(plan_id):
+        if not plan_id or not await self._plan_is_approved(plan_id):
             logger.error("claimed run %s lacks an approved plan; dropping claim", run_id)
             await finish_run(self.run_queue_factory, run_id)
             return None
@@ -889,6 +1358,9 @@ class OrchestratorService(Orchestrator):
             await finish_run(self.run_queue_factory, run_id)
             return None
         self._spawn_execution(run_data, plan)
+        # M19-N1: a run that reached DONE inside its engine task must not sit
+        # in the cache forever — poll cycles are the natural eviction seam.
+        await self._evict_if_terminal(run_data)
         return run_id
 
     async def submit_human_edit(self, run_id: str, path: str, content: str) -> None:
@@ -933,6 +1405,13 @@ class OrchestratorService(Orchestrator):
         sm.signal_done()
         self._cancel_live_task(run_data)
 
+        # M19-N2 (F9): the diff BODY never rides the bus. Store it once,
+        # content-addressed; the wire (REVIEW_* event payloads) carries a
+        # small immutable reference that consumers resolve table-/store-side
+        # via get_done_diff. Plain-text callers keep working unchanged.
+        diff_ref = save_diff(diff_text)
+        run_data["done_diff_ref"] = diff_ref
+
         # Wave 9 node B / M18-C2: the reviewer's model_router call is a real
         # spend — check the cap BEFORE invoking it. Over budget OR a degraded
         # (unreachable) budget store ⇒ no model call; the reviewer falls back
@@ -960,12 +1439,88 @@ class OrchestratorService(Orchestrator):
             diff_text=diff_text,
             budget_blocked_reason=budget_block,
         )
+        # M19-N2 (F9): stamp the stored reference onto the verdict payload
+        # before it reaches the bus — REVIEW_* events carry WHERE the body
+        # lives, never the 200KB-class body itself.
+        verdict_payload = findings.model_dump(by_alias=True)
+        verdict_payload["diffRef"] = diff_ref
         if findings.passed:
-            sm.reviewer_passed(findings.model_dump(by_alias=True))
+            sm.reviewer_passed(verdict_payload)
         else:
-            sm.reviewer_failed(findings.model_dump(by_alias=True))
+            sm.reviewer_failed(verdict_payload)
+        # M19-N1: a verdict that seals DONE makes this run cache-only — the
+        # event log now replays the whole lifecycle, including the result.
+        await self._evict_if_terminal(run_data)
 
         return findings
+
+    _REVIEW_DIFF_SQL = text(
+        """
+        SELECT payload
+          FROM agent_events
+         WHERE run_id = :run_id
+           AND type IN ('review_passed', 'review_failed')
+         ORDER BY seq DESC
+         LIMIT 1
+        """
+    )
+
+    async def get_done_diff(self, run_id: str) -> str:
+        """Fetch-on-wake consumer path (M19-N2): resolve the run's stored
+        done-signal body by its wire reference.
+
+        Lookup order: the live run cache first, then the durable REVIEW_*
+        event payload (the reference rides the bus, the body never does —
+        so the log itself is a valid pointer source even after N1 evicts
+        terminal runs from RAM). Raises KeyError for unknown runs / runs
+        without a recorded signal, ValueError for dangling references.
+        """
+        run_data = await self._ensure_run(run_id)
+        ref = run_data.get("done_diff_ref")
+        if not ref:
+            ref = await self._diff_ref_from_log(run_id)
+        if not ref:
+            raise KeyError(f"No stored diff evidence for run '{run_id}'.")
+        try:
+            return resolve_diff(ref)
+        except ValueError as exc:
+            raise ValueError(f"{exc} (run '{run_id}')") from exc
+
+    async def _diff_ref_from_log(self, run_id: str) -> dict[str, Any] | None:
+        """Latest durable REVIEW_* verdict's ``diffRef``, or None.
+
+        Raw-SQL against the frozen table name (cross-section law); payload
+        arrives as dict on Postgres JSONB and as TEXT on SQLite mirrors.
+        """
+        factory = self.run_queue_factory or self.session_factory
+        if factory is None:
+            return None
+        try:
+            async with factory() as db:
+                row = (
+                    await db.execute(self._REVIEW_DIFF_SQL, {"run_id": run_id})
+                ).first()
+        except Exception:  # noqa: BLE001 — unreadable store degrades to None
+            return None
+        if row is None:
+            return None
+        payload = row[0]
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except ValueError:
+                return None
+        if not isinstance(payload, dict):
+            return None
+        # The verdict rides nested under ``findings`` (state-machine wire
+        # shape); older/direct payloads may carry it at top level.
+        findings = payload.get("findings")
+        ref = None
+        if isinstance(findings, dict):
+            ref = findings.get("diffRef")
+        if not isinstance(ref, dict):
+            ref = payload.get("diffRef")
+        return ref if isinstance(ref, dict) else None
 
     async def get_plan(self, run_id: str) -> AgentPlan:
         run_data = await self._ensure_run(run_id)
@@ -1079,13 +1634,20 @@ class OrchestratorService(Orchestrator):
             if enrich_row is None:
                 # No agent_runs row: the run only exists if this process is
                 # currently driving a lifecycle for it (bound project, plan,
-                # or live task). Otherwise it is genuinely unknown → 404.
+                # or live task), replayed one into memory, or left durable
+                # event history behind (M19-N1: terminal eviction removed the
+                # RAM copy — the event log still witnesses existence).
+                # Otherwise it is genuinely unknown → 404.
                 in_memory = bool(
                     run_data.get("projectId")
                     or run_data.get("plan_id")
                     or (task is not None and not task.done())
                 )
-                if not in_memory and not run_data.get("_rehydrated"):
+                if (
+                    not in_memory
+                    and not run_data.get("_rehydrated")
+                    and not await self._has_durable_events(run_id)
+                ):
                     raise RunNotFoundError(run_id)
             else:
                 if enrich_row["pr_id"]:

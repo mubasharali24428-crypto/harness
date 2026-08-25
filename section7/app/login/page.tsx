@@ -41,12 +41,19 @@ export default function Login() {
   const [projectName, setProjectName] = useState("");
   // Token held while the user names their first project (create-project mode).
   const [pendingToken, setPendingToken] = useState<string | null>(null);
+  // M19-N4: ?next=demo — the canned-demo entry sent strangers here to
+  // bootstrap a (key-free) identity first; remember to send them back.
+  const [nextDemo, setNextDemo] = useState(false);
 
   useEffect(() => {
-    // Read the query param off window (not useSearchParams) so the statically
+    // Read query params off window (not useSearchParams) so the statically
     // prerendered login page never needs a Suspense boundary.
-    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("expired") === "1") {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("expired") === "1") {
       setSessionExpired(true);
+    }
+    if (params.get("next") === "demo") {
+      setNextDemo(true);
     }
   }, []);
 
@@ -62,6 +69,13 @@ export default function Login() {
   async function adoptSession(token: string, principal: Principal): Promise<void> {
     saveSession(token, principal);
     setUserId(principal.userId);
+
+    // M19-N4: the demo entry sent this stranger here for a key-free identity;
+    // honor the round-trip instead of dropping them in the empty dashboard.
+    if (nextDemo && typeof window !== "undefined") {
+      router.push("/demo");
+      return;
+    }
 
     let boot = await bootstrapProjectSession(token);
     if (!bootstrapSucceeded(boot.outcome)) {
@@ -177,6 +191,18 @@ export default function Login() {
               only; flagged for the DS lane as a candidate prop. */}
           <Button type="submit" variant="primary" size="md" disabled={busy} loading={busy} loadingText="Signing in…" style={{ width: "100%" }}>
             {busy ? "Signing in…" : "Enter the harness"}
+          </Button>
+          {/* M19-N4 (C10): the stranger's zero-key path — bootstrap an identity,
+              then straight into the canned replay. testId pinned by tests. */}
+          <Button
+            type="button"
+            variant="secondary"
+            size="md"
+            disabled={busy}
+            onClick={() => router.push("/demo")}
+            style={{ width: "100%", marginTop: 6 }}
+          >
+            Try the demo →
           </Button>
           {error && <Notice tone="danger" style={{ marginTop: 8 }}>{error}</Notice>}
         </form>

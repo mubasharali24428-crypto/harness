@@ -36,6 +36,80 @@ def _replay_max_events() -> int:
     return value if value >= 1 else REPLAY_MAX_EVENTS_DEFAULT
 
 
+# ---------------------------------------------------------------------------
+# M19-N2 (C8): the bus carries signals, not payloads (pbc1 F3 + F9).
+#
+# Two walls fell:
+# 1. The 0003 trigger embedded the FULL envelope (payload JSONB included) in
+#    every pg_notify — payloads near Postgres's 8000-byte NOTIFY cap failed
+#    the insert outright, and every listening process parsed the whole body
+#    of every event. Migration 0029 slims the signal to (seq, projectId,
+#    type); listeners wake, then FETCH the committed row table-side (one
+#    indexed PK read on the listener socket) and fan out the full envelope
+#    locally.
+# 2. Nothing stopped a producer from parking a huge body (a done-signal diff
+#    up to DONE_DIFF_TEXT_MAX) in agent_events.payload. Publish now enforces
+#    a hard cap (default 8192 bytes, BUS_PAYLOAD_MAX_BYTES overrides) BEFORE
+#    any DB write: oversized producers must ship a reference (path/id) and
+#    serve the body via REST/table instead. DONE_DIFF_TEXT_MAX stays what it
+#    always was — an HTTP request-validation cap in harness_contracts.limits
+#    (frozen, parity-pinned); the bus cap is a separate, section-1-owned
+#    delivery law.
+# ---------------------------------------------------------------------------
+
+BUS_PAYLOAD_MAX_BYTES_DEFAULT = 8192
+
+
+class PayloadTooLargeError(ValueError):
+    """Publish refused: payload JSON exceeds the bus cap.
+
+    Raised BEFORE persistence so the log never holds a row that cannot be
+    delivered whole. Ship a reference and let consumers fetch the body.
+    """
+
+
+def _bus_payload_max_bytes() -> int:
+    raw = os.environ.get("BUS_PAYLOAD_MAX_BYTES", "")
+    try:
+        value = int(raw)
+    except ValueError:
+        return BUS_PAYLOAD_MAX_BYTES_DEFAULT
+    return value if value >= 1 else BUS_PAYLOAD_MAX_BYTES_DEFAULT
+
+
+def payload_wire_size(payload: dict | None) -> int:
+    """UTF-8 byte length of the payload as it is stored and served."""
+    try:
+        blob = json.dumps(payload or {}, separators=(",", ":"), ensure_ascii=False)
+    except (TypeError, ValueError):
+        blob = json.dumps(payload or {}, separators=(",", ":"), default=repr)
+    return len(blob.encode("utf-8"))
+
+
+def _signal_body(envelope: EventEnvelope) -> str:
+    """The compact cross-instance wake-up signal: identity only, no body."""
+    return json.dumps(
+        {
+            "seq": int(envelope.seq),
+            "projectId": envelope.projectId,
+            "type": str(envelope.type),
+        },
+        separators=(",", ":"),
+    )
+
+
+def _pg_dsn(engine) -> str | None:
+    """libpq DSN for a SQLAlchemy asyncpg engine; None for non-PG engines."""
+    try:
+        if engine.url.get_backend_name() != "postgresql":
+            return None
+        return engine.url.render_as_string(hide_password=False).replace(
+            "postgresql+asyncpg://", "postgresql://", 1
+        )
+    except Exception:  # noqa: BLE001 — test doubles may not be real engines
+        return None
+
+
 class ReplayPage(NamedTuple):
     """One bounded slice of replay history, newest-N under the gap cap.
 
@@ -101,6 +175,13 @@ class EventBus:
         self._event_listeners: list = []  # wave9D: sync taps on committed envelopes
         self._lock = asyncio.Lock()
         self._listener_task: asyncio.Task | None = None
+        # M19-N2: seqs this instance already delivered via the direct publish
+        # path (bounded FIFO), so the notify wake-up path skips re-fetch +
+        # re-fan-out of events it sent itself. Clients dedup by seq anyway;
+        # this just avoids redundant work when a process both publishes and
+        # subscribes to the same project.
+        self._delivered_seqs: deque[int] = deque(maxlen=4096)
+        self._bg_tasks: set[asyncio.Task] = set()
 
     # ------------------------------------------------------------ pg listener
     # G-LIVE: each service process owns an EventBus instance, but the log is one
@@ -113,40 +194,112 @@ class EventBus:
         if self._listener_task is not None and not self._listener_task.done():
             return
         engine = getattr(self._sessions, "kw", {}).get("bind")
-        if engine is None:
-            return
-        try:
-            backend = engine.url.get_backend_name()
-            dsn = engine.url.render_as_string(hide_password=False).replace(
-                "postgresql+asyncpg://", "postgresql://", 1
-            )
-        except Exception:  # noqa: BLE001 — test doubles may not be real engines
-            return
-        if backend != "postgresql":
+        dsn = _pg_dsn(engine)
+        if dsn is None:
             return  # sqlite tests: direct fan-out covers same-instance delivery
         self._listener_task = asyncio.get_running_loop().create_task(self._listen(dsn))
+
+    async def _fetch_envelopes(self, seqs: list[int]) -> dict[int, EventEnvelope]:
+        """Table-side body fetch for wake-up signals (M19-N2).
+
+        The NOTIFY carries only (seq, project_id, type); the committed row is
+        the single source of truth, so listeners read the envelope back from
+        agent_events — one indexed PK batch per signal burst.
+        """
+        if not seqs:
+            return {}
+        found: dict[int, EventEnvelope] = {}
+        async with self._sessions() as session:
+            rows = await session.execute(
+                select(
+                    AgentEvent.seq,
+                    AgentEvent.project_id,
+                    AgentEvent.run_id,
+                    AgentEvent.type,
+                    AgentEvent.payload,
+                    AgentEvent.ts,
+                ).where(AgentEvent.seq.in_(seqs))
+            )
+            for row in rows.mappings():
+                try:
+                    found[int(row["seq"])] = _envelope_from_row(row)
+                except Exception:  # noqa: BLE001 — one bad row never stalls the rest
+                    logger.exception("eventbus: unreadable row for seq %s", row.get("seq"))
+        return found
+
+    def _schedule_fetch_fanout(self, signals: list[tuple[int, str, str]]) -> None:
+        """Wake → fetch → local fan-out, deduped against direct delivery.
+
+        ``signals`` are raw (seq, projectId, type) triples from pg_notify.
+        Envelopes already handed to this instance's subscribers by the direct
+        publish path are skipped (clients dedup by seq; this just avoids the
+        redundant fetch + queue copy).
+        """
+        fresh = [s for s in signals if int(s[0]) not in self._delivered_seqs]
+        if not fresh:
+            return
+
+        async def _run() -> None:
+            seqs_all = [int(seq) for seq, _pid, _type in fresh]
+            fetched: dict[int, EventEnvelope] = await self._fetch_envelopes(seqs_all)
+            for seq, _project_id, _type in fresh:
+                envelope = fetched.get(int(seq))
+                if envelope is None:
+                    logger.warning(
+                        "eventbus(notify): seq %s vanished before fetch", seq
+                    )
+                    continue
+                self._fanout_local(envelope)
+
+        task = asyncio.get_running_loop().create_task(_run())
+        self._bg_tasks.add(task)
+        task.add_done_callback(self._bg_tasks.discard)
 
     async def _listen(self, dsn: str) -> None:
         import asyncpg
 
+        # Per-connection coalescing state. The closures below are re-created
+        # on every reconnect and only ever touch THIS iteration's cells, so
+        # the B023 loop-variable warning is a false positive here.
+        pending: list[tuple[int, str, str]] = []
+        timer: asyncio.TimerHandle | None = None
+        loop = asyncio.get_running_loop()
+
         while True:
             try:
-                conn = await asyncpg.connect(dsn)
+                conn = await asyncpg.connect(dsn)  # noqa: B023 — see note above
 
-                def _on_notify(_conn, _pid, _channel, raw: str, _self=self):
+                def _flush() -> None:  # noqa: B023 — see note above
+                    nonlocal pending, timer
+                    if timer is not None:
+                        timer.cancel()
+                        timer = None
+                    if not pending:
+                        return
+                    batch, pending = pending[:], []
+                    self._schedule_fetch_fanout(batch)
+
+                def _on_notify(
+                    _conn, _pid, _channel, raw: str, _self=self
+                ):  # noqa: B023 — see note above
+                    # M19-N2: the wire carries a minimal signal —
+                    # {"seq": N, "projectId": "...", "type": "..."} — no body.
                     try:
                         data = json.loads(raw)
-                        envelope = EventEnvelope(
-                            type=data["type"],
-                            payload=data.get("payload") or {},
-                            ts=str(data.get("ts") or ""),
-                            seq=int(data["seq"]),
-                            projectId=data["projectId"],
-                            runId=data.get("runId"),
+                        signal = (
+                            int(data["seq"]),
+                            str(data["projectId"]),
+                            str(data.get("type") or ""),
                         )
                     except Exception:  # noqa: BLE001 — malformed notify, skip
                         return
-                    _self._fanout_local(envelope)
+                    nonlocal pending, timer
+                    pending.append(signal)
+                    if timer is None:
+                        # ~5ms coalescing window: bursts of publishes cost ONE
+                        # PK fetch instead of one per event. Delivery latency
+                        # stays far below any human-observable threshold.
+                        timer = loop.call_later(0.005, _flush)
 
                 maybe_coro = self._attach_listener(conn, _on_notify)
                 if maybe_coro is not None:
@@ -207,6 +360,18 @@ class EventBus:
         payload: dict | None = None,
         run_id: str | None = None,
     ) -> EventEnvelope:
+        # M19-N2 (F9): enforce the bus cap BEFORE any DB write. The frozen
+        # log must never hold a row whose body cannot be delivered whole —
+        # oversized producers ship a reference (path/id) and serve the body
+        # via REST/table instead.
+        wire_size = payload_wire_size(payload)
+        max_bytes = _bus_payload_max_bytes()
+        if wire_size > max_bytes:
+            raise PayloadTooLargeError(
+                f"event payload is {wire_size} bytes; bus cap is {max_bytes}. "
+                "Ship a reference (path/id) and let consumers fetch the body."
+            )
+
         if run_id:
             await self.ensure_run(project_id, run_id)
 
@@ -228,6 +393,8 @@ class EventBus:
 
         async with self._lock:
             queues = list(self._subscribers.get(project_id, ()))
+        if queues:
+            self._delivered_seqs.append(int(envelope.seq))
         for listener in self._event_listeners:
             try:
                 # Wave 9D: side-channel taps (notification outbox). Must never

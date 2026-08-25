@@ -444,9 +444,14 @@ def test_reject_window_is_durable_not_memory_only(db_parts):
 # ------------------------------------------------- legacy surfaces preserved
 
 
-def test_legacy_service_approve_survives_lost_race_without_raising(db_parts):
-    """In-process service.approve_plan keeps its best-effort posture: losing
-    the durable CAS logs instead of raising (legacy callers never see 500s)."""
+def test_service_approve_on_already_decided_plan_conflicts_and_converges(db_parts):
+    """M19-N1 attribution update of the legacy best-effort pin: the durable
+    CAS on agent_plans.version is now the SERVICE-level decision gate, so a
+    late decision loses LOUDLY (typed conflict, same envelope the API maps
+    to 409 PLAN_ALREADY_DECIDED) instead of silently no-op'ing — replica B
+    must never double-apply replica A's decision. The loser's cache converges
+    to the winner's verdict rather than keeping a divergent approval."""
+
     service: OrchestratorService = db_parts["service"]
     client = _client(service, _principal(Role.ADMIN))
     plan_id = _propose(client, "legacy best effort")
@@ -458,10 +463,12 @@ def test_legacy_service_approve_survives_lost_race_without_raising(db_parts):
     _run(
         service._persist_plan_status(run_id, plan_id, "rejected", expected_version=0)
     )
-    # Legacy surface: must NOT raise despite losing the mirror CAS.
-    _run(service.approve_plan(run_id, plan_id, "u-legacy"))
-    assert service.planner.is_approved(plan_id) is True
-    # Winner's durable decision was not overwritten.
+    # Service surface now refuses the double-decision instead of absorbing it.
+    with pytest.raises(PlanAlreadyDecidedError):
+        _run(service.approve_plan(run_id, plan_id, "u-legacy"))
+    # Convergence, not divergence: this replica dropped its cached approval.
+    assert service.planner.is_approved(plan_id) is False
+    # Winner's durable decision stands.
     state = _run(_plan_state(db_parts["factory"], plan_id))
     assert state == {"status": "rejected", "version": 1}
 

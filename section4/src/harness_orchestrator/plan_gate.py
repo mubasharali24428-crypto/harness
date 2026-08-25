@@ -321,6 +321,12 @@ async def approve_plan(planId: str, principal: RequirePrincipal) -> dict:
         raise _http_for_role(e) from e
     run_id, run_data = await _locate_scoped_plan(service, planId, principal)
     sm = run_data["state_machine"]
+    # M19-N1 durable-first window: the mirror row decides, so a replica whose
+    # RAM entry was evicted (or which never saw the decision happen) still
+    # answers idempotently instead of racing an already-decided plan.
+    durable_decision = await service._plan_decision_row(planId)
+    if durable_decision is not None and durable_decision["status"] == "approved":
+        return {"runId": run_id}
     already_approved = bool(sm.plan_approved)
     try:
         if not already_approved:
@@ -510,10 +516,29 @@ async def _locate_plan(
     except Exception:  # noqa: BLE001 — lookup must never crash the route
         logger.exception("agent_plans mirror lookup failed for %s", plan_id)
         return None
-    if row is None:
+    if row is not None:
+        run_data = await service._ensure_run(row.run_id, project_id=row.project_id)
+        return row.run_id, run_data
+    # M19-N1: terminal runs are evicted from ``service.runs``, so the memory
+    # scan above can miss a REAL plan whose run reached DONE. The mirror row
+    # itself names its owning run — locate through it even when no
+    # ``agent_runs`` anchor resolves (plan_gate-minted runs legitimately
+    # carry none).
+    try:
+        async with factory() as db:
+            mirror_row = (
+                await db.execute(
+                    text("SELECT run_id FROM agent_plans WHERE id = :plan"),
+                    {"plan": plan_id},
+                )
+            ).first()
+    except Exception:  # noqa: BLE001 — lookup must never crash the route
+        logger.exception("agent_plans direct lookup failed for %s", plan_id)
         return None
-    run_data = await service._ensure_run(row.run_id, project_id=row.project_id)
-    return row.run_id, run_data
+    if mirror_row is None:
+        return None
+    run_data = await service._ensure_run(mirror_row.run_id)
+    return mirror_row.run_id, run_data
 
 
 async def _locate_scoped_plan(

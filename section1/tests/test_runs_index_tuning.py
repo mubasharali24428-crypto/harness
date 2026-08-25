@@ -607,8 +607,13 @@ class TestLivePostgresRunsIndexPlan:
             #     (run_id, type) bitmap + heap fetch -- same rows, extra
             #     visits; production tables are vacuumed, so pin the better
             #     plan under its actual preconditions.
+            # M19-N3 attribution: since 0028 agent_events is RANGE-partitioned;
+            # the planner scans each child separately and may Seq Scan the
+            # EMPTY monthly children (zero pages). The regression this pin
+            # hunts -- a scan over the seeded history -- lives in the legacy
+            # child holding every row, so the pin names THAT partition.
             life_plan = _psql(dbname, life_sql)
-            assert "Seq Scan on agent_events" not in life_plan.stdout
+            assert "Seq Scan on agent_events_legacy" not in life_plan.stdout
 
             ios_sql = (
                 "SET random_page_cost = 1.0; "
@@ -621,7 +626,12 @@ class TestLivePostgresRunsIndexPlan:
             print("\n=== Postgres EXPLAIN (ANALYZE) [LIFECYCLE,"
                   " random_page_cost=1.0] ===")
             print(ios.stdout)
-            assert f"Index Only Scan using {_COVERING_IDX}" in ios.stdout
+            # M19-N3 attribution: since 0028 agent_events is partitioned; the
+            # planner reports each CHILD's physical index name (the 0026
+            # name survives only as the parent-level catalog entry), so pin
+            # the plan shape -- Index Only Scan over the seeded history in
+            # the legacy child, with zero heap fetches -- not the literal.
+            assert "Index Only Scan using agent_events_legacy_" in ios.stdout
             assert "Heap Fetches: 0" in ios.stdout
             assert "Execution Time" in ios.stdout
         finally:
