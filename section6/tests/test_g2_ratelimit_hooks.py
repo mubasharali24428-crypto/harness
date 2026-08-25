@@ -30,9 +30,9 @@ _ROOT = Path(__file__).resolve().parents[2]
 if (_ROOT / "section1" / "src") not in sys.path:
     sys.path.append(str(_ROOT / "section1" / "src"))
 
-from harness_contracts import ratelimit as rl  # noqa: E402  # canonical home (B3 dedupe)
 import pytest  # noqa: E402
 from fastapi import FastAPI  # noqa: E402
+from harness_contracts import ratelimit as rl  # noqa: E402  # canonical home (B3 dedupe)
 from harness_contracts.ratelimit import (  # noqa: E402
     BRIEF_GENERATE_LIMIT,
     BRIEF_GENERATE_TEMPLATE,

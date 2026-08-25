@@ -163,6 +163,7 @@ def test_section6_mirror_matches_shared_limits():
     exports exists in the canonical registry with the same value.
     """
     import harness_contracts.limits as shared
+
     from harness_meeting import _limits as mirror
 
     for name in mirror.__all__:

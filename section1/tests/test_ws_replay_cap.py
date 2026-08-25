@@ -352,7 +352,7 @@ async def test_resume_never_resends_at_or_below_afterseq_during_concurrent_publi
     publisher = asyncio.ensure_future(concurrent_publisher())
 
     batches: list[list[int]] = []
-    while not done.is_set():
+    while True:
         page = await bus.replay_page("p1", after_seq)
         seqs = [e.seq for e in page.envelopes]
         assert all(s > after_seq for s in seqs), (
@@ -361,16 +361,11 @@ async def test_resume_never_resends_at_or_below_afterseq_during_concurrent_publi
         if seqs:
             batches.append(seqs)
             after_seq = seqs[-1]
+        elif done.is_set():
+            break  # publisher finished AND no new rows past cursor: fully drained
+        # else: publisher still running — yield and re-poll (no busy skip of a
+        # commit landing between done.set() and this page read).
         await asyncio.sleep(0)
-    # Drain whatever the publisher committed after our last page:
-    while True:
-        page = await bus.replay_page("p1", after_seq)
-        seqs = [e.seq for e in page.envelopes]
-        assert all(s > after_seq for s in seqs)
-        if not seqs:
-            break
-        batches.append(seqs)
-        after_seq = seqs[-1]
     await publisher
 
     delivered_ws = [s for batch in batches for s in batch]
