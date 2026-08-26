@@ -22,7 +22,6 @@ x-backend-build: &backend-build
 
 x-backend-env: &backend-env
   HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@db:5432/harness
-  # H-005 (M11-W1-B1): no master-key dev default ships here anymore.
   # Empty default keeps `docker compose config` valid while services.py's
   # fail-fast refuses to boot without a real key; opt back into local dev
   # EXPLICITLY via HARNESS_ALLOW_DEV_MASTER_KEY=1.
@@ -57,12 +56,53 @@ x-backend-env: &backend-env
   HARNESS_SMTP_PASSWORD: ${HARNESS_SMTP_PASSWORD:-}
   HARNESS_SMTP_FROM: ${HARNESS_SMTP_FROM:-harness@noreply.local}
   HARNESS_SMTP_STARTTLS: ${HARNESS_SMTP_STARTTLS:-true}
+  # M20-T2 observability: log shape + /metrics DB-gauge refresh cadence.
+  HARNESS_LOG_FORMAT: ${HARNESS_LOG_FORMAT:-json}
+  HARNESS_METRICS_DB_POLL_SECONDS: ${HARNESS_METRICS_DB_POLL_SECONDS:-15}
 
 x-backend-depends: &backend-depends
   migrate:
     condition: service_completed_successfully
   db:
     condition: service_healthy
+
+# M20-T3 (S-GAMMA OPS-03): every container sharing a kernel with Postgres is
+# BOUNDED. A runaway sandbox/orchestrator workload can no longer OOM the db or
+# starve host CPU — the noisy-neighbor incident class that restart policies and
+# healthchecks cannot save you from (healthy process, dead host memory).
+#
+# Sizing law (docs/pool-math.md is the connection-budget sibling):
+#   db            generous but BOUNDED — 1 GiB / 1.0 CPU / 512 pids. Postgres
+#                 must win any contention fight, yet die before it wedges the
+#                 whole VM (a hard OOM of the box kills pgdata fsync too).
+#   app tier      384 MiB / 0.50 CPU each: uvicorn + pool(8+4) + per-service
+#                 work. Orchestrator/sandbox get 768 MiB / 1.0 CPU + 256 pids
+#                 — they run engine subprocesses (dsh sessions) by design.
+#   frontend      512 MiB / 0.50 CPU (Next.js SSR is the fattest node proc).
+#   sidecars/jobs bounded at 256 MiB / 0.25 CPU; walg backups get 512 MiB.
+#   proxy         Caddy is tiny: 128 MiB / 0.25 CPU.
+# Every number stays operator-tunable via HARNESS_*_MEM_LIMIT etc.; compose
+# `deploy.resources.limits` is honored by `docker compose up` with Swarm-
+# compatible semantics (compose translates mem/cpu to the container runtime).
+# NOTE: merged UNDER each app-tier service's `deploy:` key — Go's YAML
+# (what compose actually parses) allows ONE merge key per mapping, so this
+# cannot sit beside `<<: *backend-build` at service level.
+x-limits-app: &limits-app
+  resources:
+    limits:
+      cpus: "${HARNESS_APP_CPU_LIMIT:-0.50}"
+      memory: ${HARNESS_APP_MEM_LIMIT:-384M}
+      pids: ${HARNESS_APP_PIDS_LIMIT:-128}
+
+x-logging-caps: &logging-caps
+  # M20-T3 (S-GAMMA OPS-04): json-file with rotation on EVERY service. The
+  # backends emit per-request access lines (RequestContextMiddleware); an
+  # unbounded driver used to be a slow-motion disk-exhaustion outage on the
+  # same disk holding pgdata. 10 MiB x 3 files = ≤30 MiB per container, ever.
+  driver: json-file
+  options:
+    max-size: "${HARNESS_LOG_MAX_SIZE:-10m}"
+    max-file: "${HARNESS_LOG_MAX_FILE:-3}"
 
 services:
   db:
@@ -79,6 +119,17 @@ services:
     build:
       context: ..
       dockerfile: deploy/walg/Dockerfile.walg
+    # M20-T3 (OPS-03): the database is the ONE container that must never lose
+    # a resource fight — generous, but still bounded so a pathological
+    # workload inside Postgres dies before it takes the whole VM (and every
+    # other container's kernel) down with it.
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_DB_CPU_LIMIT:-1.0}"
+          memory: ${HARNESS_DB_MEM_LIMIT:-1g}
+          pids: ${HARNESS_DB_PIDS_LIMIT:-512}
+    logging: *logging-caps
     environment:
       POSTGRES_USER: harness
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-harness}
@@ -160,6 +211,14 @@ services:
 
   migrate:
     <<: *backend-build
+    # One-shot schema job: bounded so a runaway migration cannot wedge the box.
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_JOB_CPU_LIMIT:-0.25}"
+          memory: ${HARNESS_JOB_MEM_LIMIT:-256m}
+          pids: ${HARNESS_JOB_PIDS_LIMIT:-64}
+    logging: *logging-caps
     environment:
       <<: *backend-env
       HARNESS_SERVICE: migrate
@@ -172,6 +231,9 @@ services:
 
   identity:
     <<: *backend-build
+    logging: *logging-caps
+    deploy:
+      <<: *limits-app
     environment:
       <<: *backend-env
       HARNESS_SERVICE: identity
@@ -180,16 +242,24 @@ services:
     ports:
       - "8001:8001"
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)\""]
-      interval: 5s
-      timeout: 4s
-      retries: 12
+      # M20-T3 (OPS-06): probe READINESS (/ready), not liveness. /ready gates
+      # on db reachable + migrations applied, so a db-down identity reports
+      # unhealthy instead of lying with a 200 from the cheap /health route.
+      # The container stays RUNNING (not-ready ≠ crash-looping); restarts are
+      # reserved for actual process death via entrypoint.sh's supervisor.
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8001/ready', timeout=5)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
       start_period: 20s
     restart: unless-stopped
     depends_on: *backend-depends
 
   github:
     <<: *backend-build
+    logging: *logging-caps
+    deploy:
+      <<: *limits-app
     environment:
       <<: *backend-env
       HARNESS_SERVICE: github
@@ -198,16 +268,20 @@ services:
     ports:
       - "8002:8002"
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=3)\""]
-      interval: 5s
-      timeout: 4s
-      retries: 12
+      # M20-T3 (OPS-06): readiness probe — see the note on identity.
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8002/ready', timeout=5)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
       start_period: 20s
     restart: unless-stopped
     depends_on: *backend-depends
 
   models:
     <<: *backend-build
+    logging: *logging-caps
+    deploy:
+      <<: *limits-app
     environment:
       <<: *backend-env
       HARNESS_SERVICE: models
@@ -216,16 +290,27 @@ services:
     ports:
       - "8003:8003"
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8003/health', timeout=3)\""]
-      interval: 5s
-      timeout: 4s
-      retries: 12
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8003/ready', timeout=5)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
       start_period: 20s
     restart: unless-stopped
     depends_on: *backend-depends
 
   orchestrator:
+    # M20-T3 (OPS-03): orchestrator runs dsh engine subprocesses by design —
+    # double the app-tier memory/CPU and a wider pid ceiling so a full engine
+    # fan-out is never killed by its own limits (but IS killed before it can
+    # starve Postgres).
     <<: *backend-build
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_ORCH_CPU_LIMIT:-1.0}"
+          memory: ${HARNESS_ORCH_MEM_LIMIT:-768m}
+          pids: ${HARNESS_ORCH_PIDS_LIMIT:-256}
+    logging: *logging-caps
     environment:
       <<: *backend-env
       HARNESS_SERVICE: orchestrator
@@ -234,16 +319,25 @@ services:
     ports:
       - "8004:8004"
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8004/health', timeout=3)\""]
-      interval: 5s
-      timeout: 4s
-      retries: 12
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8004/ready', timeout=5)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
       start_period: 20s
     restart: unless-stopped
     depends_on: *backend-depends
 
   sandbox:
+    # M20-T3 (OPS-03): THE noisy-neighbor risk S-GAMMA flagged — sandbox
+    # executes agent code by design, unbounded next to the database no longer.
     <<: *backend-build
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_SANDBOX_CPU_LIMIT:-1.0}"
+          memory: ${HARNESS_SANDBOX_MEM_LIMIT:-768m}
+          pids: ${HARNESS_SANDBOX_PIDS_LIMIT:-256}
+    logging: *logging-caps
     environment:
       <<: *backend-env
       HARNESS_SERVICE: sandbox
@@ -252,16 +346,19 @@ services:
     ports:
       - "8005:8005"
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8005/health', timeout=3)\""]
-      interval: 5s
-      timeout: 4s
-      retries: 12
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8005/ready', timeout=5)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
       start_period: 20s
     restart: unless-stopped
     depends_on: *backend-depends
 
   meeting:
     <<: *backend-build
+    logging: *logging-caps
+    deploy:
+      <<: *limits-app
     environment:
       <<: *backend-env
       HARNESS_SERVICE: meeting
@@ -270,16 +367,19 @@ services:
     ports:
       - "8006:8006"
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8006/health', timeout=3)\""]
-      interval: 5s
-      timeout: 4s
-      retries: 12
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8006/ready', timeout=5)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
       start_period: 20s
     restart: unless-stopped
     depends_on: *backend-depends
 
   review:
     <<: *backend-build
+    logging: *logging-caps
+    deploy:
+      <<: *limits-app
     environment:
       <<: *backend-env
       HARNESS_SERVICE: review
@@ -288,10 +388,10 @@ services:
     ports:
       - "8008:8008"
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8008/health', timeout=3)\""]
-      interval: 5s
-      timeout: 4s
-      retries: 12
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8008/ready', timeout=5)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
       start_period: 20s
     restart: unless-stopped
     depends_on: *backend-depends
@@ -307,6 +407,15 @@ services:
         - "harness-frontend:v${HARNESS_IMAGE_TAG:-dev-local}"
         - "harness-frontend:latest"
     image: harness-frontend:v${HARNESS_IMAGE_TAG:-dev-local}
+    # M20-T3 (OPS-03): bounded like every other long-runner; Next.js SSR is
+    # the fattest node process on the box, so it gets app-tier+ memory.
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_FRONTEND_CPU_LIMIT:-0.50}"
+          memory: ${HARNESS_FRONTEND_MEM_LIMIT:-512m}
+          pids: ${HARNESS_FRONTEND_PIDS_LIMIT:-192}
+    logging: *logging-caps
     environment:
       NEXT_PUBLIC_API_PREFIX: /api/v1
       NEXT_PUBLIC_IDENTITY_BASE_URL: http://localhost:8001
@@ -316,6 +425,16 @@ services:
       NEXT_PUBLIC_IDENTITY_WS_URL: ws://localhost:8001
     ports:
       - "3000:3000"
+    healthcheck:
+      # M20-T3 (OPS-05): frontend was the ONE long-running service with NO
+      # healthcheck — a wedged Next.js looked healthy to proxy/humans and the
+      # restart policy had nothing to act on. Cheap TCP liveness probe: the
+      # frontend's hard dependency (identity) is already gated by ITS /ready.
+      test: ["CMD-SHELL", "node -e \"require('net').connect({port:3000,timeout:4000}).on('connect',function(){process.exit(0)}).on('error',function(){process.exit(1)})\""]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
     restart: unless-stopped
     depends_on:
       identity:
@@ -328,6 +447,14 @@ services:
     image: caddy:2-alpine
     profiles:
       - proxy
+    # M20-T3: bounded like every long-runner (Caddy is tiny).
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_PROXY_CPU_LIMIT:-0.25}"
+          memory: ${HARNESS_PROXY_MEM_LIMIT:-128m}
+          pids: ${HARNESS_PROXY_PIDS_LIMIT:-64}
+    logging: *logging-caps
     ports:
       - "80:80"
       - "443:443"
@@ -389,6 +516,15 @@ services:
     image: harness-db-walg:${WALG_IMAGE_TAG:-v3.0.9}
     profiles:
       - walg
+    # M20-T3 (OPS-03): drill instance gets the same bounded envelope as the
+    # live db — a rehearsal must never be able to starve production either.
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_DB_CPU_LIMIT:-1.0}"
+          memory: ${HARNESS_DB_MEM_LIMIT:-1g}
+          pids: ${HARNESS_DB_PIDS_LIMIT:-512}
+    logging: *logging-caps
     environment:
       POSTGRES_USER: harness
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-harness}
@@ -465,6 +601,15 @@ services:
     image: harness-db-walg:${WALG_IMAGE_TAG:-v3.0.9}
     profiles:
       - walg
+    # M20-T3: base backups stream the whole cluster — give them room, but
+    # a wedged wal-g must not pin 100% of the box either.
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_WALG_CPU_LIMIT:-0.50}"
+          memory: ${HARNESS_WALG_MEM_LIMIT:-512m}
+          pids: ${HARNESS_JOB_PIDS_LIMIT:-64}
+    logging: *logging-caps
     entrypoint: ["sh", "/opt/harness/deploy/runners/backup.sh"]
     user: root
     environment:
@@ -512,6 +657,14 @@ services:
     <<: *backend-build
     profiles:
       - events-retention
+    # M20-T3: DB-only sidecar — job-class envelope.
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_JOB_CPU_LIMIT:-0.25}"
+          memory: ${HARNESS_JOB_MEM_LIMIT:-256m}
+          pids: ${HARNESS_JOB_PIDS_LIMIT:-64}
+    logging: *logging-caps
     # Bypass the shared entrypoint.sh: with HARNESS_SERVICE unset it would boot
     # the whole legacy all-in-one stack, but this sidecar IS one python job.
     entrypoint: ["python", "/opt/harness/deploy/runners/events_retention.py"]
@@ -546,6 +699,14 @@ services:
     <<: *backend-build
     profiles:
       - cost-rollup
+    # M20-T3: DB-only sidecar — job-class envelope.
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_JOB_CPU_LIMIT:-0.25}"
+          memory: ${HARNESS_JOB_MEM_LIMIT:-256m}
+          pids: ${HARNESS_JOB_PIDS_LIMIT:-64}
+    logging: *logging-caps
     # Bypass the shared entrypoint.sh: with HARNESS_SERVICE unset it would boot
     # the whole legacy all-in-one stack, but this sidecar IS one python job.
     entrypoint: ["python", "/opt/harness/deploy/runners/cost_rollup.py"]
@@ -589,6 +750,14 @@ services:
     image: postgres:18-alpine
     profiles:
       - maintenance
+    # M20-T3: psql-side maintenance loop — job-class envelope.
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_JOB_CPU_LIMIT:-0.25}"
+          memory: ${HARNESS_JOB_MEM_LIMIT:-256m}
+          pids: ${HARNESS_JOB_PIDS_LIMIT:-64}
+    logging: *logging-caps
     entrypoint: ["sh", "/opt/harness/scripts/maintenance.sh"]
     user: root
     environment:
@@ -637,6 +806,15 @@ services:
     <<: *backend-build
     profiles:
       - legacy-backend
+    # M20-T3: the all-in-one supervises EIGHT uvicorns in one PID ns — it gets
+    # orchestrator-class resources, not app-tier.
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_ORCH_CPU_LIMIT:-1.0}"
+          memory: ${HARNESS_ORCH_MEM_LIMIT:-768m}
+          pids: ${HARNESS_ORCH_PIDS_LIMIT:-256}
+    logging: *logging-caps
     environment:
       <<: *backend-env
       # Empty HARNESS_SERVICE selects the all-in-one path in entrypoint.sh
@@ -677,10 +855,54 @@ services:
   #     --identity http://localhost:18001 --orchestrator http://localhost:18004
   #   ... drive locust per scripts/loadtest/README.md ...
   #   docker compose -f deploy/docker-compose.yml -p harness-loadtest --profile loadtest down -v
+  # M20-T2 (OPS-21/22): ONE scrape target covering every service. Each backend
+  # exposes GET /metrics (Prometheus text format) on its container port, so
+  # static DNS names + one job scrape them all; job/service labels tell the
+  # series apart in queries and alerts. Opt-in via the 'observability' profile
+  # (mirrors proxy/walg/events-retention), so the default `up` stays unchanged:
+  #   mkdir -p deploy/observability
+  #   docker compose -f deploy/docker-compose.yml --profile observability up -d prometheus
+  # UI on http://localhost:9090 ; rules from docs/runbooks/alerting.md load via
+  # deploy/observability/alerts.yml when an operator adds --web.enable-lifecycle
+  # style rule_files wiring (see docs/runbooks/alerting.md §"Loading the rules").
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    profiles:
+      - observability
+    # M20-T3: bounded like every long-runner.
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_PROM_CPU_LIMIT:-0.50}"
+          memory: ${HARNESS_PROM_MEM_LIMIT:-512m}
+          pids: ${HARNESS_JOB_PIDS_LIMIT:-64}
+    logging: *logging-caps
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./observability:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+
   db-loadtest:
     image: postgres:18-alpine
     profiles:
       - loadtest
+    # M20-T3: the loadtest stack is bounded too — a probe must never be able
+    # to starve the live stack it shares the kernel with.
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_DB_CPU_LIMIT:-1.0}"
+          memory: ${HARNESS_DB_MEM_LIMIT:-1g}
+          pids: ${HARNESS_DB_PIDS_LIMIT:-512}
+    logging: *logging-caps
     environment:
       POSTGRES_USER: harness
       POSTGRES_PASSWORD: harness
@@ -701,6 +923,14 @@ services:
     <<: *backend-build
     profiles:
       - loadtest
+    # M20-T3: one-shot job — job-class envelope (mirrors `migrate`).
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_JOB_CPU_LIMIT:-0.25}"
+          memory: ${HARNESS_JOB_MEM_LIMIT:-256m}
+          pids: ${HARNESS_JOB_PIDS_LIMIT:-64}
+    logging: *logging-caps
     environment:
       <<: *backend-env
       HARNESS_SERVICE: migrate
@@ -716,6 +946,10 @@ services:
     <<: *backend-build
     profiles:
       - loadtest
+    # M20-T3: app-tier envelope (mirrors `identity`).
+    logging: *logging-caps
+    deploy:
+      <<: *limits-app
     environment:
       <<: *backend-env
       HARNESS_SERVICE: identity
@@ -752,6 +986,15 @@ services:
     <<: *backend-build
     profiles:
       - loadtest
+    # M20-T3: engine runs execute here (echo backend) — orchestrator-class
+    # envelope, mirroring `orchestrator`.
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_ORCH_CPU_LIMIT:-1.0}"
+          memory: ${HARNESS_ORCH_MEM_LIMIT:-768m}
+          pids: ${HARNESS_ORCH_PIDS_LIMIT:-256}
+    logging: *logging-caps
     environment:
       <<: *backend-env
       HARNESS_SERVICE: orchestrator
@@ -813,6 +1056,8 @@ volumes:
   # Run logs of the one-shot backup wrapper (`walg` service) survive container
   # removal here (mounted at /var/log/harness-walg).
   walg_logs:
+  # M20-T2: Prometheus TSDB (15d retention, see the `prometheus` service).
+  prometheus_data:
   # M15-W5-D2: db-maintenance run logs (mounted at
   # /var/log/harness-maintenance) survive --rm/restarts.
   maintenance_logs:

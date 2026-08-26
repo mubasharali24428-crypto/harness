@@ -11,6 +11,10 @@ for section in sorted((HARNESS_ROOT).glob("section*")):
     if src.exists():
         sys.path.insert(0, str(src))
 
+# M20-T3: the readiness gate reuses migrate.check_drift (the SAME drift law
+# entrypoint.sh enforces at boot) — put deploy/runners on sys.path for it.
+sys.path.insert(0, str(HARNESS_ROOT / "deploy" / "runners"))
+
 DATABASE_URL = os.environ.get(
     "HARNESS_DATABASE_URL", "postgresql+asyncpg://harness:harness@db:5432/harness"
 )
@@ -94,6 +98,90 @@ def base_settings(**kw):
     return S(**kw)
 
 
+def _wire_observability(app) -> None:
+    """M20-T2 (OPS-21/22): request ids + JSON logs + /metrics on EVERY service.
+
+    The orchestrator keeps its own Wave 8 wiring in app_orchestrator (its
+    tests pin those exact objects); this is the shared path for the other
+    six. HARNESS_LOG_FORMAT is applied once per service process at assembly
+    time — uvicorn workers import services.py before serving.
+    """
+    from observability import (
+        configure_logging,
+        install_metrics_endpoint,
+        RequestContextMiddleware,
+    )
+
+    configure_logging(os.environ.get("HARNESS_LOG_FORMAT", "json"))
+    app.add_middleware(RequestContextMiddleware)  # X-Request-ID + access log
+    install_metrics_endpoint(app)  # public GET /metrics (Prometheus text)
+
+
+def _install_probes(app, port):
+    """M20-T3 (S-GAMMA OPS-03/OPS-06): TWO probes with distinct jobs.
+
+    /health — LIVENESS. Cheap and dependency-free: answers 200 as long as
+    the process can serve. Never touches the DB; Docker restarts on its
+    failure only when the process itself is wedged/dead (via the
+    entrypoint supervisor exit + restart policy pair).
+
+    /ready — READINESS. Gates on every hard dependency before declaring
+    this instance fit to serve traffic:
+      1. db reachable: SELECT 1 over this service's own pooled factory;
+      2. migrations applied: schema_migrations ⊆ THIS image's chain
+         (deploy/runners/migrate.check_drift — same gate entrypoint.sh
+         runs at boot, re-evaluated per probe).
+
+    Any failed check → 503 {"ok": false, ...reasons}. The compose
+    healthcheck hits /ready, so a DB-down backend reports unhealthy for
+    humans/proxies while the container keeps RUNNING — it is not-ready,
+    NOT crash-looping. That is the fix for OPS-06's "db dies ⇒ seven
+    backends answer 200 with a wall of 500s" restart-storm class.
+    """
+    from fastapi import Request
+    from fastapi.responses import JSONResponse
+
+    # deploy/runners is on sys.path (header); same drift law entrypoint uses.
+    from migrate import check_drift  # noqa: I001 — keep fastapi block intact
+
+    @app.get("/health")
+    async def health():
+        return {"ok": True}
+
+    @app.get("/ready")
+    async def ready(request: Request):
+        reasons: list[str] = []
+        # Bind the factory HERE if the app builder did not (identity/github/
+        # review set app.state.session_factory themselves; models/orchestrator/
+        # sandbox/meeting build it via get_factory() but never stored it).
+        factory = getattr(app.state, "session_factory", None)
+        if factory is None:
+            factory = get_factory()
+            app.state.session_factory = factory
+        # 1) Dependency reachable — a single round-trip through the pool.
+        try:
+            from sqlalchemy import text
+
+            async with factory() as db:
+                await db.execute(text("SELECT 1"))
+        except Exception:  # noqa: BLE001 — readiness must answer, not stack-trace
+            reasons.append("db-unreachable")
+        else:
+            # 2) Schema matches this image's migration chain (read-only).
+            engine = factory.kw["bind"]
+            try:
+                await check_drift(engine)
+            except Exception:  # noqa: BLE001 — drift is a reason, not a traceback
+                reasons.append("schema-drift")
+        if reasons:
+            return JSONResponse(
+                status_code=503, content={"ok": False, "not_ready": reasons}
+            )
+        return {"ok": True, "db": "ok", "migrations": "ok"}
+
+    app.state.ready_port = port
+
+
 def simple_app(router, title):
     from fastapi import FastAPI
     from fastapi.middleware.cors import CORSMiddleware
@@ -108,10 +196,6 @@ def simple_app(router, title):
         allow_headers=["*"],
     )
 
-    @app.get("/health")
-    async def health():
-        return {"ok": True}
-
     app.include_router(router)
     # Wave9-E (append): security headers for simple_app consumers (S4/S5).
     from harness_identity.security_headers import install_security_headers
@@ -125,6 +209,9 @@ def simple_app(router, title):
     from harness_identity.envelope_middleware import install_error_envelope
 
     install_error_envelope(app)
+    # M20-T2: request ids + JSON logs + /metrics (shared with simple_app
+    # consumers; identity/github get the identical stack below).
+    _wire_observability(app)
     return app
 
 
@@ -140,13 +227,22 @@ def app_identity():
     # DB failure fails OPEN (availability > strictness).
     install_rate_limit(app)
 
+    # M20-T2: request ids + JSON logs + /metrics (identity, port 8001).
+    _wire_observability(app)
+    # M20-T3: /ready gates on db + migrations; compose healthcheck hits it.
+    _install_probes(app, 8001)
+
     return app
 
 
 def app_github():
     from harness_github.app import make_app
 
-    return make_app(get_factory(), base_settings())
+    app = make_app(get_factory(), base_settings())
+    # M20-T2: request ids + JSON logs + /metrics (github, port 8002).
+    _wire_observability(app)
+    _install_probes(app, 8002)
+    return app
 
 
 def app_models():
@@ -161,6 +257,8 @@ def app_models():
     )
 
     app = simple_app(router, "harness-router")
+    # M20-T3: /ready gates on db + migrations (models, port 8003).
+    _install_probes(app, 8003)
 
     # Wave9-A merge wiring: cost metering activates when this service boots
     # with a database; until then calls succeed unmetered and /spend
@@ -255,6 +353,19 @@ def app_orchestrator():
 
     app = simple_app(router, "harness-orchestrator")
     app.add_middleware(RequestContextMiddleware)  # X-Request-ID + access log + metrics
+    # M20-T3: /ready gates on db + migrations (orchestrator, port 8004).
+    _install_probes(app, 8004)
+
+    # M20-T2 (OPS-21): domain series + uniform root-level /metrics so ONE
+    # prometheus scrape target covers every service. The legacy
+    # /api/v1/orchestrator/metrics route (orchestrator's own collector)
+    # stays for compatibility with existing dashboards/tests.
+    from observability import install_domain_metrics, install_metrics_endpoint
+
+    install_metrics_endpoint(app)
+    install_domain_metrics(
+        app, factory=factory, engine=factory.kw["bind"], bus=bus
+    )  # queue depth, event-bus lag, DB pool saturation, runs started/completed
 
     @app.on_event("startup")
     async def _start_run_queue_worker():
@@ -361,6 +472,10 @@ def app_sandbox():
 
     configure_sandbox(SandboxService(on_stream=_publish_stream_event))
     app = simple_app(router, "harness-sandbox")
+    # M20-T2: request ids + JSON logs + /metrics (sandbox, port 8005).
+    _wire_observability(app)
+    # M20-T3: /ready gates on db + migrations (sandbox, port 8005).
+    _install_probes(app, 8005)
     # M12-G8: mount the read-only tree router on the same app + bearer auth.
     app.include_router(tree_router)
     app.state.get_principal = make_bearer_dep(factory)
@@ -383,9 +498,8 @@ def app_meeting():
         allow_headers=["*"],
     )
 
-    @app.get("/health")
-    async def health():
-        return {"ok": True}
+    # M20-T3: shared liveness (/health) + readiness (/ready) probes.
+    _install_probes(app, 8006)
 
     app.state.get_principal = make_bearer_dep(factory)
     # Wave9-E (append): security headers on the meeting app (S6).
@@ -398,6 +512,8 @@ def app_meeting():
 
     install_error_envelope(app)
     app.include_router(router)
+    # M20-T2: request ids + JSON logs + /metrics (meeting, port 8006).
+    _wire_observability(app)
     return app
 
 
@@ -443,9 +559,9 @@ def app_review():
         write_audit=s1_write_audit,
     )
 
-    @app.get("/health")
-    async def health():
-        return {"ok": True}
+    # M20-T3: shared liveness (/health) + readiness (/ready) probes.
+    # app.state.session_factory was set above, so /ready gates for real.
+    _install_probes(app, 8008)
 
     # Wave9-E (append): security headers on the review app (S8).
     from harness_identity.security_headers import install_security_headers
@@ -459,6 +575,8 @@ def app_review():
 
     install_error_envelope(app)
     app.include_router(review_router)
+    # M20-T2: request ids + JSON logs + /metrics (review, port 8008).
+    _wire_observability(app)
     return app
 
 

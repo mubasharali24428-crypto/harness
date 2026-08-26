@@ -1,0 +1,40 @@
+# M20-T2 (OPS-21/22) — ONE Prometheus scrape target covering every service.
+# Each backend exposes GET /metrics (Prometheus text format, no auth — same
+# posture as /health) on its own container port; static DNS names + one job
+# scrape them all. The `job` label carries the compose service name so
+# queries/alerts can select per-service series
+# (e.g. harness_queue_depth{job="orchestrator"}).
+#
+# Mounted read-only by the `prometheus` service (profile: observability):
+#   docker compose -f deploy/docker-compose.yml --profile observability up -d prometheus
+#
+# NOTE on the legacy orchestrator route: section4 also keeps its Wave 8
+# /api/v1/orchestrator/metrics route (a separate in-process collector).
+# This config scrapes the uniform root /metrics everywhere; add a second
+# static_config block for the legacy path only if an old dashboard needs it.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: harness-backends
+    # One target per backend = the ONE scrape target covering all services.
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - identity:8001
+          - github:8002
+          - models:8003
+          - orchestrator:8004
+          - sandbox:8005
+          - meeting:8006
+          - review:8008
+        labels:
+          deployment: harness-compose
+
+  # Postgres itself is NOT scraped here: the postgres_exporter sidecar is
+  # deliberately out of scope for M20-T2 (no new heavy deps). The backup /
+  # archiver alerts below therefore read harness-side gauges + log-derived
+  # signals instead of pg_ views; see docs/runbooks/alerting.md for the full
+  # rationale and the cron-side fallback checks.

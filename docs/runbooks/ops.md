@@ -194,6 +194,43 @@ Semantics, precisely:
   retries 12 / start_period 30s` — tolerant of the monolith's slower boot.
 - Split backends use identical probes against their own ports at 5s interval.
 
+### 3.1 Two probes: liveness vs readiness (M20-T3, S-GAMMA OPS-06)
+
+Every split backend answers TWO probe routes with different jobs:
+
+| Route | Job | Touches db? | Failure meaning |
+|---|---|---|---|
+| `/health` | LIVENESS — process can serve | never | process wedged/dead → supervisor exit + restart policy |
+| `/ready` | READINESS — fit for traffic | yes (`SELECT 1`) + drift gate | dependency down/schema mismatch → NOT-ready, container stays RUNNING |
+
+`/ready` gates on (1) db reachable through the service's own pooled factory
+and (2) `schema_migrations ⊆ this image's migration chain`
+(`deploy/runners/migrate.check_drift`, the same law entrypoint.sh enforces at
+boot, re-evaluated per probe). Any failed check ⇒ HTTP 503 with the reasons.
+
+The compose healthchecks hit **`/ready`** at `interval 10s / timeout 5s /
+retries 6 / start_period 20s`. Consequence, precisely:
+
+- db dies ⇒ backends report `unhealthy` for humans/load balancers within
+  ~1 minute while their uvicorn processes keep serving `/health` 200. There
+  is NO restart storm: Docker does not restart a merely-unhealthy container,
+  and nothing in the app tier exits just because a query fails. When db
+  returns, the next probe flips them back to healthy.
+- The frontend probes a cheap TCP connect to its own port (its hard
+  dependency, identity, is itself gated by `/ready`). This closes OPS-05:
+  frontend was the one long-running service with no healthcheck at all.
+- The legacy all-in-one keeps probing identity's `/health` on 8001 (the first
+  listener its monolith supervisor boots); its restart semantics are owned by
+  the supervisor-exit + policy pair described above.
+
+Resource limits (OPS-03) and log rotation caps (OPS-04) live in
+`docker-compose.yml`: every service carries `deploy.resources.limits`
+(mem/cpu/pids; db = 1g/1.0/512, orchestrator+sandbox = 768m/1.0/256 for
+engine subprocesses, app tier = 384m/0.50/128, frontend = 512m/0.50/192,
+jobs/sidecars = 256m/0.25/64) and a `json-file` logging driver capped at
+`max-size=10m, max-file=3` (≤30 MiB per container, ever). Knobs are
+env-tunable — see `.env.example` "Container resource limits".
+
 ## 4. Prevention checklist
 
 - [ ] No service removed from compose while its container runs (Cause A rule).
