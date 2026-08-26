@@ -4,6 +4,16 @@ Self-hosted platform where AI coding agents do real engineering work under
 human governance: mandatory human plan approval, sandboxed execution,
 event-sourced audit log, **manual merges only** — no auto-merge anywhere.
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Terms](https://img.shields.io/badge/Terms-skeleton--pending%20counsel-orange)](TERMS.md)
+[![Privacy](https://img.shields.io/badge/Privacy-self--hosted--first-blue)](PRIVACY.md)
+[![Pricing](https://img.shields.io/badge/Pricing-Free%20%2F%20Pro%20%2F%20Team-green)](PRICING.md)
+
+**Legal & pricing:** [`LICENSE`](LICENSE) (MIT — default choice, see header
+comment for the decision point) · [`TERMS.md`](TERMS.md) ·
+[`PRIVACY.md`](PRIVACY.md) · [`PRICING.md`](PRICING.md)
+(Free/Pro/Team tiers mapped to real `PLAN_TIERS` + metering).
+
 - New operator? Start with **[`docs/TUTORIAL.md`](docs/TUTORIAL.md)** — a
   verified walkthrough: boot the stack, log in, run one governed agent task,
   read its events.
