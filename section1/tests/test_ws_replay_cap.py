@@ -373,7 +373,10 @@ async def test_resume_never_resends_at_or_below_afterseq_during_concurrent_publi
     assert len(delivered_ws) == len(set(delivered_ws)), "duplicate delivery across resumes"
     assert all(s > 0 for s in delivered_ws)
 
-    # Ground truth from the DB itself.
+    # Ground truth from the DB itself. Read AFTER the publisher task is fully
+    # awaited: its last commits may still be in-flight when the loop above
+    # sees an empty page, and the CI runner's slower interleaving exposed
+    # exactly that window (truth read before the final row committed).
     async with bus._sessions() as session:  # noqa: SLF001 — test introspection
         truth = [
             int(s)
@@ -392,7 +395,9 @@ async def test_resume_never_resends_at_or_below_afterseq_during_concurrent_publi
     # Newest-N semantics: when a mid-stream gap outgrew the cap, the WS page
     # skipped the OLDEST rows. A compliant client backfills that hole via the
     # REST cursor endpoint — walking it here proves the hole is recoverable
-    # with zero dup and zero loss end-to-end.
+    # with zero dup and zero loss end-to-end. The walk happens AFTER the
+    # publisher task is awaited (it is, above), so the REST pages see every
+    # committed row — no in-flight commit can be missed by this walk either.
     ws_set = set(delivered_ws)
     backfilled = list(delivered_ws)
     cursor = 0
