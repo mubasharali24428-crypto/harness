@@ -20,6 +20,7 @@ import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import * as React from "react";
 import { displayErrorMessage } from "@/lib/api";
 import { loadSession } from "@/lib/auth";
+import { IndexSearchBar } from "./IndexSearchBar";
 import {
   TreeEntryDto,
   formatFileSize,
@@ -324,6 +325,9 @@ export function RepoTreeView({ projectId }: { projectId: string }) {
   return (
     <section className="card" style={cardStyle}>
       <h1>Files</h1>
+      {/* M21-X3: searchable symbol/file index over Section 11's frozen
+          W21-C1 API — same index the meeting @ref autocomplete uses. */}
+      <IndexSearchBar projectId={projectId} />
       {error && (
         <p role="alert" style={{ color: "var(--danger, #c33)" }}>
           {error}

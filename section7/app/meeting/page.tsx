@@ -17,6 +17,13 @@ import {
   type MeetingMsg,
 } from "@/lib/api";
 import { getUserId, getProjectId, getToken, loadSession, setGoal } from "@/lib/auth";
+// M21-X3 (context pillar UI): typing "@" in the composer suggests indexed
+// file paths over Section 11's frozen W21-C1 search API; the resolved ref is
+// the plain text itself, so S6/S4's resolver parses exactly what was picked.
+// Chips show the refs the outgoing draft carries; the preview card shows the
+// scored chunks the agent WILL see for a brief's refs.
+import { RefAutocomplete, RefChips } from "./RefAutocomplete";
+import { ContextPreviewPanel } from "./ContextPreviewPanel";
 // M12-E1 (H-002): one send = one call. S6 answers "@ai" server-side (real
 // model via the team's BYO key, honest fallback when none), so the client's
 // second invokeAi POST is gone; sendWithAi owns the single-call flow + thinking.
@@ -319,6 +326,14 @@ export default function Meeting() {
               <div className="who">ai-participant</div>thinking…
             </div>
           )}
+          {/* M21-X3: while the draft ends mid-@ref, suggest indexed paths
+              (W21-C1); choosing one rewrites "@partial" into the full path. */}
+          <RefAutocomplete
+            draft={draft}
+            projectId={projectId() ?? ""}
+            token={getToken() ?? ""}
+            onSelect={setDraft}
+          />
           <div className="chat-input">
             {/* M15-S3 (W4-VT2 carryover): placeholder-only naming fails WCAG
                 4.1.2/3.3.2 — aria-label carries the accessible name; a visible
@@ -344,6 +359,9 @@ export default function Meeting() {
               {thinking ? "@ai thinking…" : "Send @ai"}
             </Button>
           </div>
+          {/* M21-X3: kind-labeled chips for every ref the draft currently
+              references — the resolved refs made visible before sending. */}
+          <RefChips draft={draft} />
         </Card>
 
         {/* M16-X4: brief-lifecycle card onto Card; status/error lines onto
@@ -382,6 +400,15 @@ export default function Meeting() {
             <p>No brief yet. Discuss, then generate.</p>
           )}
         </Card>
+
+        {/* M21-X3: the context pillar made visible — for a brief's @refs this
+            shows the scored chunks (path:line + snippet) the agent WILL see,
+            retrieved live over Section 11's frozen W21-C1 search API. */}
+        <ContextPreviewPanel
+          text={(brief?.requirements ?? []).join("\n")}
+          projectId={projectId() ?? ""}
+          token={getToken() ?? ""}
+        />
       </div>
     </AppShell>
   );

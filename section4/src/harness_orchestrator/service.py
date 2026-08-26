@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import json
 import logging
 import os
@@ -14,6 +15,12 @@ from harness_contracts.timeutil import db_now
 from sqlalchemy import text
 
 from harness_orchestrator.budget import BudgetStatus, check_budget
+from harness_orchestrator.context_resolver import (
+    DEFAULT_MIN_SCORE,
+    context_settings_from_env,
+    resolve_context,
+    seed_files_from_bundle,
+)
 from harness_orchestrator.diffstore import resolve_diff, save_diff
 from harness_orchestrator.engine import DeepSeekHarnessWrapper
 from harness_orchestrator.engine_runtime import (
@@ -168,6 +175,7 @@ class OrchestratorService(Orchestrator):
         worker_id: str | None = None,
         stale_seconds: int = 90,
         engine_runtime: EngineRuntime | None = None,
+        context_transport=None,
     ) -> None:
         self.planner = planner or PlanService()
         self.reviewer = reviewer or ReviewerSubAgent()
@@ -190,6 +198,12 @@ class OrchestratorService(Orchestrator):
         # and a hung-provider circuit breaker (see engine_runtime.py). One
         # runtime per service; tests may inject their own via engine_runtime=.
         self.engine_runtime = engine_runtime or EngineRuntime()
+
+        # M21-X2: optional httpx transport for the @refs resolver's calls to
+        # Section 11's frozen search API. None = real sockets (production);
+        # tests inject httpx.MockTransport to serve frozen-shape responses
+        # without touching sibling code (isolation law) or ports.
+        self.context_transport = context_transport
 
         # M19-N1: terminal runs are evicted from this cache — the durable
         # lifecycle (agent_events/agent_plans/agent_runs) is the source of
@@ -536,7 +550,55 @@ class OrchestratorService(Orchestrator):
             self.session_factory, run_data.get("projectId")
         )
         run_data["rules_prompt_block"] = build_rules_block(rules_text)
-        plan_id, plan = self.planner.create_plan(goal=run_data["goal"])
+        # M21-X2: @refs in the brief text resolve (advisory, best-effort) into
+        # a bounded context bundle that AUGMENTS the pasted goal. Resolution
+        # is OFF unless CONTEXT_SEARCH_BASE_URL is set; any failure degrades
+        # to planning exactly as before M21-X2. Resolved chunk paths seed the
+        # plan's filesLikelyToChange; the rendered block rides on the run for
+        # engine prompt assembly and test assertions.
+        bundle = None
+        ctx = context_settings_from_env()
+        if ctx.base_url:
+            bundle = await resolve_context(
+                run_data["goal"],
+                project_id=run_data.get("projectId"),
+                base_url=ctx.base_url,
+                token=ctx.token,
+                transport=self.context_transport,
+            )
+            if bundle.chunks:
+                run_data["context_bundle"] = {
+                    "rendered": bundle.render(),
+                    "maxTokens": bundle.max_tokens,
+                    "droppedChunks": bundle.dropped_chunks,
+                    "paths": seed_files_from_bundle(bundle),
+                }
+        seeded_files = seed_files_from_bundle(bundle) if bundle else []
+        # Hand the SAME curated bundle to the RAG planner (M21-X4): it derives
+        # steps citing path:line ranges. min_chunk_score is aligned to THIS
+        # module's resolution floor so the planner gate confirms — not
+        # re-litigates — resolution decisions (confirmed @file hits can carry
+        # LOW cosine scores by design; see context_resolver).
+        #
+        # Capability-gated, not assumed: parallel-lane merge traffic can
+        # revert planner.py independently of this file (M11/M12 ATLAS
+        # hazard). On a pre-RAG planner, planning degrades to exactly the
+        # legacy call instead of dying on unknown kwargs.
+        rag_kwargs: dict[str, Any] = {}
+        if bundle and bundle.chunks:
+            params = inspect.signature(self.planner.create_plan).parameters
+            if "context_bundle" in params:
+                rag_kwargs["context_bundle"] = bundle
+                rag_kwargs["min_chunk_score"] = DEFAULT_MIN_SCORE
+        plan_id, plan = self.planner.create_plan(
+            goal=run_data["goal"],
+            files_likely_to_change=seeded_files or None,
+            **rag_kwargs,
+        )
+        if seeded_files:
+            logger.info(
+                "plan %s seeded %d file(s) from resolved @refs", plan_id, len(seeded_files)
+            )
         run_data["plan_id"] = plan_id
         await self._persist_plan(run_id, plan_id, plan, status="proposed")
 
