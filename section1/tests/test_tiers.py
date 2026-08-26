@@ -25,7 +25,7 @@ from harness_contracts import (
     DEFAULT_SEAT_LIMITS,
 )
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import event, text
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from harness_identity.billing import PLAN_TIERS, BillingPlan, router
@@ -110,7 +110,9 @@ async def _seed_admin(factory) -> dict:
 # ------------------------------------------------------------------ wire
 
 
-async def test_state_carries_free_tier_caps_without_plan_row(tiers_client, tiers_factory, monkeypatch):
+async def test_state_carries_free_tier_caps_without_plan_row(
+    tiers_client, tiers_factory, monkeypatch
+):
     monkeypatch.setenv("HARNESS_BILLING", "local")
     actor = await _seed_admin(tiers_factory)
 

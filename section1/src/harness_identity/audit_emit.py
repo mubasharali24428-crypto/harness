@@ -533,3 +533,56 @@ async def emit_rules_deleted(
         actor_kind=actor_kind,
         session_owner=session_owner,
     )
+
+
+async def emit_sso_config_saved(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """sso.config_saved — Mission 22 M4: team IdP configuration PUT (create or
+    update). Call from sso.py's PUT handler AFTER the row commits; target_id is
+    the teamId, detail carries {created}. NEVER pass the client secret as
+    detail — _scrub drops secret-shaped keys, but don't rely on that here."""
+    return await _emit(
+        session,
+        "sso.config_saved",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_sso_config",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_sso_config_deleted(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """sso.config_deleted — Mission 22 M4: team IdP config removed (SSO off,
+    OTP-only login restored). Emitted only when a row actually existed; the
+    idempotent no-row 204 stays silent. Call AFTER the delete commits."""
+    return await _emit(
+        session,
+        "sso.config_deleted",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_sso_config",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )

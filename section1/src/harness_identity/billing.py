@@ -44,8 +44,8 @@ from datetime import UTC, datetime
 from decimal import ROUND_HALF_EVEN, Decimal
 from typing import Annotated, Literal, Protocol
 
-from fastapi import APIRouter, Depends, HTTPException, Request
 import harness_contracts
+from fastapi import APIRouter, Depends, HTTPException, Request
 from harness_contracts import (
     DEGRADED_FLAG_WIRE,
     MONTH_WINDOW_SQL,

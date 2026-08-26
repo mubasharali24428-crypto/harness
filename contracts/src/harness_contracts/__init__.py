@@ -31,7 +31,6 @@ from .reviewer_thresholds import (
 )
 from .roles import Principal, Role, can
 from .security import KeyVault
-from .timeutil import as_utc, db_now, now_utc, utcnow_iso
 
 # M22-M2: behavior-bearing plan tiers (caps + upgrade-CTA wire). Additive.
 from .tiers import (
@@ -50,6 +49,7 @@ from .tiers import (
     parse_tier,
     tier_caps,
 )
+from .timeutil import as_utc, db_now, now_utc, utcnow_iso
 
 __version__ = "0.4.2"
 

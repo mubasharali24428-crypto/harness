@@ -14,11 +14,10 @@ conftest.py is FROZEN — extra tables (projects/teams/billing_plans) are
 created per-test on the shared fixture engine, mirroring migration 0031.
 """
 
-from conftest import AUTH_HEADERS
 import pytest
-from sqlalchemy import text
-
+from conftest import AUTH_HEADERS
 from harness_contracts import ENV_TIER_CONTEXT_CHUNKS
+from sqlalchemy import text
 
 PROJECT = "p-cap"
 
@@ -99,7 +98,9 @@ def empty_repo(tmp_path):
     return root
 
 
-async def test_free_defaults_enforce_cap_without_any_billing_rows(client, db, monkeypatch, empty_repo):
+async def test_free_defaults_enforce_cap_without_any_billing_rows(
+    client, db, monkeypatch, empty_repo
+):
     """No billing infra AT ALL: free cap applies honestly (used >= limit)."""
     monkeypatch.setenv(ENV_TIER_CONTEXT_CHUNKS, "3")
     await _seed_chunks(db, PROJECT, 3)

@@ -27,7 +27,12 @@ def test_slot_0030_is_unique():
 
 def test_migration_contains_pgvector_law():
     sql = _migration_text()
-    assert "CREATE EXTENSION IF NOT EXISTS vector;" in sql
+    # M22-M2 attribution: this pin was left stale by cb9af7e (M21 CI repair) —
+    # the extension statement became conditional inside a DO block
+    # (`EXECUTE 'CREATE EXTENSION IF NOT EXISTS vector';` — no bare literal
+    # with a trailing semicolon anymore). The LAW is unchanged: 0030 must
+    # still idempotently ensure the vector extension.
+    assert re.search(r"CREATE EXTENSION IF NOT EXISTS vector", sql)
     assert "CREATE TABLE IF NOT EXISTS context_chunks" in sql
     cols = (
         "project_id",

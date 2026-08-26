@@ -55,15 +55,15 @@ from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, Depends, HTTPException, Request
 from harness_contracts import Principal, error_body
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import ForeignKey, delete as sa_delete, select
-from sqlalchemy import DateTime
+from sqlalchemy import DateTime, ForeignKey, select
+from sqlalchemy import delete as sa_delete
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .audit_emit import emit_sso_config_deleted, emit_sso_config_saved
 from .auth import SESSION_TTL_HOURS, get_principal, hash_token
 from .billing import BillingPlan
 from .crypto import ensure_kdf_params, load_kdf_params
-from .models import AuthSession, Base, Role as DbRole, User
+from .models import AuthSession, Base, User
 
 router = APIRouter(prefix="/api/v1")
 
@@ -539,9 +539,7 @@ async def sso_start(body: SsoStartBody, request: Request) -> dict[str, Any]:
         # the user's browser at a doomed flow); the secret is NOT sent anywhere
         # from this endpoint.
         _, new_fernet, legacy_fernet = await load_kdf_params(db, request.app.state.vault.master_key)
-        if not await _decryptable(
-            new_fernet, legacy_fernet, encrypted=row.client_secret_encrypted
-        ):
+        if not _decryptable(new_fernet, legacy_fernet, encrypted=row.client_secret_encrypted):
             raise HTTPException(
                 status_code=503,
                 detail=error_body(
@@ -623,7 +621,10 @@ async def sso_complete(body: SsoCompleteBody, request: Request) -> dict[str, Any
     """Swap the code, validate the ID token against JWKS, map to the member."""
     factory = request.app.state.session_factory
     state_row = await _consume_state(factory, body.state)
-    if state_row["team_id"] != body.team_id or state_row["redirect_uri"] != body.redirect_uri.strip():
+    if (
+        state_row["team_id"] != body.team_id
+        or state_row["redirect_uri"] != body.redirect_uri.strip()
+    ):
         raise HTTPException(
             status_code=400,
             detail=error_body("SSO_STATE_INVALID", "state does not match this login attempt"),

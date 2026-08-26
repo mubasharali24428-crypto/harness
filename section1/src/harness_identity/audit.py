@@ -37,6 +37,9 @@ APPEND_ONLY_ACTIONS = frozenset(
         # M15-G6b: per-team reviewer-threshold tuning lifecycle.
         "reviewer_thresholds.saved",
         "reviewer_thresholds.deleted",
+        # Mission 22 M4: team OIDC IdP configuration lifecycle.
+        "sso.config_saved",
+        "sso.config_deleted",
     }
 )
 

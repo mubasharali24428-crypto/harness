@@ -118,6 +118,12 @@ INVITE_MINT_TEMPLATE = "/api/v1/teams/{team_id}/invites"
 # the OTP edge. (In-process _login_rate_limited in app.py stays as a second
 # layer; this makes the DB-backed limiter cover the route too.)
 LOGIN_TEMPLATE = "/api/v1/auth/login"
+# Mission 22 M4 (S1): the two unauth SSO login edges join the shipped
+# protected set — sso/start mints bearer-grade state rows and sso/complete
+# performs an outbound token exchange per call, so both need abuse budgets
+# exactly like the OTP edge. Literal routes (no path params) => exact keys.
+SSO_START_ROUTE = "/api/v1/auth/sso/start"
+SSO_COMPLETE_ROUTE = "/api/v1/auth/sso/complete"
 
 # M12-W2.2 lane G2 (H-021): rate-limit rebalance onto EXPENSIVE OPS.
 #
@@ -164,6 +170,10 @@ DEFAULT_PROTECTED_ROUTES = (
     *DEFAULT_ROUTES,
     INVITE_MINT_TEMPLATE,
     LOGIN_TEMPLATE,
+    # Mission 22 M4: SSO login edges (start mints state rows; complete does
+    # an outbound token exchange per attempt) — abuse-guarded like the OTP edge.
+    SSO_START_ROUTE,
+    SSO_COMPLETE_ROUTE,
     # M15-W5-S1: unauthed browser CSP collector ships rate-limited.
     CSP_REPORT_TEMPLATE,
     RUN_START_TEMPLATE,

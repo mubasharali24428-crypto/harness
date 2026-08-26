@@ -39,8 +39,9 @@ Per-team non-default values may be stored on ``billing_plans``
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any
 
 #: The canonical tier ladder, cheapest first. Exported verbatim from here;
 #: section1.billing re-exports for backwards compatibility (it owned the bare

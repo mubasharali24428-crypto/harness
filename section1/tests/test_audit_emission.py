@@ -405,9 +405,18 @@ async def test_every_s1_helper_writes_exactly_one_row(factory):
         await emit_invite_revoked(db, **kw)
         await emit_invite_resent(db, **kw)  # M14-F2a
         await emit_billing_plan_changed(db, **kw)
+        # Mission 22 M4: SSO config lifecycle helpers (sso.py call sites).
+        from harness_identity.audit_emit import (
+            emit_sso_config_deleted,
+            emit_sso_config_saved,
+        )
+
+        await emit_sso_config_saved(db, **kw)
+        await emit_sso_config_deleted(db, **kw)
         rows = (await db.execute(select(AuditLog))).scalars().all()
 
-    assert sorted(row.action for row in rows) == sorted(REGISTRY_S1_CALLED)
+    expected = sorted(REGISTRY_S1_CALLED) + ["sso.config_saved", "sso.config_deleted"]
+    assert sorted(row.action for row in rows) == expected
     for row in rows:
         assert row.actor_member_id == admin["memberId"]
         assert row.detail.get("teamId") == admin["teamId"]
