@@ -618,3 +618,8 @@ X3 UI surface (@autocomplete, chunk preview panel, searchable tree).
 0030 pgvector-gated — honest degrade without extension. Suites: S1 574 ·
 S4 452 · S7 vitest 500 + tsc clean. Exit criterion met: plans demonstrably
 cite indexed chunks. Next: Mission 22 commercial skeleton per 10x plan.
+
+
+### Mission 21 formal close (2026-08-26): CI 32948436346 SUCCESS on
+b83dbfd — replay-cap flake eliminated (30/30 stability sweep). Context
+pillar + all Horizon NEXT work verified at 100% green.
