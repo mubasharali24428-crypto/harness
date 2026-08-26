@@ -67,11 +67,16 @@ class JsonFormatter(logging.Formatter):
     """
 
     # LogRecord attr -> JSON key (camelCase wire names, snake_case attrs).
+    # M20-T2: ``user`` carries the sha256[:12] ANONYMIZED principal label
+    # emitted by deploy/runners/observability.RequestContextMiddleware;
+    # records without the attr (plain logs, orchestrator's own middleware)
+    # simply omit the key.
     _EXTRA_KEYS: tuple[tuple[str, str], ...] = (
         ("method", "method"),
         ("path", "path"),
         ("status_code", "status"),
         ("duration_ms", "durMs"),
+        ("user", "user"),
     )
 
     def format(self, record: logging.LogRecord) -> str:
@@ -86,7 +91,7 @@ class JsonFormatter(logging.Formatter):
         }
         for attr, key in self._EXTRA_KEYS:
             value = getattr(record, attr, None)
-            if value is not None:
+            if value is not None and not (attr == "user" and value == ""):
                 payload[key] = value
         if record.exc_info:
             payload["exc"] = self.formatException(record.exc_info)

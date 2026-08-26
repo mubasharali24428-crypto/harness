@@ -1324,14 +1324,80 @@ class OrchestratorService(Orchestrator):
         age = heartbeat_age_seconds(heartbeat_at, now=db_now())
         return age is not None and age >= self.heartbeat_timeout_seconds
 
-    async def poll_once(self) -> str | None:
-        """Claim one queued run and spawn its engine task; returns the run_id."""
+    async def poll_once(
+        self, max_claims: int | None = None
+    ) -> str | list[str] | None:
+        """Claim queued run(s) and spawn their engine tasks.
+
+        Legacy shape (``max_claims`` unset/falsy): claim ONE run, return its
+        run_id or None — every existing caller and test keeps working. M20-T1
+        batch shape (``max_claims=N > 1``, passed by RunQueueWorker from
+        WORKER_CLAIM_BATCH): admit UP TO N runs this cycle and return every
+        admitted run_id as a list (see :meth:`_poll_batch`).
+        """
         if self.run_queue_factory is None:
             return None
+        batch = int(max_claims) if max_claims else 1
+        if batch > 1:
+            return await self._poll_batch(max(batch, 1))
         claim = await claim_next_run(self.run_queue_factory, self.worker_id, self.max_per_team)
         if claim is None:
             return None
         run_id = claim["run_id"]
+        if not await self._dispatch_claim(run_id, claim):
+            return None
+        return run_id
+
+    async def _poll_batch(self, batch: int) -> list[str]:
+        """M20-T1: admit up to ``batch`` claims in ONE poll cycle.
+
+        The BASELINE wall was one admission per cycle (≈2 journeys/s at the
+        shipped 0.5 s cadence). This loop drains instead: each iteration takes
+        the oldest claimable row via the SAME atomic FIFO claim statement, and
+        stops at the first empty claim — empty ⇒ queue drained OR every
+        remaining team sits at its per-team running cap (a mid-batch stop is
+        therefore normal, not an error). A failing claim or dispatch skips
+        THAT run only (its row stays 'running', visible to the zombie reaper)
+        and never loses the rest of the batch.
+        """
+        claimed: list[str] = []
+        for _ in range(batch):
+            try:
+                claim = await claim_next_run(
+                    self.run_queue_factory, self.worker_id, self.max_per_team
+                )
+            except Exception:  # noqa: BLE001 — a failed claim keeps earlier admissions
+                logger.exception("batched run-queue claim failed")
+                break
+            if claim is None:
+                break
+            run_id = claim["run_id"]
+            try:
+                dispatched = await self._dispatch_claim(run_id, claim)
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001 — one bad claim must not lose the batch
+                # Honest loss shape (identical to the legacy single-claim path
+                # letting an exception reach the worker loop): the claim row
+                # stays 'running' and visible until the zombie reaper releases
+                # it — never silently forgotten.
+                logger.exception("batched dispatch failed for run %s", run_id)
+                continue
+            if not dispatched:
+                continue
+            claimed.append(run_id)
+        return claimed
+
+    async def _dispatch_claim(self, run_id: str, claim: dict[str, Any]) -> bool:
+        """Walk ONE claim through the unchanged pre-spawn gate chain.
+
+        Extracted verbatim from the former single-claim poll_once body so
+        batched admission dispatches each run individually through every gate:
+        M19-N1 stale-cache repair (durable replay before dropping a claim),
+        the live-task double-dispatch fence (executor-saturation safe), the
+        durable-first plan approval read, the Wave 9 B budget pre-spawn gate,
+        then _spawn_execution + terminal eviction. True ⇒ engine task spawned.
+        """
         run_data = await self._ensure_run(run_id, project_id=claim.get("project_id"))
         sm: AgentStateMachine = run_data["state_machine"]
         if sm.state is not AgentState.EXECUTING:
@@ -1344,24 +1410,24 @@ class OrchestratorService(Orchestrator):
                 sm.plan_approved = True
             else:
                 await finish_run(self.run_queue_factory, run_id)
-                return None
+                return False
         live = run_data.get("task")
         if live is not None and not live.done():
-            return None
+            return False
         plan_id = run_data.get("plan_id")
         if not plan_id or not await self._plan_is_approved(plan_id):
             logger.error("claimed run %s lacks an approved plan; dropping claim", run_id)
             await finish_run(self.run_queue_factory, run_id)
-            return None
+            return False
         plan = self.planner.get_plan(plan_id)
         if await self._budget_gate(run_data, plan):  # Wave 9 B: never spawn over cap
             await finish_run(self.run_queue_factory, run_id)
-            return None
+            return False
         self._spawn_execution(run_data, plan)
         # M19-N1: a run that reached DONE inside its engine task must not sit
         # in the cache forever — poll cycles are the natural eviction seam.
         await self._evict_if_terminal(run_data)
-        return run_id
+        return True
 
     async def submit_human_edit(self, run_id: str, path: str, content: str) -> None:
         run_data = await self._ensure_run(run_id)
