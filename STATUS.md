@@ -607,3 +607,14 @@ T4 extensions.md (3 real seams) + glossary completion. T5 TS SDK v0 — both
 SDKs from one generator pipeline. Suites: S1 574 · S4 414 · S7 vitest 460.
 Remaining per 10x plan: LATER horizon (context pillar/codebase indexing,
 commercial skeleton) + M23 bets.
+
+
+## Mission 21 — CONTEXT PILLAR CLOSED (2026-08-26)
+
+CI 32932601871 SUCCESS. X1 indexing core (pgvector, pluggable embeddings,
+incremental re-index); X2 @refs resolution (hybrid ranking, token-budgeted
+bundles); X4 retrieval-augmented planner (path:line citations in steps);
+X3 UI surface (@autocomplete, chunk preview panel, searchable tree).
+0030 pgvector-gated — honest degrade without extension. Suites: S1 574 ·
+S4 452 · S7 vitest 500 + tsc clean. Exit criterion met: plans demonstrably
+cite indexed chunks. Next: Mission 22 commercial skeleton per 10x plan.
