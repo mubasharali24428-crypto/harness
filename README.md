@@ -18,6 +18,8 @@ event-sourced audit log, **manual merges only** — no auto-merge anywhere.
   **[docs/api-versioning.md](docs/api-versioning.md)** (normative source:
   [`contracts/api-conventions.md`](contracts/api-conventions.md)).
 - Project vocabulary as implemented: **[docs/GLOSSARY.md](docs/GLOSSARY.md)**.
+- Extending the platform (engine `backend_runner` injection, reviewer
+  thresholds, project rules): **[docs/extensions.md](docs/extensions.md)**.
 - Operations runbooks: **[docs/runbooks/](docs/runbooks/)**
   (`ops.md`, `backup-and-pitr.md`, `degraded-mode.md`) and maintenance
   schedules (**[docs/runbooks/maintenance.md](docs/runbooks/maintenance.md)**).

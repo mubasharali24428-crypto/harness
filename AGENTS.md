@@ -20,12 +20,14 @@ harness/
 
 ## Commands (Section 1)
 
+Run from the repo root (paths are explicit, so nothing depends on your cwd):
+
 ```sh
 cd section1
 ./.venv/bin/python -m pytest tests/ -q     # tests (must pass before any PR)
 ./.venv/bin/ruff check src tests scripts    # lint (must be clean)
 docker compose --env-file .env -f deploy/docker-compose.yml up -d migrate
-                                            # apply migration ledger (one-shot `migrate`)
+                                            # apply migration ledger (one-shot `migrate`; run from repo root)
 ```
 
 ## Rules recap (full list in HARNESS_PLAN_V2.md)
