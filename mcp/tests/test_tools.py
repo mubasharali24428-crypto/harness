@@ -75,7 +75,9 @@ async def test_get_run_status_unknown_run_maps_no_oracle_envelope(mcp, stub_api)
         (
             lambda _: (_ for _ in ()).throw(
                 UpstreamError(
-                    404, "run not found", {"error": {"code": "NOT_FOUND", "message": "run not found"}}
+                    404,
+                    "run not found",
+                    {"error": {"code": "NOT_FOUND", "message": "run not found"}},
                 )
             )
         ),

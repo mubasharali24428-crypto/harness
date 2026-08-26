@@ -130,6 +130,10 @@ def test_shipped_set_covers_expensive_ops():
     assert RUN_START_TEMPLATE == "/api/v1/orchestrator/runs/{runId}/start"
     assert MODEL_CALL_TEMPLATE == "/api/v1/models/call"
     assert BRIEF_GENERATE_TEMPLATE == "/api/v1/meetings/{meetingId}/brief"
+    # Mission 22 M4: SSO login edges joined the shipped set BEFORE the
+    # expensive-op trio — this lane's [-3:] contract stays intact.
+    assert rl.DEFAULT_PROTECTED_ROUTES.count(rl.SSO_START_ROUTE) == 1
+    assert rl.DEFAULT_PROTECTED_ROUTES.count(rl.SSO_COMPLETE_ROUTE) == 1
 
 
 def test_expensive_op_budgets_are_generous():

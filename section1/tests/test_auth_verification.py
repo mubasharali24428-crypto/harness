@@ -448,11 +448,17 @@ def test_default_protection_set_covers_invite_mint():
     flowing into BOTH wire-up spellings."""
     assert rl.DEFAULT_ROUTES == ("/api/v1/auth/request-login", "/api/v1/auth/verify-otp")
     assert INVITE_MINT_TEMPLATE == "/api/v1/teams/{team_id}/invites"
+    # Mission 22 M4: the SSO login edges joined the shipped set (pin updated by
+    # that lane; the CSP/expensive-op tail below is unchanged).
+    assert rl.SSO_START_ROUTE == "/api/v1/auth/sso/start"
+    assert rl.SSO_COMPLETE_ROUTE == "/api/v1/auth/sso/complete"
     assert rl.DEFAULT_PROTECTED_ROUTES == (
         "/api/v1/auth/request-login",
         "/api/v1/auth/verify-otp",
         INVITE_MINT_TEMPLATE,
         "/api/v1/auth/login",
+        rl.SSO_START_ROUTE,
+        rl.SSO_COMPLETE_ROUTE,
         # M15-W5-S1: unauthed browser CSP violation collector.
         rl.CSP_REPORT_TEMPLATE,
         rl.RUN_START_TEMPLATE,

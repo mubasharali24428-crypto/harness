@@ -178,7 +178,9 @@ async def fetch_discovery(client: httpx.AsyncClient, issuer_url: str) -> dict[st
     except Exception as exc:  # noqa: BLE001 — surfaced as one safe error below
         raise SsoError(f"discovery document unreachable at {url}") from exc
     if not isinstance(doc, dict):
-        raise SsoError("discovery document is not an object")
+        # A non-object body is exactly what an unreachable/misbehaving IdP
+        # serves; answer the SAME safe error instead of leaking a parse shape.
+        raise SsoError(f"discovery document unreachable at {url}") from None
     missing = [k for k in REQUIRED_DISCOVERY_KEYS if not doc.get(k)]
     if missing:
         raise SsoError(f"discovery document missing keys: {', '.join(missing)}")
@@ -429,23 +431,35 @@ async def put_sso_config(
 
     vault = request.app.state.vault
     async with request.app.state.session_factory() as db:
+        # Encrypt FIRST (ensure_kdf_params may flush; a half-built ORM row
+        # must never be in the session when it does).
+        _, fernet = await ensure_kdf_params(db, vault.master_key)
+        new_secret_encrypted = (
+            fernet.encrypt(body.client_secret.encode()).decode()
+            if body.client_secret is not None
+            else None
+        )
+        issuer_url = body.issuer_url.rstrip("/")
+        client_id = body.client_id
+        enabled = body.enabled
+        display_name = body.idp_display_name
+
         row = await db.get(TeamSsoConfig, team_id)
         created = row is None
         if row is None:
-            if body.client_secret is None:
+            if new_secret_encrypted is None:
                 raise HTTPException(
                     status_code=422,
                     detail=error_body("VALIDATION_ERROR", "clientSecret required on create"),
                 )
             row = TeamSsoConfig(team_id=team_id)
             db.add(row)
-        _, fernet = await ensure_kdf_params(db, vault.master_key)
-        if body.client_secret is not None:
-            row.client_secret_encrypted = fernet.encrypt(body.client_secret.encode()).decode()
-        row.issuer_url = body.issuer_url.rstrip("/")
-        row.client_id = body.client_id
-        row.enabled = body.enabled
-        row.idp_display_name = body.idp_display_name
+        if new_secret_encrypted is not None:
+            row.client_secret_encrypted = new_secret_encrypted
+        row.issuer_url = issuer_url
+        row.client_id = client_id
+        row.enabled = enabled
+        row.idp_display_name = display_name
         if row.created_at is None:
             row.created_at = datetime.now(UTC)
         await db.commit()
@@ -552,11 +566,17 @@ async def sso_start(body: SsoStartBody, request: Request) -> dict[str, Any]:
 
         verifier, challenge = generate_pkce_pair()
         state = secrets.token_urlsafe(32)
-        nonce = secrets.token_urlsafe(24)
+        # The nonce handed to the IdP IS its own sha256: the row stores
+        # exactly the value we send, so complete() compares the echoed claim
+        # against nonce_hash directly — one hash, no second round-trip, and
+        # the replayable pre-image never exists outside this expression.
+        nonce = _sha256_hex(secrets.token_urlsafe(32))
         db.add(
             SsoLoginState(
                 state_hash=_sha256_hex(state),
-                nonce_hash=_sha256_hex(nonce),
+                # Store EXACTLY what we sent the IdP (already a digest); a
+                # second hash here would make every echo comparison fail.
+                nonce_hash=nonce,
                 pkce_verifier_hash=verifier,
                 team_id=body.team_id,
                 redirect_uri=body.redirect_uri.strip(),
@@ -657,45 +677,64 @@ async def sso_complete(body: SsoCompleteBody, request: Request) -> dict[str, Any
         )
 
     async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_S) as http:
-        discovery = await fetch_discovery(http, issuer_url)
-        jwks = await fetch_jwks(http, discovery["jwks_uri"])
         try:
-            token_resp = await http.post(
-                discovery["token_endpoint"],
-                data={
-                    "grant_type": "authorization_code",
-                    "code": body.code,
-                    "redirect_uri": body.redirect_uri.strip(),
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                    "code_verifier": state_row["pkce_verifier_hash"],
-                },
-                headers={"Accept": "application/json"},
+            discovery = await fetch_discovery(http, issuer_url)
+            jwks = await fetch_jwks(http, discovery["jwks_uri"])
+            try:
+                token_resp = await http.post(
+                    discovery["token_endpoint"],
+                    data={
+                        "grant_type": "authorization_code",
+                        "code": body.code,
+                        "redirect_uri": body.redirect_uri.strip(),
+                        "client_id": client_id,
+                        "client_secret": client_secret,
+                        "code_verifier": state_row["pkce_verifier_hash"],
+                    },
+                    headers={"Accept": "application/json"},
+                )
+            except httpx.HTTPError as exc:  # noqa: BLE001 — network trouble is one honest 502
+                raise HTTPException(
+                    status_code=502,
+                    detail=error_body(
+                        "SSO_IDP_UNREACHABLE", "identity provider unreachable"
+                    ),
+                ) from exc
+            if token_resp.status_code != 200:
+                raise HTTPException(
+                    status_code=401,
+                    detail=error_body(
+                        "SSO_TOKEN_EXCHANGE_FAILED",
+                        "authorization code rejected by IdP",
+                    ),
+                )
+            tokens = token_resp.json()
+            id_token = tokens.get("id_token") if isinstance(tokens, dict) else None
+            if not isinstance(id_token, str) or not id_token:
+                raise HTTPException(
+                    status_code=401,
+                    detail=error_body(
+                        "SSO_TOKEN_EXCHANGE_FAILED",
+                        "token response carried no ID token",
+                    ),
+                )
+            claims = validate_id_token(
+                id_token,
+                jwks,
+                issuer=issuer_url,
+                audience=client_id,
+                # The row stores exactly what was sent; compare the echoed
+                # claim against nonce_hash directly.
+                nonce=state_row["nonce_hash"],
             )
-        except httpx.HTTPError as exc:  # noqa: BLE001 — network trouble is one honest 502
+        except SsoError as exc:
+            # Discovery/JWKS/token shapes that fail validation are the IdP's
+            # fault, not the caller's: one honest 502 carrying the SAFE
+            # message ("ID token signature invalid", ...), never a 500.
             raise HTTPException(
                 status_code=502,
-                detail=error_body("SSO_IDP_UNREACHABLE", "identity provider unreachable"),
+                detail=error_body("SSO_IDP_INVALID", f"IdP response rejected: {exc}"),
             ) from exc
-    if token_resp.status_code != 200:
-        raise HTTPException(
-            status_code=401,
-            detail=error_body("SSO_TOKEN_EXCHANGE_FAILED", "authorization code rejected by IdP"),
-        )
-    tokens = token_resp.json()
-    id_token = tokens.get("id_token") if isinstance(tokens, dict) else None
-    if not isinstance(id_token, str) or not id_token:
-        raise HTTPException(
-            status_code=401,
-            detail=error_body("SSO_TOKEN_EXCHANGE_FAILED", "token response carried no ID token"),
-        )
-    claims = validate_id_token(
-        id_token,
-        jwks,
-        issuer=issuer_url,
-        audience=client_id,
-        nonce=state_row["nonce_hash"],
-    )
     email = str(claims.get("email") or "").lower().strip()
     if not email:
         raise HTTPException(

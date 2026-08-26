@@ -24,7 +24,9 @@ class UpstreamError(Exception):
     def __init__(self, status: int, message: str, envelope: dict[str, Any] | None = None) -> None:
         self.status = status
         self.message = message
-        self.envelope = envelope if envelope is not None else {"error": {"code": "UPSTREAM_ERROR", "message": message}}
+        self.envelope = envelope if envelope is not None else {
+            "error": {"code": "UPSTREAM_ERROR", "message": message}
+        }
         super().__init__(f"upstream {status}: {message}")
 
 
@@ -33,7 +35,11 @@ class HarnessApiClient:
 
     def __init__(self, settings) -> None:
         self._settings = settings
-        headers = {"Authorization": f"Bearer {settings.service_token}"} if settings.service_token else {}
+        headers = (
+            {"Authorization": f"Bearer {settings.service_token}"}
+            if settings.service_token
+            else {}
+        )
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(settings.upstream_timeout_s),
             headers=headers,
@@ -46,7 +52,9 @@ class HarnessApiClient:
     # Low-level verb with honest error mapping
     # ------------------------------------------------------------------
 
-    async def _request(self, method: str, url: str, *, json_body: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def _request(
+        self, method: str, url: str, *, json_body: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         try:
             res = await self._client.request(method, url, json=json_body)
         except httpx.HTTPError as exc:
@@ -88,7 +96,9 @@ class HarnessApiClient:
 
     async def propose_plan(self, goal: str) -> dict[str, Any]:
         return await self._request(
-            "POST", f"{self._settings.orchestrator_base_url}/api/v1/orchestrator/plans", json_body={"goal": goal}
+            "POST",
+            f"{self._settings.orchestrator_base_url}/api/v1/orchestrator/plans",
+            json_body={"goal": goal},
         )
 
     async def approve_plan(self, plan_id: str) -> dict[str, Any]:
@@ -109,7 +119,9 @@ class HarnessApiClient:
 
     async def run_status(self, run_id: str) -> dict[str, Any]:
         return await self._request(
-            "GET", f"{self._settings.orchestrator_base_url}/api/v1/orchestrator/runs/{run_id}/status"
+            "GET",
+            f"{self._settings.orchestrator_base_url}"
+            f"/api/v1/orchestrator/runs/{run_id}/status",
         )
 
     # ------------------------------------------------------------------

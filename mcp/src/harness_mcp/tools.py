@@ -9,7 +9,8 @@ handshake and the registry can never drift apart.
 from __future__ import annotations
 
 import json
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from .client import HarnessApiClient, UpstreamError
 
@@ -29,7 +30,9 @@ def _text_result(payload: dict[str, Any], *, is_error: bool = False) -> list[dic
     errors additionally set isError=True at the CallToolResult level so MCP
     clients surface failure without parsing.
     """
-    return [{"type": "text", "text": json.dumps(payload, separators=(",", ":")), "isError": is_error}]
+    return [
+        {"type": "text", "text": json.dumps(payload, separators=(",", ":")), "isError": is_error}
+    ]
 
 
 def _error_text(code: str, message: str) -> tuple[list[dict[str, Any]], bool]:
@@ -83,7 +86,7 @@ async def _tool_start_run(api: HarnessApiClient, args: dict[str, Any]) -> list[d
             error["planId"] = plan_id
         if run_id is not None and "runId" not in body:
             error["runId"] = run_id
-        return _text_result(body)
+        return _text_result(body, is_error=True)
     out: dict[str, Any] = {
         "runId": started.get("runId", run_id),
         "planId": plan_id,
@@ -97,7 +100,7 @@ async def _tool_get_run_status(api: HarnessApiClient, args: dict[str, Any]) -> l
     try:
         status = await api.run_status(str(args["runId"]))
     except UpstreamError as exc:
-        return _text_result(exc.envelope)
+        return _text_result(exc.envelope, is_error=True)
     return _text_result(status)
 
 
@@ -107,7 +110,7 @@ async def _tool_search_context(api: HarnessApiClient, args: dict[str, Any]) -> l
     try:
         res = await api.search_context(str(args["query"]), str(args["projectId"]), top_k)
     except UpstreamError as exc:
-        return _text_result(exc.envelope)
+        return _text_result(exc.envelope, is_error=True)
     results = res.get("results", [])
     return _text_result({"projectId": res.get("projectId", args["projectId"]), "results": results})
 
@@ -116,7 +119,7 @@ async def _tool_list_projects(api: HarnessApiClient, _args: dict[str, Any]) -> l
     try:
         res = await api.list_projects()
     except UpstreamError as exc:
-        return _text_result(exc.envelope)
+        return _text_result(exc.envelope, is_error=True)
     return _text_result(res)
 
 
@@ -138,7 +141,9 @@ def build_tools(api: HarnessApiClient) -> list[dict[str, Any]]:
                     "goal": {
                         "type": "string",
                         "minLength": 1,
-                        "description": "What the run should accomplish, stated as a verifiable goal.",
+                        "description": (
+                            "What the run should accomplish, stated as a verifiable goal."
+                        ),
                     },
                 },
                 ["goal"],

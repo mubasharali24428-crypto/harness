@@ -13,6 +13,9 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
     "cryptography>=42",
+    # Mission 22 M4: OIDC discovery + token exchange HTTP client (no vendor
+    # SDKs — raw OIDC over httpx is the whole point of the SSO lane).
+    "httpx>=0.27",
 ]
 
 [project.optional-dependencies]

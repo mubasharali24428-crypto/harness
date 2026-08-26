@@ -53,9 +53,8 @@ async def test_upstream_401_becomes_honest_error_result(mcp, stub_api):
 
 def test_raw_fastapi_detail_string_maps_into_envelope():
     """A raw {"detail": "..."} body (no envelope) maps into the error shape."""
-    import httpx
-
     import anyio
+    import httpx
     import pytest
 
     from harness_mcp.client import UpstreamError

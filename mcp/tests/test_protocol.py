@@ -8,8 +8,6 @@ All calls go through ``run(coro)`` so they execute on the pair's own loop.
 
 from __future__ import annotations
 
-import json
-
 from conftest import parse_payload
 
 

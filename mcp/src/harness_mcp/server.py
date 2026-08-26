@@ -16,8 +16,9 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator
+from typing import Any
 
 import anyio
 import mcp.types as types
@@ -34,17 +35,22 @@ logger = logging.getLogger("harness.mcp")
 _CALL_ERROR_CODE = "TOOL_EXECUTION_ERROR"
 
 
-def _error_blocks(code: str, message: str) -> tuple[list[types.ContentBlock], bool]:
+def _error_blocks(code: str, message: str) -> tuple[list[dict[str, Any]], bool]:
+    """Error payload as plain dict blocks + the isError flag kept OUT of band.
+
+    The flag rides beside the blocks, never inside them: TextContent has no
+    isError field, and a model_dump() round-trip silently drops extra keys.
+    """
     text = json.dumps({"error": {"code": code, "message": message}}, separators=(",", ":"))
-    return [types.TextContent(type="text", text=text)], True
+    return [{"type": "text", "text": text}], True
 
 
-def _result(blocks: list[dict[str, Any]]) -> types.CallToolResult:
+def _result(blocks: list[dict[str, Any]], *, is_error: bool = False) -> types.CallToolResult:
     """Materialize tool.py's plain-dict blocks into a CallToolResult."""
     content: list[types.ContentBlock] = [
         types.TextContent(type=b["type"], text=b["text"]) for b in blocks
     ]
-    return types.CallToolResult(content=content, is_error=any(b.get("isError") for b in blocks))
+    return types.CallToolResult(content=content, is_error=is_error)
 
 
 def build_server(settings: Settings, api: HarnessApiClient | None = None) -> Server:
@@ -71,22 +77,27 @@ def build_server(settings: Settings, api: HarnessApiClient | None = None) -> Ser
     async def on_call_tool(ctx: Any, params: types.CallToolRequestParams) -> types.CallToolResult:
         tool = next((t for t in tools if t["name"] == params.name), None)
         if tool is None:
-            blocks, _ = _error_blocks("UNKNOWN_TOOL", f"no such harness tool: {params.name}")
-            return _result([b.model_dump() for b in blocks])
+            blocks, err = _error_blocks("UNKNOWN_TOOL", f"no such harness tool: {params.name}")
+            return _result(blocks, is_error=err)
         arguments = dict(params.arguments or {})
         missing = [k for k in tool["inputSchema"].get("required", []) if k not in arguments]
         if missing:
-            blocks, _ = _error_blocks(
+            blocks, err = _error_blocks(
                 "INVALID_ARGUMENTS", f"missing required argument(s): {', '.join(missing)}"
             )
-            return _result([b.model_dump() for b in blocks])
+            return _result(blocks, is_error=err)
         try:
             blocks_dict = await tool["run"](arguments)
         except Exception as exc:  # noqa: BLE001 — last-resort honesty net
             logger.exception("tool '%s' crashed", params.name)
-            blocks, _ = _error_blocks(_CALL_ERROR_CODE, f"{type(exc).__name__}: {exc}")
-            return _result([b.model_dump() for b in blocks])
-        return _result(blocks_dict)
+            blocks, err = _error_blocks(_CALL_ERROR_CODE, f"{type(exc).__name__}: {exc}")
+            return _result(blocks, is_error=err)
+        # Tool-layer failures (upstream 4xx/5xx) mark their blocks with isError.
+        is_err = any(b.get("isError") for b in blocks_dict)
+        return _result(
+            [{k: v for k, v in b.items() if k != "isError"} for b in blocks_dict],
+            is_error=is_err,
+        )
 
     server = Server(
         settings.server_name,
@@ -126,11 +137,38 @@ def http_asgi_app(server: Server) -> Any:
             yield
 
     from starlette.applications import Starlette
-    from starlette.routing import Mount
+    from starlette.routing import Mount, Route
 
+    class _RawAsgi:
+        """Expose a (scope, receive, send) coroutine to Route as-is.
+
+        starlette.routing.Route treats plain-function endpoints as
+        ``func(request) -> response``; a callable class keeps the raw ASGI
+        signature so the MCP session manager sees the untouched scope.
+        """
+
+        def __init__(self, app: Any) -> None:
+            self._app = app
+
+        async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+            await self._app(scope, receive, send)
+
+    # Exact-path Route FIRST: a bare Mount("/mcp") only partially matches
+    # "/mcp" (it wants a trailing slash) and Starlette answers POSTs with a
+    # 307 to "/mcp/" whose empty body carries no content-type — which the
+    # MCP client rejects ("Unexpected content type"). Clients POST exactly
+    # /mcp, so serve it directly; the Mount keeps "/mcp/..." working.
     return Starlette(
         lifespan=_lifespan,
-        routes=[Mount("/mcp", app=handle_streamable_http)],
+        routes=[
+            Route(
+                "/mcp",
+                _RawAsgi(handle_streamable_http),
+                methods=["GET", "POST", "DELETE"],
+                name="mcp",
+            ),
+            Mount("/mcp", app=handle_streamable_http),
+        ],
     )
 
 
@@ -157,7 +195,7 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO)
     settings = Settings()
     server = build_server(settings)
-    run_stdio(server, getattr(server, "_harness_api"))
+    run_stdio(server, server._harness_api)
 
 
 if __name__ == "__main__":

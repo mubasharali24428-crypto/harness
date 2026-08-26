@@ -120,7 +120,7 @@ def _hash_code(code: str) -> str:
 
 
 async def issue_otp(
-    session: AsyncSession,
+    session: AsyncSession | async_sessionmaker,
     settings,
     notify,
     email: str,
@@ -129,10 +129,18 @@ async def issue_otp(
 
     Enumeration-safe by contract: callers answer 200 regardless of whether the
     address exists; delivery is the notifier's concern (dev logger / SMTP).
+
+    ``session`` accepts either a live AsyncSession or the app's
+    async_sessionmaker (routes hand one or the other); direct callers with a
+    bare factory get a short-lived session opened for them.
     """
     import secrets
 
     from .models import LoginOtp
+
+    if isinstance(session, async_sessionmaker):
+        async with session() as owned:
+            return await issue_otp(owned, settings, notify, email)
 
     email = email.lower().strip()
     code = "".join(secrets.choice("0123456789") for _ in range(OTP_CODE_LENGTH))

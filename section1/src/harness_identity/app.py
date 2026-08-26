@@ -191,6 +191,12 @@ def make_app(session_factory, settings: Settings):
     app.include_router(api_keys_router)
 
     # Mission10-B1 merge wiring: billing state/plan behind HARNESS_BILLING.
+    from . import stripe_adapter as _stripe_adapter_module  # noqa: F401 — ORM side effect
+
+    # Registering StripeWebhookEvent on the shared declarative Base is a
+    # STARTUP side effect, not route wiring: without it Base.metadata never
+    # sees the 0032 table and the FK inventory / fresh-DB provisioning miss
+    # it entirely. The ROUTE stays behind HARNESS_BILLING as before.
     from .billing import router as billing_router
     from .stripe_adapter import make_client_from_env
     from .stripe_adapter import router as stripe_adapter
@@ -204,6 +210,13 @@ def make_app(session_factory, settings: Settings):
     if stripe_client is not None:
         app.state.stripe_client = stripe_client
         app.include_router(stripe_adapter)
+
+    # Mission22-M4 merge wiring: OIDC SSO login edges + per-team IdP config
+    # CRUD. Unconfigured teams answer 404 SSO_NOT_CONFIGURED and every other
+    # route is untouched — OTP stays the default login path.
+    from .sso import router as sso_router
+
+    app.include_router(sso_router)
 
     # Mission12-E3a merge wiring: roster removal/role-change (W2-C1 server).
     from .teams_api import router as teams_api_router

@@ -415,7 +415,7 @@ async def test_every_s1_helper_writes_exactly_one_row(factory):
         await emit_sso_config_deleted(db, **kw)
         rows = (await db.execute(select(AuditLog))).scalars().all()
 
-    expected = sorted(REGISTRY_S1_CALLED) + ["sso.config_saved", "sso.config_deleted"]
+    expected = sorted([*REGISTRY_S1_CALLED, "sso.config_saved", "sso.config_deleted"])
     assert sorted(row.action for row in rows) == expected
     for row in rows:
         assert row.actor_member_id == admin["memberId"]

@@ -47,6 +47,17 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 # test file pytest collects first.
 import harness_identity.billing  # noqa: F401
 import harness_identity.notifier  # noqa: F401
+
+# M22-M4: same discipline for the SSO mirrors (0033) — importing them HERE
+# makes enumeration independent of which test file pytest collects first
+# (a sibling file importing harness_identity.sso would otherwise inflate or
+# deflate the inventory depending on alphabetical luck).
+import harness_identity.sso  # noqa: F401
+
+# M22-M3: StripeWebhookEvent (0032) lives in its own module the same way;
+# without this import Base.metadata misses the table and the inventory pin
+# counts one FK short.
+import harness_identity.stripe_adapter  # noqa: F401
 from harness_identity.models import (
     AgentEvent,
     AgentPlanRecord,
@@ -118,6 +129,10 @@ DELETION_MAP: dict[tuple[str, str], tuple[str, str]] = {
     # model lives in stripe_adapter.py): recorded provider events are owned
     # children of the team their customer was bound to.
     ("stripe_webhook_events", "team_id"): ("teams.id", "CASCADE"),
+    # M22-M4 (0033): per-team SSO config dies with its team; in-flight login
+    # attempts (state rows) are ephemeral children of the same story.
+    ("team_sso_configs", "team_id"): ("teams.id", "CASCADE"),
+    ("sso_login_states", "team_id"): ("teams.id", "CASCADE"),
     # M18-C3's rollup sidecar dies with its team (0027, models.CostLedgerDaily):
     # derived data — deleting the team deletes the rollup rows with it.
     ("cost_ledger_daily", "team_id"): ("teams.id", "CASCADE"),
@@ -212,9 +227,12 @@ def test_integrity_tables_never_cascade_or_null():
 
 
 def test_fk_inventory_size_is_pinned():
-    """36 ORM FKs (+1 SQL-side: agent_runs.pr_id) today; any schema-surface
-    change must touch this suite. (35 -> 36: M22-M3's stripe_webhook_events.)"""
-    assert len(_metadata_fks()) == 36
+    """38 ORM FKs (+1 SQL-side: agent_runs.pr_id) today; any schema-surface
+    change must touch this suite. (35 -> 36: M22-M3's stripe_webhook_events;
+    36 -> 38: M22-M4's team_sso_configs + sso_login_states. The out-of-models
+    mirrors live in stripe_adapter.py / sso.py and are imported HERE for their
+    metadata side effect so enumeration is collection-order independent.)"""
+    assert len(_metadata_fks()) == 38
 
 
 # --------------------------------------------------------------------------

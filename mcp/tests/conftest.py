@@ -93,7 +93,11 @@ def stub_api() -> StubAPI:
         },
     )
     api.on("POST", "/plans/plan-777/approve", lambda _: {"runId": "run-abc123"})
-    api.on("POST", "/runs/run-abc123/start", lambda _: {"runId": "run-abc123", "state": "executing"})
+    api.on(
+        "POST",
+        "/runs/run-abc123/start",
+        lambda _: {"runId": "run-abc123", "state": "executing"},
+    )
     api.on(
         "GET",
         "/runs/run-abc123/status",
@@ -195,3 +199,156 @@ def parse_payload(result) -> dict[str, Any]:
     assert len(result.content) == 1
     assert result.content[0].type == "text"
     return json.loads(result.content[0].text)
+
+
+class AsgiLifespanDriver:
+    """Drive an ASGI app over HTTP *with* real lifespan semantics.
+
+    Why not ``httpx.ASGITransport``: it silently skips the ASGI "lifespan"
+    scope, so apps whose startup hosts background task groups (the MCP SDK's
+    StreamableHTTPSessionManager) die on their first request with "Task group
+    is not initialized" — and you cannot fake lifespan by entering the
+    manager's ``run()`` from a request task, because its task group must live
+    longer than any one request's task. This driver mirrors uvicorn: a host
+    task serves the lifespan scope for the whole session, and HTTP requests
+    are forwarded in-line through a minimal ASGI transport (which honors
+    exact-path routes directly instead of auto-following redirects like the
+    stock transport, hiding routing bugs).
+    """
+
+    def __init__(self, app: Any) -> None:
+        self._app = app
+        self._tg: Any = None
+        self._startup_done: Any = None
+        self._shutdown_requested: Any = None
+        self._startup_error: str | None = None
+        self._lifespan_startup_delivered = False
+
+    async def start(self, timeout: float = 15.0) -> None:
+        """Run ASGI startup on a host task; raise if the app fails it."""
+        import anyio
+
+        self._startup_done = anyio.Event()
+        self._shutdown_requested = anyio.Event()
+        tg = anyio.create_task_group()
+        await tg.__aenter__()
+        self._tg = tg
+        try:
+            with anyio.fail_after(timeout):
+                await tg.start(self._run_host)  # host task lives in tg
+                await self._startup_done.wait()  # until startup completes/fails
+        except BaseException:
+            await self._abandon()
+            raise
+        if self._startup_error is not None:
+            await self._abandon()
+            raise RuntimeError(f"ASGI lifespan startup failed: {self._startup_error}")
+
+    async def stop(self) -> None:
+        """Deliver ASGI shutdown and reap the host task."""
+        tg, self._tg = self._tg, None
+        if tg is None:
+            return
+        self._shutdown_requested.set()
+        await tg.__aexit__(None, None, None)
+
+    async def _abandon(self) -> None:
+        """Best-effort teardown when startup already failed."""
+        tg, self._tg = self._tg, None
+        if tg is None:
+            return
+        self._shutdown_requested.set()
+        try:
+            await tg.__aexit__(None, None, None)
+        except BaseException:  # noqa: BLE001 — teardown after failure is best-effort
+            pass
+
+    async def _run_host(self, *, task_status: Any = None) -> None:
+        import anyio
+
+        if task_status is None:
+            task_status = anyio.TASK_STATUS_IGNORED
+        task_status.started()
+        await self._app(
+            {"type": "lifespan", "asgi": {"version": "3.0", "spec_version": "2.3"}},
+            self._lifespan_receive,
+            self._lifespan_send,
+        )
+
+    def _lifespan_receive(self):  # type: ignore[no-untyped-def]
+        # ASGI lifespan receive is a CALLABLE returning one message per call.
+        # (An async-generator here would make the app re-read startup
+        # forever.) Exactly two events: startup immediately, shutdown after
+        # stop() sets the event.
+        async def _next_message():  # type: ignore[no-untyped-def]
+            if not self._lifespan_startup_delivered:
+                self._lifespan_startup_delivered = True
+                return {"type": "lifespan.startup"}
+            await self._shutdown_requested.wait()
+            return {"type": "lifespan.shutdown"}
+
+        return _next_message()
+
+    async def _lifespan_send(self, message: dict[str, Any]) -> None:
+        if message["type"] == "lifespan.startup.complete":
+            self._startup_done.set()
+        elif message["type"] == "lifespan.startup.failed":
+            self._startup_error = str(message.get("message") or "unknown error")
+            self._startup_done.set()
+
+    def transport(self) -> _RawAsgiHttpxTransport:
+        return _RawAsgiHttpxTransport(self)
+
+
+class _RawAsgiHttpxTransport:
+    """Minimal httpx AsyncBaseTransport bridging straight into the ASGI app."""
+
+    def __init__(self, driver: AsgiLifespanDriver) -> None:
+        self._driver = driver
+
+    async def handle_async_request(self, request: Any) -> Any:
+        import urllib.parse
+
+        import httpx
+
+        url = request.url
+        body = await request.aread()
+        scope = {
+            "type": "http",
+            "asgi": {"version": "3.0", "spec_version": "2.3"},
+            "http_version": "1.1",
+            "method": request.method,
+            "scheme": url.scheme or "http",
+            "path": urllib.parse.unquote(url.path),
+            "raw_path": url.raw_path,
+            "query_string": url.query,  # bytes, no leading '?'
+            "root_path": "",
+            "headers": [(k.lower(), v) for k, v in request.headers.raw],
+            "client": ("asgi-lifespan-driver", 0),
+            "server": ("testserver", 80),
+        }
+        state = {"sent_body": False}
+
+        async def receive() -> dict[str, Any]:
+            # Body was buffered up-front; afterwards only disconnect happens.
+            if state["sent_body"]:
+                return {"type": "http.disconnect"}
+            state["sent_body"] = True
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        collected: dict[str, Any] = {"status": 0, "headers": [], "chunks": []}
+
+        async def send(message: dict[str, Any]) -> None:
+            kind = message["type"]
+            if kind == "http.response.start":
+                collected["status"] = message["status"]
+                collected["headers"] = list(message.get("headers", []))
+            elif kind == "http.response.body":
+                collected["chunks"].append(message.get("body", b""))
+
+        await self._driver._app(scope, receive, send)
+        return httpx.Response(
+            status_code=collected["status"],
+            headers=collected["headers"],
+            content=b"".join(collected["chunks"]),
+        )
