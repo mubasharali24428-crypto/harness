@@ -45,6 +45,20 @@ from harness_orchestrator.state_machine import AgentState
 _CLEAN_DIFF = "--- a/app.py\n+++ b/app.py\n@@\n print('hi')\n+print('bye')\n"
 
 
+async def _drain_publish_chains(*services) -> None:
+    """Await every replica's pending serialized publish chains (service.
+    _publish_chains) so fire-and-forget bus persistence lands in the shared
+    log BEFORE durable assertions read it. M21-CI repair for the flaky
+    exactly-once assertions under CI load: start_execution() returns after the
+    durable election but BEFORE its EXECUTION_STARTED publish task commits, so
+    an immediate event-log read can race the writer and see zero rows.
+    """
+    for svc in services:
+        chains = list(getattr(svc, "_publish_chains", {}).values())
+        if chains:
+            await asyncio.gather(*chains, return_exceptions=True)
+
+
 class RecordingBus:
     """Duck-typed EventBus recording publishes per instance."""
 
@@ -524,6 +538,9 @@ async def test_two_replica_full_sequence_exactly_once_everywhere(replica_pair):
         for entry in replica_a.bus.published + replica_b.bus.published
         if entry.endswith(":plan_approved")
     ]
+    # Same drain rationale as STEP 3 below: bus.publish appends from a
+    # fire-and-forget chain task, so settle it before counting emissions.
+    await _drain_publish_chains(replica_a, replica_b)
     assert approvals.count("sim-run:plan_approved") == 1  # ONE emission
 
     # STEP 3 — start: BOTH replicas answer concurrently; the INSERT election
@@ -545,6 +562,11 @@ async def test_two_replica_full_sequence_exactly_once_everywhere(replica_pair):
         return_exceptions=True,
     )
     assert all(not isinstance(r, BaseException) for r in starts), starts
+
+    # M21-CI repair: the durable election is synchronous but its
+    # EXECUTION_STARTED publish is a fire-and-forget chain task — drain both
+    # replicas so the shared log is settled before it is asserted on.
+    await _drain_publish_chains(replica_a, replica_b)
 
     types = await _event_types(factory, "sim-run")
     assert types.count("execution_started") == 1  # exactly-one-winner at start

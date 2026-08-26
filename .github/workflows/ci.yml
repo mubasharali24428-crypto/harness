@@ -100,7 +100,9 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     services:
       postgres:
-        image: postgres:18-alpine
+        # M21-CI repair: pgvector-bearing image — migration 0030 provisions
+        # context_chunks (see the migrations-pg job comment).
+        image: pgvector/pgvector:pg18
         env:
           POSTGRES_USER: harness
           POSTGRES_PASSWORD: harness
@@ -141,13 +143,21 @@ jobs:
   # a migration that passes review but breaks the runner must land red here,
   # not fail at the next `docker compose up`. Executes migrate() itself on a
   # per-run scratch database (never the service DB) via make pg-probe-migrate.
+  #
+  # M21-CI repair: both real-PG services use the pgvector-bearing image
+  # (pgvector/pgvector:pg18 == postgres:18 + the vector extension) because
+  # migration 0030 provisions context_chunks. Stock postgres:* images made
+  # `CREATE EXTENSION vector` fail with FeatureNotSupportedError. Migration
+  # 0030 ALSO degrades gracefully when the extension is missing (ledger row
+  # lands, feature off), so this image swap is belt-and-braces provisioning,
+  # not a correctness dependency.
   migrations-pg:
     name: migrations apply clean on real PG (migrate.py)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
       postgres:
-        image: postgres:18-alpine
+        image: pgvector/pgvector:pg18
         env:
           POSTGRES_USER: harness
           POSTGRES_PASSWORD: harness
