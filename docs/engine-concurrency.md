@@ -70,6 +70,27 @@ service construction; a restart re-reads them. Non-numeric / below-minimum
 values are ignored with a warning (same law as `HEARTBEAT_TIMEOUT_SECONDS`,
 M13-H1b).
 
+## Admission cadence (M20-T1 — claim batching)
+
+The BASELINE ruler (`docs/benchmarks/BASELINE.md`) measured the platform wall:
+the queue worker admitted at most ONE run per poll cycle (0.5 s shipped), so
+throughput was bounded near 1/poll_interval ≈ 2 journeys/s regardless of the
+executor width. M20-T1 removes that bound:
+
+| Knob | Default | Meaning |
+|---|---|---|
+| Claim batch (`WORKER_CLAIM_BATCH`) | **`ENGINE_MAX_CONCURRENCY`** (8 shipped) | Runs claimable per poll cycle (`RunQueueWorker`); each claimed run still dispatches individually through every pre-spawn gate |
+| Poll floor (`WORKER_POLL_MIN_SECONDS`) | 0.01 | Cadence while saturated (previous cycle claimed a full batch) |
+| Backoff factor (`WORKER_POLL_BACKOFF_FACTOR`) | 2.0 | Multiplier applied to the inter-cycle sleep per drained cycle |
+
+Adaptive rule (one place: `RunQueueWorker._next_interval`, unit-pinned): full
+batch → floor; partial batch → hold; drained → multiply toward — but never
+past — the configured idle cadence `HARNESS_WORKER_POLL_SECONDS`, which stays
+the backoff ceiling. Zombie-reaper and orphan sweeps still run EVERY cycle.
+The M19-N2 slim bus may substitute for polling as a pure timing hint:
+`RunQueueWorker.wake()` ends the current sleep early, so a bus listener can
+signal arrivals (a missed signal is harmless — the next cycle polls anyway).
+
 ## Related
 
 - Finding + evidence: `docs/briefs/m17-findings-pbc1.md` §F2

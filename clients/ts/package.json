@@ -1,0 +1,29 @@
+{
+  "name": "harness-ts-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript client SDK for the AI Engineering Harness platform API (generated section clients + ws event streaming runtime).",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "smoke": "tsx ../../scripts/sdk-gen/smoke_ts_sdk.mts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

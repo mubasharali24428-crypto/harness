@@ -360,6 +360,77 @@ cd clients/python && ./.venv/bin/python ../../scripts/sdk-gen/smoke_sdk.py
 # …walks auth → one call per section → live event stream, SMOKE PASS at the end
 ```
 
+## 9b. Scripting the API — the TypeScript SDK
+
+The same surface ships for TypeScript/JavaScript (Node ≥ 22): `clients/ts`
+generates from the **same recorded specs** (`scripts/sdk-gen/generate.py
+--target ts`), so both SDKs move in lockstep when an API changes. The
+handwritten runtime mirrors the Python one — bearer auth, the frozen error
+envelope, backoff retries, and ws-ticket / fingerprint / replay-dedupe event
+streaming extracted from section7's browser client. Zero runtime dependencies;
+`@types/node`, `tsx`, `typescript` are dev-only.
+
+```sh
+cd clients/ts && npm install && npm run build   # emits dist/
+```
+
+### Authenticate
+
+```ts
+import { Harness } from "./src/index.js";
+
+let harness: Harness;
+try {
+  harness = await Harness.login("you@example.com");   // legacy passwordless login
+} catch (err) {
+  // err.code === "OWNERSHIP_REQUIRED" by default since H2r:
+  harness = new Harness();
+  await harness.request_otp("you@example.com");
+  const code = prompt("code (dev: docker logs <identity> | grep HARNESS-OTP): ") ?? "";
+  await harness.verify_otp("you@example.com", code);
+}
+
+console.log(harness.principal);   // { userId, teamId, role }
+```
+
+Already have a token? `new Harness({ token })` skips straight to work.
+
+### One call per section
+
+```ts
+const projects = await harness.identity.list_projects(5);
+const models   = await harness.router.list_models();
+const runs     = await harness.orchestrator.list_runs(pid, undefined, 10);
+const meeting  = await harness.meeting.create_meeting({ projectId: pid, title: "sync" });
+```
+
+Methods return the decoded JSON body; errors throw `ApiError` with the frozen
+envelope parsed out (`err.code`, `err.status`). Transient failures retry with
+the same exponential-backoff + full-jitter policy as Python (`Retry-After`
+honored).
+
+### Watch the bus live
+
+```ts
+const stop = new AbortController();
+for await (const env of harness.events.stream(PROJECT_ID, harness.token ?? undefined, stop.signal)) {
+  console.log(env.seq, env.type);    // plan_proposed, engine_completed, …
+}
+stop.abort();
+```
+
+Same lifecycle as §9's generator: single-use tickets per connect, fingerprint
+presentation (Node's WebSocket cannot set headers, so the echoed value rides
+on the `?fingerprint=` param — the same channel the S7 browser uses), resume
+from the highest seq seen, seq dedupe, backoff reconnects.
+
+Live proof without writing anything:
+
+```sh
+cd clients/ts && npm run smoke
+# …same journey as the Python smoke, SMOKE PASS at the end
+```
+
 ## Where to go next
 
 - **UI tour:** <http://localhost:3000> → the `/onboarding` checklist mirrors
