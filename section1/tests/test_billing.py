@@ -299,12 +299,22 @@ async def test_admin_changes_plan_engineer_forbidden(billing_factory, billing_cl
     )
     assert r.status_code == 200, r.text
     body = r.json()
-    assert set(body) == {"enabled", "plan", "quota", "source"}
+    # M22-M2: the state payload grew the tierCaps block (additive).
+    assert set(body) == {"enabled", "plan", "quota", "source", "tierCaps"}
     assert body == {
         "enabled": True,
         "plan": "pro",
         "quota": {"monthlyBudgetUsd": 0.0, "usedUsd": 0.0},
         "source": "local",
+        # M22-M2 tier facts ride along with every state read.
+        "tierCaps": {
+            "tier": "pro",
+            "runsPerDay": None,
+            "contextIndexMaxChunks": None,
+            "seatLimit": 5,
+            "auditRetentionDays": 30,
+            "upgradeTo": "team",
+        },
     }
 
     # second PUT UPSERTS (never a duplicate row per team)
@@ -398,7 +408,16 @@ async def test_stripe_package_never_imported():
 
 def test_billing_model_matches_frozen_migration_shape():
     cols = BillingPlan.__table__.columns
-    assert set(cols.keys()) == {"id", "team_id", "plan", "monthly_budget_usd", "updated_at"}
+    # M22-M2 (migration 0031): nullable per-team cap override columns joined.
+    assert set(cols.keys()) == {
+        "id",
+        "team_id",
+        "plan",
+        "monthly_budget_usd",
+        "runs_per_day_override",
+        "context_index_max_chunks_override",
+        "updated_at",
+    }
     assert cols["id"].primary_key
     assert cols["id"].type.length == 36  # type: ignore[attr-defined]
     assert cols["team_id"].type.length == 36  # type: ignore[attr-defined]

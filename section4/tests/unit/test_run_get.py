@@ -243,6 +243,9 @@ def test_get_run_includes_prid_from_db(monkeypatch, db):
         # M18-C2: explicit budget-truth flag — operators read degraded at a
         # glance (flips true when a gate ran fail-closed on a DB error).
         "budget",
+        # M22-M2: structured tier-cap upgrade CTA ({tier, cap, capField, used,
+        # upgradeTo, cta}); None here — no cap blocked this run.
+        "upgrade",
     }
 
 

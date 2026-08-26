@@ -45,6 +45,7 @@ from decimal import ROUND_HALF_EVEN, Decimal
 from typing import Annotated, Literal, Protocol
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+import harness_contracts
 from harness_contracts import (
     DEGRADED_FLAG_WIRE,
     MONTH_WINDOW_SQL,
@@ -52,9 +53,10 @@ from harness_contracts import (
     Role,
     error_body,
     resolve_cap,
+    tier_caps,
 )
 from pydantic import BaseModel
-from sqlalchemy import DateTime, ForeignKey, Numeric, String, func, select, text
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, func, select, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .audit_emit import emit_billing_plan_changed
@@ -63,7 +65,10 @@ from .models import Base, uid
 
 router = APIRouter(prefix="/api/v1")
 
-PLAN_TIERS = ("free", "pro", "team")
+# M22-M2: PLAN_TIERS stops being a bare string tuple — the canonical ladder
+# (plus caps, defaults and the upgrade-CTA wire) lives in the frozen contracts
+# package; this re-export keeps Mission-10-era imports working unchanged.
+PLAN_TIERS = harness_contracts.PLAN_TIERS
 
 # app.state key holding the injected thin client (StripeClient protocol).
 _STRIPE_CLIENT_ATTR = "stripe_client"
@@ -89,6 +94,15 @@ class BillingPlan(Base):
     # exact Decimal; SQLAlchemy converts on the way in/out.
     monthly_budget_usd: Mapped[Decimal] = mapped_column(
         Numeric(12, 6), nullable=False, default=Decimal("0")
+    )
+    # M22-M2: per-team CAP overrides (migration 0031). NULL = inherit the
+    # tier default from harness_contracts.tiers — the column is a tuning
+    # knob, never a second source of the published defaults.
+    runs_per_day_override: Mapped[int | None] = mapped_column(
+        "runs_per_day_override", Integer, nullable=True, default=None
+    )
+    context_index_max_chunks_override: Mapped[int | None] = mapped_column(
+        "context_index_max_chunks_override", Integer, nullable=True, default=None
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -235,6 +249,9 @@ async def _state_payload(request: Request, principal: Principal) -> dict:
                     "usedUsd": _money_wire(remote.get("usedUsd", 0)),
                 },
                 "source": "stripe",
+                # M22-M2: tier facts ride along in BOTH sources so the UI can
+                # always render what the plan buys (and a cap-hit CTA later).
+                **_tier_wire(remote.get("plan")),
             }
         except Exception:  # noqa: BLE001 — adapter failure degrades to local
             pass
@@ -248,7 +265,47 @@ async def _state_payload(request: Request, principal: Principal) -> dict:
         "plan": plan_row.plan if plan_row is not None else "free",
         "quota": quota,
         "source": "local",
+        **_tier_wire(
+            plan_row.plan if plan_row is not None else "free",
+            overrides=(
+                (
+                    plan_row.runs_per_day_override,
+                    plan_row.context_index_max_chunks_override,
+                )
+                if plan_row is not None
+                else (None, None)
+            ),
+        ),
     }
+
+
+def _tier_wire(plan: str | None, overrides=None) -> dict:
+    """The M22-M2 ``tierCaps`` block for GET /billing/state responses.
+
+    Resolves the effective caps through harness_contracts.tier_caps; per-team
+    0031 override columns win when non-NULL. Never raises: an unreadable
+    store degrades to pure tier-defaults — display availability over
+    strictness (same posture as _quota_payload).
+    """
+
+    def _ov(index: int) -> int | None:
+        try:
+            value = overrides[index] if overrides is not None else None
+        except Exception:  # noqa: BLE001 — malformed override shape ⇒ default
+            return None
+        return int(value) if value is not None else None
+
+    runs = _ov(0)
+    chunks = _ov(1)
+    try:
+        resolved = tier_caps(
+            plan,
+            runs_per_day_override=runs,
+            context_index_max_chunks_override=chunks,
+        )
+    except Exception:  # noqa: BLE001 — display must never crash the state read
+        resolved = tier_caps("free")
+    return {"tierCaps": resolved.to_wire()}
 
 
 @router.get("/billing/state")

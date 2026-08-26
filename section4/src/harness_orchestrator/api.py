@@ -415,6 +415,24 @@ class BudgetDegradedOut(BaseModel):
     degraded: bool = False
 
 
+class UpgradeCtaOut(BaseModel):
+    """M22-M2 — structured upgrade call-to-action on a tier cap hit.
+
+    Emitted when a TIER cap (e.g. free runs/day) refused this run: ``tier``
+    names the plan that capped it, ``cap``/``used`` quantify the hit,
+    ``capField`` says which limit (wire spelling), and ``upgradeTo``/``cta``
+    are what the UI renders as the upgrade action. ``upgradeTo`` is null at
+    the top tier (nothing to sell; CTA degrades to contact-the-operator).
+    """
+
+    tier: str
+    cap: int
+    capField: str
+    used: int
+    upgradeTo: str | None = None
+    cta: dict = Field(default_factory=dict)
+
+
 class RunAggregateResponse(BaseModel):
     """M14-W4 F3a — the FROZEN pair-contract W4-C2 aggregate shape.
 
@@ -436,6 +454,8 @@ class RunAggregateResponse(BaseModel):
     executing: bool = False
     engineMode: str | None = None
     budget: BudgetDegradedOut = Field(default_factory=BudgetDegradedOut)
+    # M22-M2 (additive): structured upgrade CTA; explicit null = no cap hit.
+    upgrade: UpgradeCtaOut | None = None
 
 
 class ErrorDetail(BaseModel):

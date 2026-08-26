@@ -114,6 +114,10 @@ DELETION_MAP: dict[tuple[str, str], tuple[str, str]] = {
     # enumeration is deterministic regardless of test collection order.
     ("billing_plans", "team_id"): ("teams.id", "CASCADE"),
     ("notification_outbox", "team_id"): ("teams.id", "SET NULL"),
+    # M22-M3's Stripe webhook idempotency ledger dies with its team (0032;
+    # model lives in stripe_adapter.py): recorded provider events are owned
+    # children of the team their customer was bound to.
+    ("stripe_webhook_events", "team_id"): ("teams.id", "CASCADE"),
     # M18-C3's rollup sidecar dies with its team (0027, models.CostLedgerDaily):
     # derived data — deleting the team deletes the rollup rows with it.
     ("cost_ledger_daily", "team_id"): ("teams.id", "CASCADE"),
@@ -208,9 +212,9 @@ def test_integrity_tables_never_cascade_or_null():
 
 
 def test_fk_inventory_size_is_pinned():
-    """35 ORM FKs (+1 SQL-side: agent_runs.pr_id) today; any schema-surface
-    change must touch this suite. (34 -> 35: M18-C3's cost_ledger_daily.)"""
-    assert len(_metadata_fks()) == 35
+    """36 ORM FKs (+1 SQL-side: agent_runs.pr_id) today; any schema-surface
+    change must touch this suite. (35 -> 36: M22-M3's stripe_webhook_events.)"""
+    assert len(_metadata_fks()) == 36
 
 
 # --------------------------------------------------------------------------

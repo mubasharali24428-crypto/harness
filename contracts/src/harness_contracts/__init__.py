@@ -33,7 +33,25 @@ from .roles import Principal, Role, can
 from .security import KeyVault
 from .timeutil import as_utc, db_now, now_utc, utcnow_iso
 
-__version__ = "0.4.1"
+# M22-M2: behavior-bearing plan tiers (caps + upgrade-CTA wire). Additive.
+from .tiers import (
+    DEFAULT_AUDIT_RETENTION_DAYS,
+    DEFAULT_CONTEXT_INDEX_MAX_CHUNKS,
+    DEFAULT_RUNS_PER_DAY,
+    DEFAULT_SEAT_LIMITS,
+    ENV_TIER_CONTEXT_CHUNKS,
+    ENV_TIER_RUNS_PER_DAY,
+    PLAN_TIERS,
+    TIER_CAP_FIELDS,
+    TIER_INFO_FIELDS,
+    UPGRADE_WIRE,
+    TierCaps,
+    cap_hit_wire,
+    parse_tier,
+    tier_caps,
+)
+
+__version__ = "0.4.2"
 
 __all__ = [
     "Principal",
@@ -71,4 +89,19 @@ __all__ = [
     "env_budget_default",
     "parse_env_budget_usd",
     "resolve_cap",
+    # M22-M2: behavior-bearing plan tiers + upgrade-CTA wire (additive):
+    "DEFAULT_AUDIT_RETENTION_DAYS",
+    "DEFAULT_CONTEXT_INDEX_MAX_CHUNKS",
+    "DEFAULT_RUNS_PER_DAY",
+    "DEFAULT_SEAT_LIMITS",
+    "ENV_TIER_CONTEXT_CHUNKS",
+    "ENV_TIER_RUNS_PER_DAY",
+    "PLAN_TIERS",
+    "TIER_CAP_FIELDS",
+    "TIER_INFO_FIELDS",
+    "UPGRADE_WIRE",
+    "TierCaps",
+    "cap_hit_wire",
+    "parse_tier",
+    "tier_caps",
 ]

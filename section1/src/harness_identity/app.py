@@ -192,8 +192,18 @@ def make_app(session_factory, settings: Settings):
 
     # Mission10-B1 merge wiring: billing state/plan behind HARNESS_BILLING.
     from .billing import router as billing_router
+    from .stripe_adapter import make_client_from_env
+    from .stripe_adapter import router as stripe_adapter
 
     app.include_router(billing_router)
+
+    # Mission22-M3 merge wiring: LIVE Stripe adapter + checkout/webhook routes
+    # behind the SAME flag. With HARNESS_BILLING unset this injects nothing —
+    # the routes 503 honestly and the M10 behavior is bit-for-bit unchanged.
+    stripe_client = make_client_from_env()
+    if stripe_client is not None:
+        app.state.stripe_client = stripe_client
+        app.include_router(stripe_adapter)
 
     # Mission12-E3a merge wiring: roster removal/role-change (W2-C1 server).
     from .teams_api import router as teams_api_router

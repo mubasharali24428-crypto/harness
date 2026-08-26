@@ -20,6 +20,9 @@ from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
+import harness_contracts
+from harness_contracts import tier_caps
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from .chunking import Chunk, chunk_file, iter_repo_files
@@ -75,6 +78,24 @@ class RepoIndexError(ValueError):
     """Caller-input problem (bad repo_path etc.) -> HTTP 4xx, not 500."""
 
 
+class TierCapError(Exception):
+    """M22-M2: the team's plan cap refused this index operation.
+
+    Carries the structured upgrade payload from
+    harness_contracts.cap_hit_wire ({error, upgrade}) so the API layer can
+    answer 402 with a renderable CTA — never a bare dead-end denial.
+    """
+
+    def __init__(self, wire: dict) -> None:
+        super().__init__(wire["error"]["message"])
+        self.wire = wire
+
+
+def _chunk_count(rows) -> int:
+    """Stored-chunk count from load_hashes' (path -> {bounds: hash}) map."""
+    return sum(len(bounds) for bounds in rows.values())
+
+
 class ContextService:
     """Owns the index lifecycle. One service per app; jobs tracked in-memory."""
 
@@ -102,7 +123,11 @@ class ContextService:
         return job.to_status() if job else None
 
     async def start_index(self, repo_path: str, project_id: str) -> IndexStatus:
-        """Create the job row (in-memory) and schedule the run; returns 'pending' view."""
+        """Create the job row (in-memory) and schedule the run; returns 'pending' view.
+
+        M22-M2: raises TierCapError when the owning team's plan caps the
+        context index size — BEFORE any embedding work is scheduled.
+        """
         import pathlib
 
         root = pathlib.Path(repo_path)
@@ -111,11 +136,78 @@ class ContextService:
         if project_id in self._project_locks and self._project_locks[project_id].locked():
             raise RepoIndexError(f"an index job is already running for project {project_id}")
 
+        await self._enforce_context_cap(project_id)
+
         lock = self._project_locks.setdefault(project_id, asyncio.Lock())
         job = IndexJob(id=str(uuid.uuid4()), project_id=project_id, repo_path=str(root))
         self.jobs[job.id] = job
         asyncio.get_running_loop().create_task(self._run_index(job, root, lock))
         return job.to_status()
+
+    async def _enforce_context_cap(self, project_id: str) -> None:
+        """M22-M2: refuse indexing when the team's tier caps the index size.
+
+        Resolves the cap through harness_contracts.tier_caps (tier default,
+        env override, per-team billing_plans 0031 override columns). A
+        missing/unreadable plan row means the FREE-tier default applies
+        (enforcement never depends on PUT /billing/plan having happened).
+        """
+        async with self.session_factory() as session:
+            existing = await self.store.load_hashes(session, project_id)
+            try:
+                row = (
+                    await session.execute(
+                        text(
+                            "SELECT plan, runs_per_day_override,"
+                            " context_index_max_chunks_override"
+                            " FROM billing_plans WHERE team_id = ("
+                            "SELECT p.team_id FROM projects p WHERE p.id = :pid)"
+                        ),
+                        {"pid": project_id},
+                    )
+                ).first()
+            except Exception:  # noqa: BLE001 — absent table ⇒ free defaults
+                row = None
+                if session.in_transaction():
+                    await session.rollback()
+        used = _chunk_count(existing)
+        overrides = (
+            (
+                int(row.runs_per_day_override)
+                if row.runs_per_day_override is not None
+                else None,
+                int(row.context_index_max_chunks_override)
+                if row.context_index_max_chunks_override is not None
+                else None,
+            )
+            if row is not None
+            else (None, None)
+        )
+        caps = tier_caps(
+            row.plan if row is not None else "free",
+            runs_per_day_override=overrides[0],
+            context_index_max_chunks_override=overrides[1],
+        )
+        limit = caps.context_index_max_chunks
+        if limit is not None and used >= limit:
+            raise TierCapError(
+                harness_contracts.cap_hit_wire(
+                    tier=caps.tier,
+                    cap=limit,
+                    cap_field="contextIndexMaxChunks",
+                    used=used,
+                    message=(
+                        f"{caps.tier.capitalize()} plan index limit reached:"
+                        f" {used} of {limit} stored chunks for this project."
+                        + (
+                            f" Upgrade to {caps.upgrade_to.capitalize()} for an"
+                            " unlimited index."
+                            if caps.upgrade_to
+                            else ""
+                        )
+                    ),
+                )
+            )
 
     async def _run_index(self, job: IndexJob, root, lock: asyncio.Lock) -> None:
         async with lock:

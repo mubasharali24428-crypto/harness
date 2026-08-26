@@ -49,8 +49,10 @@ from harness_contracts import (
     ENV_TEAM_BUDGET_USD,
     MONTH_WINDOW_SQL,
     ResolvedCap,
+    cap_hit_wire,
     env_budget_default,
     resolve_cap,
+    tier_caps,
     to_cap_decimal,
 )
 
@@ -67,7 +69,10 @@ __all__ = [
     "ENV_TEAM_BUDGET_USD",
     "MONTH_WINDOW_SQL",
     "ResolvedCap",
+    # M22-M2 (additive): tier gate — runs/day volume cap ahead of budget.
+    "TierGateStatus",
     "check_budget",
+    "check_tier",
     "env_budget_default",
     "estimate_next_call_cost_usd",
     "resolve_cap",
@@ -96,7 +101,173 @@ _PLAN_BUDGET_SQL = """
 SELECT monthly_budget_usd FROM billing_plans WHERE team_id = :team_id
 """
 
+# M22-M2: the team's TIER (billing_plans.plan, migration 0010) plus its
+# optional per-team cap overrides (migration 0031). Read alongside the budget
+# row so the tier gate costs no extra round-trip.
+_TIER_CAPS_SQL = """
+SELECT plan, runs_per_day_override, context_index_max_chunks_override
+FROM billing_plans WHERE team_id = :team_id
+"""
+
 DEFAULT_ESTIMATED_CALL_COST_USD = 0.05
+
+# M22-M2: the tier gate answers BEFORE the budget gate in the run-start
+# chain (service._budget_gate). A tier denial is a VOLUME cap (upgrade
+# sells relief); a budget denial is SPEND (M18-C2). Both block; only the
+# tier one carries the structured upgrade CTA.
+
+
+@dataclass(frozen=True)
+class TierGateStatus:
+    """Wire fields camelCase per api-conventions.md (mirrors BudgetStatus).
+
+    ``allowed=False`` means a TIER cap refused the run. ``capHit`` then
+    carries the exact structured CTA payload from
+    harness_contracts.cap_hit_wire ({tier, cap, capField, used, upgradeTo,
+    cta}) — never None: a bare tier denial without upgrade info is the dead
+    end this gate exists to prevent. ``degraded=True`` keeps ONE failure
+    posture with the budget gate (fail-closed on an unreadable store).
+    """
+
+    allowed: bool
+    tier: str = "free"
+    reason: str = ""
+    degraded: bool = False
+    capHit: dict | None = None
+
+
+async def _runs_today(db, team_id: str) -> int:
+    """Count THIS TEAM's runs created today by DB clock.
+
+    The day window is ``r.created_at >= date_trunc('day', now())`` — same
+    DB-clock discipline as MONTH_WINDOW_SQL (never an app-computed boundary).
+    agent_runs has no team column; ownership rides the frozen join chain
+    projects -> teams exactly like the spend SUM above.
+
+    Scratch mirrors predating the created_at column (0006-era fixtures)
+    return 0 — an ABSENT schema is not an outage and must not fail the gate
+    closed for every legacy fixture.
+    """
+    from sqlalchemy import text
+
+    try:
+        row = (
+            await db.execute(
+                text(
+                    "SELECT COUNT(*) AS n FROM agent_runs r "
+                    "JOIN projects p ON r.project_id = p.id "
+                    "JOIN teams t ON p.team_id = t.id "
+                    "WHERE t.id = :team_id "
+                    "AND r.created_at >= date_trunc('day', now())"
+                ),
+                {"team_id": team_id},
+            )
+        ).first()
+    except Exception:  # noqa: BLE001 — absent mirror column ⇒ honest zero
+        logger.debug("runs/day count unavailable for %s; treating as 0", team_id)
+        if db.in_transaction():
+            await db.rollback()
+        return 0
+    return int(row.n or 0)
+
+
+def _decide_tier(caps, used_today: int):
+    """Compare today's usage against the resolved tier caps.
+
+    Returns None when allowed; otherwise the (cap_field, cap, used) triple of
+    the FIRST cap hit — runs/day is evaluated before index size because it is
+    the run-START concern (the index cap is enforced at the S11 API).
+    """
+    if caps.runs_per_day is not None and used_today >= caps.runs_per_day:
+        return ("runsPerDay", caps.runs_per_day, used_today)
+    return None
+
+
+async def check_tier(
+    factory,
+    team_id: str,
+    *,
+    env: dict[str, str] | None = None,
+) -> TierGateStatus:
+    """Tier gate: does this team's PLAN still allow another run TODAY?
+
+    Reads billing_plans.plan (+ 0031 override columns) and counts today's
+    runs. Absent/unreadable plan rows mean the free-tier DEFAULTS apply —
+    enforcement must not depend on a PUT /billing/plan having happened.
+    Failure posture is the platform's ONE posture: FAIL-CLOSED with an
+    explicit ``degraded=True`` flag (an outage must never open the gate).
+    """
+    from sqlalchemy import text
+
+    try:
+        async with factory() as db:
+            # Absent-tier semantics mirror check_budget's billing_plans read:
+            # a missing table (pre-0010 / scratch mirrors) is NOT an outage —
+            # the default tier applies.
+            try:
+                row = (
+                    await db.execute(text(_TIER_CAPS_SQL), {"team_id": team_id})
+                ).first()
+            except Exception:  # noqa: BLE001 — absent tier, not an outage
+                logger.debug("billing_plans unreadable for %s; tier defaults", team_id)
+                row = None
+                if db.in_transaction():
+                    await db.rollback()
+
+            overrides = (
+                (
+                    int(row.runs_per_day_override)
+                    if row.runs_per_day_override is not None
+                    else None,
+                    (
+                        int(row.context_index_max_chunks_override)
+                        if row.context_index_max_chunks_override is not None
+                        else None
+                    ),
+                )
+                if row is not None
+                else (None, None)
+            )
+            caps = tier_caps(
+                row.plan if row is not None else "free",
+                env=env,
+                runs_per_day_override=overrides[0],
+                context_index_max_chunks_override=overrides[1],
+            )
+
+            used_today = await _runs_today(db, team_id)
+    except Exception:  # noqa: BLE001 — M18-C2 posture: DB error ⇒ fail-closed
+        logger.exception("tier check could not read plan/runs for team %s", team_id)
+        return TierGateStatus(
+            allowed=False,
+            degraded=True,
+            reason=f"{DEGRADED_REASON} (team '{team_id}')",
+        )
+
+    hit = _decide_tier(caps, used_today)
+    if hit is None:
+        return TierGateStatus(allowed=True, tier=caps.tier)
+    cap_field, cap, used = hit
+    message = (
+        (
+            f"Free plan limit reached: {used} of {cap} daily runs used."
+            " Upgrade to Pro for unlimited runs."
+        )
+        if caps.upgrade_to
+        else f"Daily run limit reached: {used} of {cap} runs used."
+    )
+    return TierGateStatus(
+        allowed=False,
+        tier=caps.tier,
+        reason=f"tier cap reached: {cap_field} {used}/{cap} on plan '{caps.tier}'",
+        capHit=cap_hit_wire(
+            tier=caps.tier,
+            cap=cap,
+            cap_field=cap_field,
+            used=used,
+            message=message,
+        ),
+    )
 
 
 @dataclass(frozen=True)

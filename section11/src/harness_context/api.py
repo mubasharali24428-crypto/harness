@@ -8,6 +8,11 @@ Endpoints (all under contracts.API_PREFIX = /api/v1, per api-conventions.md):
   POST /context/search            — W21-C1 frozen query API
                                     {query, projectId, topK} -> scored chunks
 
+M22-M2: a plan-tier cap hit on the index answers HTTP 402 whose body carries
+the frozen error envelope PLUS the structured ``upgrade`` CTA block
+({tier, cap, capField, used, upgradeTo, cta}) — an upgrade action, never a
+bare dead-end denial.
+
 Auth: every route requires a resolved Principal via app.state.get_principal
 (bearer dep over Section 1's frozen schema), mirroring harness_review's
 fail-closed pattern. Gated access is proven in tests.
@@ -20,12 +25,13 @@ from typing import TYPE_CHECKING
 import harness_contracts as contracts
 from fastapi import APIRouter, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from harness_contracts import make_bearer_dep
 
 from .config import Settings
 from .embeddings import EmbeddingBackend, make_backend
 from .models import IndexRequest, IndexStatus, SearchRequest, SearchResponse
-from .service import ContextService, RepoIndexError
+from .service import ContextService, RepoIndexError, TierCapError
 
 if TYPE_CHECKING:
     from harness_contracts.roles import Principal
@@ -61,13 +67,21 @@ async def healthz(request: Request) -> dict:
     return {"ok": True}
 
 
-@router.post("/context/index", response_model=IndexStatus)
-async def start_index(body: IndexRequest, request: Request) -> IndexStatus:
+@router.post("/context/index", response_model=None)
+async def start_index(body: IndexRequest, request: Request):
     await _require_auth(request)
     try:
         return await _svc(request).start_index(body.repo_path, body.project_id)
     except RepoIndexError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except TierCapError as exc:
+        # M22-M2: a tier cap hit is NOT a dead end. Answer 402 with the
+        # frozen error envelope PLUS the structured upgrade block
+        # {tier, cap, capField, used, upgradeTo, cta} at the TOP level of
+        # the body (JSONResponse keeps FastAPI from nesting it under
+        # ``detail``) so the UI renders an upgrade action from the contract
+        # shape alone.
+        return JSONResponse(status_code=402, content=exc.wire)
 
 
 @router.get("/context/index/{job_id}", response_model=IndexStatus)

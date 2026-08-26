@@ -14,7 +14,7 @@ from harness_contracts.signatures import Orchestrator
 from harness_contracts.timeutil import db_now
 from sqlalchemy import text
 
-from harness_orchestrator.budget import BudgetStatus, check_budget
+from harness_orchestrator.budget import BudgetStatus, TierGateStatus, check_budget, check_tier
 from harness_orchestrator.context_resolver import (
     DEFAULT_MIN_SCORE,
     context_settings_from_env,
@@ -268,15 +268,20 @@ class OrchestratorService(Orchestrator):
     # ------------------------------------------------------------- budget
 
     async def _budget_gate(self, run_data: dict[str, Any], plan: AgentPlan | None) -> bool:
-        """Wave 9 node B / M18-C2: refuse to spend before a model call happens.
+        """Wave 9 node B / M18-C2 / M22-M2: refuse to spend before a model call.
 
-        Returns True when the team is over budget OR the budget store is
-        unreachable — both block the run honestly via ENGINE_FAILED (a frozen
-        contract event). M18-C2 failure posture is ONE, FAIL-CLOSED: a DB
-        error can no longer degrade to "allowed"; the denial carries
-        ``status.degraded=True`` and this gate (1) labels the reason so
-        operators see an outage-shaped denial, and (2) records the flag on
-        run_data for the run-aggregate API response.
+        Gate order is TIER first, BUDGET second (M22-M2): a tier denial is a
+        VOLUME cap — the structured ``upgrade`` CTA rides the ENGINE_FAILED
+        payload so clients render an upgrade action, not a dead end. A budget
+        denial is SPEND and keeps the M18-C2 semantics below.
+
+        Returns True when a gate blocks the run OR the money store is
+        unreachable — both block honestly via ENGINE_FAILED. The M18-C2
+        failure posture stays ONE and FAIL-CLOSED: a DB error can no longer
+        degrade to "allowed"; the denial carries ``status.degraded=True`` and
+        this gate (1) labels the reason so operators see an outage-shaped
+        denial, and (2) records the flag on run_data for the run-aggregate
+        API response.
         """
         factory = self.run_queue_factory or self.session_factory
         if factory is None:
@@ -284,6 +289,28 @@ class OrchestratorService(Orchestrator):
         team_id = await self._team_for_run(run_data)
         if not team_id:
             return False  # unbindable run: no cap applies
+
+        # ---- M22-M2: tier volume cap BEFORE any budget reservation --------
+        tier_status: TierGateStatus = await check_tier(factory, team_id)
+        if not tier_status.allowed:
+            if tier_status.degraded:
+                run_data["budget_degraded"] = True
+                reason = f"Tier gate degraded (fail-closed): {tier_status.reason}"
+            else:
+                run_data.pop("budget_degraded", None)
+                reason = f"Plan limit reached: {tier_status.reason}"
+            logger.warning(
+                "blocking run %s pre-call: %s", run_data.get("runId"), reason
+            )
+            sm: AgentStateMachine = run_data["state_machine"]
+            sm.execution_failed(reason)
+            # Structured upgrade CTA (M22-M2): {tier, cap, capField, used,
+            # upgradeTo, cta} on the wire event — never a bare dead end.
+            run_data["upgrade"] = (
+                dict(tier_status.capHit["upgrade"]) if tier_status.capHit else None
+            )
+            return True
+
         status: BudgetStatus = await check_budget(
             factory,
             team_id,
@@ -357,6 +384,9 @@ class OrchestratorService(Orchestrator):
         run_data: dict[str, Any] = {
             "runId": run_id,
             "state_machine": sm,
+            # M22-M2: structured upgrade CTA when a tier cap blocked this run
+            # (set by _budget_gate; None until a cap actually bites).
+            "upgrade": None,
             "plan_id": None,
             "goal": "Build feature from brief",
             "human_edits": [],
@@ -1738,6 +1768,11 @@ class OrchestratorService(Orchestrator):
             # against a healthy money store (flips true when a gate ran
             # fail-closed on a DB error).
             "budget": {"degraded": bool(run_data.get("budget_degraded"))},
+            # M22-M2: structured upgrade CTA ({tier, cap, capField, used,
+            # upgradeTo, cta}) when a TIER cap blocked this run; None = no
+            # cap hit. The UI renders an upgrade action from it — never a
+            # bare dead-end denial.
+            "upgrade": run_data.get("upgrade"),
         }
         factory = self.session_factory
         if factory is None:
