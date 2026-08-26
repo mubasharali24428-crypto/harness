@@ -593,3 +593,17 @@ B1 BASELINE published — ceiling ~1.9 journeys/s, wall = worker single-claim
 poll cycle (worker.py), $0.000051/run metered. Suites: S1 526 · S4 399 ·
 S7 vitest 460. Next: claim batching (first 10x lever) + Horizon NEXT part 2
 (C12 observability, C13 docs truth) per mission17-10x-plan.md.
+
+
+## Mission 20 — Horizon NEXT part 2 + FIRST 10X LEVER CLOSED (2026-08-26)
+
+CI 32922623925 SUCCESS. T1 claim batching: 1.69 -> 37.58 journeys/s at 32 VU
+(~22x), zero failures / 4521 journeys — BASELINE wall torn down; throughput
+ceiling now ~3.2M runs/day theoretical (executor + provider latency become
+the real limits). T2 observability minimum: request-id middleware on all 9
+services, anonymized user hashing, Prometheus scrape + 5 promtool-validated
+alerts. T3 resource limits 22/22 services, log rotation, /ready != /health.
+T4 extensions.md (3 real seams) + glossary completion. T5 TS SDK v0 — both
+SDKs from one generator pipeline. Suites: S1 574 · S4 414 · S7 vitest 460.
+Remaining per 10x plan: LATER horizon (context pillar/codebase indexing,
+commercial skeleton) + M23 bets.
