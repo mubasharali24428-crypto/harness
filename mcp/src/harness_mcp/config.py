@@ -30,4 +30,4 @@ class Settings(BaseSettings):
     server_name: str = "harness"
 
     #: Server version reported in the MCP initialize handshake.
-    server_version: str = "0.1.0"
+    server_version: str = "1.0.0rc1"

@@ -164,16 +164,6 @@ class ReserveResult:
     entry_id: int | None = None
 
 
-def _num(value):
-    """Best-effort float coercion for NUMERIC results (Decimal/int/str/None)."""
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
 def to_positional_params(sql: str, params: Mapping[str, Any]) -> tuple[str, list[Any]]:
     """Translate named ``:bind`` SQL + params to asyncpg ``$n`` positional form.
 

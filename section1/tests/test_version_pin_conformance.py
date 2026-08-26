@@ -12,6 +12,8 @@ all four places a contracts version lives must tell the same story.
     2. contracts/pyproject.toml          [project] version
     3. contracts/src/harness_contracts/__init__.py   __version__
     4. contracts/ts/types.d.ts           header "// TS mirror of harness_contracts vX.Y.Z"
+                                         (X.Y.Z may carry a PEP 440 pre-release
+                                         suffix, e.g. 1.0.0rc1)
 
 Failure policy (deliberate asymmetry):
 
@@ -53,15 +55,28 @@ TS_MIRROR = CONTRACTS_DIR / "ts" / "types.d.ts"
 
 _DIST_NAME = "harness-contracts"
 _TS_HEADER_RE = re.compile(
-    r"^//\s*TS mirror of harness_contracts\s+v(\d+\.\d+\.\d+)", re.M
+    r"^//\s*TS mirror of harness_contracts\s+v(\d+\.\d+\.\d+(?:(?:a|b|rc)\d+)?)", re.M
 )
-_INIT_VER_RE = re.compile(r'^__version__\s*=\s*"(\d+\.\d+\.\d+)"', re.M)
-_PYPROJECT_VER_RE = re.compile(r'^version\s*=\s*"(\d+\.\d+\.\d+)"', re.M)
-_FLOOR_PIN_RE = re.compile(r'[\'"]harness-contracts>=((?:\d+\.){1,2}\d+)[\'"]')
+_INIT_VER_RE = re.compile(r'^__version__\s*=\s*"(\d+\.\d+\.\d+(?:(?:a|b|rc)\d+)?)"', re.M)
+_PYPROJECT_VER_RE = re.compile(r'^version\s*=\s*"(\d+\.\d+\.\d+(?:(?:a|b|rc)\d+)?)"', re.M)
+_FLOOR_PIN_RE = re.compile(r'[\'"]harness-contracts>=((?:\d+\.){1,2}\d+(?:(?:a|b|rc)\d+)?)[\'"]')
 
 
-def _as_tuple(version: str) -> tuple[int, ...]:
-    return tuple(int(p) for p in version.split("."))
+def _as_tuple(version: str) -> tuple[int | str, ...]:
+    """Sort key over release segment plus optional pre-release phase.
+
+    Release-only versions sort AFTER their own pre-releases (1.0.0 > 1.0.0rcN)
+    by appending a sentinel; pre-release phases order a < b < rc per PEP 440.
+    """
+    match = re.fullmatch(
+        r"(\d+\.\d+\.\d+)(?:(a|b|rc)(\d+))?", version
+    )
+    if match is None:
+        return (0,)
+    release = tuple(int(p) for p in match.group(1).split("."))
+    if match.group(2) is None:
+        return (*release, "z")
+    return (*release, match.group(2), int(match.group(3)))
 
 
 def _read_installed_version() -> str | None:

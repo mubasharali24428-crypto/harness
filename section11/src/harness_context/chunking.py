@@ -1,7 +1,13 @@
 """Language-aware chunking for codebase ingestion.
 
 Start scope (M21-X1): deterministic line-window chunks per file for
-.py/.ts/.tsx/.js/.jsx/.md/.sql/.json — AST-aware splitting is explicitly Later.
+.ts/.tsx/.js/.jsx/.md/.sql/.json. M23-Z2 bet A upgraded ``.py`` to AST-aware
+chunking: top-level statement spans from the ``ast`` module (functions/classes/
+assignments stay intact with their decorators and docstrings) replace blind
+line windows. A .py file that fails to parse (or any non-.py language) still
+goes through the original overlapping line windows, so ingestion can never
+regress on odd bytes.
+
 A chunker must be pure and deterministic: the SAME bytes always yield the SAME
 chunks, because incremental re-index keys off chunk_hash equality (service.py).
 
@@ -52,6 +58,117 @@ SKIP_FILES = frozenset({"package-lock.json", "yarn.lock", "poetry.lock", "uv.loc
 
 DEFAULT_WINDOW = 120  # lines per chunk
 DEFAULT_OVERLAP = 20  # lines of overlap between consecutive windows
+
+# AST chunking (M23-Z2 bet A): a .py top-level statement larger than this many
+# lines is split back into overlapping windows so no single monster function
+# can balloon one embedding's text.
+MAX_AST_CHUNK_LINES = 400
+
+
+def _make_chunk(rel_path: str, lang: str, start0: int, end0: int, lines) -> Chunk:
+    """Chunk from 0-indexed inclusive [start0, end0] line bounds."""
+    return Chunk(
+        path=rel_path,
+        lang=lang,
+        start_line=start0 + 1,
+        end_line=end0 + 1,
+        content="\n".join(lines[start0 : end0 + 1]),
+    )
+
+
+def _ast_chunk_or_none(rel_path: str, lang: str, start0: int, end0: int, lines):
+    """AST-path chunk factory; whitespace-only spans (blank separators between
+    top-level statements) are skipped — they tokenize to nothing."""
+    if end0 < start0:
+        return None
+    content = "\n".join(lines[start0 : end0 + 1])
+    if not content.strip():
+        return None
+    return Chunk(
+        path=rel_path,
+        lang=lang,
+        start_line=start0 + 1,
+        end_line=end0 + 1,
+        content=content,
+    )
+
+
+def _window_chunks(rel_path, lang, lines, *, window: int, overlap: int) -> list[Chunk]:
+    """Overlapping line windows over in-memory lines (the original splitter)."""
+    step = window - overlap
+    chunks: list[Chunk] = []
+    start = 0  # 0-indexed; emitted as start+1
+    n = len(lines)
+    while True:
+        end = min(start + window, n)
+        chunks.append(_make_chunk(rel_path, lang, start, end - 1, lines))
+        if end >= n:
+            return chunks
+        start += step
+
+
+def _py_statement_spans(lines) -> list[tuple[int, int]]:
+    """Top-level statement spans of a parsed .py file, 0-indexed INCLUSIVE.
+
+    Uses each node's full span (decorated_def includes decorators; class
+    bodies include every method). Span ends are clamped into the file's real
+    line range because ``ast`` can report end_lineno one past a final line
+    that lacks its newline. Returns [] when the source does not parse.
+    """
+    import ast
+
+    try:
+        tree = ast.parse("\n".join(lines))
+    except SyntaxError:
+        return []
+    n = len(lines)
+    spans = [
+        (
+            max(0, getattr(node, "lineno", 1) - 1 - _leading_decorators(node)),
+            min(n - 1, node.end_lineno - 1),
+        )
+        for node in tree.body
+    ]
+    # Merge overlaps defensively (a multiline header can swallow the next
+    # statement's first line): earlier span wins, later span starts after it.
+    merged: list[tuple[int, int]] = []
+    for start, end in spans:
+        if merged and start <= merged[-1][1]:
+            continue
+        merged.append((start, end))
+    return merged
+
+
+def _leading_decorators(node) -> int:
+    """Decorator-line count for FunctionDef/AsyncFunctionDef/ClassDef nodes."""
+    return len(getattr(node, "decorator_list", ()) or ())
+
+
+def _py_ast_chunks(rel_path, lang, lines, *, window: int, overlap: int) -> list[Chunk]:
+    """AST-boundary .py chunks with window-split fallback inside one statement."""
+    chunks: list[Chunk] = []
+    prev_end = -1  # exclusive; orphan lines before/after statements ride along
+    for start, end in _py_statement_spans(lines):
+        if start > prev_end + 1:
+            gap = _ast_chunk_or_none(rel_path, lang, prev_end + 1, start - 1, lines)
+            if gap is not None:
+                chunks.append(gap)
+        if end - start + 1 > MAX_AST_CHUNK_LINES:
+            # Oversize statement: overlap-windows JUST these lines so no
+            # embedding balloons, then resume clean statement boundaries.
+            chunks.extend(
+                _window_chunks(
+                    rel_path, lang, lines[start : end + 1], window=window, overlap=overlap
+                )
+            )
+        else:
+            chunks.append(_make_chunk(rel_path, lang, start, end, lines))
+        prev_end = end
+    if prev_end < len(lines) - 1:
+        tail = _ast_chunk_or_none(rel_path, lang, prev_end + 1, len(lines) - 1, lines)
+        if tail is not None:
+            chunks.append(tail)
+    return chunks
 
 
 @dataclass(frozen=True)
@@ -123,12 +240,12 @@ def chunk_file(
     window: int = DEFAULT_WINDOW,
     overlap: int = DEFAULT_OVERLAP,
 ) -> list[Chunk]:
-    """Split one file into overlapping line-window chunks.
+    """Split one file into chunks (AST statement boundaries for .py; else
+    overlapping line windows).
 
     - Empty files yield zero chunks (nothing to embed).
-    - A file smaller than `window` yields exactly one chunk covering all lines.
-    - Windows advance by (window - overlap); the final chunk always extends to
-      EOF so no trailing lines are ever dropped.
+    - Windows advance by (window - overlap); the final window always extends
+      to EOF so no trailing lines are ever dropped.
     """
     return chunk_text(
         rel_path,
@@ -145,7 +262,7 @@ def chunk_text(
     window: int = DEFAULT_WINDOW,
     overlap: int = DEFAULT_OVERLAP,
 ) -> list[Chunk]:
-    """Line-window chunking over in-memory text (chunk_file's core)."""
+    """Chunk in-memory text: AST boundaries for .py, line windows otherwise."""
     lang = lang_for(rel_path)
     if lang is None:
         raise ValueError(f"unsupported extension: {rel_path}")
@@ -158,22 +275,60 @@ def chunk_text(
     if not lines:
         return []
 
-    step = window - overlap
-    chunks: list[Chunk] = []
-    start = 0  # 0-indexed; emitted as start+1
-    n = len(lines)
-    while True:
-        end = min(start + window, n)
-        content = "\n".join(lines[start:end])
-        chunks.append(
-            Chunk(
-                path=rel_path,
-                lang=lang,
-                start_line=start + 1,
-                end_line=end,
-                content=content,
+    if lang == "python":
+        return _py_ast_chunks(rel_path, lang, lines, window=window, overlap=overlap)
+    return _window_chunks(rel_path, lang, lines, window=window, overlap=overlap)
+
+
+def chunk_python_text(
+    rel_path: str,
+    text: str,
+) -> list[tuple[Chunk, str]]:
+    """AST-aware .py chunking with the line-window fallback made EXPLICIT.
+
+    Returns the chunks plus how they were produced so tests (and the M23-Z2
+    evidence probe) can pin the contract directly:
+    ``[(Chunk, 'ast' | 'window'), ...]``.
+    """
+    lang = lang_for(rel_path)
+    if lang != "python":
+        raise ValueError(f"not a python path: {rel_path}")
+
+    lines = text.splitlines()
+    if not lines or _py_statement_spans(lines) == []:
+        tagged = [
+            (c, "window")
+            for c in _window_chunks(
+                rel_path, "python", lines, window=DEFAULT_WINDOW, overlap=DEFAULT_OVERLAP
             )
-        )
-        if end >= n:
-            return chunks
-        start += step
+        ]
+        return tagged
+
+    spans = _py_statement_spans(lines)
+    out: list[tuple[Chunk, str]] = []
+    prev_end = -1
+    for start, end in spans:
+        if start > prev_end + 1:
+            gap = _ast_chunk_or_none(rel_path, lang, prev_end + 1, start - 1, lines)
+            if gap is not None:
+                out.append((gap, "ast"))
+        size = end - start + 1
+        if size > MAX_AST_CHUNK_LINES:
+            out.extend(
+                (c, "window")
+                for c in _window_chunks(
+                    rel_path,
+                    lang,
+                    lines[start : end + 1],
+                    window=DEFAULT_WINDOW,
+                    overlap=DEFAULT_OVERLAP,
+                )
+            )
+        else:
+            out.append((_make_chunk(rel_path, lang, start, end, lines), "ast"))
+        prev_end = end
+    if prev_end < len(lines) - 1:
+        tail = _ast_chunk_or_none(rel_path, lang, prev_end + 1, len(lines) - 1, lines)
+        if tail is not None:
+            out.append((tail, "ast"))
+    return out

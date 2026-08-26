@@ -35,10 +35,6 @@ def _text_result(payload: dict[str, Any], *, is_error: bool = False) -> list[dic
     ]
 
 
-def _error_text(code: str, message: str) -> tuple[list[dict[str, Any]], bool]:
-    return _text_result({"error": {"code": code, "message": message}}), True
-
-
 async def _tool_start_run(api: HarnessApiClient, args: dict[str, Any]) -> list[dict[str, Any]]:
     """propose → approve → start, as the service principal.
 

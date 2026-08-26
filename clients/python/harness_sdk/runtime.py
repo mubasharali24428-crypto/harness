@@ -63,7 +63,7 @@ __all__ = [
 BACKOFF_BASE_S = 1.0   # BACKOFF_BASE_DELAY_MS  = 1000
 BACKOFF_CAP_S = 30.0   # BACKOFF_MAX_DELAY_MS  = 30_000
 
-SDK_USER_AGENT = "harness-sdk/0.1.0"
+SDK_USER_AGENT = "harness-sdk/1.0.0rc1"
 
 #: Section service name -> default local port (deploy/docker-compose.yml).
 SERVICE_PORTS: dict[str, int] = {

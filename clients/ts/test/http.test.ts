@@ -90,7 +90,7 @@ describe("HarnessHttp transport", () => {
     const out = await http.request<{ ok: boolean }>("http://x", "/api/v1/me", "GET");
     assert.deepEqual(out, { ok: true });
     assert.equal(calls[0].auth, "Bearer tok");
-    assert.equal(calls[0].ua, "harness-ts-sdk/0.1.0");
+    assert.equal(calls[0].ua, "harness-ts-sdk/1.0.0rc1");
   });
 
   it("omits the auth header when no token is set", async () => {

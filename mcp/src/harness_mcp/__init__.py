@@ -32,4 +32,4 @@ from .config import Settings
 from .server import build_server
 
 __all__ = ["Settings", "build_server"]
-__version__ = "0.1.0"
+__version__ = "1.0.0rc1"

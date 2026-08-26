@@ -130,7 +130,7 @@ def make_app(
     """
 
 
-    app = FastAPI(title="harness-context", version="0.1.0")
+    app = FastAPI(title="harness-context", version="1.0.0rc1")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

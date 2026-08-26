@@ -1,6 +1,6 @@
 [project]
 name = "harness-mcp"
-version = "0.1.0"
+version = "1.0.0rc1"
 description = "AI Engineering Harness as a Model Context Protocol (MCP) tool server: start_run / get_run_status / search_context / list_projects over stdio + streamable HTTP."
 requires-python = ">=3.11"
 dependencies = [

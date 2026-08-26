@@ -1,9 +1,64 @@
-# STATUS — where the project stands (updated 2026-08-23, Mission 11 wave 1)
+# STATUS — where the project stands (updated 2026-08-26, Mission 23 program close)
 
 > **Terminology (canonical — see also README.md):** "engine" = this platform's
 > Section 4 execution component; "DeepSeek Harness" (or "dsh", always referring
 > to that external product/SDK, never to our engine) = the upstream tool the
 > engine drives; "run" (not job/task); "team" (not org/workspace).
+
+## PROGRAM CLOSE — Mission 23 (2026-08-26)
+
+The 10x program (missions 11–23, per docs/briefs/mission17-10x-plan.md) is
+complete. After-action report with calibration notes:
+docs/briefs/m23-aar.md. Lane scoreboards for missions 18–23:
+evolution/ledgers/. Growth chart regenerated to final state (all missions
+closed): scripts/campaign_growth_chart.py →
+docs/briefs/mission19-growth-chart.png.
+
+Final suites re-run INDEPENDENTLY by the close-out lane at finale HEAD
+(numbers below are this session's own runs, not inherited claims):
+
+- **section1: 628 passed · 10 skipped** — first sweep showed ONE
+  load-dependent failure (`test_ws_replay_cap.py::
+  test_resume_never_resends_at_or_below_afterseq_during_concurrent_publish`)
+  under full-suite parallel load; it passed isolated ×6/×6 and the full
+  rerun was green. Recorded honestly rather than hidden (see risk #1).
+- **section3: 91 passed · section4: 465 passed · 5 skipped ·
+  section11: 50 passed · mcp: 17 passed** (throwaway venv; mcp/pyproject.toml
+  omits pydantic_settings from its deps — flagged for the polish lane).
+- S7 vitest/tsc not re-run by this lane; last verified green at the Mission 21
+  formal close (500 vitest + tsc clean, CI 32948436346 SUCCESS).
+- Campaign totals: **264 commits** repo-wide at close (**168** inside the
+  campaign window `d5d9619^..HEAD`), span 2026-08-22 → 2026-08-26.
+
+Residual risk — what a v1.0 buyer should know:
+
+1. **Replay-cap flake is suppressed, not proven extinct**: one load-dependent
+   recurrence observed post-b83dbfd (whose 30/30 census ran the suspect file
+   in isolation, a weaker condition than full-suite load). Frequency ~1 per
+   full-suite sweeps; needs a ≥25-run FULL-suite census before "eliminated"
+   is honest again.
+2. **pgvector-dependent features ship honestly-OFF** on the default compose
+   image (postgres:18-alpine has no pgvector); migration 0030 degrades
+   cleanly without it.
+3. **Stripe and OIDC SSO are code-complete but never drilled against live
+   providers** (CI exercises mocked Stripe only). TERMS/PRIVACY still carry
+   `[PLACEHOLDER: counsel review]`; the MIT decision-flag header stands.
+4. **Mission 22 never received an independent verifier pass** and had no
+   STATUS close entry until this one — its tier-cap/SSO/MCP completeness
+   rests on commit-message evidence (72cf901).
+5. **Unbuilt from the 10x plan**: editor surface (C16 hunk accept/reject +
+   snapshot checkpoints) and the MCP *client*/tool-registry direction (C17;
+   only the server half shipped in M22-M5).
+6. **Scale envelope is single-host and dry-engine-measured** (~37.6
+   journeys/s @ 32 VU post-T1); multi-replica production operation is
+   probed (N1 exactly-once) but not operated.
+7. **NUMERIC(12,6) money ceiling**: budgets cap at $999,999.999999/team
+   (operator note since M13).
+8. **PITR is proven on the local stack only**; a real object-store (S3)
+   WAL-G round-trip has never been exercised.
+
+Record holes closed by this entry: missions 17 and 22 previously had no
+STATUS close entries (completions attested by commits/side records only).
 
 ## Mission 11 / Wave 1 (2026-08-23) — CLIENTELA remediation: six CRITICALs + flow-blocking HIGHs
 

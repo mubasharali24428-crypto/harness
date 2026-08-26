@@ -3,6 +3,10 @@
 Renders docs/briefs/mission19-growth-chart.png — cumulative completion
 toward the Cursor-class commercial end state, with the remaining Horizon
 NEXT/LATER/Bet missions projected from the 10x plan's effort estimates.
+
+Regenerated at Mission 23 (program finale) close: the 10x program is
+complete at 100%; every mission M11-M23 is closed and verified per
+docs/briefs/m23-aar.md.
 """
 from __future__ import annotations
 
@@ -13,6 +17,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch
 
 # (label, completion % after mission, status)  — status: done|active|planned
+# Final state at Mission 23 close: program complete, all missions closed.
 MISSIONS: list[tuple[str, float, str]] = [
     ("M11\nW1 security", 38, "done"),
     ("M12\nW2 core UX", 48, "done"),
@@ -22,11 +27,11 @@ MISSIONS: list[tuple[str, float, str]] = [
     ("M16\nW6 perf/UI", 73, "done"),
     ("M17\nelite audit+fixes", 80, "done"),
     ("M18\nHorizon NOW", 85, "done"),
-    ("M19\nBASELINE+spine", 90, "active"),
-    ("M20\nNEXT part 2", 93, "planned"),
-    ("M21\ncontext pillar", 96, "planned"),
-    ("M22\ncommercial skel", 98, "planned"),
-    ("M23\nBets + polish", 100, "planned"),
+    ("M19\nBASELINE+spine", 90, "done"),
+    ("M20\nNEXT part 2", 93, "done"),
+    ("M21\ncontext pillar", 96, "done"),
+    ("M22\ncommercial skel", 98, "done"),
+    ("M23\nBets + polish", 100, "done"),
 ]
 
 DONE = "#7C5A9B"
@@ -64,22 +69,22 @@ for x, (label, pct, status) in zip(xs, MISSIONS):
         color="#4A5160",
     )
 
-# Current position marker
-ax.axvline(x=9, color=ACTIVE, linestyle=":", linewidth=1.2, alpha=0.55)
+# Program-complete marker
+ax.axvline(x=13, color=DONE, linestyle=":", linewidth=1.2, alpha=0.55)
 ax.annotate(
-    "YOU ARE HERE",
-    (9, 90),
+    "PROGRAM COMPLETE",
+    (13, 100),
     textcoords="offset points",
-    xytext=(0, 30),
-    ha="center",
+    xytext=(-6, 26),
+    ha="right",
     fontsize=8.5,
     fontweight="bold",
-    color=ACTIVE,
+    color=DONE,
 )
 
 # Phase bands
 ax.axhspan(85, 100, xmin=0.60, alpha=0.05, color=DONE)
-ax.text(11.6, 88.5, "remaining:\nNEXT part 2 · context pillar ·\ncommercial skeleton · bets",
+ax.text(11.6, 88.5, "Horizon NEXT/LATER/Bet delivered:\nNEXT part 2 · context pillar ·\ncommercial skeleton · bets+polish",
         fontsize=7.6, color="#4A5160", style="italic")
 
 ax.set_ylim(25, 108)

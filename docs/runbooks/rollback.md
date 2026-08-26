@@ -193,8 +193,12 @@ cd /path/to/harness/deploy
 # 1. Images: every app-tier container on the intended tag (not :latest):
 docker compose -f docker-compose.yml ps --format '{{.Name}} {{.Image}} {{.Status}}'
 
-# 2. Drift gate opinion — should be OK, not REFUSED:
-docker compose -f docker-compose.yml run --rm migrate 2>&1 | grep -E "drift gate|applied"
+# 2. Drift gate opinion — should be OK, not REFUSED. (--env-file is NOT
+#    optional here: without it the one-shot dies at the HARNESS_MASTER_KEY
+#    guard before the drift gate ever runs. Feed it the same key env the app
+#    tier booted with — HARNESS_MASTER_KEY, or HARNESS_ALLOW_DEV_MASTER_KEY=1
+#    locally; verified live 2026-08-26, M23-Z4 release-readiness.)
+docker compose -f docker-compose.yml --env-file .env run --rm migrate 2>&1 | grep -E "drift gate|applied"
 #    expect: "drift gate: OK ..." and NO newly applied files
 
 # 3. Ledger sanity: max(version) equals the PREVIOUS deploy's newest file:

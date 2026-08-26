@@ -71,11 +71,6 @@ def _http_plan_already_decided(detail_message: str) -> HTTPException:
     )
 
 
-def get_plan_gate_service() -> OrchestratorService:
-    """Same deploy-time wiring seam as api.py: swapped by configure_plan_gate()."""
-    return _require_service()
-
-
 _service: OrchestratorService | None = None
 
 

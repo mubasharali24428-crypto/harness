@@ -1,6 +1,6 @@
 {
   "name": "harness-ts-sdk",
-  "version": "0.1.0",
+  "version": "1.0.0rc1",
   "description": "TypeScript client SDK for the AI Engineering Harness platform API (generated section clients + ws event streaming runtime).",
   "license": "MIT",
   "type": "module",

@@ -1,6 +1,6 @@
 [project]
 name = "harness-context"
-version = "0.1.0"
+version = "1.0.0rc1"
 description = "Section 11: Context Pillar — codebase indexing core (ingestion → chunking → pluggable embeddings → pgvector)."
 requires-python = ">=3.11"
 dependencies = [

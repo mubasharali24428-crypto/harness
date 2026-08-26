@@ -4,10 +4,226 @@ All notable changes to the AI Engineering Harness are documented here.
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 entries below are backfilled from `STATUS.md` + git history (Mission 12 G4
-docs-truth lane, 2026-08-23). Migration numbers refer to files in
+docs-truth lane, 2026-08-23) and extended through Missions 15–23 by the
+Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 `section1/migrations/`.
 
 ## [Unreleased]
+
+### Mission 23 · Program finale — polish sweep (2026-08-26)
+
+Final mission of the 10x program (graph:
+`docs/briefs/mission23-finale-graph.md`): four lanes — program AAR +
+scoreboard (Z1), bet execution (Z2), repo-wide polish sweep (Z3), release
+readiness for the v1.0.0-candidate tag (Z4).
+
+#### Added
+
+- **Z3** — `docs/backlog.md`: consolidated future-work ledger (counsel-review
+  placeholders from the M22 legal skeletons, frontend API-client
+  consolidation) plus the kept-after-inspection inventory from the dead-code
+  scan, so nothing flagged was silently dropped.
+
+#### Removed
+
+- **Z3** — provably-dead symbols (zero references repo-wide, tests included):
+  `_error_text` (mcp tools), `_num` (S3 budget guard), `claim_owner` +
+  its probe SQL (S4 run queue — superseded by the durable spawner election),
+  `get_plan_gate_service` (S4), `get_sandbox_service` (S5), `focusRing`
+  (S7 tokens), and the orphaned module `section7/src/lib/onboarding.ts`
+  (superseded by `app/onboarding/onboardingApi.ts` since M10-B3).
+
+#### Fixed
+
+- **Z3** — broken internal links in `docs/runbooks/alerting.md`
+  (`queue-depth.md` → `docs/engine-concurrency.md`; `eventbus.md` →
+  `docs/runbooks/ops.md`). Link-checker now reports zero broken internal
+  links across all 95 root+docs markdown files.
+
+### Mission 22 · Commercial skeleton (2026-08-26)
+
+License, pricing tiers, billing, SSO, and an MCP server — the platform can be
+commercially operated without inventing product behavior (per-tier limits are
+enforced in code, not just advertised).
+
+#### Added
+
+- **M1** — Legal foundation: MIT `LICENSE` (decision flagged for counsel),
+  `TERMS.md`/`PRIVACY.md` skeletons with explicit `[PLACEHOLDER: counsel
+  review]` markers (tracked in `docs/backlog.md`), `PRICING.md` mapped to
+  real code caps.
+- **M2** — Tier enforcement: `PLAN_TIERS` became behavior-bearing — Free =
+  capped runs/day + index size, Pro = full, Team = extra seats + audit
+  retention; enforcement chains BEFORE the budget reserve at run-start and on
+  the context-index API; cap hits return `{tier, cap, upgradeTo}` for
+  upgrade CTAs.
+- **M3** — Stripe adapter behind `HARNESS_BILLING=stripe`: checkout session
+  creation, webhook route with HMAC-sha256 signature verification (>5min
+  timestamp drift rejected) and idempotency by event id, subscription status
+  → tier sync. Test-mode only in CI (mocked Stripe, no keys).
+- **M4** — OIDC SSO: discovery-based flow with PKCE and JWKS validation,
+  per-team IdP configuration, email-match provisioning on first login
+  (documented rule: no verified-email match ⇒ deny + audit), OTP fallback
+  when unconfigured. Raw OIDC over httpx — no vendor SDKs.
+- **M5** — MCP server (`mcp/`): stdio transport exposing `start_run`,
+  `get_run_status`, `search_context`, `list_projects` under a service-token
+  principal, with tool schemas written for LLM consumers.
+
+### Mission 21 · Context pillar (2026-08-26)
+
+The engine's plans can cite your actual codebase: index once, resolve @refs
+at plan time, generate steps with path:line citations backed by indexed
+chunks.
+
+#### Added
+
+- **X1** — Codebase indexing core: pgvector-backed store, pluggable
+  embeddings, incremental re-index, frozen search contract (W21-C1).
+  Migration **0030** is pgvector-gated and degrades honestly without the
+  extension.
+- **X2** — `@refs` resolution: hybrid keyword+vector ranking,
+  token-budgeted context bundles; grammar pinned by parity tests in S7.
+- **X4** — Retrieval-augmented planner: generated steps carry path:line
+  citations resolved from the index (exit criterion met and demonstrated).
+- **X3** — UI surface: `@` autocomplete refs, chunk preview panel,
+  searchable file tree in section7.
+
+#### Fixed
+
+- Replay-cap flake eliminated (30/30 stability sweep clean); formal close at
+  CI SUCCESS.
+
+### Mission 20 · Horizon NEXT part 2 — the first 10x lever (2026-08-26)
+
+Claim batching tore down the BASELINE wall: **1.69 → 37.58 journeys/s at 32
+VU (~22×)** with zero failures across 4,521 journeys.
+
+#### Added
+
+- **T1** — Claim batching in the orchestrator worker (the 10x lever above);
+  theoretical ceiling now ~3.2M runs/day, with executor width and provider
+  latency as the honest next limits.
+- **T2** — Observability minimum: request-id middleware on all 9 services,
+  anonymized user hashing in logs, Prometheus scrape endpoint + 5
+  promtool-validated alerts (`docs/runbooks/alerting.md`).
+- **T3** — Resource limits on all 22 compose services, log rotation,
+  `/ready` separated from `/health`.
+- **T4** — `docs/extensions.md` (three real integration seams), glossary
+  day-one nouns completed, README/AGENTS truth pass.
+- **T5** — TypeScript SDK v0 generated from the same pipeline as the M19
+  Python SDK — both SDKs stay in lockstep with the shipped OpenAPI specs.
+
+### Mission 19 · BASELINE + Horizon NEXT phase 1 (2026-08-25)
+
+First honest performance baseline plus the stateless-orchestrator groundwork
+that made the M20 lever possible.
+
+#### Added
+
+- **B1** — BASELINE published: ~1.9 journeys/s ceiling, wall identified as
+  the worker's single-claim poll cycle, $0.000051/run metered cost, 8→64 VU
+  ladder methodology in `docs/benchmarks/`.
+- **N1** — Stateless orchestrator phase 1: CAS-based approvals, durable-
+  first execution, two-replica exactly-once spawner election.
+- **N2** — Slim cross-instance bus signals (migration **0029**: ~70-byte
+  wake-up payloads, 8KB publish cap).
+- **N3** — Partitioned retention: monthly `agent_events` partitions
+  (migration **0028**) + outbox/audit prune runners.
+- **N4** — Canned demo: zero-key 8-minute value demo driven by recorded-truth
+  replay (no fabricated model output).
+- **N5** — Python client SDK v0 generated from the seven OpenAPI specs
+  (91 paths / 104 operations).
+
+### Mission 18 · Horizon NOW (2026-08-25)
+
+Six correctness/capacity fixes from the 10x plan's Now horizon, all
+fail-closed by construction.
+
+#### Added
+
+- **C1** — Authorization fail-closed everywhere (the triple fail-open path is
+  dead; denials are audited).
+- **C2** — One budget truth: `contracts/budget.py#resolve_cap` is canonical,
+  fails CLOSED with an explicit degraded flag.
+- **C3** — Cost gate O(1): covering indexes (migration **0027**) + daily
+  spend-rollup runner.
+- **C4** — Load-test harness (carried forward as the M19/M20 BASELINE tool).
+- **C6** — Rollback story v0 rehearsed end-to-end: the image-drift gate
+  refused an old image against the 0027-schema database, as designed.
+
+#### Fixed
+
+- **C5** — Invite/ticket hygiene: email binding on invites, `?token=` login
+  deprecated, WS-fingerprint enforcement aligned with what browsers actually
+  send, expired-bucket GC.
+
+### Mission 17 · ELITE audit → the 10x plan (2026-08-25)
+
+Seven-lens adversarial audit, its fix wave, and the plan that governed
+everything after it.
+
+#### Added
+
+- **Phase A** — ELITE dual-team audit banked: 1,901 lines of findings across
+  seven lenses (`docs/briefs/m17-findings-*.md`).
+- **B6** — Contributor bootstrap: working quick-start, first tutorial
+  (`docs/TUTORIAL.md`).
+- **Phase C** — `docs/briefs/mission17-10x-plan.md`: four axes, 23 missions
+  across Now/Next/Later/Bet horizons (executed as M18–M23).
+
+#### Changed
+
+- **B1/B3** — Budget-call serialization + contracts promotion + isolation
+  enforcement (section-boundary import ban wired into CI guards).
+- **B2** — Live PITR wiring exercised + CI migration coverage.
+- **B4/B5** — Plan-gate team scoping fixed; rate limiter keys IPv6-safe (/64);
+  engine runtime hardened with the hung-provider circuit breaker
+  (`docs/engine-concurrency.md`).
+
+### Mission 16 · Wave 6 — perf/scale + corpus (2026-08-24)
+
+Independent ALEX-FORCE re-verification before close (S1 430 · S4 318 ·
+S7 vitest 452, migration chain 0001→0026 unique).
+
+#### Added
+
+- **X1** — Runs-index tuning at 100k events: covering index (migration
+  **0026**) + N+1 elimination via one batched extremes query per page.
+- **X2** — Meeting message pagination: keyset cursor, bounded windows.
+- **X3** — WS replay cap + seq-window resume proof, truncation markers so
+  clients know when history was clipped.
+- **X4** — UI systemization completed: every page on the design-system
+  primitives.
+- **X5** — Edge-case corpus wave A: 19 seed-ID-traceable lifecycle
+  regression tests.
+
+### Mission 15 · Wave 5 — hardening sweep (2026-08-24)
+
+Security posture, data-integrity, and docs-truth wave closed by verifier
+teams.
+
+#### Added
+
+- **S1** — CSP enforce-mode rollout (report-only first; policy built from
+  audited real sources) + `/api/v1/csp-report`.
+- **S2** — WS ticket client binding: fingerprint bound at mint, validated at
+  upgrade (migration **0025**, renumbered from 0024 after a slot collision).
+- **D1** — FK deletion story: explicit ON DELETE behavior everywhere +
+  cascade suite (migration **0023**); `billing_plans.team_id` CASCADE.
+- **D2** — Vacuum/maintenance schedule + runbook.
+- **G6a** — Architectural-law CI guards: route modules must be
+  default-export-only; no cross-section imports (`make guard-routes`,
+  `make guard-isolation`).
+- **G6b** — Reviewer-heuristic team tuning + calibration corpus.
+- **G7** — Docs truth batch: README accuracy pass, `docs/api-versioning.md`,
+  `GLOSSARY.md`, env-var sync.
+- **S4** — Salted KDF upgrade for stored secrets with dual-read
+  re-encryption (+ `reencrypt` management command).
+
+#### Fixed
+
+- **S3** — Accessible names on all placeholder-only inputs; login layout
+  fixed at 320px viewport.
 
 ### Mission 14 · Wave 4 (2026-08-24)
 

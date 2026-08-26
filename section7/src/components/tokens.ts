@@ -168,14 +168,6 @@ export function toneForStatus(status: string): StatusTone {
   return statusTones[status] ?? "blue";
 }
 
-// ─── Focus ring (a11y primitive shared by Button/Pill/Table rows) ───────────
-
-/** Shared focus-visible treatment: 2px accent ring, 1px offset. */
-export const focusRing: CSSProperties = {
-  outline: "2px solid var(--accent)",
-  outlineOffset: "1px",
-};
-
 // ─── CSS-var bridge ─────────────────────────────────────────────────────────
 
 /**

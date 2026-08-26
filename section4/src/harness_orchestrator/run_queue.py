@@ -272,12 +272,6 @@ async def heartbeat_run(factory, run_id: str, worker_id: str) -> bool:
         return bool(matched)
 
 
-_CLAIM_RUNNING_PROBE_SQL = (
-    "SELECT worker_id FROM run_claims "
-    "WHERE run_id = :run_id AND state = 'running'"
-)
-
-
 async def queue_available(factory) -> bool:
     """True when the durable run_claims table is readable (M19-N1).
 
@@ -294,31 +288,6 @@ async def queue_available(factory) -> bool:
     except Exception:  # noqa: BLE001 — no table / unreadable store
         return False
     return True
-
-
-async def claim_owner(factory, run_id: str) -> str | None:
-    """Worker id holding the live ``running`` claim for this run, or None.
-
-    M19-N1 (stateless orchestrator phase 1): the durable claim row IS the
-    cross-replica execution fence — ``claim_next_run`` already hands each
-    queued run to exactly ONE worker atomically (FOR UPDATE SKIP LOCKED),
-    so a second replica that finds a live foreign claim knows execution is
-    owned elsewhere and must not spawn a duplicate engine task. Read-only
-    and failure-tolerant: an absent/unreadable run_claims table means
-    nobody holds a durable claim (bare test DBs), answering None so the
-    caller keeps its legacy direct-spawn behavior.
-    """
-    from sqlalchemy import text
-
-    try:
-        async with factory() as db:
-            row = (
-                await db.execute(text(_CLAIM_RUNNING_PROBE_SQL), {"run_id": run_id})
-            ).first()
-            return row.worker_id if row is not None else None
-    except Exception:  # noqa: BLE001 — no queue table: nobody holds a claim
-        logger.info("run_claims unavailable; claim-owner probe skipped for %s", run_id)
-        return None
 
 
 async def finish_run(factory, run_id: str) -> None:

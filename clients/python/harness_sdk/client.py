@@ -36,7 +36,7 @@ from .sandbox import SandboxClient
 from .ws import WsEventStream
 
 __all__ = ["Harness", "HarnessHTTP", "WsEventStream", "ApiError", "__version__"]
-__version__ = "0.1.0"
+__version__ = "1.0.0rc1"
 
 
 class Harness:

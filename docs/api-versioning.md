@@ -51,7 +51,9 @@ source-tree divergence fails CI rather than rotting quietly. Consumer floor
 pins (`harness-contracts>=X` in section pyprojects) are checked to stay
 satisfiable.
 
-Current version: **0.3.0**.
+Current version: **1.0.0rc1** (the v1.0.0-candidate tag ships contracts as
+1.0.0rc1 — a PEP 440 pre-release that predates a final 1.0.0; see
+`RELEASE_NOTES_v1.md`).
 
 Bump classes:
 

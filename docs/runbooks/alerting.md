@@ -83,8 +83,9 @@ harness_queue_depth > 50
 - **severity:** warning (>200 for 30m ⇒ page).
 - **why 50:** executor width is ENGINE_MAX_CONCURRENCY=8 with per-team cap 4;
   depth above ~6× width means producers outpace execution for minutes.
-- **runbook:** [queue-depth.md](queue-depth.md) — worker liveness first
-  (`orchestrator` logs for "worker" lines), then HARNESS_RUN_CONCURRENCY.
+- **runbook:** [engine-concurrency.md](../engine-concurrency.md) — worker
+  liveness first (`orchestrator` logs for "worker" lines), then
+  HARNESS_RUN_CONCURRENCY.
 
 ### b) Event-bus lag (event pipeline stalled)
 
@@ -101,7 +102,7 @@ harness_event_bus_lag_seconds > 300
 - **note:** the gauge is monotonically non-decreasing between commits, so a
   plain threshold is the real signal; the rate clause documents intent and
   keeps the alert anchored to a windowed evaluation.
-- **runbook:** [eventbus.md](eventbus.md) — check orchestrator↔db connectivity
+- **runbook:** [ops.md](ops.md) — check orchestrator↔db connectivity
   (`pg_stat_activity`), EventBus pg_notify listener errors in logs.
 
 ### c) DB pool saturation (connection exhaustion imminent)

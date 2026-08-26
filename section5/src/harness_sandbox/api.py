@@ -25,10 +25,6 @@ def configure_sandbox(service: SandboxService) -> None:
     _service = service
 
 
-def get_sandbox_service() -> SandboxService:
-    return _service
-
-
 async def get_principal(request: Request) -> Principal:
     """Auth resolution via app.state.get_principal; fail closed (D6/P0.6)."""
     dep = getattr(request.app.state, "get_principal", None)
