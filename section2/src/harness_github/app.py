@@ -61,6 +61,15 @@ def make_app(session_factory, settings: Settings):
     from .gitflow.routes import build_router
 
     app.include_router(build_router(service_dep))
+    from .intake.routes import build_router as build_intake_router
+    from .intake.service import IntakeService, ProviderNotifier
+    from .intake.store import IntakeStore
+
+    app.state.intake_store = IntakeStore(settings.intake_db_path or ":memory:")
+    app.state.intake_service = IntakeService(
+        app.state.intake_store, app.state.vault, ProviderNotifier(app.state.vault)
+    )
+    app.include_router(build_intake_router(service_dep))
     return app
 
 

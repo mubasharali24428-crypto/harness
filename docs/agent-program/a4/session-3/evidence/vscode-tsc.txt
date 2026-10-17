@@ -1,0 +1,1 @@
+-rw-r--r--@ 1 user  staff  7896 Oct 17 11:08 dist/harness-vscode.vsix

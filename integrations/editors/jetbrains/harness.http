@@ -1,0 +1,41 @@
+### Harness for JetBrains IDEs — uses the built-in HTTP Client (no plugin to compile).
+### Variables come from http-client.env.json (urls) and http-client.private.env.json (token; never commit).
+### Run requests with the gutter icon. Plan approval changes what the agent may execute: read before sending.
+
+### Who am I
+GET {{identity}}/api/v1/me
+Authorization: Bearer {{token}}
+
+### Projects visible to my team
+GET {{identity}}/api/v1/projects?limit=100
+Authorization: Bearer {{token}}
+
+### Code sessions for a project
+GET {{workflow}}/api/v1/developer-workflow/code-sessions?projectId={{projectId}}
+Authorization: Bearer {{token}}
+
+### Change sets in a code session
+GET {{workflow}}/api/v1/developer-workflow/code-sessions/{{sessionId}}/change-sets
+Authorization: Bearer {{token}}
+
+### Accept or reject one hunk
+POST {{workflow}}/api/v1/developer-workflow/change-sets/{{changeSetId}}/decisions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"decisions": [{"path": "{{path}}", "hunkId": "h0", "decision": "accept"}]}
+
+### Merge-readiness evidence (evidence only — Harness never merges)
+GET {{workflow}}/api/v1/developer-workflow/code-sessions/{{sessionId}}/merge-checks
+Authorization: Bearer {{token}}
+
+### Run status
+GET {{orchestrator}}/api/v1/orchestrator/runs/{{runId}}/status
+Authorization: Bearer {{token}}
+
+### Approve a plan (irreversible for the run)
+POST {{orchestrator}}/api/v1/orchestrator/runs/{{runId}}/plan/approve
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"planId": "{{planId}}"}

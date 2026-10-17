@@ -1,0 +1,115 @@
+{
+ "agent": "A4",
+ "session": 3,
+ "features": [
+  {
+   "id": "F001",
+   "name": "VS Code extension",
+   "state": "PARTIAL (built, packaged, mock-host tested; real VS Code host NEEDS EXTERNAL VALIDATION)",
+   "detail": "6 commands, token in SecretStorage verified before storing, modal approval, redirect:error, base-URL safety, redaction. 22 vitest incl. a test against the real developer-workflow service; .vsix packaged; bundle load smoke. VS Code itself is not installed here, so activation in a real host is unproven.",
+   "evidence": [
+    "evidence/vscode-vitest.txt",
+    "evidence/vscode-tsc.txt"
+   ]
+  },
+  {
+   "id": "F002",
+   "name": "JetBrains plugin",
+   "state": "PARTIAL",
+   "detail": "HTTP Client request files + env template only, checked against the real OpenAPI by test. No compiled IntelliJ plugin (no JVM/Gradle toolchain here).",
+   "evidence": [
+    "integrations/editors/service/tests/test_editor_artifacts.py"
+   ]
+  },
+  {
+   "id": "F003",
+   "name": "Neovim plugin",
+   "state": "PARTIAL (syntax-checked only; host NEEDS EXTERNAL VALIDATION)",
+   "detail": "Lua client; token passed to curl via stdin config not argv; sign-in verifies before keeping, memory-only. All 4 Lua files parse (luaparse). plenary spec written but unrun: nvim is not installed.",
+   "evidence": [
+    "integrations/editors/neovim/check-syntax.mjs"
+   ]
+  },
+  {
+   "id": "F006",
+   "name": "Desktop application",
+   "state": "PARTIAL (real Electron smoke + unsigned packaged mac-arm64 app; signing/notarization/other OS NEEDS EXTERNAL VALIDATION)",
+   "detail": "contextIsolation/sandbox, narrow preload, CSP (mutation-checked), cross-origin navigation and window.open blocked, permissions denied, raw-string deep-link regex, OS-keychain token store. 11 unit + 5 Electron tests incl. packaged Harness.app.",
+   "evidence": [
+    "evidence/desktop-vitest.txt",
+    "evidence/desktop-electron.txt"
+   ]
+  },
+  {
+   "id": "F037",
+   "name": "GitHub issue intake",
+   "state": "VERIFIED IMPLEMENTED (local, fake GitHub); live webhook delivery NEEDS EXTERNAL VALIDATION",
+   "detail": "HMAC-SHA256 verify, tenant from the registration (never payload), per-delivery idempotency, sliding rate limit, bot-loop ignore, trusted-association gate for /harness plan, secrets/mentions/closing-keywords neutralised, pending_approval only. Approval records a decision; run/plan creation is NEEDS INTEGRATION (A2). Persistence is lane-owned SQLite; shared Postgres migration is an A1 NEEDS INTEGRATION item. Signature check mutation-verified.",
+   "evidence": [
+    "tests/test_intake.py (section2)",
+    "evidence/section2-pytest.txt"
+   ]
+  },
+  {
+   "id": "F038",
+   "name": "GitLab issue intake",
+   "state": "VERIFIED IMPLEMENTED (local, fake GitLab); live delivery NEEDS EXTERNAL VALIDATION",
+   "detail": "X-Gitlab-Token constant-time compare or Standard Webhooks signing (replay window, id-bound). Same pipeline as F037. Client blocks merge/rebase/approve/protected-branch/branch-delete, https-only api base, no credentials, no link-local, no redirects. GitLab note comments carry no access-level check (only queue for approval).",
+   "evidence": [
+    "tests/test_intake.py (section2)"
+   ]
+  }
+ ],
+ "risks": [
+  {
+   "id": "VR001",
+   "state": "OPEN",
+   "note": "Entry points exist; no usability measurement."
+  },
+  {
+   "id": "VR002",
+   "state": "OPEN",
+   "note": "Not measured."
+  },
+  {
+   "id": "VR003",
+   "state": "OPEN",
+   "note": "Task CLI is S4."
+  },
+  {
+   "id": "VR004",
+   "state": "PARTIAL CONTROL",
+   "note": "VS Code/Neovim/JetBrains/desktop entry points built; none validated in a real host/IDE except Electron."
+  },
+  {
+   "id": "VR008",
+   "state": "PARTIAL CONTROL",
+   "note": "Intake queues for human approval; no live provider journey."
+  },
+  {
+   "id": "VR010",
+   "state": "OPEN",
+   "note": "Not addressed this session."
+  },
+  {
+   "id": "VR032",
+   "state": "PARTIAL CONTROL",
+   "note": "Tokens never in argv/logs/repo (scan test); keychain/SecretStorage; no live credential-rotation test."
+  },
+  {
+   "id": "VR033",
+   "state": "PARTIAL CONTROL",
+   "note": "Untrusted issue text neutralised and cannot authorize; webhook flood rate-limited; no load test."
+  },
+  {
+   "id": "VR034",
+   "state": "PARTIAL CONTROL",
+   "note": "Merge-class operations blocked in GitLab client; no merge path anywhere in intake."
+  },
+  {
+   "id": "VR049",
+   "state": "OPEN",
+   "note": "Not addressed this session."
+  }
+ ]
+}

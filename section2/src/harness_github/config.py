@@ -12,3 +12,5 @@ class Settings(BaseSettings):
     github_redirect_uri: str = "http://localhost:8002/api/v1/github/oauth/callback"
     # Where the browser lands after the OAuth callback completes or fails.
     frontend_base: str = "http://localhost:3000"
+    # A4-S3 issue-intake store (lane-owned SQLite). Empty = in-memory: NOT durable across restarts.
+    intake_db_path: str = ""

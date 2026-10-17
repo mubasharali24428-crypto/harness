@@ -209,3 +209,9 @@ class GitHubClient:
         )
         resp.raise_for_status()
         return {"requested": {"users": reviewers, "teams": team_reviewers}}
+
+    async def create_issue_comment(self, repo: str, number: int, body: str) -> None:
+        resp = await self._request(
+            "POST", f"/repos/{repo}/issues/{int(number)}/comments", {"body": body[:60000]}
+        )
+        resp.raise_for_status()

@@ -1,0 +1,86 @@
+{
+  "name": "harness-vscode",
+  "displayName": "Harness",
+  "description": "Thin VS Code client for the AI Engineering Harness: status, change-set review and plan approval over the authenticated /api/v1 APIs.",
+  "version": "0.1.0",
+  "publisher": "harness-local",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Harness sends your session token to configured services."
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "harness.signIn",
+        "title": "Harness: Sign In (paste session token)"
+      },
+      {
+        "command": "harness.signOut",
+        "title": "Harness: Sign Out"
+      },
+      {
+        "command": "harness.selectProject",
+        "title": "Harness: Select Project"
+      },
+      {
+        "command": "harness.runStatus",
+        "title": "Harness: Show Run Status"
+      },
+      {
+        "command": "harness.reviewChangeSets",
+        "title": "Harness: Review Change Sets"
+      },
+      {
+        "command": "harness.approvePlan",
+        "title": "Harness: Approve Plan"
+      }
+    ],
+    "configuration": {
+      "title": "Harness",
+      "properties": {
+        "harness.identityUrl": {
+          "type": "string",
+          "default": "http://localhost:8001",
+          "description": "Section 1 identity base URL (https required unless loopback)."
+        },
+        "harness.workflowUrl": {
+          "type": "string",
+          "default": "http://localhost:8014",
+          "description": "Developer-workflow service base URL."
+        },
+        "harness.orchestratorUrl": {
+          "type": "string",
+          "default": "http://localhost:8004",
+          "description": "Orchestrator base URL."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "package": "npm run build && vsce package --no-dependencies --allow-missing-repository -o dist/harness-vscode.vsix",
+    "smoke": "node test/bundle-smoke.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "1.90.0",
+    "@vscode/vsce": "3.2.1",
+    "esbuild": "0.25.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
