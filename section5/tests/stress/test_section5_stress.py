@@ -47,8 +47,9 @@ class TestPolicyAllowedCommands:
     def test_allow_npm_test(self):
         assert SandboxPolicy.is_command_allowed("npm test") is True
 
-    def test_allow_npm_ci(self):
-        assert SandboxPolicy.is_command_allowed("npm ci") is True
+    def test_block_npm_ci(self):
+        # S1-R03b: installs are blocked (pinned_registries was never enforced).
+        assert SandboxPolicy.is_command_allowed("npm ci") is False
 
     def test_allow_npx(self):
         assert SandboxPolicy.is_command_allowed("npx vitest run") is True

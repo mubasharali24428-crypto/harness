@@ -1,7 +1,8 @@
 """F6r — OS-level confinement for sandboxed command execution.
 
 macOS: Seatbelt profiles via /usr/bin/sandbox-exec.
-Linux: Landlock via ctypes (best-effort; silently degrades when unsupported).
+Linux: Landlock via ctypes (explicit requests fail closed when unsupported —
+see S1-R03d; `auto` picks the best available mode).
 
 Layering contract: policy.py decides WHAT may run; this module decides WHERE it
 may touch the machine. Reads stay broad (toolchains need system SDKs), writes are
@@ -113,39 +114,40 @@ _READ_EXEC_EVERYWHERE = LL_EXECUTE | LL_READ_FILE | LL_READ_DIR
 
 
 def apply_landlock_in_child(workspace: Path, allow_network: bool) -> bool:
-    """Runs INSIDE the forked child (preexec_fn). Returns True when enforced."""
+    """Runs INSIDE the forked child (preexec_fn). Returns True when enforced.
+
+    S1-R03d: failure RAISES — subprocess propagates preexec_fn exceptions to
+    the parent's ``await create_subprocess_shell``, so a requested-but-failing
+    landlock aborts the spawn instead of silently running unconfined.
+    """
     import ctypes
     import ctypes.util
 
-    try:
-        libc = ctypes.CDLL(ctypes.util.find_library("c") or "libc.so.6", use_errno=True)
-        attr = struct.pack("Q", _HANDLED)
-        ruleset_fd = libc.syscall(_LL_CREATE_RULESET, attr, len(attr), 0)
-        if ruleset_fd < 0:
-            return False
+    libc = ctypes.CDLL(ctypes.util.find_library("c") or "libc.so.6", use_errno=True)
+    attr = struct.pack("Q", _HANDLED)
+    ruleset_fd = libc.syscall(_LL_CREATE_RULESET, attr, len(attr), 0)
+    if ruleset_fd < 0:
+        raise OSError("landlock_create_ruleset failed")
 
-        def add_beneath(parent_fd: int, allowed: int) -> None:
-            rule = struct.pack("iQi", _LL_RULE_PATH_BENEATH, allowed, parent_fd)
-            if libc.syscall(_LL_ADD_RULE, ruleset_fd, _LL_RULE_PATH_BENEATH, rule) != 0:
-                raise OSError("landlock_add_rule failed")
+    def add_beneath(parent_fd: int, allowed: int) -> None:
+        rule = struct.pack("iQi", _LL_RULE_PATH_BENEATH, allowed, parent_fd)
+        if libc.syscall(_LL_ADD_RULE, ruleset_fd, _LL_RULE_PATH_BENEATH, rule) != 0:
+            raise OSError("landlock_add_rule failed")
 
-        O_PATH = os.O_PATH | os.O_CLOEXEC
+    O_PATH = os.O_PATH | os.O_CLOEXEC
 
-        def fs_fd(path: str) -> int:
-            return os.open(path, O_PATH)
+    def fs_fd(path: str) -> int:
+        return os.open(path, O_PATH)
 
-        add_beneath(fs_fd("/"), _READ_EXEC_EVERYWHERE)
-        for p in {str(Path(workspace).resolve()), tempfile.gettempdir()}:
-            try:
-                add_beneath(fs_fd(p), _HANDLED)
-            except OSError:  # unreadable temp dir variants etc.
-                continue
+    add_beneath(fs_fd("/"), _READ_EXEC_EVERYWHERE)
+    for p in {str(Path(workspace).resolve()), tempfile.gettempdir()}:
+        try:
+            add_beneath(fs_fd(p), _HANDLED)
+        except OSError:  # unreadable temp dir variants etc.
+            continue
 
-        if libc.syscall(_LL_RESTRICT_SELF, ruleset_fd, 0) != 0:
-            raise OSError("landlock_restrict_self failed")
-        os.close(ruleset_fd)
-        _ = allow_network  # ABI v1 has no network hooks; egress stays policy-layer
-        return True
-    except Exception:  # noqa: BLE001 — confinement must never break execution setup
-        logger.warning("landlock enforcement unavailable", exc_info=True)
-        return False
+    if libc.syscall(_LL_RESTRICT_SELF, ruleset_fd, 0) != 0:
+        raise OSError("landlock_restrict_self failed")
+    os.close(ruleset_fd)
+    _ = allow_network  # ABI v1 has no network hooks; egress stays policy-layer
+    return True

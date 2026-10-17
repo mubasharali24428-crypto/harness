@@ -16,7 +16,6 @@ def test_allowlist_commands_pass():
         "pytest tests/",
         "python -m pytest tests/unit",
         "npm test",
-        "npm ci",
         "git status",
         "git diff HEAD~1",
         "git log -n 5",

@@ -61,6 +61,7 @@ class SandboxService(Sandbox):
         branch: str,
         forbidden_paths: list[str],
         project_id: str | None = None,
+        team_id: str | None = None,
     ) -> TaskHandle:
         return self.runner.create_task(
             task_id=task_id,
@@ -68,6 +69,7 @@ class SandboxService(Sandbox):
             branch=branch,
             forbidden_paths=forbidden_paths,
             project_id=project_id,
+            team_id=team_id,
         )
 
     def exec(self, handle: TaskHandle, command: str) -> Any:

@@ -15,6 +15,7 @@ from harness_sandbox.diff_engine import apply_unified_diff
 from harness_sandbox.output_parser import StructuredExecResult, parse_exec_output
 from harness_sandbox.policy import (
     SandboxCommandTimeoutError,
+    SecurityPolicyViolationError,
     sanitize_environment,
     validate_command,
     validate_path_edit,
@@ -43,18 +44,37 @@ class LocalSandboxRunner:
 
     def _resolve_confinement(self) -> str:
         if self.confinement != "auto":
+            # S1-R03d: an EXPLICIT confinement request must never degrade to
+            # unconstrained execution — fail closed at task creation instead.
             if self.confinement == "seatbelt" and not confinement.seatbelt_available():
-                logger.warning("seatbelt requested but unavailable; running unconstrained")
-                return "off"
+                raise SecurityPolicyViolationError(
+                    "confinement 'seatbelt' requested but unavailable;"
+                    " refusing to run unconstrained"
+                )
             if self.confinement == "landlock" and not confinement.landlock_supported():
-                logger.warning("landlock requested but unsupported; running unconstrained")
-                return "off"
+                raise SecurityPolicyViolationError(
+                    "confinement 'landlock' requested but unsupported;"
+                    " refusing to run unconstrained"
+                )
             return self.confinement
         if sys.platform == "darwin":
             return "seatbelt" if confinement.seatbelt_available() else "off"
         if sys.platform == "linux":
             return "landlock" if confinement.landlock_supported() else "off"
         return "off"
+
+    @staticmethod
+    def _kill(proc) -> None:
+        """S1-R03f: kill the whole process GROUP (grandchildren included)."""
+        import signal
+
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
 
     async def _spawn(self, task: dict, command: str, stdout, stderr):
         """Single spawn point honoring the task's confinement mode."""
@@ -65,6 +85,7 @@ class LocalSandboxRunner:
             env=sanitize_environment(os.environ),
             stdout=stdout,
             stderr=stderr,
+            start_new_session=True,  # S1-R03f: own process group for group-kill
         )
         mode = task.get("confinement", "off")
         if mode == "seatbelt":
@@ -85,6 +106,7 @@ class LocalSandboxRunner:
         branch: str,
         forbidden_paths: list[str] | None = None,
         project_id: str | None = None,
+        team_id: str | None = None,
     ) -> TaskHandle:
         workspace = self.storage_root / task_id / "workspace"
         workspace.mkdir(parents=True, exist_ok=True)
@@ -97,6 +119,7 @@ class LocalSandboxRunner:
             "created_at": time.time(),
             "procs": [],
             "project_id": project_id,
+            "team_id": team_id,  # S1-R01d: owning team bound at create
         }
         mode = self._resolve_confinement()
         self.active_tasks[task_id]["confinement"] = mode
@@ -122,7 +145,7 @@ class LocalSandboxRunner:
         if not task:
             raise RuntimeError(f"Task '{handle.taskId}' not found or destroyed.")
 
-        validate_command(command, task["forbidden_paths"])
+        validate_command(command, task["forbidden_paths"], cwd=str(task["workspace"]))
 
         budget = config.default_timeout_seconds
 
@@ -131,9 +154,28 @@ class LocalSandboxRunner:
         )
         task["procs"].append(proc)
 
+        start = time.monotonic()
+
+        def _timed_out() -> SandboxCommandTimeoutError:
+            return SandboxCommandTimeoutError(
+                f"Command exceeded {budget}s execution budget and was killed."
+            )
+
         async def _stream() -> AsyncGenerator[str, None]:
             while True:
-                line = await proc.stdout.readline()
+                # S1-R03f: the budget bounds EVERY read, not just post-EOF wait —
+                # a hung or slowly-dripping command can no longer run forever.
+                remaining = budget - (time.monotonic() - start)
+                if remaining <= 0:
+                    self._kill(proc)
+                    await proc.wait()
+                    raise _timed_out()
+                try:
+                    line = await asyncio.wait_for(proc.stdout.readline(), timeout=remaining)
+                except TimeoutError as exc:
+                    self._kill(proc)
+                    await proc.wait()
+                    raise _timed_out() from exc
                 if not line:
                     break
                 yield line.decode("utf-8", errors="replace")
@@ -142,15 +184,15 @@ class LocalSandboxRunner:
             async for line in _stream():
                 yield line
             try:
-                await asyncio.wait_for(proc.wait(), timeout=budget)
+                await asyncio.wait_for(
+                    proc.wait(), timeout=max(0.0, budget - (time.monotonic() - start))
+                )
             except TimeoutError as exc:
-                proc.kill()
+                self._kill(proc)
                 await proc.wait()
-                raise SandboxCommandTimeoutError(
-                    f"Command exceeded {budget}s execution budget and was killed."
-                ) from exc
+                raise _timed_out() from exc
         except asyncio.CancelledError:
-            proc.kill()
+            self._kill(proc)
             await proc.wait()
             raise
 
@@ -163,7 +205,7 @@ class LocalSandboxRunner:
         if not task:
             raise RuntimeError(f"Task '{handle.taskId}' not found or destroyed.")
 
-        validate_command(command, task["forbidden_paths"])
+        validate_command(command, task["forbidden_paths"], cwd=str(task["workspace"]))
 
         budget = config.default_timeout_seconds
 
@@ -176,11 +218,15 @@ class LocalSandboxRunner:
         try:
             stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=budget)
         except TimeoutError as exc:
-            proc.kill()
+            self._kill(proc)
             await proc.wait()
             raise SandboxCommandTimeoutError(
                 f"Command exceeded {budget}s execution budget and was killed."
             ) from exc
+        except asyncio.CancelledError:
+            self._kill(proc)
+            await proc.wait()
+            raise
         duration_ms = int((time.perf_counter() - start_time) * 1000)
 
         stdout = stdout_b.decode("utf-8", errors="replace")
@@ -210,14 +256,9 @@ class LocalSandboxRunner:
     def destroy(self, handle: TaskHandle) -> None:
         task = self.active_tasks.pop(handle.taskId, None)
         if task:
-            import signal
-
             for proc in task.get("procs", ()):
                 if proc.returncode is None:
-                    try:
-                        proc.send_signal(signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
+                    self._kill(proc)  # S1-R03f: kills the whole process group
             task_dir = self.storage_root / handle.taskId
             if task_dir.exists():
                 shutil.rmtree(task_dir, ignore_errors=True)

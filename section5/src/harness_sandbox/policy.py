@@ -38,6 +38,12 @@ def find_unquoted_shell_syntax(cmd: str) -> str | None:
                 i += 1
             elif ch == '"':
                 quote = None
+            elif ch == "`":
+                # S1-R03a: /bin/sh expands backticks inside double quotes too.
+                return "command substitution `...` is not allowed"
+            elif ch == "$" and i + 1 < n and cmd[i + 1] == "(":
+                # S1-R03a: same for $(...) — double quotes do NOT suppress it.
+                return "command substitution $(...) is not allowed"
         else:
             if ch in ("'", '"'):
                 quote = ch
@@ -126,6 +132,17 @@ BLOCKED_PATTERNS = [
     re.compile(r"(curl|wget)\b.*\|\s*(sh|bash|zsh|python|perl)", re.IGNORECASE),
     re.compile(r"\b(nc|ncat|socat)\b", re.IGNORECASE),
     re.compile(r"/(etc/(shadow|passwd|sudoers)|proc/kcore|sys/)", re.IGNORECASE),
+    # S1-R03a: find(1) can execute an arbitrary follower that first-token
+    # validation never sees (`find . -exec curl ... \;`).
+    re.compile(r"\bfind\b[^|;]*(-execdir|-exec|-okdir|-ok)\b", re.IGNORECASE),
+    # S1-R03b: package installers fetch and execute unvetted code; the
+    # pinned_registries config is not enforced at runtime, so block the verbs.
+    re.compile(r"\b(pip|pip3)\s+install\b", re.IGNORECASE),
+    re.compile(r"\bpython3?\s+-m\s+pip\s+install\b", re.IGNORECASE),
+    re.compile(r"\bnpm\s+(install|i|ci)\b", re.IGNORECASE),
+    re.compile(r"\b(yarn|pnpm)\s+(add|install)\b", re.IGNORECASE),
+    re.compile(r"\bnpx\s+(-y|--yes)\b", re.IGNORECASE),
+    re.compile(r"\b(yarn|pnpm)\s+dlx\b", re.IGNORECASE),
 ]
 
 SECRET_PATTERNS = [
@@ -142,6 +159,7 @@ SECRET_PATTERNS = [
 ]
 
 SENSITIVE_ENV_PREFIXES = (
+    "HARNESS_",  # S1-R03e: assembly config incl. HARNESS_DATABASE_URL creds
     "GITHUB_",
     "OPENAI_",
     "ANTHROPIC_",
@@ -180,7 +198,40 @@ def sanitize_environment(env: dict[str, str] | None = None) -> dict[str, str]:
     return sanitized
 
 
-def validate_command(command: str, forbidden_paths: list[str] | None = None) -> None:
+def _expand_globs(token: str, cwd: str | None) -> list[str]:
+    """Path spellings this token can reach after shell glob expansion (S1-R03a).
+
+    The shell performs expansion at exec time; policy pre-expands the same
+    pattern against the task workspace so checks see the real targets —
+    ``db/*/sensitive/init.sql`` must not hide behind ``*``. Returns absolute,
+    workspace-relative and symlink-resolved spellings of every match.
+    """
+    if not any(ch in token for ch in "*?["):
+        return []
+    import glob as _glob
+
+    base = os.path.abspath(cwd) if cwd else os.getcwd()
+    pattern = token if os.path.isabs(token) else os.path.join(base, token)
+    try:
+        matches = _glob.glob(pattern, recursive=True)
+    except re.error:
+        return []
+    expanded: list[str] = []
+    for match in matches:
+        expanded.append(match)
+        try:
+            expanded.append(os.path.relpath(match, base))
+        except ValueError:  # pragma: no cover — no common path (other volumes)
+            pass
+        expanded.append(os.path.realpath(match))
+    return expanded
+
+
+def validate_command(
+    command: str,
+    forbidden_paths: list[str] | None = None,
+    cwd: str | None = None,
+) -> None:
     cmd_stripped = command.strip()
     if not cmd_stripped:
         raise SecurityPolicyViolationError("Empty command is not allowed.")
@@ -204,11 +255,12 @@ def validate_command(command: str, forbidden_paths: list[str] | None = None) -> 
         raise SecurityPolicyViolationError("No executable tokens found in command.")
 
     for token in tokens:
-        if token.startswith("$"):
-            var_name = token.lstrip("$").split("=")[0].upper()
-            if any(var_name.startswith(prefix) for prefix in SENSITIVE_ENV_PREFIXES):
+        # S1-R03a: unbraced, braced and mid-token forms all resolve the same
+        # variable name; match on the name, not on the spelling.
+        for name in re.findall(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?", token):
+            if name.upper().startswith(SENSITIVE_ENV_PREFIXES):
                 raise SecurityPolicyViolationError(
-                    f"Reference to sensitive environment variable '{token}' is blocked."
+                    f"Reference to sensitive environment variable '{name}' is blocked."
                 )
 
     binary = Path(tokens[0]).name
@@ -225,7 +277,12 @@ def validate_command(command: str, forbidden_paths: list[str] | None = None) -> 
                 f"git subcommand '{subcmd}' is not permitted in sandbox."
             )
 
+    # S1-R03a: check literal tokens AND every path a glob token can reach.
+    checked_paths = list(tokens)
     for token in tokens:
+        checked_paths.extend(_expand_globs(token, cwd))
+
+    for token in checked_paths:
         if is_secret_file(token):
             raise SecurityPolicyViolationError(
                 f"Access to secret file or pattern '{token}' is blocked."
@@ -236,7 +293,7 @@ def validate_command(command: str, forbidden_paths: list[str] | None = None) -> 
             fpath_clean = fpath.strip()
             if not fpath_clean:
                 continue
-            for token in tokens:
+            for token in checked_paths:
                 if fpath_clean in token or fnmatch.fnmatch(token, f"*{fpath_clean}*"):
                     raise SecurityPolicyViolationError(
                         f"Command accesses forbidden path: '{fpath_clean}'"
