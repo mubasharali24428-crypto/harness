@@ -91,7 +91,7 @@ def test_environment_sanitization():
     dirty_env = {
         "PATH": "/usr/bin",
         "GITHUB_TOKEN": "ghp_1234567890",
-        "OPENAI_API_KEY": "sk-secret123",
+        "OPENAI_API_KEY": "sk-secret123",  # gitleaks:allow — fake fixture value, never a real credential
         "AWS_SECRET_ACCESS_KEY": "aws-secret",
         "SAFE_VAR": "safe_value",
     }

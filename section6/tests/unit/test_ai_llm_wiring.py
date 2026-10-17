@@ -107,7 +107,7 @@ class TestPickTeamKey:
     def test_returns_decrypted_secret_for_active_row(self):
         rows = [make_key_row("key-1", "openai", "sk-live-abcdef1234")]
         secret = asyncio.run(pick_team_key(fake_factory(rows), VAULT, "openai"))
-        assert secret == "sk-live-abcdef1234"
+        assert secret == "sk-live-abcdef1234"  # gitleaks:allow — fake fixture value, never a real credential
 
     def test_skips_revoked_and_picks_latest_active(self):
         from datetime import UTC, datetime

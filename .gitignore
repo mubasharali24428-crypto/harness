@@ -30,3 +30,6 @@ task0/sessions/
 
 # Local debug/probe logs (repo root only)
 /*.log
+
+# macOS Finder metadata
+.DS_Store

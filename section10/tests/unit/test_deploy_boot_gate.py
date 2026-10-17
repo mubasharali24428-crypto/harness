@@ -18,7 +18,7 @@ from pathlib import Path
 
 SERVICES_DIR = Path(__file__).resolve().parents[3] / "deploy" / "runners"
 DEV_KEY = "dev-master-key-change-me-in-prod!"
-REAL_KEY = "0123456789abcdef0123456789abcdef"
+REAL_KEY = "0123456789abcdef0123456789abcdef"  # gitleaks:allow — fake fixture value, never a real credential
 
 
 def _boot(env_overrides: dict[str, str | None]) -> subprocess.CompletedProcess:

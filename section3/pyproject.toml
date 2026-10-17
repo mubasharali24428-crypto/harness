@@ -11,7 +11,8 @@ dependencies = [
     "pydantic-settings>=2.3",
     "httpx>=0.27",
     # M12-G2: rate-limit hook + its tests import harness_identity's limiter
-    "sqlalchemy>=2.0",
+    # [asyncio] extra: async engine needs greenlet — CI failed on its absence
+    "sqlalchemy[asyncio]>=2.0",
     "aiosqlite>=0.20",
 ]
 

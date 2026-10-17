@@ -1,0 +1,29 @@
+# Repo-level gitleaks config (extends the official default ruleset).
+#
+# The allowlist below pins hand-verified FALSE POSITIVES only: placeholder
+# values in test fixtures and one docstring phrase, never real credentials.
+# gitleaks-action scans full history (fetch-depth: 0), so per-commit findings
+# from older revisions cannot be silenced by inline comments in new commits —
+# these regexes are applied to every scan, worktree or history alike.
+# Each entry was inspected at its source before being listed here.
+# Recorded in docs/pilot-remediation/RISK_REGISTER.md (OPS-21).
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "hand-verified fake fixture values (not credentials)"
+regexes = [
+    # section1/tests/test_api_keys_routes.py — placeholder BYO-API-key fixture
+    '''sk-proj-abcdef1234567890SECRET''',
+    # section5/tests/unit/test_policy.py — env-sanitization fixture
+    '''ghp_1234567890''',
+    # section6/tests/unit/test_ai_llm_wiring.py — placeholder provider key
+    '''sk-live-abcdef1234''',
+    # section10/tests/unit/test_deploy_boot_gate.py — placeholder 32-hex value
+    '''0123456789abcdef0123456789abcdef''',
+    # section3/src/harness_router/providers.py — docstring prose
+    # "(no key, HARNESS_ENV=dev ONLY)", matched by the generic-api-key
+    # heuristic; a public env var name and value, not a secret.
+    '''HARNESS_ENV=dev''',
+]
