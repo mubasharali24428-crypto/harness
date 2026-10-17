@@ -29,6 +29,7 @@ from harness_orchestrator.engine_runtime import (
     EngineRunTimeout,
 )
 from harness_orchestrator.planner import PlanNotApprovedError, PlanService
+from harness_orchestrator.redact import scrub_secrets
 from harness_orchestrator.reviewer import ReviewerSubAgent, ReviewFindings
 from harness_orchestrator.rules_loader import build_rules_block, load_project_rules
 from harness_orchestrator.run_metering import record_run_cost
@@ -452,6 +453,7 @@ class OrchestratorService(Orchestrator):
 
         last_seq_state = False
         done_gate = False
+        stopped = False
         for row in rows:
             etype = row["event_type"]
             payload = row["payload"]
@@ -460,6 +462,25 @@ class OrchestratorService(Orchestrator):
                     payload = json.loads(payload)
                 except Exception:  # noqa: BLE001
                     payload = {}
+            if stopped:
+                # S1-R05c: stop is terminal — events logged after a stop
+                # tombstone (old logs may even carry a post-stop done-signal)
+                # must not resurrect or advance the run on replay.
+                continue
+            if (
+                etype == EventType.PAUSED.value
+                and isinstance(payload, dict)
+                and payload.get("reason") == "user_requested_stop"
+            ):
+                # S1-R05c stop tombstone: the live path reached DONE in RAM
+                # (finish() is silent), so the PAUSED(reason=stop) envelope is
+                # the only durable witness. Replay maps it to DONE — without
+                # this, a restarted process read the run as resumable PAUSED
+                # and a later done-signal could drive it forward.
+                sm.state = AgentState.DONE
+                stopped = True
+                last_seq_state = True
+                continue
             if etype == EventType.PLAN_APPROVED.value:
                 # Confirmation only: the mirror row above already decided.
                 approved_plan = (payload or {}).get("planId") if isinstance(payload, dict) else None
@@ -926,15 +947,18 @@ class OrchestratorService(Orchestrator):
                 sm.execution_failed(reason)
                 return
             except Exception as exc:  # noqa: BLE001 — surface engine failures to the UI
+                failed_msg = "DeepSeek Harness run failed: " + scrub_secrets(
+                    str(exc), getattr(self.engine, "api_key", None)
+                )
                 run_data["engine_result"] = {
                     "sessionId": run_id,
                     "engine": "error",
                     "status": "error",
-                    "finalResponse": f"DeepSeek Harness run failed: {exc}",
+                    "finalResponse": failed_msg,
                 }
                 # Wave 6 (D4): honest failure lands on the bus and blocks the run
                 # (no-op unless still EXECUTING — pause/stop already told their story).
-                sm.execution_failed(f"DeepSeek Harness run failed: {exc}")
+                sm.execution_failed(failed_msg)
                 return
             if run_data.get("cancel_requested"):
                 return  # zombie result from a cancelled live call — discard
@@ -1010,15 +1034,30 @@ class OrchestratorService(Orchestrator):
         plan_id = run_data.get("plan_id")
         if not plan_id or not await self._plan_is_approved(plan_id):
             raise PlanNotApprovedError(f"Cannot resume run '{run_id}': Plan is not approved.")
-        if await self._execution_already_started(run_id):
-            logger.info("run %s already started durably; resume re-queues instead", run_id)
-        else:
+        head = await self._durable_lifecycle_head(run_id)
+        suspended_heads = {
+            EventType.PAUSED.value,
+            EventType.BLOCKED_AWAITING_CLARIFICATION.value,
+        }
+        if head is None or head in suspended_heads or sm.state in (
+            AgentState.PAUSED,
+            AgentState.BLOCKED,
+        ):
             # M19-N1: the plan object itself is no longer needed here — the
             # queue path re-reads everything durable at claim time, and the
             # direct-spawn path re-reads it inside _spawn_execution callers.
+            #
+            # S1-R05d: drive sm.resume() whenever the run is (or RAM says it
+            # is) suspended — including a durable head that ALREADY shows
+            # execution started. Skipping it there (the old behavior) meant
+            # no RESUMED envelope was persisted; the re-queued claim then
+            # replayed PAUSED at dispatch, failed the EXECUTING gate, and
+            # the resume was silently dropped.
             sm.resume()  # PAUSED/BLOCKED → EXECUTING (+ RESUMED event); no-op otherwise
             if sm.state is not AgentState.EXECUTING:
                 return  # resume from IDLE/DONE/… is a no-op — nothing to resurrect
+        else:
+            logger.info("run %s already started durably; resume re-queues instead", run_id)
         if self.run_queue_factory is not None:
             queued = await enqueue_run(
                 self.run_queue_factory, run_id, run_data.get("projectId") or ""

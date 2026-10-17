@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import time
 from collections import defaultdict, deque
@@ -10,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSo
 from harness_contracts import Principal as ContractsPrincipal
 from harness_contracts import Role, error_body
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from .audit import register_append_only_guard
@@ -512,8 +513,6 @@ async def list_projects(
     principal: Annotated[object, Depends(get_principal)],
     limit: int = 100,
 ) -> dict:
-    from sqlalchemy import select
-
     from .models import Project
 
     limit = max(1, min(int(limit), 500))
@@ -560,6 +559,80 @@ async def add_agent_seat(
         await db.commit()
         await db.refresh(member)
         return {"seat": {"id": member.id, "displayName": member.display_name, "role": member.role}}
+
+
+# S1-R05e: operator read surface over ``audit_log``. Before this route the
+# audit trail was write-only — no way to answer "who stopped/started what"
+# or "who was denied" without raw DB access.
+AUDIT_PAGE_MAX = 200
+AUDIT_PAGE_DEFAULT = 50
+
+
+@router.get("/audit")
+async def list_audit(
+    request: Request,
+    principal: Annotated[object, Depends(get_principal)],
+    limit: int = AUDIT_PAGE_DEFAULT,
+) -> dict:
+    """Admin-only, newest-first, bounded page of audit rows (team-scoped).
+
+    Scope rule: rows bound to the principal's team members, PLUS unbound
+    rows (denials of non-members — the common denied case) whose ``detail``
+    names the principal's team. Rows of other teams are never returned.
+    """
+    if principal.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="admin only")
+    limit = max(1, min(int(limit), AUDIT_PAGE_MAX))
+    # The writer's shape is json.dumps (", " separator): needle matches
+    # ``"teamId": "<team>"``. LIKE is a conservative superset — rows are
+    # still parsed below; foreign rows cannot pass the lower bound because
+    # bound rows are filtered by membership, not by text.
+    needle = f'"teamId": "{principal.teamId}"'
+    async with request.app.state.session_factory() as db:
+        rows = (
+            (
+                await db.execute(
+                    text(
+                        "SELECT seq, actor_member_id, actor_kind, action,"
+                        " target_type, target_id, detail, ts"
+                        " FROM audit_log"
+                        " WHERE actor_member_id IN ("
+                        "   SELECT id FROM team_members WHERE team_id = :team)"
+                        " OR (actor_member_id IS NULL"
+                        "     AND detail LIKE '%' || :needle || '%')"
+                        " ORDER BY seq DESC LIMIT :limit"
+                    ),
+                    {
+                        "team": principal.teamId,
+                        "needle": needle,
+                        "limit": limit,
+                    },
+                )
+            )
+            .mappings()
+            .all()
+        )
+    items = []
+    for row in rows:
+        detail = row["detail"]
+        if isinstance(detail, str):
+            try:
+                detail = json.loads(detail)
+            except ValueError:
+                detail = {}
+        items.append(
+            {
+                "seq": row["seq"],
+                "actorMemberId": row["actor_member_id"],
+                "actorKind": row["actor_kind"],
+                "action": row["action"],
+                "targetType": row["target_type"],
+                "targetId": row["target_id"],
+                "detail": detail,
+                "ts": str(row["ts"]) if row["ts"] is not None else None,
+            }
+        )
+    return {"items": items, "limit": limit}
 
 
 # C-001 (M11-W1-A1): the legacy direct-add invite endpoint was REMOVED —

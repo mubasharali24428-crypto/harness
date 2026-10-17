@@ -21,10 +21,13 @@ from starlette.datastructures import Headers, MutableHeaders
 from starlette.routing import Match
 
 from harness_orchestrator.authz import (
+    AUDIT_ACTION_RUN_STARTED,
+    AUDIT_ACTION_RUN_STOPPED,
     AuthzUnavailableError,
     OwnershipDeniedError,
     RoleDeniedError,
     authorize_run,
+    emit_run_lifecycle,
     require_role,
 )
 from harness_orchestrator.logging_utils import (  # noqa: E402
@@ -609,6 +612,13 @@ async def reject_plan(runId: str, req: PlanActionRequest, actor: PlanApprover) -
 async def start_execution(runId: str, actor: RunWriter) -> dict[str, str]:
     try:
         await _service.start_execution(runId)
+        # S1-R05e: durable lifecycle record — "who started what, when".
+        await emit_run_lifecycle(
+            _service,
+            action=AUDIT_ACTION_RUN_STARTED,
+            run_id=runId,
+            principal=actor,
+        )
         return {"runId": runId, "status": "executing"}
     except PlanNotApprovedError as e:
         raise HTTPException(
@@ -653,6 +663,13 @@ async def resume_agent(runId: str, actor: RunWriter) -> dict[str, str]:
 )
 async def stop_agent(runId: str, actor: RunWriter) -> dict[str, str]:
     await _service.stop_agent(runId)
+    # S1-R05e: durable lifecycle record — "who stopped what, when".
+    await emit_run_lifecycle(
+        _service,
+        action=AUDIT_ACTION_RUN_STOPPED,
+        run_id=runId,
+        principal=actor,
+    )
     return {"runId": runId, "status": "stopped"}
 
 

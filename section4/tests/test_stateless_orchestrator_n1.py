@@ -28,6 +28,7 @@ column so the CAS participates.
 """
 
 import asyncio
+import json
 
 import pytest
 from sqlalchemy import text
@@ -393,7 +394,10 @@ class _PersistingBus(RecordingBus):
                     "p": project_id,
                     "r": run_id,
                     "t": name,
-                    "payload": "{}",
+                    # S1-R05c: persist the REAL envelope (was hardcoded "{}") —
+                    # payload-blind replay cannot witness reasons (stop
+                    # tombstone) or summaries, unlike section1's real bus.
+                    "payload": json.dumps(payload or {}, default=str),
                 },
             )
             await db.commit()
@@ -629,3 +633,48 @@ async def test_two_replica_worker_poll_claims_exactly_once(replica_pair):
         await asyncio.wait_for(rd["task"], timeout=5)
     result = await driver.get_engine_result("poll-run")
     assert result["status"] == "completed"
+
+
+# ---------------------------------------------------------------------------
+# S1-R05c — stop is durable: replay honors the stop tombstone
+# ---------------------------------------------------------------------------
+
+
+async def test_stopped_run_reads_done_after_restart(tmp_path):
+    """A stopped run must replay as terminal DONE on a fresh replica.
+
+    Live path: stop_agent reaches DONE in RAM (finish() is silent) and emits
+    PAUSED(reason=user_requested_stop). Before S1-R05c, replay mapped that
+    envelope back to PAUSED — the run looked resumable after a restart and a
+    later done-signal could drive it forward.
+    """
+    factory, svc = await _eviction_replica(tmp_path)
+    plan_id = await svc.propose_plan(
+        "stop-durable", goal="n1 stop durable", project_id="proj-evict"
+    )
+    await svc.approve_plan("stop-durable", plan_id, "user-a")
+    await svc.start_execution("stop-durable")
+    await asyncio.wait_for(svc.runs["stop-durable"]["task"], timeout=5)
+    await svc.stop_agent("stop-durable")
+
+    replica_b = OrchestratorService(session_factory=factory, bus=_PersistingBus(factory))
+    status = await replica_b.get_status("stop-durable")
+    assert status["state"] is AgentState.DONE  # tombstone honored on replay
+
+
+async def test_replayed_stop_rejects_later_done_signal(tmp_path):
+    """Nothing may walk a restarted stopped run forward (DONE is sealed)."""
+    from harness_orchestrator.state_machine import InvalidStateTransitionError
+
+    factory, svc = await _eviction_replica(tmp_path)
+    plan_id = await svc.propose_plan(
+        "stop-sealed", goal="n1 stop sealed", project_id="proj-evict"
+    )
+    await svc.approve_plan("stop-sealed", plan_id, "user-a")
+    await svc.start_execution("stop-sealed")
+    await asyncio.wait_for(svc.runs["stop-sealed"]["task"], timeout=5)
+    await svc.stop_agent("stop-sealed")
+
+    replica_b = OrchestratorService(session_factory=factory, bus=_PersistingBus(factory))
+    with pytest.raises(InvalidStateTransitionError):
+        await replica_b.signal_done("stop-sealed", diff_text=_CLEAN_DIFF)

@@ -28,6 +28,9 @@ APPEND_ONLY_ACTIONS = frozenset(
         "run.started",
         "run.stopped",
         "forbidden.command_blocked",
+        # S1-R05a: denied-but-unprovable ownership checks (raw-SQL writer in
+        # section4 authz.py; canonical allowlist lives here).
+        "authz.denied",
         # Mission 12 E3a (H-010): roster management transitions.
         "member.removed",
         "member.role_changed",
