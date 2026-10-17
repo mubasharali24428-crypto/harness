@@ -583,8 +583,11 @@ class TestLivePostgresMoneyMigration:
                 # --- flagship scenario at maximum fractional resolution ---
                 team_id = str(uuid.uuid4())
                 await conn.execute(
-                    "INSERT INTO teams (id, name, budget_usd) VALUES ($1, $2, $3::numeric)",
-                    team_id, "flagship", "99999.999999",
+                    # No team-tier budget: the M18-C2 resolution order
+                    # (team > plan > env) falls through to billing_plans,
+                    # whose cap is the boundary this scenario probes.
+                    "INSERT INTO teams (id, name, budget_usd) VALUES ($1, $2, NULL)",
+                    team_id, "flagship",
                 )
                 project_id = str(uuid.uuid4())
                 await conn.execute(
@@ -633,6 +636,9 @@ class TestLivePostgresMoneyMigration:
                         "run_id": run_id, "agent_role": "primary", "model": "m",
                         "input_tokens": 1, "output_tokens": 1,
                         "cost_usd": "0.000001", "latency_ms": 0, "team_id": team_id,
+                        # M18-C2 env tier: unset env cap mirrors reserve()'s
+                        # default (COALESCE skips the NULL tier).
+                        "env_budget_usd": None,
                     },
                 )
                 first = await conn.fetchrow(sql, *args)

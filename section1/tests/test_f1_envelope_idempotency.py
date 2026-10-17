@@ -435,9 +435,13 @@ async def test_live_postgres_accepts_reserve_placeholder():
     Skipped otherwise so the offline unit lane stays hermetic."""
     import os
 
-    dsn = os.environ.get("HARNESS_TEST_PG")
-    if not dsn:
+    # HARNESS_TEST_PG is the FLAG ("1"); the DSN lives in HARNESS_DATABASE_URL
+    # (SQLAlchemy scheme — strip +asyncpg for bare asyncpg.connect).
+    if not os.environ.get("HARNESS_TEST_PG"):
         pytest.skip("HARNESS_TEST_PG not set; live-PG probe skipped")
+    dsn = os.environ.get("HARNESS_DATABASE_URL", "").replace("+asyncpg", "")
+    if not dsn:
+        pytest.skip("HARNESS_DATABASE_URL not set; live-PG probe skipped")
     try:
         import asyncpg
     except ImportError:  # pragma: no cover - asyncpg ships in every venv

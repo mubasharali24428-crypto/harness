@@ -370,6 +370,14 @@ def _scratch_url(base_url: str, dbname: str) -> str:
     return f"{head}/{dbname}"
 
 
+# The live probes below were authored against the Aug-2026 epoch the migration
+# chain pins: 0028 ships STATIC 2026_09/2026_10 partitions and the seed
+# events/cutoffs name absolute dates. Passing `now` explicitly (the retention
+# runner's deterministic seam) keeps them honest forever instead of rotting
+# with the wall clock.
+_FROZEN_NOW = datetime(2026, 8, 20, 12, 0, tzinfo=UTC)
+
+
 @pytest.mark.skipif(not os.environ.get("HARNESS_TEST_PG"), reason="needs HARNESS_TEST_PG")
 async def test_pg_fresh_install_partitions_end_to_end():
     """The REAL probe: empty scratch PG DB -> full migrate() -> partitioned
@@ -440,6 +448,7 @@ async def test_pg_fresh_install_partitions_end_to_end():
         summary = await er.run_sweep(
             factory, retention_days=30, batch_size=5000,
             outbox_retention_days=30, audit_retention_days=365,
+            now=_FROZEN_NOW,
         )
         assert summary["partitions_dropped"] == 0
 
@@ -447,7 +456,7 @@ async def test_pg_fresh_install_partitions_end_to_end():
         # from 0028, so asking four months ahead must create exactly the two
         # uncovered ones (and skip the covered windows without overlap errors
         # — the bug the first probe run caught live).
-        created = await er.ensure_forward_partitions(factory, ahead_months=4)
+        created = await er.ensure_forward_partitions(factory, ahead_months=4, now=_FROZEN_NOW)
         assert created >= 1
     finally:
         await engine.dispose()
@@ -481,7 +490,7 @@ async def test_pg_partition_pruning_explain_and_detach_drop():
 
         # Seed forward months so November inserts have a home (0028 ships
         # 09+10; legacy covers August).
-        await er.ensure_forward_partitions(factory, ahead_months=4)
+        await er.ensure_forward_partitions(factory, ahead_months=4, now=_FROZEN_NOW)
 
         async with engine.begin() as conn:
             await conn.execute(text("INSERT INTO teams (id, name) VALUES ('t-p', 'prune')"))
@@ -547,7 +556,7 @@ async def test_pg_partition_pruning_explain_and_detach_drop():
         assert counts.get("dec.event") == 1
 
         # The runner re-seeds the rolling window next sweep.
-        reseeded = await er.ensure_forward_partitions(factory)
+        reseeded = await er.ensure_forward_partitions(factory, now=_FROZEN_NOW)
         assert reseeded >= 1  # August et al. come back as fresh monthlies
     finally:
         await engine.dispose()

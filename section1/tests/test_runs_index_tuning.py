@@ -537,7 +537,9 @@ class TestLivePostgresRunsIndexPlan:
                 assert res.returncode == 0, f"{path.name}: {res.stderr}"
 
             # Seed real scale server-side (>=50k agent_events) so the
-            # planner's choice is meaningful, not a 3-row toy.
+            # planner's choice is meaningful, not a 3-row toy. Event ts is
+            # anchored pre-Sep-2026 so every row lands in the legacy child —
+            # the partition the LIFECYCLE plan pin below names.
             seeded = _psql(
                 dbname,
                 """
@@ -561,7 +563,8 @@ class TestLivePostgresRunsIndexPlan:
                        (ARRAY['execution_started', 'resumed', 'log_line',
                               'engine_completed'])[1 + (g % 4)],
                        json_build_object('k', g),
-                       now() - (g || ' seconds')::interval
+                       TIMESTAMPTZ '2026-06-01T00:00:00Z'
+                           - (g || ' seconds')::interval
                 FROM generate_series(1, 60000) AS g;
                 VACUUM ANALYZE agent_events;
                 """,
