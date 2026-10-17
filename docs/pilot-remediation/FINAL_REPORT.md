@@ -95,11 +95,10 @@ fragility, no code change).
 
 **BLOCKED / HUMAN DECISION REQUIRED:** external-provider drills (Stripe
 test-mode, live OIDC IdP, WAL-G against a real object store, live model key)
-— procedures in `docs/runbooks/external-validation.md`; **SPA has no
-`auth/sso` callback wiring** (OIDC is API-complete only) — decide pilot SSO
-need; rollup "10k latency" anomaly not reproducible (need the original
-failing command/log); mcp under the S11 venv (mcp 2.1.1 drift — version-bound
-decision pending; global-env run green).
+— procedures in `docs/runbooks/external-validation.md`. Wave 2 (§8) closed
+the code-side gaps this paragraph previously carried: the SPA SSO callback is
+BUILT; mcp is pinned `>=1.2,<2`; the rollup anomaly is closed as
+not-reproducible.
 
 ## 6. Scorecard (15 categories)
 
@@ -125,10 +124,57 @@ decision pending; global-env run green).
 
 **PRODUCTION-READY WITH EXPLICIT BLOCKERS.**
 
-1. Review and commit the working-tree patches (program rule: no commits by
-   the agent). Branch protection: add the stable job name `e2e-compose`.
+1. Push the local commits (wave 1 + wave 2; nothing is on origin yet). CI on
+   origin is red on the OLD revision — the wave-1/2 commits are what turns it
+   green. Then add branch protection (the repo has NONE today): required
+   contexts `e2e-compose` and `migrations apply clean on real PG (migrate.py)`
+   — both run per-PR. (`nightly real-PG integration probe` is schedule-gated
+   and must NOT be a required check.)
 2. Execute (or explicitly accept risk on) the external drills in
-   `docs/runbooks/external-validation.md`; decide whether pilot SSO requires
-   the SPA callback work.
-3. Provide the original rollup failure repro (or accept closure as
-   not-reproducible), and pick the mcp dependency resolution.
+   `docs/runbooks/external-validation.md` (SPA SSO callback is built; still
+   needs IdP credentials).
+3. Rollup repro: closed as not-reproducible — re-open with the original
+   command if it resurfaces. mcp: RESOLVED (pinned `<2`, `88bb78f`).
+
+## 8. Wave-2 close-out (post-report)
+
+After wave 1 was committed locally, `gh run list` showed scheduled CI red on
+EVERY run at the origin tip (`9f85590`) — install bugs and gitleaks findings
+that had also masked the real-PG probes entirely. Wave 2 unblocked CI and
+executed the §7 close-out. Full detail: RISK_REGISTER "Nightly-CI unblock +
+close-out pass (wave 2)". Local commits (NOT pushed): `7af0381` (CI unblock:
+`[dev]` probe install, `sqlalchemy[asyncio]` extras, gitleaks allowlist +
+OPS-21), `88bb78f` (mcp pin), `6537caf` (probe rot + migration 0034 FK
+cascade), `fae0600` (S4 legacy-replay planId recovery + hermetic checkpoint
+schema), `412fc30` (SPA SSO callback).
+
+Verification deltas (same env CI uses; probes now actually exercised):
+
+| Check | Wave-1 report | Wave-2 (HEAD) |
+|---|---|---|
+| S1 suite | 639/10 skip | 639/10 skip offline · **649 live-PG** |
+| Integration probe | never ran (install bug) | **4/4** |
+| migrate_selftest | 32 (0001→0033) | **33 (0001→0034, idempotent)** |
+| S4 suite | 526/7 skip | 526/7 skip (unchanged after fix) |
+| Frontend | 500 | **507/507** + `tsc` |
+| gitleaks (full history, 281 commits) | red (5 findings) | **0 findings** |
+| mcp tests | drift, decision pending | **18/18 on 1.30.0 (pinned <2)** |
+
+New real findings fixed in wave 2: `cost_ledger_daily.team_id` FK was
+NO-ACTION (0027 drift vs the deletion-story law) → migration 0034;
+`_rehydrate`'s pre-mirror PLAN_APPROVED fallback no-oped on a pre-seeded
+`None` key (`setdefault`) so legacy logs lost their `planId` → guarded
+assignment; the integration checkpoint had never run the enriched S4
+aggregate against its hermetic schema (SQL-side `pr_id`, M15-D1) → helper
+pins the migrated shape.
+
+Branch-protection skeleton (operator, once CI is green on origin):
+
+```
+gh api -X PUT repos/{owner}/{repo}/branches/master/protection \
+  -f 'required_status_checks[strict]=true' \
+  -f 'required_status_checks[contexts][]=e2e-compose' \
+  -f 'required_status_checks[contexts][]=migrations apply clean on real PG (migrate.py)' \
+  -f 'enforce_admins=false' -F 'required_pull_request_reviews=' \
+  -F 'restrictions='
+```

@@ -8,7 +8,7 @@ shows a drill date, its classification is **HUMAN DECISION REQUIRED**
 
 | Surface | Verified so far (evidence) | Missing | Classification |
 |---|---|---|---|
-| OIDC SSO (backend) | PKCE flow, discovery issuer-match, JWKS RS256, config CRUD, encrypted secret at rest, rate-limited start/complete (`test_sso_oidc.py:620-830`) | Live IdP drill; **SPA has no `auth/sso` callback wiring** (grep: zero hits in `section7/`) | HUMAN DECISION REQUIRED |
+| OIDC SSO (backend) | PKCE flow, discovery issuer-match, JWKS RS256, config CRUD, encrypted secret at rest, rate-limited start/complete (`test_sso_oidc.py:620-830`) | Live IdP drill only — **SPA callback BUILT** 2026-10-17 (`412fc30`: `/auth/sso/callback` page + login SSO entry; frontend 507/507 + `tsc`) | HUMAN DECISION REQUIRED (IdP creds) |
 | Stripe billing | Adapter + signed idempotent webhooks vs stub (`STRIPE_API_BASE`); routes mount only with `STRIPE_API_KEY` set (`app.py:210-213`) | Test-mode drill (checkout → webhook → replay) | HUMAN DECISION REQUIRED |
 | WAL-G / PITR | Dev-sized drill: recovered to 4 s before a destructive DELETE (`docs/runbooks/backup-and-pitr.md`) | Drill against a real disposable object store (S3/MinIO) | HUMAN DECISION REQUIRED |
 | Model providers | Simulated mode honest outside real keys; provider failure surfaces verbatim; `HARNESS_ENV=dev` gate (`section3 providers.py`) | Live provider call with a real key through orchestrator; cost-metering accrual check | HUMAN DECISION REQUIRED |

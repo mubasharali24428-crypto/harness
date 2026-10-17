@@ -358,5 +358,81 @@ Final wave report (verdict, scorecard, evidence ledger):
 - External-provider live drills (Stripe test-mode, live IdP, real object
   store, model-provider keys): procedures in
   `docs/runbooks/external-validation.md`; until executed they stay
-  HUMAN DECISION REQUIRED — including the newly evidenced fact that the SPA
-  has no OIDC callback wiring yet (API surface only).
+  HUMAN DECISION REQUIRED. (Wave 2 supersedes the SPA-callback gap noted
+  here — see the wave-2 section below.)
+
+---
+
+## Nightly-CI unblock + close-out pass (2026-10-17, wave 2)
+
+Method: after the wave-1 commits, `gh run list` showed EVERY scheduled run red
+since the origin tip (`9f85590`). Root-caused the whole board, fixed it, then
+executed the FINAL_REPORT §7 close-out list. All evidence commands ran locally
+under the same env CI uses (`HARNESS_TEST_PG=1`, compose PG on :5499).
+
+**Origin-CI root causes → FIXED (commits `7af0381`, `88bb78f`, `6537caf`):**
+- `pytest (section3/section6)`: `ModuleNotFoundError: No module named
+  'greenlet'` — async SQLAlchemy needs the asyncio extra; both pyprojects now
+  pin `sqlalchemy[asyncio]>=2.0`.
+- `nightly real-PG probe`: `No module named pytest` — the probe venv
+  installed section1 without `[dev]`; the pg-probe job now installs
+  `-e ".[dev]"`.
+- `security scan`: gitleaks "Leaks detected" — 5 findings, ALL hand-verified
+  fakes (fixture keys/hashes + one `HARNESS_ENV=dev` docstring). **OPS-21**:
+  repo `.gitleaks.toml` allowlist (applies to history scans; inline comments
+  cannot silence old commits) + inline `# gitleaks:allow` on the 4 test
+  files. Full-history rescan (281 commits): 0 findings.
+- `pytest (section4)` on origin: unexplained on the old revision; re-verified
+  green at HEAD (526/7) — subsumed by the wave-2 fixes.
+
+**Masked by the probe install bug (those probes had NEVER run in CI) — found
+and fixed, `6537caf` + `fae0600`:**
+- `test_fk_deletion_story`: live `cost_ledger_daily.team_id` FK was NO ACTION
+  — 0027 shipped it without CASCADE while the deletion map (`DELETION_MAP`)
+  and the ORM model both say CASCADE. Migration `0034` aligns it (law: never
+  edit a landed migration). `migrate_selftest`: 33 migrations 0001→0034,
+  re-run idempotent.
+- Probe rot, each fixed at its root: f1 idempotency test read
+  `HARNESS_TEST_PG` as a DSN (it is the flag; DSN lives in
+  `HARNESS_DATABASE_URL`) · partitioned-retention probes hardcoded the
+  Aug-2026 epoch (now passed explicitly through the runner's `now=` seam,
+  `_FROZEN_NOW`) · runs-index seed anchored pre-Sep-2026 so rows land in the
+  legacy child the plan pin names · money boundary scenario predates M18-C2
+  team-first cap order (team budget now NULL → plan tier governs, matching
+  the scenario's own comment).
+- Integration checkpoint `test_orchestrator_rehydrates_state_from_event_log`
+  had two stale layers: a hermetic schema without the SQL-side
+  `agent_runs.pr_id` (M15-D1: no ORM mirror — helper now pins the migrated
+  shape) and — REAL BUG — `_rehydrate`'s PLAN_APPROVED fallback used
+  `rd.setdefault("plan_id", …)` on a pre-seeded `None` key, so pre-mirror
+  legacy logs never recovered their `planId` on replay. Now a guarded
+  assignment.
+
+**§7 close-out:**
+- Rollup "10k latency" anomaly → CLOSED, not reproducible (hermetic
+  `test_cost_rollup.py` 14 passed/1.11 s; live-PG variant 4 passed; original
+  failing command never provided — operable to re-open if it resurfaces).
+- mcp version decision → RESOLVED + PINNED: `mcp>=1.2,<2` (`88bb78f`).
+  Evidence: mcp 1.30.0 → 18/18; mcp 2.1.1 (S11 venv) → 1 failed/13 errors.
+- SPA SSO callback (F-gap) → BUILT (`412fc30`): login SSO entry +
+  `/auth/sso/callback` page, pending-attempt stash, byte-exact redirectUri
+  replay, honest error states; frontend 507/507 + `tsc`. Live IdP drill
+  still creds-blocked.
+- `.DS_Store` hygiene → gitignored + 3 tracked-copy removals.
+- Branch protection: repo has NONE today (`gh api … /branches/master/
+  protection` → 404). NOT created unilaterally — add `e2e-compose` and the
+  migrate job (both run per-PR; the pg-probe job is schedule-gated and
+  unsuitable as a required check) once CI is green on origin; skeleton in
+  FINAL_REPORT §7/§8.
+
+**Post-fix probe parity (local, CI-identical env):** S1 offline 639/10 skip ·
+S1 live-PG 649/0 skip · integration probe 4/4 · migrate 33 idempotent · S4
+526/7 skip · frontend 507/507 + tsc · gitleaks full-history 0 findings.
+
+**Still open after wave 2:**
+- External-provider drills (unchanged): `docs/runbooks/external-validation.md`
+  — SSO row now reads: SPA callback BUILT; blocked on IdP creds.
+- Push/promotion is a human gate: wave-2 work is committed LOCALLY
+  (`7af0381`, `88bb78f`, `6537caf`, `fae0600`, `412fc30`); nothing pushed.
+- R-31, R-32, R-34, R-35, R-41 (residual), R-43, R-44, R-46, R-49, R-50:
+  registers-as-is (decision/counsel lanes).
