@@ -1,6 +1,6 @@
 "use client";
 
-import { createHash } from "node:crypto";
+import { sha256Hex } from "./sha256";
 import { useEffect, useRef, useState } from "react";
 import type { EventEnvelope } from "@contracts/events";
 import { fetchWsTicket, IDENTITY_WS_BASE } from "./api";
@@ -29,7 +29,7 @@ import { backoffDelay, exponentialDelay, BACKOFF_MAX_DELAY_MS } from "./backoff"
 
 /** Pure + sync: sha256(ua + ip)[:16]; pass undefined ip for the UA-only form. */
 export function computeWsFingerprint(userAgent: string, clientIp?: string): string {
-  return createHash("sha256").update(`${userAgent ?? ""}${clientIp ?? ""}`).digest("hex").slice(0, 16);
+  return sha256Hex(`${userAgent ?? ""}${clientIp ?? ""}`).slice(0, 16);
 }
 
 /** Pure: merge one incoming envelope into the existing ordered, deduped list.
