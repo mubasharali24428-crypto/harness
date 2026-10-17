@@ -286,3 +286,77 @@ model quality, competitive/commercial
 3. Explore-pass claim "S10 unauthenticated service" — **S10 is not a deployed
    service** (absent from `SERVICES`, `DEP/runners/services.py:583` and compose).
    Downgraded to R-46.
+
+---
+
+## Session 2/3 closure pass (2026-10-17)
+
+Method: session-3 re-verification against current HEAD (`272bb8d` + working
+tree); full item-by-item mapping in `RECONCILIATION_MATRIX.md`.
+
+**Closed / upgraded this pass:**
+- R-10 → MITIGATED (heartbeat-staleness env override, default 90 s documented;
+  `S4/.../run_queue.py:29-38`).
+- R-14 → PARTIAL: prune windows shipped (M19-N3, `DEP/docker-compose.yml:678`,
+  `0028`); operator retention table still owed to R-34.
+- R-15 → FIXED (PITR rehearsal evidence: `docs/briefs/m18-c6-rehearsal-evidence.md`).
+- R-28 → FIXED (`POST /github/disconnect`, S1-R02f).
+- R-30 → FIXED (`GET /api/v1/audit`, team-scoped admin page, S1-R05e).
+- R-36 → FIXED: TUTORIAL + live hero journey reproduced (session 2);
+  E2E-in-CI shipped 2026-10-17 (`e2e-compose`, see OPS-20 below).
+- R-38 / R-39 / R-45 → FIXED per program close (Stripe rails / MCP server /
+  OIDC SSO incl. rate-limited login edges, verified at HEAD).
+- R-47 → CLOSED: frontend work committed at `923711f`; tree clean.
+- S2-D1…D6 (session-2 report defects, outside R-01…R-50) → all FIXED; see
+  `session2/README.md` (final) and the matrix §B.
+- **M23-A** approval expiry (area 16 / S2-D4) → FIXED: TTL 24 h via
+  `HARNESS_PLAN_APPROVAL_TTL_SECONDS`, `plan_approved_at` + `approvedAt`
+  payload, enforced in the state machine AND durably against the event log;
+  `PlanNotApprovedError` → 409; 11 regression tests; S4 suite 503/5 skip.
+- **M23-B** budget warnings (area 9 / S2-D5) → FIXED:
+  `HARNESS_TEAM_BUDGET_WARN_PCT` (default 80), `BudgetStatus.warned`/
+  `warnAtUsd`, once-per-run log, run-aggregate + API exposure; 10 regression
+  tests; S4 suite 503/5 skip.
+- **MAC2-F4** (m17-findings-mac2) → FIXED (2026-10-17):
+  `/api/v1/invites/redeem` added to `DEFAULT_PROTECTED_ROUTES`; new
+  `/api/v1/ws-ticket` route wired with `WS_TICKET_LIMIT=60` in
+  `EXPENSIVE_OP_LIMITS`; `test_ratelimit_mac2f4.py` (6 tests); S1 suite 639/10.
+- **OPS-20** → FIXED (2026-10-17): `e2e-compose` job in
+  `.github/workflows/ci.yml` runs the full 12-check compose journey on every
+  push with a migrate exit-code gate and failure-artifact upload;
+  `make e2e-compose` + `docs/ci-gates.md` row. Journey verified green twice
+  live (direct + via Makefile).
+- **Section-B adversarial wave** → FIXED (2026-10-17): replay terminal sealing
+  (post-terminal rows can no longer resurrect a DONE run; both replay walks
+  guarded) found by new adversarial tests; 20-test 10×16 transition matrix
+  (`test_state_machine_adversarial.py`); demo fixture re-curated to an
+  H-008-legal sequence; S4 suite 526/7 skip; journey 12/12 after rebuild.
+  Noted (by design, not fixed): state-machine mutators enforce only the
+  liveness half of H-007/H-008 — role/diff-evidence gating lives in
+  `signals.py` + service layer.
+- **Heartbeat-claims flake (recorded earlier as non-reproducible) →
+  ROOT-CAUSED + FIXED (2026-10-17)**: `test_reaper_leaves_healthy_claims_untouched`
+  flaked because its cleanup cancelled a task whose engine call runs on an
+  uninterruptible executor thread, and when cancellation landed mid-DB-await
+  the service's finally-block `finish_run` could await a StaticPool/aiosqlite
+  connection poisoned by the abandoned op (test-env artifact; production uses
+  asyncpg pools — noted as a latent fragility of await-in-finally under
+  cancellation). Test cleanup now uses a release-able thread block + bounded
+  loop pump; 0/80 solo runs (was 4–5/60), S4 suite green twice (526/7).
+- **E2E-found live bugs** → FIXED: demo-seed FK insert order on PG (M18-C8);
+  audit JSONB `LIKE` 500 (CAST fix); landlock version-heuristic vs. Docker
+  seccomp (M18-C9: runtime syscall probe + honest `auto` degradation).
+  S5 suite 181/1 skip.
+
+Final wave report (verdict, scorecard, evidence ledger):
+`docs/pilot-remediation/FINAL_REPORT.md`.
+
+**Still open after this pass (entering the next wave):**
+- Program/strategy items R-31, R-32, R-34, R-35, R-41 (residual), R-43, R-44,
+  R-46, R-49, R-50 remain registers-as-is; several are counsel/decision lanes,
+  not code.
+- External-provider live drills (Stripe test-mode, live IdP, real object
+  store, model-provider keys): procedures in
+  `docs/runbooks/external-validation.md`; until executed they stay
+  HUMAN DECISION REQUIRED — including the newly evidenced fact that the SPA
+  has no OIDC callback wiring yet (API surface only).

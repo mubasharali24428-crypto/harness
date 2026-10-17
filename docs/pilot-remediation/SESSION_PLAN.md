@@ -54,3 +54,22 @@ decision must be recorded, not implied.
 No parallel risky edits to the same surface. One risk in flight at a time.
 Every diff stays small and reviewable; >100 lines triggers a check-in.
 No commits unless asked; changes are left as reviewable working-tree patches.
+
+## Closure status (2026-10-17)
+
+- Session 2 report **finalized** (`session2/README.md`), including the two
+  escalated design decisions, both now implemented: **M23-A** (approval
+  expiry, area 16) and **M23-B** (budget warnings, area 9).
+- Full source reconciliation in `RECONCILIATION_MATRIX.md` (177 IDs → 174
+  deduped rows); register closure states in `RISK_REGISTER.md`
+  §"Session 2/3 closure pass". No commits made (program rule).
+- Remaining open items for the next wave: MAC2-F4 (redeem/ws-ticket rate
+  limits), OPS-20 (E2E in CI), plus the decision/counsel lanes in
+  R-31…R-50.
+- **Update (2026-10-17, later wave):** both code items are now FIXED —
+  MAC2-F4 (protected routes + limiter, S1 639/10) and OPS-20 (`e2e-compose`
+  job in `ci.yml`; 12-check journey green live twice; `make e2e-compose`).
+  Section-B adversarial wave closed replay terminal sealing + the
+  heartbeat-claims flake root cause (S4 526/7, green twice). External-provider
+  drills remain decision lanes — procedures in
+  `docs/runbooks/external-validation.md`.

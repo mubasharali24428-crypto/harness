@@ -999,7 +999,7 @@ All envelopes: `{"type","payload","ts","seq","projectId","runId"}` (frozen
 | type | emitted by | payload keys | notes |
 |---|---|---|---|
 | plan_proposed | `sm.plan_proposed` | planId, runId | after `_persist_plan(proposed)` |
-| plan_approved | `sm.approve_plan` | planId, runId, approvedBy | approvedBy = session principal now |
+| plan_approved | `sm.approve_plan` | planId, runId, approvedBy, approvedAt | approvedBy = session principal now; approvedAt = M23-A approval stamp (ISO-8601, additive; expiry enforced at start) |
 | execution_started | `sm.start_execution` | runId | engine task spawned right after |
 | paused | `sm.pause` / `submit_human_edit` | runId[, reason, path] | reason=human_edit implies flag |
 | resumed | `sm.resume` | runId | state-only; live task NOT auto-respawned |
