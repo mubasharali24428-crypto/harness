@@ -175,6 +175,81 @@ def test_nonempty_completed_response_succeeds(monkeypatch):
 
 
 # ----------------------------------------------------------------------
+# S1-R02c: a live run sets DEEPSEEK_API_KEY / DEEPSEEK_BASE_URL in the
+# process env for the duration of the SDK call. The restore must be EXACT:
+# when the variable was not there before, it must be gone afterwards — a
+# provider secret must never linger in a long-lived server process.
+# ----------------------------------------------------------------------
+
+
+class _FakeResult:
+    final_response = "ok"
+    events: list = []
+
+
+class _FakeHarness:
+    seen_env: tuple = ()
+
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
+    def __enter__(self):
+        _FakeHarness.seen_env = (
+            os.environ.get("DEEPSEEK_API_KEY"),
+            os.environ.get("DEEPSEEK_BASE_URL"),
+        )
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def run(self, goal, session_id=None):
+        return _FakeResult()
+
+
+def _install_fake_sdk(monkeypatch):
+    import sys
+    import types
+
+    mod = types.ModuleType("deepseek_harness")
+    mod.DeepSeekHarness = _FakeHarness
+    monkeypatch.setitem(sys.modules, "deepseek_harness", mod)
+
+
+def _live_wrapper(tmp_path):
+    return DeepSeekHarnessWrapper(
+        workspace_dir=str(tmp_path / "ws"),
+        session_root=str(tmp_path / "sessions"),
+        api_key="sk-injected-rotating",
+        base_url="http://engine.test/v1",
+        model="m1",
+        live_mode="live",
+    )
+
+
+def test_live_run_env_restores_exactly_when_originally_unset(monkeypatch, tmp_path):
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.delenv("DEEPSEEK_BASE_URL", raising=False)
+    _install_fake_sdk(monkeypatch)
+    text, status, _model, _events = _live_wrapper(tmp_path)._run_live_events("g", "s-1")
+    assert (status, text) == ("completed", "ok")
+    # The keys WERE injected for the SDK call (guards against a vacuous pass)…
+    assert _FakeHarness.seen_env == ("sk-injected-rotating", "http://engine.test/v1")
+    # …and are gone again after the run.
+    assert "DEEPSEEK_API_KEY" not in os.environ
+    assert "DEEPSEEK_BASE_URL" not in os.environ
+
+
+def test_live_run_env_restores_previous_values(monkeypatch, tmp_path):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-old")
+    monkeypatch.setenv("DEEPSEEK_BASE_URL", "http://old/v1")
+    _install_fake_sdk(monkeypatch)
+    text, status, _model, _events = _live_wrapper(tmp_path)._run_live_events("g", "s-2")
+    assert (status, text) == ("completed", "ok")
+    assert os.environ["DEEPSEEK_API_KEY"] == "sk-old"
+    assert os.environ["DEEPSEEK_BASE_URL"] == "http://old/v1"
+
+
 def test_live_exception_text_never_carries_the_key(monkeypatch):
     """Provider exceptions can embed the Authorization header or the
     provider body; the key configured on the wrapper must never reach the

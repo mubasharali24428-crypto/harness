@@ -29,23 +29,28 @@ Transition design (dual-read window):
 """
 
 import base64
-import hashlib
-import hmac
 import os
 from datetime import UTC, datetime
 
 from cryptography.fernet import Fernet, InvalidToken
+from harness_contracts.security import (
+    KDF_ALGO_ARGON2ID,
+    KDF_ALGO_SCRYPT,
+    SALT_LENGTH,
+    SCRYPT_N,
+    SCRYPT_P,
+    SCRYPT_R,
+    derive_fernet_key,
+)
+from harness_contracts.security import (
+    kdf_algo_id as _kdf_algo_id,
+)
+from harness_contracts.security import (
+    legacy_fernet as _legacy_fernet,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import ApiKey
-
-try:  # pragma: no cover - branch taken only where argon2-cffi exists
-    from argon2.low_level import Type as _Argon2Type
-    from argon2.low_level import hash_secret_raw as _argon2_hash_secret_raw
-
-    _HAS_ARGON2 = True
-except ImportError:
-    _HAS_ARGON2 = False
 
 __all__ = [
     "KeyVault",
@@ -68,86 +73,11 @@ __all__ = [
 # KDF identity + parameters
 # --------------------------------------------------------------------------
 
-KDF_ALGO_ARGON2ID = "argon2id"
-KDF_ALGO_SCRYPT = "scrypt"
+# M17-B3 isolation: the derivation math lives in harness_contracts.security
+# and is re-exported here (names above) for Section-1 callers and tests.
+# Section 1 owns only the persistence side — minting/reading the parameter row.
 # Pre-0022 derivation id: the unsalted SHA-256 stretch inside contracts.
 LEGACY_ALGO_ID = "sha256"
-
-# scrypt parameters when argon2id is unavailable. n=2**15 (32 MiB), r=8, p=1:
-# OWASP's recommended scrypt floor for interactive workloads.
-SCRYPT_N = 2**15
-SCRYPT_R = 8
-SCRYPT_P = 1
-
-# Argon2id parameters for installs where argon2-cffi IS available (documented
-# parity; not exercised on this deployment — installing is out of bounds here).
-ARGON2_T_COST = 3
-ARGON2_M_COST_KIB = 65536  # 64 MiB
-ARGON2_PARALLELISM = 4
-
-SALT_LENGTH = 32
-
-# hashlib.scrypt's libscrypt default maxmem (~16 MiB) rejects exactly the
-# parameter set above — raise it explicitly or every derivation raises
-# ValueError. Working set is 128*n*r bytes; headroom covers p>1 scaling.
-_SCRYPT_MAXMEM = 128 * SCRYPT_N * SCRYPT_R * SCRYPT_P * 2
-
-
-def _kdf_algo_id() -> str:
-    return KDF_ALGO_ARGON2ID if _HAS_ARGON2 else KDF_ALGO_SCRYPT
-
-
-def derive_fernet_key(
-    master_key: bytes,
-    salt: bytes,
-    *,
-    algorithm: str | None = None,
-    n: int = SCRYPT_N,
-    r: int = SCRYPT_R,
-    p: int = SCRYPT_P,
-) -> bytes:
-    """Stretch ``master_key`` with a salted memory-hard KDF to a Fernet key.
-
-    Deterministic given (master_key, salt, params): the persisted parameters
-    row reconstructs the payload key at read time without key material ever
-    being stored. Raises ValueError on unknown algorithms or short salts.
-    """
-    if not master_key:
-        raise ValueError("master_key must be non-empty")
-    if len(salt) < SALT_LENGTH:
-        raise ValueError(f"salt must be >= {SALT_LENGTH} bytes")
-    algorithm = algorithm or _kdf_algo_id()
-    if algorithm == KDF_ALGO_ARGON2ID and _HAS_ARGON2:
-        stretched = _argon2_hash_secret_raw(
-            secret=master_key,
-            salt=salt,
-            time_cost=ARGON2_T_COST,
-            memory_cost=ARGON2_M_COST_KIB,
-            parallelism=ARGON2_PARALLELISM,
-            hash_len=32,
-            type=_Argon2Type.ID,
-        )
-    elif algorithm == KDF_ALGO_SCRYPT:
-        stretched = hashlib.scrypt(
-            master_key, salt=salt, n=n, r=r, p=p, dklen=32, maxmem=_SCRYPT_MAXMEM
-        )
-    else:
-        raise ValueError(f"unknown kdf algorithm: {algorithm}")
-    # HKDF-style extract+expand to exactly Fernet's 32-byte key, domain-
-    # separated per KDF so an argon2id install and a scrypt install can never
-    # collide on the same output by accident.
-    prk = hmac.new(salt, b"harness-kdf-v1|" + algorithm.encode(), hashlib.sha256).digest()
-    okm = hmac.new(prk, b"fernet-key\x01", hashlib.sha256).digest()
-    return hmac.new(stretched, okm, hashlib.sha256).digest()
-
-
-def _legacy_fernet(master_key: bytes) -> "Fernet":
-    """The pre-0022 derivation, byte-identical to contracts.KeyVault.
-
-    Kept ONLY for the dual-read transition window; never used for writes.
-    """
-    digest = hashlib.sha256(master_key).digest()
-    return Fernet(base64.urlsafe_b64encode(digest))
 
 
 # --------------------------------------------------------------------------

@@ -20,10 +20,10 @@ import os
 import pytest
 from cryptography.fernet import Fernet, InvalidToken
 from harness_contracts import KeyVault as ContractsKeyVault
+from harness_contracts.security import HAS_ARGON2
 from sqlalchemy import select
 
 from harness_identity.crypto import (
-    _HAS_ARGON2,
     KDF_ALGO_ARGON2ID,
     KDF_ALGO_SCRYPT,
     SALT_LENGTH,
@@ -96,7 +96,7 @@ async def test_bare_keyvault_stays_byte_compatible_with_contracts():
 
 def test_derive_fernet_key_matches_documented_params():
     salt = os.urandom(SALT_LENGTH)
-    expected_algo = KDF_ALGO_ARGON2ID if _HAS_ARGON2 else KDF_ALGO_SCRYPT
+    expected_algo = KDF_ALGO_ARGON2ID if HAS_ARGON2 else KDF_ALGO_SCRYPT
     key1 = derive_fernet_key(MASTER, salt, algorithm=expected_algo)
     key2 = derive_fernet_key(
         MASTER, salt, algorithm=expected_algo, n=SCRYPT_N, r=SCRYPT_R, p=SCRYPT_P

@@ -299,7 +299,7 @@ class TestInvokeAiWiring:
     def test_malformed_key_honest_error_no_leak(self, caplog: pytest.LogCaptureFixture):
         broken = make_key_row("k-broken", "openai", "sk-corrupt-secret")
         broken["key_encrypted"] = "not-a-fernet-token"
-        svc = MeetingService(team_key_store=fake_factory([broken]))
+        svc = MeetingService(team_key_store=fake_factory([broken]), vault=VAULT)
         svc.meeting_ai_client = None
         with caplog.at_level(logging.ERROR):
             meeting = svc.create_meeting("proj-1", "broken")

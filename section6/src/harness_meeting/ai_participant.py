@@ -234,11 +234,68 @@ async def pick_team_key(
         if row is None:
             return None
         try:
-            return vault.decrypt(row["key_encrypted"])
+            return await _decrypt_stored_key(session, vault, row["key_encrypted"])
         except Exception as exc:  # noqa: BLE001 — malformed key => honest failure
             # Never log ciphertext or plaintext: name the condition, not the value.
             logger.error("stored AI key could not be decrypted (%s)", type(exc).__name__)
             raise MalformedTeamKeyError(type(exc).__name__) from exc
+
+
+async def _decrypt_stored_key(session: Any, vault: Any, ciphertext: str) -> str:
+    """Decrypt an ``api_keys.key_encrypted`` payload (S1-R02a).
+
+    The KDF derivation is contracts-owned (``harness_contracts.security``);
+    the per-install salt/params come from the frozen ``key_derivation_params``
+    singleton read via raw SQL (M17-B3: sections share via contracts and
+    frozen tables only). Dual-read window: derived key first, pre-0022 legacy
+    stretch second, so keys stay readable across ``reencrypt_vault.py``.
+    Vaults without a ``master_key`` marker (contracts ``KeyVault``, foreign
+    implementations) keep the plain single-window decrypt.
+    """
+    master_key = getattr(vault, "master_key", None)
+    if master_key is not None:
+        _row, new_fernet, legacy_fernet = await _load_kdf_params(session, master_key)
+        for fernet in (new_fernet, legacy_fernet):
+            try:
+                return fernet.decrypt(ciphertext.encode()).decode()
+            except Exception:  # noqa: BLE001 — InvalidToken across both windows
+                continue
+        raise ValueError("secret decryption failed: wrong master key?")
+    return vault.decrypt(ciphertext)
+
+
+async def _load_kdf_params(session: Any, master_key: bytes):
+    """Rebuild the dual-read fernets for this install (see helper above).
+
+    Returns ``(row_or_None, new_fernet, legacy_fernet)``; ``row_or_None`` is
+    None in the pre-0022 state (no params row yet — legacy window only).
+    """
+    from harness_contracts.security import (
+        SCRYPT_N,
+        SCRYPT_P,
+        SCRYPT_R,
+        derive_fernet,
+        legacy_fernet,
+    )
+
+    legacy = legacy_fernet(master_key)
+    sql = (
+        "SELECT algorithm, salt, scrypt_n, scrypt_r, scrypt_p "
+        "FROM key_derivation_params WHERE id = 1"
+    )
+    result = await session.execute(_sql_text(sql))
+    row = result.first()
+    if row is None:
+        return None, legacy, legacy
+    new = derive_fernet(
+        master_key,
+        bytes(row.salt),
+        algorithm=row.algorithm,
+        n=row.scrypt_n or SCRYPT_N,
+        r=row.scrypt_r or SCRYPT_R,
+        p=row.scrypt_p or SCRYPT_P,
+    )
+    return row, new, legacy
 
 
 def _sql_text(sql: str) -> Any:

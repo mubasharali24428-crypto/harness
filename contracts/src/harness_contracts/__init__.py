@@ -30,7 +30,7 @@ from .reviewer_thresholds import (
     ReviewerThresholds,
 )
 from .roles import Principal, Role, can
-from .security import KeyVault
+from .security import KeyVault, derive_fernet, derive_fernet_key, legacy_fernet
 
 # M22-M2: behavior-bearing plan tiers (caps + upgrade-CTA wire). Additive.
 from .tiers import (
@@ -51,7 +51,7 @@ from .tiers import (
 )
 from .timeutil import as_utc, db_now, now_utc, utcnow_iso
 
-__version__ = "1.0.0rc1"
+__version__ = "1.0.0rc2"
 
 __all__ = [
     "Principal",
@@ -67,6 +67,9 @@ __all__ = [
     "error_body",
     "ws_envelope",
     "KeyVault",
+    "derive_fernet",
+    "derive_fernet_key",
+    "legacy_fernet",
     "hash_token",
     "make_bearer_dep",
     # M17-B3 promotions (additive; see docs/ci-gates.md isolation law):

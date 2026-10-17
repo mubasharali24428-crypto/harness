@@ -231,13 +231,16 @@ class DeepSeekHarnessWrapper:
                 text = result.final_response
                 events = list(result.events or [])
             finally:
-                if saved_key is not None:
+                if saved_key is None:
+                    os.environ.pop("DEEPSEEK_API_KEY", None)
+                else:
                     os.environ["DEEPSEEK_API_KEY"] = saved_key
-                if saved_url is not None:
-                    if saved_url:
-                        os.environ["DEEPSEEK_BASE_URL"] = saved_url
-                    else:
-                        os.environ.pop("DEEPSEEK_BASE_URL", None)
+                if saved_url is None:
+                    os.environ.pop("DEEPSEEK_BASE_URL", None)
+                elif saved_url:
+                    os.environ["DEEPSEEK_BASE_URL"] = saved_url
+                else:
+                    os.environ.pop("DEEPSEEK_BASE_URL", None)
                 _ = base64
             return text, "completed", model, events
         except ImportError:
