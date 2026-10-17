@@ -31,15 +31,55 @@ def seatbelt_available() -> bool:
     return sys.platform == "darwin" and Path(SEATBELT_BIN).exists()
 
 
-def landlock_supported() -> bool:
-    if sys.platform != "linux":
-        return False
+# Cache for the runtime probe: 'usable' is a property of THIS process's
+# environment (kernel + container runtime policy), constant for its lifetime.
+_LANDLOCK_PROBE: bool | None = None
+
+
+def _landlock_kernel_ok() -> bool:
     try:
         parts = platform_release().split(".")
         major, minor = int(parts[0]), int(parts[1])
         return major > 5 or (major == 5 and minor >= 13)
     except Exception:  # noqa: BLE001 — unknown kernels: assume unsupported
         return False
+
+
+def _probe_landlock_syscalls(timeout: float = 10.0) -> bool:
+    """Fork one child through the SAME preexec hook the runner uses and see
+    whether landlock_create_ruleset + landlock_add_rule are permitted."""
+    import subprocess
+
+    with tempfile.TemporaryDirectory(prefix="harness-ll-probe-") as ws:
+        try:
+            proc = subprocess.run(
+                [sys.executable, "-c", "pass"],
+                preexec_fn=lambda: apply_landlock_in_child(Path(ws), False),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=timeout,
+            )
+        except Exception:  # noqa: BLE001 — any probe failure = unsupported
+            return False
+    return proc.returncode == 0
+
+
+def landlock_supported() -> bool:
+    """True only when Landlock is actually USABLE here — kernel AND policy.
+
+    Version alone over-promises: container runtimes with the default seccomp
+    profile (Docker included) report a 6.x kernel but block the landlock
+    syscalls with EPERM/ENOSYS. The old version-only check made 'auto'
+    resolve to 'landlock' inside the shipped compose image, and every sandbox
+    exec died in preexec_fn (found by the OPS-20 E2E, 2026-10-17). The probe
+    result is cached for the process lifetime.
+    """
+    global _LANDLOCK_PROBE
+    if sys.platform != "linux":
+        return False
+    if _LANDLOCK_PROBE is None:
+        _LANDLOCK_PROBE = _landlock_kernel_ok() and _probe_landlock_syscalls()
+    return _LANDLOCK_PROBE
 
 
 # --------------------------------------------------------------------------

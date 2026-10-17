@@ -41,8 +41,16 @@ class LocalSandboxRunner:
         self.confinement = confinement
         self.allow_network = allow_network
         self.active_tasks: dict[str, dict] = {}
+        self._resolved_confinement: str | None = None
 
     def _resolve_confinement(self) -> str:
+        # Resolve ONCE per runner: the probe can spawn a child, and 'auto'
+        # degradation deserves one honest log line, not one per task.
+        if self._resolved_confinement is None:
+            self._resolved_confinement = self._resolve_confinement_once()
+        return self._resolved_confinement
+
+    def _resolve_confinement_once(self) -> str:
         if self.confinement != "auto":
             # S1-R03d: an EXPLICIT confinement request must never degrade to
             # unconstrained execution — fail closed at task creation instead.
@@ -58,9 +66,24 @@ class LocalSandboxRunner:
                 )
             return self.confinement
         if sys.platform == "darwin":
-            return "seatbelt" if confinement.seatbelt_available() else "off"
+            if confinement.seatbelt_available():
+                return "seatbelt"
+            logger.warning("sandbox confinement 'auto': seatbelt unavailable — 'off'")
+            return "off"
         if sys.platform == "linux":
-            return "landlock" if confinement.landlock_supported() else "off"
+            if confinement.landlock_supported():
+                return "landlock"
+            # M18-C9 (E2E-found): the version heuristic alone resolved to
+            # 'landlock' inside the shipped compose image (Docker's default
+            # seccomp blocks the syscalls) and every exec died in preexec.
+            # After the probe fix this branch is the HONEST degrade: say so.
+            logger.warning(
+                "sandbox confinement 'auto': landlock not usable here (kernel"
+                " or container policy) — running 'off'; set"
+                " HARNESS_SANDBOX_CONFINEMENT to pin a mode explicitly"
+            )
+            return "off"
+        logger.info("sandbox confinement 'auto': platform %s — 'off'", sys.platform)
         return "off"
 
     @staticmethod
