@@ -5,7 +5,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ApiError, login, requestLoginOtp, verifyLoginOtp } from "@/lib/api";
+import { ApiError, login, requestLoginOtp, ssoStart, verifyLoginOtp } from "@/lib/api";
 import { saveSession, setUserId } from "@/lib/auth";
 // W1-C2 (C-006): post-auth identity is resolved for real — the caller's actual
 // project (or an honest route to creating one). No fabricated fallbacks.
@@ -15,6 +15,9 @@ import {
   bootstrapSucceeded,
   createAndActivateProject,
 } from "../../lib/session";
+// F-gap closure (external-validation §SSO): the caller half of the OIDC
+// redirect — stash + send off; the callback replays the exact redirect_uri.
+import { savePendingSso, ssoRedirectUri } from "../../lib/sso";
 // M16-X4 (raw-17): markup migrated onto the shared DS primitives — Button /
 // Brand / Notice replace the inline-styled controls, wordmark and tinted
 // status lines. Visual parity intent; all ids/classes/testids preserved.
@@ -26,7 +29,7 @@ import { Notice } from "@/components/ui/Notice";
 import { Brand } from "@/components/ui/Brand";
 import type { Principal, Role } from "@contracts/roles";
 
-type Mode = "legacy" | "otp-code-sent" | "create-project";
+type Mode = "legacy" | "otp-code-sent" | "create-project" | "sso";
 
 export default function Login() {
   const router = useRouter();
@@ -39,6 +42,8 @@ export default function Login() {
   // M12-E2: /login?expired=1 — the apiFetch interceptor lands here after a 401.
   const [sessionExpired, setSessionExpired] = useState(false);
   const [projectName, setProjectName] = useState("");
+  // F-gap closure: team id for the SSO entry (mode === "sso").
+  const [teamId, setTeamId] = useState("");
   // Token held while the user names their first project (create-project mode).
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   // M19-N4: ?next=demo — the canned-demo entry sent strangers here to
@@ -157,6 +162,30 @@ export default function Login() {
     }
   }
 
+  /**
+   * F-gap closure: team SSO entry. start() mints state/PKCE server-side and
+   * returns the IdP authorization URL; the exact redirect_uri used here is
+   * stashed and replayed by /auth/sso/callback (Section 1 binds it per
+   * attempt). Unknown/SSO-less teams answer 404 SSO_NOT_CONFIGURED — shown
+   * as-is; the email form stays the honest fallback.
+   */
+  async function ssoSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const trimmed = teamId.trim();
+      const redirectUri = ssoRedirectUri(window.location.origin);
+      const { authorizationUrl } = await ssoStart(trimmed, redirectUri);
+      savePendingSso(window.sessionStorage, { teamId: trimmed, redirectUri });
+      window.location.assign(authorizationUrl);
+      // Navigation is underway; keep busy=true so nothing double-fires.
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setBusy(false);
+    }
+  }
+
   return (
     <div style={{ display: "grid", placeItems: "center", minHeight: "100vh" }}>
       {sessionExpired && (
@@ -204,6 +233,21 @@ export default function Login() {
           >
             Try the demo →
           </Button>
+          {/* F-gap closure: SSO entry toggle — the native flow for teams
+              with an IdP configured in Section 1. */}
+          <Button
+            type="button"
+            variant="secondary"
+            size="md"
+            disabled={busy}
+            onClick={() => {
+              setMode("sso");
+              setError(null);
+            }}
+            style={{ width: "100%", marginTop: 6 }}
+          >
+            Sign in with team SSO →
+          </Button>
           {error && <Notice tone="danger" style={{ marginTop: 8 }}>{error}</Notice>}
         </form>
       ) : mode === "create-project" ? (
@@ -237,6 +281,53 @@ export default function Login() {
             style={{ width: "100%" }}
           >
             {busy ? "Creating project…" : "Create project & enter"}
+          </Button>
+          {error && <Notice tone="danger" style={{ marginTop: 8 }}>{error}</Notice>}
+        </form>
+      ) : mode === "sso" ? (
+        // F-gap closure: binds the SPA callback route as redirect_uri, then
+        // hands the browser to the IdP; /auth/sso/callback finishes the swap.
+        <form onSubmit={ssoSubmit} className="card login-card">
+          <Brand>HARNESS</Brand>
+          <p>
+            Sign in through your team&apos;s identity provider. Ask a team admin
+            if you don&apos;t know your team ID.
+          </p>
+          {/* M15-S3 pattern: accessible name for the placeholder-only input. */}
+          <label htmlFor="login-team-id" className="sr-only">
+            Team ID
+          </label>
+          <input
+            id="login-team-id"
+            value={teamId}
+            onChange={(e) => setTeamId(e.target.value)}
+            placeholder="team-id"
+            required
+            className="text-input"
+          />
+          {/* M16-X4: EXCEPTION — width:100% via Button's style prop (no
+              fullWidth in the frozen contract; see legacy-mode note). */}
+          <Button
+            type="submit"
+            variant="primary"
+            size="md"
+            disabled={busy || !teamId.trim()}
+            style={{ width: "100%" }}
+          >
+            {busy ? "Redirecting…" : "Continue with SSO"}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="md"
+            disabled={busy}
+            onClick={() => {
+              setMode("legacy");
+              setError(null);
+            }}
+            style={{ width: "100%", marginTop: 6 }}
+          >
+            ← Back
           </Button>
           {error && <Notice tone="danger" style={{ marginTop: 8 }}>{error}</Notice>}
         </form>

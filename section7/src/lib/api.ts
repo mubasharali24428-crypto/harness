@@ -363,6 +363,35 @@ export function verifyLoginOtp(
   });
 }
 
+/** F-gap closure (external-validation §SSO): start — mints state/PKCE
+ *  server-side and returns the IdP authorization URL the browser must be
+ *  sent to. Unconfigured teams answer 404 SSO_NOT_CONFIGURED (the caller
+ *  falls back to email sign-in honestly). */
+export function ssoStart(
+  teamId: string,
+  redirectUri: string,
+): Promise<{ authorizationUrl: string }> {
+  return apiFetch(`${IDENTITY_BASE}/api/v1/auth/sso/start`, null, {
+    method: "POST",
+    body: JSON.stringify({ teamId, redirectUri }),
+  });
+}
+
+/** F-gap closure (external-validation §SSO): complete — swaps code+state for
+ *  a session. redirectUri must be byte-identical to the one bound at start
+ *  (lib/sso.ts stashes it; mismatches answer 400 SSO_STATE_INVALID). */
+export function ssoComplete(
+  teamId: string,
+  code: string,
+  state: string,
+  redirectUri: string,
+): Promise<{ token: string; principal: Principal }> {
+  return apiFetch(`${IDENTITY_BASE}/api/v1/auth/sso/complete`, null, {
+    method: "POST",
+    body: JSON.stringify({ teamId, code, state, redirectUri }),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Section 6 — Meeting Area (ported from section9/lib/api.ts, live-proven shapes)
 // S6's routes take userId in the body by design (meeting participants are plain

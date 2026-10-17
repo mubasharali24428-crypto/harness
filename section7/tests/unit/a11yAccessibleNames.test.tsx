@@ -89,7 +89,13 @@ describe("login page accessible names (M15-S3)", () => {
   });
 
   it("every login input keeps its id wired to a label (no orphan placeholders)", () => {
-    for (const id of ["login-email", "login-project-name", "login-otp-code"]) {
+    for (const id of [
+      "login-email",
+      "login-project-name",
+      "login-otp-code",
+      // F-gap closure: the SSO team-id input follows the same rule.
+      "login-team-id",
+    ]) {
       expect(LOGIN_SRC).toContain(`htmlFor="${id}"`);
       expect(LOGIN_SRC).toContain(`id="${id}"`);
     }
@@ -100,7 +106,8 @@ describe("login card 320px comfort (M15-S3)", () => {
   it("no fixed >320px width remains on any card variant", () => {
     expect(LOGIN_SRC).not.toContain("width: 360");
     expect(LOGIN_SRC).toMatch(/className="card login-card"/g);
-    expect(LOGIN_SRC.match(/className="card login-card"/g)).toHaveLength(3);
+    // 4 mode variants: legacy, create-project, otp, sso (F-gap closure).
+    expect(LOGIN_SRC.match(/className="card login-card"/g)).toHaveLength(4);
   });
 
   it(".login-card is a fluid cap: fits 320px minus gutters, unchanged ≥404px", () => {
