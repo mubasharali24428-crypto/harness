@@ -1,0 +1,16 @@
+{
+  "session": "A3-S5",
+  "baseline": "31bf4077e9b567b1f50ecb99818d501baab3115a",
+  "features": {
+    "F041": {"state": "PARTIAL", "subs": {"import-graph (python AST, TS relative imports) + name-convention discovery, transitive, ranked with reasons": "VERIFIED", "config-change => run-all, deleted files noted": "VERIFIED", "execution of vitest/jest selections": "NOT IMPLEMENTED (reported blocked in scorecard)", "dynamic coverage-based test impact analysis": "NOT IMPLEMENTED"}},
+    "F042": {"state": "PARTIAL", "subs": {"proposal with rationale + acceptance gates (passes on current code, coverage gain or mutant kill)": "VERIFIED", "deterministic characterization generator": "VERIFIED (pins current behaviour, labelled as not an oracle)", "model-backed generator": "NOT IMPLEMENTED (Generator protocol is the seam; needs A2)"}},
+    "F043": {"state": "NEEDS INTEGRATION", "subs": {"bounded controller: attempts, wall clock, patch size, stall detection, scratch-copy only": "VERIFIED", "guards: no test edits by default, no deleted tests / dropped assertions / added skips, path escape": "VERIFIED", "model fixer wired into the SDK run": "NOT WIRED (A2)"}},
+    "F048": {"state": "VERIFIED IMPLEMENTED", "subs": {"existing frozen-contract/golden conformance preserved (Section5 conformance tests green)": "VERIFIED", "OpenAPI drift checker (paths, methods, status codes) incl. CLI": "VERIFIED", "golden fixture validator with round-trip check": "VERIFIED", "real finding: committed section5/openapi.json is stale (5 undocumented routes, status-code drift)": "REPORTED, NOT FIXED (artifact left as-is)"}},
+    "F049": {"state": "VERIFIED IMPLEMENTED", "subs": {"python AST mutation (compare/arith/bool/not/const/return), deterministic sampling, time budget, baseline-must-pass": "VERIFIED", "used on real code: quota.py score 0.50 -> 0.93 after tests were added for the survivors": "EXECUTED", "JS/TS mutation": "NOT IMPLEMENTED", "equivalent-mutant filtering": "NOT IMPLEMENTED"}},
+    "F050": {"state": "PARTIAL", "subs": {"scorecard with executed/static_inference/skipped/blocked evidence, conservative verdict, evidence digest, CLI exit codes": "VERIFIED", "seeded defect => fail; fixed => pass; weak tests => fail; no tests => insufficient_evidence": "VERIFIED", "persistence, PR/UI surface, HTTP API": "NOT IMPLEMENTED"}}
+  },
+  "risks": {
+    "VR007": "PARTIAL CONTROL", "VR013": "PARTIAL CONTROL", "VR026": "PARTIAL CONTROL", "VR027": "PARTIAL CONTROL", "VR028": "OPEN",
+    "VR030": "PARTIAL CONTROL", "VR035": "OPEN", "VR039": "PARTIAL CONTROL", "VR043": "OPEN", "VR046": "OPEN"
+  }
+}

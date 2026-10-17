@@ -1,0 +1,16 @@
+{
+  "session": "A3-S4",
+  "baseline": "31bf4077e9b567b1f50ecb99818d501baab3115a",
+  "features": {
+    "F107": {"state": "PARTIAL", "subs": {"one-time consent bound to ecosystem/package/exact version/source/team/run/task/hash, named approver, expiry, replay denial, mismatch denial": "VERIFIED", "untrusted source / malformed spec / non-pinned versions rejected": "VERIFIED", "wheel-only argv install with --require-hashes, audit log": "VERIFIED (pip, mirror source)", "install from public index host": "NOT TESTED (needs network; code path builds --index-url for pinned hosts only)", "npm/yarn": "NOT IMPLEMENTED", "approval UI / HTTP route": "NOT IMPLEMENTED (A4 UI, A5 wiring)"}},
+    "F108": {"state": "NEEDS INTEGRATION", "subs": {"join-token registration, heartbeat health, capacity, fenced leases, reaper, bounded attempts": "VERIFIED (SQLite store)", "exactly-once claim across 4 OS processes": "VERIFIED", "multi-HOST shared store (Postgres)": "NOT IMPLEMENTED - needs S1 migration (A1)", "scheduling across real remote hosts": "NOT RUN (external)"}},
+    "F109": {"state": "PARTIAL", "subs": {"hash-verified local mirror, tamper detection, no-network install under poisoned proxy/index": "VERIFIED", "written guide": "DELIVERED (offline-guide.md)", "real air-gapped host trial": "NEEDS EXTERNAL VALIDATION", "non-Python ecosystems, images, models": "NOT IMPLEMENTED"}},
+    "F110": {"state": "PARTIAL", "subs": {"file-artifact backup/restore/verify drill with RTO timing, corruption + traversal detection": "VERIFIED", "disposable Postgres 18 dump/restore drill with checksum compare and corruption detection": "VERIFIED (restore 0.132 s, 5000 rows)", "object-store drill": "NEEDS EXTERNAL VALIDATION (no credentials; ObjectStoreTarget refuses)", "PITR on the real cluster, product UI": "NOT DONE"}},
+    "F044": {"state": "VERIFIED IMPLEMENTED", "subs": {"tenant-scoped bundle capture (files, command, exception signature), retention + byte quota": "VERIFIED", "deterministic/flaky/not-reproduced classification over N attempts in a fresh sandbox task": "VERIFIED", "sandbox command policy applies to bundle commands": "VERIFIED", "env/dependency capture beyond files": "NOT IMPLEMENTED"}},
+    "F045": {"state": "PARTIAL", "subs": {"python/node trace + issue-text extraction; commands built only from templates + validated in-workspace paths": "VERIFIED incl. hostile-trace tests", "reproduce -> fix -> no longer reproduces": "VERIFIED on a seeded ZeroDivisionError fixture", "pytest-only candidate generation": "LIMIT (no jest/go/etc.)", "accuracy on real-world issues": "NOT MEASURED"}}
+  },
+  "risks": {
+    "VR007": "PARTIAL CONTROL", "VR013": "PARTIAL CONTROL", "VR026": "PARTIAL CONTROL", "VR027": "PARTIAL CONTROL", "VR028": "OPEN",
+    "VR030": "PARTIAL CONTROL", "VR035": "OPEN", "VR039": "PARTIAL CONTROL", "VR043": "OPEN", "VR046": "OPEN"
+  }
+}

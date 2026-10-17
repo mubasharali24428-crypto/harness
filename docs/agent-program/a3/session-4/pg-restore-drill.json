@@ -1,0 +1,9 @@
+{
+ "port": 60914,
+ "restore_seconds": 0.132,
+ "rows_restored": 5000,
+ "checksum_match": true,
+ "corruption_detected": true,
+ "pg_version": "18.4 (Homebrew)",
+ "ok": true
+}

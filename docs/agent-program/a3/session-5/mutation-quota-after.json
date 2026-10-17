@@ -1,0 +1,14 @@
+{
+  "status": "executed",
+  "score": 0.9286,
+  "note": "",
+  "survivors": [
+    {
+      "file": "src/harness_sandbox/quota.py",
+      "index": 43,
+      "line": 113,
+      "op": "const",
+      "detail": "1024->1025"
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "session": "A3-S1",
+  "baseline": "31bf4077e9b567b1f50ecb99818d501baab3115a",
+  "features": {
+    "F051": {
+      "state": "NEEDS INTEGRATION",
+      "subs": {
+        "worker+typed actions+postconditions": "VERIFIED (64 vitest)",
+        "HTTP adapter /api/v1/computer-use": "VERIFIED vs local S1 stub",
+        "live S1 auth": "NOT RUN (stub only)",
+        "S5 issues capability tokens in live path": "NOT WIRED (browser_cap.py provided; golden fixture verified both ways)"
+      }
+    },
+    "F052": {
+      "state": "PARTIAL",
+      "subs": {
+        "guard (grant, region, freshness, transform, takeover)": "VERIFIED (9 vitest)",
+        "macOS adapter command construction": "VERIFIED with injected exec",
+        "real OS smoke": "NEEDS EXTERNAL VALIDATION (not run: needs user authorization + Accessibility/Screen Recording)"
+      }
+    },
+    "F053": {
+      "state": "PARTIAL",
+      "subs": {
+        "takeover pause/handback + observation invalidation": "VERIFIED",
+        "remote streaming / takeover UI": "NOT IMPLEMENTED (A4 owns UI)"
+      }
+    },
+    "F054": {
+      "state": "PARTIAL",
+      "subs": {
+        "screenshot+DOM refs+viewport/DPR geometry, image->CSS transform": "VERIFIED",
+        "model-based visual understanding accuracy": "NOT MEASURED"
+      }
+    },
+    "F055": {
+      "state": "VERIFIED IMPLEMENTED",
+      "subs": {
+        "cookie persistence across reopen": "VERIFIED",
+        "cross-team isolation": "VERIFIED",
+        "deleteState": "VERIFIED",
+        "encryption at rest of state.json": "VERIFIED (AES-256-GCM state.enc when HARNESS_BROWSER_STATE_KEY set; fails closed without key; plaintext mode remains when no key configured)"
+      }
+    },
+    "F056": {
+      "state": "NEEDS INTEGRATION",
+      "subs": {
+        "one-time approval bound to team/project/run/op/args digest, expiry, replay denial": "VERIFIED",
+        "admin-only grant endpoint": "VERIFIED",
+        "approval UI / notification": "NOT IMPLEMENTED (A4/A2)"
+      }
+    }
+  },
+  "risks": {
+    "VR007": "PARTIAL CONTROL",
+    "VR013": "PARTIAL CONTROL",
+    "VR026": "OPEN",
+    "VR027": "OPEN",
+    "VR028": "PARTIAL CONTROL",
+    "VR030": "OPEN",
+    "VR035": "OPEN",
+    "VR039": "OPEN",
+    "VR043": "OPEN",
+    "VR046": "OPEN"
+  }
+}

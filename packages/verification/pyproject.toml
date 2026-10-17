@@ -1,0 +1,27 @@
+[project]
+name = "harness-verification"
+version = "0.1.0"
+description = "A3 agent verification loops: test discovery, generation gates, bounded repair, mutation analysis, contract drift checks, evidence scorecards."
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff"]
+
+[project.scripts]
+harness-verify = "harness_verification.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

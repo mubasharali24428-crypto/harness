@@ -1,0 +1,180 @@
+{
+  "changed": [
+    "src/harness_sandbox/quota.py",
+    "src/harness_sandbox/network.py",
+    "src/harness_sandbox/backends.py",
+    "src/harness_sandbox/environments.py",
+    "src/harness_sandbox/snapshots.py",
+    "src/harness_sandbox/install_consent.py",
+    "src/harness_sandbox/worker_pool.py",
+    "src/harness_sandbox/dr.py",
+    "src/harness_sandbox/repro.py",
+    "src/harness_sandbox/offline.py"
+  ],
+  "checks": [
+    {
+      "data": {
+        "notes": [],
+        "run_all": false,
+        "tests": [
+          {
+            "evidence": "static_inference",
+            "path": "tests/unit/test_s3_quota_network_backend.py",
+            "rank": 1,
+            "reason": "imports quota.py"
+          },
+          {
+            "evidence": "static_inference",
+            "path": "tests/unit/test_s3_snapshots_envs.py",
+            "rank": 1,
+            "reason": "imports environments.py"
+          },
+          {
+            "evidence": "static_inference",
+            "path": "tests/unit/test_s4_dr_repro.py",
+            "rank": 1,
+            "reason": "imports dr.py"
+          },
+          {
+            "evidence": "static_inference",
+            "path": "tests/unit/test_s4_install_offline.py",
+            "rank": 1,
+            "reason": "imports install_consent.py"
+          },
+          {
+            "evidence": "static_inference",
+            "path": "tests/unit/test_s4_worker_pool.py",
+            "rank": 1,
+            "reason": "imports worker_pool.py"
+          },
+          {
+            "evidence": "static_inference",
+            "path": "tests/conformance/test_sandbox_conformance.py",
+            "rank": 2,
+            "reason": "transitively depends on quota.py (2 hops)"
+          },
+          {
+            "evidence": "static_inference",
+            "path": "tests/conformance/test_tree_api.py",
+            "rank": 2,
+            "reason": "transitively depends on quota.py (2 hops)"
+          },
+          {
+            "evidence": "static_inference",
+            "path": "tests/stress/test_section5_stress.py",
+            "rank": 2,
+            "reason": "transitively depends on snapshots.py (2 hops)"
+          },
+          {
+            "evidence": "static_inference",
+            "path": "tests/unit/test_checkpoints.py",
+            "rank": 2,
+            "reason": "transitively depends on quota.py (2 hops)"
+          },
+          {
+            "evidence": "static_inference",
+            "path": "tests/unit/test_confinement.py",
+            "rank": 2,
+            "reason": "transitively depends on quota.py (2 hops)"
+          },
+          {
+            "evidence": "static_inference",
+            "path": "tests/unit/test_landlock_probe_selection.py",
+            "rank": 2,
+            "reason": "transitively depends on quota.py (2 hops)"
+          },
+          {
+            "evidence": "static_inference",
+            "path": "tests/unit/test_s1_r01_authz.py",
+            "rank": 2,
+            "reason": "transitively depends on quota.py (2 hops)"
+          },
+          {
+            "evidence": "static_inference",
+            "path": "tests/unit/test_s1_r03_sandbox_policy.py",
+            "rank": 2,
+            "reason": "transitively depends on quota.py (2 hops)"
+          },
+          {
+            "evidence": "static_inference",
+            "path": "tests/unit/test_s3_snapshot_api.py",
+            "rank": 2,
+            "reason": "transitively depends on quota.py (2 hops)"
+          },
+          {
+            "evidence": "static_inference",
+            "path": "tests/unit/test_stream_events.py",
+            "rank": 2,
+            "reason": "transitively depends on quota.py (2 hops)"
+          },
+          {
+            "evidence": "static_inference",
+            "path": "tests/unit/test_browser_cap.py",
+            "rank": 3,
+            "reason": "transitively depends on snapshots.py (3 hops)"
+          }
+        ],
+        "unmatched": []
+      },
+      "detail": "16 test file(s) selected via import graph/name matching",
+      "evidence": "static_inference",
+      "name": "test_discovery",
+      "passed": true
+    },
+    {
+      "data": {
+        "failing": [],
+        "seconds": 24.95,
+        "selected": [
+          "tests/unit/test_s3_quota_network_backend.py",
+          "tests/unit/test_s3_snapshots_envs.py",
+          "tests/unit/test_s4_dr_repro.py",
+          "tests/unit/test_s4_install_offline.py",
+          "tests/unit/test_s4_worker_pool.py",
+          "tests/conformance/test_sandbox_conformance.py",
+          "tests/conformance/test_tree_api.py",
+          "tests/stress/test_section5_stress.py",
+          "tests/unit/test_checkpoints.py",
+          "tests/unit/test_confinement.py",
+          "tests/unit/test_landlock_probe_selection.py",
+          "tests/unit/test_s1_r01_authz.py",
+          "tests/unit/test_s1_r03_sandbox_policy.py",
+          "tests/unit/test_s3_snapshot_api.py",
+          "tests/unit/test_stream_events.py",
+          "tests/unit/test_browser_cap.py"
+        ]
+      },
+      "detail": "all selected tests passed",
+      "evidence": "executed",
+      "name": "tests",
+      "passed": true
+    },
+    {
+      "data": {},
+      "detail": "no changed python sources or disabled",
+      "evidence": "skipped",
+      "name": "mutation",
+      "passed": null
+    },
+    {
+      "data": {},
+      "detail": "All checks passed!",
+      "evidence": "executed",
+      "name": "lint",
+      "passed": true
+    },
+    {
+      "data": {},
+      "detail": "no contract check configured",
+      "evidence": "skipped",
+      "name": "contract",
+      "passed": null
+    }
+  ],
+  "evidence_digest": "67ff3ae75e37c55766cb31acd2a31e87665d281d86681109ae7e34209534204f",
+  "generated_at": 1792249516.9687428,
+  "reasons": [
+    "tests pass but test strength was not measured"
+  ],
+  "verdict": "pass_weak"
+}

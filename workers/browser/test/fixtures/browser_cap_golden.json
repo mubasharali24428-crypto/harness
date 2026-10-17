@@ -1,0 +1,19 @@
+{
+  "now": 1001,
+  "payload": {
+    "allowedOrigins": [
+      "http://127.0.0.1:4100"
+    ],
+    "exp": 1300,
+    "iat": 1000,
+    "nonce": "n-golden",
+    "op": "browser",
+    "projectId": "proj-1",
+    "runId": "run-1",
+    "taskId": "task-1",
+    "teamId": "team-a",
+    "v": 1
+  },
+  "secret": "golden-secret",
+  "token": "bcap1.eyJhbGxvd2VkT3JpZ2lucyI6WyJodHRwOi8vMTI3LjAuMC4xOjQxMDAiXSwiZXhwIjoxMzAwLCJpYXQiOjEwMDAsIm5vbmNlIjoibi1nb2xkZW4iLCJvcCI6ImJyb3dzZXIiLCJwcm9qZWN0SWQiOiJwcm9qLTEiLCJydW5JZCI6InJ1bi0xIiwidGFza0lkIjoidGFzay0xIiwidGVhbUlkIjoidGVhbS1hIiwidiI6MX0.crszipDwiWcfdcgVovoYUClHu3N-vjANzgfuFbYDdkQ"
+}

@@ -17,6 +17,7 @@ from harness_sandbox.checkpoints import (
 from harness_sandbox.output_parser import StructuredExecResult
 from harness_sandbox.policy import SecurityPolicyViolationError
 from harness_sandbox.service import SandboxService
+from harness_sandbox.snapshots import DirtyWorkspaceError, SnapshotError
 
 router = APIRouter(prefix="/api/v1/sandbox", tags=["sandbox"])
 _service = SandboxService()
@@ -256,3 +257,82 @@ async def checkpoint_diff(
     except CheckpointError as e:
         raise _checkpoint_error(e) from e
     return Response(content=diff_text, media_type="text/plain; charset=utf-8")
+
+
+# ---------------------------------------------------------------------------
+# S3: full-environment snapshots (create / list / restore). Same task-visibility
+# rule as exec: another team's task reads exactly like a missing one.
+# ---------------------------------------------------------------------------
+
+
+class SnapshotRequest(BaseModel):
+    label: str = ""
+
+
+class RestoreRequest(BaseModel):
+    paths: list[str] | None = None
+    discardDirty: bool = False
+
+
+def _snapshot_http(e: Exception) -> HTTPException:
+    if isinstance(e, DirtyWorkspaceError):
+        return HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": {"code": e.code, "message": str(e)}, "paths": e.paths},
+        )
+    code = getattr(e, "code", "SNAPSHOT_ERROR")
+    http = {"SNAPSHOT_NOT_FOUND": 404, "SNAPSHOT_QUOTA_EXCEEDED": 507}.get(code, 400)
+    return HTTPException(status_code=http, detail={"error": {"code": code, "message": str(e)}})
+
+
+def _visible_task_or_404(task_id: str, principal: Principal) -> dict:
+    if not _task_visible(task_id, principal):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": {"code": "TASK_NOT_FOUND", "message": f"Task '{task_id}' not found"}},
+        )
+    return _service.runner.active_tasks[task_id]
+
+
+@router.post("/tasks/{taskId}/snapshots", status_code=status.HTTP_201_CREATED)
+def create_snapshot(taskId: str, req: SnapshotRequest, principal: Writer) -> dict[str, Any]:
+    task = _visible_task_or_404(taskId, principal)
+    try:
+        return _service.snapshots.create(
+            principal.teamId, taskId, task["workspace"], req.label, task["forbidden_paths"]
+        )
+    except SnapshotError as e:
+        raise _snapshot_http(e) from e
+
+
+@router.get("/tasks/{taskId}/snapshots")
+def list_snapshots(taskId: str, principal: Reader) -> dict[str, Any]:
+    _visible_task_or_404(taskId, principal)
+    items = [
+        {k: v for k, v in m.items() if k not in ("forbidden", "teamId")}
+        for m in _service.snapshots.list(principal.teamId, taskId)
+    ]
+    return {"items": items, "nextCursor": None}
+
+
+@router.post("/tasks/{taskId}/snapshots/{snapshotId}/restore")
+def restore_snapshot(
+    taskId: str, snapshotId: str, req: RestoreRequest, principal: Writer
+) -> dict[str, Any]:
+    task = _visible_task_or_404(taskId, principal)
+    try:
+        res = _service.snapshots.restore(
+            principal.teamId, taskId, snapshotId, task["workspace"], paths=req.paths,
+            discard_dirty=req.discardDirty, forbidden_paths=task["forbidden_paths"],
+        )
+    except (SnapshotError, SecurityPolicyViolationError) as e:
+        if isinstance(e, SecurityPolicyViolationError):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"error": {"code": "SECURITY_POLICY_VIOLATION", "message": str(e)}},
+            ) from e
+        raise _snapshot_http(e) from e
+    return {
+        "restored": res.restored, "deleted": res.deleted,
+        "skippedProtected": res.skipped_protected, "safetySnapshot": res.safety_snapshot,
+    }

@@ -1,0 +1,16 @@
+{
+  "session": "A3-S3",
+  "baseline": "31bf4077e9b567b1f50ecb99818d501baab3115a",
+  "features": {
+    "F101": {"state": "PARTIAL", "subs": {"EnvironmentManager.create: clone + dependency layer in one call": "VERIFIED", "HTTP/one-click surface": "NOT IMPLEMENTED (provisioners are operator-registered; needs A5 deploy wiring + A4 UI)", "language-runtime/service containers": "NOT IMPLEMENTED"}},
+    "F102": {"state": "PARTIAL", "subs": {"per-repo, per-tenant warm layer cache keyed by lock-file digest, integrity-verified, invalidation": "VERIFIED (cold 593 ms -> warm 129 ms on a synthetic 300-file layer; single run)", "real package-manager provisioning": "NOT TESTED (installs blocked by policy; S4 consent workflow + mirror)", "container image prebuilds": "NOT IMPLEMENTED"}},
+    "F103": {"state": "PARTIAL", "subs": {"select_backend fails closed, no silent host fallback": "VERIFIED", "Docker runner argv hardening (net none, caps dropped, read-only, limits)": "VERIFIED by unit test", "live Docker execution / parity": "NOT RUN - Docker daemon not running on this host (environment)", "other backends (gVisor/Firecracker)": "NOT IMPLEMENTED"}},
+    "F104": {"state": "VERIFIED IMPLEMENTED", "subs": {"workspace snapshot incl. untracked, hash manifest": "VERIFIED", "restore: dirty refusal, auto safety snapshot, partial-path restore keeps unrelated edits": "VERIFIED", "secret/forbidden never snapshotted or overwritten": "VERIFIED", "team-scoped API (create/list/restore)": "VERIFIED", "process/memory state, DB state": "NOT IMPLEMENTED (files only)"}},
+    "F105": {"state": "PARTIAL", "subs": {"CPU (rlimit), file size (rlimit), memory/processes/disk (polling guard, group kill)": "VERIFIED on macOS, confinement off", "kernel-enforced memory/disk (cgroups)": "NOT IMPLEMENTED (polling can overshoot within one interval)", "end-to-end SDK thread kill": "NOT DEMONSTRATED (A2 owns SDK)"}},
+    "F106": {"state": "PARTIAL", "subs": {"disabled|allowlisted|unrestricted semantics at the S5 layer, grant required for unrestricted": "VERIFIED", "brokered fetch: allowlist, DNS rebinding, redirect re-validation": "VERIFIED", "unrestricted never lifts forbidden paths": "VERIFIED", "agent-wide policy wiring (A1 policy / A2 runtime)": "NEEDS INTEGRATION", "hostname-level filtering inside the process": "NOT IMPLEMENTED (local backends cannot; allowlisted = no direct sockets)"}}
+  },
+  "risks": {
+    "VR007": "PARTIAL CONTROL", "VR013": "PARTIAL CONTROL", "VR026": "PARTIAL CONTROL", "VR027": "OPEN", "VR028": "OPEN",
+    "VR030": "OPEN", "VR035": "OPEN", "VR039": "OPEN", "VR043": "OPEN", "VR046": "OPEN"
+  }
+}

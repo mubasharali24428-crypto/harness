@@ -1,7 +1,4 @@
-from harness_sandbox.local_runner import LocalSandboxRunner
+"""Back-compat shim: the real Docker runner now lives in backends.py (S3)."""
+from harness_sandbox.backends import DockerSandboxRunner
 
-
-class DockerSandboxRunner(LocalSandboxRunner):
-    """Ephemeral Docker container runner wrapping LocalSandboxRunner with container isolation."""
-
-    pass
+__all__ = ["DockerSandboxRunner"]

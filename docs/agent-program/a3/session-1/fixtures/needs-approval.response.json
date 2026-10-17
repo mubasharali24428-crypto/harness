@@ -1,0 +1,1 @@
+{"schemaVersion":"hap/1","requestId":"req_example","status":"needsApproval","artifacts":[],"error":{"code":"APPROVAL_REQUIRED","message":"external write requires a human approval grant"},"result":{"details":{"operation":"click","argumentsDigest":"<sha256 of canonical {kind,target,url}>"}}}

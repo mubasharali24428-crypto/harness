@@ -20,6 +20,7 @@ from harness_sandbox.policy import (
     validate_command,
     validate_path_edit,
 )
+from harness_sandbox.quota import ResourceGuard, ResourceQuota, rlimit_preexec
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,9 @@ class LocalSandboxRunner:
         storage_root: Path | None = None,
         confinement: str = "auto",      # auto | seatbelt | landlock | off
         allow_network: bool = True,
+        quota: ResourceQuota | None = None,
     ) -> None:
+        self.quota = quota
         self.storage_root = (storage_root or config.storage_root).resolve()
         self.storage_root.mkdir(parents=True, exist_ok=True)
         self.confinement = confinement
@@ -111,16 +114,43 @@ class LocalSandboxRunner:
             start_new_session=True,  # S1-R03f: own process group for group-kill
         )
         mode = task.get("confinement", "off")
+        rl = rlimit_preexec(self.quota) if self.quota else None
         if mode == "seatbelt":
             argv = confinement.seatbelt_command(command, Path(task["profile"]))
-            return await asyncio.create_subprocess_exec(*argv, **common)
+            proc = await asyncio.create_subprocess_exec(*argv, **common, preexec_fn=rl)
+            return self._guard(proc, task)
         kwargs: dict = {}
         if mode == "landlock":
             ws = task["workspace"]
-            kwargs["preexec_fn"] = (
-                lambda ws=ws: confinement.apply_landlock_in_child(Path(ws), self.allow_network)
+
+            def _pre(ws=ws) -> None:
+                if rl:
+                    rl()
+                confinement.apply_landlock_in_child(Path(ws), self.allow_network)
+
+            kwargs["preexec_fn"] = _pre
+        elif rl:
+            kwargs["preexec_fn"] = rl
+        proc = await asyncio.create_subprocess_shell(command, **common, **kwargs)
+        return self._guard(proc, task)
+
+    def _guard(self, proc, task: dict):
+        """Attach the polling quota guard (memory / processes / disk) to a spawned command."""
+        if self.quota and (
+            self.quota.memory_mb or self.quota.max_processes or self.quota.disk_mb
+        ):
+            guard = ResourceGuard(self.quota, Path(task["workspace"]))
+            proc.quota_guard = guard
+            proc.quota_task = asyncio.get_running_loop().create_task(
+                guard.watch(proc, self._kill)
             )
-        return await asyncio.create_subprocess_shell(command, **common, **kwargs)
+        return proc
+
+    @staticmethod
+    def _raise_if_breached(proc) -> None:
+        guard = getattr(proc, "quota_guard", None)
+        if guard is not None and guard.violation is not None:
+            raise guard.violation
 
     def create_task(
         self,
@@ -210,6 +240,7 @@ class LocalSandboxRunner:
                 await asyncio.wait_for(
                     proc.wait(), timeout=max(0.0, budget - (time.monotonic() - start))
                 )
+                self._raise_if_breached(proc)
             except TimeoutError as exc:
                 self._kill(proc)
                 await proc.wait()
@@ -250,6 +281,7 @@ class LocalSandboxRunner:
             self._kill(proc)
             await proc.wait()
             raise
+        self._raise_if_breached(proc)
         duration_ms = int((time.perf_counter() - start_time) * 1000)
 
         stdout = stdout_b.decode("utf-8", errors="replace")

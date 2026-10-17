@@ -1,0 +1,66 @@
+{
+  "session": "A3-S2",
+  "baseline": "31bf4077e9b567b1f50ecb99818d501baab3115a",
+  "features": {
+    "F057": {
+      "state": "VERIFIED IMPLEMENTED",
+      "subs": {
+        "sanitized console+network capture, HAR export": "VERIFIED (secrets absent from result and HAR)",
+        "subresource egress enforced + blocked requests flagged": "VERIFIED",
+        "distributed trace correlation": "NOT IMPLEMENTED"
+      }
+    },
+    "F058": {
+      "state": "PARTIAL",
+      "subs": {
+        "governed loopback preview registry (team-scoped, port range, reserved ports, metadata/public denied)": "VERIFIED",
+        "static build-dir preview server w/ traversal denial": "VERIFIED",
+        "agent interaction with preview": "VERIFIED via same worker",
+        "launching a project's dev server in a sandbox": "NOT IMPLEMENTED (needs S5 task + A2 wiring)"
+      }
+    },
+    "F059": {
+      "state": "PARTIAL",
+      "subs": {
+        "mobile viewport/DPR/touch profiles + tap": "VERIFIED (Chromium emulation)",
+        "PWA manifest/service-worker check": "VERIFIED",
+        "real device / WebKit / Safari": "NOT IMPLEMENTED (Chromium emulation only)"
+      }
+    },
+    "F060": {
+      "state": "PARTIAL",
+      "subs": {
+        "redacted per-action log (targets, status, timing, viewport/DPR, observation+domDigest)": "VERIFIED",
+        "replay with divergence detection": "VERIFIED",
+        "typed text / approvals not replayable by design": "DOCUMENTED LIMIT",
+        "durable persistence of the log": "VERIFIED (replay.jsonl per session, reloaded on reopen)"
+      }
+    },
+    "F046": {
+      "state": "NEEDS INTEGRATION",
+      "subs": {
+        "agent-invokable e2e scenario operation": "VERIFIED",
+        "reachable by SDK agent via live path": "NOT WIRED (needs A2/A5)"
+      }
+    },
+    "F047": {
+      "state": "VERIFIED IMPLEMENTED",
+      "subs": {
+        "baseline approval by named approver, new!=pass, diff artifact, threshold, mask, determinism w/ animations disabled": "VERIFIED",
+        "cross-browser / cross-OS baselines": "NOT IMPLEMENTED (single Chromium/macOS)"
+      }
+    }
+  },
+  "risks": {
+    "VR007": "PARTIAL CONTROL",
+    "VR013": "PARTIAL CONTROL",
+    "VR026": "OPEN",
+    "VR027": "OPEN",
+    "VR028": "PARTIAL CONTROL",
+    "VR030": "OPEN",
+    "VR035": "OPEN",
+    "VR039": "OPEN",
+    "VR043": "OPEN",
+    "VR046": "OPEN"
+  }
+}

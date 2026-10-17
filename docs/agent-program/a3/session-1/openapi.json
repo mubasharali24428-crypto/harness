@@ -1,0 +1,22 @@
+{
+  "openapi": "3.1.0",
+  "info": {"title": "A3 computer-use (browser) HAP/1 adapter", "version": "0.1.0"},
+  "servers": [{"url": "/api/v1/computer-use"}],
+  "components": {
+    "securitySchemes": {"bearer": {"type": "http", "scheme": "bearer"}},
+    "schemas": {
+      "Error": {"type": "object", "required": ["error"], "properties": {"error": {"type": "object", "required": ["code", "message"], "properties": {"code": {"type": "string"}, "message": {"type": "string"}}}}},
+      "Artifact": {"type": "object", "required": ["artifactId", "mediaType", "sha256", "sizeBytes", "redactionStatus"], "properties": {"artifactId": {"type": "string"}, "mediaType": {"type": "string"}, "sha256": {"type": "string"}, "sizeBytes": {"type": "integer"}, "redactionStatus": {"enum": ["none", "sanitized"]}}},
+      "HapRequest": {"type": "object", "required": ["schemaVersion", "requestId", "projectId", "runId", "operation", "arguments"], "properties": {"schemaVersion": {"const": "hap/1"}, "requestId": {"type": "string"}, "projectId": {"type": "string"}, "runId": {"type": "string"}, "operation": {"enum": ["navigate", "click", "type", "press", "scroll", "hover", "selectOption", "waitFor", "screenshot", "observe"]}, "arguments": {"type": "object", "description": "Must include capabilityToken (S5-minted bcap1 token)."}, "observationId": {"type": "string"}, "approvalId": {"type": "string"}}},
+      "HapResponse": {"type": "object", "required": ["schemaVersion", "requestId", "status", "artifacts"], "properties": {"schemaVersion": {"const": "hap/1"}, "requestId": {"type": "string"}, "status": {"enum": ["succeeded", "denied", "failed", "needsApproval", "unsupported"]}, "result": {"type": "object"}, "artifacts": {"type": "array", "items": {"$ref": "#/components/schemas/Artifact"}}, "error": {"type": "object"}}}
+    }
+  },
+  "security": [{"bearer": []}],
+  "paths": {
+    "/sessions": {"post": {"summary": "Open an isolated persistent browser session (admin|engineer; team from bearer)", "responses": {"201": {"description": "session"}, "401": {}, "403": {}, "404": {"description": "project not owned by team"}}}},
+    "/sessions/{id}": {"delete": {"summary": "Close session (state persisted)", "responses": {"200": {}, "404": {}}}},
+    "/sessions/{id}/actions": {"post": {"summary": "Execute a typed action", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/HapRequest"}}}}, "responses": {"200": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/HapResponse"}}}}, "404": {}}}},
+    "/sessions/{id}/approvals": {"post": {"summary": "Grant a one-time external-write approval (admin only)", "responses": {"201": {}, "403": {}}}},
+    "/sessions/{id}/artifacts/{artifactId}": {"get": {"summary": "Fetch an artifact by id (team-checked, never by path)", "responses": {"200": {}, "404": {}}}}
+  }
+}

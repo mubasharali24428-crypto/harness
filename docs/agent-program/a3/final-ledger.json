@@ -1,0 +1,22 @@
+{
+  "agent": "A3",
+  "baseline": "31bf4077e9b567b1f50ecb99818d501baab3115a",
+  "worktree": "harness-a3 (branch codex/harness-a3); nothing committed",
+  "release_verdict": "NOT READY FOR PRODUCTION ROLLOUT - keep every A3 capability disabled until combined acceptance",
+  "features": {
+    "F051": "NEEDS INTEGRATION", "F052": "PARTIAL", "F053": "PARTIAL", "F054": "PARTIAL", "F055": "VERIFIED IMPLEMENTED", "F056": "NEEDS INTEGRATION",
+    "F057": "VERIFIED IMPLEMENTED", "F058": "PARTIAL", "F059": "PARTIAL", "F060": "PARTIAL", "F046": "NEEDS INTEGRATION", "F047": "VERIFIED IMPLEMENTED",
+    "F101": "PARTIAL", "F102": "PARTIAL", "F103": "PARTIAL", "F104": "VERIFIED IMPLEMENTED", "F105": "PARTIAL", "F106": "PARTIAL",
+    "F107": "PARTIAL", "F108": "NEEDS INTEGRATION", "F109": "PARTIAL", "F110": "PARTIAL", "F044": "VERIFIED IMPLEMENTED", "F045": "PARTIAL",
+    "F041": "PARTIAL", "F042": "PARTIAL", "F043": "NEEDS INTEGRATION", "F048": "VERIFIED IMPLEMENTED", "F049": "VERIFIED IMPLEMENTED", "F050": "PARTIAL"
+  },
+  "risks": {
+    "VR007": "PARTIAL CONTROL", "VR013": "PARTIAL CONTROL", "VR026": "PARTIAL CONTROL", "VR027": "PARTIAL CONTROL", "VR028": "OPEN",
+    "VR030": "PARTIAL CONTROL", "VR035": "OPEN", "VR039": "PARTIAL CONTROL", "VR043": "OPEN", "VR046": "OPEN"
+  },
+  "suites": {
+    "workers/browser vitest": "72 passed", "workers/desktop vitest": "9 passed",
+    "section5 pytest": "230 passed, 1 skipped (pre-existing)", "packages/verification pytest": "23 passed",
+    "not run": ["Docker-backed sandbox (daemon down)", "real macOS desktop input/capture (needs user authorization)", "live Section 1 auth", "live SDK->S5->browser path", "object-store restore", "make gate / Section11 / MCP / full browser build gates"]
+  }
+}

@@ -11,6 +11,7 @@ from harness_contracts.signatures import Sandbox, TaskHandle
 from harness_sandbox.checkpoints import CheckpointError, CheckpointManager
 from harness_sandbox.local_runner import LocalSandboxRunner
 from harness_sandbox.output_parser import StructuredExecResult
+from harness_sandbox.snapshots import EnvironmentSnapshots
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +36,12 @@ class SandboxService(Sandbox):
         runner: LocalSandboxRunner | None = None,
         on_stream: Callable[[EventType, dict[str, Any]], None] | None = None,
         checkpoints: CheckpointManager | None = None,
+        snapshots: EnvironmentSnapshots | None = None,
     ) -> None:
         self.runner = runner or LocalSandboxRunner()
+        self.snapshots = snapshots or EnvironmentSnapshots(
+            self.runner.storage_root.parent / f"{self.runner.storage_root.name}_snapshots"
+        )
         self.on_stream = on_stream
         self.checkpoints = checkpoints or CheckpointManager()
         self._edit_steps: dict[str, int] = {}

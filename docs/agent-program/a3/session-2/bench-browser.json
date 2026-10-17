@@ -1,0 +1,46 @@
+{
+  "env": {
+    "node": "v22.22.3",
+    "platform": "darwin",
+    "arch": "arm64",
+    "viewport": "1280x800@1"
+  },
+  "coldBrowserAndFirstSessionMs": 644,
+  "warmSecondSessionMs": 42,
+  "coldFirstNavigateMs": 31,
+  "ops": [
+    {
+      "op": "navigate",
+      "n": 40,
+      "p50": 11.3,
+      "p95": 15.6,
+      "p99": 19.6
+    },
+    {
+      "op": "type+verify",
+      "n": 40,
+      "p50": 41,
+      "p95": 43,
+      "p99": 62.6
+    },
+    {
+      "op": "observe",
+      "n": 40,
+      "p50": 2,
+      "p95": 2.4,
+      "p99": 2.5
+    },
+    {
+      "op": "click+postcondition",
+      "n": 40,
+      "p50": 46.4,
+      "p95": 57.3,
+      "p99": 62.3
+    }
+  ],
+  "accuracy": {
+    "steps": 80,
+    "failedOrWrongTarget": 0
+  },
+  "note": "tool latency only; excludes model time"
+}

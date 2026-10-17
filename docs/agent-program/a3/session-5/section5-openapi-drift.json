@@ -1,0 +1,16 @@
+{
+  "undocumented": [
+    "GET /api/v1/sandbox/tasks/{taskId}/snapshots",
+    "GET /api/v1/sandbox/{projectId}/checkpoints",
+    "GET /api/v1/sandbox/{projectId}/checkpoints/{sha}/diff",
+    "POST /api/v1/sandbox/tasks/{taskId}/snapshots",
+    "POST /api/v1/sandbox/tasks/{taskId}/snapshots/{snapshotId}/restore"
+  ],
+  "stale": [],
+  "status_changes": [
+    "POST /api/v1/sandbox/tasks/{taskId}/destroy: ['200'] -> ['200', '422']",
+    "POST /api/v1/sandbox/tasks/{taskId}/edits: ['200', '403'] -> ['200', '422']",
+    "POST /api/v1/sandbox/tasks/{taskId}/exec: ['200', '403'] -> ['200', '422']",
+    "POST /api/v1/sandbox/tasks: ['201'] -> ['201', '422']"
+  ]
+}

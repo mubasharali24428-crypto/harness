@@ -1,0 +1,56 @@
+{
+  "status": "executed",
+  "score": 0.5,
+  "note": "",
+  "survivors": [
+    {
+      "file": "src/harness_sandbox/quota.py",
+      "index": 19,
+      "line": 67,
+      "op": "compare",
+      "detail": "Eq->NotEq"
+    },
+    {
+      "file": "src/harness_sandbox/quota.py",
+      "index": 24,
+      "line": 74,
+      "op": "const",
+      "detail": "0->1"
+    },
+    {
+      "file": "src/harness_sandbox/quota.py",
+      "index": 30,
+      "line": 110,
+      "op": "const",
+      "detail": "1024->1025"
+    },
+    {
+      "file": "src/harness_sandbox/quota.py",
+      "index": 31,
+      "line": 110,
+      "op": "arith",
+      "detail": "Div->Mult"
+    },
+    {
+      "file": "src/harness_sandbox/quota.py",
+      "index": 32,
+      "line": 110,
+      "op": "compare",
+      "detail": "Gt->GtE"
+    },
+    {
+      "file": "src/harness_sandbox/quota.py",
+      "index": 37,
+      "line": 112,
+      "op": "const",
+      "detail": "1024->1025"
+    },
+    {
+      "file": "src/harness_sandbox/quota.py",
+      "index": 43,
+      "line": 113,
+      "op": "const",
+      "detail": "1024->1025"
+    }
+  ]
+}
