@@ -561,3 +561,84 @@ def test_env_knobs_pass_through_compose():
     env_anchor = compose.get("x-backend-env", {})
     assert env_anchor.get("HARNESS_LOG_FORMAT") is not None
     assert env_anchor.get("HARNESS_METRICS_DB_POLL_SECONDS") is not None
+
+
+async def test_orchestrator_domain_poll_works_over_deployed_async_factory(
+    obs, monkeypatch, tmp_path
+):
+    """Deploy-parity regression for the domain-metrics poller, seeded from
+    two compose observations: (1) with the deployed async_sessionmaker, the
+    poll used `with factory()` — SQLAlchemy 2.0 AsyncSession only supports
+    `async with`, so every 15s poll log-warned TypeError("'AsyncSession'
+    object does not support the context manager protocol") and
+    queue_depth / bus lag never refreshed; (2) a per-poll asyncio.run on the
+    shared async engine is unsafe with asyncpg (pool connections are
+    loop-bound). The fix drives the engine's thread-agnostic
+    `.sync_engine` facade from the poller thread. Tables mirror the minimum
+    column shape of migrations 0001/0006 that the gauges read."""
+    import datetime as dt
+
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path}/s2poll.db")
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    monkeypatch.setenv("HARNESS_METRICS_DB_POLL_SECONDS", "0")  # poll manually below
+
+    # Arrange via this test's own loop; the poll helper awaits the SAME
+    # engine's pool on that loop, mirroring the deployed task-on-app-loop
+    # shape (asyncpg loop-binding makes foreign-loop/thread polls unsafe).
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(
+                "CREATE TABLE run_claims (run_id TEXT PRIMARY KEY,"
+                " team_id TEXT, state TEXT)"
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE TABLE agent_events (seq INTEGER PRIMARY KEY,"
+                " run_id TEXT, type TEXT, payload TEXT, ts TIMESTAMP)"
+            )
+        )
+        await conn.execute(
+            text(
+                "INSERT INTO run_claims (run_id, team_id, state)"
+                " VALUES ('r1','t1','queued'), ('r2','t1','queued'),"
+                " ('r3','t1','claimed')"
+            )
+        )
+        past = (
+            dt.datetime.now(dt.UTC) - dt.timedelta(seconds=45)
+        ).isoformat(sep=" ")
+        await conn.execute(
+            text(
+                "INSERT INTO agent_events (seq, run_id, type, payload, ts)"
+                " VALUES (1, 'r1', 'execution.started', '{}', :ts)"
+            ),
+            {"ts": past},
+        )
+
+    app = FastAPI()
+
+    class _BusStub:
+        def __init__(self) -> None:
+            self.listeners: list = []
+
+        def add_event_listener(self, cb) -> None:
+            self.listeners.append(cb)
+
+    bus = _BusStub()
+    obs.install_domain_metrics(app, factory=factory, engine=engine, bus=bus)
+
+    await app.state.domain_metrics_poll()  # deterministic single refresh (the hook)
+
+    body = obs.METRICS.render()
+    depth = re.search(r"^harness_queue_depth (\d+)$", body, re.M)
+    assert depth, "queue-depth gauge missing"
+    assert int(depth.group(1)) == 2, "two seeded queued claims must count"
+    lag = re.search(r"^harness_event_bus_lag_seconds (\d+)$", body, re.M)
+    assert lag, "bus-lag gauge missing"
+    assert 1 <= int(lag.group(1)) <= 3600, "seeded event must set a fresh lag"
+
+    await engine.dispose()

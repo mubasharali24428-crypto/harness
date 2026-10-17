@@ -35,6 +35,7 @@ objects); every other service mounts THIS module's equivalents.
 
 from __future__ import annotations
 
+import asyncio
 import bisect
 import hashlib
 import logging
@@ -398,30 +399,46 @@ class _DomainState:
             self.pool_counts = (0,) * len(POOL_BUCKETS)
 
 
-def _queued_claims(factory: "async_sessionmaker") -> int:
-    """COUNT(run_claims WHERE state='queued') — migration 0006 vocabulary."""
+async def _read_domain_gauges(factory: "async_sessionmaker") -> tuple[object, object]:
+    """Queue depth and newest-agent_events-ts in one session.
+
+    Handles BOTH a sync sessionmaker (unit fixtures) and an
+    async_sessionmaker (the deployed orchestrator factory). Runs on the
+    app's event loop — the ONLY place an async engine's pooled connections
+    may be used (asyncpg binds them to the creating loop; SQLite aiosqlite
+    only supports async IO). MUST NEVER be called via asyncio.run from a
+    foreign thread: the poll task lives on the app's own loop.
+    """
     from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import AsyncSession
 
-    with factory() as db:
-        row = db.execute(
-            text("SELECT COUNT(*) FROM run_claims WHERE state = 'queued'")
-        ).first()
-    return int(row[0]) if row else 0
+    session = factory()
+    queued_sql = text("SELECT COUNT(*) FROM run_claims WHERE state = 'queued'")
+    lag_sql = text("SELECT MAX(ts) FROM agent_events")
+    if isinstance(session, AsyncSession):
+        async with session:
+            queued = (await session.execute(queued_sql)).first()
+            latest = (await session.execute(lag_sql)).first()
+    else:
+        with session:
+            queued = session.execute(queued_sql).first()
+            latest = session.execute(lag_sql).first()
+    return (
+        int(queued[0]) if queued else 0,
+        latest[0] if latest else None,
+    )
 
 
-def _bus_lag_seconds(factory: "async_sessionmaker") -> int:
-    """Age of the newest agent_events row, floored at 0 (clock skew)."""
+def _bus_lag_seconds(latest: object) -> int:
+    """Age (seconds) of the newest agent_events row, floored at 0."""
     import datetime as dt
 
-    from sqlalchemy import text
-
-    with factory() as db:
-        row = db.execute(text("SELECT MAX(ts) FROM agent_events")).first()
-    latest = row[0] if row else None
+    if isinstance(latest, str):  # sqlite stores TIMESTAMP as ISO text
+        latest = dt.datetime.fromisoformat(latest)
+    if latest is not None and latest.tzinfo is None:
+        latest = latest.replace(tzinfo=dt.timezone.utc)
     if latest is None:
         return 0
-    if latest.tzinfo is None:
-        latest = latest.replace(tzinfo=dt.timezone.utc)
     return max(0, int((dt.datetime.now(dt.timezone.utc) - latest).total_seconds()))
 
 
@@ -455,11 +472,11 @@ def install_domain_metrics(
     """Orchestrator-only domain series wired onto the deployed app.
 
     Gauges evaluate lazily at each scrape against a cache refreshed by a
-    daemon poller thread, so Prometheus intervals don't multiply DB load and
-    values exist before the first scrape. DB errors leave the last good
-    value in place and log a warning — never crash the app. Run lifecycle
-    counters increment from bus events (execution_started / engine_completed
-    / engine_failed vocabulary).
+    background poll task on the app's event loop, so Prometheus intervals
+    don't multiply DB load and values exist before the first scrape. DB
+    errors leave the last good value in place and log a warning — never
+    crash the app. Run lifecycle counters increment from bus events
+    (execution_started / engine_completed / engine_failed vocabulary).
     """
 
     state = _DomainState()
@@ -514,29 +531,45 @@ def install_domain_metrics(
         )
     )
 
-    def _poll_once() -> None:
-        queued = _queued_claims(factory)
-        lag = _bus_lag_seconds(factory)
-        pool_counts = _pool_saturation(engine)
+    async def _poll_once() -> None:
+        queued, latest = await _read_domain_gauges(factory)
         with state.lock:
             state.queue_depth = queued
-            state.bus_lag_s = lag
-            state.pool_counts = pool_counts
+            state.bus_lag_s = _bus_lag_seconds(latest)
+            state.pool_counts = _pool_saturation(engine)
 
-    def _poll_loop() -> None:
+    async def _poll_task() -> None:
         interval = float(os.environ.get("HARNESS_METRICS_DB_POLL_SECONDS", "15"))
-        if interval <= 0:
-            return
         while True:
             try:
-                _poll_once()
+                await _poll_once()
             except Exception as exc:  # noqa: BLE001 — keep polling forever
                 logging.getLogger(__name__).warning(
                     "domain-metrics poll failed: %r", exc
                 )
-            time.sleep(interval)
+            await asyncio.sleep(interval)
 
-    threading.Thread(target=_poll_loop, name="harness-domain-metrics", daemon=True).start()
+    # Deterministic test/ops hook: drive one poll refresh on demand (await it).
+    app.state.domain_metrics_poll = _poll_once
+
+    @app.on_event("startup")
+    async def _start_domain_metrics_poll() -> None:
+        interval = float(os.environ.get("HARNESS_METRICS_DB_POLL_SECONDS", "15"))
+        if interval <= 0:
+            return
+        app.state.domain_metrics_task = asyncio.create_task(
+            _poll_task(), name="harness-domain-metrics"
+        )
+
+    @app.on_event("shutdown")
+    async def _stop_domain_metrics_poll() -> None:
+        task = app.state.domain_metrics_task
+        if task is not None:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
     def _on_event(envelope) -> None:
         etype = str(getattr(envelope, "type", "") or "").split(".")[-1].lower()
