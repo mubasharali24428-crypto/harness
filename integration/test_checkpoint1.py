@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,11 +44,23 @@ def event_loop():
     loop.close()
 
 
+async def _build_schema(conn):
+    """create_all + SQL-side columns the ORM deliberately omits.
+
+    M15-D1: ``agent_runs.pr_id`` has no ORM mirror (it would create a
+    runs<->PRs flush-ordering cycle), so ``create_all`` cannot emit it while
+    S4's run aggregate (``_RUN_ENRICH_SQL``) reads it. Mirror the migrated
+    shape, like section4/tests/unit/test_run_get.py does.
+    """
+    await conn.run_sync(S1Base.metadata.create_all)
+    await conn.execute(text("ALTER TABLE agent_runs ADD COLUMN pr_id VARCHAR(36)"))
+
+
 @pytest_asyncio.fixture
 async def bus():
     engine = create_async_engine("sqlite+aiosqlite://")
     async with engine.begin() as conn:
-        await conn.run_sync(S1Base.metadata.create_all)
+        await _build_schema(conn)
     factory = async_sessionmaker(engine, expire_on_commit=False)
     yield EventBus(factory)
     await engine.dispose()
@@ -154,7 +166,7 @@ async def test_orchestrator_rehydrates_state_from_event_log():
 
     eng = _cae("sqlite+aiosqlite://")
     async with eng.begin() as conn:
-        await conn.run_sync(S1Base.metadata.create_all)
+        await _build_schema(conn)
     factory = _asm(eng, expire_on_commit=False)
 
     producer_bus = EventBus(factory)

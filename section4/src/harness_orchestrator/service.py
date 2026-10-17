@@ -523,7 +523,11 @@ class OrchestratorService(Orchestrator):
                 # Confirmation only: the mirror row above already decided.
                 approved_plan = (payload or {}).get("planId") if isinstance(payload, dict) else None
                 if approved_plan:
-                    rd.setdefault("plan_id", approved_plan)
+                    if rd.get("plan_id") is None:
+                        # NOT setdefault: _ensure_run pre-seeds plan_id=None,
+                        # so the key always exists and the legacy-log fallback
+                        # below would silently never fire.
+                        rd["plan_id"] = approved_plan
                     if plan_row is None:
                         # No mirror row to consult (pre-mirror legacy row):
                         # the event itself is the only durable witness.
