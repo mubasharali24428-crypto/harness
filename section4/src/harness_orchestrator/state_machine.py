@@ -27,13 +27,27 @@ string already allowlisted in the shared audit registry. The rejection also
 clears ``plan_approved`` *before* the run returns to IDLE, so neither a late
 caller nor a post-restart rehydrated machine can reach EXECUTING on a rejected
 plan without a fresh, audited approval.
+
+M23-A (session-2 area 16 — approval expiry): an approval is now TIME-BOUNDED.
+``approve_plan`` stamps ``plan_approved_at`` (and carries it on the
+PLAN_APPROVED payload as ``approvedAt``); ``start_execution`` refuses an
+approval older than ``HARNESS_PLAN_APPROVAL_TTL_SECONDS`` (default 24 h, 0
+disables) and clears it, so a stale approval is never replayable — the human
+gate must be re-affirmed close in time to the spend. The service layer
+additionally enforces the same TTL against the durable event log (it is the
+witness for approvals this process never made — replica B / post-restart),
+where a missing/unreadable timestamp stays lenient: enforcement fires on
+evidence of staleness, never on an absent scratch mirror.
 """
 
+import os
 from collections.abc import Callable
+from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
 from harness_contracts.events import EventType
+from harness_contracts.timeutil import as_utc, now_utc
 
 
 class AgentState(StrEnum):
@@ -62,6 +76,52 @@ TERMINAL_STATES: frozenset[AgentState] = frozenset({AgentState.DONE})
 # it; rehydration maps only known EventType values, so replaying it is inert.
 PLAN_REJECTED_EVENT = "plan.rejected"
 
+# M23-A: how long a plan approval stays startable. 0 (or negative) disables
+# enforcement — the documented escape hatch, never the default.
+ENV_PLAN_APPROVAL_TTL_SECONDS = "HARNESS_PLAN_APPROVAL_TTL_SECONDS"
+DEFAULT_PLAN_APPROVAL_TTL_SECONDS = 86400
+
+
+def plan_approval_ttl_seconds() -> int:
+    """Approval TTL in seconds; malformed env falls back to the 24 h default."""
+    raw = os.environ.get(ENV_PLAN_APPROVAL_TTL_SECONDS, "")
+    try:
+        return int(raw) if raw.strip() else DEFAULT_PLAN_APPROVAL_TTL_SECONDS
+    except ValueError:
+        return DEFAULT_PLAN_APPROVAL_TTL_SECONDS
+
+
+def approved_at_from_wire(value: Any) -> datetime | None:
+    """Parse an ``approvedAt`` payload value (ISO text) or a DB timestamp.
+
+    Returns None for anything unparseable/absent — callers treat that as "no
+    timestamp evidence" and stay lenient; stale-evidence is the only thing
+    that refuses a start.
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return as_utc(value)
+    if isinstance(value, str):
+        try:
+            return as_utc(datetime.fromisoformat(value.replace("Z", "+00:00")))
+        except ValueError:
+            return None
+    return None
+
+
+def approval_expired(
+    approved_at: datetime | None, ttl_seconds: int | None = None
+) -> bool:
+    """True when ``approved_at`` is at least the TTL old (M23-A).
+
+    None = no timestamp evidence → False (lenient); ttl <= 0 = disabled.
+    """
+    ttl = plan_approval_ttl_seconds() if ttl_seconds is None else ttl_seconds
+    if ttl <= 0 or approved_at is None:
+        return False
+    return (now_utc() - as_utc(approved_at)).total_seconds() >= ttl
+
 
 class InvalidStateTransitionError(Exception):
     """Raised when an invalid state machine transition is attempted."""
@@ -81,6 +141,11 @@ class AgentStateMachine:
         self.state: AgentState = AgentState.IDLE
         self.on_event = on_event
         self.plan_approved: bool = False
+        # M23-A: stamped by approve_plan; cleared on reject/expiry. None =
+        # no time evidence (legacy rehydration, direct flag set in tests) —
+        # the machine then skips the TTL check and the service layer's
+        # durable check is the enforcement point.
+        self.plan_approved_at: datetime | None = None
         self.is_human_editing: bool = False
         self.clarification_question: str | None = None
         # H-008: set when the engine opened the human done-gate. A review
@@ -122,10 +187,20 @@ class AgentStateMachine:
 
     def approve_plan(self, plan_id: str, principal_user_id: str) -> None:
         self._require_live("approve plan")
+        approved_at = now_utc()
         self.plan_approved = True
+        self.plan_approved_at = approved_at
         self.emit(
             EventType.PLAN_APPROVED,
-            {"planId": plan_id, "runId": self.run_id, "approvedBy": principal_user_id},
+            {
+                "planId": plan_id,
+                "runId": self.run_id,
+                "approvedBy": principal_user_id,
+                # M23-A: the approval instant rides the frozen payload so
+                # the event log is the durable witness the service TTL check
+                # (and post-restart rehydration) reads back.
+                "approvedAt": approved_at.isoformat(),
+            },
         )
 
     def reject_plan(self, plan_id: str, principal_user_id: str) -> None:
@@ -142,6 +217,7 @@ class AgentStateMachine:
         """
         self._require_live("reject plan")
         self.plan_approved = False
+        self.plan_approved_at = None
         self.transition_to(AgentState.IDLE)
         self.emit(
             PLAN_REJECTED_EVENT,
@@ -156,6 +232,15 @@ class AgentStateMachine:
         self._require_live("start execution")
         if not self.plan_approved:
             raise InvalidStateTransitionError("Cannot start execution: plan is not approved.")
+        # M23-A: a stale approval is not an approval — refuse it and clear
+        # the flag so a retry requires a fresh, audited approve_plan.
+        if approval_expired(self.plan_approved_at):
+            self.plan_approved = False
+            self.plan_approved_at = None
+            raise InvalidStateTransitionError(
+                "Cannot start execution: plan approval expired (TTL "
+                f"{plan_approval_ttl_seconds()}s). Re-approve the plan."
+            )
         self.transition_to(AgentState.EXECUTING)
         self.emit(EventType.EXECUTION_STARTED, {"runId": self.run_id})
 

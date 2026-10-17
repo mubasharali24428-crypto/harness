@@ -8,6 +8,7 @@ strings — never naive wall-clock bookkeeping.
 """
 
 import asyncio
+import threading
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -323,14 +324,22 @@ def test_reaper_leaves_healthy_claims_untouched(db_factory):
     f = db_factory
 
     class BlockedEngine:
-        """Engine that stays mid-flight (its task never settles on its own)."""
+        """Engine that stays mid-flight until the test releases it.
+
+        The block is a threading.Event (not time.sleep): execute_goal runs on
+        the engine executor's THREAD, which task.cancel() cannot interrupt —
+        a sleeping thread would make the cleanup below time out raggedly.
+        Setting `release` unblocks the thread so the task can resolve.
+        """
+
+        def __init__(self) -> None:
+            self.release = threading.Event()
 
         def execute_goal(self, goal=None, session_id=None):
-            import time
+            self.release.wait(timeout=30)
 
-            time.sleep(30)  # would block; the test cancels the task instead
-
-    svc = OrchestratorService(engine=BlockedEngine(), run_queue_factory=f)
+    engine = BlockedEngine()
+    svc = OrchestratorService(engine=engine, run_queue_factory=f)
     events: list[tuple[str, dict]] = []
     svc.on_event = lambda etype, payload: events.append((etype.value, payload))
 
@@ -360,12 +369,24 @@ def test_reaper_leaves_healthy_claims_untouched(db_factory):
     assert [t for t, _p in events if t == "engine_failed"] == []
     assert svc.runs["healthy-run"]["state_machine"].state is AgentState.EXECUTING
 
-    # Cleanup: cancel the blocked engine task so no sleep(30) leaks.
+    # Cleanup: cancel the blocked engine task, then release its thread so the
+    # cancellation can land (execute_goal runs on an executor thread that
+    # task.cancel() cannot interrupt), and pump the shared loop briefly until
+    # the task settles. Settling is best-effort by design: when cancellation
+    # lands mid-DB-await, the service's finally-block `finish_run` (service.py
+    # `_execute`) can await a StaticPool/aiosqlite connection that the
+    # abandoned operation poisoned — that future never resolves in this
+    # environment (production uses asyncpg pools). All reaper assertions above
+    # have already run, so cleanup must not turn environment quirks into red.
     task = svc.runs["healthy-run"].get("task")
     if task is not None and not task.done():
         task.cancel()
+    engine.release.set()
+    for _ in range(40):  # bounded: ≤ ~2 s of loop pumping
+        if task is None or task.done():
+            break
         try:
-            run(asyncio.wait_for(asyncio.shield(task), timeout=5))
+            run(asyncio.sleep(0.05))
         except asyncio.CancelledError:
             pass
 

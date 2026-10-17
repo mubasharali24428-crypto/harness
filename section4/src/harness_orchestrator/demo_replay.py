@@ -111,6 +111,17 @@ _REPLAY: dict[str, Any] = {
         # Ordered lifecycle trail in the frozen EventType vocabulary, payload
         # shapes exactly as AgentStateMachine emits them. Timestamps are the
         # recorded wall-clock of the captured session (UTC, ISO-8601).
+        #
+        # Re-curated under H-008 terminal sealing (found by the Section-B
+        # adversarial replay tests, test_replay_terminal_sealing.py): the
+        # original capture put engine_completed BEFORE the review pass, which
+        # arms the done-gate — review_passed then seals DONE and the trailing
+        # pr_opened becomes an impossible post-terminal transition (the old
+        # flat replay silently overwrote DONE, masking the contradiction).
+        # Live-legal showcase order: the review pass follows a mid-flight
+        # hand-over (loops back to EXECUTING), the engine then settles (arms
+        # the awaiting-acceptance gate, never consumed), and pr_opened is the
+        # final advancing event. Every step is reachable on the live machine.
         "events": [
             {
                 "type": "plan_proposed",
@@ -151,17 +162,6 @@ _REPLAY: dict[str, Any] = {
                 },
             },
             {
-                "type": "engine_completed",
-                "ts": "2026-08-20T09:01:21+00:00",
-                "payload": {
-                    "runId": "__DEMO_RUN_ID__",
-                    "summary": (
-                        "Implemented median_word_length in src/textstats/stats.py; "
-                        "python -m pytest -q green, ruff clean."
-                    ),
-                },
-            },
-            {
                 "type": "done_signal_received",
                 "ts": "2026-08-20T09:03:12+00:00",
                 "payload": {"runId": "__DEMO_RUN_ID__"},
@@ -180,6 +180,17 @@ _REPLAY: dict[str, Any] = {
                         "summary": "Review passed cleanly.",
                         "issues": [],
                     },
+                },
+            },
+            {
+                "type": "engine_completed",
+                "ts": "2026-08-20T09:03:20+00:00",
+                "payload": {
+                    "runId": "__DEMO_RUN_ID__",
+                    "summary": (
+                        "Implemented median_word_length in src/textstats/stats.py; "
+                        "python -m pytest -q green, ruff clean."
+                    ),
                 },
             },
             {

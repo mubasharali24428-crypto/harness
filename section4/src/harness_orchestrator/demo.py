@@ -210,11 +210,17 @@ async def _seed_run_rows(db, service: OrchestratorService, spec: dict[str, Any],
     run = spec
     plan_spec = run["plan"]
 
-    # agent_runs parent (pr_id binding mirrors S2's producer write, migration 0023)
+    # agent_runs parent. pr_id starts NULL: agent_runs.pr_id -> pull_requests.id
+    # and pull_requests.run_id -> agent_runs.id form a FK CYCLE (migrations
+    # 0017 + 0023), so the back-link can only be written AFTER the PR row.
+    # This mirrors S2's producer discipline (pr_open.py: INSERT run ->
+    # INSERT pull_requests -> UPDATE agent_runs SET pr_id) and is the write
+    # order real Postgres enforces — SQLite's unit lane never had FKs on,
+    # which is exactly how the E2E journey caught the original ordering bug.
     await db.execute(
         text(
-            "INSERT INTO agent_runs (id, project_id, branch, state, created_at, pr_id)"
-            " VALUES (:id, :p, :branch, :state, :ts, :pr_id)"
+            "INSERT INTO agent_runs (id, project_id, branch, state, created_at)"
+            " VALUES (:id, :p, :branch, :state, :ts)"
         ),
         {
             "id": run_id,
@@ -222,7 +228,6 @@ async def _seed_run_rows(db, service: OrchestratorService, spec: dict[str, Any],
             "branch": f"agent/{run_id}",
             "state": EventType.PR_OPENED.value,
             "ts": db_now(),
-            "pr_id": pr_id,
         },
     )
 
@@ -252,7 +257,8 @@ async def _seed_run_rows(db, service: OrchestratorService, spec: dict[str, Any],
     )
     _register_plan(service, plan_id, plan)
 
-    # pull_requests row + agent_runs.pr_id link (S2 pr_open.py discipline)
+    # pull_requests row, then the cycle's second leg (same SQL as
+    # pr_open.py's _SET_RUN_PR_SQL): only now can the FK accept the back-link.
     pr = run["pullRequest"]
     await db.execute(
         text(
@@ -269,6 +275,10 @@ async def _seed_run_rows(db, service: OrchestratorService, spec: dict[str, Any],
             "summary_md": pr.get("summaryMd", ""),
             "status": pr.get("status", "open"),
         },
+    )
+    await db.execute(
+        text("UPDATE agent_runs SET pr_id = :pr_id WHERE id = :run_id"),
+        {"pr_id": pr_id, "run_id": run_id},
     )
 
     # cost_ledger: one exact-money row priced by the REAL PricingEngine for

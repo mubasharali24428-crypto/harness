@@ -50,6 +50,9 @@ from harness_orchestrator.state_machine import (
     TERMINAL_STATES,
     AgentState,
     AgentStateMachine,
+    approval_expired,
+    approved_at_from_wire,
+    plan_approval_ttl_seconds,
 )
 
 logger = logging.getLogger(__name__)
@@ -321,6 +324,9 @@ class OrchestratorService(Orchestrator):
         )
         if status.allowed:
             run_data.pop("budget_degraded", None)
+            # M23-B (session-2 area 9): allowed but near the cap — surface
+            # the warning once per run (log + aggregate flag), never a block.
+            self._note_budget_warning(run_data, status)
             return False
         if status.degraded:
             # Operator-visible degradation: the money store was down, the
@@ -334,6 +340,27 @@ class OrchestratorService(Orchestrator):
         sm: AgentStateMachine = run_data["state_machine"]
         sm.execution_failed(reason)
         return True
+
+    def _note_budget_warning(
+        self, run_data: dict[str, Any], status: BudgetStatus
+    ) -> None:
+        """M23-B: log + flag the FIRST near-cap decision of this run.
+
+        Dedupe is per run (in-process, like the other run_data flags): the
+        warning is an operator alert, not a ledger — repeating it on every
+        model call would be noise, and the aggregate API keeps the fact.
+        """
+        if not status.warned or run_data.get("budget_warned"):
+            return
+        run_data["budget_warned"] = True
+        logger.warning(
+            "budget warning for run %s: projected spend crossed $%.4f "
+            "(%.0f%% of the $%.2f cap)",
+            run_data.get("runId"),
+            status.warnAtUsd or 0.0,
+            (100.0 * (status.warnAtUsd or 0.0) / status.capUsd) if status.capUsd else 0.0,
+            status.capUsd or 0.0,
+        )
 
     async def _team_for_run(self, run_data: dict[str, Any]) -> str | None:
         """Resolve the owning team id for a run (agent_runs → projects → teams).
@@ -462,6 +489,17 @@ class OrchestratorService(Orchestrator):
                     payload = json.loads(payload)
                 except Exception:  # noqa: BLE001
                     payload = {}
+            if sm.state in TERMINAL_STATES:
+                # Section-B adversarial (replay terminal sealing): the live
+                # machine accepts NO transition after DONE, so replay must
+                # treat the rest of the log as inert. Legacy logs from
+                # pre-H-008 revisions kept emitting after acceptance — a
+                # trailing RESUMED resurrected the finished run straight into
+                # EXECUTING here (adversarial test
+                # tests/unit/test_replay_terminal_sealing.py). This is the
+                # S1-R05c stop-tombstone law, generalized to every terminal
+                # path. Breaks, not continues: nothing later can matter.
+                break
             if stopped:
                 # S1-R05c: stop is terminal — events logged after a stop
                 # tombstone (old logs may even carry a post-stop done-signal)
@@ -491,6 +529,13 @@ class OrchestratorService(Orchestrator):
                         # the event itself is the only durable witness.
                         sm.plan_approved = True
                         self.planner.plan_approvals[approved_plan] = True
+                    # M23-A: recover the approval instant from the payload
+                    # (legacy pre-M23 events carry none; the start-path
+                    # durable check then falls back to the row ts).
+                    if isinstance(payload, dict) and sm.plan_approved_at is None:
+                        sm.plan_approved_at = approved_at_from_wire(
+                            payload.get("approvedAt")
+                        )
                 continue
             # M19-N1: replay the done-gate PATH like the live machine does
             # (H-008 semantics, previously missing from rehydration): a
@@ -841,6 +886,12 @@ class OrchestratorService(Orchestrator):
             return
 
         sm: AgentStateMachine = run_data["state_machine"]
+        # M23-A (session-2 area 16): the approval above is durable, but is it
+        # still FRESH? The event log is the witness for approvals this
+        # process never made (replica B / post-restart); a stale approval is
+        # refused here — before any announcement or enqueue — so it can
+        # never be replayed into spend.
+        await self._assert_plan_approval_fresh(run_id, sm)
         # Durable proof above ⇒ the machine reflects it even when THIS process
         # lost the original decision race on another replica (M19-N1
         # convergence): the spawner must be able to announce the lifecycle.
@@ -1165,6 +1216,63 @@ class OrchestratorService(Orchestrator):
             self._refresh_plan_cache(plan_id, decision["status"])
         return self.planner.is_approved(plan_id)
 
+    async def _assert_plan_approval_fresh(
+        self, run_id: str, sm: AgentStateMachine
+    ) -> None:
+        """M23-A (session-2 area 16): refuse to start on a stale approval.
+
+        Enforcement point is the START REQUEST (queue announce / bare spawn):
+        the approval instant is the PLAN_APPROVED event's DB ``ts`` — the
+        append-only log is the lifecycle of record, and it is the only
+        witness for approvals made on another replica or before a restart.
+        The in-memory machine's own timestamp (set by ``approve_plan``) is
+        used when the store has none.
+
+        Posture: evidence of staleness REFUSES (PlanNotApprovedError, the
+        same 409 the unapproved case uses); an absent/unreadable timestamp
+        (bare unit mode, scratch mirrors predating the ``ts`` column) stays
+        lenient — enforcement must never invent an expiry out of a missing
+        fixture column. A run already elected for a start keeps its claim:
+        the TTL is evaluated at start time, and re-checking it mid-queue
+        would only re-litigate a decision the API already answered.
+        """
+        approved_at = sm.plan_approved_at
+        if approved_at is None:
+            factory = self.run_queue_factory or self.session_factory
+            if factory is None:
+                return
+            from sqlalchemy import text
+
+            try:
+                async with factory() as db:
+                    row = (
+                        await db.execute(
+                            text(
+                                "SELECT ts FROM agent_events"
+                                " WHERE run_id = :r AND type = :t"
+                                " ORDER BY seq DESC LIMIT 1"
+                            ),
+                            {"r": run_id, "t": EventType.PLAN_APPROVED.value},
+                        )
+                    ).first()
+            except Exception:  # noqa: BLE001 — absent ts column / store: no evidence
+                logger.debug(
+                    "approval timestamp unreadable for run %s; TTL check skipped",
+                    run_id,
+                )
+                return
+            if row is None:
+                return
+            approved_at = approved_at_from_wire(row[0])
+            sm.plan_approved_at = approved_at
+        if approval_expired(approved_at):
+            sm.plan_approved = False
+            sm.plan_approved_at = None
+            raise PlanNotApprovedError(
+                f"Cannot execute run '{run_id}': plan approval expired (TTL "
+                f"{plan_approval_ttl_seconds()}s). Re-approve the plan."
+            )
+
     async def _durable_lifecycle_head(self, run_id: str) -> str | None:
         """Wire name of the run's latest non-rejection event, or None.
 
@@ -1296,6 +1404,11 @@ class OrchestratorService(Orchestrator):
         state: AgentState | None = None
         done_gate = False
         for row in rows:
+            if state is AgentState.DONE:
+                # Section-B adversarial: same terminal seal as _rehydrate —
+                # legacy post-terminal rows must not unseal the verdict, or
+                # eviction (and every later eviction retry) refuses forever.
+                break
             etype = row["event_type"]
             if etype == EventType.EXECUTION_STARTED.value:
                 state = AgentState.EXECUTING
@@ -1630,6 +1743,10 @@ class OrchestratorService(Orchestrator):
                     logger.warning(
                         "reviewer model call withheld for run %s: %s", run_id, budget_block
                     )
+                else:
+                    # M23-B: the reviewer call is spend too — same warning
+                    # seam as the pre-spawn gate, same once-per-run dedupe.
+                    self._note_budget_warning(run_data, status)
 
         findings = self.reviewer.evaluate_changes(
             brief_summary=run_data["goal"],
@@ -1806,7 +1923,12 @@ class OrchestratorService(Orchestrator):
             # and see at a glance that this run's budget decisions were made
             # against a healthy money store (flips true when a gate ran
             # fail-closed on a DB error).
-            "budget": {"degraded": bool(run_data.get("budget_degraded"))},
+            "budget": {
+                "degraded": bool(run_data.get("budget_degraded")),
+                # M23-B: true when any decision on this run was allowed but
+                # crossed the warning threshold (see BudgetDegradedOut).
+                "warned": bool(run_data.get("budget_warned")),
+            },
             # M22-M2: structured upgrade CTA ({tier, cap, capField, used,
             # upgradeTo, cta}) when a TIER cap blocked this run; None = no
             # cap hit. The UI renders an upgrade action from it — never a

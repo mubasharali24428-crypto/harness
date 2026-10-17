@@ -21,8 +21,11 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from harness_orchestrator.budget import (
+    DEFAULT_BUDGET_WARN_PCT,
+    ENV_BUDGET_WARN_PCT,
     ENV_TEAM_BUDGET_USD,
     BudgetStatus,
+    budget_warn_pct,
     check_budget,
     env_budget_default,
     estimate_next_call_cost_usd,
@@ -532,3 +535,145 @@ def test_signal_done_over_budget_still_gates_pass_fail_deterministically(db_fact
     assert findings.passed is False
     failed = [e for e in events if e[0] is EventType.REVIEW_FAILED]
     assert failed
+
+
+# ------------------------------------------------- M23-B: warning threshold
+
+
+def test_budget_warn_pct_default_and_invalid_values(monkeypatch):
+    monkeypatch.delenv(ENV_BUDGET_WARN_PCT, raising=False)
+    assert budget_warn_pct() == DEFAULT_BUDGET_WARN_PCT
+    monkeypatch.setenv(ENV_BUDGET_WARN_PCT, "not-a-number")
+    assert budget_warn_pct() == DEFAULT_BUDGET_WARN_PCT
+    monkeypatch.setenv(ENV_BUDGET_WARN_PCT, "0")
+    assert budget_warn_pct() == 0.0  # disabled
+    monkeypatch.setenv(ENV_BUDGET_WARN_PCT, "100")
+    assert budget_warn_pct() == 0.0  # >= 100 is the hard stop itself
+    monkeypatch.setenv(ENV_BUDGET_WARN_PCT, "55.5")
+    assert budget_warn_pct() == pytest.approx(55.5)
+
+
+def test_allowed_decision_reports_warning_threshold_crossing(db_factory, monkeypatch):
+    monkeypatch.delenv(ENV_BUDGET_WARN_PCT, raising=False)
+    f = db_factory
+    run(_add_spend(f, "run-a", 16.0))
+    status: BudgetStatus = run(
+        check_budget(f, "team-a", budget_usd=20.0, estimated_call_cost_usd=0.0)
+    )
+    assert status.allowed is True
+    assert status.warned is True
+    assert status.warnAtUsd == pytest.approx(16.0)  # 80% of $20
+
+
+def test_projection_below_threshold_is_silent(db_factory, monkeypatch):
+    monkeypatch.delenv(ENV_BUDGET_WARN_PCT, raising=False)
+    f = db_factory
+    run(_add_spend(f, "run-a", 15.0))
+    status: BudgetStatus = run(
+        check_budget(f, "team-a", budget_usd=20.0, estimated_call_cost_usd=0.05)
+    )
+    assert status.allowed is True and status.warned is False
+
+
+def test_projection_landing_on_threshold_warns(db_factory, monkeypatch):
+    monkeypatch.delenv(ENV_BUDGET_WARN_PCT, raising=False)
+    f = db_factory
+    run(_add_spend(f, "run-a", 15.95))
+    status: BudgetStatus = run(
+        check_budget(f, "team-a", budget_usd=20.0, estimated_call_cost_usd=0.05)
+    )
+    assert status.allowed is True and status.warned is True  # 16.00 == 16.00
+
+
+def test_blocked_decision_is_never_also_warned(db_factory, monkeypatch):
+    monkeypatch.delenv(ENV_BUDGET_WARN_PCT, raising=False)
+    f = db_factory
+    run(_add_spend(f, "run-a", 19.95))
+    status: BudgetStatus = run(
+        check_budget(f, "team-a", budget_usd=20.0, estimated_call_cost_usd=0.05)
+    )
+    assert status.allowed is False
+    assert status.warned is False and status.warnAtUsd is None
+
+
+def test_custom_warn_pct_honored(db_factory, monkeypatch):
+    monkeypatch.setenv(ENV_BUDGET_WARN_PCT, "50")
+    f = db_factory
+    run(_add_spend(f, "run-a", 10.01))
+    status: BudgetStatus = run(
+        check_budget(f, "team-a", budget_usd=20.0, estimated_call_cost_usd=0.0)
+    )
+    assert status.allowed is True and status.warned is True
+    assert status.warnAtUsd == pytest.approx(10.0)
+
+
+def test_warn_pct_zero_disables_warnings(db_factory, monkeypatch):
+    monkeypatch.setenv(ENV_BUDGET_WARN_PCT, "0")
+    f = db_factory
+    run(_add_spend(f, "run-a", 19.0))
+    status: BudgetStatus = run(
+        check_budget(f, "team-a", budget_usd=20.0, estimated_call_cost_usd=0.0)
+    )
+    assert status.allowed is True and status.warned is False and status.warnAtUsd is None
+
+
+def test_unlimited_cap_never_warns(db_factory, monkeypatch):
+    monkeypatch.delenv(ENV_BUDGET_WARN_PCT, raising=False)
+    f = db_factory
+    run(_add_spend(f, "run-a", 500.0))
+    status: BudgetStatus = run(check_budget(f, "team-a"))
+    assert status.allowed is True and status.warned is False and status.capUsd is None
+
+
+def test_near_cap_run_warns_but_still_executes(db_factory, monkeypatch):
+    """Service seam: the pre-spawn gate flags the warning once and the run
+    proceeds — never a block, never repeated noise."""
+    monkeypatch.setenv(ENV_TEAM_BUDGET_USD, "2.0")
+    monkeypatch.delenv(ENV_BUDGET_WARN_PCT, raising=False)
+    f = db_factory
+    run(_add_spend(f, "run-a", 1.7))  # 85% of the $2 env cap
+
+    class StubEngine:
+        def execute_goal(self, goal=None, session_id=None):
+            return {
+                "sessionId": session_id,
+                "engine": "stub",
+                "status": "completed",
+                "finalResponse": "done",
+            }
+
+    svc, events = _wire_service(f, StubEngine())
+    _approve(svc, "warn-run")
+    assert _drive_to_spawn(svc, "warn-run", over_budget=False) is True
+    assert svc.runs["warn-run"]["budget_warned"] is True
+    assert not [e for e in events if e[0] is EventType.ENGINE_FAILED]
+    run(asyncio.wait_for(svc.runs["warn-run"]["task"], timeout=5))
+
+
+def test_under_cap_no_warning_and_reviewer_warning_path(db_factory, monkeypatch):
+    """Below the threshold: no flag, no behavior change (regression guard)."""
+    monkeypatch.setenv(ENV_TEAM_BUDGET_USD, "100.0")
+    monkeypatch.delenv(ENV_BUDGET_WARN_PCT, raising=False)
+    f = db_factory
+    run(_add_spend(f, "run-a", 1.0))
+
+    class SpyRouter:
+        def call_model(self, agent_id, role, messages, opts=None):
+            from harness_contracts.signatures import ModelResult
+
+            return ModelResult(text="s", costUsd=0.5, model="gpt", latencyMs=1)
+
+        def estimate_cost(self, role, input_tokens, output_tokens):
+            return 0.01
+
+        def list_available_models(self):
+            return ["gpt"]
+
+    svc = OrchestratorService(
+        engine=OverBudgetEngine(),  # type: ignore[arg-type]
+        session_factory=f,
+        reviewer=ReviewerSubAgent(model_router=SpyRouter()),
+    )
+    run(svc.propose_plan("rv-warn-ok", project_id="proj-a"))
+    run(svc.signal_done("rv-warn-ok", diff_text=GOLDEN_CLEAN_DIFF))
+    assert svc.runs["rv-warn-ok"].get("budget_warned") is not True

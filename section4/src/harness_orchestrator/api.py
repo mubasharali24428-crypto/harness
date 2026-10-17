@@ -412,10 +412,14 @@ class BudgetDegradedOut(BaseModel):
 
     ``degraded=true`` means at least one budget decision on this run was
     made FAIL-CLOSED because the money store was unreachable (denial shaped
-    like an outage, never silently opened). Absent/false = healthy.
+    like an outage, never silently opened). ``warned=true`` (M23-B) means at
+    least one ALLOWED decision crossed the near-cap warning threshold — the
+    operator sees the walk toward the cap before the hard stop. Absent/false
+    = healthy / far from the cap.
     """
 
     degraded: bool = False
+    warned: bool = False
 
 
 class UpgradeCtaOut(BaseModel):

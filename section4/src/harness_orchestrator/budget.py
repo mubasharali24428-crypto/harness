@@ -31,6 +31,14 @@ error also degrades to it. Both halves honor the ONE month window: rollup
 days before this month's DB-clock start are excluded, so last month's spend
 never leaks across the cap boundary.
 
+M23-B (session-2 area 9 — budget warnings): the gate no longer only blocks
+at 100% — an ALLOWED decision near the cap now carries ``warned=True`` with
+the threshold that was crossed (``warnAtUsd``, default
+``HARNESS_TEAM_BUDGET_WARN_PCT``=80 of the resolved cap; 0 or >=100
+disables). The service logs the warning once per run and surfaces it on the
+run-aggregate API, so an operator sees the walk toward the cap BEFORE the
+hard stop — the alert the register flagged as missing.
+
 All statements run identically on PostgreSQL/asyncpg (prod) and
 SQLite/aiosqlite (unit tests): no vendor-specific SQL beyond the registered
 ``date_trunc``/``now()`` user functions the test mirrors provide, and
@@ -41,6 +49,7 @@ TIMESTAMPTZ).
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 
 from harness_contracts import (
@@ -64,13 +73,16 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "BudgetStatus",
     "CAP_RESOLUTION_ORDER",
+    "DEFAULT_BUDGET_WARN_PCT",
     "DEFAULT_ESTIMATED_CALL_COST_USD",
     "DEGRADED_REASON",
+    "ENV_BUDGET_WARN_PCT",
     "ENV_TEAM_BUDGET_USD",
     "MONTH_WINDOW_SQL",
     "ResolvedCap",
     # M22-M2 (additive): tier gate — runs/day volume cap ahead of budget.
     "TierGateStatus",
+    "budget_warn_pct",
     "check_budget",
     "check_tier",
     "env_budget_default",
@@ -78,6 +90,26 @@ __all__ = [
     "resolve_cap",
     "resolve_team_budget_usd",
 ]
+
+# M23-B: warn BEFORE the hard stop. Percentage of the resolved cap; the
+# valid window is strictly (0, 100) — anything else disables warnings
+# (documented escape hatch, never the default).
+ENV_BUDGET_WARN_PCT = "HARNESS_TEAM_BUDGET_WARN_PCT"
+DEFAULT_BUDGET_WARN_PCT = 80.0
+
+
+def budget_warn_pct() -> float:
+    """Warning threshold as a percentage of the cap; 0.0 = disabled.
+
+    Malformed env falls back to the 80% default; values outside (0, 100)
+    disable warnings explicitly.
+    """
+    raw = os.environ.get(ENV_BUDGET_WARN_PCT, "")
+    try:
+        pct = float(raw) if raw.strip() else DEFAULT_BUDGET_WARN_PCT
+    except ValueError:
+        return DEFAULT_BUDGET_WARN_PCT
+    return pct if 0 < pct < 100 else 0.0
 
 # Frozen table names (Section 1 owns them); this module only READS.
 #
@@ -278,6 +310,10 @@ class BudgetStatus:
     decision was being made. The decision itself is FAIL-CLOSED
     (``allowed=False``); operators watch this flag to distinguish a real cap
     from an outage-shaped denial.
+
+    ``warned=True`` (M23-B): the call was ALLOWED but the projected spend
+    crossed the warning threshold (``warnAtUsd``) on the way to the cap.
+    Never set alongside a denial — the block IS the story then.
     """
 
     allowed: bool
@@ -286,6 +322,8 @@ class BudgetStatus:
     reason: str = ""
     degraded: bool = False
     capSource: str | None = None
+    warned: bool = False
+    warnAtUsd: float | None = None
 
 
 def _coerce_cap(value) -> float | None:
@@ -336,8 +374,18 @@ def estimate_next_call_cost_usd(
     return estimated_cost_usd
 
 
-def _decide(resolved: ResolvedCap, spent: float, estimate: float) -> BudgetStatus:
-    """Compare projected month-to-date spend against the RESOLVED cap."""
+def _decide(
+    resolved: ResolvedCap,
+    spent: float,
+    estimate: float,
+    warn_pct: float | None = None,
+) -> BudgetStatus:
+    """Compare projected month-to-date spend against the RESOLVED cap.
+
+    M23-B: an allowed decision also reports whether the projection crossed
+    the warning threshold (same micro-dollar rounding discipline as the cap
+    boundary, so warn-at-80% and block-at-100% agree at the edge).
+    """
     if resolved.cap_usd is None:
         # Explicit unlimited — a real resolution, not an absent one.
         return BudgetStatus(
@@ -362,8 +410,19 @@ def _decide(resolved: ResolvedCap, spent: float, estimate: float) -> BudgetStatu
             ),
             capSource=resolved.source,
         )
+    pct = budget_warn_pct() if warn_pct is None else warn_pct
+    warned = False
+    warn_at: float | None = None
+    if 0 < pct < 100:
+        warn_at = round(cap * pct / 100.0, 6)
+        warned = projected >= warn_at
     return BudgetStatus(
-        allowed=True, spentUsd=spent, capUsd=cap, capSource=resolved.source
+        allowed=True,
+        spentUsd=spent,
+        capUsd=cap,
+        capSource=resolved.source,
+        warned=warned,
+        warnAtUsd=warn_at,
     )
 
 
