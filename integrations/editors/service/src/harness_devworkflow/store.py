@@ -211,6 +211,25 @@ class Store:
             "UPDATE code_sessions SET status = 'closed' WHERE session_id = ?", (session_id,)
         )
 
+    def onboarding_facts(self, team_id: str, user_id: str) -> dict[str, bool]:
+        """Progress derived from what the user actually did, never self-asserted."""
+
+        def has(sql: str) -> bool:
+            return bool(self._query(sql, (team_id, user_id)))
+
+        base = "FROM code_sessions s WHERE s.team_id = ? AND s.created_by = ?"
+        return {
+            "session": has(f"SELECT 1 {base} LIMIT 1"),
+            "review": has(
+                f"SELECT 1 {base} AND EXISTS (SELECT 1 FROM change_sets c WHERE c.session_id ="
+                " s.session_id AND c.status = 'applied') LIMIT 1"
+            ),
+            "verify": has(
+                f"SELECT 1 {base} AND EXISTS (SELECT 1 FROM verification_evidence v WHERE"
+                " v.session_id = s.session_id) LIMIT 1"
+            ),
+        }
+
     # -- change sets ---------------------------------------------------------
 
     def create_change_set(

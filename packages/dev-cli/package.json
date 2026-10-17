@@ -1,0 +1,11 @@
+{
+  "name": "@harness/dev-cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Terminal client for Harness developer-workflow tasks (templates, tutorial, readiness, intake approval).",
+  "bin": { "harness-task": "bin/harness-task.mjs" },
+  "scripts": { "test": "node --test test/*.test.mjs" },
+  "engines": { "node": ">=20" },
+  "license": "MIT"
+}

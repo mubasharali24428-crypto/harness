@@ -1,0 +1,115 @@
+{
+ "agent": "A4",
+ "session": 4,
+ "features": [
+  {
+   "id": "F005",
+   "name": "Mobile task inbox",
+   "state": "PARTIAL (responsive web inbox, real Chromium at 375px against the real section2 service; no native mobile app, no real phone)",
+   "detail": "Queued intakes with approve/reject, 44px touch targets, no horizontal overflow, hostile titles inert, non-http links dropped, approval states plainly that no run starts. Server denies a viewer's decision (403). Role gating of the buttons is the shell's canDecide input, not derived here.",
+   "evidence": [
+    "evidence/section7-playwright.txt",
+    "evidence/inbox-mobile-before.png",
+    "evidence/inbox-mobile-after.png"
+   ]
+  },
+  {
+   "id": "F039",
+   "name": "Bitbucket and Azure DevOps adapters",
+   "state": "PARTIAL (intake only, fake payloads; live delivery NEEDS EXTERNAL VALIDATION)",
+   "detail": "Bitbucket Cloud: HMAC-SHA256 X-Hub-Signature, per-X-Request-UUID idempotency, bot/team actors ignored, project mismatch refused, comment write-back via guarded client (merge/approve/decline blocked). Azure DevOps: shared-secret header or Basic auth only (not body-bound, weaker than HMAC; TLS-only by policy), delivery id from the authenticated body, project-scoped match, no write-back (NEEDS INTEGRATION). Payload shapes are written from provider docs, not captured from live hooks.",
+   "evidence": [
+    "section2/tests/test_intake.py",
+    "evidence/section2-pytest.txt"
+   ]
+  },
+  {
+   "id": "F131",
+   "name": "Guided onboarding",
+   "state": "VERIFIED IMPLEMENTED (local)",
+   "detail": "GET /onboarding derives five steps from what the user actually did (tutorial created, session opened, readiness run, change applied, verification recorded); progress is per user and cannot be self-asserted. No UI wizard beyond the CLI/API output.",
+   "evidence": [
+    "integrations/editors/service/tests/test_guided.py"
+   ]
+  },
+  {
+   "id": "F132",
+   "name": "Repository readiness check",
+   "state": "VERIFIED IMPLEMENTED (local)",
+   "detail": "Read-only check of tracked files (hardened git ls-files): README, tests, CI, lockfile, .gitignore, CODEOWNERS, credential-looking text. Secrets block the verdict and are reported by path only, never echoed. Heuristics are shallow; a pass is not a security audit.",
+   "evidence": [
+    "integrations/editors/service/tests/test_guided.py"
+   ]
+  },
+  {
+   "id": "F133",
+   "name": "Tutorial project",
+   "state": "VERIFIED IMPLEMENTED (local)",
+   "detail": "Idempotent per team+user service-owned repo with a seeded failing test (verified failing); openable as a code session because only the tutorial root is added to allowed repo roots. Python-only lesson.",
+   "evidence": [
+    "integrations/editors/service/tests/test_guided.py"
+   ]
+  },
+  {
+   "id": "F134",
+   "name": "Task templates",
+   "state": "VERIFIED IMPLEMENTED (local)",
+   "detail": "Five templates; parameters are required, length-limited, control-char stripped, unknown keys refused; rendering returns a goal and never starts a run. Template quality with real agents is unevaluated.",
+   "evidence": [
+    "integrations/editors/service/tests/test_guided.py"
+   ]
+  }
+ ],
+ "risks": [
+  {
+   "id": "VR001",
+   "state": "PARTIAL CONTROL",
+   "note": "Templates + tutorial + inbox shorten first use; no usability study."
+  },
+  {
+   "id": "VR002",
+   "state": "OPEN",
+   "note": "Not measured."
+  },
+  {
+   "id": "VR003",
+   "state": "PARTIAL CONTROL",
+   "note": "packages/dev-cli: token from env only, redacted errors, https/localhost base, tested against the real service. Not published/installed anywhere."
+  },
+  {
+   "id": "VR004",
+   "state": "PARTIAL CONTROL",
+   "note": "Carried from S3; host validation still blocked."
+  },
+  {
+   "id": "VR008",
+   "state": "PARTIAL CONTROL",
+   "note": "Human approval stays the only path from intake to work; no live provider journey."
+  },
+  {
+   "id": "VR010",
+   "state": "OPEN",
+   "note": "Not addressed this session."
+  },
+  {
+   "id": "VR032",
+   "state": "PARTIAL CONTROL",
+   "note": "Readiness never echoes secrets; CLI keeps token out of argv/output."
+  },
+  {
+   "id": "VR033",
+   "state": "PARTIAL CONTROL",
+   "note": "Azure's non-body-bound secret is a recorded weaker control; flooding limited by per-registration rate limit."
+  },
+  {
+   "id": "VR034",
+   "state": "PARTIAL CONTROL",
+   "note": "Bitbucket client blocks merge/approve/decline; no merge path added."
+  },
+  {
+   "id": "VR049",
+   "state": "OPEN",
+   "note": "Not addressed this session."
+  }
+ ]
+}

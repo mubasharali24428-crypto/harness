@@ -133,3 +133,97 @@ def gitlab(event: str, p: dict, label: str) -> Candidate | None:
             )
         )
     return None
+
+
+def bitbucket(event: str, p: dict, label: str) -> Candidate | None:
+    repo = (p.get("repository") or {}).get("full_name")
+    actor = p.get("actor") or {}
+    if not repo or actor.get("type") not in (None, "user"):
+        return None  # apps/teams/bots never trigger work (loop prevention)
+    who = actor.get("nickname") or actor.get("display_name") or ""
+    comment = str(((p.get("comment") or {}).get("content") or {}).get("raw", ""))
+    if event == "pullrequest:created":
+        pr = p.get("pullrequest") or {}
+        return _norm(
+            Candidate(
+                "bitbucket",
+                "review-request",
+                repo,
+                str(pr.get("id")),
+                ((pr.get("links") or {}).get("html") or {}).get("href", ""),
+                pr.get("title", ""),
+                pr.get("description") or "",
+                who,
+                "pull-request:created",
+            )
+        )
+    if event in ("issue:comment_created", "pullrequest:comment_created") and (
+        comment.strip().lower().startswith(COMMAND)
+    ):
+        is_pr = event.startswith("pullrequest")
+        obj = p.get("pullrequest") if is_pr else p.get("issue")
+        obj = obj or {}
+        body = obj.get("description") if is_pr else (obj.get("content") or {}).get("raw")
+        return _norm(
+            Candidate(
+                "bitbucket",
+                "review-request" if is_pr else "issue",
+                repo,
+                str(obj.get("id")),
+                ((obj.get("links") or {}).get("html") or {}).get("href", ""),
+                obj.get("title", ""),
+                body or "",
+                who,
+                "comment:/harness plan",
+            )
+        )
+    return None
+
+
+def azure(event: str, p: dict, label: str) -> Candidate | None:
+    res = p.get("resource") or {}
+    if event == "workitem.created" or (event == "workitem.updated" and _tag_added(res, label)):
+        f = res.get("fields") or (res.get("revision") or {}).get("fields") or {}
+        project = f.get("System.TeamProject")
+        if not project or str(f.get("System.ChangedBy", "")).lower().endswith("[bot]"):
+            return None
+        wid = res.get("workItemId") or res.get("id")
+        return _norm(
+            Candidate(
+                "azure",
+                "issue",
+                f"{project}/-",
+                str(wid),
+                res.get("url", ""),
+                f.get("System.Title", ""),
+                f.get("System.Description") or "",
+                str(f.get("System.ChangedBy", "")),
+                f"event:{event}",
+            )
+        )
+    if event == "git.pullrequest.created":
+        repo = res.get("repository") or {}
+        project = (repo.get("project") or {}).get("name")
+        if not project:
+            return None
+        return _norm(
+            Candidate(
+                "azure",
+                "review-request",
+                f"{project}/{repo.get('name', '-')}",
+                str(res.get("pullRequestId")),
+                res.get("url", ""),
+                res.get("title", ""),
+                res.get("description") or "",
+                str((res.get("createdBy") or {}).get("uniqueName", "")),
+                "pull-request:created",
+            )
+        )
+    return None
+
+
+def _tag_added(res: dict, label: str) -> bool:
+    new = str(((res.get("fields") or {}).get("System.Tags") or {}).get("newValue", ""))
+    old = str(((res.get("fields") or {}).get("System.Tags") or {}).get("oldValue", ""))
+    has = lambda s: label in {t.strip() for t in s.split(";")}  # noqa: E731
+    return has(new) and not has(old)

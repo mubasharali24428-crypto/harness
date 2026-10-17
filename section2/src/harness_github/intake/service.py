@@ -14,7 +14,7 @@ from .store import IntakeStore, public
 MAX_BODY = 1024 * 1024
 RATE_LIMIT = 60
 RATE_WINDOW_S = 60.0
-PROVIDERS = {"github", "gitlab"}
+PROVIDERS = {"github", "gitlab", "bitbucket", "azure"}
 
 
 class IntakeError(Exception):
@@ -55,7 +55,9 @@ class IntakeService:
         signing_mode: bool = False,
     ) -> dict:
         if provider not in PROVIDERS:
-            raise IntakeError(422, "INVALID_REQUEST", "provider must be github or gitlab")
+            raise IntakeError(
+                422, "INVALID_REQUEST", "provider must be github, gitlab, bitbucket or azure"
+            )
         ext = (external_project or "").strip()
         if not ext or len(ext) > 200 or ".." in ext or ext.startswith("/") or ext.count("/") < 1:
             raise IntakeError(422, "INVALID_REQUEST", "external project must look like owner/repo")
@@ -120,6 +122,12 @@ class IntakeService:
             if provider == "github":
                 signing.verify_github(secret, body, h.get("x-hub-signature-256"))
                 delivery, event = h.get("x-github-delivery"), h.get("x-github-event", "")
+            elif provider == "bitbucket":
+                signing.verify_bitbucket(secret, body, h.get("x-hub-signature"))
+                delivery, event = h.get("x-request-uuid"), h.get("x-event-key", "")
+            elif provider == "azure":
+                signing.verify_azure(secret, h.get("x-harness-token"), h.get("authorization"))
+                delivery, event = None, ""  # taken from the (authenticated) body below
             elif secret.startswith("whsec_"):
                 signing.verify_standard_webhooks(
                     secret,
@@ -140,6 +148,12 @@ class IntakeService:
                 401,
                 {"error": {"code": "BAD_SIGNATURE", "message": "signature verification failed"}},
             )
+        if provider == "azure":
+            try:
+                doc = json.loads(body)
+                delivery, event = str(doc.get("id") or ""), str(doc.get("eventType") or "")
+            except (ValueError, AttributeError):
+                delivery = ""
         if not delivery or len(delivery) > 128:
             return Outcome(
                 400,
@@ -165,15 +179,14 @@ class IntakeService:
             return Outcome(
                 400, {"error": {"code": "INVALID_JSON", "message": "body is not a JSON object"}}
             )
-        cand = (
-            triggers.github(event, payload, reg["label"])
-            if provider == "github"
-            else triggers.gitlab(event, payload, reg["label"])
-        )
+        cand = getattr(triggers, provider)(event, payload, reg["label"])
         if cand is None:
             self.store.set_delivery_outcome(reg["id"], delivery, "ignored")
             return Outcome(200, {"status": "ignored"})
-        if cand.external_project.lower() != reg["external_project"].lower():
+        mine, theirs = cand.external_project.lower(), reg["external_project"].lower()
+        if provider == "azure":  # work items carry only the team project, not a repository
+            mine, theirs = mine.split("/", 1)[0], theirs.split("/", 1)[0]
+        if mine != theirs:
             # Signed by this registration's secret but naming another project: never cross tenants.
             self.store.set_delivery_outcome(reg["id"], delivery, "project-mismatch")
             return Outcome(
@@ -207,8 +220,11 @@ class IntakeService:
 class ProviderNotifier:
     """Status comment via the registration's own API token; no token = no write-back."""
 
-    def __init__(self, vault, github_transport=None, gitlab_transport=None):
+    def __init__(
+        self, vault, github_transport=None, gitlab_transport=None, bitbucket_transport=None
+    ):
         self.vault, self.gh, self.gl = vault, github_transport, gitlab_transport
+        self.bb = bitbucket_transport
 
     async def comment(self, reg: dict, cand, text: str) -> None:
         if not reg.get("api_token_enc"):
@@ -220,6 +236,15 @@ class ProviderNotifier:
             await GitHubClient(token, self.gh).create_issue_comment(
                 reg["external_project"], int(cand.external_id), text
             )
+        elif reg["provider"] == "bitbucket":
+            from .bitbucket import BitbucketClient
+
+            kind = "pullrequests" if cand.kind == "review-request" else "issues"
+            await BitbucketClient(token, reg.get("api_base"), self.bb).post_comment(
+                reg["external_project"], kind, int(cand.external_id), text
+            )
+        elif reg["provider"] == "azure":
+            return  # NEEDS INTEGRATION: Azure write-back (threads/work-item comments) not built
         else:
             kind = "merge_requests" if cand.kind == "review-request" else "issues"
             await GitLabClient(

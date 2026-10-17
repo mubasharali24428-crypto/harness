@@ -1,0 +1,9 @@
+
+  ✓  1 e2e-review/inbox.e2e.ts:48:5 › phone layout: no overflow, 44px targets, hostile text inert, approve records without a run (726ms)
+  ✓  2 e2e-review/inbox.e2e.ts:69:5 › a viewer can read the inbox but the server denies their decision (UI role gating is the shell's job) (134ms)
+  ✓  3 e2e-review/review.e2e.ts:47:5 › keyboard-driven per-hunk review applies only accepted hunks to the real workspace (383ms)
+  ✓  4 e2e-review/review.e2e.ts:76:5 › read-only role: every decision control is disabled and the reason is shown (117ms)
+  ✓  5 e2e-review/review.e2e.ts:83:5 › backend denial is shown, never reported as success (99ms)
+  ✓  6 e2e-review/review.e2e.ts:89:5 › service unreachable is reported honestly (98ms)
+
+  6 passed (3.6s)

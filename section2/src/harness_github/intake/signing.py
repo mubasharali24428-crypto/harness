@@ -67,3 +67,23 @@ def sign_standard_webhooks(secret: str, msg_id: str, timestamp: int, body: bytes
     key = base64.b64decode(secret.removeprefix("whsec_"))
     mac = hmac.new(key, f"{msg_id}.{timestamp}.".encode() + body, hashlib.sha256).digest()
     return "v1," + base64.b64encode(mac).decode()
+
+
+def verify_bitbucket(secret: str, body: bytes, header: str | None) -> None:
+    """Bitbucket Cloud secret: `X-Hub-Signature: sha256=<hmac>` over the raw body."""
+    verify_github(secret, body, header)
+
+
+def verify_azure(secret: str, token_header: str | None, authorization: str | None) -> None:
+    """Azure DevOps service hooks cannot sign bodies; they send a custom header or Basic auth.
+
+    Weaker than HMAC (a bearer secret, not body-bound), so the registration is TLS-only by
+    operator policy and the report records it as such.
+    """
+    candidate = token_header
+    if not candidate and authorization and authorization.lower().startswith("basic "):
+        try:
+            candidate = base64.b64decode(authorization[6:]).decode().partition(":")[2]
+        except (ValueError, UnicodeDecodeError):
+            candidate = None
+    verify_gitlab_token(secret, candidate)

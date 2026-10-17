@@ -340,3 +340,131 @@ async def test_notifier_comments_only_with_registration_token_and_no_follow(ix):
     client = GitLabClient("https://gl.example", "t", httpx.MockTransport(handler))
     with pytest.raises(GitLabGuardViolation):
         await client._request("PUT", "/api/v4/projects/1/merge_requests/2/merge")
+
+
+# ---- A4-S4 F039: Bitbucket Cloud + Azure DevOps ----------------------------------------
+
+
+def bb_pr(repo="ws/repo", actor_type="user"):
+    return {
+        "repository": {"full_name": repo},
+        "actor": {"type": actor_type, "nickname": "carol"},
+        "pullrequest": {
+            "id": 4,
+            "title": "T",
+            "description": "fixes #2",
+            "links": {"html": {"href": "u"}},
+        },
+    }
+
+
+async def test_bitbucket_signature_idempotency_mismatch_and_bots(ix):
+    reg = (await register(ix, provider="bitbucket", ext="ws/repo")).json()
+    url = f"{P}/webhooks/bitbucket/{reg['id']}"
+    body = json.dumps(bb_pr()).encode()
+    sig = gh_sig(reg["secret"], body)
+    h = {"x-event-key": "pullrequest:created", "x-request-uuid": "u1", "x-hub-signature": sig}
+    assert (
+        await ix.post(url, content=body, headers={**h, "x-hub-signature": "sha256=00"})
+    ).status_code == 401
+    assert (
+        await ix.post(
+            url, content=body, headers={k: v for k, v in h.items() if k != "x-hub-signature"}
+        )
+    ).status_code == 401
+    r = await ix.post(url, content=body, headers=h)
+    assert r.status_code == 202
+    assert (await ix.post(url, content=body, headers=h)).json() == {"status": "duplicate"}
+    items = (await ix.get(f"{P}/intakes", headers=auth())).json()["items"]
+    assert items[0]["kind"] == "review-request" and "fixes #2" not in items[0]["body"]
+    bot = json.dumps(bb_pr(actor_type="team")).encode()
+    r = await ix.post(
+        url,
+        content=bot,
+        headers={**h, "x-request-uuid": "u2", "x-hub-signature": gh_sig(reg["secret"], bot)},
+    )
+    assert r.json() == {"status": "ignored"}
+    other = json.dumps(bb_pr(repo="victim/repo")).encode()
+    r = await ix.post(
+        url,
+        content=other,
+        headers={**h, "x-request-uuid": "u3", "x-hub-signature": gh_sig(reg["secret"], other)},
+    )
+    assert r.status_code == 403
+
+
+def az_workitem(project="Proj", eid="evt-1", by="dave"):
+    return {
+        "id": eid,
+        "eventType": "workitem.created",
+        "resource": {
+            "id": 12,
+            "url": "u",
+            "fields": {
+                "System.TeamProject": project,
+                "System.Title": "T",
+                "System.Description": "d",
+                "System.ChangedBy": by,
+            },
+        },
+    }
+
+
+async def test_azure_header_or_basic_auth_project_scope_and_idempotency(ix):
+    import base64
+
+    reg = (await register(ix, provider="azure", ext="Proj/repo")).json()
+    url = f"{P}/webhooks/azure/{reg['id']}"
+    body = json.dumps(az_workitem()).encode()
+    assert (
+        await ix.post(url, content=body, headers={"x-harness-token": "nope"})
+    ).status_code == 401
+    assert (await ix.post(url, content=body, headers={})).status_code == 401
+    assert (
+        await ix.post(url, content=body, headers={"x-harness-token": reg["secret"]})
+    ).status_code == 202
+    assert (
+        await ix.post(url, content=body, headers={"x-harness-token": reg["secret"]})
+    ).json() == {"status": "duplicate"}
+    basic = "Basic " + base64.b64encode(f"u:{reg['secret']}".encode()).decode()
+    nxt = json.dumps(az_workitem(eid="evt-2")).encode()
+    assert (await ix.post(url, content=nxt, headers={"authorization": basic})).json()[
+        "status"
+    ] == "already-queued"
+    cross = json.dumps(az_workitem(project="OtherProj", eid="evt-3")).encode()
+    assert (
+        await ix.post(url, content=cross, headers={"x-harness-token": reg["secret"]})
+    ).status_code == 403
+    bot = json.dumps(az_workitem(eid="evt-4", by="Build Service [bot]")).encode()
+    assert (await ix.post(url, content=bot, headers={"x-harness-token": reg["secret"]})).json() == {
+        "status": "ignored"
+    }
+    assert (
+        await ix.post(url, content=b"{}", headers={"x-harness-token": reg["secret"]})
+    ).status_code == 400  # no id
+
+
+async def test_bitbucket_client_blocks_merge_class_and_notifier_posts_comment(ix):
+    import pytest
+
+    from harness_github.intake.bitbucket import BitbucketClient, BitbucketGuardViolation, _guard
+
+    for m, path in [
+        ("POST", "/2.0/repositories/w/r/pullrequests/1/merge"),
+        ("POST", "/2.0/repositories/w/r/pullrequests/1/approve"),
+        ("POST", "/2.0/repositories/w/r/pullrequests/1/decline"),
+        ("PUT", "/2.0/repositories/w/r/pullrequests/1"),
+    ]:
+        with pytest.raises(BitbucketGuardViolation):
+            _guard(m, path)
+    seen = []
+
+    def handler(req):
+        seen.append((req.method, req.url.raw_path.decode(), req.headers["authorization"]))
+        return httpx.Response(201, json={})
+
+    c = BitbucketClient("tok", transport=httpx.MockTransport(handler))
+    await c.post_comment("ws/repo", "pullrequests", 4, "hi")
+    assert seen == [("POST", "/2.0/repositories/ws/repo/pullrequests/4/comments", "Bearer tok")]
+    with pytest.raises(ValueError):
+        BitbucketClient("t", api_base="http://169.254.169.254")

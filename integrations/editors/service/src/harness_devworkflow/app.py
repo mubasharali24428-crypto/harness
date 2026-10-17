@@ -18,6 +18,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from harness_devworkflow import guided
 from harness_devworkflow.clients import (
     ContextClient,
     IdentityClient,
@@ -27,7 +28,7 @@ from harness_devworkflow.clients import (
     UpstreamUnreachable,
 )
 from harness_devworkflow.config import Config
-from harness_devworkflow.service import DevWorkflowService, LaneError
+from harness_devworkflow.service import DevWorkflowService, LaneError, require_writer
 from harness_devworkflow.store import Store
 from harness_devworkflow.workspace import WorkspaceError, WorkspaceManager
 
@@ -90,7 +91,10 @@ def build_service(config: Config, http: httpx.AsyncClient | None = None) -> DevW
     return DevWorkflowService(
         config=config,
         store=Store(config.data_dir / "devworkflow.sqlite3"),
-        workspaces=WorkspaceManager(config.data_dir, config.repo_roots),
+        # The service-owned tutorial root is the only root added beyond the operator's list.
+        workspaces=WorkspaceManager(
+            config.data_dir, (*config.repo_roots, str(config.data_dir / "tutorial"))
+        ),
         identity=IdentityClient(config.identity_base, http) if config.identity_base else None,
         sandbox=SandboxClient(config.sandbox_base, http) if config.sandbox_base else None,
         orchestrator=(
@@ -441,6 +445,64 @@ def create_app(config: Config, service: DevWorkflowService | None = None) -> Fas
         principal: dict = Depends(principal_dep),  # noqa: B008
     ) -> dict[str, Any]:
         return await service.merge_checks(session_id, _token(request), principal)
+
+    # -- guided use (A4-S4) --------------------------------------------------
+
+    @app.get(f"{PREFIX}/task-templates")
+    async def task_templates(principal: dict = Depends(principal_dep)) -> dict[str, Any]:  # noqa: B008
+        return {
+            "items": [
+                {"id": k, "title": v["title"], "params": v["params"]}
+                for k, v in guided.TEMPLATES.items()
+            ]
+        }
+
+    @app.post(f"{PREFIX}/task-templates/{{template_id}}/render")
+    async def render_task_template(
+        template_id: str,
+        body: dict[str, Any],
+        principal: dict = Depends(principal_dep),  # noqa: B008
+    ) -> dict[str, Any]:
+        values = body.get("values")
+        if not isinstance(values, dict):
+            raise LaneError("INVALID_REQUEST", "values must be an object", 422)
+        return guided.render_template(template_id, values)
+
+    @app.post(f"{PREFIX}/tutorial-project", status_code=201)
+    async def tutorial_project(principal: dict = Depends(principal_dep)) -> dict[str, Any]:  # noqa: B008
+        require_writer(principal)
+        repo = guided.create_tutorial(
+            config.data_dir / "tutorial", principal["teamId"], principal["userId"]
+        )
+        return {
+            "repoRef": str(repo.resolve()),
+            "branch": "main",
+            "next": "Open a code session on this repoRef, then run readiness.",
+        }
+
+    @app.get(f"{PREFIX}/code-sessions/{{session_id}}/readiness")
+    async def session_readiness(
+        session_id: str,
+        principal: dict = Depends(principal_dep),  # noqa: B008
+    ) -> dict[str, Any]:
+        session = service._session_scoped(session_id, principal["teamId"])
+        report = guided.readiness(service.workspaces.checkout(session["session_id"]))
+        service.store.put_idempotent(
+            "readiness",
+            f"{principal['teamId']}:{principal['userId']}",
+            {"verdict": report["verdict"]},
+        )
+        return report
+
+    @app.get(f"{PREFIX}/onboarding")
+    async def onboarding(principal: dict = Depends(principal_dep)) -> dict[str, Any]:  # noqa: B008
+        team, user = principal["teamId"], principal["userId"]
+        facts = service.store.onboarding_facts(team, user)
+        tutorial_dir = config.data_dir / "tutorial"
+        safe = guided.re.sub(r"[^A-Za-z0-9_.-]", "_", f"{team}-{user}")[:80]
+        facts["tutorial"] = (tutorial_dir / safe / ".git").exists()
+        facts["readiness"] = service.store.get_idempotent("readiness", f"{team}:{user}") is not None
+        return guided.onboarding(facts)
 
     return app
 
