@@ -1,0 +1,116 @@
+{
+ "agent": "A4",
+ "session": 1,
+ "features": [
+  {
+   "id": "F004",
+   "name": "Browser-based IDE",
+   "state": "PARTIAL",
+   "detail": "Service: tree/read/write with stale-base (409) and path/forbidden/.git guards, tested (40 pytest). No full IDE UI built: only the review surface (ReviewPanel) exists; the existing CodeMirror editor is not wired to this service.",
+   "evidence": [
+    "service/test_service.py::stale base, traversal, forbidden, .git",
+    "review-e2e.txt"
+   ]
+  },
+  {
+   "id": "F007",
+   "name": "Inline diff review",
+   "state": "VERIFIED IMPLEMENTED (local)",
+   "detail": "Per-hunk accept/reject/comment: service decisions + apply with rejected-hunk integrity, pending never applied, stale-base block, rollback on failure, idempotent apply; ReviewPanel UI exercised in real Chromium against the real service (keyboard-only flow, on-disk result checked). Not verified against a live S5 sandbox or real users.",
+   "evidence": [
+    "review-e2e.txt",
+    "evidence/before.png",
+    "evidence/after.png",
+    "section7-vitest.txt"
+   ]
+  },
+  {
+   "id": "F008",
+   "name": "Inline code actions",
+   "state": "PARTIAL",
+   "detail": "Service actions: references (needs S11 context, fails closed if absent), blame (git log -L), add-tests (produces a reviewable change set, never a direct write). explain/refactor return unsupported + NEEDS_INTEGRATION with an exact A2 proposal. No selection-driven action menu in the UI.",
+   "evidence": [
+    "service/test_service.py::unsupported_actions, add_tests"
+   ]
+  },
+  {
+   "id": "F009",
+   "name": "Composer-style multi-file editing",
+   "state": "PARTIAL",
+   "detail": "Multi-file change sets with per-file/hunk curation and atomic all-or-nothing apply are verified locally (incl. disjoint same-file edit merge, overlap rejection). Agent/SDK-produced edits are not fed into change sets: NEEDS INTEGRATION with A2 run output.",
+   "evidence": [
+    "service/test_service.py::multi_file, rollback, merge"
+   ]
+  },
+  {
+   "id": "F010",
+   "name": "Agent chat anchored to code lines",
+   "state": "PARTIAL",
+   "detail": "Line/range comments anchored by content hash with anchored/drifted/orphaned status, team-scoped, author/admin delete \u2014 tested. No chat/agent conversation bound to the anchor and no comment UI.",
+   "evidence": [
+    "service/test_service.py::line_anchored_comments"
+   ]
+  },
+  {
+   "id": "F040",
+   "name": "Automatic merge checks",
+   "state": "VERIFIED IMPLEMENTED (local evidence gate); branch protection NEEDS EXTERNAL VALIDATION",
+   "detail": "merge-checks reports gates (decisions complete, change set applied, verification evidence bound to the current tree fingerprint, sandbox checkpoint). mergeAction is 'not-available-by-design' and no merge route exists (tested). Provider branch protection remains an operator action.",
+   "evidence": [
+    "service/test_service.py::merge_checks, no_merge_route"
+   ]
+  }
+ ],
+ "risks": [
+  {
+   "id": "VR001",
+   "state": "PARTIAL CONTROL",
+   "note": "Per-hunk review is keyboard-first with explicit blockers; no usability study run."
+  },
+  {
+   "id": "VR002",
+   "state": "OPEN",
+   "note": "Time-to-first-useful-change not measured with real developers."
+  },
+  {
+   "id": "VR003",
+   "state": "OPEN",
+   "note": "CLI is S4 scope."
+  },
+  {
+   "id": "VR004",
+   "state": "PARTIAL CONTROL",
+   "note": "Browser review surface only; IDE entry points are S3."
+  },
+  {
+   "id": "VR008",
+   "state": "PARTIAL CONTROL",
+   "note": "Review/merge-evidence gates local; no live provider journey."
+  },
+  {
+   "id": "VR010",
+   "state": "OPEN",
+   "note": "Not addressed in S1."
+  },
+  {
+   "id": "VR032",
+   "state": "OPEN",
+   "note": "Needs adoption/bypass data."
+  },
+  {
+   "id": "VR033",
+   "state": "PARTIAL CONTROL",
+   "note": "Merge checks are evidence-only (no extra approval ceremony) but overhead is unmeasured."
+  },
+  {
+   "id": "VR034",
+   "state": "OPEN",
+   "note": "No longitudinal use evidence."
+  },
+  {
+   "id": "VR049",
+   "state": "OPEN",
+   "note": "No recurring-use evidence."
+  }
+ ]
+}

@@ -1,0 +1,25 @@
+[project]
+name = "harness-devworkflow"
+version = "0.1.0"
+description = "A4 developer-workflow lane service (/api/v1/developer-workflow): editable code surface, per-hunk review, merge-evidence gates."
+requires-python = ">=3.11"
+dependencies = ["fastapi>=0.111", "uvicorn>=0.30", "httpx>=0.27"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.4"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

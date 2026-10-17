@@ -1,0 +1,9 @@
+
+Running 4 tests using 1 worker
+
+  ✓  1 e2e-review/review.e2e.ts:47:5 › keyboard-driven per-hunk review applies only accepted hunks to the real workspace (403ms)
+  ✓  2 e2e-review/review.e2e.ts:76:5 › read-only role: every decision control is disabled and the reason is shown (116ms)
+  ✓  3 e2e-review/review.e2e.ts:83:5 › backend denial is shown, never reported as success (104ms)
+  ✓  4 e2e-review/review.e2e.ts:89:5 › service unreachable is reported honestly (97ms)
+
+  4 passed (2.4s)
