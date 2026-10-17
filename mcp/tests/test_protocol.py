@@ -29,23 +29,23 @@ async def test_tools_list_shape_and_registry_parity(mcp, registry):
     for tool in res.tools:
         # MCP spec: name + inputSchema are required; descriptions written for LLMs.
         assert isinstance(tool.description, str) and len(tool.description) > 40, tool.name
-        schema = tool.input_schema
+        schema = tool.inputSchema
         assert schema["type"] == "object"
         assert "properties" in schema
 
     start = by_name["start_run"]
-    assert start.input_schema["required"] == ["goal"]
-    assert start.input_schema["properties"]["goal"]["type"] == "string"
+    assert start.inputSchema["required"] == ["goal"]
+    assert start.inputSchema["properties"]["goal"]["type"] == "string"
 
     status = by_name["get_run_status"]
-    assert status.input_schema["required"] == ["runId"]
+    assert status.inputSchema["required"] == ["runId"]
 
     search = by_name["search_context"]
-    assert set(search.input_schema["required"]) == {"query", "projectId"}
-    topk = search.input_schema["properties"]["topK"]
+    assert set(search.inputSchema["required"]) == {"query", "projectId"}
+    topk = search.inputSchema["properties"]["topK"]
     assert topk["type"] == "integer" and topk["minimum"] == 1 and topk["maximum"] == 50
 
-    assert by_name["list_projects"].input_schema["required"] == []
+    assert by_name["list_projects"].inputSchema["required"] == []
 
 
 async def test_tool_schemas_are_valid_json_schema(registry):

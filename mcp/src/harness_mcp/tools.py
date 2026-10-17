@@ -28,7 +28,9 @@ def _text_result(payload: dict[str, Any], *, is_error: bool = False) -> list[dic
 
     The full structured payload rides in the text block (LLMs consume it);
     errors additionally set isError=True at the CallToolResult level so MCP
-    clients surface failure without parsing.
+    clients surface failure without parsing. The data-not-instructions
+    framing block is appended once at the protocol boundary (server.py
+    ``_result``, S1-R04e) so error paths get it too.
     """
     return [
         {"type": "text", "text": json.dumps(payload, separators=(",", ":")), "isError": is_error}
@@ -38,7 +40,10 @@ def _text_result(payload: dict[str, Any], *, is_error: bool = False) -> list[dic
 async def _tool_start_run(api: HarnessApiClient, args: dict[str, Any]) -> list[dict[str, Any]]:
     """propose → approve → start, as the service principal.
 
-    The orchestrator's plan-gate mints runId+planId together; approve returns
+    PILOT DECISION (S1-R04c, documented): this tool AUTO-APPROVES the plan —
+    the walk bypasses a human plan-approval click by design; the gate is the
+    authenticated MCP caller, and the reviewer/merge gates still apply. The
+    orchestrator's plan-gate mints runId+planId together; approve returns
     the bound runId; /runs/{id}/start flips AWAITING_PLAN_APPROVAL → EXECUTING.
     A mid-walk failure surfaces which step died plus everything collected so
     far (planId/runId) so the caller can resume via REST instead of re-minting.
@@ -126,8 +131,10 @@ def build_tools(api: HarnessApiClient) -> list[dict[str, Any]]:
             "name": "start_run",
             "description": (
                 "Start a governed AI engineering run in the harness. Mints a plan "
-                "for the given goal and drives it to EXECUTING through the human "
-                "plan-approval gate using this server's service principal. Use "
+                "for the given goal and drives it to EXECUTING using this "
+                "server's service principal — it AUTO-APPROVES the plan on the "
+                "caller's behalf (no human click); the human approval gate is "
+                "represented by the authenticated MCP caller. Use "
                 "this when an agent should DO engineering work in a project repo; "
                 "pair with get_run_status to follow progress. Returns runId, "
                 "planId and state. Requires an engineer/admin service principal."

@@ -195,9 +195,16 @@ def registry(stub_api):
 
 
 def parse_payload(result) -> dict[str, Any]:
-    """Extract the JSON payload of the single TextContent block."""
-    assert len(result.content) == 1
+    """Extract the JSON payload of the first TextContent block.
+
+    S1-R04e: every tool result is [payload JSON block, fixed
+    data-not-instructions framing block]; both are asserted here so no test
+    can silently drop the framing.
+    """
+    assert len(result.content) == 2
     assert result.content[0].type == "text"
+    assert result.content[1].type == "text"
+    assert "untrusted data" in result.content[1].text
     return json.loads(result.content[0].text)
 
 

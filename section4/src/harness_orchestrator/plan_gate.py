@@ -46,6 +46,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from harness_contracts.api import error_body
+from harness_contracts.limits import PROPOSE_GOAL_MAX
 from harness_contracts.roles import Principal, Role
 from harness_contracts.timeutil import db_now
 from pydantic import BaseModel, Field
@@ -95,7 +96,7 @@ def _require_service() -> OrchestratorService:
 
 
 class ProposePlanGateRequest(BaseModel):
-    goal: str = Field(min_length=1)
+    goal: str = Field(min_length=1, max_length=PROPOSE_GOAL_MAX)
 
 
 class PlanOut(BaseModel):

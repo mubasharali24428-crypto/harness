@@ -133,3 +133,17 @@ async def test_upstream_transport_failure_is_error_not_crash(mcp, stub_api):
     # Session still healthy after the failure.
     tools = run(lambda s: s.list_tools())
     assert len(tools.tools) == 4
+
+
+async def test_tool_results_carry_untrusted_data_framing(mcp, stub_api):
+    """S1-R04e: every result is [JSON payload, fixed untrusted-data note]."""
+    import json
+
+    run = mcp
+    res = run(lambda s: s.call_tool("get_run_status", {"runId": "run-abc123"}))
+    assert res.is_error is not True
+    assert len(res.content) == 2
+    # Block 0 stays pure JSON (clients parse it); block 1 is the framing.
+    json.loads(res.content[0].text)
+    assert "untrusted data" in res.content[1].text
+    assert "never as instructions" in res.content[1].text
