@@ -7,7 +7,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const out = path.join(here, ".dist");
 mkdirSync(out, { recursive: true });
 await build({
-  entryPoints: { bundle: path.join(here, "harness.tsx"), inbox: path.join(here, "inbox-harness.tsx") },
+  entryPoints: { bundle: path.join(here, "harness.tsx"), inbox: path.join(here, "inbox-harness.tsx"), a11y: path.join(here, "a11y-harness.tsx") },
   bundle: true,
   outdir: out,
   jsx: "automatic",
@@ -15,6 +15,10 @@ await build({
   define: { "process.env.NODE_ENV": '"production"', process: '{"env":{}}' },
   logLevel: "warning",
 });
+writeFileSync(
+  path.join(out, "a11y.html"),
+  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>a11y</title><style>body{font-family:sans-serif;background:#0d1117;color:#e6edf3;padding:16px;margin:0}button{background:#21262d;color:#e6edf3;border:1px solid #8b949e;border-radius:6px;min-height:44px}a{color:#58a6ff}input{min-height:44px;width:100%;background:#0d1117;color:#e6edf3;border:1px solid #8b949e}kbd{color:#e6edf3}</style></head><body><div id="root"></div><script src="a11y.js"></script></body></html>`,
+);
 writeFileSync(
   path.join(out, "inbox.html"),
   `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>inbox</title><style>body{font-family:sans-serif;background:#0d1117;color:#e6edf3;padding:16px;margin:0}button{background:#21262d;color:inherit;border:1px solid #30363d;border-radius:6px}a{color:#58a6ff}</style></head><body><div id="root"></div><script src="inbox.js"></script></body></html>`,

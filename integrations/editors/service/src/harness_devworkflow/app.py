@@ -28,6 +28,7 @@ from harness_devworkflow.clients import (
     UpstreamUnreachable,
 )
 from harness_devworkflow.config import Config
+from harness_devworkflow.extras import Extras
 from harness_devworkflow.service import DevWorkflowService, LaneError, require_writer
 from harness_devworkflow.store import Store
 from harness_devworkflow.workspace import WorkspaceError, WorkspaceManager
@@ -88,7 +89,7 @@ def _hap_response(
 def build_service(config: Config, http: httpx.AsyncClient | None = None) -> DevWorkflowService:
     """Wire clients from config. Unset bases mean the capability is absent."""
     http = http or httpx.AsyncClient(timeout=config.request_timeout_s)
-    return DevWorkflowService(
+    service = DevWorkflowService(
         config=config,
         store=Store(config.data_dir / "devworkflow.sqlite3"),
         # The service-owned tutorial root is the only root added beyond the operator's list.
@@ -102,6 +103,17 @@ def build_service(config: Config, http: httpx.AsyncClient | None = None) -> DevW
         ),
         context=ContextClient(config.context_base, http) if config.context_base else None,
     )
+    service.extras = Extras(
+        service.store,
+        http,
+        {
+            "identity": config.identity_base,
+            "sandbox": config.sandbox_base,
+            "orchestrator": config.orchestrator_base,
+            "context": config.context_base,
+        },
+    )
+    return service
 
 
 def create_app(config: Config, service: DevWorkflowService | None = None) -> FastAPI:
@@ -503,6 +515,63 @@ def create_app(config: Config, service: DevWorkflowService | None = None) -> Fas
         facts["tutorial"] = (tutorial_dir / safe / ".git").exists()
         facts["readiness"] = service.store.get_idempotent("readiness", f"{team}:{user}") is not None
         return guided.onboarding(facts)
+
+    # -- library, feedback, status (A4-S5) -----------------------------------
+
+    @app.post(f"{PREFIX}/library", status_code=201)
+    async def library_save(
+        body: dict[str, Any],
+        principal: dict = Depends(principal_dep),  # noqa: B008
+    ) -> dict[str, Any]:
+        require_writer(principal)
+        return service.extras.save(principal, body)
+
+    @app.get(f"{PREFIX}/library")
+    async def library_list(principal: dict = Depends(principal_dep)) -> dict[str, Any]:  # noqa: B008
+        return {"items": service.extras.list(principal)}
+
+    @app.get(f"{PREFIX}/library/{{lib_id}}")
+    async def library_get(
+        lib_id: str,
+        principal: dict = Depends(principal_dep),  # noqa: B008
+    ) -> dict[str, Any]:
+        return service.extras.get(principal, lib_id)
+
+    @app.delete(f"{PREFIX}/library/{{lib_id}}", status_code=204)
+    async def library_delete(
+        lib_id: str,
+        principal: dict = Depends(principal_dep),  # noqa: B008
+    ) -> JSONResponse:
+        require_writer(principal)
+        service.extras.delete(principal, lib_id)
+        return JSONResponse(status_code=204, content=None)
+
+    @app.post(f"{PREFIX}/library/{{lib_id}}/render")
+    async def library_render(
+        lib_id: str,
+        body: dict[str, Any],
+        principal: dict = Depends(principal_dep),  # noqa: B008
+    ) -> dict[str, Any]:
+        return service.extras.render(principal, lib_id, body.get("values"), body.get("version"))
+
+    @app.post(f"{PREFIX}/feedback", status_code=201)
+    async def feedback_submit(
+        body: dict[str, Any],
+        principal: dict = Depends(principal_dep),  # noqa: B008
+    ) -> dict[str, Any]:
+        return service.extras.feedback(principal, body)
+
+    @app.get(f"{PREFIX}/feedback")
+    async def feedback_list(
+        principal: dict = Depends(principal_dep),  # noqa: B008
+        sessionId: str | None = Query(default=None),
+        runId: str | None = Query(default=None),
+    ) -> dict[str, Any]:
+        return service.extras.list_feedback(principal, sessionId, runId)
+
+    @app.get(f"{PREFIX}/status")
+    async def status(principal: dict = Depends(principal_dep)) -> dict[str, Any]:  # noqa: B008
+        return await service.extras.status()
 
     return app
 

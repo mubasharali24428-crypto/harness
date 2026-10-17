@@ -72,6 +72,7 @@ class DevWorkflowService:
         self.sandbox = sandbox
         self.orchestrator = orchestrator
         self.context = context
+        self.extras: Any = None  # A4-S5 library/feedback/status; set by build_service
         self._principal_cache: dict[str, tuple[float, dict[str, Any] | None]] = {}
         self._projects_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 

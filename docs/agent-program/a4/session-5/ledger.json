@@ -1,0 +1,114 @@
+{
+ "agent": "A4",
+ "session": 5,
+ "features": [
+  {
+   "id": "F135",
+   "name": "Prompt and workflow library",
+   "state": "VERIFIED IMPLEMENTED (local, API only)",
+   "detail": "Team-scoped prompts and multi-step workflows with append-only versions, private/team visibility, owner/admin-only edits and deletes, credential-looking text rejected, strict single-pass {param} rendering (values never re-expand), render never starts a run. No web UI for authoring; no sharing across teams by design.",
+   "evidence": [
+    "integrations/editors/service/tests/test_extras.py"
+   ]
+  },
+  {
+   "id": "F136",
+   "name": "Keyboard shortcuts and command palette",
+   "state": "VERIFIED IMPLEMENTED (local, tested in real Chromium)",
+   "detail": "ARIA combobox/listbox palette (Ctrl/Cmd+K), ranked matching, chord parsing, conflict/reserved-chord validation, focus trap and focus restore, direct command chords. Not yet mounted into the app shell: NEEDS INTEGRATION (shell owner supplies the command list).",
+   "evidence": [
+    "section7/tests/unit/commandPalette.test.tsx",
+    "section7/e2e-review/a11y.e2e.ts"
+   ]
+  },
+  {
+   "id": "F137",
+   "name": "Accessibility",
+   "state": "PARTIAL (automated axe WCAG 2.x A/AA + keyboard tests on the new surfaces only)",
+   "detail": "axe-core found and the fixes removed: kbd contrast inside the active option; the page-has-heading-one hit was a harness gap. Clean in en/es/ar, palette open and closed. Automated rules cover only a fraction of WCAG: no screen-reader testing, no zoom/reflow audit, and pre-existing section7 screens were not audited.",
+   "evidence": [
+    "section7/e2e-review/a11y.e2e.ts",
+    "evidence/section7-playwright.txt"
+   ]
+  },
+  {
+   "id": "F138",
+   "name": "Internationalisation and timezone",
+   "state": "PARTIAL (3 locales on the new surfaces; timezone formatting verified)",
+   "detail": "en/es/ar catalogs with enforced key and placeholder parity, English fallback, RTL direction, Intl timezone formatting (DST-day case, invalid zone -> UTC, bad input never fabricated). Only the inbox, palette and status strings are translated; the rest of the app is English-only. Translations are machine-authored and NEED human review.",
+   "evidence": [
+    "section7/tests/unit/i18n.test.ts"
+   ]
+  },
+  {
+   "id": "F139",
+   "name": "Status page",
+   "state": "PARTIAL (authenticated component status; no public page, no incident history)",
+   "detail": "GET /status probes each configured upstream's /health with a 3s timeout and reports operational/degraded/not_configured/unreachable honestly; the /health path convention is assumed and NEEDS EXTERNAL VALIDATION against the real upstreams. No incident log or subscriptions.",
+   "evidence": [
+    "integrations/editors/service/tests/test_extras.py"
+   ]
+  },
+  {
+   "id": "F140",
+   "name": "Run-linked feedback",
+   "state": "VERIFIED IMPLEMENTED (local); linking to runs outside this lane NEEDS INTEGRATION",
+   "detail": "Thumbs + comment linked to a session or a run id this lane has seen, team-scoped, comment control-stripped and credential-scrubbed, one entry per user per link (upsert; a NULL-vs-UNIQUE duplicate bug was found by test and fixed). Engineers/admins read team feedback, others only their own. Runs not started through this lane cannot be linked until the orchestrator is consulted.",
+   "evidence": [
+    "integrations/editors/service/tests/test_extras.py"
+   ]
+  }
+ ],
+ "risks": [
+  {
+   "id": "VR001",
+   "state": "PARTIAL CONTROL",
+   "note": "Library, palette and templates reduce repeat effort; no usability measurement."
+  },
+  {
+   "id": "VR002",
+   "state": "PARTIAL CONTROL",
+   "note": "Run-linked feedback gives a signal channel; no data collected, no analysis."
+  },
+  {
+   "id": "VR003",
+   "state": "PARTIAL CONTROL",
+   "note": "CLI from S4; no library/feedback CLI commands yet."
+  },
+  {
+   "id": "VR004",
+   "state": "PARTIAL CONTROL",
+   "note": "Carried from S3."
+  },
+  {
+   "id": "VR008",
+   "state": "PARTIAL CONTROL",
+   "note": "Unchanged."
+  },
+  {
+   "id": "VR010",
+   "state": "PARTIAL CONTROL",
+   "note": "Status page makes dependency failure visible; probes unvalidated against real upstreams."
+  },
+  {
+   "id": "VR032",
+   "state": "PARTIAL CONTROL",
+   "note": "Library and feedback reject/scrub credential-looking text."
+  },
+  {
+   "id": "VR033",
+   "state": "PARTIAL CONTROL",
+   "note": "Rendered library text is data; strict placeholders prevent value re-expansion; no run is started by rendering."
+  },
+  {
+   "id": "VR034",
+   "state": "PARTIAL CONTROL",
+   "note": "No merge path added."
+  },
+  {
+   "id": "VR049",
+   "state": "PARTIAL CONTROL",
+   "note": "Automated a11y checks on new surfaces only; real assistive-technology testing not done."
+  }
+ ]
+}

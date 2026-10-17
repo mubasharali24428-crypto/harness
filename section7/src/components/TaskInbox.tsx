@@ -6,6 +6,7 @@
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { ApiError } from "@/lib/api";
+import { makeT, type Translate } from "@/lib/i18n";
 import type { Intake, IntakeApi } from "@/lib/intakeApi";
 
 export const safeHref = (u: string): string | null => /^https?:\/\//i.test(u) ? u : null;
@@ -26,17 +27,19 @@ export function TaskInboxView(props: {
   error: string | null;
   notice: string | null;
   onDecide: (id: string, approve: boolean) => void;
+  t?: Translate;
 }) {
+  const t = props.t ?? makeT("en");
   const pending = props.items.filter((i) => i.status === "pending_approval");
   return (
     <section aria-labelledby="inbox-title" data-testid="task-inbox">
       <style>{CSS}</style>
-      <h2 id="inbox-title">Task inbox</h2>
-      <p aria-live="polite" data-testid="inbox-summary">{pending.length} waiting for a decision</p>
-      <p>Approving records your decision. It does not start a run.</p>
+      <h2 id="inbox-title">{t("inbox.title")}</h2>
+      <p aria-live="polite" data-testid="inbox-summary">{t("inbox.waiting", { n: pending.length })}</p>
+      <p>{t("inbox.noRun")}</p>
       {props.error && <p role="alert" data-testid="inbox-error">{props.error}</p>}
       {props.notice && <p role="status" data-testid="inbox-notice">{props.notice}</p>}
-      {props.items.length === 0 ? <p>No queued tasks.</p> : (
+      {props.items.length === 0 ? <p>{t("inbox.empty")}</p> : (
         <ul className="ti">
           {props.items.map((i) => {
             const href = safeHref(i.url);
@@ -45,13 +48,13 @@ export function TaskInboxView(props: {
                 <strong>{i.title || "(untitled)"}</strong>
                 <span>{i.provider} · {i.kind} · from {i.actor || "unknown"} · {i.status.replace("_", " ")}</span>
                 <span>{preview(i.body)}</span>
-                {href && <a href={href} rel="noopener noreferrer" target="_blank">Open original</a>}
+                {href && <a href={href} rel="noopener noreferrer" target="_blank">{t("inbox.open")}</a>}
                 {i.status === "pending_approval" && props.canDecide && (
                   <div className="ti-actions">
                     <button type="button" disabled={props.busyId === i.id} onClick={() => props.onDecide(i.id, true)}
-                      aria-label={`Approve ${i.title}`}>Approve</button>
+                      aria-label={t("inbox.approveLabel", { title: i.title })}>{t("inbox.approve")}</button>
                     <button type="button" disabled={props.busyId === i.id} onClick={() => props.onDecide(i.id, false)}
-                      aria-label={`Reject ${i.title}`}>Reject</button>
+                      aria-label={t("inbox.rejectLabel", { title: i.title })}>{t("inbox.reject")}</button>
                   </div>
                 )}
               </li>
@@ -59,12 +62,12 @@ export function TaskInboxView(props: {
           })}
         </ul>
       )}
-      {!props.canDecide && <p>Your role can view the inbox but not decide.</p>}
+      {!props.canDecide && <p>{t("inbox.readOnly")}</p>}
     </section>
   );
 }
 
-export function TaskInbox({ api, canDecide }: { api: IntakeApi; canDecide: boolean }) {
+export function TaskInbox({ api, canDecide, t = makeT("en") }: { api: IntakeApi; canDecide: boolean; t?: Translate }) {
   const [items, setItems] = useState<Intake[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +86,7 @@ export function TaskInbox({ api, canDecide }: { api: IntakeApi; canDecide: boole
     setNotice(null);
     try {
       const out = await api.decide(id, approve);
-      setNotice(approve ? "Approved and recorded. No run was started." : "Rejected.");
+      setNotice(t(approve ? "inbox.approved" : "inbox.rejected"));
       setItems((cur) => cur.map((x) => (x.id === id ? { ...x, status: out.status } : x)));
       setError(null);
     } catch (e) {
@@ -92,5 +95,5 @@ export function TaskInbox({ api, canDecide }: { api: IntakeApi; canDecide: boole
       setBusyId(null);
     }
   };
-  return <TaskInboxView items={items} canDecide={canDecide} busyId={busyId} error={error} notice={notice} onDecide={onDecide} />;
+  return <TaskInboxView items={items} canDecide={canDecide} busyId={busyId} error={error} notice={notice} onDecide={onDecide} t={t} />;
 }

@@ -50,6 +50,10 @@ class FakeUpstream:
     def _build(self) -> FastAPI:
         app = FastAPI()
 
+        @app.get("/health")
+        async def health():
+            return {"status": "ok"}
+
         @app.get("/api/v1/me")
         async def me(authorization: str | None = Header(default=None)):
             return self._principal(authorization)
