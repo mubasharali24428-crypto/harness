@@ -1,0 +1,215 @@
+{
+  "lane": "A2",
+  "baseline_commit": "31bf4077e9b567b1f50ecb99818d501baab3115a",
+  "feature_count": 30,
+  "features": [
+    {
+      "id": "F011",
+      "session": 1,
+      "state": "VERIFIED"
+    },
+    {
+      "id": "F012",
+      "session": 1,
+      "state": "VERIFIED"
+    },
+    {
+      "id": "F013",
+      "session": 1,
+      "state": "VERIFIED"
+    },
+    {
+      "id": "F014",
+      "session": 1,
+      "state": "VERIFIED"
+    },
+    {
+      "id": "F015",
+      "session": 1,
+      "state": "VERIFIED"
+    },
+    {
+      "id": "F016",
+      "session": 1,
+      "state": "VERIFIED"
+    },
+    {
+      "id": "F017",
+      "session": 2,
+      "state": "VERIFIED"
+    },
+    {
+      "id": "F018",
+      "session": 2,
+      "state": "VERIFIED"
+    },
+    {
+      "id": "F019",
+      "session": 2,
+      "state": "VERIFIED"
+    },
+    {
+      "id": "F020",
+      "session": 2,
+      "state": "VERIFIED"
+    },
+    {
+      "id": "F021",
+      "session": 2,
+      "state": "VERIFIED"
+    },
+    {
+      "id": "F111",
+      "session": 2,
+      "state": "VERIFIED"
+    },
+    {
+      "id": "F023",
+      "session": 3,
+      "state": "VERIFIED (process level); live SDK UNVERIFIED"
+    },
+    {
+      "id": "F025",
+      "session": 3,
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION"
+    },
+    {
+      "id": "F026",
+      "session": 3,
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION"
+    },
+    {
+      "id": "F027",
+      "session": 3,
+      "state": "VERIFIED (kill path)"
+    },
+    {
+      "id": "F028",
+      "session": 3,
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION"
+    },
+    {
+      "id": "F029",
+      "session": 3,
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION"
+    },
+    {
+      "id": "F030",
+      "session": 4,
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION"
+    },
+    {
+      "id": "F071",
+      "session": 4,
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION"
+    },
+    {
+      "id": "F072",
+      "session": 4,
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION"
+    },
+    {
+      "id": "F073",
+      "session": 4,
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION"
+    },
+    {
+      "id": "F074",
+      "session": 4,
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION"
+    },
+    {
+      "id": "F075",
+      "session": 4,
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION"
+    },
+    {
+      "id": "F076",
+      "session": 5,
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION"
+    },
+    {
+      "id": "F077",
+      "session": 5,
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION"
+    },
+    {
+      "id": "F078",
+      "session": 5,
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION"
+    },
+    {
+      "id": "F079",
+      "session": 5,
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION"
+    },
+    {
+      "id": "F080",
+      "session": 5,
+      "state": "VERIFIED (preserved) + library fairness"
+    },
+    {
+      "id": "F024",
+      "session": 5,
+      "state": "VERIFIED (preserved); credential/workspace caveat CLOSED on live path"
+    }
+  ],
+  "risks": [
+    {
+      "id": "VR005",
+      "state": "PARTIAL",
+      "note": "S1 ranking/graph/symbols; unchanged this session."
+    },
+    {
+      "id": "VR006",
+      "state": "PARTIAL -> CONTROLS ADDED",
+      "note": "Signed handoff manifests + atomic checkpoints (library); not wired into service."
+    },
+    {
+      "id": "VR009",
+      "state": "PARTIAL -> IMPROVED",
+      "note": "Per-run workspace under a confinement root with symlink/traversal refusal; git worktree-per-agent not implemented."
+    },
+    {
+      "id": "VR016",
+      "state": "PARTIAL",
+      "note": "S2 instruction framing + follow-ups framed as data; live SDK tool confinement unproven so live runs fail closed unless ENGINE_ALLOW_UNCONFINED_LIVE=1."
+    },
+    {
+      "id": "VR021",
+      "state": "CONTROLS PRESENT",
+      "note": "Existing breaker/timeout; bounded retry library added; no model fallback by design."
+    },
+    {
+      "id": "VR022",
+      "state": "PARTIAL",
+      "note": "S2 replay archive records model+prompt; no model-change detector added."
+    },
+    {
+      "id": "VR023",
+      "state": "PARTIAL -> CONTROLS ADDED",
+      "note": "CheckpointStore + retry idempotency ledger (library); not wired to _execute."
+    },
+    {
+      "id": "VR024",
+      "state": "CONTROLS PRESENT -> STRENGTHENED",
+      "note": "Killable process groups (no zombie spend), fair scheduler, idempotent retries."
+    },
+    {
+      "id": "VR025",
+      "state": "PARTIAL -> IMPROVED",
+      "note": "Ask-mode now durable via PLAN_PROPOSED payload and restored on any replica; sticky against flips. Other multi-replica items untouched."
+    },
+    {
+      "id": "VR029",
+      "state": "CONTROLS PRESENT",
+      "note": "S2 replay archive; unchanged."
+    }
+  ],
+  "release_limits": [
+    "Live SDK path unproven: deepseek_harness not installed; confinement fails closed unless ENGINE_ALLOW_UNCONFINED_LIVE=1",
+    "S3 continuation modules and the whole agent-runtime package are libraries: no routes, persistence or UI",
+    "Handoff replay set and board are in-memory (per-process)",
+    "Nothing committed or pushed"
+  ]
+}

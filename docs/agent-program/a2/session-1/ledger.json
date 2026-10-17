@@ -1,0 +1,164 @@
+{
+  "session": "A2-S1",
+  "owner": "A2",
+  "worktree": "harness-a2",
+  "branch": "codex/harness-a2",
+  "baseline_commit": "31bf4077e9b567b1f50ecb99818d501baab3115a",
+  "date": "2026-10-17",
+  "features": [
+    {
+      "id": "F011",
+      "title": "Freshness/incremental indexing + secret hygiene",
+      "state": "VERIFIED",
+      "evidence": ["tests/test_freshness.py", "tests/test_secret_hygiene.py", "tests/test_ingestion.py", "tests/test_chunking_ast.py"]
+    },
+    {
+      "id": "F012",
+      "title": "Bounded git-history retrieval",
+      "state": "VERIFIED",
+      "evidence": ["tests/test_git_history.py"]
+    },
+    {
+      "id": "F013",
+      "title": "One-query multi-project search",
+      "state": "VERIFIED",
+      "evidence": ["tests/test_multi_search.py"]
+    },
+    {
+      "id": "F014",
+      "title": "Dependency graph + standalone HTML report",
+      "state": "VERIFIED",
+      "evidence": ["tests/test_graph_symbols.py", "tests/test_report.py"]
+    },
+    {
+      "id": "F015",
+      "title": "Symbol map + reference search",
+      "state": "VERIFIED",
+      "evidence": ["tests/test_graph_symbols.py"]
+    },
+    {
+      "id": "F016",
+      "title": "Goal-driven ranking with token budget",
+      "state": "VERIFIED",
+      "note": "Engine verified; execution-side injection of the bundle is A2-S2 per plan.",
+      "evidence": ["tests/test_ranking.py", "tests/test_retrieval_quality.py"]
+    },
+    {
+      "id": "AUTHZ-X",
+      "title": "Project->team ownership guard on every section11 route (fail closed, no-oracle 404, no test-mode escape hatch)",
+      "state": "VERIFIED",
+      "evidence": ["tests/test_authz.py"]
+    }
+  ],
+  "tests": {
+    "baseline_collected": 50,
+    "baseline_pass": 49,
+    "baseline_skip": 1,
+    "final_collected": 112,
+    "final_pass": 111,
+    "final_skip": 1,
+    "skip_reason": "tests/test_live_pg.py:82 needs docker daemon + pgvector image (environmental; same skip as baseline)",
+    "new_tests": 62,
+    "new_suites": {
+      "test_authz.py": 10,
+      "test_freshness.py": 5,
+      "test_git_history.py": 12,
+      "test_graph_symbols.py": 10,
+      "test_multi_search.py": 4,
+      "test_ranking.py": 7,
+      "test_report.py": 6,
+      "test_retrieval_quality.py": 1,
+      "test_secret_hygiene.py": 7
+    },
+    "ruff": "clean"
+  },
+  "evidence_files": [
+    "evidence/pytest-full.txt",
+    "evidence/ruff.txt",
+    "evidence/test-matrix.txt"
+  ],
+  "files_changed": {
+    "new_src": [
+      "section11/src/harness_context/secret_scan.py",
+      "section11/src/harness_context/classify.py",
+      "section11/src/harness_context/manifest.py",
+      "section11/src/harness_context/git_history.py",
+      "section11/src/harness_context/graph.py",
+      "section11/src/harness_context/symbols.py",
+      "section11/src/harness_context/ranking.py",
+      "section11/src/harness_context/report.py",
+      "section11/src/harness_context/authz.py"
+    ],
+    "edited_src": [
+      "section11/src/harness_context/service.py",
+      "section11/src/harness_context/store.py",
+      "section11/src/harness_context/chunking.py",
+      "section11/src/harness_context/models.py",
+      "section11/src/harness_context/api.py"
+    ],
+    "tests": [
+      "section11/tests/conftest.py",
+      "section11/tests/test_api.py",
+      "section11/tests/test_tiers.py",
+      "section11/tests/test_authz.py",
+      "section11/tests/test_freshness.py",
+      "section11/tests/test_git_history.py",
+      "section11/tests/test_graph_symbols.py",
+      "section11/tests/test_multi_search.py",
+      "section11/tests/test_ranking.py",
+      "section11/tests/test_report.py",
+      "section11/tests/test_retrieval_quality.py",
+      "section11/tests/test_secret_hygiene.py"
+    ],
+    "docs": [
+      "docs/agent-program/a2/session-1/plan.md",
+      "docs/agent-program/a2/session-1/report.md",
+      "docs/agent-program/a2/session-1/ledger.json"
+    ]
+  },
+  "bugs_fixed_with_regression_tests": [
+    {
+      "bug": "git_history name-status parser desynced on the literal \\n git emits after the -z format head (first file of every commit mis-parsed)",
+      "fix": "strip separator newline before token parsing",
+      "pinned_by": "tests/test_git_history.py::test_search_matches_message_and_reports_name_status"
+    },
+    {
+      "bug": "graph python unresolved/external classification inverted (dotless absolute imports counted as unresolved)",
+      "fix": "only failing relative imports are unresolved; failing absolute specs are external",
+      "pinned_by": "tests/test_graph_symbols.py::test_python_imports_resolve_to_repo_nodes_and_externals"
+    },
+    {
+      "bug": "graph/symbols lang fallback used raw extension ('py') which never matched language set ('python')",
+      "fix": "extension->language fallback maps in both modules",
+      "pinned_by": "unit-level graph/symbol tests that run without a stored lang map"
+    }
+  ],
+  "intentional_contract_changes": [
+    {
+      "what": "unknown projectId now denied with no-oracle 404 instead of falling through to tier logic",
+      "why": "the old fallback (402/200) was an existence oracle for cross-team project probing",
+      "test": "tests/test_tiers.py::test_unknown_project_is_denied_not_free_defaults (renamed from test_missing_project_row_falls_back_to_free_defaults)"
+    }
+  ],
+  "test_infra_changes": [
+    {
+      "what": "db fixture: in-memory sqlite -> per-test file-backed sqlite",
+      "why": "in-memory multiplexes all sessions on ONE StaticPool connection; concurrent poller auth SELECTs/rollbacks clobbered the background re-index's open transaction (reproduced: 8 chunks counted, 4-6 rows persisted). File-backed isolation mirrors the asyncpg pool.",
+      "proof": "tests/test_api.py::test_index_lifecycle_over_http passing deterministically (suite green 3 consecutive runs)"
+    }
+  ],
+  "decisions": [
+    "No new tables/migrations; build on context_chunks (0030), live git, in-memory job registry",
+    "git-search has no client repoPath field; root resolves server-side from latest index job (fail closed)",
+    "secret redaction is precision-first (PEM/AWS/GitHub/Slack/OpenAI-style/Google/JWT); no fuzzy password heuristics",
+    "search-multi embeds the query exactly once; all listed projects authorized before any work; one foreign id denies the whole call",
+    "ranking: deterministic ties (-score, path, startLine); budget skips-and-continues with droppedForBudget counted, never silent"
+  ],
+  "frozen_contracts_touched": [],
+  "needs_integration": [
+    "Durable repo-root registry (latest_job_root is in-memory; freshness/git-search 404 after restart) - migration lane (A1)",
+    "Execution-side injection of ranked bundle (VR005/VR006 context->execution) - A2-S2",
+    "Workspace isolation proofs (VR009) - A2-S3"
+  ],
+  "next_session": "A2-S2 (F017-F021 + F111; A4 fix in section4/src/harness_orchestrator/service.py _execute ~line 960)"
+}

@@ -1,0 +1,81 @@
+{
+  "session": "A2-S5",
+  "owner": "A2",
+  "worktree": "harness-a2",
+  "branch": "codex/harness-a2",
+  "baseline_commit": "31bf4077e9b567b1f50ecb99818d501baab3115a",
+  "date": "2026-10-17",
+  "features": [
+    {
+      "id": "F076",
+      "title": "Per-subagent model selection",
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION",
+      "evidence": [
+        "packages/agent-runtime/src/harness_agent_runtime/specialists.py",
+        "packages/agent-runtime/tests/test_runtime.py::test_specialist_model_and_tool_policy"
+      ],
+      "note": "Explicit model per specialist validated against the team's allowed set; never substituted. Allowed set must be fed from A1 model policy."
+    },
+    {
+      "id": "F077",
+      "title": "Per-subagent tool permissions",
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION",
+      "evidence": [
+        "packages/agent-runtime/src/harness_agent_runtime/specialists.py (authorize_tool)",
+        "packages/agent-runtime/tests/test_runtime.py::test_specialist_model_and_tool_policy"
+      ],
+      "note": "Default-deny allowlist checked against a tool catalog. Not yet the S5 execution authority."
+    },
+    {
+      "id": "F078",
+      "title": "Subagent result synthesis",
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION",
+      "evidence": [
+        "packages/agent-runtime/src/harness_agent_runtime/synthesis.py",
+        "packages/agent-runtime/tests/test_runtime.py::test_synthesis_surfaces_conflicts_not_winners"
+      ],
+      "note": "Conflicts and unsupported claims surfaced, needs_human flag; no winner is picked."
+    },
+    {
+      "id": "F079",
+      "title": "Human assignment and escalation queue",
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION",
+      "evidence": [
+        "packages/agent-runtime/src/harness_agent_runtime/board.py",
+        "packages/agent-runtime/tests/test_runtime.py::test_board_transitions_cas_scope_and_escalation"
+      ],
+      "note": "Assign to user:<id>, idempotent escalation, per-team human queue, resolve."
+    },
+    {
+      "id": "F080",
+      "title": "Agent workload, queue, and concurrency controls",
+      "state": "VERIFIED (preserved) + library fairness",
+      "evidence": [
+        "section4 EngineRuntime/run_queue unchanged and green (598 pass)",
+        "packages/agent-runtime/src/harness_agent_runtime/scheduler.py",
+        "packages/agent-runtime/tests/test_runtime.py::test_scheduler_fair_no_starvation_and_quotas",
+        "packages/agent-runtime/tests/test_runtime.py::test_scheduler_weights"
+      ],
+      "note": "Existing guarantees untouched. Added team-fair scheduler with quotas/weights; not yet replacing run_queue ordering."
+    },
+    {
+      "id": "F024",
+      "title": "Parallel agent jobs",
+      "state": "VERIFIED (preserved); credential/workspace caveat CLOSED on live path",
+      "evidence": [
+        "section4/tests/unit/test_process_engine.py::test_concurrent_runs_get_distinct_keys_and_workspaces"
+      ],
+      "note": "Concurrent runs now isolated by process; thread path remains for stubs/dry."
+    }
+  ],
+  "tests": "packages/agent-runtime: 10 passed; ruff clean; section4 598/7 skipped",
+  "needs_integration": [
+    "API routes, persistence tables (A1 migrations) and wiring to PlanService/S5 are not done; package is standalone and in-memory"
+  ],
+  "vr_notes": {
+    "VR024": [
+      "CONTROLS PRESENT -> STRENGTHENED",
+      "Killable process groups (no zombie spend), fair scheduler, idempotent retries."
+    ]
+  }
+}

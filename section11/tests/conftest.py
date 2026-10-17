@@ -46,16 +46,50 @@ CREATE TABLE team_members (
 );
 """
 
+#: A2-S1: minimal projects mirror so the route-layer ownership guard
+#: (authz.authorize_project) resolves against the SAME frozen table shape
+#: (projects.id -> projects.team_id) as Section 1. Ownership ROWS are seeded
+#: per test — this DDL only guarantees the guard never fails on a missing
+#: table when the test isn't about that failure mode.
+_PROJECTS_DDL = """
+CREATE TABLE projects (
+    id VARCHAR(36) PRIMARY KEY,
+    team_id VARCHAR(36) NOT NULL
+);
+"""
+
+
+async def seed_project(factory, project_id: str, team_id: str = "team-x1") -> None:
+    """Bind one project id to an owning team on the fixture engine."""
+    async with factory() as session:
+        await session.execute(
+            text(
+                "INSERT OR REPLACE INTO projects (id, team_id) VALUES (:p, :t)"
+            ),
+            {"p": project_id, "t": team_id},
+        )
+        await session.commit()
+
 
 @pytest.fixture
-async def db():
+async def db(tmp_path: Path):
+    """Per-test FILE-backed SQLite (not :memory:).
+
+    A shared in-memory DB multiplexes every session onto ONE connection
+    (StaticPool), so a poller's auth SELECT/rollback can land inside the
+    background re-index's open transaction and partially clobber its writes.
+    A file-backed DB gives each session its own connection with real
+    transaction isolation — the same separation production gets from the
+    asyncpg pool — which is what the HTTP lifecycle tests need.
+    """
     from harness_context.sql import DDL_SQLITE
 
-    engine = create_async_engine("sqlite+aiosqlite://")
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'test.db'}")
     async with engine.begin() as conn:
         await conn.execute(text(DDL_SQLITE))
         await conn.execute(text(_AUTH_DDL_SESSIONS))
         await conn.execute(text(_AUTH_DDL_MEMBERS))
+        await conn.execute(text(_PROJECTS_DDL))
         await conn.execute(
             text(
                 "INSERT INTO auth_sessions (token_hash, user_id, team_id, expires_at) "

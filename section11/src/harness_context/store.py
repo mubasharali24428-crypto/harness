@@ -143,6 +143,35 @@ class ContextStore:
             deleted += int(res.rowcount or 0)
         return deleted
 
+    async def fetch_text(
+        self, conn: AsyncSession | AsyncConnection, project_id: str
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Content rows of every indexed chunk, grouped by path (no embeddings).
+
+        Lighter companion to :meth:`fetch_vectors` for structure consumers
+        (graph, symbols) that need text and line bounds but never vectors.
+        """
+        rows = (
+            await conn.execute(
+                text(
+                    "SELECT path, lang, start_line, end_line, content "
+                    "FROM context_chunks WHERE project_id = :pid"
+                ),
+                {"pid": project_id},
+            )
+        ).mappings().all()
+        out: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            out.setdefault(row["path"], []).append(
+                {
+                    "lang": row["lang"],
+                    "startLine": row["start_line"],
+                    "endLine": row["end_line"],
+                    "content": row["content"],
+                }
+            )
+        return out
+
     async def fetch_vectors(self, conn: AsyncConnection, project_id: str) -> list[dict[str, Any]]:
         """Every indexed chunk of a project with its embedding parsed to floats.
 

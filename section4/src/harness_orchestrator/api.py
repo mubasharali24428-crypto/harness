@@ -494,6 +494,9 @@ class ProposePlanRequest(BaseModel):
     # M12-G3: bounded goal text + project id (additive; see limits).
     goal: str | None = Field(default=None, max_length=PROPOSE_GOAL_MAX)
     projectId: str | None = Field(default=None, max_length=PROPOSE_PROJECT_ID_MAX)
+    # F021: explicit run mode. ask = read-only (execution refused at runtime);
+    # plan = approve-then-execute; agent = fully autonomous (legacy default).
+    mode: Literal["ask", "plan", "agent"] | None = None
 
 
 async def _project_belongs_to_team(project_id: str, principal: Principal) -> bool:
@@ -543,12 +546,20 @@ async def propose_plan(
                     }
                 },
             )
-        plan_id = await _service.propose_plan(runId, goal=goal, project_id=project_id)
+        plan_id = await _service.propose_plan(
+            runId, goal=goal, project_id=project_id, mode=(req.mode if req else None)
+        )
         return {"runId": runId, "planId": plan_id}
     except InvalidStateTransitionError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"error": {"code": "INVALID_STATE", "message": str(e)}},
+        ) from e
+    except ValueError as e:
+        # F021: unknown run mode rejected before any state change (fail closed).
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": {"code": "INVALID_MODE", "message": str(e)}},
         ) from e
 
 
@@ -727,6 +738,18 @@ async def signal_done(runId: str, req: DoneSignalRequest, actor: RunReader) -> d
 @router.get("/runs/{runId}/engine", status_code=status.HTTP_200_OK)
 async def get_engine_result(runId: str, reader: RunReader) -> dict[str, Any]:
     return await _service.get_engine_result(runId)
+
+
+@router.get("/runs/{runId}/context-quality", status_code=status.HTTP_200_OK)
+async def get_context_quality(runId: str, reader: RunReader) -> dict[str, Any]:
+    """F017: what context execution actually received — and what was absent."""
+    return await _service.get_context_quality(runId)
+
+
+@router.get("/runs/{runId}/replay", status_code=status.HTTP_200_OK)
+async def get_run_replay(runId: str, reader: RunReader) -> dict[str, Any]:
+    """F111: ordered durable replay — prompts, observations, explicit gaps."""
+    return await _service.get_run_replay(runId)
 
 
 @router.get(

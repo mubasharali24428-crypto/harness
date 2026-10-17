@@ -1,0 +1,23 @@
+# per-file collected counts (A2-S1)
+# new-this-session files marked NEW; baseline files unmarked
+
+test_api [BASE]: 7
+test_chunking [BASE]: 7
+test_chunking_ast [BASE]: 12
+test_embeddings [BASE]: 6
+test_ingestion [BASE]: 5
+test_live_pg [BASE]: 1
+test_migration_static [BASE]: 3
+test_search [BASE]: 4
+test_tiers [BASE]: 5
+test_authz [NEW]: 10
+test_freshness [NEW]: 5
+test_git_history [NEW]: 12
+test_graph_symbols [NEW]: 10
+test_multi_search [NEW]: 4
+test_ranking [NEW]: 7
+test_report [NEW]: 6
+test_retrieval_quality [NEW]: 1
+test_secret_hygiene [NEW]: 7
+
+112 tests collected in 0.07s

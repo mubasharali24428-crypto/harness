@@ -379,6 +379,16 @@ async def main(spec: dict) -> dict:
         await conn.execute(text(
             "CREATE TABLE team_members (user_id VARCHAR(36) NOT NULL,"
             " team_id VARCHAR(36) NOT NULL, role VARCHAR(20) NOT NULL)"))
+        # S1 authz precondition (A2-S1): the index route now authorizes the
+        # caller against project->team ownership BEFORE enqueueing. Seed the
+        # frozen projects mirror so this legitimate same-team call verifies;
+        # an absent table would (correctly) fail closed with 403.
+        await conn.execute(text(
+            "CREATE TABLE projects (id VARCHAR(36) PRIMARY KEY,"
+            " team_id VARCHAR(36) NOT NULL)"))
+        await conn.execute(text(
+            "INSERT INTO projects VALUES (:p, :t)"),
+            {"p": spec["projectId"], "t": "team-x2"})
         await conn.execute(text(
             "INSERT INTO auth_sessions VALUES (:h, :u, :t, :e)"),
             {"h": hashlib.sha256(TOKEN.encode()).hexdigest(), "u": "u-x2",

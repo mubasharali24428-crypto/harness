@@ -28,8 +28,14 @@ from harness_orchestrator.engine_runtime import (
     EngineRuntime,
     EngineRunTimeout,
 )
+from harness_orchestrator.execution_prompt import build_execution_prompt
+from harness_orchestrator.instruction_hierarchy import (
+    resolve_instruction_hierarchy,
+)
 from harness_orchestrator.planner import PlanNotApprovedError, PlanService
+from harness_orchestrator.process_engine import ProcessEngine
 from harness_orchestrator.redact import scrub_secrets
+from harness_orchestrator.replay_archive import load_record, save_record
 from harness_orchestrator.reviewer import ReviewerSubAgent, ReviewFindings
 from harness_orchestrator.rules_loader import build_rules_block, load_project_rules
 from harness_orchestrator.run_metering import record_run_cost
@@ -43,6 +49,11 @@ from harness_orchestrator.run_queue import (
     reclaim_orphans,
     release_timed_out_claims,
     resolve_heartbeat_timeout_seconds,
+)
+from harness_orchestrator.run_replay import (
+    build_replay_view,
+    build_run_record,
+    latest_context_ref,
 )
 from harness_orchestrator.signals import gate_done_signal
 from harness_orchestrator.state_machine import (
@@ -81,6 +92,17 @@ class RunNotFoundError(KeyError):
     """
 
 _HEARTBEAT_INTERVAL_SECONDS = 10.0
+
+# F021: explicit Ask/Plan/Agent run modes. ask = read-only: execution (and any
+# write it could perform) is denied at runtime by the orchestrator — never
+# merely advised in a prompt. plan/agent keep the approval-gated execution
+# semantics (their divergence is autonomy scope, an S3 concern).
+RUN_MODES = frozenset({"ask", "plan", "agent"})
+MODE_WRITE_DENIED_CODE = "MODE_WRITE_DENIED"
+_ASK_MODE_REASON = (
+    "mode: MODE_WRITE_DENIED (ask mode is read-only: execution — and every "
+    "write it could perform — is denied at runtime)"
+)
 
 _REHYDRATE_SQL = """
     SELECT type AS event_type, payload AS payload
@@ -184,6 +206,15 @@ class OrchestratorService(Orchestrator):
         self.planner = planner or PlanService()
         self.reviewer = reviewer or ReviewerSubAgent()
         self.engine = engine or DeepSeekHarnessWrapper()
+        # F023: live SDK runs get a killable child process unless opted out
+        # (ENGINE_ISOLATION=thread). Injected/stub/dry engines are untouched.
+        if (
+            isinstance(self.engine, DeepSeekHarnessWrapper)
+            and self.engine.backend_runner is None
+            and self.engine.live_mode
+            and os.environ.get("ENGINE_ISOLATION", "process") != "thread"
+        ):
+            self.engine = ProcessEngine(self.engine)
         self.on_event = on_event
         self.session_factory = session_factory
         self.bus = bus  # duck-typed EventBus: publish/ensure_run coroutines (S1 delivery)
@@ -519,6 +550,13 @@ class OrchestratorService(Orchestrator):
                 stopped = True
                 last_seq_state = True
                 continue
+            if (
+                etype == EventType.PLAN_PROPOSED.value
+                and isinstance(payload, dict)
+                and payload.get("mode") in RUN_MODES
+                and rd.get("mode") != "ask"  # ask is sticky across replays too
+            ):
+                rd["mode"] = payload["mode"]
             if etype == EventType.PLAN_APPROVED.value:
                 # Confirmation only: the mirror row above already decided.
                 approved_plan = (payload or {}).get("planId") if isinstance(payload, dict) else None
@@ -633,13 +671,24 @@ class OrchestratorService(Orchestrator):
     # ------------------------------------------------------------------- api
 
     async def propose_plan(self, run_id: str, goal: str | None = None,
-                           project_id: str | None = None) -> str:
+                           project_id: str | None = None,
+                           mode: str | None = None) -> str:
+        if mode is not None and mode not in RUN_MODES:
+            raise ValueError(
+                f"unknown run mode {mode!r}; expected one of {sorted(RUN_MODES)}"
+            )
         run_data = await self._ensure_run(run_id, project_id=project_id)
         sm: AgentStateMachine = run_data["state_machine"]
         if goal:
             run_data["goal"] = goal
         if project_id:
             run_data["projectId"] = project_id
+        # F021: explicit Ask/Plan/Agent mode; agent is the legacy default.
+        # Enforced at execution dispatch (see _deny_ask_mode) and durable: the
+        # mode rides PLAN_PROPOSED and is restored by _rehydrate. Ask is
+        # sticky — a later propose can never flip an ask run to plan/agent.
+        prior = run_data.get("mode")
+        run_data["mode"] = "ask" if prior == "ask" else (mode or prior or "agent")
 
         sm.start_planning()
         # M12-G10: user-authored project rules are advisory prompt context.
@@ -650,6 +699,18 @@ class OrchestratorService(Orchestrator):
             self.session_factory, run_data.get("projectId")
         )
         run_data["rules_prompt_block"] = build_rules_block(rules_text)
+        # F019: hierarchical instruction tiers (org/team/project/directory),
+        # additive to the legacy flat block above. When any tier renders, the
+        # labelled hierarchy block is what _execute frames (the project tier
+        # already carries the same rules text under its tier label); the flat
+        # block stays the fallback so unwired stores keep legacy behavior.
+        hierarchy = await resolve_instruction_hierarchy(
+            self.session_factory,
+            run_data.get("projectId"),
+            getattr(self.engine, "workspace", None),  # stub engines: no dir tier
+        )
+        run_data["instruction_hierarchy"] = hierarchy.meta()
+        run_data["instructions_block"] = hierarchy.rendered
         # M21-X2: @refs in the brief text resolve (advisory, best-effort) into
         # a bounded context bundle that AUGMENTS the pasted goal. Resolution
         # is OFF unless CONTEXT_SEARCH_BASE_URL is set; any failure degrades
@@ -702,7 +763,7 @@ class OrchestratorService(Orchestrator):
         run_data["plan_id"] = plan_id
         await self._persist_plan(run_id, plan_id, plan, status="proposed")
 
-        sm.plan_proposed(plan_id)
+        sm.plan_proposed(plan_id, mode=run_data["mode"])
         return plan_id
 
     async def _decide_plan(
@@ -875,6 +936,12 @@ class OrchestratorService(Orchestrator):
 
     async def start_execution(self, run_id: str) -> None:
         run_data = await self._ensure_run(run_id)
+        # F021: the earliest honest denial point — before approvals, events or
+        # queue election, an ask-mode run can never reach a write-capable
+        # engine. Fail closed; the refusal is recorded on the run.
+        if (run_data.get("mode") or "agent") == "ask":
+            self._deny_ask_mode(run_id, run_data)
+            return
         plan_id = run_data.get("plan_id")
         # M19-N1: durable-first approval read — replica B must see replica A's
         # approval through the mirror row, not its own cache.
@@ -926,6 +993,28 @@ class OrchestratorService(Orchestrator):
         sm.start_execution()
         self._spawn_execution(run_data, plan)
 
+    def _deny_ask_mode(self, run_id: str, run_data: dict[str, Any]) -> None:
+        """F021: refuse execution for an ask-mode run and record the truth.
+
+        The refusal is a first-class engine result (``MODE_WRITE_DENIED``),
+        never a silent no-op or a fake success: callers surface exactly why
+        nothing ran. ``execution_failed`` is a no-op unless the machine is
+        already EXECUTING, so the start-path refusal leaves the run in its
+        pre-execution state while the dispatch-path refusal fails it honestly.
+        """
+        logger.info("run %s refused: ask mode is read-only", run_id)
+        run_data["engine_result"] = {
+            "sessionId": run_id,
+            "engine": "mode_guard",
+            "status": "error",
+            "errorCode": MODE_WRITE_DENIED_CODE,
+            "finalResponse": f"DeepSeek Harness run refused: {_ASK_MODE_REASON}",
+        }
+        run_data["mode_denied"] = True
+        sm: AgentStateMachine | None = run_data.get("state_machine")
+        if sm is not None:
+            sm.execution_failed(_ASK_MODE_REASON)
+
     def _spawn_execution(self, run_data: dict[str, Any], plan: AgentPlan) -> None:
         """Start one live engine task. Shared by start_execution and resume_agent
         so a resumed run re-invokes the engine with the SAME session_id (= run_id);
@@ -937,6 +1026,12 @@ class OrchestratorService(Orchestrator):
     async def _execute(self, run_data: dict[str, Any], plan: AgentPlan) -> None:
         run_id = run_data["runId"]
         sm: AgentStateMachine = run_data["state_machine"]
+        # F021 defense in depth: resume/dispatch paths re-check the mode, so an
+        # ask-mode run can never reach the engine even when spawned directly
+        # (resume_agent, worker dispatch) rather than through start_execution.
+        if (run_data.get("mode") or "agent") == "ask":
+            self._deny_ask_mode(run_id, run_data)
+            return
         heartbeat_task = None
         if self.run_queue_factory is not None:
 
@@ -952,13 +1047,39 @@ class OrchestratorService(Orchestrator):
         try:
             if await self._budget_gate(run_data, plan):  # Wave 9 B: no model call over cap
                 return
+            # A4 fix: assemble the bounded framed execution prompt from what
+            # propose_plan resolved (rules block + retrieved context bundle).
+            # Bare runs (no rules, no bundle) stay byte-identical to plan.goal.
+            # Composed HERE (not at spawn) so the resume path assembles the
+            # same input from the same run_data. Stored for diagnostics (F017)
+            # and replay (F111); the engine sees only the assembled text.
+            composed = build_execution_prompt(
+                goal=plan.goal,
+                rules_block=str(
+                    run_data.get("instructions_block")
+                    or run_data.get("rules_prompt_block")
+                    or ""
+                ),
+                context_block=str(
+                    (run_data.get("context_bundle") or {}).get("rendered") or ""
+                ),
+                provenance={
+                    "projectId": run_data.get("projectId"),
+                    "paths": (run_data.get("context_bundle") or {}).get("paths"),
+                    "droppedChunks": (
+                        run_data.get("context_bundle") or {}
+                    ).get("droppedChunks"),
+                },
+            )
+            run_data["execution_prompt"] = composed.meta()
+            run_data["execution_prompt_text"] = composed.text
             try:
                 # M17-B5 (PBC1 F2): the dedicated bounded executor + hard
                 # deadline replaces asyncio.to_thread's invisible ~16–36 slot
                 # pool. A hung provider now fails THIS run at the deadline
                 # instead of occupying a slot forever.
                 result = await self.engine_runtime.run(
-                    self.engine, goal=plan.goal, session_id=run_id
+                    self.engine, goal=composed.text, session_id=run_id
                 )
             except asyncio.CancelledError:
                 # Pause keeps the run resumable: no terminal result written. Stop and
@@ -982,7 +1103,7 @@ class OrchestratorService(Orchestrator):
                     "status": "error",
                     "finalResponse": f"DeepSeek Harness run failed: {reason}",
                 }
-                sm.execution_failed(reason)
+                sm.execution_failed(reason, context_ref=self._archive_replay(run_data))
                 return
             except EngineRunTimeout as exc:
                 # Deadline expired: this run fails honestly (ENGINE_FAILED,
@@ -999,7 +1120,7 @@ class OrchestratorService(Orchestrator):
                     "status": "error",
                     "finalResponse": f"DeepSeek Harness run failed: {reason}",
                 }
-                sm.execution_failed(reason)
+                sm.execution_failed(reason, context_ref=self._archive_replay(run_data))
                 return
             except Exception as exc:  # noqa: BLE001 — surface engine failures to the UI
                 failed_msg = "DeepSeek Harness run failed: " + scrub_secrets(
@@ -1013,28 +1134,68 @@ class OrchestratorService(Orchestrator):
                 }
                 # Wave 6 (D4): honest failure lands on the bus and blocks the run
                 # (no-op unless still EXECUTING — pause/stop already told their story).
-                sm.execution_failed(failed_msg)
+                sm.execution_failed(
+                    failed_msg, context_ref=self._archive_replay(run_data)
+                )
                 return
             if run_data.get("cancel_requested"):
                 return  # zombie result from a cancelled live call — discard
             run_data["engine_result"] = result
             # Wave 6 (D4): engine settled while still EXECUTING → emit + advance.
             # Completed opens the human done-gate; any other status blocks honestly.
-            summary = str(result.get("finalResponse") or "")
+            # F111: the summary rides the durable event bus — scrub configured
+            # secrets BEFORE emission so replay can never serve them back.
+            summary = scrub_secrets(
+                str(result.get("finalResponse") or ""),
+                getattr(self.engine, "api_key", None),
+            )
             status = str(result.get("status") or "")
             if status == "completed":
-                sm.execution_completed(summary[:4000])
+                sm.execution_completed(
+                    summary[:4000], context_ref=self._archive_replay(run_data)
+                )
                 # M14-W4 F1a: the run's ACTUAL cost lands in cost_ledger when
                 # the engine completes (H-011 run-cost gap). Fire-and-forget —
                 # metering must never break or delay the completion path.
                 await record_run_cost(self, run_data, plan)
             else:
-                sm.execution_failed(summary or f"engine status={status or 'unknown'}")
+                sm.execution_failed(
+                    summary or f"engine status={status or 'unknown'}",
+                    context_ref=self._archive_replay(run_data),
+                )
         finally:
             if heartbeat_task is not None:
                 heartbeat_task.cancel()
             if self.run_queue_factory is not None:
                 await finish_run(self.run_queue_factory, run_id)
+
+    def _archive_replay(self, run_data: dict[str, Any]) -> dict[str, Any] | None:
+        """F111: archive this run's prompt + result + observations, redacted.
+
+        Best-effort by design (like cost metering): archival must never break
+        the settle path. Returns the wire-safe reference stamped onto the
+        settlement event, or None when nothing was persisted — replay then
+        reports the absence explicitly instead of guessing.
+        """
+        try:
+            record = build_run_record(
+                run_id=run_data["runId"],
+                prompt_text=run_data.get("execution_prompt_text") or "",
+                prompt_meta=run_data.get("execution_prompt") or {},
+                engine_result=run_data.get("engine_result") or {},
+                instructions_text=(
+                    run_data.get("instructions_block")
+                    or run_data.get("rules_prompt_block")
+                    or ""
+                ),
+                secrets=(getattr(self.engine, "api_key", None),),
+            )
+            ref = save_record(record)
+            run_data["replay_ref"] = ref
+            return ref
+        except Exception:  # noqa: BLE001 — observation must not sink execution
+            logger.exception("replay archive failed for run %s", run_data.get("runId"))
+            return None
 
     async def get_engine_result(self, run_id: str) -> dict[str, Any]:
         run_data = await self._ensure_run(run_id)
@@ -1049,6 +1210,92 @@ class OrchestratorService(Orchestrator):
         return result or {
             "status": "not_started",
             "finalResponse": None,
+        }
+
+    _REPLAY_EVENTS_SQL = text(
+        """
+        SELECT seq, created_at AS ts, type, payload
+          FROM agent_events
+         WHERE run_id = :run_id
+         ORDER BY seq ASC
+        """
+    )
+
+    async def get_run_replay(self, run_id: str) -> dict[str, Any]:
+        """F111: the ordered, honest replay view of a run.
+
+        Durable-first: the event trail (agent_events) is the timeline and the
+        only pointer to the archived record (contextRef on the settlement
+        event) — so the view survives restarts with no RAM. Missing pieces are
+        explicit ``unavailable`` entries with reasons, never silent gaps.
+        """
+        rows: list[dict[str, Any]] = []
+        if self.session_factory is not None:
+            try:
+                async with self.session_factory() as db:
+                    result = await db.execute(
+                        text(str(self._REPLAY_EVENTS_SQL)), {"run_id": run_id}
+                    )
+                    for row in result.mappings().all():
+                        payload = row["payload"]
+                        if isinstance(payload, str):  # sqlite JSON columns come back as str
+                            try:
+                                payload = json.loads(payload)
+                            except Exception:  # noqa: BLE001
+                                payload = {}
+                        rows.append(
+                            {
+                                "seq": row["seq"],
+                                "ts": row["ts"],
+                                "type": row["type"],
+                                "payload": payload,
+                            }
+                        )
+            except Exception:  # noqa: BLE001 — no table yet / unit mode: empty view
+                rows = []
+        record_ref = latest_context_ref(rows)
+        record = load_record(record_ref) if record_ref else None
+        return build_replay_view(
+            run_id=run_id, rows=rows, record=record, record_ref=record_ref
+        )
+
+    async def get_context_quality(self, run_id: str) -> dict[str, Any]:
+        """F017: complete context-quality diagnostic surface for one run.
+
+        Answers, in one read: what execution actually received (framed prompt
+        tokens, rules bytes by tier, retrieved bytes, truncation), what was
+        dropped for budget at resolve time, which sources were cited, and what
+        was ABSENT (tier names, or the whole bundle when resolution never ran
+        or degraded). Honest zeros for bare runs — never fabricated detail.
+        """
+        run_data = await self._ensure_run(run_id)
+        prompt_meta = run_data.get("execution_prompt")
+        hierarchy_meta = run_data.get("instruction_hierarchy") or {}
+        bundle = run_data.get("context_bundle") or {}
+        resolved_paths = bundle.get("paths") or []
+        frames = bool(prompt_meta and prompt_meta.get("framed"))
+        return {
+            "runId": run_id,
+            "mode": run_data.get("mode") or "agent",
+            "executionPrompt": prompt_meta
+            or {
+                "framed": False,
+                "tokensEstimated": 0,
+                "rulesBytes": 0,
+                "contextBytes": 0,
+                "contextTruncated": False,
+            },
+            "instructions": {
+                "tiers": hierarchy_meta.get("tiers", []),
+                "absent": hierarchy_meta.get("absent", []),
+            },
+            "retrieval": {
+                "resolved": bool(bundle),
+                "paths": resolved_paths,
+                "chunksBudgetMaxTokens": bundle.get("maxTokens"),
+                "chunksDroppedForBudget": bundle.get("droppedChunks", 0),
+            },
+            "degraded": not frames,
         }
 
     async def pause_agent(self, run_id: str) -> None:

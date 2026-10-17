@@ -15,7 +15,7 @@ created per-test on the shared fixture engine, mirroring migration 0031.
 """
 
 import pytest
-from conftest import AUTH_HEADERS
+from conftest import AUTH_HEADERS, seed_project
 from harness_contracts import ENV_TIER_CONTEXT_CHUNKS
 from sqlalchemy import text
 
@@ -41,16 +41,20 @@ async def _seed_chunks(db, project_id: str, n: int) -> None:
 
 
 async def _add_tables(db, *, plan: str | None, chunks_override: int | None) -> None:
-    """Mirror projects/teams/billing_plans (+0031 columns) on the fixture DB."""
+    """Mirror teams/billing_plans (+0031 columns) on the fixture DB.
+
+    A2-S1: project ownership is ALWAYS bound to ``team-x1`` — the bearer-dep
+    principal's team — because the route layer now denies unknown/foreign
+    projects BEFORE tier logic runs. Billing rows stay conditional on
+    ``plan`` so the 'no billing infrastructure present' scenario keeps
+    exercising the honest free-default fallback.
+    """
+    await seed_project(db, PROJECT)
+    if plan is None:
+        return
     async with db() as session:
         await session.execute(
             text("CREATE TABLE IF NOT EXISTS teams (id VARCHAR(36) PRIMARY KEY)")
-        )
-        await session.execute(
-            text(
-                "CREATE TABLE IF NOT EXISTS projects ("
-                "id VARCHAR(36) PRIMARY KEY, team_id VARCHAR(36) NOT NULL)"
-            )
         )
         await session.execute(
             text(
@@ -63,22 +67,15 @@ async def _add_tables(db, *, plan: str | None, chunks_override: int | None) -> N
                 " context_index_max_chunks_override INTEGER)"
             )
         )
-        if plan is not None:
-            await session.execute(
-                text("INSERT INTO teams (id) VALUES ('t-cap')")
-            )
-            await session.execute(
-                text("INSERT INTO projects (id, team_id) VALUES (:p, 't-cap')"),
-                {"p": PROJECT},
-            )
-            await session.execute(
-                text(
-                    "INSERT INTO billing_plans (id, team_id, plan,"
-                    " context_index_max_chunks_override)"
-                    " VALUES ('bp', 't-cap', :plan, :ovr)"
-                ),
-                {"plan": plan, "ovr": chunks_override},
-            )
+        await session.execute(text("INSERT INTO teams (id) VALUES ('team-x1')"))
+        await session.execute(
+            text(
+                "INSERT INTO billing_plans (id, team_id, plan,"
+                " context_index_max_chunks_override)"
+                " VALUES ('bp', 'team-x1', :plan, :ovr)"
+            ),
+            {"plan": plan, "ovr": chunks_override},
+        )
         await session.commit()
 
 
@@ -103,6 +100,7 @@ async def test_free_defaults_enforce_cap_without_any_billing_rows(
 ):
     """No billing infra AT ALL: free cap applies honestly (used >= limit)."""
     monkeypatch.setenv(ENV_TIER_CONTEXT_CHUNKS, "3")
+    await seed_project(db, PROJECT)  # ownership exists; billing schema does not
     await _seed_chunks(db, PROJECT, 3)
 
     res = await _post_index(client, empty_repo)
@@ -122,6 +120,7 @@ async def test_free_defaults_enforce_cap_without_any_billing_rows(
 async def test_under_cap_still_indexes(client, db, monkeypatch, empty_repo):
     """Below the cap the endpoint behaves exactly as before (200 + pending)."""
     monkeypatch.delenv(ENV_TIER_CONTEXT_CHUNKS, raising=False)
+    await seed_project(db, PROJECT)
     res = await _post_index(client, empty_repo)
     assert res.status_code == 200, res.text
     assert res.json()["status"] == "pending"
@@ -150,11 +149,25 @@ async def test_env_knob_cannot_introduce_cap_on_pro(client, db, monkeypatch, emp
     assert res.status_code == 200, res.text  # pro is uncapped regardless of env
 
 
-async def test_missing_project_row_falls_back_to_free_defaults(client, db, monkeypatch, empty_repo):
-    """Unknown projectId (no projects row): free defaults, not an error."""
+async def test_unknown_project_is_denied_not_free_defaults(
+    client, db, monkeypatch, empty_repo
+):
+    """A2-S1 — deliberate contract change at the authz seam.
+
+    Previously: an unknown projectId (no projects row) reached tier logic and
+    "fell back to free defaults", answering 402/200 — which made the endpoint
+    an existence oracle usable to probe project ids across teams. Now the
+    route layer denies unknown and foreign projects alike with ONE no-oracle
+    404 BEFORE any tier math; the falling-back-to-free intent is still
+    covered by test_free_defaults_enforce_cap_without_any_billing_rows
+    (project KNOWN, billing schema absent).
+    """
     monkeypatch.setenv(ENV_TIER_CONTEXT_CHUNKS, "0")
-    await _seed_chunks(db, PROJECT, 1)
+    await _seed_chunks(db, PROJECT, 1)  # no projects row for p-cap
 
     res = await _post_index(client, empty_repo)
-    assert res.status_code == 402, res.text
-    assert res.json()["upgrade"]["cap"] == 0
+    assert res.status_code == 404, res.text
+    body = res.json()
+    assert body["detail"]["error"]["code"] == "NOT_FOUND"
+    # No tier/upgrade information leaks in the denial body.
+    assert "upgrade" not in body and "TIER_CAP_REACHED" not in res.text

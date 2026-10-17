@@ -1,0 +1,81 @@
+{
+  "session": "A2-S4",
+  "owner": "A2",
+  "worktree": "harness-a2",
+  "branch": "codex/harness-a2",
+  "baseline_commit": "31bf4077e9b567b1f50ecb99818d501baab3115a",
+  "date": "2026-10-17",
+  "features": [
+    {
+      "id": "F030",
+      "title": "Task decomposition planner",
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION",
+      "evidence": [
+        "packages/agent-runtime/src/harness_agent_runtime/graph.py",
+        "packages/agent-runtime/tests/test_runtime.py::test_graph_layers_and_validation",
+        "packages/agent-runtime/tests/test_runtime.py::test_decompose_routes_roles_and_orders"
+      ],
+      "note": "Validated DAG (cycle/dep/id/size checks), deterministic keyword decomposition. Not yet fed by PlanService."
+    },
+    {
+      "id": "F071",
+      "title": "Specialized subagents",
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION",
+      "evidence": [
+        "packages/agent-runtime/src/harness_agent_runtime/specialists.py",
+        "packages/agent-runtime/tests/test_runtime.py::test_specialist_model_and_tool_policy"
+      ],
+      "note": "Team-scoped user-defined specialists; no API/persistence."
+    },
+    {
+      "id": "F072",
+      "title": "Agent-to-agent delegation",
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION",
+      "evidence": [
+        "packages/agent-runtime/src/harness_agent_runtime/delegation.py",
+        "packages/agent-runtime/tests/test_runtime.py::test_delegation_contracts"
+      ],
+      "note": "Non-escalating tool scope, conserved budget, depth/fan-out caps, cycle refusal."
+    },
+    {
+      "id": "F073",
+      "title": "Shared task board",
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION",
+      "evidence": [
+        "packages/agent-runtime/src/harness_agent_runtime/board.py",
+        "packages/agent-runtime/tests/test_runtime.py::test_board_transitions_cas_scope_and_escalation"
+      ],
+      "note": "Team-scoped cards, transition table, version CAS, no foreign-card oracle. In-memory; no table/route."
+    },
+    {
+      "id": "F074",
+      "title": "Agent team or swarm mode",
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION",
+      "evidence": [
+        "packages/agent-runtime/src/harness_agent_runtime/swarm.py",
+        "packages/agent-runtime/tests/test_runtime.py::test_swarm_runs_parallel_layers_isolated_and_skips_on_failure"
+      ],
+      "note": "Layers run concurrently, failures skip dependents and escalate. Executor is injected; no live-model swarm run."
+    },
+    {
+      "id": "F075",
+      "title": "Independent context windows per subagent",
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION",
+      "evidence": [
+        "packages/agent-runtime/src/harness_agent_runtime/context.py",
+        "packages/agent-runtime/tests/test_runtime.py::test_context_isolation_and_eviction"
+      ],
+      "note": "Windows seeded only from contract-named keys; token budget eviction. Token count is a len/4 estimate."
+    }
+  ],
+  "tests": "packages/agent-runtime: 10 passed; ruff clean",
+  "needs_integration": [
+    "API routes, persistence tables (A1 migrations) and wiring to PlanService/S5 are not done; package is standalone and in-memory"
+  ],
+  "vr_notes": {
+    "VR024": [
+      "CONTROLS PRESENT -> STRENGTHENED",
+      "Killable process groups (no zombie spend), fair scheduler, idempotent retries."
+    ]
+  }
+}

@@ -1,0 +1,26 @@
+# Full suite (A2-S1 final)
+# date: 2026-10-17T15:40:57Z
+# python: Python 3.13.13  git: git version 2.54.0
+
+........................................................................ [ 64%]
+..s.....................................                                 [100%]
+=============================== warnings summary ===============================
+tests/test_api.py: 7 warnings
+tests/test_authz.py: 8 warnings
+tests/test_chunking_ast.py: 3 warnings
+tests/test_freshness.py: 5 warnings
+tests/test_git_history.py: 4 warnings
+tests/test_graph_symbols.py: 2 warnings
+tests/test_ingestion.py: 5 warnings
+tests/test_multi_search.py: 4 warnings
+tests/test_ranking.py: 2 warnings
+tests/test_report.py: 2 warnings
+tests/test_retrieval_quality.py: 1 warning
+tests/test_search.py: 4 warnings
+tests/test_secret_hygiene.py: 1 warning
+tests/test_tiers.py: 5 warnings
+  /Users/user/untitled folder 2/harness-a2/section11/.venv/lib/python3.13/site-packages/aiosqlite/core.py:63: DeprecationWarning: The default datetime adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    result = function()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+111 passed, 1 skipped, 53 warnings in 2.96s

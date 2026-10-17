@@ -15,8 +15,8 @@ are pruned from the index. Both properties are proven in tests/test_ingestion.py
 from __future__ import annotations
 
 import asyncio
+import pathlib
 import uuid
-from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
@@ -25,9 +25,19 @@ from harness_contracts import tier_caps
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from .chunking import Chunk, chunk_file, iter_repo_files
+from .chunking import chunk_file, chunk_text  # module-level: the incremental test seam
+from .classify import classify_repo
+from .docs import (
+    MAX_DOCS_PER_REQUEST,
+    DocIngestReport,
+    collect_folder_docs,
+    fetch_url,
+    url_doc_rel_path,
+)
 from .embeddings import EmbeddingBackend
+from .manifest import FreshnessReport, build_freshness_report
 from .models import IndexStatus, ScoredChunk
+from .secret_scan import scrub_secret_text
 from .store import ContextStore
 
 
@@ -221,52 +231,141 @@ class ContextService:
     # ------------------------------------------------------------- ingestion
 
     async def reindex(self, job: IndexJob, root) -> None:
-        """One full incremental pass over `root` into job.project_id's index."""
+        """One full incremental pass over `root` into job.project_id's index.
+
+        Classification (new/changed/unchanged/deleted) comes from
+        :func:`harness_context.classify.classify_repo` — the same single
+        source of truth the freshness report uses, so index math and reported
+        staleness can never disagree.
+        """
         job.status = "indexing"
-        rel_paths = iter_repo_files(root)
+        root = pathlib.Path(root)
 
         async with self.session_factory() as session:
             async with session.begin():
                 existing = await self.store.load_hashes(session, job.project_id)
+                result = classify_repo(
+                    root,
+                    existing,
+                    window=self.window,
+                    overlap=self.overlap,
+                    # Module-global lookup (NOT a local import) so the
+                    # established seam of monkeypatching service.chunk_file
+                    # keeps steering the re-index geometry.
+                    chunk_file=chunk_file,
+                )
 
-                # Pass 1 — classify each present file as skipped or needing work.
-                pending: dict[str, list[Chunk]] = {}
-                stale_bounds: dict[str, set[tuple[int, int]]] = {}
-                seen_paths: set[str] = set()
+                job.files_skipped = len(result.unchanged)
 
-                for rel in rel_paths:
-                    seen_paths.add(rel)
-                    chunks = chunk_file(root, rel, window=self.window, overlap=self.overlap)
-                    old = existing.get(rel, {})
-                    new_hashes = Counter(c.chunk_hash for c in chunks)
-                    old_hashes = Counter(old.values())
-                    if new_hashes and new_hashes == old_hashes:
-                        job.files_skipped += 1
-                        continue
-                    pending[rel] = chunks
-                    # Windows we must NOT prune: any bound surviving identically.
-                    keep = {(c.start_line, c.end_line) for c in chunks} & set(old)
-                    stale_bounds[rel] = set(old) - keep
-
-                # Pass 1b — prune files that vanished from disk since last index.
-                for gone_path in sorted(set(existing) - seen_paths):
+                # Prune files that vanished from disk since last index.
+                for gone_path in result.deleted:
                     job.files_pruned += await self.store.delete_file(
                         session, job.project_id, gone_path
                     )
 
-                # Pass 2 — embed ONLY genuinely new/changed chunks, then write.
-                for rel in sorted(pending):
-                    chunks = pending[rel]
+                # Embed ONLY genuinely new/changed chunks, then write.
+                for rel in sorted(result.pending):
+                    chunks = result.pending[rel]
                     embeddings = await self._embed_many([c.content for c in chunks])
                     for chunk, vec in zip(chunks, embeddings, strict=True):
                         await self.store.upsert_chunk(
                             session, project_id=job.project_id, chunk=chunk, embedding=vec
                         )
-                    bounds = stale_bounds.get(rel) or set()
+                    bounds = result.stale_bounds.get(rel) or set()
                     if bounds:
                         await self.store.delete_pairs(session, job.project_id, rel, bounds)
                     job.files_indexed += 1
                     job.chunks_indexed += len(chunks)
+
+    # -------------------------------------------------------------- freshness
+
+    async def index_docs(
+        self,
+        project_id: str,
+        *,
+        folder: str | None = None,
+        urls: list[str] | None = None,
+    ) -> DocIngestReport:
+        """F020: ingest documentation from ONE explicit source into the index.
+
+        Folder sources are walked with the same secret-file gate code
+        ingestion uses; URL sources are fetched with a real HTTP(S) client and
+        every failure is recorded per-URL without aborting the rest. All text
+        is secret-scrubbed BEFORE chunking (content, chunk_hash and embedding
+        see only the redacted form — same law as repo ingestion), then stored
+        under the ``docs/`` namespace so retrieval provenance stays legible.
+        Re-ingesting the same doc replaces its chunks (delete_file + insert).
+        """
+        await self._enforce_context_cap(project_id)
+        report = DocIngestReport()
+        sources: list[tuple[str, str]] = []
+
+        if folder:
+            collected, skipped = collect_folder_docs(pathlib.Path(folder))
+            sources.extend(collected)
+            report.skipped.extend(skipped)
+
+        for url in urls or []:
+            if len(sources) >= MAX_DOCS_PER_REQUEST:
+                report.skipped.append({"path": url, "reason": "over_request_limit"})
+                continue
+            try:
+                text_doc = await fetch_url(url)
+            except Exception as exc:  # noqa: BLE001 — one bad URL never kills the batch
+                report.errors.append(
+                    {"source": url, "error": f"{type(exc).__name__}: {exc}"}
+                )
+                continue
+            sources.append((url_doc_rel_path(url), text_doc))
+
+        async with self.session_factory() as session:
+            async with session.begin():
+                for rel, text_doc in sources:
+                    try:
+                        chunks = chunk_text(
+                            rel,
+                            scrub_secret_text(text_doc),
+                            window=self.window,
+                            overlap=self.overlap,
+                        )
+                    except ValueError as exc:
+                        report.skipped.append({"path": rel, "reason": str(exc)})
+                        continue
+                    if not chunks:
+                        report.skipped.append({"path": rel, "reason": "empty"})
+                        continue
+                    await self.store.delete_file(session, project_id, rel)
+                    embeddings = await self._embed_many([c.content for c in chunks])
+                    for chunk, vec in zip(chunks, embeddings, strict=True):
+                        await self.store.upsert_chunk(
+                            session, project_id=project_id, chunk=chunk, embedding=vec
+                        )
+                    report.files_indexed += 1
+                    report.chunks_indexed += len(chunks)
+        return report
+
+    async def freshness(self, project_id: str, root) -> FreshnessReport:
+        """Content-addressed freshness report for one indexed repo root.
+
+        Same classification, no embeddings: cheap enough to call from a
+        status surface. Does not mutate the index.
+        """
+        root = pathlib.Path(root)
+        async with self.session_factory() as session:
+            existing = await self.store.load_hashes(session, project_id)
+            result = classify_repo(
+                root,
+                existing,
+                window=self.window,
+                overlap=self.overlap,
+                chunk_file=chunk_file,
+            )
+        return build_freshness_report(
+            project_id=project_id,
+            repo_path=str(root),
+            existing=existing,
+            classification=result,
+        )
 
     async def _embed_many(self, texts: list[str]) -> list[list[float]]:
         if not texts:
@@ -297,3 +396,100 @@ class ContextService:
             )
             for row, score in scored[: max(1, top_k)]
         ]
+
+    async def search_multi(
+        self,
+        conn: AsyncSession,
+        query: str,
+        project_ids: list[str],
+        top_k: int = 8,
+    ) -> dict[str, list[ScoredChunk]]:
+        """F013 — one query across several projects' indexes.
+
+        The query is embedded ONCE and scored independently per project, so
+        results are comparable across repositories. Authorization is the
+        API layer's job (each project_id must be proven to belong to the
+        caller's team BEFORE this is called); this method performs no access
+        control of its own — callers that bypass the API are in-process code.
+        """
+        [query_vec] = await self._embed_many([query])
+        out: dict[str, list[ScoredChunk]] = {}
+        for project_id in project_ids:
+            rows = await self.store.fetch_vectors(conn, project_id)
+            scored = [(row, _cosine(query_vec, row["vec"])) for row in rows]
+            scored.sort(key=lambda pair: pair[1], reverse=True)
+            out[project_id] = [
+                ScoredChunk(
+                    path=row["path"],
+                    lang=row["lang"],
+                    startLine=row["startLine"],
+                    endLine=row["endLine"],
+                    content=row["content"],
+                    score=score,
+                )
+                for row, score in scored[: max(1, top_k)]
+            ]
+        return out
+
+    # ------------------------------------------------------------- ranking
+
+    async def rank(
+        self,
+        conn: AsyncSession,
+        goal: str,
+        project_id: str,
+        *,
+        max_tokens: int = 8000,
+        top_k: int = 12,
+    ):
+        """F016 — goal -> ranked, token-budgeted bundle (see ranking.py)."""
+        from .ranking import derive_queries
+        from .ranking import rank as _rank
+
+        queries = derive_queries(goal)
+        if not queries:
+            from .ranking import RankedContext
+
+            return RankedContext(
+                project_id=project_id, queries=[], max_tokens=max_tokens
+            )
+        query_vecs = await self._embed_many(queries)
+        rows = await self.store.fetch_vectors(conn, project_id)
+        bundle = _rank(
+            rows, query_vecs, queries, max_tokens=max_tokens, top_k=top_k
+        )
+        bundle.project_id = project_id
+        return bundle
+
+    # ----------------------------------------------------------- repo registry
+
+    def latest_job_root(self, project_id: str) -> str | None:
+        """repo_path of the most recent index job for a project (or None).
+
+        The in-memory job registry is this service's only repo-root memory
+        (same single-process posture as job status). Routes that need real
+        filesystem access (git history, freshness) resolve roots through this
+        and fail closed when no job is known — never a caller-supplied path.
+        Durability across restarts is an integration item reported as
+        NEEDS INTEGRATION (durable repo-root column owned by the migration
+        lane); it does not block this session's functionality.
+        """
+        project_jobs = [j for j in self.jobs.values() if j.project_id == project_id]
+        if not project_jobs:
+            return None
+        return max(project_jobs, key=lambda j: j.started_at).repo_path
+
+    def is_known_repo(self, project_id: str, repo_path: str) -> bool:
+        """True when ``repo_path`` is a root this project has indexed.
+
+        Paths are compared canonically (:func:`os.path.realpath`) so a
+        symlinked equivalent of a known root still matches, while an
+        unrelated path never does.
+        """
+        import os
+
+        candidate = os.path.realpath(repo_path)
+        return any(
+            j.project_id == project_id and os.path.realpath(j.repo_path) == candidate
+            for j in self.jobs.values()
+        )

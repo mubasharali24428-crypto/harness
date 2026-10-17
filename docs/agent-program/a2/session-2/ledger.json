@@ -1,0 +1,200 @@
+{
+  "session": "A2-S2",
+  "owner": "A2",
+  "worktree": "harness-a2",
+  "branch": "codex/harness-a2",
+  "baseline_commit": "31bf4077e9b567b1f50ecb99818d501baab3115a",
+  "date": "2026-10-17",
+  "anchor_closed": "Review finding A4 — rules + retrieved context + goal now reach actual execution, bounded, framed, with provenance",
+  "features": [
+    {
+      "id": "F017",
+      "title": "Context-quality diagnostics",
+      "state": "VERIFIED",
+      "evidence": [
+        "section4/src/harness_orchestrator/service.py (get_context_quality)",
+        "section4/src/harness_orchestrator/api.py (GET /runs/{runId}/context-quality)",
+        "section4/tests/unit/test_context_quality.py"
+      ]
+    },
+    {
+      "id": "F018",
+      "title": "Persistent project memory / rules passed into live execution (A4 anchor)",
+      "state": "VERIFIED",
+      "note": "Durable decision memory pin: archived record carries instructions sha256 + exact composed prompt; plan decisions ride the existing agent_plans mirror + event trail.",
+      "evidence": [
+        "section4/src/harness_orchestrator/execution_prompt.py",
+        "section4/tests/unit/test_execution_prompt.py",
+        "section4/tests/unit/test_a4_execution_wiring.py",
+        "section4/tests/unit/test_replay_wiring.py::test_honest_engine_input_is_archived_verbatim"
+      ]
+    },
+    {
+      "id": "F019",
+      "title": "Hierarchical instruction files (org -> team -> project -> directory)",
+      "state": "VERIFIED",
+      "note": "Org/team tiers are env-configured files (ORG_RULES_FILE/TEAM_RULES_FILE), fail-closed when unset; directory tier = AGENTS.md at the engine workspace.",
+      "evidence": [
+        "section4/src/harness_orchestrator/instruction_hierarchy.py",
+        "section4/tests/unit/test_rules_hierarchy.py"
+      ]
+    },
+    {
+      "id": "F020",
+      "title": "Automatic documentation ingestion (folder + HTTP(S) document URLs)",
+      "state": "VERIFIED",
+      "note": "Explicit sources only (no crawling/vendor connectors); exactly-one-source; http(s)-only; secret gate + scrub-before-chunk; docs/ namespace; tier cap 402.",
+      "evidence": [
+        "section11/src/harness_context/docs.py",
+        "section11/src/harness_context/service.py (index_docs)",
+        "section11/src/harness_context/api.py (POST /api/v1/context/docs/index)",
+        "section11/tests/test_doc_ingestion.py"
+      ]
+    },
+    {
+      "id": "F021",
+      "title": "Explicit Ask/Plan/Agent modes (read-only Ask enforced at the boundary)",
+      "state": "VERIFIED",
+      "note": "Enforcement in start_execution AND _execute; refusal is a first-class engine result with errorCode MODE_WRITE_DENIED. Mode durability across restart is NEEDS INTEGRATION (migration lane).",
+      "evidence": [
+        "section4/src/harness_orchestrator/service.py (RUN_MODES, _deny_ask_mode)",
+        "section4/tests/unit/test_run_modes.py"
+      ]
+    },
+    {
+      "id": "F111",
+      "title": "Run replay (prompts, tool/file observations, artifact refs, restart-safe)",
+      "state": "VERIFIED",
+      "note": "Content-addressed redacted record + contextRef on existing ENGINE_* payloads (diffstore pattern; no new event types/tables). Restart-safety proven with a fresh service over the same store.",
+      "evidence": [
+        "section4/src/harness_orchestrator/replay_archive.py",
+        "section4/src/harness_orchestrator/run_replay.py",
+        "section4/src/harness_orchestrator/api.py (GET /runs/{runId}/replay)",
+        "section4/tests/unit/test_run_replay.py",
+        "section4/tests/unit/test_replay_wiring.py"
+      ]
+    }
+  ],
+  "vr_notes": {
+    "closed": ["VR005", "VR006 (context->execution gap; A4 evidence accepted)"],
+    "remaining": ["VR009 workspace isolation — A2-S3"]
+  },
+  "tests": {
+    "section4": {
+      "baseline_pass": 526,
+      "baseline_skip": 7,
+      "final_pass": 571,
+      "final_skip": 7,
+      "new_tests": 45,
+      "new_suites": {
+        "tests/unit/test_execution_prompt.py": 13,
+        "tests/unit/test_a4_execution_wiring.py": 2,
+        "tests/unit/test_rules_hierarchy.py": 9,
+        "tests/unit/test_run_modes.py": 7,
+        "tests/unit/test_context_quality.py": 3,
+        "tests/unit/test_run_replay.py": 8,
+        "tests/unit/test_replay_wiring.py": 3
+      }
+    },
+    "section6": {
+      "baseline_pass": 118,
+      "final_pass": 118,
+      "new_tests": 0
+    },
+    "section11": {
+      "baseline_pass": 111,
+      "baseline_skip": 1,
+      "final_pass": 116,
+      "final_skip": 1,
+      "new_tests": 5,
+      "new_suites": {
+        "tests/test_doc_ingestion.py": 5
+      }
+    },
+    "skip_reason": "section11 tests/test_live_pg.py:82 needs docker daemon + pgvector image (environmental; same skip as baseline)",
+    "determinism": "each suite run 3x consecutively; identical counts",
+    "ruff": "clean (section4, section6, section11)"
+  },
+  "evidence_files": [
+    "evidence/section4-full.txt",
+    "evidence/section6-full.txt",
+    "evidence/section11-full.txt",
+    "evidence/ruff.txt",
+    "evidence/test-matrix.txt"
+  ],
+  "files_changed": {
+    "new_src": [
+      "section4/src/harness_orchestrator/execution_prompt.py",
+      "section4/src/harness_orchestrator/instruction_hierarchy.py",
+      "section4/src/harness_orchestrator/replay_archive.py",
+      "section4/src/harness_orchestrator/run_replay.py",
+      "section11/src/harness_context/docs.py"
+    ],
+    "edited_src": [
+      "section4/src/harness_orchestrator/service.py",
+      "section4/src/harness_orchestrator/api.py",
+      "section4/src/harness_orchestrator/state_machine.py",
+      "section4/src/harness_orchestrator/engine.py",
+      "section11/src/harness_context/service.py",
+      "section11/src/harness_context/api.py",
+      "section11/src/harness_context/models.py"
+    ],
+    "tests": [
+      "section4/tests/unit/test_execution_prompt.py",
+      "section4/tests/unit/test_a4_execution_wiring.py",
+      "section4/tests/unit/test_rules_hierarchy.py",
+      "section4/tests/unit/test_run_modes.py",
+      "section4/tests/unit/test_context_quality.py",
+      "section4/tests/unit/test_run_replay.py",
+      "section4/tests/unit/test_replay_wiring.py",
+      "section4/tests/test_context_resolver.py",
+      "section11/tests/test_doc_ingestion.py"
+    ],
+    "docs": [
+      "docs/agent-program/a2/session-2/plan.md",
+      "docs/agent-program/a2/session-2/report.md",
+      "docs/agent-program/a2/session-2/ledger.json",
+      "docs/agent-program/a2/session-1/report.md (cross-section regression addendum)"
+    ]
+  },
+  "bugs_fixed_with_regression_tests": [
+    {
+      "bug": "PRE-EXISTING: successful-run engine finalResponse was emitted onto the durable event bus unscrubbed (error paths were scrubbed; success path was not) — a provider response embedding a secret would persist in agent_events and serve back via replay",
+      "fix": "scrub_secrets with the configured engine api_key at the settle seam before emission",
+      "pinned_by": "tests/unit/test_replay_wiring.py::test_settlement_archives_record_and_restart_resolves_it"
+    },
+    {
+      "bug": "S1 authz regression: section4 tests/test_context_resolver.py roundtrip 403 AUTHZ_UNAVAILABLE (driver DB lacked the projects table; authz itself was correct)",
+      "fix": "driver DDL seeds the frozen projects mirror (proj-x2 -> team-x2)",
+      "pinned_by": "section4/tests/test_context_resolver.py::test_resolve_roundtrip_against_real_section11_index"
+    },
+    {
+      "bug": "F019 wiring crashed on stub engines ('StubEngine' object has no attribute 'workspace'; 41 tests) — caught within session before merge",
+      "fix": "getattr(self.engine, 'workspace', None); directory tier degrades to absent",
+      "pinned_by": "section4/tests/unit/test_rules_hierarchy.py"
+    },
+    {
+      "bug": "F020 docs collection reused the code-ingestion language gate (should_index) and silently excluded .txt/.rst documentation",
+      "fix": "secret-name gate + chunkable window-path normalization (plain-text docs chunk on the markdown path; code chunker's supported set untouched)",
+      "pinned_by": "section11/tests/test_doc_ingestion.py::test_folder_ingestion_indexes_docs_and_excludes_secrets"
+    }
+  ],
+  "intentional_contract_changes": [],
+  "frozen_contracts_touched": [],
+  "decisions": [
+    "A4: goal verbatim first; instructions labelled SYSTEM CONTEXT; retrieved chunks behind @@RETRIEVED-CONTEXT-START/END with an explicit untrusted-data header; only the retrieved block is truncated; bare runs byte-identical",
+    "Replay durability reuses the M19-N2 diffstore pattern: content-addressed record on disk + additive contextRef on existing ENGINE_* payloads; legacy emitters keep byte-identical payloads",
+    "Redaction at WRITE time: configured secrets via [redacted], 5 high-confidence pattern classes via [REDACTED:<kind>] (mirrored from section11 secret_scan; cross-section import forbidden)",
+    "F021 enforcement at the orchestrator boundary (engine, not prompt); ask refuses with MODE_WRITE_DENIED, never a fake success",
+    "F020 is bounded and explicit: <=200 sources/request, 256KB/doc, exactly one source kind per request, no crawling/connectors",
+    "No new tables, migrations, or event types; no cross-section imports"
+  ],
+  "needs_integration": [
+    "F021 mode durability across restart (mode lives in run_data RAM; persisting needs a migration — A1 lane)",
+    "Live-SDK ask-mode enforcement inside the SDK tool layer + live observation digest (deepseek_harness not installed in this venv; orchestrator boundary fails closed today)",
+    "Managed org/team rule sources beyond env-configured files",
+    "F020 vendor connectors (wiki/ticket/ADR APIs) beyond direct authenticated HTTP(S) document URLs",
+    "VR009 workspace isolation proofs — A2-S3 per plan"
+  ],
+  "next_session": "A2-S3 (F023, F025-F029; incl. A1 engine.py process-global env fix and A3 thread-survives-cancel fix; VR009)"
+}

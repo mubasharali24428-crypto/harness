@@ -1,0 +1,10 @@
+A2-S2 test matrix (run 3x each, deterministic)
+
+suite       baseline        session-2 final      delta
+section4    526p/7s         571p/7s              +45p
+section6    118p            118p                 +0
+section11   111p/1s         116p/1s              +5p
+
+new suites (section4): test_execution_prompt.py(13) test_a4_execution_wiring.py(2) test_rules_hierarchy.py(9) test_run_modes.py(7) test_context_quality.py(3) test_run_replay.py(8) test_replay_wiring.py(3)
+new suite (section11): test_doc_ingestion.py(5)
+expected skip: section11 tests/test_live_pg.py (docker+pgvector unavailable)

@@ -31,6 +31,7 @@ from harness_orchestrator.live_mode import (
     validate_live_credentials,
 )
 from harness_orchestrator.redact import scrub_secrets
+from harness_orchestrator.run_replay import summarize_engine_events
 
 
 class DeepSeekHarnessWrapper:
@@ -129,6 +130,7 @@ class DeepSeekHarnessWrapper:
     def execute_goal(self, goal: str, session_id: str = "session-001") -> dict[str, Any]:
         used_model: str | None = None
         usage: dict[str, int] | None = None
+        observations: list[dict[str, Any]] = []
         if self.backend_runner:
             result_text = self.backend_runner(goal)
             status = "completed"
@@ -143,6 +145,10 @@ class DeepSeekHarnessWrapper:
                 # chunks; folded onto the result so the orchestrator's
                 # completion hook can meter ACTUAL usage, not estimates.
                 usage = self._fold_usage(events)
+                # F111: the raw stream is otherwise discarded after usage
+                # folding — keep a bounded structured digest so replay can
+                # show the tool/file observations the run actually produced.
+                observations = summarize_engine_events(events)
             except Exception as exc:  # noqa: BLE001 — honest error, never escape
                 result_text = scrub_secrets(
                     f"DeepSeek Harness run failed on {self.model}: {exc}",
@@ -151,6 +157,7 @@ class DeepSeekHarnessWrapper:
                 status = "error"
                 used_model = self.model
                 events = []
+                observations = []
             if status == "completed" and not (result_text or "").strip():
                 # Wave 6 (D2) honesty rule, preserved after ladder deletion:
                 # an empty/whitespace response is a FAILED answer, never a
@@ -173,6 +180,9 @@ class DeepSeekHarnessWrapper:
             # M14-W4 F1a: real token usage when the SDK surfaced it. Absent
             # (never None-valued) so stub/dry results keep their exact shape.
             **({"usage": usage} if usage is not None else {}),
+            # F111: bounded structured digest of the live SDK stream. Absent
+            # for stubs/dry/error-without-events — same absent-not-None law.
+            **({"observations": observations} if observations else {}),
         }
 
     def _engine_name(self, model_used: str | None = None) -> str:

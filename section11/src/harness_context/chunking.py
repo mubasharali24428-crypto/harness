@@ -22,6 +22,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from .secret_scan import is_secret_file, scrub_secret_text
+
 # Files we index. Everything else is skipped by the walker (binaries, lockfiles,
 # generated dirs) rather than force-fed to the embedding backend.
 SUPPORTED_EXTENSIONS: dict[str, str] = {
@@ -205,8 +207,15 @@ def lang_for(path: str) -> str | None:
 
 
 def should_index(path: str) -> bool:
-    """True when a repo-relative path should be ingested."""
+    """True when a repo-relative path should be ingested.
+
+    Secret-named files (``.env``, ``*.pem``, ``id_rsa`` …) are excluded here —
+    before any read — so credentials are never hashed into the shared index
+    (S1 secret-scanning control; see ``secret_scan.py``).
+    """
     if os.path.basename(path) in SKIP_FILES or lang_for(path) is None:
+        return False
+    if is_secret_file(path):
         return False
     return not any(part in SKIP_DIRS for part in path.split("/"))
 
@@ -246,10 +255,14 @@ def chunk_file(
     - Empty files yield zero chunks (nothing to embed).
     - Windows advance by (window - overlap); the final window always extends
       to EOF so no trailing lines are ever dropped.
+    - High-confidence secret patterns are scrubbed from the text BEFORE
+      chunking (S1): the stored content, the chunk_hash and the embedded text
+      are all redacted; the file on disk is never modified.
     """
+    raw = Path(root, rel_path).read_text(encoding="utf-8", errors="replace")
     return chunk_text(
         rel_path,
-        Path(root, rel_path).read_text(encoding="utf-8", errors="replace"),
+        scrub_secret_text(raw),
         window=window,
         overlap=overlap,
     )

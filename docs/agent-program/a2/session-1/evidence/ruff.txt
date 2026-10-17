@@ -1,0 +1,3 @@
+# ruff (A2-S1 final)
+
+All checks passed!

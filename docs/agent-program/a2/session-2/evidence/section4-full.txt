@@ -1,0 +1,44 @@
+........................................................................ [ 12%]
+........................................................................ [ 24%]
+........................................................................ [ 37%]
+........................................................................ [ 49%]
+.....................................ssss.............ss................ [ 62%]
+.s...................................................................... [ 74%]
+........................................................................ [ 87%]
+........................................................................ [ 99%]
+..                                                                       [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.13/site-packages/fastapi/testclient.py:1
+  /Users/user/untitled folder 2/harness-a2/section4/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_claim_batching.py: 25 warnings
+tests/test_done_signal.py: 5 warnings
+tests/test_g2_ratelimit_hooks.py: 44 warnings
+tests/test_plan_concurrency.py: 16 warnings
+tests/test_plan_gate.py: 8 warnings
+tests/test_stateless_orchestrator_n1.py: 12 warnings
+tests/test_timestamptz_hygiene.py: 2 warnings
+tests/unit/test_a4_execution_wiring.py: 2 warnings
+tests/unit/test_authz_failclosed.py: 5 warnings
+tests/unit/test_budget.py: 8 warnings
+tests/unit/test_context_quality.py: 3 warnings
+tests/unit/test_cost_rollup.py: 10000 warnings
+tests/unit/test_demo_seed.py: 96 warnings
+tests/unit/test_done_diff_reference.py: 2 warnings
+tests/unit/test_edge_cases_decisions.py: 5 warnings
+tests/unit/test_plan_approval_ttl.py: 1 warning
+tests/unit/test_replay_wiring.py: 3 warnings
+tests/unit/test_rules_hierarchy.py: 1 warning
+tests/unit/test_run_metering.py: 7 warnings
+tests/unit/test_run_modes.py: 7 warnings
+tests/unit/test_run_queue.py: 1 warning
+tests/unit/test_runs_index.py: 152 warnings
+tests/unit/test_s1_r05_lifecycle_audit.py: 3 warnings
+tests/unit/test_s1_r05_resume_queue.py: 2 warnings
+tests/unit/test_tiers.py: 2 warnings
+  /Users/user/untitled folder 2/harness-a2/section4/.venv/lib/python3.13/site-packages/aiosqlite/core.py:63: DeprecationWarning: The default datetime adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    result = function()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+571 passed, 7 skipped, 10413 warnings in 11.15s

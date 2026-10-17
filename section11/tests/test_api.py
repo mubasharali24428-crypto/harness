@@ -2,12 +2,23 @@
 
 import asyncio
 
-from conftest import AUTH_HEADERS
+import pytest
+from conftest import AUTH_HEADERS, seed_project
 from sqlalchemy import text
 
 from harness_context.embeddings import EmbeddingBackend
 
 PROJECT = "p-api"
+
+
+@pytest.fixture(autouse=True)
+async def _p_api_ownership(db):
+    """A2-S1 authz precondition: p-api belongs to the test principal's team.
+
+    Every authorized route now first proves projects.team_id == team-x1; this
+    fixture supplies that row so this module keeps testing its own contracts.
+    """
+    await seed_project(db, PROJECT)
 
 
 class _StubBackend(EmbeddingBackend):

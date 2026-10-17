@@ -316,10 +316,12 @@ class EngineRuntime:
             engine.execute_goal, goal=goal, session_id=session_id
         )
         try:
-            result = await asyncio.wait_for(
-                loop.run_in_executor(self._executor, call),
-                timeout=self.run_timeout_seconds,
-            )
+            if getattr(engine, "isolated", False):
+                # F023: child process; wait_for cancellation SIGKILLs its group.
+                work: Any = engine.run_isolated(goal, session_id)
+            else:
+                work = loop.run_in_executor(self._executor, call)
+            result = await asyncio.wait_for(work, timeout=self.run_timeout_seconds)
         except TimeoutError:
             self.breaker.record_timeout(key)
             raise EngineRunTimeout(key, self.run_timeout_seconds) from None

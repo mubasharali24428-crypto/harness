@@ -1,0 +1,118 @@
+{
+  "session": "A2-S3",
+  "owner": "A2",
+  "worktree": "harness-a2",
+  "branch": "codex/harness-a2",
+  "baseline_commit": "31bf4077e9b567b1f50ecb99818d501baab3115a",
+  "date": "2026-10-17",
+  "features": [
+    {
+      "id": "F023",
+      "title": "Long-running background agents",
+      "state": "VERIFIED (process level); live SDK UNVERIFIED",
+      "evidence": [
+        "section4/src/harness_orchestrator/process_engine.py",
+        "section4/src/harness_orchestrator/sdk_child.py",
+        "section4/tests/unit/test_process_engine.py::test_concurrent_runs_get_distinct_keys_and_workspaces",
+        "section4/tests/unit/test_process_engine.py::test_timeout_kills_child_and_grandchild_no_post_stop_writes"
+      ],
+      "note": "Each live run is a child process in its own process group with an explicit env (only that run's key), per-run workspace; global os.environ no longer touched on the live path. deepseek_harness SDK is not installed here, so the real SDK is not exercised."
+    },
+    {
+      "id": "F025",
+      "title": "Agent handoff between local and cloud environments",
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION",
+      "evidence": [
+        "section4/src/harness_orchestrator/continuation.py (HandoffSigner)",
+        "section4/tests/unit/test_continuation.py::test_handoff_roundtrip_single_use",
+        "section4/tests/unit/test_continuation.py::test_handoff_scope_binding",
+        "section4/tests/unit/test_continuation.py::test_handoff_tamper_expiry_secret_and_other_key"
+      ],
+      "note": "HMAC-signed, expiring, single-use, team/run/target-bound manifests; secrets refused. No API route, transport, or durable replay set yet."
+    },
+    {
+      "id": "F026",
+      "title": "Follow-up messages to active runs",
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION",
+      "evidence": [
+        "section4/src/harness_orchestrator/continuation.py (FollowupInbox)",
+        "section4/tests/unit/test_continuation.py::test_followup_inbox_bounds_and_once_delivery"
+      ],
+      "note": "Bounded per-run inbox, once-only drain, secret rejection, closes with the run. Not yet wired to a route or injected at the engine boundary."
+    },
+    {
+      "id": "F027",
+      "title": "Pause, resume, and cancel controls",
+      "state": "VERIFIED (kill path)",
+      "evidence": [
+        "section4/tests/unit/test_process_engine.py::test_cancel_task_kills_process_group",
+        "section4/tests/unit/test_process_engine.py::test_timeout_kills_child_and_grandchild_no_post_stop_writes"
+      ],
+      "note": "Stop/pause cancel the awaiting task; the child process group (incl. grandchildren) is SIGKILLed and no writes follow. Existing pause/resume state tests unchanged."
+    },
+    {
+      "id": "F028",
+      "title": "Automatic retry policy",
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION",
+      "evidence": [
+        "section4/src/harness_orchestrator/continuation.py (RetryPolicy, run_with_retry)",
+        "section4/tests/unit/test_continuation.py::test_retry_transient_then_success_and_idempotent_replay",
+        "section4/tests/unit/test_continuation.py::test_retry_permanent_never_retries_and_bound_holds"
+      ],
+      "note": "Bounded exponential backoff, transient/permanent classification, idempotency ledger (replay never re-executes or re-bills). Not yet called from service._execute."
+    },
+    {
+      "id": "F029",
+      "title": "Failure recovery strategies",
+      "state": "IMPLEMENTED (library); NEEDS INTEGRATION",
+      "evidence": [
+        "section4/src/harness_orchestrator/continuation.py (choose_strategy, CheckpointStore)",
+        "section4/tests/unit/test_continuation.py::test_recovery_strategy_is_bounded_and_never_switches_model",
+        "section4/tests/unit/test_continuation.py::test_checkpoint_resume_skips_completed_steps"
+      ],
+      "note": "Deterministic bounded strategy choice (resume/retry/escalate/abort), never a model switch; atomic checkpoints. Not yet driving service recovery."
+    }
+  ],
+  "tests": "section4: 598 passed, 7 skipped; ruff clean",
+  "needs_integration": [
+    "Prove SDK tool/edit/network hooks route through S5 authority (SDK not installed; live runs fail closed by default)",
+    "Wire HandoffSigner/FollowupInbox/run_with_retry/choose_strategy into OrchestratorService + API",
+    "Durable handoff replay-set (needs A1 migration)"
+  ],
+  "vr_notes": {
+    "VR006": [
+      "PARTIAL -> CONTROLS ADDED",
+      "Signed handoff manifests + atomic checkpoints (library); not wired into service."
+    ],
+    "VR009": [
+      "PARTIAL -> IMPROVED",
+      "Per-run workspace under a confinement root with symlink/traversal refusal; git worktree-per-agent not implemented."
+    ],
+    "VR016": [
+      "PARTIAL",
+      "S2 instruction framing + follow-ups framed as data; live SDK tool confinement unproven so live runs fail closed unless ENGINE_ALLOW_UNCONFINED_LIVE=1."
+    ],
+    "VR023": [
+      "PARTIAL -> CONTROLS ADDED",
+      "CheckpointStore + retry idempotency ledger (library); not wired to _execute."
+    ],
+    "VR024": [
+      "CONTROLS PRESENT -> STRENGTHENED",
+      "Killable process groups (no zombie spend), fair scheduler, idempotent retries."
+    ],
+    "VR025": [
+      "PARTIAL -> IMPROVED",
+      "Ask-mode now durable via PLAN_PROPOSED payload and restored on any replica; sticky against flips. Other multi-replica items untouched."
+    ]
+  },
+  "bugs_fixed_with_regression_tests": [
+    "ask mode could flip to agent on re-propose (test_explicit_agent_mode_cannot_flip_an_ask_run)",
+    "ask mode lost on restart/other replica (test_ask_mode_survives_replica_restart_and_cannot_flip)",
+    "global os.environ credential mutation on live path (test_concurrent_runs_get_distinct_keys_and_workspaces)",
+    "unkillable engine thread after timeout/cancel (test_timeout_kills_child_and_grandchild_no_post_stop_writes)",
+    "replay archive world-readable under /tmp (now 0700/0600)"
+  ],
+  "intentional_contract_changes": [
+    "PLAN_PROPOSED payload gains optional additive field `mode`; no new event types"
+  ]
+}

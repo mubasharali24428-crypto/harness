@@ -180,10 +180,13 @@ class AgentStateMachine:
             raise InvalidStateTransitionError(f"Cannot start planning from state '{self.state}'.")
         self.transition_to(AgentState.PLANNING)
 
-    def plan_proposed(self, plan_id: str) -> None:
+    def plan_proposed(self, plan_id: str, mode: str | None = None) -> None:
         self._require_live("propose plan")
         self.transition_to(AgentState.AWAITING_PLAN_APPROVAL)
-        self.emit(EventType.PLAN_PROPOSED, {"planId": plan_id, "runId": self.run_id})
+        payload = {"planId": plan_id, "runId": self.run_id}
+        if mode:  # F025: additive field — the run mode becomes durable in the log
+            payload["mode"] = mode
+        self.emit(EventType.PLAN_PROPOSED, payload)
 
     def approve_plan(self, plan_id: str, principal_user_id: str) -> None:
         self._require_live("approve plan")
@@ -244,24 +247,38 @@ class AgentStateMachine:
         self.transition_to(AgentState.EXECUTING)
         self.emit(EventType.EXECUTION_STARTED, {"runId": self.run_id})
 
-    def execution_completed(self, summary: str = "") -> None:
+    def execution_completed(
+        self, summary: str = "", context_ref: dict[str, Any] | None = None
+    ) -> None:
         """Wave 6 (D4): engine settled successfully — open the human done-gate.
-        No-op unless EXECUTING (pause/stop/human-edit already own the narrative)."""
+        No-op unless EXECUTING (pause/stop/human-edit already own the narrative).
+
+        F111: ``context_ref`` (when the service archived a replay record) rides
+        the frozen payload additively so replay survives restarts; absent for
+        legacy/recorded emitters, whose payload shape stays byte-identical."""
         self._require_live("record engine completion")
         if self.state == AgentState.EXECUTING:
             self.transition_to(AgentState.AWAITING_DONE_SIGNAL)
             self.done_gate_opened = True  # H-008: a pass from here terminates
-            self.emit(
-                EventType.ENGINE_COMPLETED,
-                {"runId": self.run_id, "summary": summary},
-            )
+            payload: dict[str, Any] = {"runId": self.run_id, "summary": summary}
+            if context_ref:
+                payload["contextRef"] = context_ref
+            self.emit(EventType.ENGINE_COMPLETED, payload)
 
-    def execution_failed(self, reason: str = "") -> None:
-        """Wave 6 (D4): engine failed honestly — block for human intervention."""
+    def execution_failed(
+        self, reason: str = "", context_ref: dict[str, Any] | None = None
+    ) -> None:
+        """Wave 6 (D4): engine failed honestly — block for human intervention.
+
+        F111: ``context_ref`` rides additively, exactly as in
+        ``execution_completed``."""
         self._require_live("record engine failure")
         if self.state == AgentState.EXECUTING:
             self.transition_to(AgentState.BLOCKED)
-            self.emit(EventType.ENGINE_FAILED, {"runId": self.run_id, "reason": reason})
+            payload: dict[str, Any] = {"runId": self.run_id, "reason": reason}
+            if context_ref:
+                payload["contextRef"] = context_ref
+            self.emit(EventType.ENGINE_FAILED, payload)
 
     def pause(self, reason: str = "user_requested") -> None:
         self._require_live("pause")
