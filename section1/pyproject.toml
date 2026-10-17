@@ -34,7 +34,7 @@ testpaths = ["tests"]
 # ../section8/src: M15-G6b — settings_api validates reviewer-threshold PUTs
 # against harness_review.heuristic (the shared pure model), so its suite must
 # resolve that package. Same cross-section pattern S8 already uses for S1.
-pythonpath = [".", "src", "../contracts/src", "../section8/src"]
+pythonpath = [".", "src", "../contracts/src", "../section8/src", "../packages/security-policy/src"]
 
 [tool.ruff]
 line-length = 100

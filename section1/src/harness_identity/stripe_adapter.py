@@ -60,7 +60,7 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Request
 from harness_contracts import Principal, error_body
 from pydantic import BaseModel, Field
-from sqlalchemy import ForeignKey, select
+from sqlalchemy import ForeignKey, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -366,6 +366,14 @@ async def process_event(session_factory, event: dict) -> dict:
             if applies:
                 assert isinstance(team_id, str)
                 previous = await _apply_tier(db, team_id, str(target_tier))
+                if target_tier != "free":  # A1-S5: a paid tier converts any open trial
+                    await db.execute(
+                        text(
+                            "UPDATE team_trials SET converted_at = :now "
+                            "WHERE team_id = :t AND converted_at IS NULL"
+                        ),
+                        {"now": datetime.now(UTC), "t": team_id},
+                    )
             await db.commit()
         except IntegrityError as exc:
             await db.rollback()

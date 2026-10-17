@@ -316,6 +316,13 @@ async def billing_state(
     """Current billing state for the caller's team (any authenticated role)."""
     if _billing_mode() is None:
         return await _disabled_state()
+    try:  # A1-S5: an overdue trial must not keep showing the trial tier
+        from .lifecycle_api import lazy_expire_trial
+
+        async with request.app.state.session_factory() as db:
+            await lazy_expire_trial(db, principal.teamId)
+    except Exception:  # noqa: BLE001 — display path; the sweep/trial endpoint still enforces
+        pass
     return await _state_payload(request, principal)
 
 
@@ -334,6 +341,16 @@ async def update_billing_plan(
         raise HTTPException(
             status_code=403,
             detail=error_body("FORBIDDEN", "admin role required to change the billing plan"),
+        )
+    if _billing_mode() == "stripe":
+        # A1-S5: with a payment provider live the plan comes from checkout + the signed
+        # webhook ONLY. An admin-set plan here would be a free self-upgrade.
+        raise HTTPException(
+            status_code=409,
+            detail=error_body(
+                "BILLING_MANAGED_BY_PROVIDER",
+                "plan changes go through checkout; use POST /api/v1/billing/checkout-session",
+            ),
         )
     async with request.app.state.session_factory() as db:
         row = (

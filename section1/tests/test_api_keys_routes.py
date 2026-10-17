@@ -322,6 +322,7 @@ def test_api_keys_model_matches_frozen_migration_shape():
         "key_encrypted",
         "key_hint",
         "revoked_at",
+        "owner_user_id",  # A1-S2, migration 0035 (NULL = team key)
         "created_at",
     }
     assert cols["id"].primary_key

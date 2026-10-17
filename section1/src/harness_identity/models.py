@@ -10,12 +10,15 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     LargeBinary,
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -72,6 +75,8 @@ class Team(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    # A1-S5 (0038): self-serve workspace close. Non-NULL = nobody can authenticate into it.
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class TeamMember(Base, TimestampMixin):
@@ -90,6 +95,9 @@ class TeamMember(Base, TimestampMixin):
         Enum(MemberType, native_enum=False, length=16), nullable=False, default="human"
     )
     role: Mapped[str] = mapped_column(Enum(Role, native_enum=False, length=16), nullable=False)
+    # A1-S4 (0037): SCIM deprovisioning. Non-NULL = cannot authenticate; row (and its
+    # audit history) is kept.
+    deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Project(Base, TimestampMixin):
@@ -264,6 +272,192 @@ class ApiKey(Base, TimestampMixin):
     key_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
     key_hint: Mapped[str] = mapped_column(String(8), nullable=False, default="")
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # A1-S2 (migration 0035): NULL = team key; set = personal key of that user.
+    owner_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+
+
+class KeyShare(Base):
+    """A1-S2: owner-offered, recipient-consented grant to use a personal key."""
+
+    __tablename__ = "key_shares"
+    __table_args__ = (
+        Index(
+            "uq_key_shares_live",
+            "api_key_id",
+            "recipient_user_id",
+            unique=True,
+            postgresql_where=text("status IN ('pending', 'active')"),
+            sqlite_where=text("status IN ('pending', 'active')"),
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    api_key_id: Mapped[str] = mapped_column(
+        ForeignKey("api_keys.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    owner_user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    recipient_user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    team_id: Mapped[str] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"), nullable=False)
+    status: Mapped[str] = mapped_column(String(12), nullable=False, default="pending")
+    spend_cap_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
+    committed_usd: Mapped[Decimal] = mapped_column(
+        Numeric(12, 6), nullable=False, default=Decimal("0")
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    consented_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class KeyShareSpend(Base):
+    """A1-S2: one reservation against a share; 'unsettled' = usage unknown."""
+
+    __tablename__ = "key_share_spend"
+    __table_args__ = (UniqueConstraint("share_id", "idempotency_key"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    share_id: Mapped[str] = mapped_column(
+        ForeignKey("key_shares.id", ondelete="CASCADE"), nullable=False
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    reserved_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    actual_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6))
+    status: Mapped[str] = mapped_column(String(12), nullable=False, default="reserved")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ModelAllowlistEntry(Base):
+    """A1-S3 (migration 0036): org model allowlist row with approval status."""
+
+    __tablename__ = "model_allowlist_entries"
+    __table_args__ = (UniqueConstraint("team_id", "model"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    team_id: Mapped[str] = mapped_column(
+        ForeignKey("teams.id", ondelete="CASCADE"), nullable=False
+    )
+    model: Mapped[str] = mapped_column(String(120), nullable=False)
+    status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending")
+    note: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    requested_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    decided_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class PackageTrustIssuer(Base):
+    """A1-S4 (0037): team-trusted Ed25519 package-signing key."""
+
+    __tablename__ = "package_trust_issuers"
+    __table_args__ = (UniqueConstraint("team_id", "key_id"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    team_id: Mapped[str] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"), nullable=False)
+    key_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    issuer: Mapped[str] = mapped_column(String(200), nullable=False)
+    public_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(8), nullable=False, default="active")
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PackageRevocation(Base):
+    __tablename__ = "package_revocations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    team_id: Mapped[str] = mapped_column(
+        ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str | None] = mapped_column(String(200))
+    version: Mapped[str | None] = mapped_column(String(100))
+    sha256: Mapped[str | None] = mapped_column(String(64))
+    reason: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class ScimToken(Base):
+    __tablename__ = "scim_tokens"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    team_id: Mapped[str] = mapped_column(
+        ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    label: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class RetentionPolicy(Base):
+    __tablename__ = "retention_policies"
+    __table_args__ = (
+        Index(
+            "uq_retention_project",
+            "team_id",
+            "project_id",
+            "resource",
+            unique=True,
+            postgresql_where=text("project_id IS NOT NULL"),
+            sqlite_where=text("project_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_retention_team",
+            "team_id",
+            "resource",
+            unique=True,
+            postgresql_where=text("project_id IS NULL"),
+            sqlite_where=text("project_id IS NULL"),
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    team_id: Mapped[str] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"), nullable=False)
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
+    resource: Mapped[str] = mapped_column(String(40), nullable=False)
+    retain_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    legal_hold: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    hold_reason: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    updated_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class TeamTrial(Base):
+    """A1-S5 (0038): one trial per team, ever."""
+
+    __tablename__ = "team_trials"
+
+    team_id: Mapped[str] = mapped_column(
+        ForeignKey("teams.id", ondelete="CASCADE"), primary_key=True
+    )
+    plan: Mapped[str] = mapped_column(String(30), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    converted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ProjectRule(Base, TimestampMixin):

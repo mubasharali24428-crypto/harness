@@ -240,6 +240,44 @@ def make_app(session_factory, settings: Settings):
     from .csp_report import router as csp_report_router
 
     app.include_router(csp_report_router)
+
+    # A1-S1: authenticated HAP/1 policy evaluator + capability grant issuance.
+    # Optional package: when absent the endpoints simply do not exist (callers
+    # fail closed on 404) rather than taking the identity service down.
+    try:
+        from .policy_api import router as policy_router
+    except ImportError:
+        logging.getLogger(__name__).warning("harness_security_policy missing; /api/v1/policy off")
+    else:
+        app.include_router(policy_router)
+
+    # A1-S2: personal keys, consent-based sharing, bounded share spend, spend intelligence.
+    from .personal_keys_api import router as personal_keys_router
+
+    app.include_router(personal_keys_router)
+
+    # A1-S3: org model allowlist approval workflow + team model policy.
+    try:
+        from .model_policy_api import router as model_policy_router
+    except ImportError:
+        logging.getLogger(__name__).warning("harness_security_policy missing; model policy off")
+    else:
+        app.include_router(model_policy_router)
+
+    # A1-S4: package trust, correlation, remediation proposals, simulator, retention; SCIM.
+    try:
+        from .governance_api import router as governance_router
+        from .scim_api import router as scim_router
+    except ImportError:
+        logging.getLogger(__name__).warning("harness_security_policy missing; governance off")
+    else:
+        app.include_router(governance_router)
+        app.include_router(scim_router)
+
+        # A1-S5: workspace lifecycle, trials, admin overview, compliance evidence.
+        from .lifecycle_api import router as lifecycle_router
+
+        app.include_router(lifecycle_router)
     return app
 
 

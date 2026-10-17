@@ -93,13 +93,24 @@ async def get_principal(request: Request) -> Principal:
         expires = _aware(row.expires_at) if row is not None else None
         if row is None or expires < datetime.now(UTC):
             raise HTTPException(status_code=401, detail="invalid or expired session")
-        member = (
+        # A1-S4: a session outlives neither the membership nor the account.
+        # Deprovisioned (membership deleted / user inactive) => 401, not a 500.
+        found = (
             await db.execute(
-                select(TeamMember).where(
-                    TeamMember.team_id == row.team_id, TeamMember.user_id == row.user_id
+                select(TeamMember, User.is_active)
+                .join(User, User.id == TeamMember.user_id)
+                .join(Team, Team.id == TeamMember.team_id)
+                .where(
+                    Team.closed_at.is_(None),
+                    TeamMember.team_id == row.team_id,
+                    TeamMember.user_id == row.user_id,
+                    TeamMember.deactivated_at.is_(None),
                 )
             )
-        ).scalar_one()
+        ).first()
+        if found is None or not found[1]:
+            raise HTTPException(status_code=401, detail="invalid or expired session")
+        member = found[0]
         return Principal(userId=row.user_id, teamId=row.team_id, role=DbRole(member.role))
 
 

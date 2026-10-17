@@ -165,7 +165,7 @@ async def list_keys(
             (
                 await db.execute(
                     select(ApiKey)
-                    .where(ApiKey.team_id == principal.teamId)
+                    .where(ApiKey.team_id == principal.teamId, ApiKey.owner_user_id.is_(None))
                     .order_by(ApiKey.created_at.desc(), ApiKey.id.desc())
                 )
             )
@@ -198,7 +198,11 @@ async def revoke_key(
     async with request.app.state.session_factory() as db:
         row = (
             await db.execute(
-                select(ApiKey).where(ApiKey.id == key_id, ApiKey.team_id == principal.teamId)
+                select(ApiKey).where(
+                    ApiKey.id == key_id,
+                    ApiKey.team_id == principal.teamId,
+                    ApiKey.owner_user_id.is_(None),  # personal keys: owner-only surface
+                )
             )
         ).scalar_one_or_none()
         if row is None:

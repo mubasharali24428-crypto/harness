@@ -43,6 +43,40 @@ APPEND_ONLY_ACTIONS = frozenset(
         # Mission 22 M4: team OIDC IdP configuration lifecycle.
         "sso.config_saved",
         "sso.config_deleted",
+        # A1-S1: policy evaluator denials + capability grant issuance (ids only).
+        "policy.denied",
+        "policy.capability_issued",
+        # A1-S2: personal key lifecycle + consent state machine (ids only).
+        "personal_key.added",
+        "personal_key.removed",
+        "key_share.offered",
+        "key_share.accepted",
+        "key_share.declined",
+        "key_share.revoked",
+        # A1-S3: org model allowlist workflow + model routing policy.
+        "model_allowlist.requested",
+        "model_allowlist.approved",
+        "model_allowlist.denied",
+        "model_allowlist.revoked",
+        "model_policy.saved",
+        # A1-S4: package trust, SCIM provisioning, retention (ids/reasons only).
+        "package_trust.issuer_added",
+        "package_trust.issuer_revoked",
+        "package_trust.package_revoked",
+        "scim.token_created",
+        "scim.token_revoked",
+        "scim.user_provisioned",
+        "scim.user_deprovisioned",
+        "retention.policy_saved",
+        "retention.applied",
+        # A1-S5: workspace lifecycle, trial, residency, compliance evidence export.
+        "workspace.created",
+        "workspace.renamed",
+        "workspace.closed",
+        "trial.started",
+        "trial.expired",
+        "trial.converted",
+        "compliance.evidence_exported",
     }
 )
 

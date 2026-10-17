@@ -14,6 +14,8 @@ dependencies = [
     # [asyncio] extra: async engine needs greenlet — CI failed on its absence
     "sqlalchemy[asyncio]>=2.0",
     "aiosqlite>=0.20",
+    # A1-S3: team model policy (allowlist / opt-in fallback / tenant cache).
+    "harness-security-policy",
 ]
 
 [project.optional-dependencies]
@@ -34,7 +36,7 @@ where = ["src"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-pythonpath = ["src", "tests", "../contracts/src"]
+pythonpath = ["src", "tests", "../contracts/src", "../packages/security-policy/src"]
 
 [tool.ruff]
 line-length = 100

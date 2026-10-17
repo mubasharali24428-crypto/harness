@@ -1,0 +1,218 @@
+{
+  "agent": "A1",
+  "date": "2026-10-17",
+  "features": {
+    "F091": {
+      "session": "A1-S1",
+      "status": "VERIFIED IMPLEMENTED (evaluator+HTTP adapter)",
+      "note": "NEEDS INTEGRATION: S4/S5/SDK must call before transmission"
+    },
+    "F092": {
+      "session": "A1-S1",
+      "status": "VERIFIED IMPLEMENTED (heuristic, non-universal)",
+      "note": ""
+    },
+    "F093": {
+      "session": "A1-S1",
+      "status": "VERIFIED IMPLEMENTED (decision point)",
+      "note": "NEEDS INTEGRATION: S5 remains execution authority"
+    },
+    "F094": {
+      "session": "A1-S1",
+      "status": "VERIFIED IMPLEMENTED (evaluator)",
+      "note": ""
+    },
+    "F095": {
+      "session": "A1-S1",
+      "status": "PARTIAL",
+      "note": "issuance+dry verify done; durable replay store (Postgres) not built; NEEDS INTEGRATION"
+    },
+    "F096": {
+      "session": "A1-S1",
+      "status": "VERIFIED IMPLEMENTED (evaluator)",
+      "note": "NEEDS INTEGRATION: S5/S4 per-run enforcement unproven"
+    },
+    "F081": {
+      "session": "A1-S2",
+      "status": "VERIFIED IMPLEMENTED",
+      "note": "UI NEEDS INTEGRATION"
+    },
+    "F082": {
+      "session": "A1-S2",
+      "status": "VERIFIED IMPLEMENTED",
+      "note": "S3/S4 must call resolve_shared_key; NEEDS INTEGRATION"
+    },
+    "F087": {
+      "session": "A1-S2",
+      "status": "PARTIAL",
+      "note": "empirical forecast, not validated on real traffic"
+    },
+    "F088": {
+      "session": "A1-S2",
+      "status": "PARTIAL",
+      "note": "signal only, no action/notification"
+    },
+    "F143": {
+      "session": "A1-S2",
+      "status": "PARTIAL",
+      "note": "NEEDS EXTERNAL VALIDATION: live Stripe usage drill"
+    },
+    "F144": {
+      "session": "A1-S2",
+      "status": "PARTIAL",
+      "note": "delivery UX NEEDS INTEGRATION"
+    },
+    "F083": {
+      "session": "A1-S3",
+      "status": "PARTIAL",
+      "note": "explicit routing only"
+    },
+    "F084": {
+      "session": "A1-S3",
+      "status": "VERIFIED INTENTIONAL",
+      "note": "no forced downgrade; opt-in attributed fallback only"
+    },
+    "F085": {
+      "session": "A1-S3",
+      "status": "PARTIAL",
+      "note": "deterministic rubric comparison"
+    },
+    "F086": {
+      "session": "A1-S3",
+      "status": "PARTIAL",
+      "note": "response cache only; provider prompt-cache passthrough missing"
+    },
+    "F089": {
+      "session": "A1-S3",
+      "status": "VERIFIED IMPLEMENTED",
+      "note": "deploy must wire policy provider; NEEDS INTEGRATION"
+    },
+    "F090": {
+      "session": "A1-S3",
+      "status": "PARTIAL",
+      "note": "on-demand discovery/health, no scheduled monitor"
+    },
+    "F097": {
+      "session": "A1-S4",
+      "status": "VERIFIED IMPLEMENTED",
+      "note": "installers must call verify; NEEDS INTEGRATION"
+    },
+    "F098": {
+      "session": "A1-S4",
+      "status": "PARTIAL",
+      "note": "rule-based audit correlation"
+    },
+    "F099": {
+      "session": "A1-S4",
+      "status": "PARTIAL",
+      "note": "proposals only"
+    },
+    "F100": {
+      "session": "A1-S4",
+      "status": "PARTIAL",
+      "note": "composed simulator"
+    },
+    "F145": {
+      "session": "A1-S4",
+      "status": "PARTIAL",
+      "note": "NEEDS EXTERNAL VALIDATION: real IdP"
+    },
+    "F147": {
+      "session": "A1-S4",
+      "status": "PARTIAL",
+      "note": "agent_events only; no UI"
+    },
+    "F022": {
+      "session": "A1-S5",
+      "status": "VERIFIED IMPLEMENTED",
+      "note": "preserved; owned by section4 (A2)"
+    },
+    "F141": {
+      "session": "A1-S5",
+      "status": "PARTIAL",
+      "note": "API proven; UI/onboarding drill pending"
+    },
+    "F142": {
+      "session": "A1-S5",
+      "status": "PARTIAL",
+      "note": "NEEDS EXTERNAL VALIDATION: live Stripe; sweep cron NEEDS INTEGRATION"
+    },
+    "F146": {
+      "session": "A1-S5",
+      "status": "PARTIAL",
+      "note": "data API only"
+    },
+    "F148": {
+      "session": "A1-S5",
+      "status": "PARTIAL",
+      "note": "model/provider choices only; declarations"
+    },
+    "F149": {
+      "session": "A1-S5",
+      "status": "PARTIAL",
+      "note": "signed redacted export; not a certification"
+    }
+  },
+  "risks": {
+    "VR011": {
+      "status": "PARTIAL CONTROL",
+      "control": "quarantine+scan evaluators; needs wiring; no universal detector",
+      "owner": "security owner",
+      "nextDecision": "wire evaluate into S4 prompt assembly"
+    },
+    "VR012": {
+      "status": "PARTIAL CONTROL",
+      "control": "pre-transmission scan; truncated-PEM defect fixed; legacy engine key race (A2) not fixed here",
+      "owner": "security owner",
+      "nextDecision": "wire gate; A2 fixes engine"
+    },
+    "VR015": {
+      "status": "PARTIAL CONTROL",
+      "control": "capability grants + simulator; SDK->S5 enforcement unproven",
+      "owner": "security owner",
+      "nextDecision": "prove S5 enforcement link"
+    },
+    "VR017": {
+      "status": "CONTROL VERIFIED",
+      "control": "tenant-scoped tests on every A1 endpoint; no guarantee for other lanes",
+      "owner": "platform owner",
+      "nextDecision": "combined cross-lane tenant tests"
+    },
+    "VR018": {
+      "status": "PARTIAL CONTROL",
+      "control": "consent/revocation/cap in code; UX+legal untested",
+      "owner": "product owner",
+      "nextDecision": "user research + counsel review"
+    },
+    "VR019": {
+      "status": "PARTIAL CONTROL",
+      "control": "session/SCIM hardening, mock IdP only",
+      "owner": "security owner",
+      "nextDecision": "real IdP/webhook/OAuth drills"
+    },
+    "VR041": {
+      "status": "PARTIAL CONTROL",
+      "control": "forecast/anomaly/alerts/cache/routing; unit economics unmeasured",
+      "owner": "finance owner",
+      "nextDecision": "measure on pilot"
+    },
+    "VR045": {
+      "status": "PARTIAL CONTROL",
+      "control": "per-share payer attribution; team ledger still team-level",
+      "owner": "product owner",
+      "nextDecision": "personal usage statements"
+    },
+    "VR047": {
+      "status": "EXTERNAL VALIDATION REQUIRED",
+      "control": "retention+holds+residency+evidence controls; no customer/legal acceptance",
+      "owner": "legal/compliance",
+      "nextDecision": "counsel + customer review"
+    },
+    "VR048": {
+      "status": "EXTERNAL VALIDATION REQUIRED",
+      "control": "allowlist+declared regions; provider terms unreviewed",
+      "owner": "legal",
+      "nextDecision": "provider-terms review"
+    }
+  }
+}

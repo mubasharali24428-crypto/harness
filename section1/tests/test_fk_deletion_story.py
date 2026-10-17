@@ -131,6 +131,30 @@ DELETION_MAP: dict[tuple[str, str], tuple[str, str]] = {
     ("stripe_webhook_events", "team_id"): ("teams.id", "CASCADE"),
     # M22-M4 (0033): per-team SSO config dies with its team; in-flight login
     # attempts (state rows) are ephemeral children of the same story.
+    # A1-S2 (0035): personal keys die with their owner; consent shares and their
+    # spend reservations die with the key / either party / the team.
+    ("api_keys", "owner_user_id"): ("users.id", "CASCADE"),
+    ("key_shares", "api_key_id"): ("api_keys.id", "CASCADE"),
+    ("key_shares", "owner_user_id"): ("users.id", "CASCADE"),
+    ("key_shares", "recipient_user_id"): ("users.id", "CASCADE"),
+    ("key_shares", "team_id"): ("teams.id", "CASCADE"),
+    ("key_share_spend", "share_id"): ("key_shares.id", "CASCADE"),
+    # A1-S3 (0036): allowlist rows die with the team; actor back-references survive users.
+    ("model_allowlist_entries", "team_id"): ("teams.id", "CASCADE"),
+    ("model_allowlist_entries", "requested_by"): ("users.id", "SET NULL"),
+    ("model_allowlist_entries", "decided_by"): ("users.id", "SET NULL"),
+    # A1-S4 (0037): trust store / SCIM tokens / retention die with their team; actor
+    # back-references survive the user; a project's retention policy dies with it.
+    ("package_trust_issuers", "team_id"): ("teams.id", "CASCADE"),
+    ("package_trust_issuers", "created_by"): ("users.id", "SET NULL"),
+    ("package_revocations", "team_id"): ("teams.id", "CASCADE"),
+    ("package_revocations", "created_by"): ("users.id", "SET NULL"),
+    ("scim_tokens", "team_id"): ("teams.id", "CASCADE"),
+    ("scim_tokens", "created_by"): ("users.id", "SET NULL"),
+    ("retention_policies", "team_id"): ("teams.id", "CASCADE"),
+    ("retention_policies", "project_id"): ("projects.id", "CASCADE"),
+    ("retention_policies", "updated_by"): ("users.id", "SET NULL"),
+    ("team_trials", "team_id"): ("teams.id", "CASCADE"),  # A1-S5 (0038)
     ("team_sso_configs", "team_id"): ("teams.id", "CASCADE"),
     ("sso_login_states", "team_id"): ("teams.id", "CASCADE"),
     # M18-C3's rollup sidecar dies with its team (0027, models.CostLedgerDaily):
@@ -227,12 +251,16 @@ def test_integrity_tables_never_cascade_or_null():
 
 
 def test_fk_inventory_size_is_pinned():
-    """38 ORM FKs (+1 SQL-side: agent_runs.pr_id) today; any schema-surface
+    """57 ORM FKs (+1 SQL-side: agent_runs.pr_id) today; any schema-surface
     change must touch this suite. (35 -> 36: M22-M3's stripe_webhook_events;
-    36 -> 38: M22-M4's team_sso_configs + sso_login_states. The out-of-models
+    36 -> 38: M22-M4's team_sso_configs + sso_login_states; 38 -> 44: A1-S2's
+    api_keys.owner_user_id + key_shares (4 FKs) + key_share_spend;
+    44 -> 47: A1-S3's model_allowlist_entries (3 FKs);
+    47 -> 56: A1-S4's trust/SCIM/retention tables (9 FKs);
+    56 -> 57: A1-S5's team_trials. The out-of-models
     mirrors live in stripe_adapter.py / sso.py and are imported HERE for their
     metadata side effect so enumeration is collection-order independent.)"""
-    assert len(_metadata_fks()) == 38
+    assert len(_metadata_fks()) == 57
 
 
 # --------------------------------------------------------------------------

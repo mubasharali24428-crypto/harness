@@ -84,6 +84,7 @@ async def _count_other_admins(db, team_id: str, exclude_member_id: str) -> int:
                 TeamMember.team_id == team_id,
                 TeamMember.role == DbRole.ADMIN,
                 TeamMember.id != exclude_member_id,
+                TeamMember.deactivated_at.is_(None),  # A1-S4: SCIM-deactivated admins don't count
             )
         )
     ).all()

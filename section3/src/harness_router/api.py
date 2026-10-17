@@ -1,19 +1,37 @@
 import asyncio
+import json
 import logging
+import os
+import socket
 import threading
+import time
 from collections import defaultdict
 from typing import Annotated, Any
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import PlainTextResponse
 from harness_contracts.roles import Principal, can
 from harness_contracts.signatures import ModelCallOpts, ModelResult, ModelRole
+from harness_security_policy.decisions import Outcome
+from harness_security_policy.model_policy import (
+    OPEN_POLICY,
+    cache_key,
+    compare_models,
+    evaluate_model,
+    parse_local_models,
+    plan_fallback,
+    resolve_model,
+    score_response,
+    validate_local_endpoint,
+)
 from pydantic import BaseModel, Field
 
 from harness_router import ledger as cost_ledger
 from harness_router.catalog import catalog
 from harness_router.config import MODEL_PRICING_CATALOG
+from harness_router.model_policy_seam import TENANT_CACHE, get_policy_provider
 from harness_router.providers import (
     InvalidApiKeyError,
     ModelUnavailableError,
@@ -177,6 +195,8 @@ class CallModelRequest(BaseModel):
     # deliberately NOT part of the frozen contracts/ protocol types.
     apiKey: str | None = None
     model: str | None = None
+    # A1-S3: optional task label for the team's explicit routing rules.
+    taskType: str | None = Field(default=None, max_length=120)
 
 
 class EstimateCostRequest(BaseModel):
@@ -238,12 +258,64 @@ class SpendErrorEnvelope(BaseModel):
     error: SpendErrorDetail
 
 
+def _deny_model(decision) -> HTTPException:
+    code = "MODEL_UNKNOWN" if decision.reason == "model.unknown" else "MODEL_NOT_ALLOWED"
+    return HTTPException(
+        status_code=422 if code == "MODEL_UNKNOWN" else status.HTTP_403_FORBIDDEN,
+        detail={"error": {"code": code, "message": decision.reason}},
+    )
+
+
+def _failure_kind(exc: Exception) -> str:
+    if isinstance(exc, RateLimitExceededError):
+        return "rate_limited"
+    if isinstance(exc, ModelUnavailableError):
+        return "unavailable"
+    return "invalid_key"
+
+
 @router.post("/call", response_model=ModelResult, status_code=status.HTTP_200_OK)
-async def call_model(req: CallModelRequest, principal: Writer) -> ModelResult:
-    try:
+async def call_model(
+    req: CallModelRequest, principal: Writer, response: Response = None,  # type: ignore[assignment]
+) -> ModelResult:
+    # Direct (non-HTTP) callers pass no response object: headers go to a scratch one.
+    response = response if response is not None else Response()
+    # A1-S3: team model policy. With no provider wired this is a no-op and the
+    # legacy path below is untouched. A requested model is NEVER replaced
+    # except by an admin-enabled, attributed fallback (X-Harness-* headers).
+    provider = get_policy_provider()
+    policy = await provider(principal.teamId) if provider else None
+    model_name = req.model
+    if policy is not None:
+        picked = resolve_model(
+            policy,
+            requested=req.model,
+            task_type=req.taskType,
+            role_default=_service.role_models[req.role],
+        )
+        verdict = evaluate_model(policy, picked["model"], MODEL_PRICING_CATALOG)
+        if verdict.outcome is Outcome.DENY:
+            raise _deny_model(verdict)
+        model_name = picked["model"]
+        response.headers["X-Harness-Model-Source"] = picked["source"]
+
+    temp = req.opts.temperature if req.opts else None
+    cacheable = policy is not None and policy.cache_enabled and temp == 0
+    ckey = (
+        cache_key(model_name or "", req.messages, req.opts.model_dump() if req.opts else {})
+        if cacheable
+        else ""
+    )
+    if cacheable:
+        hit = TENANT_CACHE.get(principal.teamId, ckey)
+        if hit is not None:
+            response.headers["X-Harness-Cache"] = "hit"
+            return hit  # no provider call => no spend recorded
+
+    async def attempt(name: str | None) -> ModelResult:
         # Provider call is blocking; keep it off the event loop like the
         # threadpool the sync def previously ran in.
-        result = await run_in_threadpool(
+        return await run_in_threadpool(
             _service.call_model,
             agent_id=req.agentId,
             role=req.role,
@@ -253,8 +325,29 @@ async def call_model(req: CallModelRequest, principal: Writer) -> ModelResult:
             # reaches the provider layer (real-mode gate). The simulated
             # fallback stays keyless-only and dev-gated.
             api_key=req.apiKey,
-            model_name=req.model,
+            model_name=name,
         )
+
+    try:
+        try:
+            result = await attempt(model_name)
+        except (ModelUnavailableError, RateLimitExceededError) as first:
+            plan = (
+                plan_fallback(
+                    policy,
+                    requested=model_name or _service.role_models[req.role],
+                    failure=_failure_kind(first),
+                    catalog=MODEL_PRICING_CATALOG,
+                )
+                if policy is not None
+                else None
+            )
+            if plan is None:
+                raise
+            result = await attempt(plan["servedModel"])
+            response.headers["X-Harness-Fallback-From"] = plan["requestedModel"]
+            response.headers["X-Harness-Fallback-Reason"] = plan["reason"]
+            response.headers["X-Harness-Served-Model"] = plan["servedModel"]
     except InvalidApiKeyError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -270,6 +363,12 @@ async def call_model(req: CallModelRequest, principal: Writer) -> ModelResult:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={"error": {"code": "PROVIDER_UNAVAILABLE", "message": str(e)}},
         ) from e
+
+    if cacheable and "X-Harness-Fallback-From" not in response.headers:
+        TENANT_CACHE.put(
+            principal.teamId, ckey, result, ttl=policy.cache_ttl_seconds, model=result.model
+        )
+        response.headers["X-Harness-Cache"] = "miss"
 
     # Wave 9A: record real usage on every successful provider call. The
     # recorder swallows ledger failures — it must never break the call path.
@@ -396,6 +495,132 @@ def configure_role_model(req: ConfigureRoleModelRequest, principal: Writer) -> d
         )
     _service.set_role_model(req.role, req.model)
     return {"role": req.role, "model": req.model, "status": "configured"}
+
+
+class CompareRequest(BaseModel):
+    messages: list[dict[str, str]] = Field(min_length=1)
+    models: list[str] = Field(min_length=2, max_length=5)
+    expectedContains: list[str] = Field(default_factory=list, max_length=20)
+    pattern: str | None = Field(default=None, max_length=300)
+    opts: ModelCallOpts | None = None
+    apiKey: str | None = None
+
+
+@router.post("/compare", status_code=status.HTTP_200_OK)
+async def compare_models_route(req: CompareRequest, principal: Writer) -> dict[str, Any]:
+    """Run the SAME task on several approved models and rank scored results.
+
+    Quality is the deterministic ``expectedContains``/``pattern`` score only; with
+    no criterion nothing is ranked (cost/latency are still reported). Every
+    successful call is metered like a normal call. Real cost/latency exist only
+    when a real provider answers — simulated runs say so in ``simulated``.
+    """
+    provider = get_policy_provider()
+    policy = await provider(principal.teamId) if provider else OPEN_POLICY
+    models = list(dict.fromkeys(req.models))
+    for m in models:
+        verdict = evaluate_model(policy, m, MODEL_PRICING_CATALOG)
+        if verdict.outcome is Outcome.DENY:
+            raise _deny_model(verdict)
+    rows: list[dict[str, Any]] = []
+    for m in models:
+        try:
+            result = await run_in_threadpool(
+                _service.call_model,
+                agent_id="compare",
+                role=ModelRole.PRIMARY,
+                messages=req.messages,
+                opts=req.opts,
+                api_key=req.apiKey,
+                model_name=m,
+            )
+        except (InvalidApiKeyError, RateLimitExceededError, ModelUnavailableError) as e:
+            rows.append({"model": m, "error": type(e).__name__, "costUsd": 0.0, "latencyMs": 0})
+            continue
+        try:
+            record_call_usage(
+                agent_id="compare", role=ModelRole.PRIMARY, messages=req.messages, result=result
+            )
+        except Exception:  # pragma: no cover
+            logger.warning("cost metering scheduling failed; continuing", exc_info=True)
+        rows.append(
+            {
+                "model": m,
+                "error": None,
+                "costUsd": float(result.costUsd),
+                "latencyMs": result.latencyMs,
+                "score": score_response(
+                    result.text, expected_contains=req.expectedContains, pattern=req.pattern
+                ),
+            }
+        )
+    return {"results": compare_models(rows), "simulated": req.apiKey is None}
+
+
+def _local_operator_hosts() -> list[str]:
+    raw = os.environ.get("HARNESS_LOCAL_MODEL_HOSTS", "")
+    return [h.strip() for h in raw.split(",") if h.strip()]
+
+
+def _resolve(host: str) -> list[str]:
+    return [i[4][0] for i in socket.getaddrinfo(host, None)]
+
+
+_LOCAL_MAX_BYTES = 1024 * 1024
+
+
+def _probe_local(base_url: str, transport: Any) -> dict[str, Any]:
+    """One bounded, redirect-free probe: OpenAI ``/models`` then Ollama ``/api/tags``."""
+    base = base_url.rstrip("/")
+    started = time.perf_counter()
+    last_status: int | None = None
+    with httpx.Client(timeout=3.0, follow_redirects=False, transport=transport) as client:
+        for path in ("/models", "/api/tags"):
+            try:
+                with client.stream("GET", base + path) as r:
+                    last_status = r.status_code
+                    body = b""
+                    for chunk in r.iter_bytes():
+                        body += chunk
+                        if len(body) > _LOCAL_MAX_BYTES:
+                            return {"healthy": False, "reason": "response_too_large"}
+                if last_status == 200:
+                    models = parse_local_models(json.loads(body))
+                    ms = round((time.perf_counter() - started) * 1000)
+                    return {"healthy": True, "latencyMs": ms, "models": models}
+            except (httpx.HTTPError, ValueError):
+                continue
+    return {"healthy": False, "reason": "unreachable" if last_status is None else "http_error",
+            "status": last_status}
+
+
+@router.get("/local/discover", status_code=status.HTTP_200_OK)
+async def discover_local_models(
+    request: Request, principal: Writer, baseUrl: str = Query(max_length=500)  # noqa: N803
+) -> dict[str, Any]:
+    """Discover + health-check an OpenAI-compatible/Ollama endpoint.
+
+    SSRF-bounded: loopback by default, private hosts only if listed in
+    ``HARNESS_LOCAL_MODEL_HOSTS``, link-local/metadata/public never; no
+    redirects, 3s timeout, 1MB body cap.
+    """
+    verdict = validate_local_endpoint(
+        baseUrl, resolver=_resolve, operator_hosts=_local_operator_hosts()
+    )
+    if verdict.outcome is Outcome.DENY:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": {"code": "ENDPOINT_DENIED", "message": verdict.reason}},
+        )
+    transport = getattr(request.app.state, "local_model_transport", None)
+    result = await run_in_threadpool(_probe_local, baseUrl, transport)
+    return {"baseUrl": baseUrl, **result}
+
+
+@router.post("/cache/invalidate", status_code=status.HTTP_200_OK)
+async def invalidate_cache(principal: Writer, model: str | None = None) -> dict[str, int]:
+    """Drop this team's cached completions (optionally one model). Team-scoped."""
+    return {"invalidated": TENANT_CACHE.invalidate_team(principal.teamId, model)}
 
 
 @router.get("/metrics", status_code=status.HTTP_200_OK)

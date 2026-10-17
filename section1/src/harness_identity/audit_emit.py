@@ -423,6 +423,7 @@ async def emit_member_role_changed(
         session_owner=session_owner,
     )
 
+
 async def emit_reviewer_thresholds_saved(
     session: AsyncSession,
     *,
@@ -585,4 +586,75 @@ async def emit_sso_config_deleted(
         detail=detail,
         actor_kind=actor_kind,
         session_owner=session_owner,
+    )
+
+
+async def emit_policy_denied(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """policy.denied — A1-S1: /api/v1/policy/evaluate returned a DENY (ids/reason only)."""
+    return await _emit(
+        session,
+        "policy.denied",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="run",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_policy_capability_issued(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """policy.capability_issued — A1-S1: grant minted (token id only, never the token)."""
+    return await _emit(
+        session,
+        "policy.capability_issued",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="capability",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_identity_event(
+    session: AsyncSession,
+    action: str,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_type: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+) -> AuditLog | None:
+    """Generic allowlisted emission for the A1 identity surface (never raises)."""
+    return await _emit(
+        session,
+        action,
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type=target_type,
+        target_id=target_id,
+        detail=detail,
+        session_owner=True,
     )
