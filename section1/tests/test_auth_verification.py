@@ -459,6 +459,10 @@ def test_default_protection_set_covers_invite_mint():
         "/api/v1/auth/login",
         rl.SSO_START_ROUTE,
         rl.SSO_COMPLETE_ROUTE,
+        # M18-C7 (MAC2-F4): redemption + WS-ticket edges joined before the
+        # CSP/expensive-op tail (pin updated by that lane; tail unchanged).
+        rl.REDEEM_ROUTE,
+        rl.WS_TICKET_ROUTE,
         # M15-W5-S1: unauthed browser CSP violation collector.
         rl.CSP_REPORT_TEMPLATE,
         rl.RUN_START_TEMPLATE,

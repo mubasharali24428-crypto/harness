@@ -587,6 +587,12 @@ async def list_audit(
     # ``"teamId": "<team>"``. LIKE is a conservative superset — rows are
     # still parsed below; foreign rows cannot pass the lower bound because
     # bound rows are filtered by membership, not by text.
+    #
+    # M18-C8 (E2E-found): detail is JSONB on real Postgres (migration 0001)
+    # and TEXT in the SQLite lanes — bare `detail LIKE ...` is
+    # `jsonb ~~ text` there and 500s the audit page. CAST to TEXT works on
+    # both dialects; Postgres' jsonb text form uses the same `", "`/`": "`
+    # separators as json.dumps, so the needle matches byte-for-byte.
     needle = f'"teamId": "{principal.teamId}"'
     async with request.app.state.session_factory() as db:
         rows = (
@@ -599,7 +605,7 @@ async def list_audit(
                         " WHERE actor_member_id IN ("
                         "   SELECT id FROM team_members WHERE team_id = :team)"
                         " OR (actor_member_id IS NULL"
-                        "     AND detail LIKE '%' || :needle || '%')"
+                        "     AND CAST(detail AS TEXT) LIKE '%' || :needle || '%')"
                         " ORDER BY seq DESC LIMIT :limit"
                     ),
                     {

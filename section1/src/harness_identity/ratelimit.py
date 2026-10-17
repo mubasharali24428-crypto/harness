@@ -3,6 +3,8 @@
 M12-W2.2 lane G2 (H-021): guards the credential-spray surface (OTP request +
 verify), the invite-mint write, AND the platform's expensive ops — orchestrator
 run-start (spawn cost), model-call (S3 spend), brief-generate (LLM work).
+M18-C7 (MAC2-F4): invite redemption + WS-ticket minting join the shipped set
+(the last two auth-adjacent edges that lacked coverage).
 
 Per-IP+route fixed-window counters persist in ``rate_buckets`` (migration
 0011). The counter lives in Postgres, not process memory, so the limit holds
@@ -71,10 +73,13 @@ __all__ = [
     "INVITE_MINT_TEMPLATE",
     "MODEL_CALL_LIMIT",
     "MODEL_CALL_TEMPLATE",
+    "REDEEM_ROUTE",
     "RUN_START_LIMIT",
     "RUN_START_TEMPLATE",
     "BRIEF_GENERATE_LIMIT",
     "BRIEF_GENERATE_TEMPLATE",
+    "WS_TICKET_LIMIT",
+    "WS_TICKET_ROUTE",
     "RateLimitMiddleware",
     "effective_client_ip",
     "expensive_op_limits",
@@ -125,6 +130,18 @@ LOGIN_TEMPLATE = "/api/v1/auth/login"
 SSO_START_ROUTE = "/api/v1/auth/sso/start"
 SSO_COMPLETE_ROUTE = "/api/v1/auth/sso/complete"
 
+# M18-C7 (MAC2-F4): two auth-adjacent edges were unthrottled — invite
+# REDEMPTION (authenticated, but per-call token-hash lookup + single-use
+# claim on bearer-grade invite tokens) and WS-ticket MINTING (one DB row per
+# call; the minted ticket is bearer-grade for the WS upgrade). Redeem rides
+# the DEFAULT_LIMIT credential-edge budget like OTP/login; the ticket mint
+# gets a wider named budget: it is authenticated and NAT-shared (one mint
+# per WS connect, not per message), so the guard must not become a UX
+# blocker. Literal routes (no path params) => exact keys.
+REDEEM_ROUTE = "/api/v1/invites/redeem"
+WS_TICKET_ROUTE = "/api/v1/ws-ticket"
+WS_TICKET_LIMIT = 60  # per minute per IP: authenticated ticket mint (DB row)
+
 # M12-W2.2 lane G2 (H-021): rate-limit rebalance onto EXPENSIVE OPS.
 #
 # H-021 was a protection inversion: credential edges throttled at 10/min while
@@ -159,6 +176,9 @@ EXPENSIVE_OP_LIMITS: dict[str, int] = {
     BRIEF_GENERATE_TEMPLATE: BRIEF_GENERATE_LIMIT,
     # M15-W5-S1: unauthed browser collector joins the shipped budget table.
     CSP_REPORT_TEMPLATE: CSP_REPORT_LIMIT,
+    # M18-C7 (MAC2-F4): the WS-ticket mint is the one authenticated
+    # non-credential edge in the table — wider than DEFAULT_LIMIT (NAT-safe).
+    WS_TICKET_ROUTE: WS_TICKET_LIMIT,
 }
 
 # The expensive ops join the SHIPPED protected set — this tuple is what
@@ -174,6 +194,9 @@ DEFAULT_PROTECTED_ROUTES = (
     # an outbound token exchange per attempt) — abuse-guarded like the OTP edge.
     SSO_START_ROUTE,
     SSO_COMPLETE_ROUTE,
+    # M18-C7 (MAC2-F4): redemption + ticket-mint edges join the shipped set.
+    REDEEM_ROUTE,
+    WS_TICKET_ROUTE,
     # M15-W5-S1: unauthed browser CSP collector ships rate-limited.
     CSP_REPORT_TEMPLATE,
     RUN_START_TEMPLATE,

@@ -134,19 +134,28 @@ def test_shipped_set_covers_expensive_ops():
     # expensive-op trio — this lane's [-3:] contract stays intact.
     assert rl.DEFAULT_PROTECTED_ROUTES.count(rl.SSO_START_ROUTE) == 1
     assert rl.DEFAULT_PROTECTED_ROUTES.count(rl.SSO_COMPLETE_ROUTE) == 1
+    # M18-C7 (MAC2-F4): redemption + WS-ticket edges join the same set,
+    # still BEFORE the expensive-op trio.
+    assert rl.DEFAULT_PROTECTED_ROUTES.count(rl.REDEEM_ROUTE) == 1
+    assert rl.DEFAULT_PROTECTED_ROUTES.count(rl.WS_TICKET_ROUTE) == 1
+    assert rl.DEFAULT_PROTECTED_ROUTES.index(rl.WS_TICKET_ROUTE) < len(
+        rl.DEFAULT_PROTECTED_ROUTES
+    ) - 3
 
 
 def test_expensive_op_budgets_are_generous():
     """Abuse guard, not UX blocker: every expensive op gets a WIDER budget than
     the auth edge's DEFAULT_LIMIT, keyed per route TEMPLATE."""
     # M15-W5-S1 added the unauthed CSP collector to the shipped budget table
-    # (same 30/min abuse-guard tier as run-start); the G2 expensive ops below
-    # are unchanged.
+    # (same 30/min abuse-guard tier as run-start); M18-C7 added the
+    # authenticated WS-ticket mint (60/min NAT-safe tier); the G2 expensive
+    # ops below are unchanged.
     assert rl.EXPENSIVE_OP_LIMITS == {
         RUN_START_TEMPLATE: RUN_START_LIMIT,
         MODEL_CALL_TEMPLATE: MODEL_CALL_LIMIT,
         BRIEF_GENERATE_TEMPLATE: BRIEF_GENERATE_LIMIT,
         rl.CSP_REPORT_TEMPLATE: rl.CSP_REPORT_LIMIT,
+        rl.WS_TICKET_ROUTE: rl.WS_TICKET_LIMIT,
     }
     for budget in (RUN_START_LIMIT, MODEL_CALL_LIMIT, BRIEF_GENERATE_LIMIT):
         assert budget > rl.DEFAULT_LIMIT
@@ -154,6 +163,11 @@ def test_expensive_op_budgets_are_generous():
     assert RUN_START_LIMIT == 30
     assert MODEL_CALL_LIMIT == 60
     assert BRIEF_GENERATE_LIMIT >= 20
+    # M18-C7: the ticket mint is wider than the credential edge and rides
+    # the override table (redeem stays on DEFAULT_LIMIT by omission).
+    assert rl.WS_TICKET_LIMIT == 60
+    assert rl.WS_TICKET_LIMIT > rl.DEFAULT_LIMIT
+    assert rl.limit_for_route(rl.REDEEM_ROUTE) is None
     # And matching semantics flow through both wire-up spellings.
     assert rl.limit_for_route(RUN_START_TEMPLATE) == RUN_START_LIMIT
     assert rl.limit_for_route("/api/v1/auth/request-login") is None
