@@ -82,7 +82,10 @@ CREATE TABLE cost_ledger (
     output_tokens INTEGER NOT NULL DEFAULT 0,
     cost_usd NUMERIC(12,6) NOT NULL,
     latency_ms INTEGER NOT NULL DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT '2026-08-23 12:00:00'
+    -- H-023 money law: default mirrors PROD semantics (Postgres now()),
+    -- a literal stamp rots the 7-day spend window as real time passes.
+    -- (2026-08-26 close was green, red again from ~2026-08-30 onward.)
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE agent_events (
     seq INTEGER PRIMARY KEY AUTOINCREMENT,

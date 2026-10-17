@@ -117,9 +117,16 @@ async def test_hook_carries_shipped_start_budget(store_engine):
     assert RUN_START_LIMIT == 30
 
 
-async def test_start_burst_over_limit_429_with_retry_after(store_engine):
+async def test_start_burst_over_limit_429_with_retry_after(store_engine, monkeypatch):
     """Requests 1..30 pass the limiter through to the router (any non-429);
-    #31 hits the wall: 429 RATE_LIMITED envelope + machine-readable header."""
+    #31 hits the wall: 429 RATE_LIMITED envelope + machine-readable header.
+
+    Fixed synthetic clock: with the real wall clock this burst straddles a
+    60s window boundary under load and #31 would see a fresh budget — the
+    same boundary-flake class the template-keying test hit in real sweeps.
+    """
+    clock = _Clock(3_000_000.0)
+    monkeypatch.setattr(rl, "time", clock)
     app = _client_app(_factory(store_engine))
     ip = "10.41.0.1"
     statuses = []
@@ -234,8 +241,15 @@ async def test_store_outage_fails_open_on_start(store_engine, caplog):
 # ---------------------------------------------------------------------------
 
 
-async def test_template_keying_defeats_id_farming(store_engine):
-    """One IP drains ONE start bucket across every forged run id."""
+async def test_template_keying_defeats_id_farming(store_engine, monkeypatch):
+    """One IP drains ONE start bucket across every forged run id.
+
+    Fixed synthetic clock (sibling test 3's pattern): the two loops must
+    share ONE wall window, or a real boundary lands between them under load
+    and the 'still capped' leg silently resets its bucket.
+    """
+    clock = _Clock(3_000_000.0)
+    monkeypatch.setattr(rl, "time", clock)
     app = _client_app(
         _factory(store_engine),
         routes=(RUN_START_TEMPLATE,),
