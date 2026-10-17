@@ -58,6 +58,9 @@ def make_app(session_factory, settings: Settings):
         return {"ok": True}
 
     app.include_router(router)
+    from .gitflow.routes import build_router
+
+    app.include_router(build_router(service_dep))
     return app
 
 

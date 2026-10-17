@@ -1,0 +1,114 @@
+{
+ "agent": "A4",
+ "session": 2,
+ "features": [
+  {
+   "id": "F031",
+   "name": "Automatic branch creation per task",
+   "state": "VERIFIED IMPLEMENTED (local, fake provider)",
+   "detail": "POST \u2026/gitflow/run-branch creates agent/<runId> (convention kept so PR\u2192run linking works) idempotently, writer-role only, tenant-checked, base ref validated. Not run against live GitHub.",
+   "evidence": [
+    "tests/test_gitflow_routes.py::run_branch_*"
+   ]
+  },
+  {
+   "id": "F032",
+   "name": "Git worktree isolation per agent",
+   "state": "NEEDS INTEGRATION",
+   "detail": "WorktreeManager (real git, disposable repos) gives one worktree+branch per run, confined under a root outside the repo, idempotent create, dirty/clean/recover, hostile repo config+hooks proven inert (mutation-checked). It is a host-side library with no HTTP route and is NOT yet running inside S5-managed execution boundaries: S5 must own where these worktrees live and run.",
+   "evidence": [
+    "tests/test_gitflow_worktrees.py"
+   ]
+  },
+  {
+   "id": "F033",
+   "name": "Automatic commit drafting",
+   "state": "VERIFIED IMPLEMENTED (local)",
+   "detail": "Deterministic, explainable drafts (type + stated basis, file list, evidence count, Harness-Run/Co-authored-by trailers sanitised against injection) and a commit_paths that stages only named paths with human author/bot committer, forbidden/.git/traversal rejected, hooks off. No LLM drafting.",
+   "evidence": [
+    "tests/test_gitflow_units.py",
+    "tests/test_gitflow_worktrees.py::commit_*"
+   ]
+  },
+  {
+   "id": "F034",
+   "name": "Pull-request creation from a completed run",
+   "state": "PARTIAL",
+   "detail": "Governed draft-PR flow (branch must exist, draft enforced, idempotent incl. lost-race, run linkage via existing record_pr_opened, no merge path) verified against a fake GitHub only. Live provider and a full real run\u2192PR drill are unverified.",
+   "evidence": [
+    "tests/test_gitflow_routes.py::open_pr_*"
+   ]
+  },
+  {
+   "id": "F035",
+   "name": "Pull-request description generation",
+   "state": "VERIFIED IMPLEMENTED (local)",
+   "detail": "Evidence-based description that states 'no verification evidence' when absent, flags failing checks, neutralises @mentions and auto-close keywords from untrusted goal text. Content quality with real runs is unevaluated.",
+   "evidence": [
+    "tests/test_gitflow_units.py::pr_description"
+   ]
+  },
+  {
+   "id": "F036",
+   "name": "Review-request routing",
+   "state": "VERIFIED IMPLEMENTED (local); live reviewer-request semantics NEEDS EXTERNAL VALIDATION",
+   "detail": "CODEOWNERS parser (last-match-wins, anchoring, ** , GitHub's non-recursive trailing wildcard, ownerless=unowned), author exclusion, ranking, 15 cap, unroutable/unowned reporting; reviewers requested only on first open (no re-ping on retry).",
+   "evidence": [
+    "tests/test_gitflow_units.py::*owner*",
+    "tests/test_gitflow_routes.py"
+   ]
+  }
+ ],
+ "risks": [
+  {
+   "id": "VR001",
+   "state": "PARTIAL CONTROL",
+   "note": "Run\u2192draft PR is one call; no usability study."
+  },
+  {
+   "id": "VR002",
+   "state": "OPEN",
+   "note": "Not measured."
+  },
+  {
+   "id": "VR003",
+   "state": "OPEN",
+   "note": "CLI is S4."
+  },
+  {
+   "id": "VR004",
+   "state": "OPEN",
+   "note": "IDE entry points are S3."
+  },
+  {
+   "id": "VR008",
+   "state": "PARTIAL CONTROL",
+   "note": "Reviewer routing + evidence-bearing draft PRs make review native; no live provider journey."
+  },
+  {
+   "id": "VR010",
+   "state": "OPEN",
+   "note": "Not addressed."
+  },
+  {
+   "id": "VR032",
+   "state": "OPEN",
+   "note": "Needs adoption data."
+  },
+  {
+   "id": "VR033",
+   "state": "PARTIAL CONTROL",
+   "note": "Routing avoids manual reviewer picking; approval overhead unmeasured."
+  },
+  {
+   "id": "VR034",
+   "state": "OPEN",
+   "note": "No longitudinal data."
+  },
+  {
+   "id": "VR049",
+   "state": "OPEN",
+   "note": "No retention data."
+  }
+ ]
+}

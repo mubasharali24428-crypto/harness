@@ -1,0 +1,351 @@
+{
+ "components": {
+  "schemas": {
+   "CommitBody": {
+    "properties": {
+     "branch": {
+      "title": "Branch",
+      "type": "string"
+     },
+     "files": {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "title": "Files",
+      "type": "array"
+     },
+     "message": {
+      "title": "Message",
+      "type": "string"
+     }
+    },
+    "required": [
+     "branch",
+     "message",
+     "files"
+    ],
+    "title": "CommitBody",
+    "type": "object"
+   },
+   "ConnectBody": {
+    "properties": {
+     "projectId": {
+      "title": "Projectid",
+      "type": "string"
+     },
+     "repoFullName": {
+      "title": "Repofullname",
+      "type": "string"
+     }
+    },
+    "required": [
+     "projectId",
+     "repoFullName"
+    ],
+    "title": "ConnectBody",
+    "type": "object"
+   },
+   "DraftPRBody": {
+    "properties": {
+     "baseBranch": {
+      "title": "Basebranch",
+      "type": "string"
+     },
+     "bodyMd": {
+      "title": "Bodymd",
+      "type": "string"
+     },
+     "branch": {
+      "title": "Branch",
+      "type": "string"
+     },
+     "title": {
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "required": [
+     "branch",
+     "baseBranch",
+     "title",
+     "bodyMd"
+    ],
+    "title": "DraftPRBody",
+    "type": "object"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "title": "Detail",
+      "type": "array"
+     }
+    },
+    "title": "HTTPValidationError",
+    "type": "object"
+   },
+   "ValidationError": {
+    "properties": {
+     "ctx": {
+      "title": "Context",
+      "type": "object"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "title": "Location",
+      "type": "array"
+     },
+     "msg": {
+      "title": "Message",
+      "type": "string"
+     },
+     "type": {
+      "title": "Error Type",
+      "type": "string"
+     }
+    },
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError",
+    "type": "object"
+   }
+  }
+ },
+ "info": {
+  "title": "harness-github",
+  "version": "0.1.0"
+ },
+ "openapi": "3.1.0",
+ "paths": {
+  "/api/v1/developer-workflow/projects/{project_id}/gitflow/commit-draft": {
+   "post": {
+    "operationId": "commit_draft_api_v1_developer_workflow_projects__project_id__gitflow_commit_draft_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "additionalProperties": true,
+        "title": "Body",
+        "type": "object"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Commit Draft Api V1 Developer Workflow Projects  Project Id  Gitflow Commit Draft Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Commit Draft"
+   }
+  },
+  "/api/v1/developer-workflow/projects/{project_id}/gitflow/pull-requests": {
+   "post": {
+    "operationId": "open_pr_api_v1_developer_workflow_projects__project_id__gitflow_pull_requests_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "additionalProperties": true,
+        "title": "Body",
+        "type": "object"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Open Pr Api V1 Developer Workflow Projects  Project Id  Gitflow Pull Requests Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Open Pr"
+   }
+  },
+  "/api/v1/developer-workflow/projects/{project_id}/gitflow/reviewers/route": {
+   "post": {
+    "operationId": "reviewers_route_api_v1_developer_workflow_projects__project_id__gitflow_reviewers_route_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "additionalProperties": true,
+        "title": "Body",
+        "type": "object"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Reviewers Route Api V1 Developer Workflow Projects  Project Id  Gitflow Reviewers Route Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Reviewers Route"
+   }
+  },
+  "/api/v1/developer-workflow/projects/{project_id}/gitflow/run-branch": {
+   "post": {
+    "operationId": "run_branch_create_api_v1_developer_workflow_projects__project_id__gitflow_run_branch_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "additionalProperties": true,
+        "title": "Body",
+        "type": "object"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Run Branch Create Api V1 Developer Workflow Projects  Project Id  Gitflow Run Branch Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Run Branch Create"
+   }
+  }
+ }
+}

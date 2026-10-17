@@ -1,9 +1,15 @@
+import re
+from urllib.parse import quote
+
 import httpx
 
 GITHUB_API = "https://api.github.com"
 GITHUB_WEB = "https://github.com"
 
-FORBIDDEN_URL_PARTS = ("/merge", "force-push")
+# Precise on purpose: a bare "/merge" substring also blocked legitimate refs/paths such as
+# a branch named "merge-fix" while the real merge endpoints stay blocked.
+_MERGE_PATH = re.compile(r"(/pulls/\d+/merge|/merges|/merge-upstream|/auto-merge)/?$")
+FORBIDDEN_URL_PARTS = ("force-push",)
 MERGE_METHODS = {"PUT", "DELETE"}
 
 
@@ -12,8 +18,8 @@ class MergeGuardViolation(RuntimeError):
 
 
 def _guard(method: str, url: str, json_body: dict | None) -> None:
-    path = url.replace(GITHUB_API, "").replace(GITHUB_WEB, "").lower()
-    if any(p in path for p in FORBIDDEN_URL_PARTS):
+    path = url.replace(GITHUB_API, "").replace(GITHUB_WEB, "").lower().split("?", 1)[0]
+    if _MERGE_PATH.search(path) or any(p in path for p in FORBIDDEN_URL_PARTS):
         raise MergeGuardViolation(f"forbidden GitHub operation attempted: {method} {path}")
     if json_body and ("force" in json_body or json_body.get("force") is True):
         raise MergeGuardViolation("force flag is forbidden in this service")
@@ -40,6 +46,7 @@ class GitHubClient:
         url: str,
         json_body: dict | None = None,
         accept: str | None = None,
+        params: dict | None = None,
     ) -> httpx.Response:
         _guard(method, url, json_body)
         headers = dict(self._headers)
@@ -48,7 +55,7 @@ class GitHubClient:
         async with httpx.AsyncClient(
             base_url=GITHUB_API, headers=headers, transport=self._transport, timeout=30
         ) as client:
-            resp = await client.request(method, url, json=json_body)
+            resp = await client.request(method, url, json=json_body, params=params)
         return resp
 
     async def get_pr_diff(self, repo: str, number: int) -> str:
@@ -64,7 +71,9 @@ class GitHubClient:
         return {"login": resp.json()["login"]}
 
     async def repo_tree(self, repo: str, ref: str) -> list[dict]:
-        resp = await self._request("GET", f"/repos/{repo}/git/trees/{ref}", {"recursive": None})
+        resp = await self._request(
+            "GET", f"/repos/{repo}/git/trees/{quote(ref, safe='')}", params={"recursive": "1"}
+        )
         resp.raise_for_status()
         data = resp.json()
         items = [
@@ -77,7 +86,9 @@ class GitHubClient:
     async def read_file(self, repo: str, ref: str, path: str) -> dict:
         import base64
 
-        resp = await self._request("GET", f"/repos/{repo}/contents/{path}", {"ref": ref})
+        resp = await self._request(
+            "GET", f"/repos/{repo}/contents/{quote(path, safe='/')}", params={"ref": ref}
+        )
         resp.raise_for_status()
         data = resp.json()
         content = base64.b64decode(data["content"]).decode() if data.get("content") else ""
@@ -169,3 +180,32 @@ class GitHubClient:
             "headBranch": pr["head"]["ref"],
             "baseBranch": pr["base"]["ref"],
         }
+
+    async def find_open_pr(self, repo: str, branch: str) -> dict | None:
+        owner = repo.split("/", 1)[0]
+        resp = await self._request(
+            "GET",
+            f"/repos/{repo}/pulls",
+            params={"head": f"{owner}:{branch}", "state": "open", "per_page": "10"},
+        )
+        resp.raise_for_status()
+        for pr in resp.json():
+            if pr.get("head", {}).get("ref") == branch and pr.get("state") == "open":
+                return {
+                    "number": pr["number"],
+                    "url": pr["html_url"],
+                    "draft": pr.get("draft", False),
+                    "state": pr["state"],
+                }
+        return None
+
+    async def request_reviewers(
+        self, repo: str, number: int, reviewers: list[str], team_reviewers: list[str]
+    ) -> dict:
+        resp = await self._request(
+            "POST",
+            f"/repos/{repo}/pulls/{number}/requested_reviewers",
+            {"reviewers": reviewers, "team_reviewers": team_reviewers},
+        )
+        resp.raise_for_status()
+        return {"requested": {"users": reviewers, "teams": team_reviewers}}
