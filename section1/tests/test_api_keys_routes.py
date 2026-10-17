@@ -28,7 +28,7 @@ from harness_identity.models import (
     User,
 )
 
-RAW_KEY = "sk-proj-abcdef1234567890SECRET"  # gitleaks:allow — fake fixture value, never a real credential
+RAW_KEY = "sk-proj-abcdef1234567890SECRET"  # gitleaks:allow
 
 # --------------------------------------------------------------- fixtures
 
