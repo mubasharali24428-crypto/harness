@@ -5,7 +5,10 @@ description = "AI Engineering Harness as a Model Context Protocol (MCP) tool ser
 requires-python = ">=3.11"
 dependencies = [
     "harness-contracts",
-    "mcp>=1.2",
+    # Z1 (mcp version call): tests + server target the 1.x API surface —
+    # 2.x removed `mcp.server.fastmcp` internals the protocol tests pin.
+    # Verified: 18/18 under mcp==1.30.0, 1 failed/13 errors under 2.1.1.
+    "mcp>=1.2,<2",
     "httpx>=0.27",
     "anyio>=4",
     "uvicorn>=0.30",
