@@ -32,7 +32,7 @@ PG_URL ?= postgresql+asyncpg://harness:harness@localhost:5499/harness
 
 .PHONY: help bootstrap clean-venvs guard-script-check \
         gate $(foreach s,$(SECTIONS),lint-$(s) test-$(s)) \
-        lint test frontend frontend-tsc frontend-vitest static-gates e2e \
+        lint test frontend frontend-tsc frontend-vitest static-gates e2e e2e-compose \
         pg-probe pg-probe-integration pg-probe-s1 pg-probe-migrate pip-audit \
         guard-routes guard-isolation guard-route-law
 
@@ -47,6 +47,7 @@ help:
 	@echo "  make guard-routes    app/**/page.tsx default-export-only law (W4 carryover)"
 	@echo "  make guard-isolation sections import ONLY contracts/ (M13 isolation law)"
 	@echo "  make e2e             section7 Playwright suite (specs land via lane H3a)"
+	@echo "  make e2e-compose     zero-key compose journey, 12 checks (needs stack + master key)"
 	@echo "  make pg-probe        real-PG probes: integration checkpoint + S1 suite + migrate runner (needs PG :5499)"
 	@echo "  make pip-audit       dependency audit (WARN-posture parity with CI)"
 	@echo "  make gate            static-gates + lint + test + frontend"
@@ -177,6 +178,17 @@ e2e:
 		exit 2; \
 	fi
 	cd section7 && npx playwright test
+
+# ---------------------------------------------------------------- e2e-compose
+# OPS-20: full zero-key compose journey (scripts/e2e/compose_journey.py):
+# readiness → passwordless login → demo seed (+idempotency) → run aggregate →
+# engine truth → event replay → audit → sandbox create/exec/destroy →
+# cross-tenant no-oracle → metrics → frontend. Requires the compose stack on
+# the default localhost ports and HARNESS_MASTER_KEY in the environment
+# (migrate refuses an empty secret by design; the CI e2e-compose job
+# generates one via openssl rand -hex 32).
+e2e-compose:
+	python3 scripts/e2e/compose_journey.py
 
 # -------------------------------------------------------------------- pg-probe
 # Nightly-pg-probe job parity. Guarded: silently skipping would fake parity.

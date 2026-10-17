@@ -93,6 +93,50 @@ jobs:
       - name: vitest [make frontend-vitest]
         run: make --no-print-directory frontend-vitest
 
+  # OPS-20: the release gate that boots the REAL stack and runs the whole
+  # product journey with zero provider keys (recorded-replay demo seed).
+  # This job exists because unit lanes (SQLite create_all, macOS dev boxes)
+  # structurally cannot catch live-compose bugs: it already found M18-C8
+  # (demo-seed FK insert order on PG) and M18-C9 (landlock version-heuristic
+  # said usable while Docker's seccomp blocks the syscalls → every sandbox
+  # exec died in preexec_fn). Every step mirrors a local command verbatim.
+  e2e-compose:
+    name: e2e (compose journey, zero provider keys)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: provision master key (CI has no .env by design; migrate refuses empty)
+        run: echo "HARNESS_MASTER_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: build images (shared backend + db + frontend; walg profile excluded)
+        run: docker compose -f deploy/docker-compose.yml build
+      - name: boot stack (migrate runs as service_completed_successfully dependency)
+        run: >-
+          docker compose -f deploy/docker-compose.yml up -d
+          identity github models orchestrator sandbox meeting review frontend
+      - name: verify migrate one-shot exited 0 (fail fast, not inside the journey)
+        run: |
+          cid=$(docker compose -f deploy/docker-compose.yml ps -aq migrate)
+          test -n "$cid" || { echo "migrate container missing"; exit 1; }
+          code=$(docker inspect -f '{{.State.ExitCode}}' "$cid")
+          echo "migrate exit code: $code"
+          test "$code" = "0"
+      - name: compose journey [make e2e-compose]
+        run: make --no-print-directory e2e-compose
+      - name: dump compose logs on failure
+        if: failure()
+        run: docker compose -f deploy/docker-compose.yml logs --no-color --tail 500 > /tmp/e2e-compose-logs.txt 2>&1 || true
+      - name: upload compose logs artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-compose-logs
+          path: /tmp/e2e-compose-logs.txt
+          retention-days: 7
+      - name: teardown (volumes included — fresh DB each run)
+        if: always()
+        run: docker compose -f deploy/docker-compose.yml down -v
+
   nightly-pg-probe:
     name: nightly real-PG integration probe
     runs-on: ubuntu-latest
