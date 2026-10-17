@@ -30,6 +30,7 @@ from harness_orchestrator.live_mode import (
     resolve_live_mode,
     validate_live_credentials,
 )
+from harness_orchestrator.redact import scrub_secrets
 
 
 class DeepSeekHarnessWrapper:
@@ -143,7 +144,10 @@ class DeepSeekHarnessWrapper:
                 # completion hook can meter ACTUAL usage, not estimates.
                 usage = self._fold_usage(events)
             except Exception as exc:  # noqa: BLE001 — honest error, never escape
-                result_text = f"DeepSeek Harness run failed on {self.model}: {exc}"
+                result_text = scrub_secrets(
+                    f"DeepSeek Harness run failed on {self.model}: {exc}",
+                    self.api_key,
+                )
                 status = "error"
                 used_model = self.model
                 events = []
@@ -244,4 +248,6 @@ class DeepSeekHarnessWrapper:
                 [],
             )
         except Exception as exc:  # noqa: BLE001 — surface engine failures to the UI
-            return f"DeepSeek Harness run failed: {exc}", "error", model, []
+            return scrub_secrets(
+                f"DeepSeek Harness run failed: {exc}", self.api_key
+            ), "error", model, []

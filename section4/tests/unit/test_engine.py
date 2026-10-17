@@ -172,3 +172,26 @@ def test_nonempty_completed_response_succeeds(monkeypatch):
     assert out["status"] == "completed"
     assert out["finalResponse"] == "real answer"
     assert calls == ["primary-model"]
+
+
+# ----------------------------------------------------------------------
+def test_live_exception_text_never_carries_the_key(monkeypatch):
+    """Provider exceptions can embed the Authorization header or the
+    provider body; the key configured on the wrapper must never reach the
+    finalResponse surface (mirrors section3 providers' _scrub)."""
+    w = DeepSeekHarnessWrapper(
+        live_mode="live",
+        api_key="sk-engineecho-test",
+        base_url="http://localhost:11434/v1",
+        model="primary-model",
+    )
+
+    def raising_run_events(goal, session_id, model=None):
+        raise RuntimeError("boom Bearer sk-engineecho-test endpoint unreachable")
+
+    monkeypatch.setattr(w, "_run_live_events", raising_run_events)
+    out = w.execute_goal("goal", "sess")
+    assert out["status"] == "error"
+    assert "sk-engineecho-test" not in out["finalResponse"]
+    assert "[redacted]" in out["finalResponse"]
+    assert "boom" in out["finalResponse"]  # message stays diagnostic

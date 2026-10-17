@@ -441,3 +441,52 @@ def test_service_shutdown_releases_executor():
     rt = svc.engine_runtime
     svc.shutdown()  # must not raise; drops queued executor work
     assert rt._executor._shutdown is True
+
+
+class KeyEchoEngine:
+    """Raises immediately with the configured key inside the message —
+    honest stand-in for a provider that echoes auth material."""
+
+    backend_runner = None
+    model = "echo-model"
+    api_key = "sk-serviceecho-test"
+
+    def execute_goal(self, goal=None, session_id=None):  # noqa: ARG002 - signature
+        raise RuntimeError(
+            "boom Bearer sk-serviceecho-test endpoint unreachable"
+        )
+
+
+def test_engine_exception_text_is_scrubbed_before_events_and_result(queue_factory):
+    """The raw-exception branch of _execute must not leak the provider key
+    into either engine_result.finalResponse or the ENGINE_FAILED event."""
+    f = queue_factory
+    events: list[tuple[str, dict]] = []
+    engine = KeyEchoEngine()
+    svc = OrchestratorService(
+        engine=engine,
+        run_queue_factory=f,
+        engine_runtime=EngineRuntime(max_concurrency=2, run_timeout_seconds=10),
+    )
+    svc.on_event = lambda etype, payload: events.append((etype.value, payload))
+    try:
+        run(svc.propose_plan("echo-run", project_id="proj-a"))
+        run(svc.approve_plan("echo-run", svc.runs["echo-run"]["plan_id"], "u-test"))
+        run(svc.start_execution("echo-run"))
+        assert run(svc.poll_once()) == "echo-run"
+
+        task = svc.runs["echo-run"]["task"]
+        run(asyncio.wait_for(asyncio.shield(task), timeout=10))
+
+        failed = [(t, p) for t, p in events if t == "engine_failed"]
+        assert len(failed) == 1
+        reason = failed[0][1]["reason"]
+        assert "sk-serviceecho-test" not in reason, reason
+        assert "[redacted]" in reason, reason
+        assert "boom" in reason, reason
+
+        result = svc.runs["echo-run"].get("engine_result") or {}
+        assert result.get("status") == "error"
+        assert "sk-serviceecho-test" not in (result.get("finalResponse") or "")
+    finally:
+        svc.shutdown()
