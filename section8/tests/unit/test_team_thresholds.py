@@ -127,7 +127,7 @@ async def test_reviewer_honors_custom_thresholds(seeded_db, fake_github, fake_ro
         session_factory=seeded_db,
         github_service=fake_github,
         model_router=fake_router,
-        diff_provider=lambda pid, n: __import__(
+        diff_provider=lambda pid, n, team_id=None: __import__(
             "tests.fixtures.golden_fixtures", fromlist=["GOLDEN_DIFF"]
         ).GOLDEN_DIFF,
         write_audit=fake_audit,

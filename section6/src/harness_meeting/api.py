@@ -1,5 +1,6 @@
 """REST API endpoints for Section 6: Meeting Area."""
 
+import inspect
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -18,6 +19,12 @@ router = APIRouter(prefix="/api/v1/meetings", tags=["meetings"])
 _service = MeetingService()
 
 
+def configure_meeting_service(service: MeetingService) -> None:
+    """Deploy-time wiring: swap in the key-store/vault-backed service (S1-R02b)."""
+    global _service
+    _service = service
+
+
 async def get_principal(request: Request) -> Principal:
     """Auth resolution via app.state.get_principal; fail closed (D6/P0.6)."""
     dep = getattr(request.app.state, "get_principal", None)
@@ -30,6 +37,41 @@ async def get_principal(request: Request) -> Principal:
 
 
 RequirePrincipal = Annotated[Principal, Depends(get_principal)]
+
+
+async def _require_project_team(
+    project_id: str, request: Request, principal: Principal
+) -> None:
+    """S1-R01d: a meeting may only be created inside the principal's team.
+
+    Fail closed: unwired lookup → 503, unknown *and* foreign projects → the
+    same 404 envelope (no existence oracle). Deploy wiring lives in
+    deploy/runners/services.py (app_meeting).
+    """
+    lookup = getattr(request.app.state, "project_team_lookup", None)
+    if lookup is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": {
+                    "code": "PROJECT_LOOKUP_NOT_CONFIGURED",
+                    "message": "project team lookup not wired",
+                }
+            },
+        )
+    team = lookup(project_id)
+    if inspect.isawaitable(team):
+        team = await team
+    if team is None or team != principal.teamId:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": {
+                    "code": "PROJECT_NOT_FOUND",
+                    "message": f"unknown project '{project_id}'",
+                }
+            },
+        )
 
 
 def get_meeting_service() -> MeetingService:
@@ -213,12 +255,14 @@ class MessagePageOut(BaseModel):
     response_model=MeetingOut,
     responses={401: {"description": "bad or missing token"}},
 )
-def create_meeting(
+async def create_meeting(
     req: CreateMeetingRequest,
+    request: Request,
     principal: RequirePrincipal,
     svc: Annotated[MeetingService, Depends(get_meeting_service)],
 ) -> dict[str, Any]:
-    meeting = svc.create_meeting(req.projectId, req.title)
+    await _require_project_team(req.projectId, request, principal)
+    meeting = svc.create_meeting(req.projectId, req.title, team_id=principal.teamId)
     return meeting.model_dump()
 
 

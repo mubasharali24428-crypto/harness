@@ -117,27 +117,41 @@ class ReviewService(ReviewGate):
     async def _session(self):
         return self._session_factory()
 
+    async def _project_team(self, db, project_id: str) -> str | None:
+        """Owning team of a project (frozen S1 schema read; S1-R01d)."""
+        row = (
+            await db.execute(
+                text("SELECT team_id FROM projects WHERE id = :pid"),
+                {"pid": project_id},
+            )
+        ).mappings().first()
+        return row["team_id"] if row else None
+
     async def get_review_data(
         self,
         pr_id: str,
         diff_text: str | None = None,
+        *,
+        team_id: str | None = None,
     ) -> ReviewData:
         """Fetch full review data for a PR.
 
         If *diff_text* is not supplied, attempts to retrieve it from the PR's
-        stored summary JSON or via the injected *diff_provider*.
+        stored summary JSON or via the injected *diff_provider*. When
+        *team_id* is given (S1-R01d), a PR outside that team reads 404.
         """
         async with await self._session() as db:
-            record = await get_pull_request_record(db, pr_id)
+            record = await get_pull_request_record(db, pr_id, team_id=team_id)
             if record is None:
                 raise LookupError(f"PR record '{pr_id}' not found")
+            resolved_team = team_id or await self._project_team(db, record["project_id"])
 
             # Resolve diff
             if diff_text is None:
                 diff_text = await get_diff_from_summary(db, pr_id)
             if diff_text is None and self._diff_provider is not None:
                 provided = self._diff_provider(
-                    record["project_id"], record["github_pr_number"]
+                    record["project_id"], record["github_pr_number"], resolved_team
                 )
                 diff_text = await provided if inspect.isawaitable(provided) else provided
             if diff_text is None:
@@ -202,7 +216,10 @@ class ReviewService(ReviewGate):
             if self._github_service is not None:
                 try:
                     pr_meta = await self._github_service.getPRStatus(
-                        _system_user_id, record["project_id"], record["github_pr_number"]
+                        _system_user_id,
+                        record["project_id"],
+                        record["github_pr_number"],
+                        team_id=resolved_team,
                     )
                 except (PermissionError, RuntimeError):
                     # User may not have GitHub OAuth connected; fall back to DB record
@@ -236,10 +253,12 @@ class ReviewService(ReviewGate):
                 test_results=test_results,
             )
 
-    async def approve(self, pr_id: str, reviewer_user_id: str) -> None:
+    async def approve(
+        self, pr_id: str, reviewer_user_id: str, *, team_id: str | None = None
+    ) -> None:
         """Approve a PR for merge (human action — merge itself is manual on GitHub)."""
         async with await self._session() as db:
-            record = await get_pull_request_record(db, pr_id)
+            record = await get_pull_request_record(db, pr_id, team_id=team_id)
             if record is None:
                 raise LookupError(f"PR record '{pr_id}' not found")
 
@@ -263,10 +282,12 @@ class ReviewService(ReviewGate):
         pr_id: str,
         comments: list[dict],
         reviewer_user_id: str,
+        *,
+        team_id: str | None = None,
     ) -> None:
         """Request changes on a PR, recording each comment as a review_comments row."""
         async with await self._session() as db:
-            record = await get_pull_request_record(db, pr_id)
+            record = await get_pull_request_record(db, pr_id, team_id=team_id)
             if record is None:
                 raise LookupError(f"PR record '{pr_id}' not found")
 
@@ -303,10 +324,12 @@ class ReviewService(ReviewGate):
         line: int | None,
         body: str,
         author_user_id: str,
+        *,
+        team_id: str | None = None,
     ) -> dict[str, Any]:
         """Add an inline review comment to a PR."""
         async with await self._session() as db:
-            record = await get_pull_request_record(db, pr_id)
+            record = await get_pull_request_record(db, pr_id, team_id=team_id)
             if record is None:
                 raise LookupError(f"PR record '{pr_id}' not found")
 
@@ -328,24 +351,31 @@ class ReviewService(ReviewGate):
                 )
             return comment
 
-    async def get_comments(self, pr_id: str) -> list[dict[str, Any]]:
-        """Return all inline review comments for a PR."""
+    async def get_comments(
+        self, pr_id: str, *, team_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Return all inline review comments for a PR (team-scoped when given)."""
         async with await self._session() as db:
+            record = await get_pull_request_record(db, pr_id, team_id=team_id)
+            if record is None:
+                raise LookupError(f"PR record '{pr_id}' not found")
             return await get_review_comments(db, pr_id)
 
-    async def get_risk_flags(self, pr_id: str, diff_text: str | None = None) -> list[RiskFlag]:
+    async def get_risk_flags(
+        self, pr_id: str, diff_text: str | None = None, *, team_id: str | None = None
+    ) -> list[RiskFlag]:
         """Re-run risk analysis on a PR's diff and return flags."""
-        review_data = await self.get_review_data(pr_id, diff_text=diff_text)
+        review_data = await self.get_review_data(pr_id, diff_text=diff_text, team_id=team_id)
         return review_data.risk_flags
 
     async def get_summary(
-        self, pr_id: str, diff_text: str | None = None
+        self, pr_id: str, diff_text: str | None = None, *, team_id: str | None = None
     ) -> ReviewData:
         """Re-generate and return the AI summary for a PR."""
-        return await self.get_review_data(pr_id, diff_text=diff_text)
+        return await self.get_review_data(pr_id, diff_text=diff_text, team_id=team_id)
 
     async def evaluate_verdict(
-        self, pr_id: str, diff_text: str | None = None
+        self, pr_id: str, diff_text: str | None = None, *, team_id: str | None = None
     ) -> ReviewVerdict:
         """Pass/fail verdict under the PR's team thresholds (M15-G6b).
 
@@ -356,16 +386,17 @@ class ReviewService(ReviewGate):
         heuristic.evaluate_review_verdict so it stays calibration-testable.
         """
         async with await self._session() as db:
-            record = await get_pull_request_record(db, pr_id)
+            record = await get_pull_request_record(db, pr_id, team_id=team_id)
             if record is None:
                 raise LookupError(f"PR record '{pr_id}' not found")
+            resolved_team = team_id or await self._project_team(db, record["project_id"])
 
             # Resolve diff (same chain as get_review_data).
             if diff_text is None:
                 diff_text = await get_diff_from_summary(db, pr_id)
             if diff_text is None and self._diff_provider is not None:
                 provided = self._diff_provider(
-                    record["project_id"], record["github_pr_number"]
+                    record["project_id"], record["github_pr_number"], resolved_team
                 )
                 diff_text = await provided if inspect.isawaitable(provided) else provided
             if diff_text is None:

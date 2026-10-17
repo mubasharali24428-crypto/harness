@@ -2,11 +2,12 @@ import asyncio
 import logging
 import threading
 from collections import defaultdict
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import PlainTextResponse
+from harness_contracts.roles import Principal, can
 from harness_contracts.signatures import ModelCallOpts, ModelResult, ModelRole
 from pydantic import BaseModel, Field
 
@@ -126,6 +127,41 @@ router = APIRouter(
 _service = ModelRouterService()
 
 
+async def get_principal(request: Request) -> Principal:
+    """Auth resolution via app.state.get_principal; fail closed (D6/P0.6)."""
+    dep = getattr(request.app.state, "get_principal", None)
+    if dep is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": {"code": "AUTH_NOT_CONFIGURED", "message": "auth not wired"}},
+        )
+    return await dep(request)
+
+
+async def require_reader(principal: Annotated[Principal, Depends(get_principal)]) -> Principal:
+    """Read routes (list/catalog/estimate/spend): any authenticated role."""
+    if not can(principal, "read"):  # all roles today; explicit for future vocab
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": {"code": "ROLE_DENIED", "message": "role may not read"}},
+        )
+    return principal
+
+
+async def require_writer(principal: Annotated[Principal, Depends(get_principal)]) -> Principal:
+    """Spending model budget and reconfiguring role models is a write action."""
+    if not can(principal, "write"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": {"code": "ROLE_DENIED", "message": "role may not write"}},
+        )
+    return principal
+
+
+Reader = Annotated[Principal, Depends(require_reader)]
+Writer = Annotated[Principal, Depends(require_writer)]
+
+
 def get_router_service() -> ModelRouterService:
     return _service
 
@@ -203,7 +239,7 @@ class SpendErrorEnvelope(BaseModel):
 
 
 @router.post("/call", response_model=ModelResult, status_code=status.HTTP_200_OK)
-async def call_model(req: CallModelRequest) -> ModelResult:
+async def call_model(req: CallModelRequest, principal: Writer) -> ModelResult:
     try:
         # Provider call is blocking; keep it off the event loop like the
         # threadpool the sync def previously ran in.
@@ -256,11 +292,15 @@ async def call_model(req: CallModelRequest) -> ModelResult:
     },
 )
 async def model_spend(
+    principal: Reader,
     teamId: str | None = Query(default=None),
     projectId: str | None = Query(default=None),
     sinceDays: int | None = Query(default=None, ge=0),
 ) -> dict[str, Any]:
     """Aggregated spend from cost_ledger: totals, per-model and per-day.
+
+    Team-scoped (S1-R01a): every caller is locked to ``principal.teamId``;
+    an explicit foreign ``teamId`` is denied with 403.
 
     M14-W4 F1a (W4-C1): a wired, queryable ledger answers 200 with
     ``unwired=False`` — even when zero rows exist, the zeros are REAL zeros
@@ -268,6 +308,17 @@ async def model_spend(
     true in a 200 body: the unwired case is the 503 LEDGER_UNAVAILABLE branch
     below, which fires only when no metering config (ledger pool) exists.
     """
+    if teamId is not None and teamId != principal.teamId:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": {
+                    "code": "ROLE_DENIED",
+                    "message": "cross-team spend queries are not permitted",
+                }
+            },
+        )
+    teamId = principal.teamId
     pool = get_ledger_pool()
     if pool is None:
         raise HTTPException(
@@ -300,7 +351,7 @@ async def model_spend(
 
 
 @router.post("/estimate-cost", status_code=status.HTTP_200_OK)
-def estimate_cost(req: EstimateCostRequest) -> dict[str, Any]:
+def estimate_cost(req: EstimateCostRequest, principal: Reader) -> dict[str, Any]:
     cost = _service.estimate_cost(
         role=req.role,
         input_tokens=req.inputTokens,
@@ -315,12 +366,12 @@ def estimate_cost(req: EstimateCostRequest) -> dict[str, Any]:
 
 
 @router.get("", response_model=list[str], status_code=status.HTTP_200_OK)
-def list_models() -> list[str]:
+def list_models(principal: Reader) -> list[str]:
     return _service.list_available_models()
 
 
 @router.get("/catalog", status_code=status.HTTP_200_OK)
-def provider_catalog() -> list[dict[str, Any]]:
+def provider_catalog(principal: Reader) -> list[dict[str, Any]]:
     """E-cat: declarative provider catalog (providers, env-var indirection,
     models). No secrets — env var NAMES only."""
     return [
@@ -336,7 +387,7 @@ def provider_catalog() -> list[dict[str, Any]]:
 
 
 @router.post("/config", status_code=status.HTTP_200_OK)
-def configure_role_model(req: ConfigureRoleModelRequest) -> dict[str, str]:
+def configure_role_model(req: ConfigureRoleModelRequest, principal: Writer) -> dict[str, str]:
     if req.model not in MODEL_PRICING_CATALOG:
         msg = f"Model '{req.model}' is not in catalog."
         raise HTTPException(
@@ -349,7 +400,11 @@ def configure_role_model(req: ConfigureRoleModelRequest) -> dict[str, str]:
 
 @router.get("/metrics", status_code=status.HTTP_200_OK)
 def prometheus_metrics() -> Response:
-    """PUBLIC Prometheus endpoint — no auth dep, like /health."""
+    """PUBLIC Prometheus endpoint — no auth dep, like /health.
+
+    Deliberately public: this is the Prometheus scrape target (S1-R01a
+    residual R-13 — route-count enumeration only, no spend/data leakage).
+    """
     return PlainTextResponse(
         render_prometheus_metrics(),
         media_type="text/plain; version=0.0.4; charset=utf-8",

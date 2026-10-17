@@ -97,6 +97,7 @@ def _client(monkeypatch) -> TestClient:
     app.dependency_overrides[get_principal] = lambda: SimpleNamespace(
         userId="u-f1", teamId="team-f1"
     )
+    app.state.project_team_lookup = lambda _pid: "team-f1"  # S1-R01d wiring
     client = TestClient(app)
     client._f1_svc = svc  # noqa: SLF001 — test handle only
     client._f1_pool = pool  # noqa: SLF001

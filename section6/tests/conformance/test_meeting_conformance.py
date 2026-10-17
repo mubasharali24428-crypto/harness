@@ -83,6 +83,7 @@ def test_rest_api_conformance():
     app.dependency_overrides[get_principal] = lambda: SimpleNamespace(
         userId="u-session", teamId="team-golden"
     )
+    app.state.project_team_lookup = lambda _pid: "team-golden"  # S1-R01d wiring
     client = TestClient(app)
 
     # 1. Create meeting
@@ -194,6 +195,7 @@ def test_message_identity_comes_from_session_not_body():
     app.dependency_overrides[get_principal] = lambda: SimpleNamespace(
         userId="u-real", teamId="team-golden"
     )
+    app.state.project_team_lookup = lambda _pid: "team-golden"  # S1-R01d wiring
     client = TestClient(app)
     meeting_id = client.post(
         "/api/v1/meetings", json={"projectId": "proj-auth", "title": "Identity Test"}

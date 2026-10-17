@@ -54,6 +54,15 @@ import harness_router.api as router_api  # noqa: E402
 from harness_contracts.cost_ledger import _to_money  # noqa: E402  (exact money)
 from harness_router.pricing import PricingEngine  # noqa: E402
 
+
+def _wire_auth(app) -> None:
+    """S1-R01a: Section 3 routes are bearer-gated; stub the principal."""
+    from types import SimpleNamespace
+
+    app.dependency_overrides[router_api.get_principal] = lambda: SimpleNamespace(
+        userId="u-metering", teamId="team-a", role="admin"
+    )
+
 from harness_orchestrator.service import OrchestratorService  # noqa: E402
 
 DDL = """
@@ -353,6 +362,7 @@ def test_spend_endpoint_reflects_engine_cost_exactly(db_factory, monkeypatch):
     try:
         app = FastAPI()
         app.include_router(router_api.router)
+        _wire_auth(app)
         res = TestClient(app).get(
             "/api/v1/models/spend", params={"teamId": "team-a", "sinceDays": 7}
         )
@@ -385,6 +395,7 @@ def test_empty_ledger_answers_unwired_false_zeros_are_real(db_factory):
     try:
         app = FastAPI()
         app.include_router(router_api.router)
+        _wire_auth(app)
         res = TestClient(app).get("/api/v1/models/spend", params={"sinceDays": 30})
         assert res.status_code == 200
         body = res.json()
@@ -400,6 +411,7 @@ def test_no_metering_config_answers_503_unavailable(monkeypatch):
     router_api.set_ledger_pool(None)
     app = FastAPI()
     app.include_router(router_api.router)
+    _wire_auth(app)
     res = TestClient(app).get("/api/v1/models/spend")
     assert res.status_code == 503
     assert res.json()["detail"]["error"]["code"] == "LEDGER_UNAVAILABLE"

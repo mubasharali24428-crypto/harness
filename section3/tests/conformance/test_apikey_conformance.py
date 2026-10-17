@@ -29,17 +29,22 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from harness_router import api as api_module
-from harness_router.api import router
+from harness_router.api import get_principal, router
 
 
 def _client_with_provider(handler: Any) -> tuple[TestClient, Any]:
     """FastAPI app with the router's service swapped for one whose provider
     client makes genuinely observed httpx calls via MockTransport."""
+    from types import SimpleNamespace
+
     from harness_router.providers import ModelProviderClient
 
     provider = ModelProviderClient(transport=httpx.MockTransport(handler))
     app = FastAPI()
     app.include_router(router)
+    app.dependency_overrides[get_principal] = lambda: SimpleNamespace(
+        userId="u-apikey", teamId="t1", role="engineer"
+    )
     test_client = TestClient(app)
     # Swap the module-level service's client (same object the route resolves).
     service = api_module.get_router_service()

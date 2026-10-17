@@ -23,7 +23,7 @@ import harness_contracts as contracts
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from harness_contracts import KeyVault, make_bearer_dep
-from harness_contracts.roles import Principal
+from harness_contracts.roles import Principal, can
 from pydantic import BaseModel, Field
 
 from .config import Settings
@@ -47,6 +47,15 @@ async def get_principal(request: Request) -> Principal:
 
 
 RequirePrincipal = Annotated[Principal, Depends(get_principal)]
+
+
+def _require_approver(principal: Principal) -> None:
+    """Approve/request-changes is a governance action (S1-R01d role gate)."""
+    if not can(principal, "approve"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": {"code": "ROLE_DENIED", "message": "role may not approve"}},
+        )
 
 
 class ApproveRequest(BaseModel):
@@ -131,7 +140,7 @@ async def get_review(
 ) -> ReviewDataResponse:
     svc: ReviewService = request.app.state.review_service
     try:
-        data = await svc.get_review_data(pr_id, diff_text=diff_text)
+        data = await svc.get_review_data(pr_id, diff_text=diff_text, team_id=principal.teamId)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
@@ -146,9 +155,10 @@ async def get_review(
 async def approve_pr(
     pr_id: str, request: Request, body: ApproveRequest, principal: RequirePrincipal
 ) -> dict[str, Any]:
+    _require_approver(principal)
     svc: ReviewService = request.app.state.review_service
     try:
-        await svc.approve(pr_id, principal.userId)
+        await svc.approve(pr_id, principal.userId, team_id=principal.teamId)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {
@@ -162,9 +172,12 @@ async def approve_pr(
 async def request_changes(
     pr_id: str, request: Request, body: RequestChangesRequest, principal: RequirePrincipal
 ) -> dict[str, Any]:
+    _require_approver(principal)
     svc: ReviewService = request.app.state.review_service
     try:
-        await svc.request_changes(pr_id, body.comments, principal.userId)
+        await svc.request_changes(
+            pr_id, body.comments, principal.userId, team_id=principal.teamId
+        )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {
@@ -186,6 +199,7 @@ async def add_comment(
             body.line,
             body.body,
             principal.userId,
+            team_id=principal.teamId,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -193,10 +207,14 @@ async def add_comment(
 
 
 @router.get("/reviews/{pr_id}/comments")
-async def list_comments(pr_id: str, request: Request) -> list[dict[str, Any]]:
-    await get_principal(request)
+async def list_comments(
+    pr_id: str, request: Request, principal: RequirePrincipal
+) -> list[dict[str, Any]]:
     svc: ReviewService = request.app.state.review_service
-    return await svc.get_comments(pr_id)
+    try:
+        return await svc.get_comments(pr_id, team_id=principal.teamId)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/reviews/{pr_id}/risks")
@@ -205,7 +223,7 @@ async def get_risk_flags(
 ) -> list[dict[str, Any]]:
     svc: ReviewService = request.app.state.review_service
     try:
-        flags = await svc.get_risk_flags(pr_id, diff_text=diff_text)
+        flags = await svc.get_risk_flags(pr_id, diff_text=diff_text, team_id=principal.teamId)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
@@ -225,7 +243,10 @@ async def deep_link_to_github(
     The app itself never merges — this is always a manual GitHub action.
     """
     svc: ReviewService = request.app.state.review_service
-    data = await svc.get_review_data(pr_id)
+    try:
+        data = await svc.get_review_data(pr_id, team_id=principal.teamId)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {
         "githubUrl": data.pr_url,
         "mergeButtonUrl": f"{data.pr_url}/new_branch",
@@ -244,7 +265,7 @@ async def get_verdict(
     """
     svc: ReviewService = request.app.state.review_service
     try:
-        verdict = await svc.evaluate_verdict(pr_id, diff_text=diff_text)
+        verdict = await svc.evaluate_verdict(pr_id, diff_text=diff_text, team_id=principal.teamId)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:

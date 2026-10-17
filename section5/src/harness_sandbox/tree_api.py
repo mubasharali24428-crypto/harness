@@ -23,11 +23,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from harness_contracts.roles import Principal, can
 from pydantic import BaseModel, Field
 
-from harness_sandbox.api import get_principal
+from harness_sandbox.api import _lookup_project_team, get_principal
 
 router = APIRouter(prefix="/api/v1/sandbox", tags=["sandbox"])
 
@@ -134,9 +134,16 @@ Reader = Annotated[Principal, Depends(require_reader)]
 @router.get("/{projectId}/tree", response_model=TreeListing)
 async def get_project_tree(
     projectId: str,
+    request: Request,
     reader: Reader,
     path: Annotated[str, Query()] = "",
 ) -> TreeListing:
+    # S1-R01d: project must belong to the reader's team. Unknown and foreign
+    # projects answer identically (lookup unwired → 503, fail closed).
+    team = await _lookup_project_team(projectId, request)
+    if team is None or team != reader.teamId:
+        raise _not_found(f"no active sandbox task for project '{projectId}'")
+
     runner = _resolve_runner()
     tasks = getattr(runner, "active_tasks", None)
     if tasks is None:

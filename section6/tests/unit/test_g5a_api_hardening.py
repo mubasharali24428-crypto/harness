@@ -25,6 +25,7 @@ def _make_app() -> FastAPI:
     app = FastAPI()
     app.include_router(router)
     app.dependency_overrides[get_principal] = lambda: _principal()
+    app.state.project_team_lookup = lambda _pid: "team-g5a"  # S1-R01d wiring
     return app
 
 

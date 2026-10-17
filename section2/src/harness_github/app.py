@@ -266,6 +266,25 @@ async def connection_status(request: Request) -> dict:
     return {"connected": True, "login": row["github_login"], "scopes": scopes}
 
 
+@router.post("/github/disconnect")
+async def disconnect_github(request: Request) -> dict:
+    """S1-R02f: revoke this user's stored GitHub OAuth token(s) at rest.
+
+    Deletes every ``github_connections`` row for the caller so the harness can
+    no longer act against GitHub on their behalf; the response reports exactly
+    how many rows were removed. Revoking the OAuth grant on GitHub's own side
+    is a separate operator step (see S1-R02 note).
+    """
+    principal = await _start_principal(request)
+    async with request.app.state.session_factory() as db:
+        result = await db.execute(
+            text("DELETE FROM github_connections WHERE user_id = :u"),
+            {"u": principal.userId},
+        )
+        await db.commit()
+    return {"connected": False, "removed": result.rowcount}
+
+
 @router.post("/projects/{project_id}/repo/connect")
 async def connect_repo(project_id: str, body: ConnectBody, service: ServiceDep) -> dict:
     svc, principal = service
@@ -279,19 +298,35 @@ async def connect_repo(project_id: str, body: ConnectBody, service: ServiceDep) 
 @router.get("/projects/{project_id}/tree")
 async def read_tree(project_id: str, ref: str, service: ServiceDep) -> dict:
     svc, principal = service
-    return {"items": await svc.readRepoTree(principal.userId, project_id, ref)}
+    try:
+        items = await svc.readRepoTree(
+            principal.userId, project_id, ref, team_id=principal.teamId
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"items": items}
 
 
 @router.get("/projects/{project_id}/file")
 async def read_file(project_id: str, ref: str, path: str, service: ServiceDep) -> dict:
     svc, principal = service
-    return await svc.readFile(principal.userId, project_id, ref, path)
+    try:
+        return await svc.readFile(
+            principal.userId, project_id, ref, path, team_id=principal.teamId
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/projects/{project_id}/branches")
 async def create_branch(project_id: str, baseRef: str, newBranch: str, service: ServiceDep) -> dict:
     svc, principal = service
-    return await svc.createBranch(principal.userId, project_id, baseRef, newBranch)
+    try:
+        return await svc.createBranch(
+            principal.userId, project_id, baseRef, newBranch, team_id=principal.teamId
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 class CommitBody(BaseModel):
@@ -305,8 +340,15 @@ async def commit_files(project_id: str, body: CommitBody, service: ServiceDep) -
     svc, principal = service
     try:
         return await svc.commitFiles(
-            principal.userId, project_id, body.branch, body.message, body.files
+            principal.userId,
+            project_id,
+            body.branch,
+            body.message,
+            body.files,
+            team_id=principal.teamId,
         )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except MergeGuardViolation as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -321,9 +363,18 @@ class DraftPRBody(BaseModel):
 @router.post("/projects/{project_id}/pulls/draft")
 async def open_draft_pr(project_id: str, body: DraftPRBody, service: ServiceDep) -> dict:
     svc, principal = service
-    return await svc.openDraftPR(
-        principal.userId, project_id, body.branch, body.baseBranch, body.title, body.bodyMd
-    )
+    try:
+        return await svc.openDraftPR(
+            principal.userId,
+            project_id,
+            body.branch,
+            body.baseBranch,
+            body.title,
+            body.bodyMd,
+            team_id=principal.teamId,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/projects/{project_id}/runs/{run_id}/pr")
@@ -335,17 +386,22 @@ async def run_pr_id(project_id: str, run_id: str, request: Request) -> dict:
     {"runId", "prId", "url"} exactly like the event payload; prId is null
     when the run has not opened a PR yet.
     """
-    # Auth enforcement only (ownership = project path segment); no body needs it.
-    await _start_principal(request)
+    # Auth + tenant scoping (S1-R01c): the run's project must belong to the
+    # caller's team, else the lookup answers null exactly like "no PR yet".
+    principal = await _start_principal(request)
     from sqlalchemy import text
 
     sql = text(
         "SELECT r.pr_id AS pr_id, p.pr_url AS url "
         "FROM agent_runs r JOIN pull_requests p ON p.id = r.pr_id "
-        "WHERE r.id = :run_id AND r.project_id = :project_id"
+        "JOIN projects pr ON pr.id = r.project_id "
+        "WHERE r.id = :run_id AND r.project_id = :project_id AND pr.team_id = :team"
     )
     async with request.app.state.session_factory() as db:
-        res = await db.execute(sql, {"run_id": run_id, "project_id": project_id})
+        res = await db.execute(
+            sql,
+            {"run_id": run_id, "project_id": project_id, "team": principal.teamId},
+        )
         row = res.mappings().first()
     return {
         "runId": run_id,
@@ -357,10 +413,20 @@ async def run_pr_id(project_id: str, run_id: str, request: Request) -> dict:
 @router.get("/projects/{project_id}/pulls/{pr_number}")
 async def pr_status(project_id: str, pr_number: int, service: ServiceDep) -> dict:
     svc, principal = service
-    return await svc.getPRStatus(principal.userId, project_id, pr_number)
+    try:
+        return await svc.getPRStatus(
+            principal.userId, project_id, pr_number, team_id=principal.teamId
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/projects/{project_id}/pulls/{pr_number}/diff")
 async def pr_diff(project_id: str, pr_number: int, service: ServiceDep) -> dict:
     svc, principal = service
-    return await svc.getPRDiff(principal.userId, project_id, pr_number)
+    try:
+        return await svc.getPRDiff(
+            principal.userId, project_id, pr_number, team_id=principal.teamId
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

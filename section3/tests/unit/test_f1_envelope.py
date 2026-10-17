@@ -31,9 +31,14 @@ from harness_router import api as router_api  # noqa: E402  (path seam above is 
 
 
 def test_validation_error_envelope_on_models_router():
+    from types import SimpleNamespace
+
     app = FastAPI()
     app.include_router(router_api.router)
     install_error_envelope(app)
+    app.dependency_overrides[router_api.get_principal] = lambda: SimpleNamespace(
+        userId="u-f1", teamId="t1", role="engineer"
+    )
     client = TestClient(app)
 
     res = client.post("/api/v1/models/call", json={"agentId": 12})

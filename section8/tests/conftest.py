@@ -50,7 +50,9 @@ class FakeGitHubService:
         self._pr_status = pr_status or {}
         self.requests: list[tuple[str, ...]] = []
 
-    async def getPRStatus(self, user_id: str, project_id: str, pr_number: int) -> dict:
+    async def getPRStatus(
+        self, user_id: str, project_id: str, pr_number: int, *, team_id: str | None = None
+    ) -> dict:
         self.requests.append(("getPRStatus", project_id, str(pr_number)))
         return self._pr_status or {
             "number": GOLDEN_GITHUB_PR_NUMBER,
@@ -106,7 +108,9 @@ class FakeAuditWriter:
         self.writes.append(entry)
 
 
-def golden_diff_provider(project_id: str, github_pr_number: int) -> str:
+def golden_diff_provider(
+    project_id: str, github_pr_number: int, team_id: str | None = None
+) -> str:
     """A DiffProvider callable that returns the golden diff."""
     return GOLDEN_DIFF
 

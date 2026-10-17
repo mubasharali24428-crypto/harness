@@ -3,12 +3,17 @@ import uuid
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-GET_REPO = text("SELECT id, team_id, name, repo_full_name FROM projects WHERE id = :id")
+GET_REPO = text(
+    "SELECT id, team_id, name, repo_full_name FROM projects "
+    "WHERE id = :id AND team_id = :team"
+)
 SET_REPO = text("UPDATE projects SET repo_full_name = :repo WHERE id = :id AND team_id = :team")
 
 
-async def get_repo_full_name(db: AsyncSession, project_id: str) -> str:
-    row = (await db.execute(GET_REPO, {"id": project_id})).mappings().first()
+async def get_repo_full_name(db: AsyncSession, project_id: str, team_id: str) -> str:
+    row = (
+        await db.execute(GET_REPO, {"id": project_id, "team": team_id})
+    ).mappings().first()
     if row is None:
         raise LookupError(f"project {project_id} not found")
     if not row["repo_full_name"]:

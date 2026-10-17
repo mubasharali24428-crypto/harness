@@ -38,7 +38,7 @@ from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # noqa: E402
 
-from harness_router.api import router  # noqa: E402
+from harness_router.api import get_principal, router  # noqa: E402
 from harness_router.ratelimit_hooks import (  # noqa: E402
     ROUTER_ROUTE_LIMITS,
     install_router_rate_limit,
@@ -85,8 +85,13 @@ def _factory(engine) -> async_sessionmaker:
 
 def _client_app(session_factory, **kw):
     """Model-router app + G2 hook wired exactly as deploy assembly would."""
+    from types import SimpleNamespace
+
     app = FastAPI()
     app.include_router(router)
+    app.dependency_overrides[get_principal] = lambda: SimpleNamespace(
+        userId="u-g2", teamId="t1", role="engineer"
+    )
     install_router_rate_limit(app, session_factory=session_factory, **kw)
     return app
 
@@ -199,6 +204,11 @@ async def test_store_outage_fails_open_on_call(store_engine, caplog):
     path (200) and a warning is logged. Availability parity: NEVER closed."""
     broken = FastAPI()
     broken.include_router(router)
+    from types import SimpleNamespace
+
+    broken.dependency_overrides[get_principal] = lambda: SimpleNamespace(
+        userId="u-g2", teamId="t1", role="engineer"
+    )
     install_router_rate_limit(broken, session_factory=_ExplodingStore())
 
     ratelimit_logger = logging.getLogger("harness_identity.ratelimit")

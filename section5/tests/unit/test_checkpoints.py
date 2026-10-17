@@ -167,6 +167,7 @@ def test_rest_round_trip_list_and_diff(tmp_path):
 
     app = FastAPI()
     app.include_router(router)
+    app.state.project_team_lookup = {"proj-ckpt": "t1"}.get  # S1-R01d wiring
     app.dependency_overrides[get_principal] = lambda: type(
         "P", (), {"userId": "u1", "teamId": "t1", "role": "admin"}
     )()
@@ -235,6 +236,7 @@ def test_no_repo_returns_honest_envelope_error(tmp_path):
     CheckpointManager(root=tmp_path / "empty-root")  # ensure dir exists but is bare
     app = FastAPI()
     app.include_router(router)
+    app.state.project_team_lookup = {}.get  # S1-R01d wiring: no known projects
     app.dependency_overrides[get_principal] = lambda: type(
         "P", (), {"userId": "u1", "teamId": "t1", "role": "admin"}
     )()

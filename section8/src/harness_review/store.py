@@ -16,19 +16,26 @@ from .models import ReviewStatus
 
 
 async def get_pull_request_record(
-    db: AsyncSession, pr_id: str
+    db: AsyncSession, pr_id: str, team_id: str | None = None
 ) -> dict[str, Any] | None:
-    """Fetch a PR record by internal ID. Returns None if not found."""
-    row = (
-        await db.execute(
-            text(
-                "SELECT id, project_id, run_id, github_pr_number, pr_url, "
-                "summary_md, status, approved_by, created_at "
-                "FROM pull_requests WHERE id = :id"
-            ),
-            {"id": pr_id},
-        )
-    ).mappings().first()
+    """Fetch a PR record by internal ID. Returns None if not found.
+
+    S1-R01d: when *team_id* is given, only PRs whose project belongs to that
+    team match — a foreign PR reads as not-found (no existence oracle).
+    """
+    query = (
+        "SELECT rp.id, rp.project_id, rp.run_id, rp.github_pr_number, rp.pr_url, "
+        "rp.summary_md, rp.status, rp.approved_by, rp.created_at "
+        "FROM pull_requests rp "
+    )
+    params: dict[str, Any] = {"id": pr_id}
+    if team_id is not None:
+        query += "JOIN projects p ON p.id = rp.project_id "
+    query += "WHERE rp.id = :id"
+    if team_id is not None:
+        query += " AND p.team_id = :team"
+        params["team"] = team_id
+    row = (await db.execute(text(query), params)).mappings().first()
     return dict(row) if row else None
 
 

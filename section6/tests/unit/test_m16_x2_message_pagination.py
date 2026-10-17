@@ -39,6 +39,7 @@ def _client() -> TestClient:
     app.dependency_overrides[get_principal] = lambda: SimpleNamespace(
         userId="u-x2", teamId="team-x2"
     )
+    app.state.project_team_lookup = lambda _pid: "team-x2"  # S1-R01d wiring
     return TestClient(app)
 
 

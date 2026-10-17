@@ -34,6 +34,7 @@ def _make_app() -> FastAPI:
     app.dependency_overrides[api_module.get_principal] = lambda: SimpleNamespace(
         userId="user-x2", teamId="team-x2", role="admin"
     )
+    app.state.project_team_lookup = lambda _pid: "team-x2"  # S1-R01d wiring
     return app
 
 

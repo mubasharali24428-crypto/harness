@@ -8,7 +8,7 @@ camelCase wire shape), not a bare object.
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from harness_router.api import router
+from harness_router.api import get_principal, router
 
 
 def _make_app() -> FastAPI:
@@ -40,8 +40,14 @@ def test_spend_503_is_documented_with_envelope():
 
 def test_spend_route_still_answers_without_ledger():
     """Typing must not change behavior: unwired ledger still yields the
-    LEDGER_UNAVAILABLE envelope (503)."""
-    client = TestClient(_make_app())
+    LEDGER_UNAVAILABLE envelope (503) once authz passes (S1-R01a)."""
+    from types import SimpleNamespace
+
+    app = _make_app()
+    app.dependency_overrides[get_principal] = lambda: SimpleNamespace(
+        userId="u-g5a", teamId="t1", role="engineer"
+    )
+    client = TestClient(app)
     res = client.get("/api/v1/models/spend")
     assert res.status_code == 503
     assert res.json()["detail"]["error"]["code"] == "LEDGER_UNAVAILABLE"

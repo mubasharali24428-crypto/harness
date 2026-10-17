@@ -6,7 +6,7 @@ from fixtures.golden_fixtures import (
 )
 from harness_contracts.signatures import ModelResult, ModelRole
 
-from harness_router.api import router
+from harness_router.api import get_principal, router
 from harness_router.service import ModelRouterService
 
 
@@ -50,10 +50,15 @@ def test_router_lifecycle_call_and_history():
 
 
 def test_rest_api_conformance():
+    from types import SimpleNamespace
+
     from fastapi import FastAPI
 
     app = FastAPI()
     app.include_router(router)
+    app.dependency_overrides[get_principal] = lambda: SimpleNamespace(
+        userId="u-conf", teamId="t1", role="engineer"
+    )
     client = TestClient(app)
 
     # 1. GET /api/v1/models

@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import inspect
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -49,6 +52,53 @@ async def require_writer(principal: Annotated[Principal, Depends(get_principal)]
 Writer = Annotated[Principal, Depends(require_writer)]
 
 
+async def _lookup_project_team(project_id: str, request: Request) -> str | None:
+    """Owning team of a project via app.state.project_team_lookup (S1-R01d).
+
+    Fail closed: an unwired lookup is a 503, not an open door. Deploy wiring
+    lives in deploy/runners/services.py (app_sandbox).
+    """
+    lookup = getattr(request.app.state, "project_team_lookup", None)
+    if lookup is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": {
+                    "code": "PROJECT_LOOKUP_NOT_CONFIGURED",
+                    "message": "project team lookup not wired",
+                }
+            },
+        )
+    team = lookup(project_id)
+    if inspect.isawaitable(team):
+        team = await team
+    return team
+
+
+def _project_not_found(project_id: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail={
+            "error": {
+                "code": "PROJECT_NOT_FOUND",
+                "message": f"unknown project '{project_id}'",
+            }
+        },
+    )
+
+
+def _task_visible(task_id: str, principal: Principal) -> bool:
+    """True only when an active task exists and belongs to the principal's team.
+
+    S1-R01d: invisible tasks read exactly like missing ones — callers keep
+    their existing not-found answers, so foreign task ids leak nothing.
+    """
+    task = _service.runner.active_tasks.get(task_id)
+    if task is None:
+        return False
+    return task.get("team_id") == principal.teamId
+
+
 class CreateTaskRequest(BaseModel):
     taskId: str
     repoRef: str
@@ -67,13 +117,20 @@ class ApplyEditRequest(BaseModel):
 
 
 @router.post("/tasks", response_model=TaskHandle, status_code=status.HTTP_201_CREATED)
-def create_task(req: CreateTaskRequest, principal: Writer) -> TaskHandle:
+async def create_task(
+    req: CreateTaskRequest, request: Request, principal: Writer
+) -> TaskHandle:
+    if req.projectId is not None:
+        team = await _lookup_project_team(req.projectId, request)
+        if team is None or team != principal.teamId:
+            raise _project_not_found(req.projectId)
     return _service.run_task(
         task_id=req.taskId,
         repo_ref=req.repoRef,
         branch=req.branch,
         forbidden_paths=req.forbiddenPaths,
         project_id=req.projectId,
+        team_id=principal.teamId,
     )
 
 
@@ -83,6 +140,8 @@ async def exec_command(
 ) -> StructuredExecResult:
     handle = TaskHandle(taskId=taskId, containerId=f"local-{taskId}", branch="main")
     try:
+        if not _task_visible(taskId, principal):
+            raise RuntimeError(f"Task '{taskId}' not found or destroyed.")
         return await _service.exec_structured(handle, req.command)
     except SecurityPolicyViolationError as e:
         raise HTTPException(
@@ -100,6 +159,8 @@ async def exec_command(
 def apply_edit(taskId: str, req: ApplyEditRequest, principal: Writer) -> dict[str, Any]:
     handle = TaskHandle(taskId=taskId, containerId=f"local-{taskId}", branch="main")
     try:
+        if not _task_visible(taskId, principal):
+            raise RuntimeError(f"Task '{taskId}' not found or destroyed.")
         _service.apply_edit(handle, req.path, req.diff)
         return {"status": "ok", "path": req.path}
     except SecurityPolicyViolationError as e:
@@ -116,8 +177,10 @@ def apply_edit(taskId: str, req: ApplyEditRequest, principal: Writer) -> dict[st
 
 @router.post("/tasks/{taskId}/destroy", status_code=status.HTTP_200_OK)
 def destroy_task(taskId: str, principal: Writer) -> dict[str, str]:
-    handle = TaskHandle(taskId=taskId, containerId=f"local-{taskId}", branch="main")
-    _service.destroy(handle)
+    # S1-R01d: foreign tasks read as absent — no destroy, same "destroyed" ack.
+    if _task_visible(taskId, principal):
+        handle = TaskHandle(taskId=taskId, containerId=f"local-{taskId}", branch="main")
+        _service.destroy(handle)
     return {"status": "destroyed", "taskId": taskId}
 
 
@@ -148,9 +211,27 @@ def get_reader_principal(principal: Annotated[Principal, Depends(get_principal)]
 Reader = Annotated[Principal, Depends(get_reader_principal)]
 
 
+async def _require_checkpoint_project(
+    project_id: str, request: Request, principal: Principal
+) -> None:
+    """S1-R01d: checkpoints are only readable for the principal's own team.
+
+    Unknown *and* foreign projects answer with the same honest
+    CHECKPOINT_REPOSITORY_NOT_FOUND envelope — no existence oracle.
+    """
+    team = await _lookup_project_team(project_id, request)
+    if team is None or team != principal.teamId:
+        raise _checkpoint_error(
+            CheckpointRepositoryNotFoundError(
+                f"no checkpoint workspace for project '{project_id}'"
+            )
+        )
+
+
 @router.get("/{projectId}/checkpoints")
-def list_checkpoints(projectId: str, principal: Reader) -> dict:
+async def list_checkpoints(projectId: str, request: Request, principal: Reader) -> dict:
     """Snapshots for every workspace of this project, newest first."""
+    await _require_checkpoint_project(projectId, request, principal)
     try:
         items = _service.checkpoints.list_checkpoints(projectId)
     except CheckpointError as e:
@@ -165,8 +246,11 @@ def list_checkpoints(projectId: str, principal: Reader) -> dict:
 
 
 @router.get("/{projectId}/checkpoints/{sha}/diff")
-def checkpoint_diff(projectId: str, sha: str, principal: Reader) -> Response:
+async def checkpoint_diff(
+    projectId: str, sha: str, request: Request, principal: Reader
+) -> Response:
     """Raw unified diff introduced by one snapshot commit."""
+    await _require_checkpoint_project(projectId, request, principal)
     try:
         diff_text = _service.checkpoints.get_diff(projectId, sha)
     except CheckpointError as e:

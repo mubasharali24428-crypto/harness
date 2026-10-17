@@ -92,6 +92,19 @@ _DDL = (
     "CREATE TABLE agent_runs (id VARCHAR(36) PRIMARY KEY,"
     " project_id VARCHAR(36), state VARCHAR(40))",
     (
+        # S1-R05a: the REAL audit_log.actor_member_id FK is declared here (and
+        # enforced via PRAGMA foreign_keys=ON in the fixture). The FK-free DDL
+        # this replaces is exactly why the users.id/member-id binding bug could
+        # never fail in tests.
+        "CREATE TABLE team_members ("
+        "id VARCHAR(36) PRIMARY KEY,"
+        " team_id VARCHAR(36) NOT NULL,"
+        " user_id VARCHAR(36),"
+        " display_name VARCHAR(200) NOT NULL DEFAULT 'x',"
+        " member_type VARCHAR(16) NOT NULL DEFAULT 'human',"
+        " role VARCHAR(16) NOT NULL DEFAULT 'engineer')"
+    ),
+    (
         "CREATE TABLE audit_log ("
         "seq INTEGER PRIMARY KEY AUTOINCREMENT,"
         "actor_member_id VARCHAR(36),"
@@ -100,20 +113,30 @@ _DDL = (
         "target_type VARCHAR(60) NOT NULL,"
         "target_id VARCHAR(80) NOT NULL,"
         "detail TEXT NOT NULL DEFAULT '{}',"
-        "ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+        "ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+        "FOREIGN KEY(actor_member_id) REFERENCES team_members (id))"
     ),
 )
 
 
 @pytest.fixture()
 def db_parts(tmp_path):
-    """SQLite-backed service with projects/agent_runs/audit_log.
+    """SQLite-backed service with projects/agent_runs/team_members/audit_log.
 
     Seeded rows: ``proj-a`` owned by ``team-a`` (the caller's team);
     ``proj-b`` owned by ``team-b`` (a foreign team). ``proj-dangle`` has NO
-    row on purpose — that IS the gap under test.
+    row on purpose — that IS the gap under test. Foreign keys are ENFORCED so
+    the audit_log FK behaves like Postgres (S1-R05a).
     """
     engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path}/authz_fc.db")
+
+    from sqlalchemy import event as sa_event
+
+    @sa_event.listens_for(engine.sync_engine, "connect")
+    def _fk_on(dbapi_conn, _record):  # noqa: ANN001
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
     async def _create():
         async with engine.begin() as conn:
@@ -513,3 +536,96 @@ def test_gate_role_gate_stays_first_under_fail_closed():
     # …but the ROLE check fires first and answers the historical code.
     assert res.status_code == 403
     assert res.json()["detail"]["error"]["code"] == "ROLE_DENIED"
+
+
+# ===========================================================================
+# R-05a (S1) — denial audit rows survive the REAL FK (team_members.id)
+# ===========================================================================
+
+
+async def test_denial_audit_binds_member_id_when_membership_exists(db_parts):
+    """The audit row must carry team_members.id — NOT users.id.
+
+    Under the old binding (principal.userId) this insert FK-fails with
+    PRAGMA foreign_keys=ON and the row silently vanishes; under the fix the
+    member row id is bound and the row is present.
+    """
+    service: OrchestratorService = db_parts["service"]
+    factory = db_parts["factory"]
+
+    async def _seed():
+        async with factory() as db:
+            await db.execute(
+                text(
+                    "INSERT INTO agent_runs (id, project_id, state)"
+                    " VALUES ('run-fk', 'proj-dangle', 'idle')"
+                )
+            )
+            await db.execute(
+                text(
+                    "INSERT INTO team_members (id, team_id, user_id, role)"
+                    " VALUES ('mem-1', 'team-a', 'u-audit', 'admin')"
+                )
+            )
+            await db.commit()
+
+    await _seed()
+    principal = _principal(user_id="u-audit", team_id="team-a")
+    with pytest.raises(AuthzUnavailableError) as excinfo:
+        await authorize_run(service, "run-fk", principal)
+    assert excinfo.value.reason == "dangling_project"
+
+    async def _row():
+        async with factory() as db:
+            return (
+                await db.execute(
+                    text(
+                        "SELECT actor_member_id FROM audit_log"
+                        " WHERE action = :a AND target_id = 'run-fk'"
+                    ),
+                    {"a": AUDIT_ACTION_AUTHZ_DENIED},
+                )
+            ).first()
+
+    row = await _row()
+    assert row is not None, "denial audit row must survive the FK-enforced insert"
+    assert row.actor_member_id == "mem-1"
+
+
+async def test_denial_audit_null_actor_when_denied_user_not_a_member(db_parts):
+    """Non-members are the COMMON denial case: NULL actor (column is
+    nullable), identity still recorded in detail."""
+    service: OrchestratorService = db_parts["service"]
+    factory = db_parts["factory"]
+
+    async def _seed():
+        async with factory() as db:
+            await db.execute(
+                text(
+                    "INSERT INTO agent_runs (id, project_id, state)"
+                    " VALUES ('run-outsider', 'proj-dangle', 'idle')"
+                )
+            )
+            await db.commit()
+
+    await _seed()
+    principal = _principal(user_id="u-stranger", team_id="team-a")
+    with pytest.raises(AuthzUnavailableError):
+        await authorize_run(service, "run-outsider", principal)
+
+    async def _row():
+        async with factory() as db:
+            return (
+                await db.execute(
+                    text(
+                        "SELECT actor_member_id, detail FROM audit_log"
+                        " WHERE action = :a AND target_id = 'run-outsider'"
+                    ),
+                    {"a": AUDIT_ACTION_AUTHZ_DENIED},
+                )
+            ).first()
+
+    row = await _row()
+    assert row is not None
+    assert row.actor_member_id is None
+    assert "u-stranger" in json.loads(row.detail)["userId"]

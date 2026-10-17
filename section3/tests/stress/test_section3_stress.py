@@ -197,13 +197,18 @@ class TestModelRouterServiceStress:
 class TestRouterRestApiStress:
     @pytest.fixture()
     def client(self):
+        from types import SimpleNamespace
+
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
 
-        from harness_router.api import router
+        from harness_router.api import get_principal, router
 
         app = FastAPI()
         app.include_router(router)
+        app.dependency_overrides[get_principal] = lambda: SimpleNamespace(
+            userId="u-stress", teamId="t1", role="engineer"
+        )
         return TestClient(app)
 
     def test_call_missing_agent_id_422(self, client):

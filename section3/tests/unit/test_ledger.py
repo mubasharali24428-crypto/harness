@@ -220,6 +220,13 @@ def test_record_usage_swallows_any_internal_error():
 # --- call-path wiring ---------------------------------------------------------
 
 
+def _principal_stub(team_id: str = "t1"):
+    """Minimal Principal stand-in for direct route-function calls (S1-R01a)."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(userId="u-ledger", teamId=team_id, role="engineer")
+
+
 async def test_call_model_success_records_usage():
     pool = FakeLedgerPool()
     api.set_ledger_pool(pool)
@@ -228,7 +235,8 @@ async def test_call_model_success_records_usage():
             agentId="agent-e2e",
             role=ModelRole.REVIEWER,
             messages=[{"role": "user", "content": "hello ledger"}],
-        )
+        ),
+        _principal_stub(),
     )
     assert isinstance(result, ModelResult)
 
@@ -252,7 +260,8 @@ async def test_call_model_succeeds_even_when_ledger_is_down():
             agentId="agent-outage",
             role=ModelRole.PRIMARY,
             messages=[{"role": "user", "content": "still works"}],
-        )
+        ),
+        _principal_stub(),
     )
     assert isinstance(result, ModelResult)  # call path unaffected
     for task in api.pending_usage_tasks():
@@ -265,6 +274,7 @@ def test_call_route_through_real_app_records_usage():
     api.set_ledger_pool(pool)
     app = FastAPI()
     app.include_router(api.router)
+    app.dependency_overrides[api.get_principal] = _principal_stub
     with TestClient(app) as client:
         res = client.post(
             "/api/v1/models/call",
@@ -334,6 +344,7 @@ def test_spend_route_through_real_app():
     api.set_ledger_pool(pool)
     app = FastAPI()
     app.include_router(api.router)
+    app.dependency_overrides[api.get_principal] = lambda: _principal_stub(team_id="team-9")
     client = TestClient(app)
     res = client.get("/api/v1/models/spend", params={"teamId": "team-9", "sinceDays": 30})
     assert res.status_code == 200
@@ -350,6 +361,7 @@ def test_spend_route_through_real_app():
 def test_spend_route_returns_503_without_pool():
     app = FastAPI()
     app.include_router(api.router)
+    app.dependency_overrides[api.get_principal] = _principal_stub
     res = TestClient(app).get("/api/v1/models/spend")
     assert res.status_code == 503
     assert res.json()["detail"]["error"]["code"] == "LEDGER_UNAVAILABLE"
@@ -359,6 +371,7 @@ def test_spend_route_maps_query_failure_to_500():
     api.set_ledger_pool(FakeLedgerPool(fail=True))
     app = FastAPI()
     app.include_router(api.router)
+    app.dependency_overrides[api.get_principal] = _principal_stub
     res = TestClient(app).get("/api/v1/models/spend")
     assert res.status_code == 500
     assert res.json()["detail"]["error"]["code"] == "LEDGER_QUERY_FAILED"

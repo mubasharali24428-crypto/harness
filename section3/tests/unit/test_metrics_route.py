@@ -7,12 +7,17 @@ Prometheus text exposition, and counters that move when routes get hit.
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from harness_router.api import router
+from harness_router.api import get_principal, router
 
 
 def _client() -> TestClient:
+    from types import SimpleNamespace
+
     app = FastAPI()
     app.include_router(router)
+    app.dependency_overrides[get_principal] = lambda: SimpleNamespace(
+        userId="u-metrics", teamId="t1", role="engineer"
+    )
     return TestClient(app)
 
 

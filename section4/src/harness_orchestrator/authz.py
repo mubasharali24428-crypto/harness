@@ -42,6 +42,65 @@ AUTHZ_TEST_MODE_ENV = "HARNESS_AUTHZ_TEST_MODE"
 #: Frozen append-only audit action for denied-but-unprovable authorizations.
 AUDIT_ACTION_AUTHZ_DENIED = "authz.denied"
 
+#: S1-R05e: lifecycle audit actions. Canonical append-only allowlist lives in
+#: S1's audit.py (``APPEND_ONLY_ACTIONS``); S4 writes the rows raw because
+#: sections may import only ``harness_contracts``.
+AUDIT_ACTION_RUN_STARTED = "run.started"
+AUDIT_ACTION_RUN_STOPPED = "run.stopped"
+
+
+async def emit_run_lifecycle(
+    service,
+    *,
+    action: str,
+    run_id: str,
+    principal: Principal,
+) -> None:
+    """Best-effort ``run.started`` / ``run.stopped`` audit row (S1-R05e).
+
+    S1's ``emit_run_started/stopped`` helpers had zero production callers, so
+    lifecycle intent existed nowhere in ``audit_log``. Writes through the
+    service's own session factory with the same substitution-safe member-id
+    resolution as denial rows. Bare unit mode (no factory) is a silent no-op;
+    audit failure is logged, never raised — stopping a run must not fail on
+    the audit store's health.
+    """
+    factory = service.session_factory
+    if factory is None:
+        return
+    from sqlalchemy import text
+
+    detail = {
+        "runId": run_id,
+        "userId": principal.userId,
+        "teamId": principal.teamId,
+    }
+    try:
+        async with factory() as db:
+            actor_member_id = await _resolve_member_id(
+                db, principal.teamId, principal.userId
+            )
+            await db.execute(
+                text(
+                    "INSERT INTO audit_log (actor_member_id, actor_kind, action,"
+                    " target_type, target_id, detail, ts)"
+                    " VALUES (:actor, 'human', :action, 'agent_run', :run_id,"
+                    " :detail, :ts)"
+                ),
+                {
+                    "actor": actor_member_id,
+                    "action": action,
+                    "run_id": run_id,
+                    "detail": json.dumps(detail, default=str),
+                    "ts": db_now(),
+                },
+            )
+            await db.commit()
+    except Exception:  # noqa: BLE001 — audit must never mask the lifecycle op
+        logger.exception(
+            "lifecycle audit emit failed (action=%s run=%s)", action, run_id
+        )
+
 
 class OwnershipDeniedError(Exception):
     """The run's project belongs to a different team than the principal's."""
@@ -90,6 +149,31 @@ def require_role(principal: Principal, action: TeamScopedAction) -> None:
         raise RoleDeniedError(principal.userId, str(principal.role), action)
 
 
+async def _resolve_member_id(db: Any, team_id: str | None, user_id: str | None) -> str | None:
+    """``team_members.id`` for (team, user) — what ``actor_member_id`` FKs to.
+
+    S1-R05a: binding ``principal.userId`` (users.id) here FK-failed on
+    Postgres and the audit row was silently lost. Denials frequently target
+    NON-members (that is why they were denied): no membership row is normal,
+    and the column is nullable by design — ``detail`` carries the principal
+    identity in that case.
+    """
+    if not team_id or not user_id:
+        return None
+    from sqlalchemy import text
+
+    row = (
+        await db.execute(
+            text(
+                "SELECT id FROM team_members"
+                " WHERE team_id = :t AND user_id = :u LIMIT 1"
+            ),
+            {"t": team_id, "u": user_id},
+        )
+    ).first()
+    return row.id if row is not None else None
+
+
 async def _emit_authz_denied(
     service,
     *,
@@ -116,6 +200,9 @@ async def _emit_authz_denied(
     }
     try:
         async with service.session_factory() as db:
+            actor_member_id = await _resolve_member_id(
+                db, principal.teamId, principal.userId
+            )
             await db.execute(
                 text(
                     "INSERT INTO audit_log (actor_member_id, actor_kind, action,"
@@ -124,7 +211,7 @@ async def _emit_authz_denied(
                     " :detail, :ts)"
                 ),
                 {
-                    "actor": principal.userId,
+                    "actor": actor_member_id,
                     "action": AUDIT_ACTION_AUTHZ_DENIED,
                     "run_id": run_id,
                     "detail": json.dumps(detail, default=str),

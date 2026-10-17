@@ -48,6 +48,7 @@ def _client(app: FastAPI) -> TestClient:
     app.dependency_overrides[get_principal] = lambda: SimpleNamespace(
         userId="user-g3", teamId="team-g3"
     )
+    app.state.project_team_lookup = lambda _pid: "team-g3"  # S1-R01d wiring
     return TestClient(app)
 
 

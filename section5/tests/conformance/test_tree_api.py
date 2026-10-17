@@ -23,6 +23,8 @@ from harness_sandbox.tree_api import router as tree_router
 PROJECT_ID = "proj-tree-1"
 OTHER_PROJECT = "proj-tree-other"
 
+_TEAM_BY_PROJECT = {PROJECT_ID: "team-tree", OTHER_PROJECT: "team-other"}
+
 
 def _principal(role="admin", user_id="u-tree", team_id="team-tree"):
     from types import SimpleNamespace
@@ -33,6 +35,7 @@ def _principal(role="admin", user_id="u-tree", team_id="team-tree"):
 def _app(principal=None):
     app = FastAPI()
     app.include_router(tree_router)
+    app.state.project_team_lookup = _TEAM_BY_PROJECT.get  # S1-R01d wiring
     if principal is not None:
         app.dependency_overrides[get_principal] = lambda: principal
     return app, TestClient(app)
@@ -155,12 +158,13 @@ class TestTraversalGuard:
 
 
 class TestTeamScopingAndAuth:
-    def test_projects_do_not_leak_into_each_other(self, seeded):
+    def test_foreign_team_project_is_404(self, seeded):
+        """S1-R01d: another team's project must be invisible — no listing at all."""
         gen = _client_for(seeded)
         client = next(gen)
         res = client.get(f"/api/v1/sandbox/{OTHER_PROJECT}/tree")
-        assert res.status_code == 200
-        assert res.json()["entries"] == []  # other project's fresh workspace
+        assert res.status_code == 404
+        assert res.json()["detail"]["error"]["code"] == "PATH_NOT_FOUND"
 
     @pytest.mark.parametrize("role", ["viewer", "guest"])
     def test_read_roles_may_read(self, seeded, role):

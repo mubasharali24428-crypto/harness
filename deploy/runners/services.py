@@ -260,6 +260,12 @@ def app_models():
     # M20-T3: /ready gates on db + migrations (models, port 8003).
     _install_probes(app, 8003)
 
+    # S1-R01a: bearer auth on every router route. Section 3 routes fail
+    # closed (503 AUTH_NOT_CONFIGURED) without this wiring.
+    from harness_contracts.fastapi_auth import make_bearer_dep
+
+    app.state.get_principal = make_bearer_dep(get_factory())
+
     # Wave9-A merge wiring: cost metering activates when this service boots
     # with a database; until then calls succeed unmetered and /spend
     # answers 503 honestly.
@@ -444,6 +450,7 @@ def app_sandbox():
     from harness_contracts.fastapi_auth import make_bearer_dep
     from harness_identity.eventbus import EventBus
     from harness_sandbox.api import configure_sandbox, router
+    from harness_sandbox.local_runner import LocalSandboxRunner
     from harness_sandbox.service import SandboxService
     from harness_sandbox.tree_api import router as tree_router  # M12-G8 read-only tree
 
@@ -470,7 +477,14 @@ def app_sandbox():
 
         loop.create_task(_pub())
 
-    configure_sandbox(SandboxService(on_stream=_publish_stream_event))
+    _conf = os.environ.get("HARNESS_SANDBOX_CONFINEMENT", "auto")
+    _net = os.environ.get("HARNESS_SANDBOX_ALLOW_NETWORK", "1") == "1"
+    configure_sandbox(
+        SandboxService(
+            on_stream=_publish_stream_event,
+            runner=LocalSandboxRunner(confinement=_conf, allow_network=_net),
+        )
+    )
     app = simple_app(router, "harness-sandbox")
     # M20-T2: request ids + JSON logs + /metrics (sandbox, port 8005).
     _wire_observability(app)
@@ -479,6 +493,21 @@ def app_sandbox():
     # M12-G8: mount the read-only tree router on the same app + bearer auth.
     app.include_router(tree_router)
     app.state.get_principal = make_bearer_dep(factory)
+
+    # S1-R01d: project → owning team, for sandbox task/tree/checkpoint scoping.
+    async def _project_team_lookup(project_id: str) -> str | None:
+        from sqlalchemy import text
+
+        async with factory() as db:
+            row = (
+                await db.execute(
+                    text("SELECT team_id FROM projects WHERE id = :pid"),
+                    {"pid": project_id},
+                )
+            ).first()
+        return row[0] if row else None
+
+    app.state.project_team_lookup = _project_team_lookup
     return app
 
 
@@ -502,6 +531,35 @@ def app_meeting():
     _install_probes(app, 8006)
 
     app.state.get_principal = make_bearer_dep(factory)
+
+    # S1-R01d: project → owning team, gating meeting creation per team.
+    async def _project_team_lookup(project_id: str) -> str | None:
+        from sqlalchemy import text
+
+        async with factory() as db:
+            row = (
+                await db.execute(
+                    text("SELECT team_id FROM projects WHERE id = :pid"),
+                    {"pid": project_id},
+                )
+            ).first()
+        return row[0] if row else None
+
+    app.state.project_team_lookup = _project_team_lookup
+
+    # S1-R02b: AI-participant key resolution gets the real vault + frozen
+    # Section 1 api_keys store (dual-read KDF lives in S1's crypto module).
+    from harness_identity.crypto import KeyVault as IdentityKeyVault
+    from harness_meeting.api import configure_meeting_service
+    from harness_meeting.service import MeetingService
+
+    configure_meeting_service(
+        MeetingService(
+            team_key_store=factory,
+            vault=IdentityKeyVault(MASTER_KEY),
+            models_base_url=os.environ.get("HARNESS_MODELS_URL", "http://models:8003"),
+        )
+    )
     # Wave9-E (append): security headers on the meeting app (S6).
     from harness_identity.security_headers import install_security_headers
 
@@ -540,12 +598,15 @@ def app_review():
     )
     vault = KeyVault(MASTER_KEY)
 
-    async def diff_provider(project_id: str, pr_number: int) -> str:
+    async def diff_provider(
+        project_id: str, pr_number: int, team_id: str | None = None
+    ) -> str:
         # Diff arrives via Section 2's contract (getPRDiff); requires a
-        # connected GitHub account for the acting user.
+        # connected GitHub account for the acting user. team_id carries the
+        # review principal's team so cross-team reads fail closed (S1-R01d).
         async with factory() as db:
             svc = GitHubService(db, vault)
-            data = await svc.getPRDiff("system", project_id, pr_number)
+            data = await svc.getPRDiff("system", project_id, pr_number, team_id=team_id)
             await db.close()
             return data["diff"]
 

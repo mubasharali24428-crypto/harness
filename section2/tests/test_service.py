@@ -88,26 +88,33 @@ async def test_full_agent_flow_end_to_end(db, client):
     fake = client.fake
     svc = await make_service(db, client)
 
-    branch = await svc.createBranch("u1", "p1", "main", "agent/demo")
+    branch = await svc.createBranch("u1", "p1", "main", "agent/demo", team_id="t1")
     assert branch == {"branch": "agent/demo", "baseRef": "main", "sha": "abc123base"}
 
     commit = await svc.commitFiles(
-        "u1", "p1", "agent/demo", "feat: hello", [{"path": "src/app.py", "content": "print(2)"}]
+        "u1",
+        "p1",
+        "agent/demo",
+        "feat: hello",
+        [{"path": "src/app.py", "content": "print(2)"}],
+        team_id="t1",
     )
     assert commit["commitSha"].startswith("commit-")
     assert fake.refs["heads/agent/demo"] == commit["commitSha"]
 
-    pr = await svc.openDraftPR("u1", "p1", "agent/demo", "main", "Add hello", "AI summary here")
+    pr = await svc.openDraftPR(
+        "u1", "p1", "agent/demo", "main", "Add hello", "AI summary here", team_id="t1"
+    )
     assert pr["draft"] is True
     assert pr["number"] >= 1
 
-    status = await svc.getPRStatus("u1", "p1", pr["number"])
+    status = await svc.getPRStatus("u1", "p1", pr["number"], team_id="t1")
     assert status["state"] == "open" and status["headBranch"] == "agent/demo"
 
-    tree = await svc.readRepoTree("u1", "p1", "main")
+    tree = await svc.readRepoTree("u1", "p1", "main", team_id="t1")
     assert tree[0]["path"] == "src/app.py"
 
-    file_data = await svc.readFile("u1", "p1", "main", "src/app.py")
+    file_data = await svc.readFile("u1", "p1", "main", "src/app.py", team_id="t1")
     assert file_data["content"] == "print(1)"
 
     pr_calls = [(m, u, b) for m, u, b in fake.requests if "/pulls" in u]
@@ -152,14 +159,14 @@ async def test_github_call_without_connection_rejected(db, client):
         await s.commit()
     svc = await make_service(db, client)
     with pytest.raises(PermissionError, match="OAuth flow"):
-        await svc.readRepoTree("u1", "p1", "main")
+        await svc.readRepoTree("u1", "p1", "main", team_id="t1")
 
 
 async def test_connect_then_call_works(db, client):
     await seed(db)
     await connect_user(db)
     svc = await make_service(db, client)
-    tree = await svc.readRepoTree("u1", "p1", "main")
+    tree = await svc.readRepoTree("u1", "p1", "main", team_id="t1")
     assert tree[0]["path"] == "src/app.py"
 
 
