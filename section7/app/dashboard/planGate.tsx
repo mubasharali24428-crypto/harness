@@ -13,6 +13,7 @@ import type { AgentPlan } from "@contracts/plan";
 import type { RunStatus } from "@contracts/api";
 import type { Principal } from "@contracts/roles";
 import { ApiError, getRunStatus } from "@/lib/api";
+import { getProjectId } from "@/lib/auth";
 import {
   panelStyle,
   headingStyle,
@@ -134,7 +135,7 @@ export function PlanGateCard({
     runId: activeRunId,
     propose: (goal) =>
       void act("propose", "Plan proposed — awaiting approval.", async () => {
-        await proposePlan(goal.trim(), token);
+        await proposePlan(goal.trim(), token, getProjectId());
       }),
     // M14-F4 — approve flips the card to ready-to-start INSTANTLY; the server
     // response reconciles it (real run binding) and a failure rolls back to

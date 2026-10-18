@@ -74,11 +74,18 @@ async function request<T>(path: string, token: string, init?: RequestInit): Prom
   return body as T;
 }
 
-/** Pair-contract step 1: propose. Body is exactly `{goal}` per contract. */
-export async function proposePlan(goal: string, token: string): Promise<ProposePlanResponse> {
+/** Pair-contract step 1: propose. Body is exactly `{goal}` per contract unless
+ *  a projectId is given (B1): then `{goal, projectId}` so the server binds the
+ *  run to that project (foreign/unknown ids are a 404). Omitting it keeps the
+ *  legacy body; the server then binds the team's only project, if exactly one. */
+export async function proposePlan(
+  goal: string,
+  token: string,
+  projectId?: string | null,
+): Promise<ProposePlanResponse> {
   return request<ProposePlanResponse>(proposePlanUrl(), token, {
     method: "POST",
-    body: JSON.stringify({ goal }),
+    body: JSON.stringify(projectId ? { goal, projectId } : { goal }),
   });
 }
 

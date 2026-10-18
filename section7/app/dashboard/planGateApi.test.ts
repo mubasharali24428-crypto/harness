@@ -58,6 +58,16 @@ describe("plan-gate clients — pair-contract W1-C1↔W1-C2 wire shapes", () => 
     expect(res.plan.expectedResult).toBe("done");
   });
 
+  it("proposePlan sends {goal, projectId} only when a project is given (B1)", async () => {
+    const f = stubOk({ planId: "p3", plan: { goal: "g", expectedResult: "e" } }, 201);
+    vi.stubGlobal("fetch", f);
+    await proposePlan("g", TOKEN, "proj-7");
+    await proposePlan("g", TOKEN, null);
+    await proposePlan("g", TOKEN, "");
+    const bodies = f.mock.calls.map((c) => JSON.parse(String((c as unknown as [string, RequestInit])[1].body)));
+    expect(bodies).toEqual([{ goal: "g", projectId: "proj-7" }, { goal: "g" }, { goal: "g" }]);
+  });
+
   it("proposePlan treats AgentPlan list fields as always-serialized (H-1: pydantic v2 emits defaulted fields)", async () => {
     const f = stubOk({ planId: "p2", plan: { goal: "g", expectedResult: "e" } }, 201);
     vi.stubGlobal("fetch", f);
