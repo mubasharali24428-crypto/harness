@@ -23,6 +23,8 @@ class Config:
     executor_mode: str = "disabled"
     call_timeout_s: float = 10.0
     max_response_bytes: int = 256 * 1024
+    # Ed25519 public key (hex) that signs the vetted catalog. Unset = catalog not installable.
+    catalog_public_key: str | None = None
 
     @staticmethod
     def from_env() -> Config:
@@ -32,4 +34,5 @@ class Config:
             allow_loopback=_env("EXTENSIONS_ALLOW_LOOPBACK") == "1",
             allow_private=_env("EXTENSIONS_ALLOW_PRIVATE") == "1",
             executor_mode=_env("EXTENSIONS_EXECUTOR_MODE", "disabled"),
+            catalog_public_key=_env("EXTENSIONS_CATALOG_PUBKEY") or None,
         )

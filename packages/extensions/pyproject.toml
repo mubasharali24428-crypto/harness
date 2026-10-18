@@ -1,7 +1,7 @@
 [project]
 name = "harness-extensions"
 version = "0.1.0"
-description = "A5 extensions lane building blocks: external MCP client, SSRF host policy and untrusted tool-schema guard. Registry, grants, wrappers, skills, signed catalog and the /api/v1/extensions service are not built yet."
+description = "A5 extensions lane: external MCP client, SSRF host policy, untrusted tool-schema guard, team-scoped extension registry, default-deny revocable grants, Ed25519-signed catalog and the /api/v1/extensions FastAPI service (sqlite store). Not built yet: wrapper execution through the S5 runtime, skill runtime, and a Postgres/S1 identity binding (the default principal resolver fails closed)."
 requires-python = ">=3.11"
 dependencies = ["fastapi>=0.111", "uvicorn>=0.30", "httpx>=0.27", "cryptography>=42"]
 
