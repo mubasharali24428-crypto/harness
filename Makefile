@@ -33,7 +33,7 @@ PG_URL ?= postgresql+asyncpg://harness:harness@localhost:5499/harness
 .PHONY: help bootstrap clean-venvs guard-script-check \
         gate $(foreach s,$(SECTIONS),lint-$(s) test-$(s)) \
         lint test frontend frontend-tsc frontend-vitest static-gates e2e e2e-compose \
-        pg-probe pg-probe-integration pg-probe-s1 pg-probe-migrate pip-audit \
+        pg-probe pg-probe-integration pg-probe-s1 pg-probe-migrate pg-up pip-audit \
         guard-routes guard-isolation guard-route-law
 
 help:
@@ -92,6 +92,7 @@ static-gates: guard-route-law
 	sh -n deploy/entrypoint.sh
 	docker compose -f deploy/docker-compose.yml config -q
 	python3 contracts/ts/generate.py --check
+	section4/.venv/bin/python scripts/spec_drift.py
 
 # ------------------------------------------------------------------------ lint
 # Sections WITH a scripts/ tree get the three-path check; sections without
@@ -193,7 +194,18 @@ e2e-compose:
 # -------------------------------------------------------------------- pg-probe
 # Nightly-pg-probe job parity. Guarded: silently skipping would fake parity.
 # Prereqs: Postgres reachable at :5499 (compose stack) with harness/harness creds.
-PG_ENV := HARNESS_TEST_PG=1 HARNESS_DATABASE_URL="$(PG_URL)"
+# DSN/container are derived from PG_URL and the compose `db` service (override either), so a
+# non-default port or project name needs no test edits.
+PG_COMPOSE := docker compose -f "$(CURDIR)/deploy/docker-compose.yml"
+PG_ENV = HARNESS_TEST_PG=1 HARNESS_DATABASE_URL="$(PG_URL)" \
+	HARNESS_TEST_PG_DSN="$(subst +asyncpg,,$(PG_URL))" \
+	HARNESS_TEST_PG_CONTAINER="$${HARNESS_TEST_PG_CONTAINER:-$$($(PG_COMPOSE) ps -q db)}"
+
+# Idempotently start the compose db and wait until it accepts connections.
+pg-up:
+	$(PG_COMPOSE) up -d db
+	@for i in $$(seq 1 60); do $(PG_COMPOSE) exec -T db pg_isready -U harness >/dev/null 2>&1 && exit 0; sleep 1; done; \
+		echo "pg-up: db not ready after 60s"; exit 1
 
 pg-probe: pg-probe-integration pg-probe-s1 pg-probe-migrate
 
@@ -201,8 +213,8 @@ pg-probe-integration:
 	@$(MAKE) --no-print-directory pg-guard
 	cd integration && $(PG_ENV) ../section1/.venv/bin/python -m pytest test_checkpoint1.py -q
 
-pg-probe-s1:
-	@$(MAKE) --no-print-directory pg-guard
+pg-probe-s1: pg-up
+	@HARNESS_TEST_PG=1 $(MAKE) --no-print-directory pg-guard
 	cd section1 && $(PG_ENV) ./.venv/bin/python -m pytest tests/ -q
 
 # M17-B2 (OPS-15): execute deploy/runners/migrate.py ITSELF against real PG on

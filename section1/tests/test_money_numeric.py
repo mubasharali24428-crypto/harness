@@ -500,7 +500,7 @@ def _pg_dsn() -> str:
     non-empty value is taken as an explicit DSN."""
     raw = os.environ.get("HARNESS_TEST_PG")
     if not raw or raw.strip().lower() in {"1", "true", "yes", "on"}:
-        return "postgresql://harness:harness@localhost:5499/harness"
+        return os.environ.get("HARNESS_TEST_PG_DSN") or "postgresql://harness:harness@localhost:5499/harness"
     dsn = raw
     if "://" not in dsn:
         dsn = f"postgresql://{dsn}"
