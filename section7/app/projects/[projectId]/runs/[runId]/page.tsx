@@ -31,6 +31,7 @@ import {
   getRunAggregate,
 } from "../../../../runs/runsApi";
 import { RunDetailAggregate } from "./runDetailAggregate";
+import { SharedRunPanel } from "./sharedRunPanel";
 
 const mutedStyle = { color: "var(--muted)" } as const;
 
@@ -144,6 +145,9 @@ export default function RunDetailPage({
       )}
 
       {agg && <RunDetailAggregate agg={agg} now={Date.now()} />}
+
+      {/* Multiplayer pilot: leader, participants, pending decisions, direction. */}
+      {runId && <SharedRunPanel runId={runId} />}
 
       {/* Legacy working area (F1b/F2b territory this wave — untouched). It
           self-guards on session absence, so it renders nothing until the

@@ -398,7 +398,7 @@ def _view(r: Any) -> dict[str, Any]:
     paths = r.paths if isinstance(r.paths, list) else json.loads(r.paths)
     return {
         "id": r.id, "runId": r.run_id, "action": r.action, "paths": paths,
-        "summary": r.summary, "digest": r.digest, "state": r.state,
+        "summary": r.summary, "diff": r.diff, "digest": r.digest, "state": r.state,
         "requester": r.requester_user_id, "decidedBy": r.decided_by, "outcome": r.outcome,
         "expiresAt": str(r.expires_at),
     }
