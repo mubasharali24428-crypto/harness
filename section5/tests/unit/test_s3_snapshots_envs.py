@@ -114,6 +114,29 @@ def test_snapshot_retention_and_team_quota(tmp_path, ws):
     with pytest.raises(SnapshotQuotaError):
         tiny.create("t1", "task", ws)
 
+def test_restore_at_team_quota_evicts_oldest_instead_of_blocking_recovery(tmp_path, ws):
+    s = EnvironmentSnapshots(tmp_path / "q", max_team_bytes=24)  # clean snapshot 9 B, dirty 13 B
+    old = s.create("t1", "task", ws, "old")["id"]
+    (ws / "src/a.py").write_text("a2")
+    keep = s.create("t1", "task", ws, "keep")["id"]
+    with pytest.raises(SnapshotQuotaError):  # the team really is full
+        s.create("t1", "task", ws, "third")
+    (ws / "src/a.py").write_text("broken")
+    res = s.restore("t1", "task", keep, ws, discard_dirty=True)
+    assert (ws / "src/a.py").read_text() == "a2" and res.safety_snapshot
+    ids = {m["id"] for m in s.list("t1", "task")}
+    assert old not in ids and keep in ids and res.safety_snapshot in ids
+
+
+def test_restore_still_fails_when_eviction_cannot_make_room(tmp_path, ws):
+    s = EnvironmentSnapshots(tmp_path / "q2", max_team_bytes=10)
+    keep = s.create("t1", "task", ws, "only")["id"]
+    (ws / "src/a.py").write_text("changed")
+    with pytest.raises(SnapshotQuotaError):
+        s.restore("t1", "task", keep, ws, discard_dirty=True)
+    assert s.list("t1", "task")[0]["id"] == keep  # the target snapshot is never evicted
+
+
 # ------------------------------- environments ----------------------------------------
 
 

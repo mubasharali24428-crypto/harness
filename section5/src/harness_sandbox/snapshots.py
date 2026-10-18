@@ -151,6 +151,23 @@ class EnvironmentSnapshots:
             shutil.rmtree(base / old["id"], ignore_errors=True)
         return {k: v for k, v in manifest.items() if k != "entries"} | {"files": len(entries)}
 
+    def _safety_snapshot(self, team: str, task: str, workspace: Path, forbidden: list[str],
+                         keep: str) -> str:
+        """Take the mandatory pre-restore snapshot, evicting this task's OLDEST snapshots (never
+        the one being restored) if the team quota would otherwise block recovery itself."""
+        try:
+            return self.create(team, task, workspace, "pre-restore", forbidden)["id"]
+        except SnapshotQuotaError:
+            for old in reversed(self.list(team, task)):  # oldest first
+                if old["id"] == keep:
+                    continue
+                shutil.rmtree(self._dir(team, task) / old["id"], ignore_errors=True)
+                try:
+                    return self.create(team, task, workspace, "pre-restore", forbidden)["id"]
+                except SnapshotQuotaError:
+                    continue
+            raise
+
     def _team_bytes(self, team: str) -> int:
         total = 0
         tdir = self.root / team
@@ -191,7 +208,9 @@ class EnvironmentSnapshots:
             raise DirtyWorkspaceError(dirty)
 
         result = RestoreResult()
-        result.safety_snapshot = self.create(team, task, workspace, "pre-restore", forbidden)["id"]
+        result.safety_snapshot = self._safety_snapshot(
+            team, task, workspace, forbidden, keep=snapshot_id
+        )
         entries: dict[str, dict] = manifest["entries"]
         src_root = self._dir(team, task) / snapshot_id / "files"
 
