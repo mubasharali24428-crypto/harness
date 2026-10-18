@@ -46,7 +46,7 @@ import logging
 import os
 import time
 from collections.abc import Callable, Mapping
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from functools import partial
 from typing import Any
 
@@ -289,6 +289,11 @@ class EngineRuntime:
         self._executor = ThreadPoolExecutor(
             max_workers=self.max_concurrency, thread_name_prefix="engine-run"
         )
+        self._inflight: dict[str, Future] = {}
+
+    def is_running(self, session_id: str) -> bool:
+        """True while the engine OS thread for this session is still alive."""
+        return session_id in self._inflight
 
     def shutdown(self) -> None:
         """Best-effort executor teardown (app shutdown seam).
@@ -311,14 +316,19 @@ class EngineRuntime:
         """
         key = provider_key_for(engine)
         self.breaker.check(key)  # fail fast BEFORE consuming a slot
-        loop = asyncio.get_running_loop()
         call: Callable[[], dict[str, Any]] = partial(
             engine.execute_goal, goal=goal, session_id=session_id
         )
+        # Submit directly so the thread's real lifetime is tracked: a cancelled
+        # or timed-out await does NOT end the thread, and callers (stop) must
+        # not claim the run is quiet while it can still touch files.
+        cf = self._executor.submit(call)
+        self._inflight[session_id] = cf
+        cf.add_done_callback(lambda f, sid=session_id: self._inflight.pop(sid, None)
+                             if self._inflight.get(sid) is f else None)
         try:
             result = await asyncio.wait_for(
-                loop.run_in_executor(self._executor, call),
-                timeout=self.run_timeout_seconds,
+                asyncio.wrap_future(cf), timeout=self.run_timeout_seconds
             )
         except TimeoutError:
             self.breaker.record_timeout(key)

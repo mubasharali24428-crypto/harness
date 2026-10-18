@@ -21,6 +21,7 @@ that actually answered.
 """
 
 import os
+import re
 from collections.abc import Callable
 from typing import Any
 
@@ -31,6 +32,8 @@ from harness_orchestrator.live_mode import (
     validate_live_credentials,
 )
 from harness_orchestrator.redact import scrub_secrets
+
+_SESSION_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
 
 
 class DeepSeekHarnessWrapper:
@@ -82,6 +85,21 @@ class DeepSeekHarnessWrapper:
                 model=self.model or None,
                 base_url=self.base_url or None,
             )
+
+    def run_workspace(self, session_id: str) -> str:
+        """Per-run working directory: ``<workspace root>/<session_id>``.
+
+        session_id is the run id. Rejects anything but a plain id and any path
+        whose real location (symlinks resolved) escapes the root, so two runs
+        can never share or reach into each other's files.
+        """
+        if not _SESSION_ID_RE.fullmatch(session_id or ""):
+            raise ValueError(f"invalid session id for workspace: {session_id!r}")
+        root = os.path.realpath(self.workspace)
+        path = os.path.realpath(os.path.join(root, session_id))
+        if os.path.dirname(path) != root:
+            raise ValueError(f"workspace for {session_id!r} escapes the workspace root")
+        return path
 
     @property
     def mode(self) -> LiveMode:
@@ -205,13 +223,16 @@ class DeepSeekHarnessWrapper:
         try:
             from deepseek_harness import DeepSeekHarness
 
-            os.makedirs(self.workspace, exist_ok=True)
+            # Fail closed BEFORE any SDK import/call: a bad session id raises
+            # ValueError, which the handler below reports as status "error".
+            run_cwd = self.run_workspace(session_id)
+            os.makedirs(run_cwd, exist_ok=True)
             os.makedirs(self.session_root, exist_ok=True)
             kwargs: dict[str, Any] = dict(
                 provider="deepseek-official",
                 model=model,
                 max_tokens=4096,
-                cwd=self.workspace,
+                cwd=run_cwd,
                 session_root=self.session_root,
             )
             cordis = os.environ.get("DSH_CORDIS_CONFIG")
