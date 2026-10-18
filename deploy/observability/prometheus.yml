@@ -1,9 +1,8 @@
 # M20-T2 (OPS-21/22) — ONE Prometheus scrape target covering every service.
 # Each backend exposes GET /metrics (Prometheus text format, no auth — same
 # posture as /health) on its own container port; static DNS names + one job
-# scrape them all. The `job` label carries the compose service name so
-# queries/alerts can select per-service series
-# (e.g. harness_queue_depth{job="orchestrator"}).
+# scrape them all. There is ONE job (`harness-backends`); the per-service
+# split is the `instance` label (e.g. harness_queue_depth{instance="orchestrator:8004"}).
 #
 # Mounted read-only by the `prometheus` service (profile: observability):
 #   docker compose -f deploy/docker-compose.yml --profile observability up -d prometheus
@@ -16,6 +15,11 @@
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+
+# Alert rules: this directory is bind-mounted at /etc/prometheus (compose),
+# so alerts.yml sits next to this file. See docs/runbooks/alerting.md.
+rule_files:
+  - /etc/prometheus/alerts.yml
 
 scrape_configs:
   - job_name: harness-backends

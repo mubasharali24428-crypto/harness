@@ -18,6 +18,11 @@ backup**.
 | Deploy applied migrations AND code is broken in a way the new schema causes or enables | **Image + schema** (§4) | PITR-bound (see backup-and-pitr.md RTO) |
 | `DRIFT GATE REFUSED BOOT` / migrate exits 1 at deploy time | Nothing is broken yet — decide via §3 | minutes |
 
+Collaboration features only (shared runs misbehaving, a team must leave the
+pilot): no image or schema change is needed; use the flag rollback in
+[pilot.md](pilot.md) section 5 (tested by
+`section4/tests/unit/test_pilot_flag_rollback.py`).
+
 If you are unsure whether the bad behavior involves the new schema, treat it
 as image+schema and read §3 first — §2 is only safe when the DB never moved.
 
@@ -226,3 +231,14 @@ whether schema was touched, PITR target if any) — next incident reads it.
   exercised positive + negative on a scratch database (§3 trip condition);
   schema+image combined path (§4) covered by the 2026-08-24 PITR drill plus
   the gate tests, still un-drilled as one sequence (tracked above).
+
+- **2026-10-18 (ops acceptance, part 28)** - migration-level rollback rehearsal
+  on a scratch PG18 (port 55432), `deploy/runners/migrate.py` driven directly:
+  0001->0035 applies clean from empty (34 files, 0014 intentionally absent) and
+  the re-run is a no-op; a failing migration (`0099_bad.sql`) leaves NO partial
+  DDL and NO ledger row (whole chain runs in one transaction); `pg_dump -Fc`
+  taken at 0034, 0035 applied, old-image drift check raised `SchemaDriftError`
+  naming 0035, then `dropdb`/`pg_restore` returned the ledger to 0034 and the
+  old-image drift check passed. There is no down-migration path: restore is the
+  only schema rollback. Not covered: docker image swap, PITR (no Docker
+  daemon in that session). Evidence: `docs/briefs/evidence/s1/ops-acceptance.md`.

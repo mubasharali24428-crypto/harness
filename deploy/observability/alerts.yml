@@ -1,0 +1,192 @@
+# Prometheus alert rules for the harness stack (part 32 / session 2 lane D).
+# Loaded via `rule_files` in prometheus.yml; the compose `prometheus` service
+# bind-mounts this whole directory at /etc/prometheus, so no compose change.
+# Validate: docker run --rm --entrypoint promtool -v "$PWD/deploy/observability":/cfg \
+#   prom/prometheus:v2.53.0 check rules /cfg/alerts.yml
+# Structural check without Docker: section1/tests/test_alert_rules_load.py
+#
+# severity: `page` = wake a human now; `warning` = look during working hours.
+# Every alert carries a `runbook` annotation (repo path + anchor, checked by the test).
+# Alerts marked depends_on: lane-A read counters that session-2 lane A adds
+# (harness_approval_denied_total, harness_run_cancel_total,
+# harness_isolation_violation_total, harness_event_delivery_total). Until the
+# code emits them the expressions return no series and the alerts stay silent;
+# that is "no data", not "healthy". Notification routing (Alertmanager) is NOT
+# configured: these fire inside Prometheus only (see alerting.md section 5).
+
+groups:
+  - name: harness-availability
+    rules:
+      - alert: HarnessServiceDown
+        expr: up{job="harness-backends"} == 0
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: "Backend {{ $labels.instance }} is not scraping"
+          description: "Prometheus cannot scrape /metrics on {{ $labels.instance }} for 2m (process down, crash-loop, or network)."
+          runbook: docs/runbooks/ops.md#2-incident-backend-dns-crash-loop
+
+      - alert: HarnessHigh5xxRate
+        expr: |
+          sum by (instance) (rate(http_requests_total{status=~"5.."}[5m]))
+            / sum by (instance) (rate(http_requests_total[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 5% of requests on {{ $labels.instance }} return 5xx"
+          description: "5xx ratio above 5% for 10m on {{ $labels.instance }}."
+          runbook: docs/runbooks/alerting.md#6-pilot-alerts-session-2
+
+  - name: harness-slo
+    rules:
+      - alert: HarnessQueueDepthHigh
+        expr: harness_queue_depth > 50
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Run queue depth above 50 for 10m"
+          description: "harness_queue_depth is {{ $value }}; producers outpace execution."
+          runbook: docs/runbooks/alerting.md#a-queue-depth-runs-stuck-waiting
+
+      - alert: HarnessQueueDepthCritical
+        expr: harness_queue_depth > 200
+        for: 30m
+        labels:
+          severity: page
+        annotations:
+          summary: "Run queue depth above 200 for 30m"
+          description: "harness_queue_depth is {{ $value }} after 30m; sustained backlog."
+          runbook: docs/runbooks/alerting.md#a-queue-depth-runs-stuck-waiting
+
+      # The gauge is "seconds since the newest agent_events row", so it grows
+      # forever when nothing runs. Only alert while there is work in flight.
+      - alert: HarnessEventBusLag
+        expr: |
+          harness_event_bus_lag_seconds > 300
+            and on() (sum(harness_queue_depth) > 0 or sum(increase(harness_runs_started_total[15m])) > 0)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No agent_events committed for 5m while runs are active"
+          description: "harness_event_bus_lag_seconds is {{ $value }}; event pipeline or DB stalled."
+          runbook: docs/runbooks/alerting.md#b-event-bus-lag-event-pipeline-stalled
+
+      - alert: HarnessDbPoolSaturated
+        expr: |
+          histogram_quantile(1,
+            sum by (le, job) (rate(harness_db_pool_checked_out_connections_bucket[5m]))
+          ) >= 12
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DB pool at its 12-connection ceiling"
+          description: "Checked-out connections reached the pool ceiling for 5m."
+          runbook: docs/runbooks/alerting.md#c-db-pool-saturation-connection-exhaustion-imminent
+
+      # d and e: the two metric names have no emitter in this repo yet, so
+      # these rules cannot fire today (alerting.md section 5).
+      - alert: HarnessBackupStale
+        expr: time() - harness_backup_last_success_timestamp_seconds > 90000
+        labels:
+          severity: warning
+        annotations:
+          summary: "No successful base backup for more than 25h"
+          description: "INERT until an exporter emits harness_backup_last_success_timestamp_seconds."
+          runbook: docs/runbooks/alerting.md#d-backup-freshness-base-backups-stopped
+
+      - alert: HarnessWalArchiveFailing
+        expr: increase(harness_pg_wal_archive_failed_count_total[15m]) > 0
+        labels:
+          severity: page
+        annotations:
+          summary: "WAL archiving is failing"
+          description: "INERT until an exporter emits harness_pg_wal_archive_failed_count_total."
+          runbook: docs/runbooks/alerting.md#e-archiver-failure-count-wal-not-leaving-the-primary
+
+      - alert: HarnessRunQueueStalled
+        expr: harness_oldest_queued_run_age_seconds > 300
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "A queued run has waited more than 5m"
+          description: "Oldest queued claim is {{ $value }}s old; worker dead or executor saturated."
+          runbook: docs/runbooks/alerting.md#f-stalled-runs--dead-queue-worker
+
+      - alert: HarnessStaleRunningClaims
+        expr: harness_stale_running_claims > 0
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Running claims with a stale heartbeat are not being reaped"
+          description: "{{ $value }} stale running claim(s); the reaper (orchestrator worker loop) is not running."
+          runbook: docs/runbooks/alerting.md#f-stalled-runs--dead-queue-worker
+
+  - name: harness-pilot
+    rules:
+      - alert: HarnessApprovalDenialSpike
+        expr: sum(increase(harness_approval_denied_total[10m])) > 10
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 10 approval denials in 10m"
+          description: "{{ $value }} denied approvals in 10m; see the reason label (stale digest, self-approval, expired, role)."
+          runbook: docs/runbooks/alerting.md#6-pilot-alerts-session-2
+          depends_on: "lane-A: harness_approval_denied_total{reason}"
+
+      # outcome values are defined by lane A; anything that is not a clean
+      # stop alerts (incomplete or failed cancellation must be seen).
+      - alert: HarnessRunCancelFailure
+        expr: |
+          sum(increase(harness_run_cancel_total{outcome!~"ok|success|stopped|cancelled|canceled|completed"}[15m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "A run stop did not complete cleanly"
+          description: "{{ $value }} cancellation(s) in 15m ended in a non-clean outcome; verify the run is really stopped."
+          runbook: docs/runbooks/alerting.md#6-pilot-alerts-session-2
+          depends_on: "lane-A: harness_run_cancel_total{outcome}"
+
+      # Second clause catches the FIRST violation: increase() reads 0 when a
+      # counter child appears already at 1 (no earlier sample to subtract).
+      - alert: HarnessIsolationViolation
+        expr: |
+          sum(increase(harness_isolation_violation_total[5m])) > 0
+            or (sum(harness_isolation_violation_total) > 0 unless sum(harness_isolation_violation_total offset 5m))
+        labels:
+          severity: page
+        annotations:
+          summary: "Sandbox or run isolation violation detected"
+          description: "harness_isolation_violation_total increased (kind label says which boundary). Treat as a security incident: stop the pilot."
+          runbook: docs/runbooks/alerting.md#6-pilot-alerts-session-2
+          depends_on: "lane-A: harness_isolation_violation_total{kind}"
+
+      - alert: HarnessEventDeliveryDrops
+        expr: |
+          sum(increase(harness_event_delivery_total{outcome=~"drop.*|fail.*|error|lost"}[10m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Collaboration events are being dropped or failing delivery"
+          description: "{{ $value }} dropped/failed deliveries in 10m; teammates may see stale state."
+          runbook: docs/runbooks/alerting.md#6-pilot-alerts-session-2
+          depends_on: "lane-A: harness_event_delivery_total{outcome}"
+
+      - alert: HarnessEventDeliveryDuplicates
+        expr: |
+          sum(increase(harness_event_delivery_total{outcome=~"dup.*"}[10m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Repeated duplicate event deliveries"
+          description: "{{ $value }} duplicate deliveries in 10m; check cursor resume and client dedup."
+          runbook: docs/runbooks/alerting.md#6-pilot-alerts-session-2
+          depends_on: "lane-A: harness_event_delivery_total{outcome}"
