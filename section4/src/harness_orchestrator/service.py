@@ -1146,6 +1146,8 @@ class OrchestratorService(Orchestrator):
     async def stop_agent(self, run_id: str) -> None:
         run_data = await self._ensure_run(run_id)
         sm: AgentStateMachine = run_data["state_machine"]
+        if sm.state in TERMINAL_STATES:
+            return  # idempotent: a repeated stop on a finished run is a no-op, not a 500
         run_data["_cancel_reason"] = "stop"  # terminal: overwrites any earlier 'pause'
         sm.finish()
         # M12-G7: the only transition that reaches DONE without a bus event

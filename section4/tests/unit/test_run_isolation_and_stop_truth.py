@@ -98,3 +98,19 @@ def test_is_running_tracks_thread_not_await():
 
     still, after = asyncio.run(go())
     assert still is True and after is False
+
+
+def test_second_stop_on_finished_run_is_a_noop():
+    """Found live (S4): a repeated stop raised InvalidStateTransitionError -> HTTP 500."""
+    from harness_orchestrator.service import OrchestratorService
+    from harness_orchestrator.state_machine import AgentState
+
+    async def go():
+        svc = OrchestratorService()
+        await svc._ensure_run("r-stop")
+        await svc.stop_agent("r-stop")
+        sm = svc.runs["r-stop"]["state_machine"] if "r-stop" in svc.runs else None
+        await svc.stop_agent("r-stop")  # must not raise
+        return sm.state if sm else AgentState.DONE
+
+    assert asyncio.run(go()) == AgentState.DONE

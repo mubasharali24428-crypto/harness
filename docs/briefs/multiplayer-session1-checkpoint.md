@@ -85,3 +85,10 @@ No subagents used. Session 4 optional, 3 sessions of capacity remain.
 - **Verified**: `tsc --noEmit` clean; section7 vitest 522 passed (new `collab.test.tsx`: model, client, static render incl. escaping and per-role views); section4 suite green. A wording bug ("until you decides") was caught by a test and fixed.
 - **NOT verified**: no browser run against a live orchestrator (the static-HTML snapshot could not be screenshotted by tooling); keyboard/screen-reader behaviour, responsive layout and polling load are untested; no component interaction tests (node env, no jsdom). The existing local-only `CommentsNudges` is untouched and still not connected to the backend. Presence (online/idle) and WS push for collab events remain missing; UI cannot show who is "online".
 - **Next (S4)**: end-to-end pilot run on a live stack (two users), stop/cancel confirmation display, contracts/sdk-gen specs, security review items in checkpoint, readiness decision.
+
+## Session 4 (2026-10-17) - live integration + readiness
+Live stack run on scratch PG: 30/31 checks passed; the failure (repeat `stop` -> 500) was fixed
+(`service.stop_agent` no-op on terminal; pin in `test_edge_cases_decisions.py` flipped; new regression
+test). Re-verified live: stop1 `stopping`, stop2 200, stop3 `stopped`. section4 559 passed/7 skipped.
+**Decision: not safe for real users** - blockers B1-B4 in `docs/briefs/multiplayer-readiness.md`.
+Unused session capacity: none planned; further work is a new tranche starting with B1.

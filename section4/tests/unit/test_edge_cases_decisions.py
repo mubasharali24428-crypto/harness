@@ -319,7 +319,8 @@ async def test_x18_2_after_terminal_transitions_are_hard_rejected(db_parts):
 async def test_x18_3_stop_double_invocation_is_idempotent_done(db_parts):
     """x18_3: stop→DONE double-invocation semantics, pinned AS SHIPPED.
 
-    FLAGGED FOR ATLAS (raw-18 #3 gap): the registry expects a second stop on
+    RESOLVED (multiplayer S4): service-level stop is an idempotent no-op;
+    machine-level finish() still refuses. Original note: the registry expects a second stop on
     a DONE run to be an "idempotent no-op returning DONE", but today
     ``OrchestratorService.stop_agent`` calls ``sm.finish()`` unguarded, so the
     repeat stop RAISES InvalidStateTransitionError (HTTP 400 via api.py) —
@@ -341,9 +342,9 @@ async def test_x18_3_stop_double_invocation_is_idempotent_done(db_parts):
         sm.finish()
     assert sm.state is AgentState.DONE
 
-    # ...and the service seam propagates that refusal unchanged (the #3 gap).
-    with pytest.raises(InvalidStateTransitionError):
-        await svc.stop_agent("run-stop")
+    # ...but the service seam is idempotent (S4 fix for the #3 gap): a repeat
+    # stop on a DONE run is a silent no-op, not a 400/500.
+    await svc.stop_agent("run-stop")
     assert svc.runs["run-stop"]["state_machine"].state is AgentState.DONE
 
 
