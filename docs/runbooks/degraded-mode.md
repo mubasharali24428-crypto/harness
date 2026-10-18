@@ -78,3 +78,17 @@ lane work. Log results in §7.
 
 | Date | Lane | Result | Notes |
 |---|---|---|---|
+
+## 8. Platform dependency failures (not provider outages)
+
+Sections 1-7 cover LLM-provider outages during build missions. For runtime
+dependency loss in the deployed stack, see
+[ops.md](ops.md) section 3.2-3.3. Summary of the degraded states the product
+itself exhibits:
+
+| Lost | Behaviour | Operator action |
+|---|---|---|
+| Postgres | backends `/ready` -> 503 `db-unreachable`, containers keep running (no restart storm), `/health` stays 200; in-flight runs fail their next DB write | restore db; backends self-recover on the next probe. If data loss: [backup-and-pitr.md](backup-and-pitr.md) |
+| Orchestrator worker | `/ready` stays 200; runs sit `QUEUED`; `harness_oldest_queued_run_age_seconds` grows | `docker compose restart orchestrator` |
+| Model provider | engine fails runs to `blocked` (never fake success); breaker opens after 3 timeouts | section 3 postures; [engine-concurrency.md](../engine-concurrency.md) |
+| Redis / broker | n/a: none in the stack | - |

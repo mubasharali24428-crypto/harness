@@ -332,6 +332,8 @@ DOMAIN_NAMES = (
     "harness_db_pool_checked_out_connections",
     "harness_event_bus_lag_seconds",
     "harness_queue_depth",
+    "harness_oldest_queued_run_age_seconds",
+    "harness_stale_running_claims",
     "harness_runs_completed_total",
     "harness_runs_started_total",
 )
@@ -641,4 +643,41 @@ async def test_orchestrator_domain_poll_works_over_deployed_async_factory(
     assert lag, "bus-lag gauge missing"
     assert 1 <= int(lag.group(1)) <= 3600, "seeded event must set a fresh lag"
 
+    await engine.dispose()
+
+
+async def test_stall_gauges_flag_old_queued_and_stale_running(obs, tmp_path, monkeypatch):
+    """Ops acceptance (part 28): a dead worker must be visible as a growing
+    oldest-queued age and as running claims with a stale heartbeat."""
+    import datetime as dt
+
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path}/stall.db")
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    monkeypatch.setenv("HEARTBEAT_TIMEOUT_SECONDS", "90")
+    now = dt.datetime.now(dt.UTC)
+    old = (now - dt.timedelta(seconds=600)).isoformat()
+    fresh = now.isoformat()
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(
+                "CREATE TABLE run_claims (run_id TEXT PRIMARY KEY, project_id TEXT,"
+                " state TEXT, claimed_at TEXT, heartbeat_at TEXT, worker_id TEXT)"
+            )
+        )
+        for rid, state, claimed, hb in (
+            ("q1", "queued", old, old),
+            ("q2", "queued", fresh, fresh),
+            ("r1", "running", old, old),  # stale heartbeat
+            ("r2", "running", fresh, fresh),  # healthy
+        ):
+            await conn.execute(
+                text("INSERT INTO run_claims VALUES (:r,'p',:s,:c,:h,'w')"),
+                {"r": rid, "s": state, "c": claimed, "h": hb},
+            )
+    age, stale = await obs._read_stall_gauges(factory)
+    assert 590 <= age <= 700
+    assert stale == 1
     await engine.dispose()

@@ -385,6 +385,9 @@ def install_metrics_endpoint(app: "FastAPI") -> None:
 class _DomainState:
     queue_depth: int = 0
     bus_lag_s: int = 0
+    # Stalled-run signals (worker dead / zombie claims). 0 = healthy.
+    oldest_queued_age_s: int = 0
+    stale_running_claims: int = 0
     # Start fully-shaped so the first scrape renders a valid histogram even
     # before the poller's first successful pass.
     pool_counts: tuple[int, ...] = ()
@@ -427,6 +430,38 @@ async def _read_domain_gauges(factory: "async_sessionmaker") -> tuple[object, ob
         int(queued[0]) if queued else 0,
         latest[0] if latest else None,
     )
+
+
+async def _read_stall_gauges(factory: "async_sessionmaker") -> tuple[int, int]:
+    """(oldest queued claim age in s, running claims with a stale heartbeat).
+
+    run_claims timestamps are aware-UTC ISO TEXT (frozen schema), so the age is
+    computed in Python and the staleness cutoff compares ISO strings. A dead
+    worker shows up here even when queue depth is tiny (one stuck run).
+    """
+    import datetime as dt
+
+    from sqlalchemy import text
+
+    stale_after = int(os.environ.get("HEARTBEAT_TIMEOUT_SECONDS", "90") or 90)
+    now = dt.datetime.now(dt.timezone.utc)
+    cutoff = (now - dt.timedelta(seconds=stale_after)).isoformat()
+    async with factory() as session:
+        oldest = (
+            await session.execute(
+                text("SELECT MIN(claimed_at) FROM run_claims WHERE state = 'queued'")
+            )
+        ).scalar()
+        stale = (
+            await session.execute(
+                text(
+                    "SELECT COUNT(*) FROM run_claims"
+                    " WHERE state = 'running' AND heartbeat_at < :cutoff"
+                ),
+                {"cutoff": cutoff},
+            )
+        ).scalar()
+    return (_bus_lag_seconds(oldest) if oldest else 0, int(stale or 0))
 
 
 def _bus_lag_seconds(latest: object) -> int:
@@ -512,6 +547,22 @@ def install_domain_metrics(
     )
     METRICS.add_gauge(
         GaugeSpec(
+            name="harness_oldest_queued_run_age_seconds",
+            mtype="gauge",
+            help="Age of the oldest run claim still state='queued' (0 = none).",
+            fn=lambda: state.oldest_queued_age_s,
+        )
+    )
+    METRICS.add_gauge(
+        GaugeSpec(
+            name="harness_stale_running_claims",
+            mtype="gauge",
+            help="Running claims whose heartbeat is older than HEARTBEAT_TIMEOUT_SECONDS.",
+            fn=lambda: state.stale_running_claims,
+        )
+    )
+    METRICS.add_gauge(
+        GaugeSpec(
             name="harness_runs_completed_total",
             mtype="counter",
             help="Runs finished (terminal states), by outcome.",
@@ -537,6 +588,13 @@ def install_domain_metrics(
             state.queue_depth = queued
             state.bus_lag_s = _bus_lag_seconds(latest)
             state.pool_counts = _pool_saturation(engine)
+        try:  # separate: a schema without run_claims columns must not blank the rest
+            oldest_age, stale = await _read_stall_gauges(factory)
+            with state.lock:
+                state.oldest_queued_age_s = oldest_age
+                state.stale_running_claims = stale
+        except Exception as exc:  # noqa: BLE001 — telemetry never raises
+            logging.getLogger(__name__).warning("stall-gauge poll failed: %r", exc)
 
     async def _poll_task() -> None:
         interval = float(os.environ.get("HARNESS_METRICS_DB_POLL_SECONDS", "15"))

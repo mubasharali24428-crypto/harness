@@ -231,6 +231,81 @@ jobs/sidecars = 256m/0.25/64) and a `json-file` logging driver capped at
 `max-size=10m, max-file=3` (≤30 MiB per container, ever). Knobs are
 env-tunable — see `.env.example` "Container resource limits".
 
+## 3.2 What /ready does and does NOT detect (ops acceptance, part 28)
+
+Verified by simulation against a real Postgres (evidence:
+`docs/briefs/evidence/s1/ops-acceptance.md`):
+
+| Failure | `/health` | `/ready` | Where you see it |
+|---|---|---|---|
+| Postgres unreachable | 200 | 503 `{"not_ready":["db-unreachable"]}` | compose health, probes |
+| Schema ahead of image (rolled-back code) | 200 | 503 `{"not_ready":["schema-drift"]}` | compose health, probes |
+| App process wedged | no answer | no answer | supervisor exit + restart policy |
+| Orchestrator queue worker dead / runs stalled | 200 | **200 (not probed)** | `harness_oldest_queued_run_age_seconds`, `harness_stale_running_claims` ([alerting.md](alerting.md) rule f) |
+| Event delivery stalled (bus not committing) | 200 | **200 (not probed)** | `harness_event_bus_lag_seconds` (rule b) |
+
+There is no Redis and no external broker in this stack: the run queue is the
+Postgres `run_claims` table, the event bus is Postgres (`agent_events` +
+`pg_notify`), and the "worker" is the `RunQueueWorker` task inside the
+orchestrator process. So "queue/worker down" is observed through metrics, not
+through `/ready`.
+
+## 3.3 Stalled runs / broken event delivery
+
+Symptoms: run stuck `QUEUED`, UI not updating, alert `RunQueueStalled`,
+`StaleRunningClaims` or `EventBusLag`.
+
+```sh
+# 1. Queue truth (oldest first). run_claims.state: queued | running | orphaned
+docker compose -f deploy/docker-compose.yml exec db psql -U harness -c \
+  "SELECT state, count(*), min(claimed_at), min(heartbeat_at) FROM run_claims GROUP BY state;"
+# 2. Metrics straight from the orchestrator
+curl -s localhost:8004/metrics | grep -E 'harness_(queue_depth|oldest_queued|stale_running|event_bus_lag)'
+# 3. Is the worker loop alive / erroring?
+docker compose -f deploy/docker-compose.yml logs --since 15m orchestrator | grep -E '"level":"(ERROR|WARNING)"'
+# 4. Newest event actually committed (bus lag):
+docker compose -f deploy/docker-compose.yml exec db psql -U harness -c "SELECT max(ts) FROM agent_events;"
+```
+
+Decision: queued claims old + worker logs silent -> `docker compose restart
+orchestrator` (queued claims survive in Postgres and are claimed by the new
+worker; stale `running` claims are released by the zombie reaper and their runs
+go BLOCKED with `engine_failed reason=heartbeat_lost` for a human to re-drive,
+never silently re-executed).
+Queued claims old + team at cap -> expected, see
+[engine-concurrency.md](../engine-concurrency.md). `max(ts)` stale while runs
+are executing -> DB connectivity / `pg_notify` listener errors in orchestrator
+logs; fix DB first.
+
+## 3.4 Correlating a request through the logs
+
+Every backend logs one JSON line per request (`HARNESS_LOG_FORMAT=json`,
+default) and echoes/mints `X-Request-ID` (send your own to trace). Other log
+lines emitted while that request is being served inherit it as `requestId`.
+
+```sh
+curl -si -H 'X-Request-ID: trace-42' localhost:8004/health | grep -i x-request-id
+docker compose -f deploy/docker-compose.yml logs orchestrator | grep '"requestId":"trace-42"'
+```
+
+Run ids appear in the message text of orchestrator lines (`run <id> ...`);
+grep for the run id, not a structured field. Collaboration actions carry their
+client `request_id` in the `run_collab_events` table (idempotency key), not in
+log lines: `SELECT * FROM run_collab_events WHERE request_id = '<id>';`.
+Background-worker log lines (outside any request) have `requestId: null`.
+
+## 3.5 Concurrency limits (documented vs enforced)
+
+See [engine-concurrency.md](../engine-concurrency.md) for the full table.
+Enforcement status as audited:
+
+| Limit | Enforced where | Status |
+|---|---|---|
+| Per-team running runs (`HARNESS_RUN_CONCURRENCY`, 4) | `run_queue.py::claim_next_run` (claim SQL + PG advisory lock) | enforced, incl. concurrent claimers (lock added 2026-10-18; before it, 16 parallel claimers overshot cap 4 to 12-16) |
+| Engine executor width (`ENGINE_MAX_CONCURRENCY`, 8) | `engine_runtime.py` ThreadPoolExecutor | enforced |
+| Per-run deadline / provider breaker | `engine_runtime.py` | enforced (thread keeps running after deadline; see engine-concurrency.md) |
+| Tier caps (Pro 8 / Team 16 concurrent runs, `PRICING.md`) | - | NOT enforced: marked `[M2]`, only the single env-wide cap exists |
+
 ## 4. Prevention checklist
 
 - [ ] No service removed from compose while its container runs (Cause A rule).
