@@ -45,6 +45,7 @@ logger = logging.getLogger(__name__)
 
 # Restricted shipped composition; the default "sdk" profile is danger-full-access.
 DEFAULT_DSH_PROFILE = "sdk-minimal"
+REAL_WORKER_MODULE = "harness_orchestrator.engine_worker"
 _SESSION_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
 
 
@@ -179,6 +180,17 @@ class DeepSeekHarnessWrapper:
             tmp = self.run_tmp_dir(session_id)
             for d in (workspace, sess, tmp):
                 os.makedirs(d, exist_ok=True)
+            module = os.environ.get("HARNESS_ENGINE_WORKER_MODULE", REAL_WORKER_MODULE)
+            if module == REAL_WORKER_MODULE and (
+                os.environ.get(confine.CONFINEMENT_ENV, "auto").strip().lower() != "off"
+            ):
+                # sandbox-exec breaks the dsh runtime's PTY shell (even allow-default), so
+                # seatbelt cannot confine the real runtime; fail closed, never degrade silently.
+                raise confine.ConfinementUnavailableError(
+                    "OS confinement is unavailable for the real DeepSeek runtime (seatbelt breaks "
+                    f"its PTY); set {confine.CONFINEMENT_ENV}=off explicitly to accept an "
+                    "unconfined worker, or run it inside a container/VM boundary"
+                )
             mode = confine.resolve_mode()
             if mode == "none":
                 logger.warning(
@@ -192,9 +204,6 @@ class DeepSeekHarnessWrapper:
                     "DSH_HOME": sess,
                 },
                 tmp,
-            )
-            module = os.environ.get(
-                "HARNESS_ENGINE_WORKER_MODULE", "harness_orchestrator.engine_worker"
             )
             argv = confine.wrap_command(
                 [sys.executable, "-m", module],

@@ -223,3 +223,14 @@ def test_restage_replaces_changed_proposal_and_missing_baseline_fails_closed(tmp
     assert [g for g in rep.groups if g.action == "delete"][0].digest == d1  # unchanged group stable
     with pytest.raises(staging.StagingError):
         staging.stage("run-x", str(ws), root)
+
+
+def test_real_runtime_fails_closed_unless_confinement_off(tmp_path, monkeypatch):
+    monkeypatch.delenv("HARNESS_ENGINE_WORKER_MODULE", raising=False)
+    for mode in (None, "auto", "seatbelt"):
+        if mode is None:
+            monkeypatch.delenv("HARNESS_ENGINE_CONFINEMENT", raising=False)
+        else:
+            monkeypatch.setenv("HARNESS_ENGINE_CONFINEMENT", mode)
+        text, status, *_ = engine(tmp_path)._run_live_events("g", "run-real", "m")
+        assert status == "error" and "unavailable" in text and "=off" in text

@@ -58,9 +58,17 @@ real file edits. The driver script lived outside the repo (not committed). 31 ch
     boots and the model runs, but its persistent-shell PTY backend fails, so no file is created.
     Bisect: the same failure occurs with an allow-default profile that has no restrictions at all,
     so `sandbox-exec` itself breaks the runtime's PTY (no runtime setting disables it); sandbox
-    denial logs were not readable. Consequence: for the real runtime, isolation today = separate
-    process group + scrubbed env + staging gate, WITHOUT OS confinement (`auto` mode would break
-    real runs on macOS; use `HARNESS_ENGINE_CONFINEMENT=off` knowingly, or a container/VM boundary).
+    denial logs were not readable. Decision (2026-10-18): seatbelt stays for the stand-in worker only; the real runtime now
+    **fails closed** unless `HARNESS_ENGINE_CONFINEMENT=off` is set explicitly (isolation then =
+    process group + scrubbed env + staging gate, no OS confinement). **Container/VM plan (not built):**
+    run the worker in one container (or microVM) per run - mounts: the run workspace rw, session dir
+    rw, nothing else; read-only root FS, tmpfs `/tmp`; no host network except the model endpoint
+    (egress allowlist); non-root user, `--cap-drop=ALL`, `no-new-privileges`, pids/memory/cpu limits;
+    env = the existing allowlist; cancel = `docker kill` + confirm gone (replaces killpg); the
+    runtime's PTY works inside a container since it has its own /dev/pts. Order: (1) Dockerfile with
+    the pinned `live` extra, (2) `confine.wrap_command` gains a `container` mode, (3) rerun the
+    hello-world + the 18-check isolation suite inside it, (4) then lift the fail-closed gate for that
+    mode only.
     Still unproven / required before real users: (1) OS-level confinement of the real runtime;
     (2) low-impact changes (additions, small edits) pass without approval, file-level granularity
     only, `.git` and empty dirs ignored, baseline is a full copy (200MB cap); (3) done-signal/PR open
