@@ -14,15 +14,15 @@ from harness_sandbox.config import config
 from harness_sandbox.diff_engine import apply_unified_diff
 from harness_sandbox.output_parser import StructuredExecResult, parse_exec_output
 from harness_sandbox.policy import (
+    InvalidTaskIdError,
     SandboxCommandTimeoutError,
     SecurityPolicyViolationError,
+    TaskIdInUseError,
     sanitize_environment,
     validate_command,
     validate_path_edit,
+    validate_task_id,
 )
-
-logger = logging.getLogger(__name__)
-
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class LocalSandboxRunner:
         allow_network: bool = True,
     ) -> None:
         self.storage_root = (storage_root or config.storage_root).resolve()
-        self.storage_root.mkdir(parents=True, exist_ok=True)
+        self.storage_root.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.confinement = confinement
         self.allow_network = allow_network
         self.active_tasks: dict[str, dict] = {}
@@ -86,6 +86,14 @@ class LocalSandboxRunner:
         logger.info("sandbox confinement 'auto': platform %s — 'off'", sys.platform)
         return "off"
 
+    def _task_dir(self, task_id: str) -> Path:
+        """The one place a taskId becomes a path (T16): validated, direct child of the root."""
+        validate_task_id(task_id)
+        task_dir = self.storage_root / task_id
+        if task_dir.is_symlink() or task_dir.resolve().parent != self.storage_root:
+            raise InvalidTaskIdError(f"taskId '{task_id}' does not resolve under the storage root.")
+        return task_dir
+
     @staticmethod
     def _kill(proc) -> None:
         """S1-R03f: kill the whole process GROUP (grandchildren included)."""
@@ -103,9 +111,12 @@ class LocalSandboxRunner:
         """Single spawn point honoring the task's confinement mode."""
         import asyncio
 
+        env = sanitize_environment(os.environ)
+        # T7b: every temp-dir convention points at the task's private 0700 tmp.
+        env.update(TMPDIR=task["tmpdir"], TMP=task["tmpdir"], TEMP=task["tmpdir"])
         common = dict(
             cwd=str(task["workspace"]),
-            env=sanitize_environment(os.environ),
+            env=env,
             stdout=stdout,
             stderr=stderr,
             start_new_session=True,  # S1-R03f: own process group for group-kill
@@ -116,9 +127,9 @@ class LocalSandboxRunner:
             return await asyncio.create_subprocess_exec(*argv, **common)
         kwargs: dict = {}
         if mode == "landlock":
-            ws = task["workspace"]
-            kwargs["preexec_fn"] = (
-                lambda ws=ws: confinement.apply_landlock_in_child(Path(ws), self.allow_network)
+            ws, tmp = task["workspace"], task["tmpdir"]
+            kwargs["preexec_fn"] = lambda ws=ws, tmp=tmp: confinement.apply_landlock_in_child(
+                Path(ws), self.allow_network, Path(tmp)
             )
         return await asyncio.create_subprocess_shell(command, **common, **kwargs)
 
@@ -130,12 +141,40 @@ class LocalSandboxRunner:
         forbidden_paths: list[str] | None = None,
         project_id: str | None = None,
         team_id: str | None = None,
+        resume: bool = False,
     ) -> TaskHandle:
-        workspace = self.storage_root / task_id / "workspace"
+        task_dir = self._task_dir(task_id)  # T16: validates before any filesystem effect
+        owner = (team_id or "").encode()
+        owner_file = task_dir / ".owner"
+
+        # T15: a taskId is a capability to a workspace. Never hand it to another
+        # team, and never silently re-bind it for the same team.
+        live = self.active_tasks.get(task_id)
+        if live is not None:
+            if not resume or (live["team_id"] or "").encode() != owner:
+                raise TaskIdInUseError("taskId is already in use")
+            return TaskHandle(
+                taskId=task_id, containerId=f"local-{task_id}", branch=live["branch"]
+            )
+        try:
+            task_dir.mkdir(mode=0o700)  # atomic claim of a fresh id
+            owner_file.write_bytes(owner)
+        except FileExistsError:
+            # On disk but not live (runner restarted): only the recorded owner may
+            # resume. No owner record (pre-T15 data) means nobody may.
+            if not resume or not owner_file.is_file() or owner_file.read_bytes() != owner:
+                raise TaskIdInUseError("taskId is already in use") from None
+        task_dir.chmod(0o700)
+
+        workspace = task_dir / "workspace"
         workspace.mkdir(parents=True, exist_ok=True)
+        tmpdir = task_dir / "tmp"  # T7b: private, never the shared system temp
+        tmpdir.mkdir(mode=0o700, exist_ok=True)
+        tmpdir.chmod(0o700)
 
         self.active_tasks[task_id] = {
             "workspace": workspace,
+            "tmpdir": str(tmpdir),
             "repo_ref": repo_ref,
             "branch": branch,
             "forbidden_paths": forbidden_paths or [],
@@ -149,7 +188,7 @@ class LocalSandboxRunner:
         if mode == "seatbelt":
             self.active_tasks[task_id]["profile"] = str(
                 confinement.write_seatbelt_profile(
-                    workspace, self.allow_network, self.storage_root / task_id
+                    workspace, self.allow_network, task_dir, tmpdir
                 )
             )
 
@@ -277,11 +316,11 @@ class LocalSandboxRunner:
         )
 
     def destroy(self, handle: TaskHandle) -> None:
+        task_dir = self._task_dir(handle.taskId)  # T16: never rmtree an unvalidated path
         task = self.active_tasks.pop(handle.taskId, None)
         if task:
             for proc in task.get("procs", ()):
                 if proc.returncode is None:
                     self._kill(proc)  # S1-R03f: kills the whole process group
-            task_dir = self.storage_root / handle.taskId
-            if task_dir.exists():
+            if task_dir.exists():  # also removes the private tmp dir (T7b)
                 shutil.rmtree(task_dir, ignore_errors=True)

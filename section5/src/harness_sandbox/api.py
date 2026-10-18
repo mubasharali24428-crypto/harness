@@ -15,7 +15,11 @@ from harness_sandbox.checkpoints import (
     InvalidShaError,
 )
 from harness_sandbox.output_parser import StructuredExecResult
-from harness_sandbox.policy import SecurityPolicyViolationError
+from harness_sandbox.policy import (
+    InvalidTaskIdError,
+    SecurityPolicyViolationError,
+    TaskIdInUseError,
+)
 from harness_sandbox.service import SandboxService
 
 router = APIRouter(prefix="/api/v1/sandbox", tags=["sandbox"])
@@ -105,6 +109,8 @@ class CreateTaskRequest(BaseModel):
     branch: str
     forbiddenPaths: list[str] = Field(default_factory=list)
     projectId: str | None = None
+    # T15: reusing a taskId is refused unless the owning team explicitly resumes it.
+    resume: bool = False
 
 
 class ExecCommandRequest(BaseModel):
@@ -124,14 +130,27 @@ async def create_task(
         team = await _lookup_project_team(req.projectId, request)
         if team is None or team != principal.teamId:
             raise _project_not_found(req.projectId)
-    return _service.run_task(
-        task_id=req.taskId,
-        repo_ref=req.repoRef,
-        branch=req.branch,
-        forbidden_paths=req.forbiddenPaths,
-        project_id=req.projectId,
-        team_id=principal.teamId,
-    )
+    try:
+        return _service.run_task(
+            task_id=req.taskId,
+            repo_ref=req.repoRef,
+            branch=req.branch,
+            forbidden_paths=req.forbiddenPaths,
+            project_id=req.projectId,
+            team_id=principal.teamId,
+            resume=req.resume,
+        )
+    except InvalidTaskIdError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": {"code": "INVALID_TASK_ID", "message": str(e)}},
+        ) from e
+    except TaskIdInUseError as e:
+        # Same answer for "yours, no resume" and "someone else's": no ownership oracle.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": {"code": "TASK_ID_IN_USE", "message": str(e)}},
+        ) from e
 
 
 @router.post("/tasks/{taskId}/exec", response_model=StructuredExecResult)
@@ -234,6 +253,10 @@ async def list_checkpoints(projectId: str, request: Request, principal: Reader) 
     await _require_checkpoint_project(projectId, request, principal)
     try:
         items = _service.checkpoints.list_checkpoints(projectId)
+    except CheckpointRepositoryNotFoundError:
+        # Ownership was checked above. A valid project with no snapshots is
+        # an empty collection; unknown/foreign projects still return 404.
+        items = []
     except CheckpointError as e:
         raise _checkpoint_error(e) from e
     # Pagination convention (api-conventions.md): ?limit=&cursor= → {items, nextCursor}.

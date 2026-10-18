@@ -6,7 +6,7 @@ see S1-R03d; `auto` picks the best available mode).
 
 Layering contract: policy.py decides WHAT may run; this module decides WHERE it
 may touch the machine. Reads stay broad (toolchains need system SDKs), writes are
-confined to the task workspace + system temp, network is configurable.
+confined to the task workspace + its private tmp, network is configurable.
 """
 
 import logging
@@ -87,11 +87,31 @@ def landlock_supported() -> bool:
 # --------------------------------------------------------------------------
 
 
-def seatbelt_profile(workspace: Path, allow_network: bool) -> str:
-    """deny-default profile; generous reads, writes confined to ws+/tmp."""
+def seatbelt_profile(
+    workspace: Path,
+    allow_network: bool,
+    task_dir: Path | None = None,
+    tmpdir: Path | None = None,
+) -> str:
+    """deny-default profile; writes confined to the task workspace + its private tmp.
+
+    T7b: the shared system temp dir is NOT writable, and file CONTENTS under the
+    storage root (every task's workspace) are unreadable except this task's own
+    directory. Metadata (stat) stays readable so cwd resolution keeps working.
+    """
     ws = str(Path(workspace).resolve())
-    tmp = tempfile.gettempdir()
-    priv_tmp = tmp if tmp.startswith("/private") else "/private" + tmp
+    writable = [f'(subpath "{ws}")']
+    if tmpdir is not None:
+        writable.append(f'(subpath "{Path(tmpdir).resolve()}")')
+    writable.append('(subpath "/dev/null")')
+    isolation = ""
+    if task_dir is not None:
+        task = Path(task_dir).resolve()
+        # Later rules win in SBPL: deny the whole store, then re-allow our own task.
+        isolation = (
+            f'(deny file-read-data (subpath "{task.parent}"))\n'
+            f'(allow file-read-data (subpath "{task}"))\n'
+        )
     network = "(allow network*)\n(allow system-socket)" if allow_network else "(deny network*)"
     return (
         "(version 1)\n"
@@ -99,8 +119,8 @@ def seatbelt_profile(workspace: Path, allow_network: bool) -> str:
         "(allow process-exec)\n"
         "(allow process-fork)\n"
         "(allow file-read*)\n"
-        f'(allow file-write* (subpath "{ws}") (subpath "{tmp}") (subpath "{priv_tmp}") '
-        '(subpath "/dev/null"))\n'
+        f"{isolation}"
+        f"(allow file-write* {' '.join(writable)})\n"
         "(allow mach-lookup)\n"
         "(allow sysctl-read)\n"
         "(allow ipc-posix-shm)\n"
@@ -109,10 +129,12 @@ def seatbelt_profile(workspace: Path, allow_network: bool) -> str:
     )
 
 
-def write_seatbelt_profile(workspace: Path, allow_network: bool, target_dir: Path) -> Path:
+def write_seatbelt_profile(
+    workspace: Path, allow_network: bool, target_dir: Path, tmpdir: Path | None = None
+) -> Path:
     target_dir.mkdir(parents=True, exist_ok=True)
     path = target_dir / "sb.sb"
-    path.write_text(seatbelt_profile(workspace, allow_network))
+    path.write_text(seatbelt_profile(workspace, allow_network, target_dir, tmpdir))
     return path
 
 
@@ -123,7 +145,7 @@ def seatbelt_command(command: str, profile_path: Path) -> list[str]:
 # --------------------------------------------------------------------------
 # Linux Landlock (best-effort). Applied inside the forked child via preexec_fn.
 # We only HANDLE write/remove/make rights, so reads+execute stay unrestricted
-# by construction; writes get explicit allow rules for workspace + temp.
+# by construction; writes get explicit allow rules for workspace + the task's private tmp.
 # --------------------------------------------------------------------------
 
 _LL_CREATE_RULESET = 444
@@ -153,7 +175,9 @@ _HANDLED = (
 _READ_EXEC_EVERYWHERE = LL_EXECUTE | LL_READ_FILE | LL_READ_DIR
 
 
-def apply_landlock_in_child(workspace: Path, allow_network: bool) -> bool:
+def apply_landlock_in_child(
+    workspace: Path, allow_network: bool, tmpdir: Path | None = None
+) -> bool:
     """Runs INSIDE the forked child (preexec_fn). Returns True when enforced.
 
     S1-R03d: failure RAISES — subprocess propagates preexec_fn exceptions to
@@ -180,7 +204,11 @@ def apply_landlock_in_child(workspace: Path, allow_network: bool) -> bool:
         return os.open(path, O_PATH)
 
     add_beneath(fs_fd("/"), _READ_EXEC_EVERYWHERE)
-    for p in {str(Path(workspace).resolve()), tempfile.gettempdir()}:
+    # T7b: writes only to the workspace and this task's private tmp (never the shared temp).
+    writable = {str(Path(workspace).resolve())}
+    if tmpdir is not None:
+        writable.add(str(Path(tmpdir).resolve()))
+    for p in writable:
         try:
             add_beneath(fs_fd(p), _HANDLED)
         except OSError:  # unreadable temp dir variants etc.

@@ -11,6 +11,29 @@ class SecurityPolicyViolationError(Exception):
     pass
 
 
+class InvalidTaskIdError(SecurityPolicyViolationError):
+    """taskId is not a safe single path component (T16)."""
+
+
+class TaskIdInUseError(Exception):
+    """taskId already names a task (live or on disk) and the caller may not take it (T15)."""
+
+
+TASK_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
+
+
+def validate_task_id(task_id: str) -> str:
+    """T16: a taskId becomes a directory name, so it must be one safe path component.
+
+    ``fullmatch`` (not ``match``/``$``) so a trailing newline cannot slip through.
+    """
+    if not isinstance(task_id, str) or not TASK_ID_RE.fullmatch(task_id):
+        raise InvalidTaskIdError(
+            "taskId must be 1-64 chars of [A-Za-z0-9_-] and start with a letter or digit."
+        )
+    return task_id
+
+
 class SandboxCommandTimeoutError(Exception):
     """Raised when a sandboxed command exceeds its execution budget."""
 
@@ -227,6 +250,26 @@ def _expand_globs(token: str, cwd: str | None) -> list[str]:
     return expanded
 
 
+def _symlink_spellings(token: str, cwd: str | None) -> list[str]:
+    """T17: where a token that names a workspace symlink really points.
+
+    ``realpath`` resolves every component, so a link in the middle of the path
+    (``innocent/x.txt`` with ``innocent -> secrets``) is caught as well as a
+    link at the end. Targets inside the workspace come back workspace-relative
+    (matching how forbidden paths are written); targets outside come back absolute.
+    """
+    if not cwd or "\0" in token:
+        return []
+    base = os.path.abspath(cwd)
+    candidate = os.path.normpath(os.path.join(base, token))
+    if not os.path.lexists(candidate):
+        return []
+    real, real_base = os.path.realpath(candidate), os.path.realpath(base)
+    if real == real_base or real.startswith(real_base + os.sep):
+        return [os.path.relpath(real, real_base)]
+    return [real]
+
+
 def validate_command(
     command: str,
     forbidden_paths: list[str] | None = None,
@@ -281,6 +324,7 @@ def validate_command(
     checked_paths = list(tokens)
     for token in tokens:
         checked_paths.extend(_expand_globs(token, cwd))
+        checked_paths.extend(_symlink_spellings(token, cwd))
 
     for token in checked_paths:
         if is_secret_file(token):

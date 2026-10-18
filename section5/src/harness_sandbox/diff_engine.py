@@ -19,12 +19,15 @@ def apply_unified_diff(
 
     validate_path_edit(target_path, forbidden_paths)
 
+    # T17: realpath containment (every component, dangling links included), then
+    # re-run the forbidden/secret checks on where the edit REALLY lands.
     full_path = (workspace_dir / target_path).resolve()
 
     try:
-        full_path.relative_to(workspace_dir.resolve())
+        real_rel = full_path.relative_to(workspace_dir.resolve())
     except ValueError as e:
         raise DiffApplyError(f"Target path '{target_path}' is outside the workspace root.") from e
+    validate_path_edit(real_rel.as_posix(), forbidden_paths)
 
     lines = diff_text.splitlines()
     if not lines:
