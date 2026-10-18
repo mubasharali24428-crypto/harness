@@ -11,3 +11,5 @@ for them, an unwired factory denies with AUTHZ_UNAVAILABLE.
 import os
 
 os.environ.setdefault("HARNESS_AUTHZ_TEST_MODE", "1")
+# In-process fake SDKs by default; the isolation tests opt in explicitly.
+os.environ.setdefault("HARNESS_ENGINE_ISOLATED", "0")

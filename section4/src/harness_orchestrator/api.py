@@ -967,3 +967,59 @@ async def collab_approval_complete(
     return await _collab(
         lambda f: collab.complete_approval(f, actor, runId, approvalId, req.ok, req.outcome)
     )
+
+
+# ---- B3: staged (withheld) high-impact changes -----------------------------
+import asyncio  # noqa: E402
+
+from harness_orchestrator import staging  # noqa: E402
+
+
+def _staging_root() -> tuple[str, str] | None:
+    eng = getattr(_service, "engine", None)
+    if eng is None or not getattr(eng, "isolated", False) or not hasattr(eng, "run_workspace"):
+        return None
+    return eng.workspace, eng.run_workspace
+
+
+@router.post("/runs/{runId}/staged/approvals")
+async def collab_staged_approvals(runId: str, actor: RunWriter) -> dict:
+    """(Re)file approvals for whatever is currently withheld for this run."""
+    cfg = _staging_root()
+    if cfg is None:
+        return {"approvals": []}
+    groups = await asyncio.to_thread(staging.pending_groups, runId, cfg[0])
+    out = await _collab(
+        lambda f: collab.ensure_staged_approvals(f, actor.teamId, runId, groups)
+    )
+    return {"approvals": out}
+
+
+@router.post("/runs/{runId}/approvals/{approvalId}/apply")
+async def collab_apply_staged(
+    runId: str, approvalId: str, req: ApprovalDigest, actor: RunWriter
+) -> dict:
+    """Land an APPROVED staged change: claim (digest re-checked) -> apply -> complete."""
+    cfg = _staging_root()
+    if cfg is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": {"code": "NO_STAGING", "message": "run is not staged"}},
+        )
+    root, ws_for = cfg
+
+    async def go(f):
+        claimed = await collab.claim_approval(f, actor, runId, approvalId, req.digest)
+        try:
+            applied = await asyncio.to_thread(
+                staging.apply_group, runId, ws_for(runId), root,
+                claimed["action"], claimed["paths"], req.digest,
+            )
+        except staging.StagingError as e:
+            await collab.complete_approval(f, actor, runId, approvalId, False, str(e))
+            raise collab.CollabError(409, "STAGING_MISMATCH", str(e)) from e
+        return await collab.complete_approval(
+            f, actor, runId, approvalId, True, f"applied {len(applied)} file(s)"
+        )
+
+    return await _collab(go)

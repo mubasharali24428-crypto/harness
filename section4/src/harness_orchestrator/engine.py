@@ -20,11 +20,19 @@ stays honest (raw-02 L1): the ``engine`` field always names the model
 that actually answered.
 """
 
+import json
+import logging
 import os
 import re
+import signal
+import subprocess
+import sys
+import threading
+import time
 from collections.abc import Callable
 from typing import Any
 
+from harness_orchestrator import confine
 from harness_orchestrator.live_mode import (
     LiveMode,
     parse_live_mode,
@@ -32,6 +40,8 @@ from harness_orchestrator.live_mode import (
     validate_live_credentials,
 )
 from harness_orchestrator.redact import scrub_secrets
+
+logger = logging.getLogger(__name__)
 
 _SESSION_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
 
@@ -48,8 +58,19 @@ class DeepSeekHarnessWrapper:
         base_url: str | None = None,
         model: str | None = None,
         live_mode: LiveMode | str | None = None,
+        isolated: bool | None = None,
     ) -> None:
         self.backend_runner = backend_runner
+        # B2/B4: live SDK calls run in an OS-confined, killable worker process
+        # unless disabled (HARNESS_ENGINE_ISOLATED=0, tests / the worker itself).
+        self.isolated = (
+            isolated
+            if isolated is not None
+            else os.environ.get("HARNESS_ENGINE_ISOLATED", "1") != "0"
+        )
+        self._procs: dict[str, subprocess.Popen] = {}
+        self._cancel_requested: set[str] = set()
+        self._proc_lock = threading.Lock()
         self.workspace = workspace_dir or os.environ.get(
             "DSH_WORKSPACE", "/tmp/harness-dsh-workspace"
         )
@@ -100,6 +121,133 @@ class DeepSeekHarnessWrapper:
         if os.path.dirname(path) != root:
             raise ValueError(f"workspace for {session_id!r} escapes the workspace root")
         return path
+
+    def run_session_dir(self, session_id: str) -> str:
+        """Per-run SDK session/home dir (validated like the workspace)."""
+        self.run_workspace(session_id)  # same id validation
+        return os.path.join(os.path.realpath(self.session_root), session_id)
+
+    def run_tmp_dir(self, session_id: str) -> str:
+        self.run_workspace(session_id)
+        return os.path.join(os.path.realpath(self.workspace), ".run-tmp", session_id)
+
+    def cancel(self, session_id: str) -> bool:
+        """Kill the run's worker process GROUP (worker + dsh runtime + shell
+        children). Returns True only when the group is confirmed gone; also
+        returns True when no worker is running. Idempotent."""
+        with self._proc_lock:
+            self._cancel_requested.add(session_id)
+            proc = self._procs.get(session_id)
+        if proc is None:
+            return True
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)  # pgid == pid (start_new_session)
+        except ProcessLookupError:
+            pass
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            return False
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            try:
+                os.killpg(proc.pid, 0)
+            except ProcessLookupError:
+                return True
+            time.sleep(0.05)
+        return False
+
+    def reset_cancel(self, session_id: str) -> None:
+        """A fresh start/resume clears the sticky cancel flag."""
+        with self._proc_lock:
+            self._cancel_requested.discard(session_id)
+
+    def is_worker_running(self, session_id: str) -> bool:
+        with self._proc_lock:
+            proc = self._procs.get(session_id)
+        return proc is not None and proc.poll() is None
+
+    def _run_isolated(self, goal: str, session_id: str, model: str) -> tuple[
+        str, str, str | None, list[Any]
+    ]:
+        """Run the SDK call in a confined, killable worker process (B2/B4)."""
+        try:
+            workspace = self.run_workspace(session_id)
+            sess = self.run_session_dir(session_id)
+            tmp = self.run_tmp_dir(session_id)
+            for d in (workspace, sess, tmp):
+                os.makedirs(d, exist_ok=True)
+            mode = confine.resolve_mode()
+            if mode == "none":
+                logger.warning(
+                    "engine worker for %s runs UNCONFINED (no OS confinement on this host)",
+                    session_id,
+                )
+            env = confine.scrubbed_env(
+                {
+                    "DEEPSEEK_API_KEY": self.api_key,
+                    **({"DEEPSEEK_BASE_URL": self.base_url} if self.base_url else {}),
+                    "DSH_HOME": sess,
+                },
+                tmp,
+            )
+            module = os.environ.get(
+                "HARNESS_ENGINE_WORKER_MODULE", "harness_orchestrator.engine_worker"
+            )
+            argv = confine.wrap_command(
+                [sys.executable, "-m", module],
+                mode=mode,
+                roots=[os.path.realpath(self.workspace), os.path.realpath(self.session_root)],
+                workspace=workspace,
+                session_dir=sess,
+                tmp_dir=tmp,
+            )
+            request = json.dumps(
+                {
+                    "goal": goal,
+                    "session_id": session_id,
+                    "model": model,
+                    "workspace_root": os.path.realpath(self.workspace),
+                    "session_root": os.path.realpath(self.session_root),
+                }
+            )
+            with self._proc_lock:
+                if session_id in self._cancel_requested:
+                    return "Execution cancelled.", "cancelled", model, []
+                proc = subprocess.Popen(
+                    argv,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    cwd=workspace,
+                    env=env,
+                    start_new_session=True,  # own process group => killable as a unit
+                )
+                self._procs[session_id] = proc
+            try:
+                out, err = proc.communicate(request + "\n")
+            finally:
+                with self._proc_lock:
+                    if self._procs.get(session_id) is proc:
+                        del self._procs[session_id]
+            if session_id in self._cancel_requested:
+                return "Execution cancelled.", "cancelled", model, []
+            lines = [ln for ln in (out or "").splitlines() if ln.strip()]
+            if proc.returncode != 0 or not lines:
+                tail = scrub_secrets((err or "")[-500:], self.api_key)
+                return (
+                    f"DeepSeek Harness worker exited {proc.returncode}: {tail}",
+                    "error",
+                    model,
+                    [],
+                )
+            res = json.loads(lines[-1])
+            res["text"] = scrub_secrets(str(res.get("text", "")), self.api_key)
+            return res["text"], res["status"], res.get("model") or model, res.get("events") or []
+        except Exception as exc:  # noqa: BLE001 - includes ConfinementUnavailableError: fail closed
+            msg = scrub_secrets(f"DeepSeek Harness run failed: {exc}", self.api_key)
+            return msg, "error", model, []
 
     @property
     def mode(self) -> LiveMode:
@@ -220,6 +368,8 @@ class DeepSeekHarnessWrapper:
         fourth carries the raw SDK events so real token usage can be metered
         (M14-W4 F1a)."""
         model = model or self.model
+        if self.isolated:
+            return self._run_isolated(goal, session_id, model)
         try:
             from deepseek_harness import DeepSeekHarness
 
@@ -227,13 +377,13 @@ class DeepSeekHarnessWrapper:
             # ValueError, which the handler below reports as status "error".
             run_cwd = self.run_workspace(session_id)
             os.makedirs(run_cwd, exist_ok=True)
-            os.makedirs(self.session_root, exist_ok=True)
+            os.makedirs(self.run_session_dir(session_id), exist_ok=True)
             kwargs: dict[str, Any] = dict(
                 provider="deepseek-official",
                 model=model,
                 max_tokens=4096,
                 cwd=run_cwd,
-                session_root=self.session_root,
+                session_root=self.run_session_dir(session_id),
             )
             cordis = os.environ.get("DSH_CORDIS_CONFIG")
             if cordis and os.path.exists(cordis):

@@ -332,6 +332,9 @@ class EngineRuntime:
             )
         except TimeoutError:
             self.breaker.record_timeout(key)
+            cancel = getattr(engine, "cancel", None)
+            if cancel is not None:  # B4: the deadline kills the worker, not just the await
+                await asyncio.to_thread(cancel, session_id)
             raise EngineRunTimeout(key, self.run_timeout_seconds) from None
         self.breaker.record_success(key)
         return result

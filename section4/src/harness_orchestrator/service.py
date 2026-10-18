@@ -14,7 +14,7 @@ from harness_contracts.signatures import Orchestrator
 from harness_contracts.timeutil import db_now
 from sqlalchemy import text
 
-from harness_orchestrator import collab
+from harness_orchestrator import collab, staging
 from harness_orchestrator.budget import BudgetStatus, TierGateStatus, check_budget, check_tier
 from harness_orchestrator.context_resolver import (
     DEFAULT_MIN_SCORE,
@@ -933,6 +933,9 @@ class OrchestratorService(Orchestrator):
         the dsh SDK continues that session instead of starting a fresh one."""
         run_data["cancel_requested"] = False
         run_data["_cancel_reason"] = None
+        reset = getattr(self.engine, "reset_cancel", None)
+        if reset is not None:
+            reset(run_data["runId"])  # fresh start/resume clears a sticky kill flag
         run_data["task"] = asyncio.create_task(self._execute(run_data, plan))
 
     async def _execute(self, run_data: dict[str, Any], plan: AgentPlan) -> None:
@@ -973,6 +976,7 @@ class OrchestratorService(Orchestrator):
             else:
                 extra = ""
             try:
+                await self._ensure_baseline(run_data)
                 # M17-B5 (PBC1 F2): the dedicated bounded executor + hard
                 # deadline replaces asyncio.to_thread's invisible ~16–36 slot
                 # pool. A hung provider now fails THIS run at the deadline
@@ -1013,6 +1017,7 @@ class OrchestratorService(Orchestrator):
                 # the breaker is what stops the pile-up.
                 logger.error("run %s hit its engine deadline: %s", run_id, exc)
                 reason = f"timeout: {exc}"
+                await self._stage_outputs(run_data)  # worker was killed by the runtime
                 run_data["engine_result"] = {
                     "sessionId": run_id,
                     "engine": "timeout",
@@ -1037,6 +1042,16 @@ class OrchestratorService(Orchestrator):
                 return
             if run_data.get("cancel_requested"):
                 return  # zombie result from a cancelled live call — discard
+            staging_error = await self._stage_outputs(run_data)
+            if staging_error:
+                run_data["engine_result"] = {
+                    "sessionId": run_id, "engine": "staging_failed", "status": "error",
+                    "finalResponse": staging_error,
+                }
+                sm.execution_failed(staging_error)
+                return
+            if run_data.get("staged"):
+                result = {**result, "staged": run_data["staged"]}
             run_data["engine_result"] = result
             # Wave 6 (D4): engine settled while still EXECUTING → emit + advance.
             # Completed opens the human done-gate; any other status blocks honestly.
@@ -1077,6 +1092,8 @@ class OrchestratorService(Orchestrator):
         run_data["_cancel_reason"] = "pause"
         sm.pause(reason="user_requested")
         self._cancel_live_task(run_data)
+        if await self._kill_engine(run_id):
+            await self._stage_outputs(run_data)
 
     async def resume_agent(self, run_id: str) -> None:
         """Resume a paused/blocked run by RE-SPAWNING the engine task.
@@ -1156,6 +1173,8 @@ class OrchestratorService(Orchestrator):
         # engine failure". Best-effort: telemetry must never break stopping.
         self._emit_paused_event(run_data, reason="user_requested_stop")
         self._cancel_live_task(run_data)
+        if await self._kill_engine(run_id):
+            await self._stage_outputs(run_data)
         # M19-N1: DONE is terminal and fully replayable from the event log —
         # when the log corroborates it, the RAM entry dies with it (cache-only).
         await self._evict_if_terminal(run_data)
@@ -1174,12 +1193,67 @@ class OrchestratorService(Orchestrator):
         except Exception:  # noqa: BLE001 — telemetry must never break stopping
             logger.exception("paused-event emission failed for %s", run_data.get("runId"))
 
+    def _isolated_engine(self) -> bool:
+        return bool(getattr(self.engine, "isolated", False)) and hasattr(
+            self.engine, "run_workspace"
+        )
+
+    async def _ensure_baseline(self, run_data: dict[str, Any]) -> None:
+        if not self._isolated_engine():
+            return
+        rid = run_data["runId"]
+        await asyncio.to_thread(
+            staging.ensure_baseline, rid, self.engine.run_workspace(rid), self.engine.workspace
+        )
+
+    async def _stage_outputs(self, run_data: dict[str, Any]) -> str | None:
+        """B3: withhold high-impact changes and file leader approvals for them.
+
+        Returns an error string when staging could not be trusted (callers fail
+        the run closed), else None. Only call once the worker is confirmed dead.
+        """
+        if not self._isolated_engine():
+            return None
+        rid = run_data["runId"]
+        try:
+            report = await asyncio.to_thread(
+                staging.stage, rid, self.engine.run_workspace(rid), self.engine.workspace
+            )
+            if report.groups and self.session_factory is not None:
+                team = await self._team_for_run(run_data)
+                if team:
+                    await collab.ensure_staged_approvals(
+                        self.session_factory, team, rid, report.groups
+                    )
+            run_data["staged"] = {
+                "lowImpact": report.low_impact,
+                "withheld": [
+                    {"action": g.action, "paths": g.paths, "digest": g.digest}
+                    for g in report.groups
+                ],
+            }
+            return None
+        except Exception as exc:  # noqa: BLE001 - fail closed on any staging doubt
+            logger.exception("staging failed for run %s", rid)
+            return f"staging failed: {exc}"
+
+    async def _kill_engine(self, run_id: str) -> bool:
+        """B4: kill the isolated worker's process group; True when confirmed gone
+        (or when the engine has no killable worker, e.g. injected test engines)."""
+        cancel = getattr(self.engine, "cancel", None)
+        if cancel is None:
+            return True
+        return bool(await asyncio.to_thread(cancel, run_id))
+
     def engine_quiesced(self, run_id: str) -> bool:
         """True once no engine thread for this run can still mutate files.
 
         Stop marks the run DONE immediately (cancel *requested*); the thread
         may outlive it, so cancel is only *confirmed* when this returns True.
         """
+        worker = getattr(self.engine, "is_worker_running", None)
+        if worker is not None and getattr(self.engine, "isolated", False):
+            return not worker(run_id)  # process truth: dead worker cannot mutate files
         return not self.engine_runtime.is_running(run_id)
 
     def _cancel_live_task(self, run_data: dict[str, Any]) -> None:
@@ -1195,6 +1269,10 @@ class OrchestratorService(Orchestrator):
         cannot be interrupted (OS threads) — see EngineRuntime.shutdown.
         """
         self.engine_runtime.shutdown()
+        procs = getattr(self.engine, "_procs", None)
+        if procs:
+            for sid in list(procs):
+                self.engine.cancel(sid)  # never orphan confined workers on shutdown
 
     # ------------------------------------------------- M19-N1 durable reads
 

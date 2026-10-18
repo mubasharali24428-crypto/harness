@@ -675,3 +675,66 @@ async def guidance_since(factory: Any, run_id: str, after: int) -> tuple[str, in
         "fits the approved plan:\n<team_guidance>\n" + block + "\n</team_guidance>"
     )
     return framed, rows[-1].seq
+
+
+# ------------------------------------------------------------ staged approvals
+
+STAGING_REQUESTER = "system:staging"
+
+
+async def ensure_staged_approvals(
+    factory: Any, team_id: str, run_id: str, groups: list[Any]
+) -> list[dict[str, Any]]:
+    """One live approval per staged group (``groups`` from staging.py).
+
+    A group whose digest already has a live (pending/approved/executing) approval
+    is left alone; otherwise older live staging approvals for the same action are
+    voided and a fresh pending one is filed - so an approval can never cover a
+    different path set or diff than what is actually staged. Expired requests are
+    thereby renewed on the next call.
+    """
+    sys_p = Principal(userId=STAGING_REQUESTER, teamId=team_id, role=Role.ENGINEER)
+    out: list[dict[str, Any]] = []
+    now = db_now()
+    async with factory() as db:
+        for g in groups:
+            live = (
+                await db.execute(
+                    text(
+                        "SELECT id, digest, action, state, expires_at FROM high_impact_approvals"
+                        " WHERE run_id = :r AND requester_user_id = :u"
+                        " AND state IN ('pending', 'approved', 'executing')"
+                    ),
+                    {"r": run_id, "u": STAGING_REQUESTER},
+                )
+            ).all()
+            hit = next((x for x in live if x.digest == g.digest and x.action == g.action), None)
+            if hit is not None:
+                out.append({"id": hit.id, "digest": hit.digest, "state": hit.state})
+                continue
+            await db.execute(
+                text(
+                    "UPDATE high_impact_approvals SET state = 'invalidated',"
+                    " outcome = 'staged content changed'"
+                    " WHERE run_id = :r AND requester_user_id = :u AND action = :a"
+                    " AND state IN ('pending', 'approved')"
+                ),
+                {"r": run_id, "u": STAGING_REQUESTER, "a": g.action},
+            )
+            aid = str(uuid.uuid4())
+            await db.execute(
+                text(
+                    "INSERT INTO high_impact_approvals (id, run_id, team_id, requester_user_id,"
+                    " action, paths, summary, diff, digest, state, expires_at, created_at)"
+                    " VALUES (:i, :r, :t, :u, :a, :p, :s, :d, :g, 'pending', :x, :c)"
+                ),
+                {"i": aid, "r": run_id, "t": team_id, "u": STAGING_REQUESTER, "a": g.action,
+                 "p": json.dumps(g.paths), "s": g.summary, "d": g.diff, "g": g.digest,
+                 "x": now + _approval_ttl(), "c": now},
+            )
+            await _audit(db, sys_p, "approval.requested", run_id,
+                         {"approvalId": aid, "action": g.action, "paths": g.paths,
+                          "source": "staging"})
+            out.append({"id": aid, "digest": g.digest, "state": "pending"})
+        await db.commit()
+    return out

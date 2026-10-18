@@ -1,7 +1,7 @@
 # Multiplayer pilot - readiness decision (Session 4, 2026-10-17)
 
-**Decision: NOT safe to begin with real users.** Safe for a supervised internal demo on
-synthetic data with an operator present (single-project team, or `projectId` sent). B2-B4 remain blockers; B1 is fixed for single-project teams.
+**Decision: NOT yet safe to begin with real users** (mechanisms exist but were not exercised against the real runtime). Safe for a supervised internal demo on
+synthetic data with an operator present (single-project team, or `projectId` sent). B1-B4 are implemented; the real DeepSeek runtime integration (see above) is the remaining gate.
 
 ## What was run (live)
 Real `services:orchestrator_app` (uvicorn) on a scratch Postgres with all 35 migrations; four
@@ -34,14 +34,30 @@ real file edits. The driver script lived outside the repo (not committed). 31 ch
   binding and no `agent_runs` row (plan persistence FK-fails, logged); every run-scoped route then
   returns 404 for it, including all collab routes. The UI creates runs this way. Fix: bind a
   validated `projectId` in `/plans` (or create the run via the bound path).
-- **B2 (P0) Isolation unproven where it matters.** Per-run cwd exists in the live SDK path, but
-  the SDK was not installed/exercised here, all runs share one OS user, and Section 5's sandbox
-  is not on this path. No concurrent-run file test, no container boundary.
-- **B3 (P1) No per-action gate inside a running engine.** Approval blocks starting/resuming only;
-  deletes/edits the SDK performs mid-run are not intercepted.
-- **B4 (P1) Cancellation cannot kill the provider thread.** A stopped run can keep mutating files
-  until the thread ends (deadline default 600s). The API now says so (`stopping`), but there is no
-  durable cancel-requested/confirmed event or audit row.
+- **B2 / B3 / B4 - built and verified with a STAND-IN worker (2026-10-17); NOT verified with the
+  real DeepSeek runtime.** Live (Postgres + real seatbelt, 18/18) and unit (15 new tests):
+  - **B4:** live SDK calls run in a worker subprocess in its own process group
+    (`engine.py` `_run_isolated`/`cancel`); pause/stop/timeout/shutdown SIGKILL the group and
+    confirm it is gone; `stop` reports `stopped` only after confirmation (live: grandchild killed,
+    0.01s). Escapes: a process that calls `setsid` leaves the group (seatbelt still confines it).
+  - **B2:** worker runs under a macOS seatbelt profile (`confine.py`): writes only to its own
+    workspace/session/tmp; reads of other runs' dirs and `~/.ssh` etc. denied; env is an allowlist
+    (no master key/DB URL/cloud creds). Live: two concurrent runs could not touch each other, other-run
+    read/write and outside write denied. Linux/landlock NOT implemented (`auto` runs unconfined with a
+    warning; `HARNESS_ENGINE_CONFINEMENT=required` fails closed).
+  - **B3:** `staging.py` baselines the run workspace, withholds deletions, substantial edits
+    (>= `HARNESS_SUBSTANTIAL_LINES`, default 50) and any symlink, files digest-bound leader approvals
+    (`requester system:staging`), and lands them only via `POST /runs/{id}/approvals/{aid}/apply`
+    (claim -> digest re-check against the staged files -> apply -> complete). Enforced at the
+    filesystem boundary, not via SDK hooks. A pending approval also stops the engine from running again.
+  - **Still unproven / required before real users:** (1) the real `dsh` runtime has never run under
+    this confinement; `engine.py` passes `cordis=`/`session_root=` kwargs that SDK 0.2.1rc2 does not
+    accept and needs `DSH_HOME`, so the live SDK path likely fails on the current wheel until adapted
+    and the default `danger-full-access` composition is replaced by a restricted Cordis config;
+    (2) low-impact changes (additions, small edits) pass without approval, file-level granularity
+    only, `.git` and empty dirs ignored, baseline is a full copy (200MB cap); (3) done-signal/PR open
+    is not yet blocked while staged approvals are pending (the withheld content is simply absent from
+    the workspace); (4) no cancel-requested/confirmed audit event yet.
 
 ## Other open risks (not blockers for a supervised demo)
 Collab UI never run in a browser or against a live backend; no presence; polling (3s) not push;
