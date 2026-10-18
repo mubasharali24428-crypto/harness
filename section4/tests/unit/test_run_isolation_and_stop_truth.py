@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 import threading
 import types
@@ -114,3 +115,59 @@ def test_second_stop_on_finished_run_is_a_noop():
         return sm.state if sm else AgentState.DONE
 
     assert asyncio.run(go()) == AgentState.DONE
+
+
+def _fake_sdk(monkeypatch, seen):
+    class Fake:
+        def __init__(self, **kw):
+            seen.append(kw)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def run(self, goal, session_id):
+            return types.SimpleNamespace(final_response="ok", events=[])
+
+    monkeypatch.setitem(
+        sys.modules, "deepseek_harness", types.SimpleNamespace(DeepSeekHarness=Fake)
+    )
+
+
+def test_sdk_call_uses_real_surface_and_restricted_profile(tmp_path, monkeypatch):
+    """SDK 0.2.1rc2 has no cordis/session_root; it needs dsh_home and a profile."""
+    seen: list[dict] = []
+    _fake_sdk(monkeypatch, seen)
+    monkeypatch.delenv("DSH_PROFILE", raising=False)
+    monkeypatch.delenv("DSH_PATCH_FILES", raising=False)
+    e = DeepSeekHarnessWrapper(
+        workspace_dir=str(tmp_path / "ws"),
+        session_root=str(tmp_path / "sess"),
+        api_key="sk-realistic-0123456789abcdef",
+        base_url="http://127.0.0.1:9/v1",
+        live_mode="dry",
+        isolated=False,
+    )
+    assert e._run_live_events("g", "run-sdk")[1] == "completed"
+    kw = seen[0]
+    assert "cordis" not in kw and "session_root" not in kw
+    assert kw["profile"] == "sdk-minimal"  # never the default danger-full-access composition
+    assert kw["dsh_home"].endswith("/run-sdk") and kw["cwd"].endswith("/run-sdk")
+    assert kw["api_key"] == "sk-realistic-0123456789abcdef" and kw["base_url"].endswith("/v1")
+    assert "DEEPSEEK_API_KEY" not in os.environ or os.environ["DEEPSEEK_API_KEY"] != kw["api_key"]
+
+
+def test_missing_patch_file_fails_closed(tmp_path, monkeypatch):
+    seen: list[dict] = []
+    _fake_sdk(monkeypatch, seen)
+    monkeypatch.setenv("DSH_PATCH_FILES", str(tmp_path / "nope.patch.yml"))
+    e = DeepSeekHarnessWrapper(
+        workspace_dir=str(tmp_path / "ws"),
+        session_root=str(tmp_path / "sess"),
+        live_mode="dry",
+        isolated=False,
+    )
+    text_, status, *_ = e._run_live_events("g", "run-p")
+    assert status == "error" and "not found" in text_ and seen == []

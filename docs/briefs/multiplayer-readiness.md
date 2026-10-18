@@ -50,10 +50,18 @@ real file edits. The driver script lived outside the repo (not committed). 31 ch
     (`requester system:staging`), and lands them only via `POST /runs/{id}/approvals/{aid}/apply`
     (claim -> digest re-check against the staged files -> apply -> complete). Enforced at the
     filesystem boundary, not via SDK hooks. A pending approval also stops the engine from running again.
-  - **Still unproven / required before real users:** (1) the real `dsh` runtime has never run under
-    this confinement; `engine.py` passes `cordis=`/`session_root=` kwargs that SDK 0.2.1rc2 does not
-    accept and needs `DSH_HOME`, so the live SDK path likely fails on the current wheel until adapted
-    and the default `danger-full-access` composition is replaced by a restricted Cordis config;
+  - **Real runtime (2026-10-18, SDK/runtime 0.2.1rc2, installed as the pinned `live` extra):**
+    `engine.py` now uses the real surface (`dsh_home` per run, `sdk-minimal` profile, optional
+    `DSH_PROFILE`/`DSH_PATCH_FILES`, missing patch file fails closed; no `cordis`/`session_root`
+    kwargs, no env mutation). **Unconfined**, a real hello-world against local Ollama (`qwen3.5:9b`)
+    created `hello.txt` = `task0 ok` (20 events). **Under seatbelt it does NOT work:** the runtime
+    boots and the model runs, but its persistent-shell PTY backend fails, so no file is created.
+    Bisect: the same failure occurs with an allow-default profile that has no restrictions at all,
+    so `sandbox-exec` itself breaks the runtime's PTY (no runtime setting disables it); sandbox
+    denial logs were not readable. Consequence: for the real runtime, isolation today = separate
+    process group + scrubbed env + staging gate, WITHOUT OS confinement (`auto` mode would break
+    real runs on macOS; use `HARNESS_ENGINE_CONFINEMENT=off` knowingly, or a container/VM boundary).
+    Still unproven / required before real users: (1) OS-level confinement of the real runtime;
     (2) low-impact changes (additions, small edits) pass without approval, file-level granularity
     only, `.git` and empty dirs ignored, baseline is a full copy (200MB cap); (3) done-signal/PR open
     is not yet blocked while staged approvals are pending (the withheld content is simply absent from

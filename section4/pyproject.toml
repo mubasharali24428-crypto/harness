@@ -12,6 +12,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# live engine: pinned to the versions verified in docs/briefs/multiplayer-readiness.md
+live = [
+    "deepseek-harness-sdk==0.2.1rc2",
+    "deepseek-harness-runtime-bin==0.2.1rc2",
+]
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.23",

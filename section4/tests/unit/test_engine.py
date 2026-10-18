@@ -194,10 +194,7 @@ class _FakeHarness:
         self.kwargs = kwargs
 
     def __enter__(self):
-        _FakeHarness.seen_env = (
-            os.environ.get("DEEPSEEK_API_KEY"),
-            os.environ.get("DEEPSEEK_BASE_URL"),
-        )
+        _FakeHarness.seen_env = (self.kwargs.get("api_key"), self.kwargs.get("base_url"))
         return self
 
     def __exit__(self, *exc):
@@ -233,9 +230,9 @@ def test_live_run_env_restores_exactly_when_originally_unset(monkeypatch, tmp_pa
     _install_fake_sdk(monkeypatch)
     text, status, _model, _events = _live_wrapper(tmp_path)._run_live_events("g", "s-1")
     assert (status, text) == ("completed", "ok")
-    # The keys WERE injected for the SDK call (guards against a vacuous pass)…
+    # The keys reach the SDK as kwargs (guards against a vacuous pass)…
     assert _FakeHarness.seen_env == ("sk-injected-rotating", "http://engine.test/v1")
-    # …and are gone again after the run.
+    # …and the process environment is never touched.
     assert "DEEPSEEK_API_KEY" not in os.environ
     assert "DEEPSEEK_BASE_URL" not in os.environ
 

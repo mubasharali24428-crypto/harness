@@ -71,6 +71,7 @@ def scrubbed_env(extra: dict[str, str], tmp_dir: str) -> dict[str, str]:
     env.setdefault("PATH", "/usr/local/bin:/usr/bin:/bin")
     env.update(extra)
     env["TMPDIR"] = tmp_dir
+    env["HOME"] = tmp_dir  # runtimes need a writable home; keep it inside the run's own sandbox
     env["PYTHONUNBUFFERED"] = "1"
     return env
 
@@ -89,12 +90,19 @@ def seatbelt_profile(
         "(deny default)\n"
         "(allow process-exec)\n"
         "(allow process-fork)\n"
-        "(allow signal (target self))\n"
+        "(allow signal (target same-sandbox))\n"  # kill own children (pty cleanup) only
+        "(allow process-info* (target same-sandbox))\n"
         "(allow file-read*)\n"
         f"(deny file-read* {deny_roots})\n"
+        # stat/traverse stays allowed (loaders walk up from cwd); contents and
+        # directory listings of other runs stay denied.
+        f"(allow file-read-metadata {deny_roots})\n"
         f"(allow file-read* {own_read})\n"
         f"(deny file-read* {cred})\n"
         f"(allow file-write* {own_read} (literal \"/dev/null\") (literal \"/dev/tty\"))\n"
+        "(allow pseudo-tty)\n"  # the agent's persistent shell runs on a pty
+        "(allow file-ioctl)\n"
+        '(allow file-read* file-write* (literal "/dev/ptmx") (regex #"^/dev/ttys[0-9]+$"))\n'
         "(allow mach-lookup)\n"
         "(allow sysctl-read)\n"
         "(allow ipc-posix-shm)\n"

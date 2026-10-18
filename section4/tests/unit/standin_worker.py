@@ -2,10 +2,12 @@
 
 import json
 import os
+import pwd
 import subprocess
 import sys
 import time
 
+REAL_HOME = pwd.getpwuid(os.getuid()).pw_dir  # HOME itself is repointed to the run tmp dir
 req = json.loads(sys.stdin.readline())
 goal, sid, root = req["goal"], req["session_id"], req["workspace_root"]
 out = {"status": "completed", "model": "standin", "events": []}
@@ -37,7 +39,8 @@ elif goal == "probe":
     attempt("write_own", lambda: open(os.path.join(root, sid, "ok.txt"), "w").write("x"))
     attempt("write_other", lambda: open(os.path.join(root, "run-other", "pwn.txt"), "w").write("x"))
     attempt("read_other", lambda: open(os.path.join(root, "run-other", "secret.txt")).read())
-    attempt("write_outside", lambda: open(os.path.expanduser("~/pwn_from_run.txt"), "w").write("x"))
+    outside = os.path.join(REAL_HOME, "pwn_from_run.txt")
+    attempt("write_outside", lambda: open(outside, "w").write("x"))
     res["env"] = sorted(k for k in os.environ if k.startswith(("HARNESS_", "AWS_")))
     res["has_key"] = "DEEPSEEK_API_KEY" in os.environ
     out["text"] = json.dumps(res)

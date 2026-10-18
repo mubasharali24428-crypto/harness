@@ -43,6 +43,8 @@ from harness_orchestrator.redact import scrub_secrets
 
 logger = logging.getLogger(__name__)
 
+# Restricted shipped composition; the default "sdk" profile is danger-full-access.
+DEFAULT_DSH_PROFILE = "sdk-minimal"
 _SESSION_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
 
 
@@ -378,41 +380,33 @@ class DeepSeekHarnessWrapper:
             run_cwd = self.run_workspace(session_id)
             os.makedirs(run_cwd, exist_ok=True)
             os.makedirs(self.run_session_dir(session_id), exist_ok=True)
+            # Real SDK (0.2.1rc2) surface: explicit dsh_home (never ~/.dsh), a
+            # restricted profile instead of the default danger-full-access
+            # composition, optional patch files; credentials go to the runtime
+            # child via kwargs (no mutation of this process's environment).
             kwargs: dict[str, Any] = dict(
                 provider="deepseek-official",
                 model=model,
                 max_tokens=4096,
                 cwd=run_cwd,
-                session_root=self.run_session_dir(session_id),
+                dsh_home=self.run_session_dir(session_id),
+                profile=os.environ.get("DSH_PROFILE", DEFAULT_DSH_PROFILE),
+                api_key=self.api_key,
             )
-            cordis = os.environ.get("DSH_CORDIS_CONFIG")
-            if cordis and os.path.exists(cordis):
-                kwargs["cordis"] = cordis
-
-            import base64
-
-            saved_key = os.environ.get("DEEPSEEK_API_KEY")
-            saved_url = os.environ.get("DEEPSEEK_BASE_URL")
-            os.environ["DEEPSEEK_API_KEY"] = self.api_key
             if self.base_url:
-                os.environ["DEEPSEEK_BASE_URL"] = self.base_url
-            try:
-                with DeepSeekHarness(**kwargs) as harness:
-                    result = harness.run(goal, session_id=session_id)
-                text = result.final_response
-                events = list(result.events or [])
-            finally:
-                if saved_key is None:
-                    os.environ.pop("DEEPSEEK_API_KEY", None)
-                else:
-                    os.environ["DEEPSEEK_API_KEY"] = saved_key
-                if saved_url is None:
-                    os.environ.pop("DEEPSEEK_BASE_URL", None)
-                elif saved_url:
-                    os.environ["DEEPSEEK_BASE_URL"] = saved_url
-                else:
-                    os.environ.pop("DEEPSEEK_BASE_URL", None)
-                _ = base64
+                kwargs["base_url"] = self.base_url
+            patches = tuple(
+                p for p in os.environ.get("DSH_PATCH_FILES", "").split(os.pathsep) if p
+            )
+            missing = [p for p in patches if not os.path.exists(p)]
+            if missing:  # fail closed: a missing restriction patch must not be skipped
+                raise FileNotFoundError(f"DSH_PATCH_FILES entry not found: {missing[0]}")
+            if patches:
+                kwargs["patches"] = patches
+            with DeepSeekHarness(**kwargs) as harness:
+                result = harness.run(goal, session_id=session_id)
+            text = result.final_response
+            events = list(result.events or [])
             return text, "completed", model, events
         except ImportError:
             return (
