@@ -43,6 +43,22 @@ APPEND_ONLY_ACTIONS = frozenset(
         # Mission 22 M4: team OIDC IdP configuration lifecycle.
         "sso.config_saved",
         "sso.config_deleted",
+        # Multiplayer pilot S2: shared-run collaboration + high-impact approvals
+        # (raw-SQL writer in section4 collab.py; canonical allowlist is here).
+        "participant.joined",
+        "leader.assigned",
+        "redirect.recorded",
+        "redirect.scope_changed",
+        "handoff.requested",
+        "handoff.accepted",
+        "handoff.rejected",
+        "approval.requested",
+        "approval.approved",
+        "approval.rejected",
+        "approval.invalidated",
+        "approval.expired",
+        "approval.claimed",
+        "approval.completed",
     }
 )
 
