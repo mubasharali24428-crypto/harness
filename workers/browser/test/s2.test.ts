@@ -162,6 +162,13 @@ describe("S2 governed preview", () => {
     expect(() => reg.assertOriginsAllowed("t1", ["https://example.com"], ["https://example.com"])).not.toThrow();
   });
 
+  it("a port already registered to one team cannot be registered by another", () => {
+    expect(reg.register("t1", 3001)).toBe("http://127.0.0.1:3001");
+    expect(() => reg.register("t2", 3001)).toThrow(/another team/);
+    expect(reg.register("t1", 3001)).toBe("http://127.0.0.1:3001"); // owner re-register is idempotent
+    expect(() => reg.assertOriginsAllowed("t2", ["http://127.0.0.1:3001"], [])).toThrow();
+  });
+
   it("static preview serves a build dir and refuses traversal", async () => {
     const dir = mkdtempSync(join(tmpdir(), "a3-prev-"));
     mkdirSync(join(dir, "app"));

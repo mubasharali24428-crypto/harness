@@ -66,9 +66,10 @@ describe("computer-use HTTP adapter", () => {
   });
 
   it("ignores a body teamId and refuses a project the team does not own", async () => {
-    expect((await open("engB", { teamId: "team-a" })).status).toBe(404);
+    // team-a registers the shared fixture port first; a port belongs to one team on shared loopback.
     const ok = await open("engA", { teamId: "team-b" });
     expect(ok.status).toBe(201);
+    expect((await open("engB", { teamId: "team-a" })).status).toBe(404);
     const session = mgr.manager.get(ok.json.sessionId);
     expect(session.identity.teamId).toBe("team-a");
   });

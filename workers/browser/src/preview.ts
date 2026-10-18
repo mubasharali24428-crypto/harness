@@ -29,6 +29,12 @@ export class PreviewRegistry {
       throw new WorkerError("EGRESS_DENIED", `preview port ${port} is reserved for platform services`);
     }
     const origin = `http://127.0.0.1:${port}`;
+    // Loopback is shared by every team: one port belongs to one team, or team B could drive team A's preview.
+    for (const [owner, origins] of this.byTeam) {
+      if (owner !== teamId && origins.has(origin)) {
+        throw new WorkerError("EGRESS_DENIED", `preview port ${port} is registered to another team`);
+      }
+    }
     const set = this.byTeam.get(teamId) ?? new Set<string>();
     set.add(origin);
     this.byTeam.set(teamId, set);
