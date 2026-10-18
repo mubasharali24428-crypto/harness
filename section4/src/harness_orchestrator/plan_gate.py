@@ -46,7 +46,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from harness_contracts.api import error_body
-from harness_contracts.limits import PROPOSE_GOAL_MAX
+from harness_contracts.limits import PROPOSE_GOAL_MAX, PROPOSE_PROJECT_ID_MAX
 from harness_contracts.roles import Principal, Role
 from harness_contracts.timeutil import db_now
 from pydantic import BaseModel, Field
@@ -97,6 +97,9 @@ def _require_service() -> OrchestratorService:
 
 class ProposePlanGateRequest(BaseModel):
     goal: str = Field(min_length=1, max_length=PROPOSE_GOAL_MAX)
+    # B1: binds the minted run to a project of the caller's team. Optional for
+    # backward compatibility; see _resolve_project for the omitted case.
+    projectId: str | None = Field(default=None, max_length=PROPOSE_PROJECT_ID_MAX)
 
 
 class PlanOut(BaseModel):
@@ -252,6 +255,51 @@ _PROPOSE_ALLOWED = frozenset({Role.ADMIN, Role.ENGINEER})
 _DECIDE_ALLOWED = frozenset({Role.ADMIN, Role.ENGINEER})
 
 
+async def _resolve_project(
+    service: OrchestratorService, principal: Principal, requested: str | None
+) -> str | None:
+    """Project to bind a newly minted run to (B1).
+
+    Explicit ``requested``: must be a project of the caller's team, else the
+    no-oracle 404 (foreign and unknown are indistinguishable). Omitted: bind to
+    the team's ONLY project; with none or several the run stays unbound exactly
+    as before (the caller must send projectId to get a usable shared run).
+    """
+    factory = getattr(service, "session_factory", None)
+    if factory is None:
+        return None  # bare-unit mode: no projects table to consult
+    from sqlalchemy import text
+
+    try:
+        async with factory() as db:
+            if requested is not None:
+                row = (
+                    await db.execute(
+                        text("SELECT team_id FROM projects WHERE id = :p"), {"p": requested}
+                    )
+                ).first()
+                if row is None or row.team_id != principal.teamId:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=error_body("NOT_FOUND", "project not found"),
+                    )
+                return requested
+            rows = (
+                await db.execute(
+                    text("SELECT id FROM projects WHERE team_id = :t LIMIT 2"),
+                    {"t": principal.teamId},
+                )
+            ).all()
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("project resolution failed")
+        if requested is not None:
+            raise _http_authz_unavailable("project_unverifiable") from exc
+        return None
+    return rows[0].id if len(rows) == 1 else None
+
+
 @router.post(
     "/plans",
     status_code=status.HTTP_201_CREATED,
@@ -270,8 +318,9 @@ async def propose_plan(req: ProposePlanGateRequest, principal: RequirePrincipal)
     except _RoleDeniedError as e:
         raise _http_for_role(e) from e
     try:
+        project_id = await _resolve_project(service, principal, req.projectId)
         run_id = f"run-{uuid.uuid4().hex[:12]}"
-        run_data = await service._ensure_run(run_id)
+        run_data = await service._ensure_run(run_id, project_id=project_id)
         sm = run_data["state_machine"]
         run_data["goal"] = req.goal
         # M17-B4: attribute the run to the proposer's team at mint time, so

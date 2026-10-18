@@ -1,8 +1,7 @@
 # Multiplayer pilot - readiness decision (Session 4, 2026-10-17)
 
 **Decision: NOT safe to begin with real users.** Safe for a supervised internal demo on
-synthetic data with an operator present, using runs created through
-`POST /runs/{id}/plan` with a `projectId`. Four blockers below.
+synthetic data with an operator present (single-project team, or `projectId` sent). B2-B4 remain blockers; B1 is fixed for single-project teams.
 
 ## What was run (live)
 Real `services:orchestrator_app` (uvicorn) on a scratch Postgres with all 35 migrations; four
@@ -31,7 +30,7 @@ real file edits. The driver script lived outside the repo (not committed). 31 ch
 | Guidance reaches agent | PASS | live: engine goal contained the `<team_guidance>` block (next start/resume only) |
 
 ## Blockers (stop real-user pilot)
-- **B1 (P0) Dashboard-created runs are unusable.** `POST /plans` mints a run with no project
+- **B1 (P0) RESOLVED for single-project teams (2026-10-17, re-verified live):** `POST /plans` now takes an optional `projectId` (validated, foreign/unknown = 404) and, when omitted, binds the team's only project; the dashboard's `{goal}` request then produces a persisted, collab-capable run (live: status/join/leader/redirect/start/engine all 200, foreign team 404, no plan-persistence errors). **Still open:** a team with several projects that omits `projectId` gets an unbound run as before, and the dashboard client does not send `projectId` yet. Original finding: Dashboard-created runs were unusable. `POST /plans` mints a run with no project
   binding and no `agent_runs` row (plan persistence FK-fails, logged); every run-scoped route then
   returns 404 for it, including all collab routes. The UI creates runs this way. Fix: bind a
   validated `projectId` in `/plans` (or create the run via the bound path).
