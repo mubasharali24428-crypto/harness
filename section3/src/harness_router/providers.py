@@ -24,6 +24,7 @@ Authorization header. It never enters logs, exception messages, or
 
 import os
 import time
+from decimal import Decimal
 from typing import Any
 
 import httpx
@@ -236,7 +237,12 @@ class ModelProviderClient:
         # H-023: cost math is exact Decimal internally (PricingEngine); the
         # frozen contracts/ field is a JSON number, so convert only at this
         # serialization edge. No float arithmetic ever touches money.
-        cost = PricingEngine.calculate_cost(model, input_tokens, output_tokens)
+        # OpenRouter ':free' models are $0; unknown-model fallback pricing must not bill them.
+        cost = (
+            Decimal(0)
+            if model.endswith(":free")
+            else PricingEngine.calculate_cost(model, input_tokens, output_tokens)
+        )
         return ModelResult(
             text=text,
             costUsd=float(cost),

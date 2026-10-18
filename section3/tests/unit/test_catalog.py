@@ -46,3 +46,13 @@ def test_custom_catalog_replaceable():
     assert [e.name for e in custom.list_providers()] == ["only", "loc"]
     assert custom.local_fallback_candidates() == ["m/free"]
     assert custom.provider_for_model("m/1").name == "only"
+
+
+def test_free_models_cost_zero_while_unknown_paid_models_do_not():
+    from harness_router.providers import ModelProviderClient
+
+    build = ModelProviderClient._build_result
+    free = build("openrouter/google/gemma-4-26b-a4b-it:free", "hi", 1000, 1000, 5)
+    paid = build("openrouter/some/unlisted-paid-model", "hi", 1000, 1000, 5)
+    assert free.costUsd == 0.0
+    assert paid.costUsd > 0.0
