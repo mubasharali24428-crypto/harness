@@ -780,7 +780,7 @@ async def _map_email_to_member(factory, team_id: str, email: str) -> Principal |
                 )
             )
         ).scalar_one_or_none()
-        if member is None:
+        if member is None or member.deactivated_at is not None or not user.is_active:
             return None
         return Principal(
             userId=user.id, teamId=team_id, role=_role_value_to_contracts(member.role)

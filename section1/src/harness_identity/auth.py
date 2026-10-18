@@ -41,6 +41,8 @@ async def login_or_register(
         user = User(email=email, name=email.split("@")[0])
         session.add(user)
         await session.flush()
+    if not user.is_active:  # deactivated accounts never get a session
+        raise HTTPException(status_code=403, detail="account is deactivated")
 
     member: TeamMember | None = None
     if team_id:
@@ -51,7 +53,7 @@ async def login_or_register(
                 )
             )
         ).scalar_one_or_none()
-        if member is None:
+        if member is None or member.deactivated_at is not None:
             raise HTTPException(status_code=403, detail="not a member of that team")
     else:
         team = Team(name=team_name or f"{user.name or user.email}'s team")
@@ -214,7 +216,7 @@ async def verify_otp(session: AsyncSession, settings, email: str, code: str):
             detail={"error": {"code": "LOCKED", "message": "too many attempts"}},
         )
 
-    if row.code_hash != _hash_code(code):
+    if not secrets.compare_digest(row.code_hash, _hash_code(code)):
         row.attempts += 1
         locked = row.attempts >= settings.otp_max_attempts
         if locked:

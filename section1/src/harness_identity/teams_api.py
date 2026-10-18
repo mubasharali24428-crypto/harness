@@ -37,17 +37,19 @@ are safe.
 """
 
 import enum
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from harness_contracts import Principal, Role, error_body
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 
 from .audit_emit import emit_member_removed, emit_member_role_changed
 from .auth import get_principal
+from .models import AuthSession, TeamMember
 from .models import Role as DbRole
-from .models import TeamMember
 
 router = APIRouter(prefix="/api/v1")
 
@@ -150,8 +152,21 @@ async def remove_member(
             )
         removed_role = _role_value(target.role)  # capture BEFORE expiry-prone ops
         membership_id = str(target.id)
-        await db.delete(target)
-        await db.commit()
+        try:
+            await db.delete(target)
+            await db.commit()
+        except IntegrityError:
+            # audit_log RESTRICTs hard delete: keep the row, deactivate it and end its sessions
+            # (same semantics as SCIM deprovisioning) instead of answering 500.
+            await db.rollback()
+            target = await _find_member(db, team_id, user_id)
+            target.deactivated_at = datetime.now(UTC)
+            await db.execute(
+                delete(AuthSession).where(
+                    AuthSession.user_id == user_id, AuthSession.team_id == team_id
+                )
+            )
+            await db.commit()
         # H-010 audit trail: the transition is the event; failure to emit must
         # never break the 204 (helpers degrade to a warning internally).
         await emit_member_removed(

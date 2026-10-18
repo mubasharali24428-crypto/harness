@@ -385,6 +385,77 @@ async def test_deactivated_admin_does_not_count_and_removed_member_session_is_40
     ).status_code == 401  # was a 500
 
 
+async def test_deactivated_member_and_inactive_user_cannot_mint_sessions(env):
+    from fastapi import HTTPException
+
+    from harness_identity.auth import login_or_register
+    from harness_identity.sso import _map_email_to_member
+
+    _, factory = env
+    admin = await _member(factory)
+    eng = await _member(factory, admin["team"], "engineer", email="eng@x.io")
+    async with factory() as db:
+        m = (
+            await db.execute(select(TeamMember).where(TeamMember.user_id == eng["id"]))
+        ).scalar_one()
+        m.deactivated_at = datetime.now(UTC)
+        await db.commit()
+    async with factory() as db:
+        with pytest.raises(HTTPException) as e:
+            await login_or_register(db, "eng@x.io", admin["team"])
+        assert e.value.status_code == 403
+    assert await _map_email_to_member(factory, admin["team"], "eng@x.io") is None
+    async with factory() as db:  # account-level deactivation blocks every path
+        u = (await db.execute(select(User).where(User.id == eng["id"]))).scalar_one()
+        u.is_active = False
+        await db.commit()
+    async with factory() as db:
+        with pytest.raises(HTTPException) as e:
+            await login_or_register(db, "eng@x.io")
+        assert e.value.status_code == 403
+
+
+async def test_removing_member_with_audit_history_deactivates_instead_of_500():
+    from sqlalchemy import event
+
+    from harness_identity.models import AuditLog
+    from harness_identity.teams_api import router as teams_router
+
+    engine = create_async_engine("sqlite+aiosqlite://")
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _fk_on(dbapi_connection, _record):
+        dbapi_connection.execute("PRAGMA foreign_keys=ON")
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    app = FastAPI()
+    app.include_router(teams_router)
+    app.state.session_factory = factory
+    admin = await _member(factory)
+    eng = await _member(factory, admin["team"], "engineer")
+    async with factory() as db:
+        m = (
+            await db.execute(select(TeamMember).where(TeamMember.user_id == eng["id"]))
+        ).scalar_one()
+        db.add(AuditLog(actor_member_id=m.id, action="x.y"))
+        await db.commit()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.delete(
+            f"/api/v1/teams/{admin['team']}/members/{eng['id']}", headers=admin["h"]
+        )
+        assert r.status_code == 204
+        async with factory() as db:
+            m = (
+                await db.execute(select(TeamMember).where(TeamMember.user_id == eng["id"]))
+            ).scalar_one()
+            assert m.deactivated_at is not None
+            left = await db.execute(select(AuthSession).where(AuthSession.user_id == eng["id"]))
+            assert left.first() is None  # its sessions were ended
+    await engine.dispose()
+
+
 # ----------------------------------------------------------- correlation / remediation (pure)
 
 
