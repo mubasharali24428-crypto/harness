@@ -270,3 +270,49 @@ def test_live_exception_text_never_carries_the_key(monkeypatch):
     assert "sk-engineecho-test" not in out["finalResponse"]
     assert "[redacted]" in out["finalResponse"]
     assert "boom" in out["finalResponse"]  # message stays diagnostic
+
+
+def test_concurrent_in_process_runs_never_see_each_others_key(monkeypatch):
+    import sys
+    import threading
+    import time
+    import types
+
+    seen: dict[str, str] = {}
+
+    class FakeHarness:
+        def __init__(self, **_kw):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_a):
+            return False
+
+        def run(self, goal, session_id=None):
+            time.sleep(0.05)  # widen the window in which another thread could swap the key
+            seen[goal] = os.environ["DEEPSEEK_API_KEY"]
+            return types.SimpleNamespace(final_response="ok", events=[])
+
+    fake = types.SimpleNamespace(DeepSeekHarness=FakeHarness)
+    monkeypatch.setitem(sys.modules, "deepseek_harness", fake)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    wrappers = {
+        k: DeepSeekHarnessWrapper(
+            api_key=k,
+            base_url="http://localhost:1/v1",
+            model="m",
+            live_mode=LiveMode.LIVE,
+            workspace_dir=f"/tmp/ws-{k}",
+            session_root=f"/tmp/ss-{k}",
+        )
+        for k in ("key-A", "key-B", "key-C")
+    }
+    threads = [
+        threading.Thread(target=w._run_live_events, args=(k, "s")) for k, w in wrappers.items()
+    ]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert seen == {"key-A": "key-A", "key-B": "key-B", "key-C": "key-C"}
+    assert "DEEPSEEK_API_KEY" not in os.environ  # restored afterwards

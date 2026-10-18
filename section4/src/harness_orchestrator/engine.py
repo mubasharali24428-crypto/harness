@@ -21,6 +21,7 @@ that actually answered.
 """
 
 import os
+import threading
 from collections.abc import Callable
 from typing import Any
 
@@ -32,6 +33,10 @@ from harness_orchestrator.live_mode import (
 )
 from harness_orchestrator.redact import scrub_secrets
 from harness_orchestrator.run_replay import summarize_engine_events
+
+# The SDK reads the provider key from process-global os.environ; concurrent in-process runs
+# would otherwise swap each other's credentials. ProcessEngine avoids this entirely.
+_ENV_LOCK = threading.Lock()
 
 
 class DeepSeekHarnessWrapper:
@@ -230,12 +235,13 @@ class DeepSeekHarnessWrapper:
 
             import base64
 
+            _ENV_LOCK.acquire()
             saved_key = os.environ.get("DEEPSEEK_API_KEY")
             saved_url = os.environ.get("DEEPSEEK_BASE_URL")
-            os.environ["DEEPSEEK_API_KEY"] = self.api_key
-            if self.base_url:
-                os.environ["DEEPSEEK_BASE_URL"] = self.base_url
             try:
+                os.environ["DEEPSEEK_API_KEY"] = self.api_key
+                if self.base_url:
+                    os.environ["DEEPSEEK_BASE_URL"] = self.base_url
                 with DeepSeekHarness(**kwargs) as harness:
                     result = harness.run(goal, session_id=session_id)
                 text = result.final_response
@@ -251,6 +257,7 @@ class DeepSeekHarnessWrapper:
                     os.environ["DEEPSEEK_BASE_URL"] = saved_url
                 else:
                     os.environ.pop("DEEPSEEK_BASE_URL", None)
+                _ENV_LOCK.release()
                 _ = base64
             return text, "completed", model, events
         except ImportError:
