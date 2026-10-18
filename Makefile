@@ -67,7 +67,7 @@ bootstrap:
 		echo "== $$s =="; \
 		cd $$s && $(PYTHON) -m venv .venv && \
 			./.venv/bin/pip install --quiet --upgrade pip && \
-			{ ./.venv/bin/pip install --quiet -e ../contracts && \
+			{ ./.venv/bin/pip install --quiet -e ../contracts -e ../packages/security-policy && \
 			  { ./.venv/bin/pip install --quiet -e ".[dev]" || \
 			    ./.venv/bin/pip install --quiet -e .; }; } && cd .. || exit 1; \
 	done
