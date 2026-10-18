@@ -298,6 +298,11 @@ async def call_model(
             raise _deny_model(verdict)
         model_name = picked["model"]
         response.headers["X-Harness-Model-Source"] = picked["source"]
+    elif req.model is not None:
+        # No provider wired: still never remap an unknown requested model to a role default.
+        verdict = evaluate_model(OPEN_POLICY, req.model, MODEL_PRICING_CATALOG)
+        if verdict.outcome is Outcome.DENY:
+            raise _deny_model(verdict)
 
     temp = req.opts.temperature if req.opts else None
     cacheable = policy is not None and policy.cache_enabled and temp == 0

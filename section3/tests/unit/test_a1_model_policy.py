@@ -259,3 +259,13 @@ async def test_pool_provider_reads_rows_caches_and_fails_closed():
     pool.fail = True
     closed = await model_policy_seam.pool_policy_provider(pool)("t9")
     assert closed.allowlist_enforced and not closed.approved_models
+
+
+def test_unknown_model_rejected_even_without_policy_provider(env):
+    from harness_router.model_policy_seam import set_policy_provider
+
+    client, fake, *_ = env
+    set_policy_provider(None)
+    r = call(client, model="made/up")
+    assert r.status_code == 422 and r.json()["detail"]["error"]["code"] == "MODEL_UNKNOWN"
+    assert fake.calls == []
