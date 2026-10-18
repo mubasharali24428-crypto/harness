@@ -44,6 +44,8 @@ export default function Login() {
   const [projectName, setProjectName] = useState("");
   // F-gap closure: team id for the SSO entry (mode === "sso").
   const [teamId, setTeamId] = useState("");
+  const [ready, setReady] = useState(false);
+  useEffect(() => { setReady(true); }, []);
   // Token held while the user names their first project (create-project mode).
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   // M19-N4: ?next=demo — the canned-demo entry sent strangers here to
@@ -218,7 +220,7 @@ export default function Login() {
               EXCEPTION (documented): width:100% rides Button's style prop —
               the frozen primitive has no fullWidth prop and ui/ is consume-
               only; flagged for the DS lane as a candidate prop. */}
-          <Button type="submit" variant="primary" size="md" disabled={busy} loading={busy} loadingText="Signing in…" style={{ width: "100%" }}>
+          <Button type="submit" variant="primary" size="md" disabled={busy || !ready} loading={busy} loadingText="Signing in…" style={{ width: "100%" }}>
             {busy ? "Signing in…" : "Enter the harness"}
           </Button>
           {/* M19-N4 (C10): the stranger's zero-key path — bootstrap an identity,

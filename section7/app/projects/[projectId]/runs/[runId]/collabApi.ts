@@ -90,3 +90,9 @@ export const decideApproval = (runId: string, t: string, a: Approval, approve: b
     approve,
     digest: a.digest,
   });
+
+/** Apply exactly the approved staged digest; approval alone does not land files. */
+export const applyApproval = (runId: string, t: string, a: Approval) =>
+  post<Approval>(`${root(runId)}/approvals/${encodeURIComponent(a.id)}/apply`, t, { digest: a.digest });
+export const hasUnappliedStaged = (approvals: Approval[]) => approvals.some((a) =>
+  a.requester === "system:staging" && ["pending", "approved", "executing"].includes(a.state));

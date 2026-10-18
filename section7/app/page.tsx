@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 // Classic JSX transform (vitest/esbuild) needs React in scope for the .tsx
 // extension; Next's compiler accepts this import too — same as meeting/page.
 import * as React from "react";
+import { PlanGateCard } from "./dashboard/planGate";
+import { loadSession } from "@/lib/auth";
 import AppShell from "@/components/AppShell";
 import { getRunStatus, getPlan, replayEvents, listProjects } from "@/lib/api";
 import { useEventStream } from "@/lib/useEventStream";
@@ -111,6 +113,7 @@ export default function CommandCenter() {
           </p>
         </Card>
       )}
+      {getToken() && <PlanGateCard token={getToken()!} principal={loadSession()?.principal ?? null} />}
       <div className="grid">
         {/* M16-X4: status cards onto Card; the .pill spans keep their class
             hooks (live-pill testid + e2e selectors) verbatim. */}

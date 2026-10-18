@@ -159,7 +159,7 @@ export function classifyGatePhase(
     case "planning":
       return "no-plan";
     case "awaiting_plan_approval":
-      return "awaiting-approval";
+      return planApproved ? "ready-to-start" : "awaiting-approval";
     case "executing":
     case "paused":
     case "awaiting_done_signal":

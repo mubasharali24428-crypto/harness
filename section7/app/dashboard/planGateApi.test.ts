@@ -217,3 +217,7 @@ describe("gateCaption — honest captions per phase", () => {
     expect(gateCaption("done")).toMatch(/complete/i);
   });
 });
+
+it("offers Start for an approved plan that retains awaiting_plan_approval until execution", () => {
+  expect(classifyGatePhase("awaiting_plan_approval", true, true)).toBe("ready-to-start");
+});

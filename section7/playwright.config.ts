@@ -21,7 +21,7 @@ const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 export default defineConfig({
   testDir: "./e2e",
   testMatch: /.*\.e2e\.ts/,
-  timeout: 90_000,
+  timeout: Number(process.env.E2E_TEST_TIMEOUT_MS ?? "90000"),
   expect: { timeout: 15_000 },
   // The hero journey is a stateful sequence over one browser session —
   // parallelizing it would race its own localStorage/backend rows.

@@ -5,7 +5,7 @@
 // approve/reject → start, with exactly one enabled action set per state and
 // role gates (viewer/guest never act). All wire traffic goes through
 // planGateApi.ts — this component invents no ids, no endpoints, no fallback.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 // Classic JSX transform (vitest/esbuild) needs React in scope for the .tsx
 // extension; Next's compiler accepts this import too, so one source fits both.
 import * as React from "react";
@@ -13,7 +13,7 @@ import type { AgentPlan } from "@contracts/plan";
 import type { RunStatus } from "@contracts/api";
 import type { Principal } from "@contracts/roles";
 import { ApiError, getRunStatus } from "@/lib/api";
-import { getProjectId } from "@/lib/auth";
+import { getProjectId, setRunId } from "@/lib/auth";
 import {
   panelStyle,
   headingStyle,
@@ -92,6 +92,7 @@ export function PlanGateCard({
   onAfterAction?: () => void;
 }) {
   const [goalDraft, setGoalDraft] = useState("");
+  const [proposed, setProposed] = useState<AgentPlan | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -100,6 +101,14 @@ export function PlanGateCard({
   // M14-F4 — optimistic overlay: the phase the card pretends to be in while a
   // decision is on the wire. Null = render the last server truth.
   const [optimisticPhase, setOptimisticPhase] = useState<PlanGatePhase | null>(null);
+
+  useEffect(() => {
+    if (!activeRunId) return;
+    let cancelled = false;
+    getRunStatus(activeRunId, token).then((next) => { if (!cancelled) setStatus(next); })
+      .catch((error) => { if (!cancelled) setError(String(error)); });
+    return () => { cancelled = true; };
+  }, [activeRunId, token]);
 
   async function refresh() {
     if (!activeRunId) return;
@@ -122,6 +131,7 @@ export function PlanGateCard({
     } catch (err) {
       setError(err instanceof ApiError ? `${err.message} (${err.code})` : String(err));
     } finally {
+      setOptimisticPhase(null);
       setBusyAction(null);
     }
   }
@@ -135,7 +145,10 @@ export function PlanGateCard({
     runId: activeRunId,
     propose: (goal) =>
       void act("propose", "Plan proposed — awaiting approval.", async () => {
-        await proposePlan(goal.trim(), token, getProjectId());
+        const response = await proposePlan(goal.trim(), token, getProjectId());
+        setProposed(response.plan);
+        setStatus({ runId: "", planId: response.planId, state: "awaiting_plan_approval",
+          planApproved: false, isHumanEditing: false });
       }),
     // M14-F4 — approve flips the card to ready-to-start INSTANTLY; the server
     // response reconciles it (real run binding) and a failure rolls back to
@@ -148,6 +161,9 @@ export function PlanGateCard({
         try {
           const res = await approvePlan(planId, token);
           setActiveRunId(res.runId);
+          setRunId(res.runId);
+          setStatus(await getRunStatus(res.runId, token));
+          setOptimisticPhase(null);
         } catch (err) {
           setOptimisticPhase(null); // rollback to last server truth
           throw err;
@@ -186,13 +202,14 @@ export function PlanGateCard({
   // refresh() reconciles it against the real snapshot when the wire settles.
   const phase = effectivePhase(serverPhase, optimisticPhase);
   return (
+    <>
     <PlanGateView
       phase={phase}
       enabled={gateActionsFor(phase, principal?.role ?? null, busyAction !== null)}
       optimisticPending={optimisticPhase !== null}
       // The card never holds the full AgentPlan object (parents fetch that via
       // GET /runs/{id}/plan); it only echoes the operator's typed goal.
-      plan={goalDraft.trim() !== "" ? { goal: goalDraft } : null}
+      plan={proposed}
       goalDraft={goalDraft}
       onGoalDraftChange={setGoalDraft}
       busyAction={busyAction}
@@ -200,6 +217,10 @@ export function PlanGateCard({
       note={note}
       actions={wire}
     />
+    {activeRunId && getProjectId() && <a href={`/projects/${encodeURIComponent(getProjectId()!)}/runs/${encodeURIComponent(activeRunId)}`}>
+      Open shared run
+    </a>}
+    </>
   );
 }
 
@@ -263,9 +284,8 @@ export function PlanGateView({
           </button>
         </div>
       ) : (
-        <p style={{ color: "#6b7280", fontSize: 13, margin: "8px 0 0" }}>
-          Goal: {(plan?.goal ?? "").trim() !== "" ? plan!.goal : "(no goal recorded)"}
-        </p>
+        // The goal is shown by the shared-run panel (read from the server); never print a false "none recorded" here.
+        (plan?.goal ?? "").trim() !== "" ? <p style={{ color: "#6b7280", fontSize: 13, margin: "8px 0 0" }}>Goal: {plan!.goal}</p> : null
       )}
 
       {phase === "awaiting-approval" && (

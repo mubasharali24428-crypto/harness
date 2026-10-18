@@ -12,15 +12,15 @@ import { Card } from "@/components/ui";
 import { Notice } from "@/components/ui/Notice";
 import { Pill } from "@/components/ui";
 import { loadSession } from "@/lib/auth";
-import { ApiError } from "@/lib/api";
+import { ApiError, getPlan } from "@/lib/api";
 import {
   type Approval, type CollabEvent, type RedirectKind, type Roster,
-  claimLeader, decideApproval, decideHandoff, getHistory, getRoster, joinRun,
+  hasUnappliedStaged, applyApproval, claimLeader, decideApproval, decideHandoff, getHistory, getRoster, joinRun,
   listApprovals, requestHandoff, sendRedirect,
 } from "./collabApi";
 import {
-  APPROVAL_STATE_LABEL, type CollabView, clipDiff, deriveCollabView,
-  describeEvent, redirectProblem,
+  type CollabView, approvalLabel, clipDiff, deriveCollabView, describeDecision,
+  describeEvent, fileStatuses, isOpenApproval, mergeEvents, redirectProblem, reopenedApprovals,
 } from "./collabModel";
 
 const muted = { color: "var(--muted)" } as const;
@@ -34,28 +34,59 @@ export interface SharedRunViewProps {
   events: CollabEvent[];
   error: string | null;
   busy: boolean;
+  /** Approval ids whose proposal changed after approval (earlier approval no longer applies). */
+  reopened?: string[];
+  /** The run's goal as recorded on the server (null until known). */
+  goal?: string | null;
   onJoin: () => void;
   onClaim: () => void;
   onDecide: (a: Approval, approve: boolean) => void;
+  onApply: (a: Approval) => void;
   onHandoff: (toUserId: string) => void;
   onHandoffDecision: (id: string, accept: boolean) => void;
   onRedirect: (kind: RedirectKind, content: string, reason: string) => void;
 }
 
+export const PILOT_NOT_ENABLED = "PILOT_NOT_ENABLED";
+
+export function NotEnabled() {
+  return (
+    <Card title="Shared run" testId="shared-run-not-enabled">
+      <Notice tone="info" role="status">
+        Shared runs are not enabled for your team yet. Your own run is unaffected.
+      </Notice>
+    </Card>
+  );
+}
+
+// Colour is only a hint; every Pill also carries the status in words.
+const stateTone = (state: string) =>
+  ["approved", "executing", "completed"].includes(state) ? "green" as const
+    : ["pending", "invalidated", "expired"].includes(state) ? "yellow" as const : "red" as const;
+
+// An approved/rejected card loses its buttons; park focus on the card so keyboard users are not dropped to <body>.
+const keepFocus = (e: React.SyntheticEvent<HTMLElement>) =>
+  (e.currentTarget.closest("[data-approval-card]") as HTMLElement | null)?.focus();
+
 export function SharedRunView(p: SharedRunViewProps) {
   const { view } = p;
+  const ids = React.useId();
   const [kind, setKind] = useState<RedirectKind>("guidance");
   const [content, setContent] = useState("");
   const [reason, setReason] = useState("");
   const [target, setTarget] = useState("");
   const problem = redirectProblem(kind, content, reason);
   const leaderOnly = kind !== "guidance";
-  const shown = p.approvals;
+  const open = p.approvals.filter(isOpenApproval);
+  const decided = p.approvals.filter((a) => a.state !== "pending");
+  const files = fileStatuses(p.approvals, view.leader);
+  const owner = view.leader ? `${view.leader}${view.isLeader ? " (you)" : ""}` : null;
 
   return (
     <Card title="Shared run" testId="shared-run-panel">
       {p.error && <Notice tone="danger" role="alert">{p.error}</Notice>}
 
+      {p.goal && <p data-testid="goal-line" style={{ marginTop: 0 }}>Goal: <strong>{p.goal}</strong></p>}
       <p data-testid="leader-line" style={{ marginTop: 0 }}>
         {view.leader
           ? <>Led by <strong>{view.leader}</strong>{view.isLeader ? " (you)" : ""}. </>
@@ -102,27 +133,71 @@ export function SharedRunView(p: SharedRunViewProps) {
         </div>
       )}
 
-      <h3 style={{ fontSize: 13 }}>Decisions</h3>
-      {shown.length === 0 && <p style={muted}>No high-impact requests.</p>}
-      {shown.map((a) => (
-        <div key={a.id} data-testid={`approval-${a.id}`} style={{ border: "1px solid var(--border)", borderRadius: 6, padding: 10, marginBottom: 8 }}>
-          <div>
-            <strong>{a.action === "delete" ? "Delete" : "Substantially modify"}</strong>{" "}
-            <Pill tone={a.state === "approved" || a.state === "completed" ? "green" : a.state === "pending" ? "yellow" : "red"}>
-              {APPROVAL_STATE_LABEL[a.state] ?? a.state}
-            </Pill>
+      <section aria-label="Pending decisions" aria-live="polite">
+        <h3 style={{ fontSize: 13 }}>Pending decisions ({open.filter((a) => a.state === "pending").length})</h3>
+        {open.length === 0 && <p style={muted}>No high-impact requests.</p>}
+        {open.map((a) => (
+          <div key={a.id} data-testid={`approval-${a.id}`} data-approval-card tabIndex={-1} role="group"
+            aria-label={`${a.action === "delete" ? "Delete" : "Change"} ${a.paths.join(", ")}`}
+            style={{ border: "1px solid var(--border)", borderRadius: 6, padding: 10, marginBottom: 8 }}>
+            <div>
+              <strong>{a.action === "delete" ? "Delete" : "Substantially modify"}</strong>{" "}
+              <Pill tone={stateTone(a.state)}>
+                {approvalLabel(a, view.leader)}
+              </Pill>
+            </div>
+            <p style={{ margin: "4px 0" }}>{a.summary}</p>
+            {p.reopened?.includes(a.id) && a.state === "pending" && (
+              <Notice tone="warning" role="status" testId={`reopened-${a.id}`}>
+                This proposal changed after it was approved. The earlier approval no longer applies; it needs a new decision.
+              </Notice>
+            )}
+            {a.state === "pending" && (
+              <p data-testid={`responsible-${a.id}`} id={`${ids}-${a.id}`} style={{ margin: "4px 0" }}>
+                {owner
+                  ? <>Decision needed from <strong>{owner}</strong>.</>
+                  : <>Nobody can decide this yet: the run has no session leader.</>}
+              </p>
+            )}
+            <p style={{ ...muted, margin: "4px 0" }}>Requested by {a.requester}{a.decidedBy ? `, decided by ${a.decidedBy}` : ""}. Files: <span style={mono}>{a.paths.join(", ")}</span>. Proposal version <span style={mono} data-testid={`digest-${a.id}`}>{a.digest.slice(0, 8)}</span>.</p>
+            {a.diff ? <pre aria-label="Proposed change" tabIndex={0} style={{ ...mono, maxHeight: 160, overflow: "auto", background: "var(--panel-2)", padding: 8 }}>{clipDiff(a.diff)}</pre> : null}
+            {a.requester === "system:staging" && (
+              <p style={muted}>This change is withheld. Approval and application are separate steps.</p>
+            )}
+            {a.requester === "system:staging" && a.state === "approved" && (view.isLeader
+              ? <Button size="sm" variant="primary" disabled={p.busy} onClick={(e) => { keepFocus(e); p.onApply(a); }}>Apply approved change</Button>
+              : <p style={muted}>Waiting for {view.leader ?? "the session leader"} to apply this change.</p>)}
+            {a.state === "pending" && (view.isLeader
+              ? <div role="group" aria-label="Decide" style={{ display: "flex", gap: 8 }}>
+                  <Button size="sm" variant="primary" disabled={p.busy} aria-describedby={`${ids}-${a.id}`} onClick={(e) => { keepFocus(e); p.onDecide(a, true); }}>Approve this change</Button>
+                  <Button size="sm" variant="danger" disabled={p.busy} aria-describedby={`${ids}-${a.id}`} onClick={(e) => { keepFocus(e); p.onDecide(a, false); }}>Reject</Button>
+                </div>
+              : <p style={muted}>Only {view.leader ?? "a session leader"} can decide this.</p>)}
           </div>
-          <p style={{ margin: "4px 0" }}>{a.summary}</p>
-          <p style={{ ...muted, margin: "4px 0" }}>Requested by {a.requester}{a.decidedBy ? `, decided by ${a.decidedBy}` : ""}. Files: <span style={mono}>{a.paths.join(", ")}</span></p>
-          {a.diff ? <pre aria-label="Proposed change" style={{ ...mono, maxHeight: 160, overflow: "auto", background: "var(--panel-2)", padding: 8 }}>{clipDiff(a.diff)}</pre> : null}
-          {a.state === "pending" && (view.isLeader
-            ? <div style={{ display: "flex", gap: 8 }}>
-                <Button size="sm" variant="primary" disabled={p.busy} onClick={() => p.onDecide(a, true)}>Approve this change</Button>
-                <Button size="sm" variant="danger" disabled={p.busy} onClick={() => p.onDecide(a, false)}>Reject</Button>
-              </div>
-            : <p style={muted}>Only {view.leader ?? "a session leader"} can decide this.</p>)}
-        </div>
-      ))}
+        ))}
+      </section>
+
+      <section aria-label="Changed files">
+        <h3 style={{ fontSize: 13 }}>Changed files</h3>
+        {files.length === 0
+          ? <p style={muted}>No changed files need a decision.</p>
+          : <ul style={{ margin: 0, paddingLeft: 18 }}>
+              {files.map((f) => (
+                <li key={f.path} data-testid={`file-${f.path}`}><span style={mono}>{f.path}</span>{" "}
+                  <Pill tone={stateTone(f.state)}>{f.label}</Pill></li>
+              ))}
+            </ul>}
+      </section>
+
+      <section aria-label="Decision history">
+        <h3 style={{ fontSize: 13 }}>Decision history</h3>
+        <ol style={{ margin: 0, paddingLeft: 18 }}>
+          {decided.map((a) => (
+            <li key={a.id} data-testid={`decision-${a.id}`}>{describeDecision(a)} <Pill tone={stateTone(a.state)}>{approvalLabel(a, view.leader)}</Pill></li>
+          ))}
+          {decided.length === 0 && <li style={muted}>No decisions yet.</li>}
+        </ol>
+      </section>
 
       <h3 style={{ fontSize: 13 }}>Give direction</h3>
       {!view.canRedirect
@@ -135,16 +210,16 @@ export function SharedRunView(p: SharedRunViewProps) {
                 <option value="permission_change" disabled={!view.isLeader}>Change permissions (leader)</option>
               </select>
             </label>
-            <textarea aria-label="Direction for the agent" rows={3} value={content} onChange={(e) => setContent(e.target.value)} style={{ display: "block", width: "100%", margin: "6px 0" }} />
-            {leaderOnly && <input aria-label="Reason for this change" placeholder="Reason (required)" value={reason} onChange={(e) => setReason(e.target.value)} style={{ display: "block", width: "100%", marginBottom: 6 }} />}
+            <textarea aria-label="Direction for the agent" aria-invalid={(problem !== null && content.length > 0) || undefined} aria-describedby={problem && content.length > 0 ? `${ids}-problem` : undefined} rows={3} value={content} onChange={(e) => setContent(e.target.value)} style={{ display: "block", width: "100%", margin: "6px 0" }} />
+            {leaderOnly && <input aria-label="Reason for this change" aria-required="true" placeholder="Reason (required)" value={reason} onChange={(e) => setReason(e.target.value)} style={{ display: "block", width: "100%", marginBottom: 6 }} />}
             {leaderOnly && <p style={muted}>Changing scope or permissions voids open approvals; they must be requested again.</p>}
             <p style={muted}>The agent picks this up the next time it starts or resumes, not mid-step.</p>
             <Button type="submit" size="sm" variant="primary" disabled={p.busy || problem !== null}>Send direction</Button>
-            {problem && content.length > 0 && <span role="note" style={{ ...muted, marginLeft: 8 }}>{problem}</span>}
+            {problem && content.length > 0 && <span role="status" id={`${ids}-problem`} style={{ ...muted, marginLeft: 8 }}>{problem}</span>}
           </form>}
 
       <h3 style={{ fontSize: 13 }}>Team history</h3>
-      <ol role="log" aria-label="Collaboration history" style={{ margin: 0, paddingLeft: 18, maxHeight: 220, overflow: "auto" }}>
+      <ol role="log" aria-label="Collaboration history" style={{ margin: 0, paddingLeft: 28, maxHeight: 220, overflow: "auto" }}>
         {p.events.map((e) => (
           <li key={e.seq}><span style={muted}>{new Date(e.ts).toLocaleTimeString()}</span> {describeEvent(e)}</li>
         ))}
@@ -156,7 +231,9 @@ export function SharedRunView(p: SharedRunViewProps) {
 
 const POLL_MS = 3000;
 
-export function SharedRunPanel({ runId }: { runId: string }) {
+export function SharedRunPanel({ runId, onStagedPendingChange }: {
+  runId: string; onStagedPendingChange?: (pending: boolean) => void;
+}) {
   const session = loadSession();
   const token = session?.token ?? null;
   const me = session?.principal.userId ?? "";
@@ -166,7 +243,11 @@ export function SharedRunPanel({ runId }: { runId: string }) {
   const [events, setEvents] = useState<CollabEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [notEnabled, setNotEnabled] = useState(false);
+  const [goal, setGoal] = useState<string | null>(null);
+  const [reopened, setReopened] = useState<string[]>([]);
   const lastSeq = useRef(0);
+  const seen = useRef<Approval[]>([]);
 
   const refresh = useCallback(async () => {
     if (!token) return;
@@ -176,21 +257,31 @@ export function SharedRunPanel({ runId }: { runId: string }) {
       ]);
       setRoster(r);
       setApprovals(a.approvals);
+      const again = reopenedApprovals(seen.current, a.approvals);
+      seen.current = a.approvals;
+      if (again.length) setReopened((prev) => [...new Set([...prev, ...again])]);
+      onStagedPendingChange?.(hasUnappliedStaged(a.approvals));
       if (h.events.length) {
         lastSeq.current = h.events[h.events.length - 1].seq;
-        setEvents((prev) => [...prev, ...h.events]);
+        setEvents((prev) => mergeEvents(prev, h.events));
       }
       setError(null);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : String((e as Error)?.message ?? e));
+      if (e instanceof ApiError && e.code === PILOT_NOT_ENABLED) setNotEnabled(true);
+      else setError(e instanceof ApiError ? e.message : String((e as Error)?.message ?? e));
     }
+  }, [runId, token, onStagedPendingChange]);
+
+  useEffect(() => {
+    if (token) getPlan(runId, token).then((plan) => setGoal(plan?.goal?.trim() || null), () => setGoal(null));
   }, [runId, token]);
 
   useEffect(() => {
+    if (notEnabled) return;
     void refresh();
     const t = setInterval(() => void refresh(), POLL_MS);
     return () => clearInterval(t);
-  }, [refresh]);
+  }, [refresh, notEnabled]);
 
   const act = (fn: () => Promise<unknown>) => async () => {
     if (!token) return;
@@ -202,13 +293,15 @@ export function SharedRunPanel({ runId }: { runId: string }) {
   const run = (fn: () => Promise<unknown>) => void act(fn)();
 
   if (!token) return null;
+  if (notEnabled) return <NotEnabled />;
   const view = deriveCollabView(roster, approvals, me, canLead);
   return (
     <SharedRunView
       me={me} roster={roster} view={view} approvals={approvals} events={events}
-      error={error} busy={busy}
+      error={error} busy={busy} reopened={reopened} goal={goal}
       onJoin={() => run(() => joinRun(runId, token))}
       onClaim={() => run(() => claimLeader(runId, token))}
+      onApply={(a) => run(() => applyApproval(runId, token, a))}
       onDecide={(a, ok) => run(() => decideApproval(runId, token, a, ok))}
       onHandoff={(to) => run(() => requestHandoff(runId, token, to))}
       onHandoffDecision={(id, ok) => run(() => decideHandoff(runId, token, id, ok))}

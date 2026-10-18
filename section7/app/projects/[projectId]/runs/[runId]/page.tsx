@@ -31,6 +31,7 @@ import {
   getRunAggregate,
 } from "../../../../runs/runsApi";
 import { RunDetailAggregate } from "./runDetailAggregate";
+import { PlanGateCard } from "../../../../dashboard/planGate";
 import { SharedRunPanel } from "./sharedRunPanel";
 
 const mutedStyle = { color: "var(--muted)" } as const;
@@ -38,7 +39,7 @@ const mutedStyle = { color: "var(--muted)" } as const;
 export default function RunDetailPage({
   params,
 }: {
-  params: Promise<{ projectId: string; runId: string }> | { projectId: string; runId: string };
+  params: Promise<{ projectId: string; runId: string }>;
 }) {
   const [projectId, setProjectId] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
@@ -48,6 +49,7 @@ export default function RunDetailPage({
   // marker server-side; this just says it in words on the wow-moment page.
   const [isDemoLanding, setIsDemoLanding] = useState(false);
 
+  const [stagedPending, setStagedPending] = useState(true);
   const [agg, setAgg] = useState<RunAggregateDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -79,14 +81,18 @@ export default function RunDetailPage({
     }
   }, []);
 
-  const fetchAgg = useCallback(async () => {
+  const fetchAgg = useCallback(async (quiet = false) => {
     if (!token || !runId) return;
-    setLoading(true);
-    setError(null);
-    setNotFound(false);
+    if (!quiet) {
+      setLoading(true);
+      setError(null);
+      setNotFound(false);
+    }
     try {
       setAgg(await getRunAggregate(runId, token));
     } catch (e) {
+      // A failed background refresh keeps the last good summary on screen.
+      if (quiet) return;
       setAgg(null);
       if (e instanceof ApiError && e.status === 404) {
         setNotFound(true);
@@ -94,13 +100,22 @@ export default function RunDetailPage({
         setError(String((e as Error)?.message ?? e));
       }
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
   }, [token, runId]);
 
   useEffect(() => {
     void fetchAgg();
   }, [fetchAgg]);
+
+  // Keep the summary live (stop/done change the state after first load).
+  // ponytail: 3s polling like the shared panel; push delivery is P4.
+  const terminal = /^(done|stopped|failed|completed|cancelled)$/i.test(agg?.state ?? "");
+  useEffect(() => {
+    if (!token || !runId || terminal) return;
+    const id = setInterval(() => void fetchAgg(true), 3000);
+    return () => clearInterval(id);
+  }, [fetchAgg, token, runId, terminal]);
 
   return (
     <AppShell active="/runs">
@@ -147,13 +162,14 @@ export default function RunDetailPage({
       {agg && <RunDetailAggregate agg={agg} now={Date.now()} />}
 
       {/* Multiplayer pilot: leader, participants, pending decisions, direction. */}
-      {runId && <SharedRunPanel runId={runId} />}
+      {runId && token && <PlanGateCard token={token} principal={loadSession()?.principal ?? null} runId={runId} />}
+      {runId && <SharedRunPanel runId={runId} onStagedPendingChange={setStagedPending} />}
 
       {/* Legacy working area (F1b/F2b territory this wave — untouched). It
           self-guards on session absence, so it renders nothing until the
           browser holds a session, same as before this lane existed. */}
       {projectId && runId && (
-        <WorkingArea projectId={projectId} runId={runId} />
+        <WorkingArea projectId={projectId} runId={runId} stagedPending={stagedPending} />
       )}
     </AppShell>
   );

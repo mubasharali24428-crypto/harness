@@ -21,7 +21,7 @@ import { CheckpointsPanel } from "./CheckpointsPanel";
 import { CommentsNudges } from "./CommentsNudges";
 import { Controls } from "./Controls";
 
-export function WorkingArea({ projectId, runId }: { projectId: string; runId: string }) {
+export function WorkingArea({ projectId, runId, stagedPending = false }: { projectId: string; runId: string; stagedPending?: boolean }) {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [authorName, setAuthorName] = useState("");
@@ -89,6 +89,7 @@ export function WorkingArea({ projectId, runId }: { projectId: string; runId: st
         </div>
         <div style={{ display: "grid", gap: 16, alignContent: "start" }}>
           <Controls
+            stagedPending={stagedPending}
             runId={runId}
             token={token}
             status={status}

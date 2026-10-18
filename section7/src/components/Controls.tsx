@@ -15,12 +15,14 @@ import {
 
 export function Controls({
   runId,
+  stagedPending = false,
   token,
   status,
   onDiffChange,
   onActionComplete,
 }: {
   runId: string;
+  stagedPending?: boolean;
   token: string;
   status: RunStatus | null;
   onDiffChange: (diff: string) => void;
@@ -89,7 +91,7 @@ export function Controls({
         </button>
         <button
           style={secondaryButtonStyle}
-          disabled={busy !== null}
+          disabled={busy !== null || stagedPending || !state || state === "done"}
           onClick={() =>
             run("done", async () => {
               await signalDone(runId, editContent, token);
@@ -101,6 +103,7 @@ export function Controls({
         </button>
       </div>
 
+      {stagedPending && <p role="status">Resolve staged changes before completing this run.</p>}
       {error && <p style={{ color: "#f87171", fontSize: 13 }}>{error}</p>}
 
       <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 8 }}>

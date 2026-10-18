@@ -37,7 +37,7 @@ export function StatusPanel({
     <section style={panelStyle}>
       <h2 style={headingStyle}>Status</h2>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
-        <span style={pillStyle(STATE_COLORS[state] ?? "#6b7280")}>{state.replaceAll("_", " ")}</span>
+        <span data-testid="run-state" style={pillStyle(STATE_COLORS[state] ?? "#6b7280")}>{state.replaceAll("_", " ")}</span>
         <span style={{ fontSize: 12, color: connectionState === "open" ? "#34d399" : "#9aa4b2" }}>
           ● {CONNECTION_LABEL[connectionState]}
         </span>

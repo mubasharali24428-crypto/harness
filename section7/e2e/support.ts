@@ -72,6 +72,7 @@ export async function requestLoginCode(request: APIRequestContext, email: string
   });
 
   if (process.env.E2E_OTP_CODE) return process.env.E2E_OTP_CODE;
+  if (process.env.E2E_IDENTITY_LOG) return readOtpFromLog(process.env.E2E_IDENTITY_LOG, email);
 
   const container = process.env.E2E_IDENTITY_CONTAINER ?? "harness-identity-1";
   try {
@@ -111,4 +112,17 @@ export async function completeOtpInUi(page: Page, code: string): Promise<void> {
   await expect(otpInput).toBeVisible();
   await otpInput.fill(code);
   await page.getByRole("button", { name: /Verify code/i }).click();
+}
+
+/** Poll a local identity-service log file for the dev notifier's "HARNESS-OTP login code" line. */
+export async function readOtpFromLog(logPath: string, email: string): Promise<string> {
+  const { readFile } = await import("node:fs/promises");
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const lines = (await readFile(logPath, "utf8").catch(() => "")).split("\n").reverse();
+    const hit = lines.find((l) => l.includes(`HARNESS-OTP login code for ${email}:`));
+    const m = hit?.match(/:\s*(\d{6})\s*$/);
+    if (m) return m[1];
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error(`No HARNESS-OTP code in ${logPath} for ${email}`);
 }
