@@ -14,6 +14,7 @@ from harness_contracts.signatures import Orchestrator
 from harness_contracts.timeutil import db_now
 from sqlalchemy import text
 
+from harness_orchestrator import collab
 from harness_orchestrator.budget import BudgetStatus, TierGateStatus, check_budget, check_tier
 from harness_orchestrator.context_resolver import (
     DEFAULT_MIN_SCORE,
@@ -952,13 +953,32 @@ class OrchestratorService(Orchestrator):
         try:
             if await self._budget_gate(run_data, plan):  # Wave 9 B: no model call over cap
                 return
+            if self.session_factory is not None:
+                # Multiplayer: no engine call while a high-impact approval is
+                # pending. BLOCKED is resumable once the leader decides.
+                open_approval = await collab.pending_approval(self.session_factory, run_id)
+                if open_approval:
+                    reason = f"awaiting leader approval ({open_approval})"
+                    run_data["engine_result"] = {
+                        "sessionId": run_id,
+                        "engine": "blocked",
+                        "status": "blocked",
+                        "finalResponse": reason,
+                    }
+                    sm.execution_failed(reason)
+                    return
+                extra, run_data["guidance_seq"] = await collab.guidance_since(
+                    self.session_factory, run_id, run_data.get("guidance_seq", 0)
+                )
+            else:
+                extra = ""
             try:
                 # M17-B5 (PBC1 F2): the dedicated bounded executor + hard
                 # deadline replaces asyncio.to_thread's invisible ~16–36 slot
                 # pool. A hung provider now fails THIS run at the deadline
                 # instead of occupying a slot forever.
                 result = await self.engine_runtime.run(
-                    self.engine, goal=plan.goal, session_id=run_id
+                    self.engine, goal=plan.goal + extra, session_id=run_id
                 )
             except asyncio.CancelledError:
                 # Pause keeps the run resumable: no terminal result written. Stop and
@@ -1151,6 +1171,14 @@ class OrchestratorService(Orchestrator):
             )
         except Exception:  # noqa: BLE001 — telemetry must never break stopping
             logger.exception("paused-event emission failed for %s", run_data.get("runId"))
+
+    def engine_quiesced(self, run_id: str) -> bool:
+        """True once no engine thread for this run can still mutate files.
+
+        Stop marks the run DONE immediately (cancel *requested*); the thread
+        may outlive it, so cancel is only *confirmed* when this returns True.
+        """
+        return not self.engine_runtime.is_running(run_id)
 
     def _cancel_live_task(self, run_data: dict[str, Any]) -> None:
         task = run_data.get("task")

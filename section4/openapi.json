@@ -11,11 +11,22 @@
         "summary": "Propose an execution plan for an agent run",
         "operationId": "proposePlan",
         "parameters": [
-          { "name": "runId", "in": "path", "required": true, "schema": { "type": "string" } }
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
-          "201": { "description": "Plan proposed" },
-          "400": { "description": "Invalid state" }
+          "201": {
+            "description": "Plan proposed"
+          },
+          "400": {
+            "description": "Invalid state"
+          }
         }
       }
     },
@@ -24,7 +35,14 @@
         "summary": "Approve a proposed execution plan",
         "operationId": "approvePlan",
         "parameters": [
-          { "name": "runId", "in": "path", "required": true, "schema": { "type": "string" } }
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "requestBody": {
           "required": true,
@@ -32,17 +50,26 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["planId", "userId"],
+                "required": [
+                  "planId",
+                  "userId"
+                ],
                 "properties": {
-                  "planId": { "type": "string" },
-                  "userId": { "type": "string" }
+                  "planId": {
+                    "type": "string"
+                  },
+                  "userId": {
+                    "type": "string"
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Plan approved" }
+          "200": {
+            "description": "Plan approved"
+          }
         }
       }
     },
@@ -51,12 +78,960 @@
         "summary": "Start execution after plan approval",
         "operationId": "startExecution",
         "parameters": [
-          { "name": "runId", "in": "path", "required": true, "schema": { "type": "string" } }
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "Execution started" },
-          "403": { "description": "Plan not approved" }
+          "200": {
+            "description": "Execution started"
+          },
+          "403": {
+            "description": "Plan not approved"
+          }
         }
+      }
+    },
+    "/api/v1/orchestrator/runs/{runId}/join": {
+      "post": {
+        "tags": [
+          "orchestrator"
+        ],
+        "summary": "Collab Join",
+        "operationId": "collab_join_api_v1_orchestrator_runs__runId__join_post",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Runid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Collab Join Api V1 Orchestrator Runs  Runid  Join Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orchestrator/runs/{runId}/participants": {
+      "get": {
+        "tags": [
+          "orchestrator"
+        ],
+        "summary": "Collab Roster",
+        "operationId": "collab_roster_api_v1_orchestrator_runs__runId__participants_get",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Runid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Collab Roster Api V1 Orchestrator Runs  Runid  Participants Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orchestrator/runs/{runId}/leader": {
+      "post": {
+        "tags": [
+          "orchestrator"
+        ],
+        "summary": "Collab Claim Leader",
+        "operationId": "collab_claim_leader_api_v1_orchestrator_runs__runId__leader_post",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Runid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Collab Claim Leader Api V1 Orchestrator Runs  Runid  Leader Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orchestrator/runs/{runId}/redirect": {
+      "post": {
+        "tags": [
+          "orchestrator"
+        ],
+        "summary": "Collab Redirect",
+        "operationId": "collab_redirect_api_v1_orchestrator_runs__runId__redirect_post",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Runid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RedirectRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Collab Redirect Api V1 Orchestrator Runs  Runid  Redirect Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orchestrator/runs/{runId}/collab-history": {
+      "get": {
+        "tags": [
+          "orchestrator"
+        ],
+        "summary": "Collab History",
+        "operationId": "collab_history_api_v1_orchestrator_runs__runId__collab_history_get",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Runid"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "After"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 200,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Collab History Api V1 Orchestrator Runs  Runid  Collab History Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orchestrator/runs/{runId}/handoff": {
+      "post": {
+        "tags": [
+          "orchestrator"
+        ],
+        "summary": "Collab Handoff",
+        "operationId": "collab_handoff_api_v1_orchestrator_runs__runId__handoff_post",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Runid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HandoffRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Collab Handoff Api V1 Orchestrator Runs  Runid  Handoff Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orchestrator/runs/{runId}/handoff/{handoffId}": {
+      "post": {
+        "tags": [
+          "orchestrator"
+        ],
+        "summary": "Collab Handoff Decide",
+        "operationId": "collab_handoff_decide_api_v1_orchestrator_runs__runId__handoff__handoffId__post",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Runid"
+            }
+          },
+          {
+            "name": "handoffId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Handoffid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HandoffDecision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Collab Handoff Decide Api V1 Orchestrator Runs  Runid  Handoff  Handoffid  Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orchestrator/runs/{runId}/approvals": {
+      "post": {
+        "tags": [
+          "orchestrator"
+        ],
+        "summary": "Collab Approval Request",
+        "operationId": "collab_approval_request_api_v1_orchestrator_runs__runId__approvals_post",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Runid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Collab Approval Request Api V1 Orchestrator Runs  Runid  Approvals Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "orchestrator"
+        ],
+        "summary": "Collab Approval List",
+        "operationId": "collab_approval_list_api_v1_orchestrator_runs__runId__approvals_get",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Runid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Collab Approval List Api V1 Orchestrator Runs  Runid  Approvals Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orchestrator/runs/{runId}/approvals/{approvalId}": {
+      "put": {
+        "tags": [
+          "orchestrator"
+        ],
+        "summary": "Collab Approval Amend",
+        "operationId": "collab_approval_amend_api_v1_orchestrator_runs__runId__approvals__approvalId__put",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Runid"
+            }
+          },
+          {
+            "name": "approvalId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Approvalid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Collab Approval Amend Api V1 Orchestrator Runs  Runid  Approvals  Approvalid  Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orchestrator/runs/{runId}/approvals/{approvalId}/decision": {
+      "post": {
+        "tags": [
+          "orchestrator"
+        ],
+        "summary": "Collab Approval Decide",
+        "operationId": "collab_approval_decide_api_v1_orchestrator_runs__runId__approvals__approvalId__decision_post",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Runid"
+            }
+          },
+          {
+            "name": "approvalId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Approvalid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalDecision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Collab Approval Decide Api V1 Orchestrator Runs  Runid  Approvals  Approvalid  Decision Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orchestrator/runs/{runId}/approvals/{approvalId}/claim": {
+      "post": {
+        "tags": [
+          "orchestrator"
+        ],
+        "summary": "Collab Approval Claim",
+        "operationId": "collab_approval_claim_api_v1_orchestrator_runs__runId__approvals__approvalId__claim_post",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Runid"
+            }
+          },
+          {
+            "name": "approvalId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Approvalid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalDigest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Collab Approval Claim Api V1 Orchestrator Runs  Runid  Approvals  Approvalid  Claim Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orchestrator/runs/{runId}/approvals/{approvalId}/complete": {
+      "post": {
+        "tags": [
+          "orchestrator"
+        ],
+        "summary": "Collab Approval Complete",
+        "operationId": "collab_approval_complete_api_v1_orchestrator_runs__runId__approvals__approvalId__complete_post",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Runid"
+            }
+          },
+          {
+            "name": "approvalId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Approvalid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalOutcome"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Collab Approval Complete Api V1 Orchestrator Runs  Runid  Approvals  Approvalid  Complete Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApprovalRequest": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "delete",
+              "modify"
+            ],
+            "title": "Action"
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Paths"
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Summary"
+          },
+          "diff": {
+            "type": "string",
+            "maxLength": 200000,
+            "title": "Diff",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "action",
+          "paths",
+          "summary"
+        ],
+        "title": "ApprovalRequest"
+      },
+      "RedirectRequest": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "guidance",
+              "scope_change",
+              "permission_change"
+            ],
+            "title": "Kind",
+            "default": "guidance"
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Content"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "requestId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requestid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "RedirectRequest"
+      },
+      "HandoffRequest": {
+        "properties": {
+          "toUserId": {
+            "type": "string",
+            "maxLength": 36,
+            "title": "Touserid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "toUserId"
+        ],
+        "title": "HandoffRequest"
+      },
+      "HandoffDecision": {
+        "properties": {
+          "accept": {
+            "type": "boolean",
+            "title": "Accept"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accept"
+        ],
+        "title": "HandoffDecision"
+      },
+      "ApprovalDigest": {
+        "properties": {
+          "digest": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Digest"
+          }
+        },
+        "type": "object",
+        "required": [
+          "digest"
+        ],
+        "title": "ApprovalDigest"
+      },
+      "ApprovalOutcome": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "outcome": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Outcome",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "title": "ApprovalOutcome"
+      },
+      "ApprovalDecision": {
+        "properties": {
+          "approve": {
+            "type": "boolean",
+            "title": "Approve"
+          },
+          "digest": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Digest"
+          }
+        },
+        "type": "object",
+        "required": [
+          "approve",
+          "digest"
+        ],
+        "title": "ApprovalDecision"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
       }
     }
   }

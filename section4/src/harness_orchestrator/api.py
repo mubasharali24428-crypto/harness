@@ -674,7 +674,12 @@ async def stop_agent(runId: str, actor: RunWriter) -> dict[str, str]:
         run_id=runId,
         principal=actor,
     )
-    return {"runId": runId, "status": "stopped"}
+    # Honest status: "stopping" while the engine thread is still alive (it
+    # cannot be killed); "stopped" only once cancellation is confirmed.
+    return {
+        "runId": runId,
+        "status": "stopped" if _service.engine_quiesced(runId) else "stopping",
+    }
 
 
 @router.post("/runs/{runId}/human-edit", status_code=status.HTTP_200_OK)
@@ -780,3 +785,185 @@ async def get_plan(runId: str, reader: RunReader) -> dict[str, Any]:
             detail={"error": {"code": "PLAN_NOT_FOUND", "message": str(e)}},
         ) from e
     return plan.model_dump()
+
+
+# ---------------------------------------------------------------------------
+# Shared-run collaboration (multiplayer pilot S2) - see collab.py for the rules.
+# Every route is guarded by the run-ownership dependency (foreign run => 404);
+# the acting identity is always the authenticated Principal, never the body.
+# ---------------------------------------------------------------------------
+from harness_orchestrator import collab  # noqa: E402
+
+
+async def _collab(call):
+    factory = getattr(_service, "session_factory", None)
+    if factory is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": {"code": "COLLAB_UNAVAILABLE", "message": "no database wired"}},
+        )
+    try:
+        return await call(factory)
+    except collab.CollabError as e:
+        raise HTTPException(
+            status_code=e.status, detail={"error": {"code": e.code, "message": str(e)}}
+        ) from e
+
+
+async def _persist_run(run_id: str) -> None:
+    """Guarantee the agent_runs parent row (FK target of every collab table).
+
+    Memory-only runs get it created via the bus (idempotent); if it still is
+    not there the caller gets a clean 409, never an FK 500.
+    """
+    factory = getattr(_service, "session_factory", None)
+    if factory is None:
+        return  # _collab answers 503
+    from sqlalchemy import text
+
+    async def exists() -> bool:
+        async with factory() as db:
+            row = (
+                await db.execute(text("SELECT 1 FROM agent_runs WHERE id = :r"), {"r": run_id})
+            ).first()
+        return row is not None
+
+    if await exists():
+        return
+    run_data = await _service._ensure_run(run_id)
+    bus = getattr(_service, "bus", None)
+    if bus is not None and run_data.get("projectId"):
+        await bus.ensure_run(run_data["projectId"], run_id)
+    if not await exists():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": {"code": "RUN_NOT_PERSISTED",
+                              "message": "run has no durable record yet"}},
+        )
+
+
+class RedirectRequest(BaseModel):
+    kind: Literal["guidance", "scope_change", "permission_change"] = "guidance"
+    content: str = Field(max_length=collab.MAX_TEXT)
+    reason: str | None = Field(default=None, max_length=collab.MAX_REASON)
+    requestId: str | None = Field(default=None, max_length=64)
+
+
+class HandoffRequest(BaseModel):
+    toUserId: str = Field(max_length=36)
+
+
+class HandoffDecision(BaseModel):
+    accept: bool
+
+
+class ApprovalRequest(BaseModel):
+    action: Literal["delete", "modify"]
+    paths: list[str] = Field(max_length=collab.MAX_PATHS)
+    summary: str = Field(max_length=collab.MAX_TEXT)
+    diff: str = Field(default="", max_length=collab.MAX_DIFF)
+
+
+class ApprovalDecision(BaseModel):
+    approve: bool
+    digest: str = Field(max_length=64)  # the digest the approver reviewed
+
+
+class ApprovalDigest(BaseModel):
+    digest: str = Field(max_length=64)
+
+
+class ApprovalOutcome(BaseModel):
+    ok: bool
+    outcome: str = Field(default="", max_length=collab.MAX_TEXT)
+
+
+@router.post("/runs/{runId}/join")
+async def collab_join(runId: str, actor: RunReader) -> dict:
+    await _persist_run(runId)
+    return await _collab(lambda f: collab.join(f, actor, runId))
+
+
+@router.get("/runs/{runId}/participants")
+async def collab_roster(runId: str, actor: RunReader) -> dict:
+    return await _collab(lambda f: collab.roster(f, runId))
+
+
+@router.post("/runs/{runId}/leader")
+async def collab_claim_leader(runId: str, actor: RunWriter) -> dict:
+    await _persist_run(runId)
+    return await _collab(lambda f: collab.claim_leader(f, actor, runId))
+
+
+@router.post("/runs/{runId}/redirect")
+async def collab_redirect(runId: str, req: RedirectRequest, actor: RunWriter) -> dict:
+    return await _collab(
+        lambda f: collab.redirect(f, actor, runId, req.kind, req.content, req.reason, req.requestId)
+    )
+
+
+@router.get("/runs/{runId}/collab-history")
+async def collab_history(runId: str, actor: RunReader, after: int = 0, limit: int = 200) -> dict:
+    return {"events": await _collab(lambda f: collab.history(f, runId, after, limit))}
+
+
+@router.post("/runs/{runId}/handoff")
+async def collab_handoff(runId: str, req: HandoffRequest, actor: RunWriter) -> dict:
+    return await _collab(lambda f: collab.request_handoff(f, actor, runId, req.toUserId))
+
+
+@router.post("/runs/{runId}/handoff/{handoffId}")
+async def collab_handoff_decide(
+    runId: str, handoffId: str, req: HandoffDecision, actor: RunWriter
+) -> dict:
+    return await _collab(lambda f: collab.decide_handoff(f, actor, runId, handoffId, req.accept))
+
+
+@router.post("/runs/{runId}/approvals", status_code=status.HTTP_201_CREATED)
+async def collab_approval_request(runId: str, req: ApprovalRequest, actor: RunWriter) -> dict:
+    return await _collab(
+        lambda f: collab.request_approval(
+            f, actor, runId, req.action, req.paths, req.summary, req.diff
+        )
+    )
+
+
+@router.get("/runs/{runId}/approvals")
+async def collab_approval_list(runId: str, actor: RunReader) -> dict:
+    return {"approvals": await _collab(lambda f: collab.list_approvals(f, runId))}
+
+
+@router.put("/runs/{runId}/approvals/{approvalId}")
+async def collab_approval_amend(
+    runId: str, approvalId: str, req: ApprovalRequest, actor: RunWriter
+) -> dict:
+    return await _collab(
+        lambda f: collab.amend_approval(
+            f, actor, runId, approvalId, req.paths, req.summary, req.diff
+        )
+    )
+
+
+@router.post("/runs/{runId}/approvals/{approvalId}/decision")
+async def collab_approval_decide(
+    runId: str, approvalId: str, req: ApprovalDecision, actor: RunWriter
+) -> dict:
+    return await _collab(
+        lambda f: collab.decide_approval(f, actor, runId, approvalId, req.approve, req.digest)
+    )
+
+
+@router.post("/runs/{runId}/approvals/{approvalId}/claim")
+async def collab_approval_claim(
+    runId: str, approvalId: str, req: ApprovalDigest, actor: RunWriter
+) -> dict:
+    return await _collab(lambda f: collab.claim_approval(f, actor, runId, approvalId, req.digest))
+
+
+@router.post("/runs/{runId}/approvals/{approvalId}/complete")
+async def collab_approval_complete(
+    runId: str, approvalId: str, req: ApprovalOutcome, actor: RunWriter
+) -> dict:
+    return await _collab(
+        lambda f: collab.complete_approval(f, actor, runId, approvalId, req.ok, req.outcome)
+    )
