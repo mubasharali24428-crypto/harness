@@ -37,7 +37,7 @@ const mutedStyle = { color: "var(--muted)" } as const;
 export default function RunDetailPage({
   params,
 }: {
-  params: Promise<{ projectId: string; runId: string }> | { projectId: string; runId: string };
+  params: Promise<{ projectId: string; runId: string }>;
 }) {
   const [projectId, setProjectId] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
