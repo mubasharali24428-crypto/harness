@@ -64,12 +64,22 @@ IDENTITY_RULES: tuple[tuple[str, str, str], ...] = (
     ("GET", r"/api/v1/workspaces(/.*)?", "read"),
     ("*", r"/api/v1/workspaces/(allowlist.*|templates|[^/]+/delete)", "administer"),
     ("*", r"/api/v1/workspaces(/.*)?", "steer"),
+    ("GET", r"/api/v1/(sessions|agents)(/.*)?", "read"),
+    ("*", r"/api/v1/sessions/[^/]+/(delete|purge|archive|restore)", "administer"),
+    ("DELETE", r"/api/v1/sessions/[^/]+", "administer"),
+    ("*", r"/api/v1/agents/select", "steer"),
+    ("*", r"/api/v1/agents(/.*)?", "administer"),
+    ("*", r"/api/v1/sessions(/.*)?", "steer"),
 )
 
 ORCHESTRATOR_RULES: tuple[tuple[str, str, str], ...] = (
     ("*", r"/(health|ready|metrics)", EXEMPT),
     ("*", r"/api/v1/orchestrator/metrics", EXEMPT),
     ("GET", r"/api/v1/orchestrator/.*", "read"),
+    # Participant self-service (observers and viewers included): presence and participation.
+    ("POST", r"/api/v1/orchestrator/runs/[^/]+/(presence/.*|participation/.*)", "read"),
+    ("PUT", r"/api/v1/orchestrator/runs/[^/]+/participation/prefs", "read"),
+    ("PUT", r"/api/v1/orchestrator/presence-settings", "administer"),
     (
         "POST",
         r"/api/v1/orchestrator/(plans/[^/]+/(approve|reject)"
