@@ -1,70 +1,1365 @@
 {
-  "openapi": "3.0.3",
-  "info": {
-    "title": "Section 6: Meeting Area API",
-    "version": "0.1.0",
-    "description": "API fragment for meeting chat, AI participant, brief generation, and prompt versioning."
-  },
-  "paths": {
-    "/api/v1/meetings": {
-      "post": {
-        "summary": "Create a new meeting",
-        "operationId": "createMeeting",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["projectId", "title"],
-                "properties": {
-                  "projectId": { "type": "string" },
-                  "title": { "type": "string" }
-                }
-              }
-            }
-          }
+ "components": {
+  "schemas": {
+   "AiInvokeResponse": {
+    "description": "200 body of /ai \u2014 the AI reply message, or an explicit not-invoked note.",
+    "properties": {
+     "content": {
+      "title": "Content",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "isAiGenerated": {
+      "default": false,
+      "title": "Isaigenerated",
+      "type": "boolean"
+     },
+     "meetingId": {
+      "title": "Meetingid",
+      "type": "string"
+     },
+     "timestamp": {
+      "title": "Timestamp",
+      "type": "string"
+     },
+     "userId": {
+      "title": "Userid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "meetingId",
+     "userId",
+     "content",
+     "timestamp"
+    ],
+    "title": "AiInvokeResponse",
+    "type": "object"
+   },
+   "ApproveBriefRequest": {
+    "properties": {
+     "userId": {
+      "maxLength": 64,
+      "title": "Userid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "userId"
+    ],
+    "title": "ApproveBriefRequest",
+    "type": "object"
+   },
+   "BriefOut": {
+    "description": "Mirror of the FROZEN contracts EngineeringBrief (camelCase wire).",
+    "properties": {
+     "acceptanceCriteria": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Acceptancecriteria",
+      "type": "array"
+     },
+     "constraints": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Constraints",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "meetingId": {
+      "title": "Meetingid",
+      "type": "string"
+     },
+     "openQuestions": {
+      "items": {},
+      "title": "Openquestions",
+      "type": "array"
+     },
+     "projectId": {
+      "title": "Projectid",
+      "type": "string"
+     },
+     "requirements": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Requirements",
+      "type": "array"
+     },
+     "risks": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Risks",
+      "type": "array"
+     },
+     "status": {
+      "default": "draft",
+      "title": "Status",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "meetingId",
+     "projectId"
+    ],
+    "title": "BriefOut",
+    "type": "object"
+   },
+   "ChatMessageOut": {
+    "properties": {
+     "content": {
+      "title": "Content",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "isAiGenerated": {
+      "default": false,
+      "title": "Isaigenerated",
+      "type": "boolean"
+     },
+     "meetingId": {
+      "title": "Meetingid",
+      "type": "string"
+     },
+     "timestamp": {
+      "title": "Timestamp",
+      "type": "string"
+     },
+     "userId": {
+      "title": "Userid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "meetingId",
+     "userId",
+     "content",
+     "timestamp"
+    ],
+    "title": "ChatMessageOut",
+    "type": "object"
+   },
+   "CreateMeetingRequest": {
+    "properties": {
+     "projectId": {
+      "maxLength": 64,
+      "title": "Projectid",
+      "type": "string"
+     },
+     "title": {
+      "maxLength": 200,
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "required": [
+     "projectId",
+     "title"
+    ],
+    "title": "CreateMeetingRequest",
+    "type": "object"
+   },
+   "CreatePromptRequest": {
+    "properties": {
+     "content": {
+      "maxLength": 10000,
+      "title": "Content",
+      "type": "string"
+     },
+     "userId": {
+      "maxLength": 64,
+      "title": "Userid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "userId",
+     "content"
+    ],
+    "title": "CreatePromptRequest",
+    "type": "object"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "title": "Detail",
+      "type": "array"
+     }
+    },
+    "title": "HTTPValidationError",
+    "type": "object"
+   },
+   "InvokeAIRequest": {
+    "properties": {
+     "content": {
+      "maxLength": 10000,
+      "title": "Content",
+      "type": "string"
+     },
+     "userId": {
+      "maxLength": 64,
+      "title": "Userid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "userId",
+     "content"
+    ],
+    "title": "InvokeAIRequest",
+    "type": "object"
+   },
+   "MeetingOut": {
+    "properties": {
+     "briefId": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Briefid"
+     },
+     "closedAt": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Closedat"
+     },
+     "createdAt": {
+      "title": "Createdat",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "projectId": {
+      "title": "Projectid",
+      "type": "string"
+     },
+     "status": {
+      "default": "open",
+      "title": "Status",
+      "type": "string"
+     },
+     "title": {
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "projectId",
+     "title",
+     "createdAt"
+    ],
+    "title": "MeetingOut",
+    "type": "object"
+   },
+   "MessagePageOut": {
+    "description": "Paginated GET-messages body (api-conventions pagination shape).",
+    "properties": {
+     "hasMore": {
+      "title": "Hasmore",
+      "type": "boolean"
+     },
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/PagedChatMessageOut"
+      },
+      "title": "Items",
+      "type": "array"
+     }
+    },
+    "required": [
+     "items",
+     "hasMore"
+    ],
+    "title": "MessagePageOut",
+    "type": "object"
+   },
+   "NotInvokedResponse": {
+    "properties": {
+     "message": {
+      "title": "Message",
+      "type": "string"
+     },
+     "status": {
+      "const": "not_invoked",
+      "title": "Status",
+      "type": "string"
+     }
+    },
+    "required": [
+     "status",
+     "message"
+    ],
+    "title": "NotInvokedResponse",
+    "type": "object"
+   },
+   "PagedChatMessageOut": {
+    "description": "A page item: chat message PLUS its stable transcript cursor.\n\nmessageSeq is the 1-based position in the room's append-only history \u2014\nmonotonic, gap-free, and usable directly as ``?before=``. Kept OUT of\nthe plain ChatMessageOut so POST /messages' wire shape is untouched.",
+    "properties": {
+     "content": {
+      "title": "Content",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "isAiGenerated": {
+      "default": false,
+      "title": "Isaigenerated",
+      "type": "boolean"
+     },
+     "meetingId": {
+      "title": "Meetingid",
+      "type": "string"
+     },
+     "messageSeq": {
+      "title": "Messageseq",
+      "type": "integer"
+     },
+     "timestamp": {
+      "title": "Timestamp",
+      "type": "string"
+     },
+     "userId": {
+      "title": "Userid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "meetingId",
+     "userId",
+     "content",
+     "timestamp",
+     "messageSeq"
+    ],
+    "title": "PagedChatMessageOut",
+    "type": "object"
+   },
+   "PostMessageRequest": {
+    "properties": {
+     "content": {
+      "maxLength": 10000,
+      "title": "Content",
+      "type": "string"
+     },
+     "userId": {
+      "maxLength": 64,
+      "title": "Userid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "userId",
+     "content"
+    ],
+    "title": "PostMessageRequest",
+    "type": "object"
+   },
+   "PromptOut": {
+    "description": "M13-G5a typing island: one versioned prompt row.",
+    "properties": {
+     "content": {
+      "title": "Content",
+      "type": "string"
+     },
+     "createdAt": {
+      "title": "Createdat",
+      "type": "string"
+     },
+     "createdBy": {
+      "title": "Createdby",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "linkedBranch": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Linkedbranch"
+     },
+     "linkedTaskId": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Linkedtaskid"
+     },
+     "meetingId": {
+      "title": "Meetingid",
+      "type": "string"
+     },
+     "version": {
+      "default": 1,
+      "title": "Version",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "id",
+     "meetingId",
+     "content",
+     "createdBy",
+     "createdAt"
+    ],
+    "title": "PromptOut",
+    "type": "object"
+   },
+   "SummaryOut": {
+    "description": "M13-G5a typing island: a stored meeting summary.",
+    "properties": {
+     "content": {
+      "title": "Content",
+      "type": "string"
+     },
+     "createdAt": {
+      "title": "Createdat",
+      "type": "string"
+     },
+     "format": {
+      "default": "markdown",
+      "title": "Format",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "meetingId": {
+      "title": "Meetingid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "meetingId",
+     "content",
+     "createdAt"
+    ],
+    "title": "SummaryOut",
+    "type": "object"
+   },
+   "ValidationError": {
+    "properties": {
+     "ctx": {
+      "title": "Context",
+      "type": "object"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
         },
-        "responses": { "201": { "description": "Meeting created" } }
-      }
-    },
-    "/api/v1/meetings/{meetingId}/messages": {
-      "post": {
-        "summary": "Post a message to meeting chat",
-        "operationId": "postMessage",
-        "responses": { "201": { "description": "Message posted" } }
+        {
+         "type": "integer"
+        }
+       ]
       },
-      "get": {
-        "summary": "Get chat history",
-        "operationId": "getMessages",
-        "responses": { "200": { "description": "Chat history" } }
-      }
+      "title": "Location",
+      "type": "array"
+     },
+     "msg": {
+      "title": "Message",
+      "type": "string"
+     },
+     "type": {
+      "title": "Error Type",
+      "type": "string"
+     }
     },
-    "/api/v1/meetings/{meetingId}/ai": {
-      "post": {
-        "summary": "Invoke AI participant",
-        "operationId": "invokeAI",
-        "responses": { "200": { "description": "AI response or not_invoked" } }
-      }
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError",
+    "type": "object"
+   },
+   "_ErrorDetail": {
+    "description": "M13-G5a: frozen contract error entry for responses={} documentation.",
+    "properties": {
+     "code": {
+      "title": "Code",
+      "type": "string"
+     },
+     "message": {
+      "title": "Message",
+      "type": "string"
+     }
     },
-    "/api/v1/meetings/{meetingId}/brief": {
-      "post": {
-        "summary": "Generate engineering brief from discussion",
-        "operationId": "generateBrief",
-        "responses": { "201": { "description": "Brief generated" } }
-      },
-      "get": {
-        "summary": "Get current brief",
-        "operationId": "getBrief",
-        "responses": { "200": { "description": "Current brief" } }
-      }
+    "required": [
+     "code",
+     "message"
+    ],
+    "title": "_ErrorDetail",
+    "type": "object"
+   },
+   "_ErrorEnvelope": {
+    "properties": {
+     "error": {
+      "$ref": "#/components/schemas/_ErrorDetail"
+     }
     },
-    "/api/v1/meetings/{meetingId}/brief/{briefId}/approve": {
-      "post": {
-        "summary": "Approve engineering brief",
-        "operationId": "approveBrief",
-        "responses": { "200": { "description": "Brief approved" } }
-      }
-    }
+    "required": [
+     "error"
+    ],
+    "title": "_ErrorEnvelope",
+    "type": "object"
+   }
   }
+ },
+ "info": {
+  "description": "API fragment for meeting chat, AI participant, brief generation, and prompt versioning.",
+  "title": "Section 6: Meeting Area API",
+  "version": "0.1.0"
+ },
+ "openapi": "3.1.0",
+ "paths": {
+  "/api/v1/meetings": {
+   "post": {
+    "operationId": "create_meeting_api_v1_meetings_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CreateMeetingRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MeetingOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "description": "bad or missing token"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Meeting",
+    "tags": [
+     "meetings"
+    ]
+   }
+  },
+  "/api/v1/meetings/{meetingId}": {
+   "get": {
+    "operationId": "get_meeting_api_v1_meetings__meetingId__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "meetingId",
+      "required": true,
+      "schema": {
+       "title": "Meetingid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MeetingOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "unknown meeting"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Meeting",
+    "tags": [
+     "meetings"
+    ]
+   }
+  },
+  "/api/v1/meetings/{meetingId}/ai": {
+   "post": {
+    "operationId": "invoke_ai_api_v1_meetings__meetingId__ai_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "meetingId",
+      "required": true,
+      "schema": {
+       "title": "Meetingid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/InvokeAIRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "anyOf": [
+          {
+           "$ref": "#/components/schemas/AiInvokeResponse"
+          },
+          {
+           "$ref": "#/components/schemas/NotInvokedResponse"
+          }
+         ],
+         "title": "Response Invoke Ai Api V1 Meetings  Meetingid  Ai Post"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "unknown meeting"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Invoke Ai",
+    "tags": [
+     "meetings"
+    ]
+   }
+  },
+  "/api/v1/meetings/{meetingId}/brief": {
+   "get": {
+    "operationId": "get_brief_api_v1_meetings__meetingId__brief_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "meetingId",
+      "required": true,
+      "schema": {
+       "title": "Meetingid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BriefOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "unknown meeting or no brief yet"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Brief",
+    "tags": [
+     "meetings"
+    ]
+   },
+   "post": {
+    "operationId": "generate_brief_api_v1_meetings__meetingId__brief_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "meetingId",
+      "required": true,
+      "schema": {
+       "title": "Meetingid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BriefOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "unknown meeting"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Generate Brief",
+    "tags": [
+     "meetings"
+    ]
+   }
+  },
+  "/api/v1/meetings/{meetingId}/brief/{briefId}/approve": {
+   "post": {
+    "operationId": "approve_brief_api_v1_meetings__meetingId__brief__briefId__approve_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "meetingId",
+      "required": true,
+      "schema": {
+       "title": "Meetingid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "briefId",
+      "required": true,
+      "schema": {
+       "title": "Briefid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ApproveBriefRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BriefOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "400": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "INVALID_STATE"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "unknown meeting/brief"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Approve Brief",
+    "tags": [
+     "meetings"
+    ]
+   }
+  },
+  "/api/v1/meetings/{meetingId}/brief/{briefId}/reject": {
+   "post": {
+    "operationId": "reject_brief_api_v1_meetings__meetingId__brief__briefId__reject_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "meetingId",
+      "required": true,
+      "schema": {
+       "title": "Meetingid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "briefId",
+      "required": true,
+      "schema": {
+       "title": "Briefid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ApproveBriefRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/BriefOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "unknown meeting/brief"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Reject Brief",
+    "tags": [
+     "meetings"
+    ]
+   }
+  },
+  "/api/v1/meetings/{meetingId}/close": {
+   "post": {
+    "description": "Close a meeting (M16-X5, raw-18 \u00a78). Terminal + idempotent (#53): the\nsecond close returns the SAME stamped meeting \u2014 never an error, never a\nmoved closedAt. After close, message posts answer 410 MEETING_CLOSED.",
+    "operationId": "close_meeting_api_v1_meetings__meetingId__close_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "meetingId",
+      "required": true,
+      "schema": {
+       "title": "Meetingid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MeetingOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "unknown meeting"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Close Meeting",
+    "tags": [
+     "meetings"
+    ]
+   }
+  },
+  "/api/v1/meetings/{meetingId}/messages": {
+   "get": {
+    "description": "Cursor-paginated transcript (M16-X2).\n\n``limit`` (default 100, hard-capped at 500 \u2014 larger values are clamped,\nnot rejected) sizes the page. ``before=<messageSeq>`` returns the page\nof messages strictly OLDER than that stable 1-based transcript position.\nBody shape is ``{items, hasMore}`` per the frozen api-conventions\npagination rule; every item carries its ``messageSeq``.\n\nOLDER-MESSAGES FETCH PATTERN (frontend / X-lane consumers):\n  1. First paint:      GET .../messages                -> newest window\n     (last 100 by default); render bottom-anchored.\n  2. Scroll to top:    if body.hasMore is true, GET\n     .../messages?limit=N&before=<items[0].messageSeq>\n     and PREPEND the returned items \u2014 pages chain with no gap and no\n     overlap because every page ends exactly where the previous began.\n  3. Repeat until hasMore is false: the transcript head is reached.\n  Do NOT cache messageSeq across meetings; seqs are per-transcript\n  positions, not global ids. A cursor for a message that no longer\n  exists resolves to an honest empty page ({items: [], hasMore: false}).",
+    "operationId": "get_messages_api_v1_meetings__meetingId__messages_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "meetingId",
+      "required": true,
+      "schema": {
+       "title": "Meetingid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "exclusiveMinimum": 0,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Limit"
+      }
+     },
+     {
+      "in": "query",
+      "name": "before",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Before"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MessagePageOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "unknown meeting"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Messages",
+    "tags": [
+     "meetings"
+    ]
+   },
+   "post": {
+    "operationId": "post_message_api_v1_meetings__meetingId__messages_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "meetingId",
+      "required": true,
+      "schema": {
+       "title": "Meetingid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PostMessageRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ChatMessageOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "unknown meeting"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Post Message",
+    "tags": [
+     "meetings"
+    ]
+   }
+  },
+  "/api/v1/meetings/{meetingId}/prompts": {
+   "get": {
+    "operationId": "list_prompts_api_v1_meetings__meetingId__prompts_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "meetingId",
+      "required": true,
+      "schema": {
+       "title": "Meetingid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/PromptOut"
+         },
+         "title": "Response List Prompts Api V1 Meetings  Meetingid  Prompts Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Prompts",
+    "tags": [
+     "meetings"
+    ]
+   },
+   "post": {
+    "operationId": "create_prompt_api_v1_meetings__meetingId__prompts_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "meetingId",
+      "required": true,
+      "schema": {
+       "title": "Meetingid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CreatePromptRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PromptOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Prompt",
+    "tags": [
+     "meetings"
+    ]
+   }
+  },
+  "/api/v1/meetings/{meetingId}/summary": {
+   "post": {
+    "operationId": "generate_summary_api_v1_meetings__meetingId__summary_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "meetingId",
+      "required": true,
+      "schema": {
+       "title": "Meetingid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SummaryOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/_ErrorEnvelope"
+        }
+       }
+      },
+      "description": "unknown meeting"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Generate Summary",
+    "tags": [
+     "meetings"
+    ]
+   }
+  },
+  "/health": {
+   "get": {
+    "operationId": "health_health_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Health"
+   }
+  },
+  "/ready": {
+   "get": {
+    "operationId": "ready_ready_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Ready"
+   }
+  }
+ }
 }

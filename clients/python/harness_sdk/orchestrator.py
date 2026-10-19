@@ -24,6 +24,45 @@ class AggregateStepOut(typing.TypedDict, total=False):
     ts: str  # required
     type: str  # required
 
+class ApprovalDecision(typing.TypedDict, total=False):
+    """ApprovalDecision. Required keys: approve, digest."""
+    approve: bool  # required
+    digest: str  # required
+
+class ApprovalDigest(typing.TypedDict, total=False):
+    """ApprovalDigest. Required keys: digest."""
+    digest: str  # required
+
+class ApprovalOutcome(typing.TypedDict, total=False):
+    """ApprovalOutcome. Required keys: ok."""
+    ok: bool  # required
+    outcome: str
+
+class ApprovalRequest(typing.TypedDict, total=False):
+    """ApprovalRequest. Required keys: action, paths, summary."""
+    action: typing.Literal['delete', 'modify']  # required
+    diff: str
+    paths: list[str]  # required
+    summary: str  # required
+
+class BudgetDegradedOut(typing.TypedDict, total=False):
+    """BudgetDegradedOut."""
+    degraded: bool
+    warned: bool
+
+class DemoSeedResponse(typing.TypedDict, total=False):
+    """DemoSeedResponse. Required keys: projectId, projectName, runId, state, planId, prId."""
+    costUsd: float | None
+    planId: str  # required
+    prId: str  # required
+    prUrl: str | None
+    projectId: str  # required
+    projectName: str  # required
+    replay: bool
+    repoFullName: str | None
+    runId: str  # required
+    state: str  # required
+
 class DoneSignalRequest(typing.TypedDict, total=False):
     """DoneSignalRequest."""
     diffText: str
@@ -45,6 +84,14 @@ class ErrorEnvelope(typing.TypedDict, total=False):
 class HTTPValidationError(typing.TypedDict, total=False):
     """HTTPValidationError."""
     detail: list[ValidationError]
+
+class HandoffDecision(typing.TypedDict, total=False):
+    """HandoffDecision. Required keys: accept."""
+    accept: bool  # required
+
+class HandoffRequest(typing.TypedDict, total=False):
+    """HandoffRequest. Required keys: toUserId."""
+    toUserId: str  # required
 
 class HumanEditRequest(typing.TypedDict, total=False):
     """HumanEditRequest. Required keys: path, content."""
@@ -91,6 +138,7 @@ class PlanRejectedResponse(typing.TypedDict, total=False):
 class ProposePlanGateRequest(typing.TypedDict, total=False):
     """ProposePlanGateRequest. Required keys: goal."""
     goal: str  # required
+    projectId: str | None
 
 class ProposePlanRequest(typing.TypedDict, total=False):
     """ProposePlanRequest."""
@@ -101,6 +149,13 @@ class ProposePlanResponse(typing.TypedDict, total=False):
     """ProposePlanResponse. Required keys: runId, planId."""
     planId: str  # required
     runId: str  # required
+
+class RedirectRequest(typing.TypedDict, total=False):
+    """RedirectRequest. Required keys: content."""
+    content: str  # required
+    kind: typing.Literal['guidance', 'scope_change', 'permission_change']
+    reason: str | None
+    requestId: str | None
 
 class ReviewFindingsOut(typing.TypedDict, total=False):
     """ReviewFindingsOut. Required keys: passed."""
@@ -114,17 +169,21 @@ class ReviewFindingsOut(typing.TypedDict, total=False):
 
 class RunAggregateResponse(typing.TypedDict, total=False):
     """RunAggregateResponse. Required keys: runId, state."""
+    budget: BudgetDegradedOut
     costUsd: float | None
     engineMode: str | None
     executing: bool
     isHumanEditing: bool
+    lifecycle: dict[str, typing.Any] | None
     planApproved: bool
     planId: str | None
     prId: str | None
     runId: str  # required
     state: str  # required
     steps: list[AggregateStepOut]
+    upgrade: UpgradeCtaOut | None
     url: str | None
+    workspace: dict[str, typing.Any] | None
 
 class RunIdStatusResponse(typing.TypedDict, total=False):
     """RunIdStatusResponse. Required keys: runId, status."""
@@ -150,11 +209,13 @@ class RunStatusResponse(typing.TypedDict, total=False):
     engineMode: str | None
     executing: bool
     isHumanEditing: bool
+    lifecycle: dict[str, typing.Any] | None
     planApproved: bool
     planId: str | None
     prId: str | None
     runId: str  # required
     state: str  # required
+    workspace: dict[str, typing.Any] | None
 
 class RunsPage(typing.TypedDict, total=False):
     """RunsPage. Required keys: items."""
@@ -165,6 +226,15 @@ class StartRunResponse(typing.TypedDict, total=False):
     """StartRunResponse. Required keys: runId, state."""
     runId: str  # required
     state: str  # required
+
+class UpgradeCtaOut(typing.TypedDict, total=False):
+    """UpgradeCtaOut. Required keys: tier, cap, capField, used."""
+    cap: int  # required
+    capField: str  # required
+    cta: dict[str, typing.Any]
+    tier: str  # required
+    upgradeTo: str | None
+    used: int  # required
 
 class ValidationError(typing.TypedDict, total=False):
     """ValidationError. Required keys: loc, msg, type."""
@@ -191,6 +261,14 @@ class OrchestratorClient:
         #: Service base URL; resolved by harness_sdk.client at construction.
         self.base_url = (base_url or "").rstrip("/")
 
+
+    def seed_demo(self) -> DemoSeedResponse:
+        """Seed Demo
+
+        POST /api/v1/orchestrator/demo/seed
+        """
+        _path = "/api/v1/orchestrator/demo/seed"
+        return self._http.request(self.base_url, "POST", _path)
 
     def propose_plan(self, body: ProposePlanGateRequest) -> PlanProposedResponse:
         """Propose Plan
@@ -233,6 +311,71 @@ class OrchestratorClient:
         _path = f"/api/v1/orchestrator/runs/{run_id}"
         return self._http.request(self.base_url, "GET", _path)
 
+    def collab_approval_list(self, run_id: str) -> dict[str, typing.Any]:
+        """Collab Approval List
+
+        GET /api/v1/orchestrator/runs/{runId}/approvals
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/approvals"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def collab_approval_request(self, run_id: str, body: ApprovalRequest) -> dict[str, typing.Any]:
+        """Collab Approval Request
+
+        POST /api/v1/orchestrator/runs/{runId}/approvals
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/approvals"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def collab_approval_amend(self, run_id: str, approval_id: str, body: ApprovalRequest) -> dict[str, typing.Any]:
+        """Collab Approval Amend
+
+        PUT /api/v1/orchestrator/runs/{runId}/approvals/{approvalId}
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/approvals/{approval_id}"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
+
+    def collab_apply_staged(self, run_id: str, approval_id: str, body: ApprovalDigest) -> dict[str, typing.Any]:
+        """Collab Apply Staged
+
+        POST /api/v1/orchestrator/runs/{runId}/approvals/{approvalId}/apply
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/approvals/{approval_id}/apply"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def collab_approval_claim(self, run_id: str, approval_id: str, body: ApprovalDigest) -> dict[str, typing.Any]:
+        """Collab Approval Claim
+
+        POST /api/v1/orchestrator/runs/{runId}/approvals/{approvalId}/claim
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/approvals/{approval_id}/claim"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def collab_approval_complete(self, run_id: str, approval_id: str, body: ApprovalOutcome) -> dict[str, typing.Any]:
+        """Collab Approval Complete
+
+        POST /api/v1/orchestrator/runs/{runId}/approvals/{approvalId}/complete
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/approvals/{approval_id}/complete"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def collab_approval_decide(self, run_id: str, approval_id: str, body: ApprovalDecision) -> dict[str, typing.Any]:
+        """Collab Approval Decide
+
+        POST /api/v1/orchestrator/runs/{runId}/approvals/{approvalId}/decision
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/approvals/{approval_id}/decision"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def collab_history(self, run_id: str, after: int | None = None, limit: int | None = None) -> dict[str, typing.Any]:
+        """Collab History
+
+        GET /api/v1/orchestrator/runs/{runId}/collab-history
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/collab-history"
+        _params: dict[str, typing.Any] = {"after": after, "limit": limit}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
+
     def signal_done(self, run_id: str, body: DoneSignalRequest) -> DoneSignalResponse:
         """Signal Done
 
@@ -249,6 +392,22 @@ class OrchestratorClient:
         _path = f"/api/v1/orchestrator/runs/{run_id}/engine"
         return self._http.request(self.base_url, "GET", _path)
 
+    def collab_handoff(self, run_id: str, body: HandoffRequest) -> dict[str, typing.Any]:
+        """Collab Handoff
+
+        POST /api/v1/orchestrator/runs/{runId}/handoff
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/handoff"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def collab_handoff_decide(self, run_id: str, handoff_id: str, body: HandoffDecision) -> dict[str, typing.Any]:
+        """Collab Handoff Decide
+
+        POST /api/v1/orchestrator/runs/{runId}/handoff/{handoffId}
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/handoff/{handoff_id}"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
     def submit_human_edit(self, run_id: str, body: HumanEditRequest) -> dict[str, typing.Any]:
         """Submit Human Edit
 
@@ -256,6 +415,30 @@ class OrchestratorClient:
         """
         _path = f"/api/v1/orchestrator/runs/{run_id}/human-edit"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def collab_join(self, run_id: str) -> dict[str, typing.Any]:
+        """Collab Join
+
+        POST /api/v1/orchestrator/runs/{runId}/join
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/join"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def collab_claim_leader(self, run_id: str) -> dict[str, typing.Any]:
+        """Collab Claim Leader
+
+        POST /api/v1/orchestrator/runs/{runId}/leader
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/leader"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def collab_roster(self, run_id: str) -> dict[str, typing.Any]:
+        """Collab Roster
+
+        GET /api/v1/orchestrator/runs/{runId}/participants
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/participants"
+        return self._http.request(self.base_url, "GET", _path)
 
     def pause_agent(self, run_id: str) -> RunIdStatusResponse:
         """Pause Agent
@@ -297,12 +480,28 @@ class OrchestratorClient:
         _path = f"/api/v1/orchestrator/runs/{run_id}/plan/reject"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
+    def collab_redirect(self, run_id: str, body: RedirectRequest) -> dict[str, typing.Any]:
+        """Collab Redirect
+
+        POST /api/v1/orchestrator/runs/{runId}/redirect
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/redirect"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
     def resume_agent(self, run_id: str) -> RunStateResponse:
         """Resume Agent
 
         POST /api/v1/orchestrator/runs/{runId}/resume
         """
         _path = f"/api/v1/orchestrator/runs/{run_id}/resume"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def collab_staged_approvals(self, run_id: str) -> dict[str, typing.Any]:
+        """Collab Staged Approvals
+
+        POST /api/v1/orchestrator/runs/{runId}/staged/approvals
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/staged/approvals"
         return self._http.request(self.base_url, "POST", _path)
 
     def start_run(self, run_id: str) -> StartRunResponse:
@@ -329,13 +528,5 @@ class OrchestratorClient:
         _path = f"/api/v1/orchestrator/runs/{run_id}/stop"
         return self._http.request(self.base_url, "POST", _path)
 
-    def health(self) -> typing.Any:
-        """Health
 
-        GET /health
-        """
-        _path = "/health"
-        return self._http.request(self.base_url, "GET", _path)
-
-
-__all__ = ["OrchestratorClient", "AggregateStepOut", "DoneSignalRequest", "DoneSignalResponse", "ErrorDetail", "ErrorEnvelope", "HTTPValidationError", "HumanEditRequest", "PlanActionRequest", "PlanActionResponse", "PlanDecisionResponse", "PlanOut", "PlanProposedResponse", "PlanRejectedResponse", "ProposePlanGateRequest", "ProposePlanRequest", "ProposePlanResponse", "ReviewFindingsOut", "RunAggregateResponse", "RunIdStatusResponse", "RunItem", "RunStateResponse", "RunStatusResponse", "RunsPage", "StartRunResponse", "ValidationError", "_ErrorDetail", "_ErrorEnvelope"]
+__all__ = ["OrchestratorClient", "AggregateStepOut", "ApprovalDecision", "ApprovalDigest", "ApprovalOutcome", "ApprovalRequest", "BudgetDegradedOut", "DemoSeedResponse", "DoneSignalRequest", "DoneSignalResponse", "ErrorDetail", "ErrorEnvelope", "HTTPValidationError", "HandoffDecision", "HandoffRequest", "HumanEditRequest", "PlanActionRequest", "PlanActionResponse", "PlanDecisionResponse", "PlanOut", "PlanProposedResponse", "PlanRejectedResponse", "ProposePlanGateRequest", "ProposePlanRequest", "ProposePlanResponse", "RedirectRequest", "ReviewFindingsOut", "RunAggregateResponse", "RunIdStatusResponse", "RunItem", "RunStateResponse", "RunStatusResponse", "RunsPage", "StartRunResponse", "UpgradeCtaOut", "ValidationError", "_ErrorDetail", "_ErrorEnvelope"]

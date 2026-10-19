@@ -175,5 +175,13 @@ class ReviewClient:
         _path = "/health"
         return self._http.request(self.base_url, "GET", _path)
 
+    def ready_ready_get(self) -> typing.Any:
+        """Ready
+
+        GET /ready
+        """
+        _path = "/ready"
+        return self._http.request(self.base_url, "GET", _path)
+
 
 __all__ = ["ReviewClient", "ApproveRequest", "ChangeStatus", "ChangedFile", "HTTPValidationError", "InlineCommentRequest", "RequestChangesRequest", "ReviewDataResponse", "RiskFlag", "RiskSeverity", "ValidationError"]

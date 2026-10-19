@@ -29,6 +29,7 @@ class CreateTaskRequest(typing.TypedDict, total=False):
     forbiddenPaths: list[str]
     projectId: str | None
     repoRef: str  # required
+    resume: bool
     taskId: str  # required
 
 class ExecCommandRequest(typing.TypedDict, total=False):
@@ -147,6 +148,14 @@ class SandboxClient:
         GET /health
         """
         _path = "/health"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def ready_ready_get(self) -> typing.Any:
+        """Ready
+
+        GET /ready
+        """
+        _path = "/ready"
         return self._http.request(self.base_url, "GET", _path)
 
 

@@ -58,7 +58,8 @@ class InviteCreateBody(typing.TypedDict, total=False):
     role: str  # required
 
 class InviteRedeemBody(typing.TypedDict, total=False):
-    """InviteRedeemBody. Required keys: token."""
+    """InviteRedeemBody. Required keys: token, email."""
+    email: str  # required
     token: str  # required
 
 class KeyCreateBody(typing.TypedDict, total=False):
@@ -150,6 +151,26 @@ class SessionResponse(typing.TypedDict, total=False):
     principal: PrincipalResponse  # required
     token: str  # required
 
+class SsoCompleteBody(typing.TypedDict, total=False):
+    """SsoCompleteBody. Required keys: teamId, code, state, redirectUri."""
+    code: str  # required
+    redirectUri: str  # required
+    state: str  # required
+    teamId: str  # required
+
+class SsoConfigBody(typing.TypedDict, total=False):
+    """SsoConfigBody. Required keys: issuerUrl, clientId."""
+    clientId: str  # required
+    clientSecret: str | None
+    enabled: bool
+    idpDisplayName: str
+    issuerUrl: str  # required
+
+class SsoStartBody(typing.TypedDict, total=False):
+    """SsoStartBody. Required keys: teamId, redirectUri."""
+    redirectUri: str  # required
+    teamId: str  # required
+
 class ThresholdsBody(typing.TypedDict, total=False):
     """ThresholdsBody. Required keys: thresholds."""
     thresholds: dict[str, typing.Any]  # required
@@ -172,8 +193,9 @@ class WsTicketRequest(typing.TypedDict, total=False):
     projectId: str  # required
 
 class WsTicketResponse(typing.TypedDict, total=False):
-    """WsTicketResponse. Required keys: ticket, expiresInSeconds."""
+    """WsTicketResponse. Required keys: ticket, expiresInSeconds, fingerprint."""
     expiresInSeconds: int  # required
+    fingerprint: str  # required
     ticket: str  # required
 
 class IdentityClient:
@@ -184,6 +206,24 @@ class IdentityClient:
         #: Service base URL; resolved by harness_sdk.client at construction.
         self.base_url = (base_url or "").rstrip("/")
 
+
+    def list_audit(self, limit: int | None = None) -> dict[str, typing.Any]:
+        """List Audit
+
+        GET /api/v1/audit
+        """
+        _path = "/api/v1/audit"
+        _params: dict[str, typing.Any] = {"limit": limit}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
+
+    def export_audit(self, stream: str | None = None, after_seq: int | None = None, limit: int | None = None, run_id: str | None = None) -> dict[str, typing.Any]:
+        """Export Audit
+
+        GET /api/v1/audit/export
+        """
+        _path = "/api/v1/audit/export"
+        _params: dict[str, typing.Any] = {"stream": stream, "afterSeq": after_seq, "limit": limit, "runId": run_id}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
 
     def login(self, body: LoginRequest) -> SessionResponse:
         """Login
@@ -207,6 +247,22 @@ class IdentityClient:
         POST /api/v1/auth/request-login
         """
         _path = "/api/v1/auth/request-login"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def sso_complete(self, body: SsoCompleteBody) -> dict[str, typing.Any]:
+        """Sso Complete
+
+        POST /api/v1/auth/sso/complete
+        """
+        _path = "/api/v1/auth/sso/complete"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def sso_start(self, body: SsoStartBody) -> dict[str, typing.Any]:
+        """Sso Start
+
+        POST /api/v1/auth/sso/start
+        """
+        _path = "/api/v1/auth/sso/start"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
     def verify_otp_route(self, body: VerifyOtpRequest) -> SessionResponse:
@@ -421,6 +477,30 @@ class IdentityClient:
         _path = f"/api/v1/teams/{team_id}/settings/reviewer-thresholds"
         return self._http.request(self.base_url, "DELETE", _path)
 
+    def get_sso_config(self, team_id: str) -> dict[str, typing.Any]:
+        """Get Sso Config
+
+        GET /api/v1/teams/{team_id}/sso/config
+        """
+        _path = f"/api/v1/teams/{team_id}/sso/config"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def put_sso_config(self, team_id: str, body: SsoConfigBody) -> dict[str, typing.Any]:
+        """Put Sso Config
+
+        PUT /api/v1/teams/{team_id}/sso/config
+        """
+        _path = f"/api/v1/teams/{team_id}/sso/config"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
+
+    def delete_sso_config(self, team_id: str) -> typing.Any:
+        """Delete Sso Config
+
+        DELETE /api/v1/teams/{team_id}/sso/config
+        """
+        _path = f"/api/v1/teams/{team_id}/sso/config"
+        return self._http.request(self.base_url, "DELETE", _path)
+
     def issue_ws_ticket(self, body: WsTicketRequest) -> WsTicketResponse:
         """Issue Ws Ticket
 
@@ -429,14 +509,21 @@ class IdentityClient:
         _path = "/api/v1/ws-ticket"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
-    def health(self, deep: int | None = None) -> typing.Any:
+    def health(self) -> typing.Any:
         """Health
 
         GET /health
         """
         _path = "/health"
-        _params: dict[str, typing.Any] = {"deep": deep}
-        return self._http.request(self.base_url, "GET", _path, params=_params)
+        return self._http.request(self.base_url, "GET", _path)
+
+    def ready_ready_get(self) -> typing.Any:
+        """Ready
+
+        GET /ready
+        """
+        _path = "/ready"
+        return self._http.request(self.base_url, "GET", _path)
 
 
-__all__ = ["IdentityClient", "CreateProjectBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "HTTPValidationError", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "OkResponse", "PlanUpdateBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "RulesBody", "SessionResponse", "ThresholdsBody", "ValidationError", "VerifyOtpRequest", "WsTicketRequest", "WsTicketResponse"]
+__all__ = ["IdentityClient", "CreateProjectBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "HTTPValidationError", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "OkResponse", "PlanUpdateBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "RulesBody", "SessionResponse", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "ThresholdsBody", "ValidationError", "VerifyOtpRequest", "WsTicketRequest", "WsTicketResponse"]

@@ -1,201 +1,810 @@
 {
-  "openapi": "3.0.3",
-  "info": {
-    "title": "Section 8: Review Area API",
-    "version": "0.1.0",
-    "description": "API fragment for the human-in-the-loop review and merge gate. The app itself never merges — merge is always a manual GitHub action."
-  },
-  "paths": {
-    "/api/v1/reviews/{prId}": {
-      "get": {
-        "summary": "Get full review data for a PR (diff, changed files, risk flags, AI summary, comments, test results)",
-        "operationId": "getReview",
-        "parameters": [
-          { "name": "prId", "in": "path", "required": true, "schema": { "type": "string" } },
-          { "name": "diff_text", "in": "query", "required": false, "schema": { "type": "string" } }
-        ],
-        "responses": {
-          "200": { "description": "Full review data payload" },
-          "404": { "description": "PR not found" },
-          "500": { "description": "Internal error" }
-        }
-      }
+ "components": {
+  "schemas": {
+   "ApproveRequest": {
+    "properties": {
+     "reviewer_user_id": {
+      "minLength": 1,
+      "title": "Reviewer User Id",
+      "type": "string"
+     }
     },
-    "/api/v1/reviews/{prId}/approve": {
-      "post": {
-        "summary": "Approve a PR for merge (does NOT auto-merge on GitHub)",
-        "operationId": "approvePr",
-        "parameters": [
-          { "name": "prId", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["reviewer_user_id"],
-                "properties": {
-                  "reviewer_user_id": { "type": "string" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": { "description": "PR approved" },
-          "404": { "description": "PR not found" }
-        }
-      }
+    "required": [
+     "reviewer_user_id"
+    ],
+    "title": "ApproveRequest",
+    "type": "object"
+   },
+   "ChangeStatus": {
+    "enum": [
+     "added",
+     "modified",
+     "removed",
+     "renamed"
+    ],
+    "title": "ChangeStatus",
+    "type": "string"
+   },
+   "ChangedFile": {
+    "properties": {
+     "additions": {
+      "default": 0,
+      "title": "Additions",
+      "type": "integer"
+     },
+     "deletions": {
+      "default": 0,
+      "title": "Deletions",
+      "type": "integer"
+     },
+     "path": {
+      "title": "Path",
+      "type": "string"
+     },
+     "rename_from": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rename From"
+     },
+     "status": {
+      "$ref": "#/components/schemas/ChangeStatus"
+     }
     },
-    "/api/v1/reviews/{prId}/request-changes": {
-      "post": {
-        "summary": "Request changes on a PR with inline comments",
-        "operationId": "requestChanges",
-        "parameters": [
-          { "name": "prId", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["reviewer_user_id"],
-                "properties": {
-                  "reviewer_user_id": { "type": "string" },
-                  "comments": {
-                    "type": "array",
-                    "items": { "type": "object" }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": { "description": "Changes requested" },
-          "404": { "description": "PR not found" }
-        }
-      }
-    },
-    "/api/v1/reviews/{prId}/comments": {
-      "post": {
-        "summary": "Add an inline review comment to a PR",
-        "operationId": "addComment",
-        "parameters": [
-          { "name": "prId", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["body"],
-                "properties": {
-                  "file_path": { "type": "string" },
-                  "line": { "type": "integer" },
-                  "body": { "type": "string" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": { "description": "Comment created" },
-          "404": { "description": "PR not found" }
-        }
-      }
-    },
-    "/api/v1/reviews/{prId}/comments": {
-      "get": {
-        "summary": "List all inline review comments on a PR",
-        "operationId": "listComments",
-        "parameters": [
-          { "name": "prId", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "responses": {
-          "200": { "description": "List of comments" }
-        }
-      }
-    },
-    "/api/v1/reviews/{prId}/risks": {
-      "get": {
-        "summary": "Get high-risk zone flags for a PR's changed files",
-        "operationId": "getRiskFlags",
-        "parameters": [
-          { "name": "prId", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "responses": {
-          "200": { "description": "List of risk flags" },
-          "404": { "description": "PR not found" }
-        }
-      }
-    },
-    "/api/v1/reviews/{prId}/deep-link": {
-      "get": {
-        "summary": "Get deep-link URL to GitHub's PR merge page (merge is always manual)",
-        "operationId": "deepLink",
-        "parameters": [
-          { "name": "prId", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "responses": {
-          "200": { "description": "GitHub deep-link URL" },
-          "404": { "description": "PR not found" }
-        }
-      }
-    }
-  },
-  "components": {
-    "schemas": {
-      "ReviewDataResponse": {
-        "type": "object",
-        "required": [
-          "prId", "projectId", "githubPrNumber", "prUrl", "headBranch",
-          "baseBranch", "state", "reviewStatus", "diff", "changedFiles",
-          "riskFlags", "reviewComments", "testResults"
-        ],
-        "properties": {
-          "prId": { "type": "string" },
-          "projectId": { "type": "string" },
-          "githubPrNumber": { "type": "integer" },
-          "prUrl": { "type": "string" },
-          "headBranch": { "type": "string" },
-          "baseBranch": { "type": "string" },
-          "state": { "type": "string" },
-          "reviewStatus": { "type": "string", "enum": ["pending", "approved", "changes_requested"] },
-          "approvedBy": { "type": "string", "nullable": true },
-          "diff": { "type": "string" },
-          "changedFiles": { "type": "array", "items": { "$ref": "#/components/schemas/ChangedFile" } },
-          "unchangedAreasNote": { "type": "string", "nullable": true },
-          "riskFlags": { "type": "array", "items": { "$ref": "#/components/schemas/RiskFlag" } },
-          "summary": { "type": "object", "nullable": true },
-          "reviewComments": { "type": "array", "items": { "type": "object" } },
-          "testResults": { "type": "array", "items": { "type": "object" } }
-        }
+    "required": [
+     "path",
+     "status"
+    ],
+    "title": "ChangedFile",
+    "type": "object"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
       },
-      "ChangedFile": {
-        "type": "object",
-        "required": ["path", "status"],
-        "properties": {
-          "path": { "type": "string" },
-          "status": { "type": "string", "enum": ["added", "modified", "removed", "renamed"] },
-          "additions": { "type": "integer" },
-          "deletions": { "type": "integer" },
-          "rename_from": { "type": "string", "nullable": true }
-        }
+      "title": "Detail",
+      "type": "array"
+     }
+    },
+    "title": "HTTPValidationError",
+    "type": "object"
+   },
+   "InlineCommentRequest": {
+    "properties": {
+     "body": {
+      "minLength": 1,
+      "title": "Body",
+      "type": "string"
+     },
+     "file_path": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "File Path"
+     },
+     "line": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Line"
+     }
+    },
+    "required": [
+     "body"
+    ],
+    "title": "InlineCommentRequest",
+    "type": "object"
+   },
+   "RequestChangesRequest": {
+    "properties": {
+     "comments": {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
       },
-      "RiskFlag": {
-        "type": "object",
-        "required": ["path", "severity", "rule", "reason"],
-        "properties": {
-          "path": { "type": "string" },
-          "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
-          "rule": { "type": "string" },
-          "reason": { "type": "string" }
+      "title": "Comments",
+      "type": "array"
+     },
+     "reviewer_user_id": {
+      "minLength": 1,
+      "title": "Reviewer User Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "reviewer_user_id"
+    ],
+    "title": "RequestChangesRequest",
+    "type": "object"
+   },
+   "ReviewDataResponse": {
+    "properties": {
+     "approvedBy": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Approvedby"
+     },
+     "baseBranch": {
+      "title": "Basebranch",
+      "type": "string"
+     },
+     "changedFiles": {
+      "items": {
+       "$ref": "#/components/schemas/ChangedFile"
+      },
+      "title": "Changedfiles",
+      "type": "array"
+     },
+     "diff": {
+      "title": "Diff",
+      "type": "string"
+     },
+     "githubPrNumber": {
+      "title": "Githubprnumber",
+      "type": "integer"
+     },
+     "headBranch": {
+      "title": "Headbranch",
+      "type": "string"
+     },
+     "prId": {
+      "title": "Prid",
+      "type": "string"
+     },
+     "prUrl": {
+      "title": "Prurl",
+      "type": "string"
+     },
+     "projectId": {
+      "title": "Projectid",
+      "type": "string"
+     },
+     "reviewComments": {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "title": "Reviewcomments",
+      "type": "array"
+     },
+     "reviewStatus": {
+      "title": "Reviewstatus",
+      "type": "string"
+     },
+     "riskFlags": {
+      "items": {
+       "$ref": "#/components/schemas/RiskFlag"
+      },
+      "title": "Riskflags",
+      "type": "array"
+     },
+     "state": {
+      "title": "State",
+      "type": "string"
+     },
+     "summary": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Summary"
+     },
+     "testResults": {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "title": "Testresults",
+      "type": "array"
+     },
+     "unchangedAreasNote": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Unchangedareasnote"
+     }
+    },
+    "required": [
+     "prId",
+     "projectId",
+     "githubPrNumber",
+     "prUrl",
+     "headBranch",
+     "baseBranch",
+     "state",
+     "reviewStatus",
+     "diff",
+     "changedFiles",
+     "riskFlags",
+     "reviewComments",
+     "testResults"
+    ],
+    "title": "ReviewDataResponse",
+    "type": "object"
+   },
+   "RiskFlag": {
+    "properties": {
+     "path": {
+      "title": "Path",
+      "type": "string"
+     },
+     "reason": {
+      "title": "Reason",
+      "type": "string"
+     },
+     "rule": {
+      "title": "Rule",
+      "type": "string"
+     },
+     "severity": {
+      "$ref": "#/components/schemas/RiskSeverity"
+     }
+    },
+    "required": [
+     "path",
+     "severity",
+     "rule",
+     "reason"
+    ],
+    "title": "RiskFlag",
+    "type": "object"
+   },
+   "RiskSeverity": {
+    "enum": [
+     "low",
+     "medium",
+     "high",
+     "critical"
+    ],
+    "title": "RiskSeverity",
+    "type": "string"
+   },
+   "ValidationError": {
+    "properties": {
+     "ctx": {
+      "title": "Context",
+      "type": "object"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
         }
-      }
-    }
+       ]
+      },
+      "title": "Location",
+      "type": "array"
+     },
+     "msg": {
+      "title": "Message",
+      "type": "string"
+     },
+     "type": {
+      "title": "Error Type",
+      "type": "string"
+     }
+    },
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError",
+    "type": "object"
+   }
   }
+ },
+ "info": {
+  "description": "API fragment for the human-in-the-loop review and merge gate. The app itself never merges \u2014 merge is always a manual GitHub action.",
+  "title": "Section 8: Review Area API",
+  "version": "0.1.0"
+ },
+ "openapi": "3.1.0",
+ "paths": {
+  "/api/v1/reviews/settings/thresholds": {
+   "get": {
+    "description": "Read-only view of the caller's team reviewer thresholds (M15-G6b).\n\nThe AUTHORITATIVE admin write path is Section 1's\n``GET/PUT /api/v1/teams/{teamId}/settings/reviewer-thresholds``; this\nendpoint exists so the Review Area UI can show what's in force without\nreaching across sections. Missing config answers the documented defaults\n(never an error).",
+    "operationId": "get_reviewer_threshold_settings_api_v1_reviews_settings_thresholds_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Reviewer Threshold Settings Api V1 Reviews Settings Thresholds Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Get Reviewer Threshold Settings"
+   }
+  },
+  "/api/v1/reviews/{pr_id}": {
+   "get": {
+    "operationId": "get_review_api_v1_reviews__pr_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "pr_id",
+      "required": true,
+      "schema": {
+       "title": "Pr Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "diff_text",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Diff Text"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReviewDataResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Review"
+   }
+  },
+  "/api/v1/reviews/{pr_id}/approve": {
+   "post": {
+    "operationId": "approve_pr_api_v1_reviews__pr_id__approve_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "pr_id",
+      "required": true,
+      "schema": {
+       "title": "Pr Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ApproveRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Approve Pr Api V1 Reviews  Pr Id  Approve Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Approve Pr"
+   }
+  },
+  "/api/v1/reviews/{pr_id}/comments": {
+   "get": {
+    "operationId": "list_comments_api_v1_reviews__pr_id__comments_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "pr_id",
+      "required": true,
+      "schema": {
+       "title": "Pr Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "additionalProperties": true,
+          "type": "object"
+         },
+         "title": "Response List Comments Api V1 Reviews  Pr Id  Comments Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Comments"
+   },
+   "post": {
+    "operationId": "add_comment_api_v1_reviews__pr_id__comments_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "pr_id",
+      "required": true,
+      "schema": {
+       "title": "Pr Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/InlineCommentRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Add Comment Api V1 Reviews  Pr Id  Comments Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Add Comment"
+   }
+  },
+  "/api/v1/reviews/{pr_id}/deep-link": {
+   "get": {
+    "description": "Return a deep-link URL to GitHub's PR page + merge button.\n\nThe app itself never merges \u2014 this is always a manual GitHub action.",
+    "operationId": "deep_link_to_github_api_v1_reviews__pr_id__deep_link_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "pr_id",
+      "required": true,
+      "schema": {
+       "title": "Pr Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "string"
+         },
+         "title": "Response Deep Link To Github Api V1 Reviews  Pr Id  Deep Link Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Deep Link To Github"
+   }
+  },
+  "/api/v1/reviews/{pr_id}/request-changes": {
+   "post": {
+    "operationId": "request_changes_api_v1_reviews__pr_id__request_changes_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "pr_id",
+      "required": true,
+      "schema": {
+       "title": "Pr Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RequestChangesRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Request Changes Api V1 Reviews  Pr Id  Request Changes Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Request Changes"
+   }
+  },
+  "/api/v1/reviews/{pr_id}/risks": {
+   "get": {
+    "operationId": "get_risk_flags_api_v1_reviews__pr_id__risks_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "pr_id",
+      "required": true,
+      "schema": {
+       "title": "Pr Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "diff_text",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Diff Text"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "additionalProperties": true,
+          "type": "object"
+         },
+         "title": "Response Get Risk Flags Api V1 Reviews  Pr Id  Risks Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Risk Flags"
+   }
+  },
+  "/api/v1/reviews/{pr_id}/verdict": {
+   "get": {
+    "description": "Reviewer pass/fail verdict under the PR's team thresholds (M15-G6b).\n\n``thresholdsSource`` is ``\"team\"`` when a well-formed team config was\napplied, ``\"defaults\"`` when none/malformed \u2014 tuning is observable.",
+    "operationId": "get_verdict_api_v1_reviews__pr_id__verdict_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "pr_id",
+      "required": true,
+      "schema": {
+       "title": "Pr Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "diff_text",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Diff Text"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Verdict Api V1 Reviews  Pr Id  Verdict Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Verdict"
+   }
+  },
+  "/health": {
+   "get": {
+    "operationId": "health_health_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Health"
+   }
+  },
+  "/ready": {
+   "get": {
+    "operationId": "ready_ready_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Ready"
+   }
+  }
+ }
 }

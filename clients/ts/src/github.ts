@@ -58,6 +58,13 @@ export class GithubClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
   }
 
+  /** Disconnect Github
+   *  POST /api/v1/github/disconnect */
+  disconnect_github(): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/github/disconnect`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
   /** Oauth Callback
    *  GET /api/v1/github/oauth/callback */
   oauth_callback(code?: string, state?: string): Promise<unknown> {
@@ -158,6 +165,13 @@ export class GithubClient {
    *  GET /health */
   health(): Promise<unknown> {
     const _path = `/health`;
+    return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Ready
+   *  GET /ready */
+  ready_ready_get(): Promise<unknown> {
+    const _path = `/ready`;
     return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined);
   }
 }

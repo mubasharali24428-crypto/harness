@@ -19,6 +19,7 @@ export interface CreateTaskRequest {
   forbiddenPaths?: string[];  // optional
   projectId?: string | null;  // optional
   repoRef: string;
+  resume?: boolean;  // optional
   taskId: string;
 }
 
@@ -136,6 +137,13 @@ export class SandboxClient {
    *  GET /health */
   health(): Promise<unknown> {
     const _path = `/health`;
+    return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Ready
+   *  GET /ready */
+  ready_ready_get(): Promise<unknown> {
+    const _path = `/ready`;
     return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined);
   }
 }

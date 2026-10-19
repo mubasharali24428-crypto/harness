@@ -555,7 +555,7 @@
   },
   "/api/v1/models/metrics": {
    "get": {
-    "description": "PUBLIC Prometheus endpoint \u2014 no auth dep, like /health.",
+    "description": "PUBLIC Prometheus endpoint \u2014 no auth dep, like /health.\n\nDeliberately public: this is the Prometheus scrape target (S1-R01a\nresidual R-13 \u2014 route-count enumeration only, no spend/data leakage).",
     "operationId": "prometheus_metrics_api_v1_models_metrics_get",
     "responses": {
      "200": {
@@ -575,7 +575,7 @@
   },
   "/api/v1/models/spend": {
    "get": {
-    "description": "Aggregated spend from cost_ledger: totals, per-model and per-day.\n\nM14-W4 F1a (W4-C1): a wired, queryable ledger answers 200 with\n``unwired=False`` \u2014 even when zero rows exist, the zeros are REAL zeros\n(metering is live; nothing ran). ``unwired`` therefore never appears as\ntrue in a 200 body: the unwired case is the 503 LEDGER_UNAVAILABLE branch\nbelow, which fires only when no metering config (ledger pool) exists.",
+    "description": "Aggregated spend from cost_ledger: totals, per-model and per-day.\n\nTeam-scoped (S1-R01a): every caller is locked to ``principal.teamId``;\nan explicit foreign ``teamId`` is denied with 403.\n\nM14-W4 F1a (W4-C1): a wired, queryable ledger answers 200 with\n``unwired=False`` \u2014 even when zero rows exist, the zeros are REAL zeros\n(metering is live; nothing ran). ``unwired`` therefore never appears as\ntrue in a 200 body: the unwired case is the 503 LEDGER_UNAVAILABLE branch\nbelow, which fires only when no metering config (ledger pool) exists.",
     "operationId": "model_spend_api_v1_models_spend_get",
     "parameters": [
      {
@@ -680,6 +680,22 @@
      }
     },
     "summary": "Health"
+   }
+  },
+  "/ready": {
+   "get": {
+    "operationId": "ready_ready_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Ready"
    }
   }
  }

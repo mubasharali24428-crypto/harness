@@ -173,5 +173,13 @@ class RouterClient:
         _path = "/health"
         return self._http.request(self.base_url, "GET", _path)
 
+    def ready_ready_get(self) -> typing.Any:
+        """Ready
+
+        GET /ready
+        """
+        _path = "/ready"
+        return self._http.request(self.base_url, "GET", _path)
+
 
 __all__ = ["RouterClient", "CallModelRequest", "ConfigureRoleModelRequest", "EstimateCostRequest", "HTTPValidationError", "ModelCallOpts", "ModelResult", "ModelRole", "SpendByDay", "SpendByModel", "SpendErrorDetail", "SpendErrorEnvelope", "SpendSummaryResponse", "SpendTotals", "ValidationError"]

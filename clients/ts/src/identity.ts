@@ -53,8 +53,9 @@ export interface InviteCreateBody {
   role: string;
 }
 
-/** InviteRedeemBody. Required keys: token. */
+/** InviteRedeemBody. Required keys: email, token. */
 export interface InviteRedeemBody {
+  email: string;
   token: string;
 }
 
@@ -163,6 +164,29 @@ export interface SessionResponse {
   token: string;
 }
 
+/** SsoCompleteBody. Required keys: code, redirectUri, state, teamId. */
+export interface SsoCompleteBody {
+  code: string;
+  redirectUri: string;
+  state: string;
+  teamId: string;
+}
+
+/** SsoConfigBody. Required keys: clientId, issuerUrl. */
+export interface SsoConfigBody {
+  clientId: string;
+  clientSecret?: string | null;  // optional
+  enabled?: boolean;  // optional
+  idpDisplayName?: string;  // optional
+  issuerUrl: string;
+}
+
+/** SsoStartBody. Required keys: redirectUri, teamId. */
+export interface SsoStartBody {
+  redirectUri: string;
+  teamId: string;
+}
+
 /** ThresholdsBody. Required keys: thresholds. */
 export interface ThresholdsBody {
   thresholds: { [key: string]: unknown };
@@ -188,9 +212,10 @@ export interface WsTicketRequest {
   projectId: string;
 }
 
-/** WsTicketResponse. Required keys: expiresInSeconds, ticket. */
+/** WsTicketResponse. Required keys: expiresInSeconds, fingerprint, ticket. */
 export interface WsTicketResponse {
   expiresInSeconds: number;
+  fingerprint: string;
   ticket: string;
 }
 
@@ -202,6 +227,22 @@ export class IdentityClient {
   /** @param http  shared transport; @param baseUrl resolved by Harness. */
   constructor(readonly http: HarnessHttp,
               public readonly baseUrl: string = "") {}
+
+  /** List Audit
+   *  GET /api/v1/audit */
+  list_audit(limit?: number): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/audit`;
+    const params: Record<string, unknown> = {"limit": limit};
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** Export Audit
+   *  GET /api/v1/audit/export */
+  export_audit(stream?: string, after_seq?: number, limit?: number, run_id?: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/audit/export`;
+    const params: Record<string, unknown> = {"stream": stream, "afterSeq": after_seq, "limit": limit, "runId": run_id};
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
+  }
 
   /** Login
    *  POST /api/v1/auth/login */
@@ -222,6 +263,20 @@ export class IdentityClient {
   request_login(body: LoginRequest): Promise<OkResponse> {
     const _path = `/api/v1/auth/request-login`;
     return this.http.request<OkResponse>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Sso Complete
+   *  POST /api/v1/auth/sso/complete */
+  sso_complete(body: SsoCompleteBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/auth/sso/complete`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Sso Start
+   *  POST /api/v1/auth/sso/start */
+  sso_start(body: SsoStartBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/auth/sso/start`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
   }
 
   /** Verify Otp Route
@@ -410,6 +465,27 @@ export class IdentityClient {
     return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
   }
 
+  /** Get Sso Config
+   *  GET /api/v1/teams/{team_id}/sso/config */
+  get_sso_config(team_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/sso/config`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Put Sso Config
+   *  PUT /api/v1/teams/{team_id}/sso/config */
+  put_sso_config(team_id: string, body: SsoConfigBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/sso/config`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
+  /** Delete Sso Config
+   *  DELETE /api/v1/teams/{team_id}/sso/config */
+  delete_sso_config(team_id: string): Promise<unknown> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/sso/config`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
   /** Issue Ws Ticket
    *  POST /api/v1/ws-ticket */
   issue_ws_ticket(body: WsTicketRequest): Promise<WsTicketResponse> {
@@ -419,10 +495,16 @@ export class IdentityClient {
 
   /** Health
    *  GET /health */
-  health(deep?: number): Promise<unknown> {
+  health(): Promise<unknown> {
     const _path = `/health`;
-    const params: Record<string, unknown> = {"deep": deep};
-    return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined, params);
+    return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Ready
+   *  GET /ready */
+  ready_ready_get(): Promise<unknown> {
+    const _path = `/ready`;
+    return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined);
   }
 }
 
@@ -452,6 +534,9 @@ export class IdentityClient {
  * export interface/type ProjectOut
  * export interface/type RulesBody
  * export interface/type SessionResponse
+ * export interface/type SsoCompleteBody
+ * export interface/type SsoConfigBody
+ * export interface/type SsoStartBody
  * export interface/type ThresholdsBody
  * export interface/type ValidationError
  * export interface/type VerifyOtpRequest

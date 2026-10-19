@@ -264,5 +264,13 @@ class MeetingClient:
         _path = "/health"
         return self._http.request(self.base_url, "GET", _path)
 
+    def ready_ready_get(self) -> typing.Any:
+        """Ready
+
+        GET /ready
+        """
+        _path = "/ready"
+        return self._http.request(self.base_url, "GET", _path)
+
 
 __all__ = ["MeetingClient", "AiInvokeResponse", "ApproveBriefRequest", "BriefOut", "ChatMessageOut", "CreateMeetingRequest", "CreatePromptRequest", "HTTPValidationError", "InvokeAIRequest", "MeetingOut", "MessagePageOut", "NotInvokedResponse", "PagedChatMessageOut", "PostMessageRequest", "PromptOut", "SummaryOut", "ValidationError", "_ErrorDetail", "_ErrorEnvelope"]

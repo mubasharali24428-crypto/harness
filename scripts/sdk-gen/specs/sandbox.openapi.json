@@ -47,6 +47,11 @@
       "title": "Reporef",
       "type": "string"
      },
+     "resume": {
+      "default": false,
+      "title": "Resume",
+      "type": "boolean"
+     },
      "taskId": {
       "title": "Taskid",
       "type": "string"
@@ -612,6 +617,22 @@
      }
     },
     "summary": "Health"
+   }
+  },
+  "/ready": {
+   "get": {
+    "operationId": "ready_ready_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Ready"
    }
   }
  }

@@ -182,6 +182,11 @@
    },
    "InviteRedeemBody": {
     "properties": {
+     "email": {
+      "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+      "title": "Email",
+      "type": "string"
+     },
      "token": {
       "maxLength": 256,
       "minLength": 16,
@@ -190,7 +195,8 @@
      }
     },
     "required": [
-     "token"
+     "token",
+     "email"
     ],
     "title": "InviteRedeemBody",
     "type": "object"
@@ -623,6 +629,110 @@
     "title": "SessionResponse",
     "type": "object"
    },
+   "SsoCompleteBody": {
+    "properties": {
+     "code": {
+      "maxLength": 512,
+      "minLength": 1,
+      "title": "Code",
+      "type": "string"
+     },
+     "redirectUri": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Redirecturi",
+      "type": "string"
+     },
+     "state": {
+      "maxLength": 256,
+      "minLength": 16,
+      "title": "State",
+      "type": "string"
+     },
+     "teamId": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Teamid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "teamId",
+     "code",
+     "state",
+     "redirectUri"
+    ],
+    "title": "SsoCompleteBody",
+    "type": "object"
+   },
+   "SsoConfigBody": {
+    "properties": {
+     "clientId": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Clientid",
+      "type": "string"
+     },
+     "clientSecret": {
+      "anyOf": [
+       {
+        "maxLength": 512,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Clientsecret"
+     },
+     "enabled": {
+      "default": true,
+      "title": "Enabled",
+      "type": "boolean"
+     },
+     "idpDisplayName": {
+      "default": "",
+      "maxLength": 200,
+      "title": "Idpdisplayname",
+      "type": "string"
+     },
+     "issuerUrl": {
+      "maxLength": 500,
+      "minLength": 8,
+      "title": "Issuerurl",
+      "type": "string"
+     }
+    },
+    "required": [
+     "issuerUrl",
+     "clientId"
+    ],
+    "title": "SsoConfigBody",
+    "type": "object"
+   },
+   "SsoStartBody": {
+    "properties": {
+     "redirectUri": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Redirecturi",
+      "type": "string"
+     },
+     "teamId": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Teamid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "teamId",
+     "redirectUri"
+    ],
+    "title": "SsoStartBody",
+    "type": "object"
+   },
    "ThresholdsBody": {
     "additionalProperties": false,
     "description": "Raw PUT payload. Shape/range validation is delegated to the shared\nSection 8 model so both sections can never drift apart.",
@@ -719,6 +829,10 @@
       "title": "Expiresinseconds",
       "type": "integer"
      },
+     "fingerprint": {
+      "title": "Fingerprint",
+      "type": "string"
+     },
      "ticket": {
       "title": "Ticket",
       "type": "string"
@@ -726,7 +840,8 @@
     },
     "required": [
      "ticket",
-     "expiresInSeconds"
+     "expiresInSeconds",
+     "fingerprint"
     ],
     "title": "WsTicketResponse",
     "type": "object"
@@ -739,6 +854,122 @@
  },
  "openapi": "3.1.0",
  "paths": {
+  "/api/v1/audit": {
+   "get": {
+    "description": "Admin-only, newest-first, bounded page of audit rows (team-scoped).\n\nScope rule: rows bound to the principal's team members, PLUS unbound\nrows (denials of non-members \u2014 the common denied case) whose ``detail``\nnames the principal's team. Rows of other teams are never returned.",
+    "operationId": "list_audit_api_v1_audit_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 50,
+       "title": "Limit",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Audit Api V1 Audit Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Audit"
+   }
+  },
+  "/api/v1/audit/export": {
+   "get": {
+    "description": "Admin-only evidence export for the CALLER's team (there is no team parameter, so a\nforeign team's rows can never be requested). ``stream=audit`` is the security audit\nlog; ``stream=collab`` is the product event history of shared runs (optionally one\n``runId``). Ascending by ``seq`` from ``afterSeq``; at most EXPORT_PAGE_MAX rows per\ncall; follow ``nextCursor`` while ``hasMore``. Each export is itself audited.",
+    "operationId": "export_audit_api_v1_audit_export_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "stream",
+      "required": false,
+      "schema": {
+       "default": "audit",
+       "title": "Stream",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "afterSeq",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "title": "Afterseq",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 200,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "runId",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Export Audit Api V1 Audit Export Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Export Audit"
+   }
+  },
   "/api/v1/auth/login": {
    "post": {
     "operationId": "login_api_v1_auth_login_post",
@@ -862,6 +1093,88 @@
      }
     },
     "summary": "Request Login"
+   }
+  },
+  "/api/v1/auth/sso/complete": {
+   "post": {
+    "description": "Swap the code, validate the ID token against JWKS, map to the member.",
+    "operationId": "sso_complete_api_v1_auth_sso_complete_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SsoCompleteBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Sso Complete Api V1 Auth Sso Complete Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Sso Complete"
+   }
+  },
+  "/api/v1/auth/sso/start": {
+   "post": {
+    "description": "Mint state/PKCE, persist hashes, build the authorization URL.\n\nUnknown/unconfigured/disabled teams answer 404 SSO_NOT_CONFIGURED so the\nUI falls back to plain OTP honestly \u2014 no probing oracle either way.",
+    "operationId": "sso_start_api_v1_auth_sso_start_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SsoStartBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Sso Start Api V1 Auth Sso Start Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Sso Start"
    }
   },
   "/api/v1/auth/verify-otp": {
@@ -988,7 +1301,7 @@
   },
   "/api/v1/invites/redeem": {
    "post": {
-    "description": "Any authed user redeems a token and joins the invited team with the\ninvited role. Atomic single-statement claim: expired/redeemed/unknown are\nrejected with honest codes; membership insert rides the same transaction.",
+    "description": "An authed user redeems a token into the invited team at the invited\nrole \u2014 M18-C5 (MAC2-F3): ONLY after presenting the invited ``email``.\n\nValidate-first, then atomic single-statement claim: the identity gate runs\nBEFORE any mutation, so a wrong/missing identity never consumes a live\ntoken (no DoS-by-forwarding, no poisoned audit trail). The claim itself\nkeeps the exact historical WHERE clause (expired/redeemed/unknown answer\nhonest codes; concurrent redemptions cannot double-join), and a lost race\nre-runs the diagnosis once so the caller hears the true reason.",
     "operationId": "redeem_invite_api_v1_invites_redeem_post",
     "requestBody": {
      "content": {
@@ -2005,6 +2318,129 @@
     "summary": "Put Reviewer Thresholds"
    }
   },
+  "/api/v1/teams/{team_id}/sso/config": {
+   "delete": {
+    "description": "Remove the config entirely; the team falls back to OTP. Idempotent.",
+    "operationId": "delete_sso_config_api_v1_teams__team_id__sso_config_delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Sso Config"
+   },
+   "get": {
+    "description": "Read the team's SSO config (any member; secret is hint-only).",
+    "operationId": "get_sso_config_api_v1_teams__team_id__sso_config_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Sso Config Api V1 Teams  Team Id  Sso Config Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Sso Config"
+   },
+   "put": {
+    "description": "Upsert the team's IdP configuration (admin + Team tier).\n\nThe client secret is Fernet-encrypted under the salted KDF before storage\nand never returned. Omitting clientSecret on an update keeps the stored one.",
+    "operationId": "put_sso_config_api_v1_teams__team_id__sso_config_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SsoConfigBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Put Sso Config Api V1 Teams  Team Id  Sso Config Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put Sso Config"
+   }
+  },
   "/api/v1/ws-ticket": {
    "post": {
     "description": "Mint a one-time, 30s, project-bound ticket so the WS upgrade never needs\na long-lived bearer token in a URL (H8). M15-W5-S2: the ticket is also\nbound to this client's fingerprint (UA + peer IP hash) and only upgrades\nfrom a request that reproduces it.",
@@ -2067,18 +2503,6 @@
   "/health": {
    "get": {
     "operationId": "health_health_get",
-    "parameters": [
-     {
-      "in": "query",
-      "name": "deep",
-      "required": false,
-      "schema": {
-       "default": 0,
-       "title": "Deep",
-       "type": "integer"
-      }
-     }
-    ],
     "responses": {
      "200": {
       "content": {
@@ -2087,19 +2511,25 @@
        }
       },
       "description": "Successful Response"
-     },
-     "422": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      },
-      "description": "Validation Error"
      }
     },
     "summary": "Health"
+   }
+  },
+  "/ready": {
+   "get": {
+    "operationId": "ready_ready_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Ready"
    }
   }
  }

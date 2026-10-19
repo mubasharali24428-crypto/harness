@@ -65,6 +65,14 @@ class GithubClient:
         _path = "/api/v1/github/connection"
         return self._http.request(self.base_url, "GET", _path)
 
+    def disconnect_github(self) -> dict[str, typing.Any]:
+        """Disconnect Github
+
+        POST /api/v1/github/disconnect
+        """
+        _path = "/api/v1/github/disconnect"
+        return self._http.request(self.base_url, "POST", _path)
+
     def oauth_callback(self, code: str | None = None, state: str | None = None) -> typing.Any:
         """Oauth Callback
 
@@ -180,6 +188,14 @@ class GithubClient:
         GET /health
         """
         _path = "/health"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def ready_ready_get(self) -> typing.Any:
+        """Ready
+
+        GET /ready
+        """
+        _path = "/ready"
         return self._http.request(self.base_url, "GET", _path)
 
 

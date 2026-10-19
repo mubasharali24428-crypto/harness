@@ -155,6 +155,27 @@
     "summary": "Connection Status"
    }
   },
+  "/api/v1/github/disconnect": {
+   "post": {
+    "description": "S1-R02f: revoke this user's stored GitHub OAuth token(s) at rest.\n\nDeletes every ``github_connections`` row for the caller so the harness can\nno longer act against GitHub on their behalf; the response reports exactly\nhow many rows were removed. Revoking the OAuth grant on GitHub's own side\nis a separate operator step (see S1-R02 note).",
+    "operationId": "disconnect_github_api_v1_github_disconnect_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Disconnect Github Api V1 Github Disconnect Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Disconnect Github"
+   }
+  },
   "/api/v1/github/oauth/callback": {
    "get": {
     "description": "No auth here \u2014 the browser returns from GitHub carrying our `state`,\nwhich is the CSRF binding back to the initiating user.",
@@ -768,6 +789,22 @@
      }
     },
     "summary": "Health"
+   }
+  },
+  "/ready": {
+   "get": {
+    "operationId": "ready_ready_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Ready"
    }
   }
  }
