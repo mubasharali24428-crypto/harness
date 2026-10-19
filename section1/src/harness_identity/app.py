@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from . import domain_metrics
+from . import domain_metrics, realtime_metrics
 from .audit import register_append_only_guard
 from .auth import get_principal, hash_token, issue_otp, login_or_register, verify_otp
 from .config import Settings
@@ -25,7 +25,18 @@ from .ephemeral import (
     mint_ws_ticket,
     redeem_ws_ticket,
 )
-from .eventbus import EventBus, ReplayPage
+from .eventbus import (
+    CLOSE_ACCESS_REVOKED,
+    CLOSE_OVERFLOW,
+    CLOSE_RATE_LIMITED,
+    COLLAB_SCHEMA_VERSION,
+    ConnectionGuard,
+    EventBus,
+    ReplayPage,
+    SocketPolicyClose,
+    principal_still_valid,
+    ws_revalidate_seconds,
+)
 from .limits import (
     LOGIN_EMAIL_MAX,
     LOGIN_TEAM_ID_MAX,
@@ -251,6 +262,11 @@ def make_app(session_factory, settings: Settings):
 
     app.include_router(sessions_router)
     app.include_router(agents_router)
+
+    # Session 5 (part 47): in-app notification inbox, preferences, mute, unsubscribe.
+    from .notifications import router as notifications_router
+
+    app.include_router(notifications_router)
 
     # M15-W5-S1 merge wiring: browser CSP violation collector (unauthed,
     # size-capped, allow-listed logging — see csp_report.py).
@@ -973,6 +989,39 @@ async def _ws_authenticate(
     return principal
 
 
+async def _still_allowed(websocket, principal, project_id: str, run_id: str | None = None) -> bool:
+    """Part 46.011: re-check an open socket's access. A store error keeps the socket (the
+    next tick tries again); only a definite "no" ends it."""
+    try:
+        return await principal_still_valid(
+            websocket.app.state.session_factory, principal, project_id, run_id
+        )
+    except Exception:  # noqa: BLE001 — availability over strictness, same posture as the limiter
+        logger.warning("ws access re-check failed; keeping the socket", exc_info=True)
+        return True
+
+
+def _revoked() -> SocketPolicyClose:
+    return SocketPolicyClose(CLOSE_ACCESS_REVOKED, "ACCESS_REVOKED", "access_revoked")
+
+
+async def _refuse_over_cap(websocket) -> None:
+    realtime_metrics.inc("harness_realtime_connections_total", "refused")
+    realtime_metrics.inc("harness_realtime_close_total", "rate_limited")
+    await websocket.close(code=CLOSE_RATE_LIMITED, reason="RATE_LIMITED")
+
+
+def _lag_seconds(ts: str) -> float | None:
+    """Seconds between an event's ``ts`` and now (None when the timestamp is unreadable)."""
+    try:
+        moment = datetime.fromisoformat(ts)
+    except (TypeError, ValueError):
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return max(0.0, (datetime.now(UTC) - moment).total_seconds())
+
+
 @router.websocket("/ws/{project_id}")
 async def project_ws(
     websocket: WebSocket, project_id: str, token: str = "", afterSeq: int = 0,
@@ -983,21 +1032,25 @@ async def project_ws(
         return
 
     bus: EventBus = websocket.app.state.event_bus
+    if not bus.open_connection(principal.userId):
+        await _refuse_over_cap(websocket)
+        return
     await websocket.accept()
+    realtime_metrics.inc(
+        "harness_realtime_connections_total", "resume" if int(afterSeq) > 0 else "connect"
+    )
 
     # Subscribe BEFORE replaying: live events published while we send history are
     # buffered in the queue instead of lost. Duplicates from the overlap window are
     # removed client-side by seq dedup (section7 mergeEvents).
     queue = await bus.subscribe(project_id)
-
-    async def _watch_disconnect() -> None:
-        # A silent client never triggers a send, so receiving here is the ONLY way
-        # to observe its disconnect. Racing this against queue.get() is what lets
-        # the handler release dead subscriptions instead of parking forever.
-        while True:
-            await websocket.receive()
-
-    watcher = asyncio.ensure_future(_watch_disconnect())
+    guard = ConnectionGuard(websocket)
+    # A silent client never triggers a send, so receiving is the ONLY way to observe its
+    # disconnect. Racing this against queue.get() is what lets the handler release dead
+    # subscriptions instead of parking forever.
+    watcher = asyncio.ensure_future(guard.watch())
+    getter: asyncio.Future | None = None
+    reason = "server_error"
     try:
         # M16-X3: capped, streamed replay. A huge reconnect gap sends the
         # NEWEST up-to-REPLAY_MAX_EVENTS batch; when the gap exceeded the cap
@@ -1007,40 +1060,69 @@ async def project_ws(
         last_seq = int(afterSeq)
         page: ReplayPage = await bus.replay_page(project_id, last_seq)
         for envelope in page.envelopes:
-            await websocket.send_json(envelope.model_dump())
+            await guard.send(envelope.model_dump(), throttle=False)
             last_seq = max(last_seq, envelope.seq)
         domain_metrics.inc("replayed", len(page.envelopes))
+        if int(afterSeq) > 0:
+            realtime_metrics.inc(
+                "harness_realtime_recovered_total", "resumed_events", len(page.envelopes)
+            )
         if page.truncated and page.oldest_seq_sent is not None:
-            await websocket.send_json(
+            realtime_metrics.inc("harness_realtime_recovered_total", "truncated_replay")
+            await guard.send(
                 {
                     "replayTruncated": True,
                     "oldestSeqSent": page.oldest_seq_sent,
                     "afterSeq": int(afterSeq),
-                }
+                },
+                throttle=False,
             )
+        recheck_every = ws_revalidate_seconds()
+        next_check = time.monotonic() + recheck_every
         while True:
-            getter = asyncio.ensure_future(queue.get())
+            if getter is None:
+                getter = asyncio.ensure_future(queue.get())
             done, _pending = await asyncio.wait(
-                {getter, watcher}, return_when=asyncio.FIRST_COMPLETED
+                {getter, watcher}, timeout=recheck_every, return_when=asyncio.FIRST_COMPLETED
             )
             if watcher in done:
                 # Client disconnected (or sent anything — clients are read-only).
-                getter.cancel()
+                if watcher.result() == "rate_limited":
+                    raise guard.rate_limited()
+                reason = "client"
                 break
+            if time.monotonic() >= next_check:
+                next_check = time.monotonic() + recheck_every
+                if not await _still_allowed(websocket, principal, project_id):
+                    raise _revoked()
+            if getter not in done:
+                continue
             envelope = getter.result()
+            getter = None
             # Overflow detection via bus-side flag ONLY. Never seq arithmetic:
             # agent_events.seq is table-global, so per-project jumps are normal
             # whenever other projects publish.
             if getattr(queue, "overflowed", False):
-                await websocket.close(code=1013)
+                reason = "slow_consumer"
+                await websocket.close(code=CLOSE_OVERFLOW)
                 break
-            await websocket.send_json(envelope.model_dump())
+            await guard.send(envelope.model_dump())
             domain_metrics.inc("delivered")
+            lag = _lag_seconds(envelope.ts)
+            if lag is not None:
+                realtime_metrics.observe_lag(lag)
             last_seq = envelope.seq
     except WebSocketDisconnect:
-        pass
+        reason = "client"
+    except SocketPolicyClose as stop:
+        reason = stop.metric
+        await guard.close(stop.code, stop.reason, stop.frame)
     finally:
         watcher.cancel()
+        if getter is not None:
+            getter.cancel()
+        bus.close_connection(principal.userId)
+        realtime_metrics.inc("harness_realtime_close_total", reason)
         await bus.unsubscribe(project_id, queue)
 
 
@@ -1061,18 +1143,21 @@ def _collab_poll_seconds() -> float:
 @router.websocket("/ws/{project_id}/runs/{run_id}/collab")
 async def run_collab_ws(
     websocket: WebSocket, project_id: str, run_id: str, token: str = "", afterSeq: int = 0,
-    ticket: str = "", fingerprint: str = "",
+    ticket: str = "", fingerprint: str = "", schemaVersion: int = 1, control: int = 0,
 ):
     """Server push of one run's collaboration events (roster, leader, handoff, redirect,
     approval) - the same admission as the project socket (ticket, fingerprint, team
     access), plus the run must belong to that project.
 
-    Protocol: frames are JSON ``{channel: "collab", seq, kind, actor, payload, ts, runId,
-    projectId}``. ``seq`` is the run's collaboration cursor: it only ever increases on one
-    connection, and a client resumes with ``?afterSeq=<last seq seen>`` (the catch-up is
-    replayed first, capped at REPLAY_MAX_EVENTS with a ``replayTruncated`` marker frame,
-    then live delivery follows). Clients de-duplicate by ``seq``. The HTTP endpoint
-    ``GET .../collab-history?after=`` stays available as the polling fallback.
+    Protocol (docs/realtime.md is the client contract): frames are JSON ``{channel: "collab",
+    seq, prevSeq, kind, actor, payload, ts, runId, projectId, teamId, schemaVersion}``. ``seq``
+    is the run's collaboration cursor: it only ever increases on one connection, and ``prevSeq``
+    names the previous visible event, so a client can prove nothing is missing. A client resumes
+    with ``?afterSeq=<last seq seen>`` (the catch-up is replayed first, capped at
+    REPLAY_MAX_EVENTS with a ``replayTruncated`` marker frame, then live delivery follows).
+    ``?schemaVersion=N`` declares the newest frame schema it understands; ``?control=1`` asks for a
+    ``ready`` control frame once the catch-up is complete. Clients de-duplicate by ``seq``. The HTTP
+    endpoint ``GET .../collab-history?after=`` stays available as the polling fallback.
     """
     principal = await _ws_authenticate(websocket, project_id, token, ticket, fingerprint)
     if principal is None:
@@ -1090,32 +1175,59 @@ async def run_collab_ws(
         return
 
     bus: EventBus = websocket.app.state.event_bus
+    if not bus.open_connection(principal.userId):
+        await _refuse_over_cap(websocket)
+        return
     team_id = principal.teamId
+    client_schema = max(1, int(schemaVersion))
+    start = max(0, int(afterSeq))
     await websocket.accept()
+    realtime_metrics.inc("harness_realtime_connections_total", "resume" if start > 0 else "connect")
     wake = bus.collab_waker(run_id)  # register BEFORE replaying: nothing falls in the gap
-
-    async def _watch_disconnect() -> None:
-        while True:
-            await websocket.receive()
-
-    watcher = asyncio.ensure_future(_watch_disconnect())
+    guard = ConnectionGuard(websocket)
+    watcher = asyncio.ensure_future(guard.watch())
+    reason = "server_error"
     try:
-        last_seq = max(0, int(afterSeq))
-        page = await bus.collab_replay_page(run_id, team_id, last_seq)
+        last_seq = start
+        page = await bus.collab_replay_page(
+            run_id, team_id, last_seq, client_schema, project_id=project_id
+        )
         for frame in page.frames:
-            await websocket.send_json(frame)
+            await guard.send(frame, throttle=False)
             last_seq = max(last_seq, frame["seq"])
         domain_metrics.inc("replayed", len(page.frames))
+        if start > 0:
+            realtime_metrics.inc(
+                "harness_realtime_recovered_total", "resumed_events", len(page.frames)
+            )
         if page.truncated and page.oldest_seq_sent is not None:
-            await websocket.send_json(
+            realtime_metrics.inc("harness_realtime_recovered_total", "truncated_replay")
+            await guard.send(
                 {
                     "channel": "collab",
                     "replayTruncated": True,
                     "oldestSeqSent": page.oldest_seq_sent,
-                    "afterSeq": max(0, int(afterSeq)),
-                }
+                    "afterSeq": start,
+                },
+                throttle=False,
+            )
+        if control:
+            head = await bus.collab_head(run_id, team_id)
+            await guard.send(
+                {
+                    "channel": "collab",
+                    "control": "ready",
+                    "afterSeq": start,
+                    "headSeq": head,
+                    "cursorAhead": start > head,
+                    "schemaVersion": COLLAB_SCHEMA_VERSION,
+                    "serverTime": datetime.now(UTC).isoformat(),
+                },
+                throttle=False,
             )
         poll = _collab_poll_seconds()
+        recheck_every = ws_revalidate_seconds()
+        next_check = time.monotonic() + recheck_every
         while True:
             waiter = asyncio.ensure_future(wake.wait())
             done, _pending = await asyncio.wait(
@@ -1123,31 +1235,51 @@ async def run_collab_ws(
             )
             if watcher in done:
                 waiter.cancel()
+                if watcher.result() == "rate_limited":
+                    raise guard.rate_limited()
+                reason = "client"
                 break
             woken = waiter in done
             if not woken:
                 waiter.cancel()
             wake.clear()
+            if time.monotonic() >= next_check:
+                next_check = time.monotonic() + recheck_every
+                if not await _still_allowed(websocket, principal, project_id, run_id):
+                    raise _revoked()
             sent = 0
             while True:  # drain everything past the cursor, in order
-                frames = await bus.collab_since(run_id, team_id, last_seq)
+                frames = await bus.collab_since(
+                    run_id, team_id, last_seq, client_schema=client_schema, project_id=project_id
+                )
                 for frame in frames:
                     if frame["seq"] <= last_seq:  # never move the cursor back or repeat
                         domain_metrics.inc("duplicate")
                         continue
-                    await websocket.send_json(frame)
+                    await guard.send(frame)
                     last_seq = frame["seq"]
                     sent += 1
                     domain_metrics.inc("delivered")
+                    lag = _lag_seconds(frame["ts"])
+                    if lag is not None:
+                        realtime_metrics.observe_lag(lag)
                 if len(frames) < 200:
                     break
             if woken and not sent:
                 domain_metrics.inc("duplicate")  # a wake-up for an event already delivered
+            if sent and not woken:
+                # the poll tick found events nobody announced: a lost NOTIFY (or SQLite)
+                realtime_metrics.inc("harness_realtime_recovered_total", "poll_recovered", sent)
     except WebSocketDisconnect:
-        pass
+        reason = "client"
+    except SocketPolicyClose as stop:
+        reason = stop.metric
+        await guard.close(stop.code, stop.reason, stop.frame)
     finally:
         watcher.cancel()
         bus.release_collab_waker(run_id, wake)
+        bus.close_connection(principal.userId)
+        realtime_metrics.inc("harness_realtime_close_total", reason)
 
 
 @router.get(

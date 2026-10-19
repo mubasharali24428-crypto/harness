@@ -195,7 +195,7 @@ async def test_connect_replays_history_in_order_then_resumes_from_a_cursor(world
     assert got[0]["projectId"] == "p1" and got[0]["actor"] == "u1"
     # the wire contract: stable, versioned fields (part 11.001/11.002)
     assert set(got[0]) == {
-        "channel", "seq", "kind", "actor", "payload", "ts", "runId", "projectId",
+        "channel", "seq", "prevSeq", "kind", "actor", "payload", "ts", "runId", "projectId",
         "teamId", "schemaVersion",
     }
     assert got[0]["teamId"] == "t1" and got[0]["schemaVersion"] == 1 and got[0]["ts"]
