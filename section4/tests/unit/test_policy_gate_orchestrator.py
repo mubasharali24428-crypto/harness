@@ -12,6 +12,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from harness_orchestrator import agent_tree, control, participation, presence
 from harness_orchestrator.api import router as run_router
 from harness_orchestrator.demo import router as demo_router
 from harness_orchestrator.plan_gate import router as plan_router
@@ -35,10 +36,11 @@ CREATE TABLE audit_log (seq INTEGER PRIMARY KEY AUTOINCREMENT, actor_member_id T
 
 def test_every_orchestrator_route_is_classified():
     app = FastAPI()
-    for r in (run_router, plan_router, index_router, demo_router):
+    for r in (run_router, plan_router, index_router, demo_router, presence.router,
+              participation.router, control.router, agent_tree.router):
         app.include_router(r)
     paths = app.openapi()["paths"]
-    assert len(paths) >= 25  # guard against a vacuous walk
+    assert len(paths) >= 60  # guard against a vacuous walk
     missing = [
         f"{m.upper()} {p}"
         for p, ops in paths.items()

@@ -245,6 +245,13 @@ def make_app(session_factory, settings: Settings):
     app.include_router(policy_router)
     app.include_router(workspaces_router)
 
+    # Session 4 (parts 40, 45): collaboration sessions and the agent registry.
+    from .agents import router as agents_router
+    from .sessions import router as sessions_router
+
+    app.include_router(sessions_router)
+    app.include_router(agents_router)
+
     # M15-W5-S1 merge wiring: browser CSP violation collector (unauthed,
     # size-capped, allow-listed logging — see csp_report.py).
     from .csp_report import router as csp_report_router

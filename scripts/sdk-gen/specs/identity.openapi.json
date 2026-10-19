@@ -157,76 +157,6 @@
     "title": "CheckBody",
     "type": "object"
    },
-   "CreateBody": {
-    "properties": {
-     "dataResidency": {
-      "anyOf": [
-       {
-        "maxLength": 16,
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Dataresidency"
-     },
-     "name": {
-      "maxLength": 200,
-      "title": "Name",
-      "type": "string"
-     },
-     "tags": {
-      "items": {
-       "type": "string"
-      },
-      "maxItems": 20,
-      "title": "Tags",
-      "type": "array"
-     },
-     "templateName": {
-      "anyOf": [
-       {
-        "maxLength": 80,
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Templatename"
-     },
-     "templateVersion": {
-      "anyOf": [
-       {
-        "minimum": 1.0,
-        "type": "integer"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Templateversion"
-     },
-     "visibility": {
-      "anyOf": [
-       {
-        "maxLength": 16,
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Visibility"
-     }
-    },
-    "required": [
-     "name"
-    ],
-    "title": "CreateBody",
-    "type": "object"
-   },
    "CreateProjectBody": {
     "properties": {
      "name": {
@@ -251,6 +181,134 @@
      "name"
     ],
     "title": "CreateProjectBody",
+    "type": "object"
+   },
+   "DefBody": {
+    "additionalProperties": false,
+    "properties": {
+     "allowedPaths": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 100,
+      "title": "Allowedpaths",
+      "type": "array"
+     },
+     "capabilities": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 60,
+      "title": "Capabilities",
+      "type": "array"
+     },
+     "credentialRefs": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 40,
+      "title": "Credentialrefs",
+      "type": "array"
+     },
+     "description": {
+      "default": "",
+      "maxLength": 500,
+      "title": "Description",
+      "type": "string"
+     },
+     "fallbackModel": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Fallbackmodel"
+     },
+     "maxBudgetUsd": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "type": "string"
+       }
+      ],
+      "default": "1",
+      "title": "Maxbudgetusd"
+     },
+     "maxChildren": {
+      "default": 3,
+      "maximum": 10.0,
+      "minimum": 0.0,
+      "title": "Maxchildren",
+      "type": "integer"
+     },
+     "maxDepth": {
+      "default": 1,
+      "maximum": 5.0,
+      "minimum": 0.0,
+      "title": "Maxdepth",
+      "type": "integer"
+     },
+     "model": {
+      "maxLength": 200,
+      "title": "Model",
+      "type": "string"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "networkAllow": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 40,
+      "title": "Networkallow",
+      "type": "array"
+     },
+     "permissions": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Permissions",
+      "type": "array"
+     },
+     "toolFallbacks": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "maxProperties": 50,
+      "title": "Toolfallbacks",
+      "type": "object"
+     },
+     "toolPermissions": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 100,
+      "title": "Toolpermissions",
+      "type": "array"
+     }
+    },
+    "required": [
+     "model"
+    ],
+    "title": "DefBody",
     "type": "object"
    },
    "DeleteBody": {
@@ -723,6 +781,32 @@
     "title": "LinkBody",
     "type": "object"
    },
+   "LinkRunBody": {
+    "properties": {
+     "parentRunId": {
+      "anyOf": [
+       {
+        "maxLength": 36,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Parentrunid"
+     },
+     "runId": {
+      "maxLength": 36,
+      "title": "Runid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "runId"
+    ],
+    "title": "LinkRunBody",
+    "type": "object"
+   },
    "LinkTeamBody": {
     "properties": {
      "teamId": {
@@ -772,18 +856,6 @@
      "email"
     ],
     "title": "LoginRequest",
-    "type": "object"
-   },
-   "MemberBody": {
-    "properties": {
-     "role": {
-      "default": "member",
-      "maxLength": 16,
-      "title": "Role",
-      "type": "string"
-     }
-    },
-    "title": "MemberBody",
     "type": "object"
    },
    "MemberItem": {
@@ -961,63 +1033,6 @@
      }
     },
     "title": "OrgPatchBody",
-    "type": "object"
-   },
-   "PatchBody": {
-    "properties": {
-     "dataResidency": {
-      "anyOf": [
-       {
-        "maxLength": 16,
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Dataresidency"
-     },
-     "name": {
-      "anyOf": [
-       {
-        "maxLength": 200,
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Name"
-     },
-     "tags": {
-      "anyOf": [
-       {
-        "items": {
-         "type": "string"
-        },
-        "maxItems": 20,
-        "type": "array"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Tags"
-     },
-     "visibility": {
-      "anyOf": [
-       {
-        "maxLength": 16,
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Visibility"
-     }
-    },
-    "title": "PatchBody",
     "type": "object"
    },
    "PlanUpdateBody": {
@@ -1253,24 +1268,6 @@
     "title": "ProjectOut",
     "type": "object"
    },
-   "ReasonBody": {
-    "properties": {
-     "reason": {
-      "anyOf": [
-       {
-        "maxLength": 500,
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Reason"
-     }
-    },
-    "title": "ReasonBody",
-    "type": "object"
-   },
    "RevertBody": {
     "properties": {
      "expectedVersion": {
@@ -1356,6 +1353,41 @@
      "rulesText"
     ],
     "title": "RulesBody",
+    "type": "object"
+   },
+   "SelectBody": {
+    "additionalProperties": false,
+    "properties": {
+     "capabilities": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 60,
+      "title": "Capabilities",
+      "type": "array"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "maxLength": 80,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "tools": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 100,
+      "title": "Tools",
+      "type": "array"
+     }
+    },
+    "title": "SelectBody",
     "type": "object"
    },
    "ServiceIdentityBody": {
@@ -1691,6 +1723,25 @@
     "title": "WsTicketResponse",
     "type": "object"
    },
+   "harness_identity__agents__ReasonBody": {
+    "additionalProperties": false,
+    "properties": {
+     "reason": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     }
+    },
+    "title": "ReasonBody",
+    "type": "object"
+   },
    "harness_identity__orgs__RoleBody": {
     "properties": {
      "guestDays": {
@@ -1733,6 +1784,398 @@
     ],
     "title": "RoleBody",
     "type": "object"
+   },
+   "harness_identity__sessions__CreateBody": {
+    "properties": {
+     "clientRequestId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Clientrequestid"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "maxLength": 1000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "retentionDays": {
+      "anyOf": [
+       {
+        "maximum": 365.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Retentiondays"
+     },
+     "templateName": {
+      "anyOf": [
+       {
+        "maxLength": 80,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Templatename"
+     },
+     "templateVersion": {
+      "anyOf": [
+       {
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Templateversion"
+     },
+     "title": {
+      "maxLength": 300,
+      "title": "Title",
+      "type": "string"
+     },
+     "workspaceId": {
+      "anyOf": [
+       {
+        "maxLength": 36,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Workspaceid"
+     }
+    },
+    "required": [
+     "title"
+    ],
+    "title": "CreateBody",
+    "type": "object"
+   },
+   "harness_identity__sessions__MemberBody": {
+    "properties": {
+     "agentId": {
+      "anyOf": [
+       {
+        "maxLength": 80,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Agentid"
+     },
+     "displayName": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Displayname"
+     },
+     "role": {
+      "default": "participant",
+      "maxLength": 16,
+      "title": "Role",
+      "type": "string"
+     },
+     "userId": {
+      "anyOf": [
+       {
+        "maxLength": 36,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Userid"
+     }
+    },
+    "title": "MemberBody",
+    "type": "object"
+   },
+   "harness_identity__sessions__PatchBody": {
+    "properties": {
+     "description": {
+      "anyOf": [
+       {
+        "maxLength": 1000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "expectedVersion": {
+      "anyOf": [
+       {
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expectedversion"
+     },
+     "leaderUserId": {
+      "anyOf": [
+       {
+        "maxLength": 36,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Leaderuserid"
+     },
+     "retentionDays": {
+      "anyOf": [
+       {
+        "maximum": 365.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Retentiondays"
+     },
+     "title": {
+      "anyOf": [
+       {
+        "maxLength": 300,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Title"
+     }
+    },
+    "title": "PatchBody",
+    "type": "object"
+   },
+   "harness_identity__sessions__ReasonBody": {
+    "properties": {
+     "reason": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     }
+    },
+    "title": "ReasonBody",
+    "type": "object"
+   },
+   "harness_identity__sessions__RoleBody": {
+    "properties": {
+     "role": {
+      "maxLength": 16,
+      "title": "Role",
+      "type": "string"
+     }
+    },
+    "required": [
+     "role"
+    ],
+    "title": "RoleBody",
+    "type": "object"
+   },
+   "harness_identity__workspaces__CreateBody": {
+    "properties": {
+     "dataResidency": {
+      "anyOf": [
+       {
+        "maxLength": 16,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Dataresidency"
+     },
+     "name": {
+      "maxLength": 200,
+      "title": "Name",
+      "type": "string"
+     },
+     "tags": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Tags",
+      "type": "array"
+     },
+     "templateName": {
+      "anyOf": [
+       {
+        "maxLength": 80,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Templatename"
+     },
+     "templateVersion": {
+      "anyOf": [
+       {
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Templateversion"
+     },
+     "visibility": {
+      "anyOf": [
+       {
+        "maxLength": 16,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Visibility"
+     }
+    },
+    "required": [
+     "name"
+    ],
+    "title": "CreateBody",
+    "type": "object"
+   },
+   "harness_identity__workspaces__MemberBody": {
+    "properties": {
+     "role": {
+      "default": "member",
+      "maxLength": 16,
+      "title": "Role",
+      "type": "string"
+     }
+    },
+    "title": "MemberBody",
+    "type": "object"
+   },
+   "harness_identity__workspaces__PatchBody": {
+    "properties": {
+     "dataResidency": {
+      "anyOf": [
+       {
+        "maxLength": 16,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Dataresidency"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "tags": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 20,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tags"
+     },
+     "visibility": {
+      "anyOf": [
+       {
+        "maxLength": 16,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Visibility"
+     }
+    },
+    "title": "PatchBody",
+    "type": "object"
+   },
+   "harness_identity__workspaces__ReasonBody": {
+    "properties": {
+     "reason": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     }
+    },
+    "title": "ReasonBody",
+    "type": "object"
    }
   }
  },
@@ -1742,6 +2185,340 @@
  },
  "openapi": "3.1.0",
  "paths": {
+  "/api/v1/agents": {
+   "get": {
+    "operationId": "list_agents_api_v1_agents_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "state",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "State"
+      }
+     },
+     {
+      "in": "query",
+      "name": "name",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 80,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Name"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Agents Api V1 Agents Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Agents"
+   },
+   "post": {
+    "operationId": "register_api_v1_agents_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DefBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Register Api V1 Agents Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Register"
+   }
+  },
+  "/api/v1/agents/select": {
+   "post": {
+    "description": "Approved agents (latest approved version per name) able to do a task.",
+    "operationId": "select_agents_api_v1_agents_select_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SelectBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Select Agents Api V1 Agents Select Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Select Agents"
+   }
+  },
+  "/api/v1/agents/{agent_id}": {
+   "get": {
+    "operationId": "get_agent_api_v1_agents__agent_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "agent_id",
+      "required": true,
+      "schema": {
+       "title": "Agent Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Agent Api V1 Agents  Agent Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Agent"
+   },
+   "put": {
+    "description": "Save a NEW version (state proposed) of the agent family; old versions are untouched.",
+    "operationId": "new_version_api_v1_agents__agent_id__put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "agent_id",
+      "required": true,
+      "schema": {
+       "title": "Agent Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DefBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response New Version Api V1 Agents  Agent Id  Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "New Version"
+   }
+  },
+  "/api/v1/agents/{agent_id}/approve": {
+   "post": {
+    "operationId": "approve_api_v1_agents__agent_id__approve_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "agent_id",
+      "required": true,
+      "schema": {
+       "title": "Agent Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Approve Api V1 Agents  Agent Id  Approve Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Approve"
+   }
+  },
+  "/api/v1/agents/{agent_id}/retire": {
+   "post": {
+    "operationId": "retire_api_v1_agents__agent_id__retire_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "agent_id",
+      "required": true,
+      "schema": {
+       "title": "Agent Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/harness_identity__agents__ReasonBody"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Retire Api V1 Agents  Agent Id  Retire Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Retire"
+   }
+  },
   "/api/v1/audit": {
    "get": {
     "description": "Admin-only, newest-first, bounded page of audit rows (team-scoped).\n\nScope rule: rows bound to the principal's team members, PLUS unbound\nrows (denials of non-members \u2014 the common denied case) whose ``detail``\nnames the principal's team. Rows of other teams are never returned.",
@@ -4177,6 +4954,1063 @@
     "summary": "Save Rules"
    }
   },
+  "/api/v1/sessions": {
+   "get": {
+    "operationId": "list_sessions_api_v1_sessions_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "q",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Q"
+      }
+     },
+     {
+      "in": "query",
+      "name": "state",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "State"
+      }
+     },
+     {
+      "in": "query",
+      "name": "workspaceId",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Workspaceid"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 25,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "cursor",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Cursor"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Sessions Api V1 Sessions Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Sessions"
+   },
+   "post": {
+    "operationId": "create_session_api_v1_sessions_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/harness_identity__sessions__CreateBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Session Api V1 Sessions Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Session"
+   }
+  },
+  "/api/v1/sessions/templates": {
+   "get": {
+    "operationId": "list_templates_api_v1_sessions_templates_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Templates Api V1 Sessions Templates Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "List Templates"
+   },
+   "post": {
+    "operationId": "save_template_api_v1_sessions_templates_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TemplateBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Save Template Api V1 Sessions Templates Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Save Template"
+   }
+  },
+  "/api/v1/sessions/{sid}": {
+   "get": {
+    "operationId": "get_session_api_v1_sessions__sid__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "sid",
+      "required": true,
+      "schema": {
+       "title": "Sid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Session Api V1 Sessions  Sid  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Session"
+   },
+   "patch": {
+    "operationId": "update_session_api_v1_sessions__sid__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "sid",
+      "required": true,
+      "schema": {
+       "title": "Sid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/harness_identity__sessions__PatchBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Update Session Api V1 Sessions  Sid  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Update Session"
+   }
+  },
+  "/api/v1/sessions/{sid}/apply-template": {
+   "post": {
+    "operationId": "apply_template_api_v1_sessions__sid__apply_template_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "sid",
+      "required": true,
+      "schema": {
+       "title": "Sid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ApplyBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Apply Template Api V1 Sessions  Sid  Apply Template Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Apply Template"
+   }
+  },
+  "/api/v1/sessions/{sid}/archive": {
+   "post": {
+    "operationId": "archive_session_api_v1_sessions__sid__archive_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "sid",
+      "required": true,
+      "schema": {
+       "title": "Sid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/harness_identity__sessions__ReasonBody"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Archive Session Api V1 Sessions  Sid  Archive Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Archive Session"
+   }
+  },
+  "/api/v1/sessions/{sid}/complete": {
+   "post": {
+    "operationId": "complete_session_api_v1_sessions__sid__complete_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "sid",
+      "required": true,
+      "schema": {
+       "title": "Sid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/harness_identity__sessions__ReasonBody"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Complete Session Api V1 Sessions  Sid  Complete Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Complete Session"
+   }
+  },
+  "/api/v1/sessions/{sid}/delete": {
+   "post": {
+    "operationId": "delete_session_api_v1_sessions__sid__delete_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "sid",
+      "required": true,
+      "schema": {
+       "title": "Sid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DeleteBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Delete Session Api V1 Sessions  Sid  Delete Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Session"
+   }
+  },
+  "/api/v1/sessions/{sid}/members": {
+   "get": {
+    "operationId": "list_members_api_v1_sessions__sid__members_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "sid",
+      "required": true,
+      "schema": {
+       "title": "Sid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Members Api V1 Sessions  Sid  Members Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Members"
+   },
+   "post": {
+    "operationId": "add_member_api_v1_sessions__sid__members_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "sid",
+      "required": true,
+      "schema": {
+       "title": "Sid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/harness_identity__sessions__MemberBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Add Member Api V1 Sessions  Sid  Members Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Add Member"
+   }
+  },
+  "/api/v1/sessions/{sid}/members/{ref}": {
+   "delete": {
+    "description": "Self-leave (status 'left') or manager removal (status 'removed'). Rows are kept.",
+    "operationId": "remove_member_api_v1_sessions__sid__members__ref__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "sid",
+      "required": true,
+      "schema": {
+       "title": "Sid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "ref",
+      "required": true,
+      "schema": {
+       "title": "Ref",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Remove Member"
+   },
+   "put": {
+    "operationId": "put_member_api_v1_sessions__sid__members__ref__put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "sid",
+      "required": true,
+      "schema": {
+       "title": "Sid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "ref",
+      "required": true,
+      "schema": {
+       "title": "Ref",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/harness_identity__sessions__RoleBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Put Member Api V1 Sessions  Sid  Members  Ref  Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put Member"
+   }
+  },
+  "/api/v1/sessions/{sid}/pause": {
+   "post": {
+    "operationId": "pause_session_api_v1_sessions__sid__pause_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "sid",
+      "required": true,
+      "schema": {
+       "title": "Sid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/harness_identity__sessions__ReasonBody"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Pause Session Api V1 Sessions  Sid  Pause Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Pause Session"
+   }
+  },
+  "/api/v1/sessions/{sid}/purge": {
+   "post": {
+    "description": "Admin only, after retention. Erases member rows and descriptive text, keeps a tombstone.\n\nRuns are never touched; the session_runs links stay so the run gate keeps refusing starts.",
+    "operationId": "purge_session_api_v1_sessions__sid__purge_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "sid",
+      "required": true,
+      "schema": {
+       "title": "Sid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Purge Session Api V1 Sessions  Sid  Purge Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Purge Session"
+   }
+  },
+  "/api/v1/sessions/{sid}/restore": {
+   "post": {
+    "operationId": "restore_session_api_v1_sessions__sid__restore_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "sid",
+      "required": true,
+      "schema": {
+       "title": "Sid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/harness_identity__sessions__ReasonBody"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Restore Session Api V1 Sessions  Sid  Restore Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Restore Session"
+   }
+  },
+  "/api/v1/sessions/{sid}/resume": {
+   "get": {
+    "description": "History + runs + roster + the caller's CURRENT effective permissions and policy.\n\nRead-only apart from one ``session.resumed`` audit row. To reopen a paused, completed\nor archived session use ``POST /restore``.",
+    "operationId": "resume_session_api_v1_sessions__sid__resume_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "sid",
+      "required": true,
+      "schema": {
+       "title": "Sid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 50,
+       "title": "Limit",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Resume Session Api V1 Sessions  Sid  Resume Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Resume Session"
+   }
+  },
+  "/api/v1/sessions/{sid}/runs": {
+   "get": {
+    "operationId": "list_runs_api_v1_sessions__sid__runs_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "sid",
+      "required": true,
+      "schema": {
+       "title": "Sid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Runs Api V1 Sessions  Sid  Runs Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Runs"
+   },
+   "post": {
+    "operationId": "link_run_api_v1_sessions__sid__runs_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "sid",
+      "required": true,
+      "schema": {
+       "title": "Sid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LinkRunBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Link Run Api V1 Sessions  Sid  Runs Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Link Run"
+   }
+  },
+  "/api/v1/sessions/{sid}/runs/{run_id}": {
+   "delete": {
+    "operationId": "unlink_run_api_v1_sessions__sid__runs__run_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "sid",
+      "required": true,
+      "schema": {
+       "title": "Sid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "run_id",
+      "required": true,
+      "schema": {
+       "title": "Run Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Unlink Run"
+   }
+  },
   "/api/v1/stepup/verify": {
    "post": {
     "description": "Pluggable: ``app.state.stepup_verifier`` (async (request, db, principal, code) -> bool)\noverrides the default OTP verifier (tests use a double).",
@@ -4989,7 +6823,7 @@
      "content": {
       "application/json": {
        "schema": {
-        "$ref": "#/components/schemas/CreateBody"
+        "$ref": "#/components/schemas/harness_identity__workspaces__CreateBody"
        }
       }
      },
@@ -5227,7 +7061,7 @@
      "content": {
       "application/json": {
        "schema": {
-        "$ref": "#/components/schemas/PatchBody"
+        "$ref": "#/components/schemas/harness_identity__workspaces__PatchBody"
        }
       }
      },
@@ -5331,7 +7165,7 @@
        "schema": {
         "anyOf": [
          {
-          "$ref": "#/components/schemas/ReasonBody"
+          "$ref": "#/components/schemas/harness_identity__workspaces__ReasonBody"
          },
          {
           "type": "null"
@@ -5658,7 +7492,7 @@
      "content": {
       "application/json": {
        "schema": {
-        "$ref": "#/components/schemas/MemberBody"
+        "$ref": "#/components/schemas/harness_identity__workspaces__MemberBody"
        }
       }
      },
@@ -5711,7 +7545,7 @@
        "schema": {
         "anyOf": [
          {
-          "$ref": "#/components/schemas/ReasonBody"
+          "$ref": "#/components/schemas/harness_identity__workspaces__ReasonBody"
          },
          {
           "type": "null"
@@ -5900,7 +7734,7 @@
        "schema": {
         "anyOf": [
          {
-          "$ref": "#/components/schemas/ReasonBody"
+          "$ref": "#/components/schemas/harness_identity__workspaces__ReasonBody"
          },
          {
           "type": "null"

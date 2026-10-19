@@ -450,6 +450,16 @@ def app_orchestrator():
 
     app.include_router(demo_router)
 
+    # Session 4 (parts 41, 42, 45): presence, participation, control leases, agent tree.
+    from harness_orchestrator import agent_tree, control, participation, presence
+
+    presence.configure_presence(service)
+    participation.configure_participation(service)
+    control.configure_control(service)
+    agent_tree.configure_agent_tree(service)
+    for _r in (presence.router, participation.router, control.router, agent_tree.router):
+        app.include_router(_r)
+
     # Part 38.005: org policy applies to every classified run/plan route of org-linked teams
     # (additive to authz.require_role; teams without an org are untouched).
     from harness_contracts.policy_enforce import ORCHESTRATOR_RULES, install_policy_gate

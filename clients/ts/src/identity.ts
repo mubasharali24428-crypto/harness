@@ -46,20 +46,28 @@ export interface CheckBody {
   userId?: string | null;  // optional
 }
 
-/** CreateBody. Required keys: name. */
-export interface CreateBody {
-  dataResidency?: string | null;  // optional
-  name: string;
-  tags?: string[];  // optional
-  templateName?: string | null;  // optional
-  templateVersion?: number | null;  // optional
-  visibility?: string | null;  // optional
-}
-
 /** CreateProjectBody. Required keys: name. */
 export interface CreateProjectBody {
   name: string;
   repoFullName?: string | null;  // optional
+}
+
+/** DefBody. Required keys: model. */
+export interface DefBody {
+  allowedPaths?: string[];  // optional
+  capabilities?: string[];  // optional
+  credentialRefs?: string[];  // optional
+  description?: string;  // optional
+  fallbackModel?: string | null;  // optional
+  maxBudgetUsd?: number | string;  // optional
+  maxChildren?: number;  // optional
+  maxDepth?: number;  // optional
+  model: string;
+  name?: string | null;  // optional
+  networkAllow?: string[];  // optional
+  permissions?: string[];  // optional
+  toolFallbacks?: { [key: string]: unknown };  // optional
+  toolPermissions?: string[];  // optional
 }
 
 /** DeleteBody. */
@@ -178,6 +186,12 @@ export interface LinkBody {
   projectId: string;
 }
 
+/** LinkRunBody. Required keys: runId. */
+export interface LinkRunBody {
+  parentRunId?: string | null;  // optional
+  runId: string;
+}
+
 /** LinkTeamBody. Required keys: teamId. */
 export interface LinkTeamBody {
   teamId: string;
@@ -188,11 +202,6 @@ export interface LoginRequest {
   email: string;
   teamId?: string | null;  // optional
   teamName?: string | null;  // optional
-}
-
-/** MemberBody. */
-export interface MemberBody {
-  role?: string;  // optional
 }
 
 /** MemberItem. Required keys: createdAt, id, role. */
@@ -232,14 +241,6 @@ export interface OrgPatchBody {
   name?: string | null;  // optional
   requireMfa?: boolean | null;  // optional
   requireSso?: boolean | null;  // optional
-}
-
-/** PatchBody. */
-export interface PatchBody {
-  dataResidency?: string | null;  // optional
-  name?: string | null;  // optional
-  tags?: string[] | null;  // optional
-  visibility?: string | null;  // optional
 }
 
 /** PlanUpdateBody. Required keys: plan. */
@@ -291,11 +292,6 @@ export interface ProjectOut {
   repoFullName?: string | null;  // optional
 }
 
-/** ReasonBody. */
-export interface ReasonBody {
-  reason?: string | null;  // optional
-}
-
 /** RevertBody. Required keys: toVersion. */
 export interface RevertBody {
   expectedVersion?: number | null;  // optional
@@ -314,6 +310,13 @@ export interface Rule {
 /** RulesBody. Required keys: rulesText. */
 export interface RulesBody {
   rulesText: string;
+}
+
+/** SelectBody. */
+export interface SelectBody {
+  capabilities?: string[];  // optional
+  name?: string | null;  // optional
+  tools?: string[];  // optional
 }
 
 /** ServiceIdentityBody. Required keys: name, scopes. */
@@ -401,6 +404,11 @@ export interface WsTicketResponse {
   ticket: string;
 }
 
+/** harness_identity__agents__ReasonBody. */
+export interface harness_identity__agents__ReasonBody {
+  reason?: string | null;  // optional
+}
+
 /** harness_identity__orgs__RoleBody. Required keys: role. */
 export interface harness_identity__orgs__RoleBody {
   guestDays?: number | null;  // optional
@@ -412,6 +420,72 @@ export interface harness_identity__policy__RoleBody {
   permissions: string[];
 }
 
+/** harness_identity__sessions__CreateBody. Required keys: title. */
+export interface harness_identity__sessions__CreateBody {
+  clientRequestId?: string | null;  // optional
+  description?: string | null;  // optional
+  retentionDays?: number | null;  // optional
+  templateName?: string | null;  // optional
+  templateVersion?: number | null;  // optional
+  title: string;
+  workspaceId?: string | null;  // optional
+}
+
+/** harness_identity__sessions__MemberBody. */
+export interface harness_identity__sessions__MemberBody {
+  agentId?: string | null;  // optional
+  displayName?: string | null;  // optional
+  role?: string;  // optional
+  userId?: string | null;  // optional
+}
+
+/** harness_identity__sessions__PatchBody. */
+export interface harness_identity__sessions__PatchBody {
+  description?: string | null;  // optional
+  expectedVersion?: number | null;  // optional
+  leaderUserId?: string | null;  // optional
+  retentionDays?: number | null;  // optional
+  title?: string | null;  // optional
+}
+
+/** harness_identity__sessions__ReasonBody. */
+export interface harness_identity__sessions__ReasonBody {
+  reason?: string | null;  // optional
+}
+
+/** harness_identity__sessions__RoleBody. Required keys: role. */
+export interface harness_identity__sessions__RoleBody {
+  role: string;
+}
+
+/** harness_identity__workspaces__CreateBody. Required keys: name. */
+export interface harness_identity__workspaces__CreateBody {
+  dataResidency?: string | null;  // optional
+  name: string;
+  tags?: string[];  // optional
+  templateName?: string | null;  // optional
+  templateVersion?: number | null;  // optional
+  visibility?: string | null;  // optional
+}
+
+/** harness_identity__workspaces__MemberBody. */
+export interface harness_identity__workspaces__MemberBody {
+  role?: string;  // optional
+}
+
+/** harness_identity__workspaces__PatchBody. */
+export interface harness_identity__workspaces__PatchBody {
+  dataResidency?: string | null;  // optional
+  name?: string | null;  // optional
+  tags?: string[] | null;  // optional
+  visibility?: string | null;  // optional
+}
+
+/** harness_identity__workspaces__ReasonBody. */
+export interface harness_identity__workspaces__ReasonBody {
+  reason?: string | null;  // optional
+}
+
 import { HarnessHttp } from "./runtime.js";
 
 
@@ -420,6 +494,56 @@ export class IdentityClient {
   /** @param http  shared transport; @param baseUrl resolved by Harness. */
   constructor(readonly http: HarnessHttp,
               public readonly baseUrl: string = "") {}
+
+  /** List Agents
+   *  GET /api/v1/agents */
+  list_agents(state?: string | null, name?: string | null): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/agents`;
+    const params: Record<string, unknown> = {"state": state, "name": name};
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** Register
+   *  POST /api/v1/agents */
+  register(body: DefBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/agents`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Select Agents
+   *  POST /api/v1/agents/select */
+  select_agents(body: SelectBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/agents/select`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Get Agent
+   *  GET /api/v1/agents/{agent_id} */
+  get_agent(agent_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/agents/${encodeURIComponent(agent_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** New Version
+   *  PUT /api/v1/agents/{agent_id} */
+  new_version(agent_id: string, body: DefBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/agents/${encodeURIComponent(agent_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
+  /** Approve
+   *  POST /api/v1/agents/{agent_id}/approve */
+  approve(agent_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/agents/${encodeURIComponent(agent_id)}/approve`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Retire
+   *  POST /api/v1/agents/{agent_id}/retire */
+  retire(agent_id: string, body?: harness_identity__agents__ReasonBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/agents/${encodeURIComponent(agent_id)}/retire`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
 
   /** List Audit
    *  GET /api/v1/audit */
@@ -806,6 +930,156 @@ export class IdentityClient {
     return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
   }
 
+  /** List Sessions
+   *  GET /api/v1/sessions */
+  list_sessions(q?: string | null, state?: string | null, workspace_id?: string | null, limit?: number, cursor?: string | null): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sessions`;
+    const params: Record<string, unknown> = {"q": q, "state": state, "workspaceId": workspace_id, "limit": limit, "cursor": cursor};
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** Create Session
+   *  POST /api/v1/sessions */
+  create_session(body: harness_identity__sessions__CreateBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sessions`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** List Templates
+   *  GET /api/v1/sessions/templates */
+  list_templates(): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sessions/templates`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Save Template
+   *  POST /api/v1/sessions/templates */
+  save_template(body: TemplateBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sessions/templates`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Get Session
+   *  GET /api/v1/sessions/{sid} */
+  get_session(sid: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sessions/${encodeURIComponent(sid)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Update Session
+   *  PATCH /api/v1/sessions/{sid} */
+  update_session(sid: string, body: harness_identity__sessions__PatchBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sessions/${encodeURIComponent(sid)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PATCH", body);
+  }
+
+  /** Apply Template
+   *  POST /api/v1/sessions/{sid}/apply-template */
+  apply_template(sid: string, body: ApplyBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sessions/${encodeURIComponent(sid)}/apply-template`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Archive Session
+   *  POST /api/v1/sessions/{sid}/archive */
+  archive_session(sid: string, body?: harness_identity__sessions__ReasonBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sessions/${encodeURIComponent(sid)}/archive`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Complete Session
+   *  POST /api/v1/sessions/{sid}/complete */
+  complete_session(sid: string, body?: harness_identity__sessions__ReasonBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sessions/${encodeURIComponent(sid)}/complete`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Delete Session
+   *  POST /api/v1/sessions/{sid}/delete */
+  delete_session(sid: string, body: DeleteBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sessions/${encodeURIComponent(sid)}/delete`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** List Members
+   *  GET /api/v1/sessions/{sid}/members */
+  list_members_2(sid: string, status?: string | null): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sessions/${encodeURIComponent(sid)}/members`;
+    const params: Record<string, unknown> = {"status": status};
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** Add Member
+   *  POST /api/v1/sessions/{sid}/members */
+  add_member(sid: string, body: harness_identity__sessions__MemberBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sessions/${encodeURIComponent(sid)}/members`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Put Member
+   *  PUT /api/v1/sessions/{sid}/members/{ref} */
+  put_member(sid: string, ref: string, body: harness_identity__sessions__RoleBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sessions/${encodeURIComponent(sid)}/members/${encodeURIComponent(ref)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
+  /** Remove Member
+   *  DELETE /api/v1/sessions/{sid}/members/{ref} */
+  remove_member_2(sid: string, ref: string): Promise<unknown> {
+    const _path = `/api/v1/sessions/${encodeURIComponent(sid)}/members/${encodeURIComponent(ref)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** Pause Session
+   *  POST /api/v1/sessions/{sid}/pause */
+  pause_session(sid: string, body?: harness_identity__sessions__ReasonBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sessions/${encodeURIComponent(sid)}/pause`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Purge Session
+   *  POST /api/v1/sessions/{sid}/purge */
+  purge_session(sid: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sessions/${encodeURIComponent(sid)}/purge`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Restore Session
+   *  POST /api/v1/sessions/{sid}/restore */
+  restore_session(sid: string, body?: harness_identity__sessions__ReasonBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sessions/${encodeURIComponent(sid)}/restore`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Resume Session
+   *  GET /api/v1/sessions/{sid}/resume */
+  resume_session(sid: string, limit?: number): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sessions/${encodeURIComponent(sid)}/resume`;
+    const params: Record<string, unknown> = {"limit": limit};
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** List Runs
+   *  GET /api/v1/sessions/{sid}/runs */
+  list_runs(sid: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sessions/${encodeURIComponent(sid)}/runs`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Link Run
+   *  POST /api/v1/sessions/{sid}/runs */
+  link_run(sid: string, body: LinkRunBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sessions/${encodeURIComponent(sid)}/runs`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Unlink Run
+   *  DELETE /api/v1/sessions/{sid}/runs/{run_id} */
+  unlink_run(sid: string, run_id: string): Promise<unknown> {
+    const _path = `/api/v1/sessions/${encodeURIComponent(sid)}/runs/${encodeURIComponent(run_id)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
   /** Stepup Verify
    *  POST /api/v1/stepup/verify */
   stepup_verify(body: StepUpBody): Promise<Record<string, unknown>> {
@@ -844,14 +1118,14 @@ export class IdentityClient {
 
   /** List Members
    *  GET /api/v1/teams/{team_id}/members */
-  list_members_2(team_id: string): Promise<MemberListResponse> {
+  list_members_3(team_id: string): Promise<MemberListResponse> {
     const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/members`;
     return this.http.request<MemberListResponse>(this.baseUrl, _path, "GET", undefined);
   }
 
   /** Remove Member
    *  DELETE /api/v1/teams/{team_id}/members/{user_id} */
-  remove_member_2(team_id: string, user_id: string): Promise<unknown> {
+  remove_member_3(team_id: string, user_id: string): Promise<unknown> {
     const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/members/${encodeURIComponent(user_id)}`;
     return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
   }
@@ -922,7 +1196,7 @@ export class IdentityClient {
 
   /** Create Workspace
    *  POST /api/v1/workspaces */
-  create_workspace(body: CreateBody): Promise<Record<string, unknown>> {
+  create_workspace(body: harness_identity__workspaces__CreateBody): Promise<Record<string, unknown>> {
     const _path = `/api/v1/workspaces`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
   }
@@ -950,14 +1224,14 @@ export class IdentityClient {
 
   /** List Templates
    *  GET /api/v1/workspaces/templates */
-  list_templates(): Promise<Record<string, unknown>> {
+  list_templates_2(): Promise<Record<string, unknown>> {
     const _path = `/api/v1/workspaces/templates`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
   }
 
   /** Save Template
    *  POST /api/v1/workspaces/templates */
-  save_template(body: TemplateBody): Promise<Record<string, unknown>> {
+  save_template_2(body: TemplateBody): Promise<Record<string, unknown>> {
     const _path = `/api/v1/workspaces/templates`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
   }
@@ -971,21 +1245,21 @@ export class IdentityClient {
 
   /** Update Workspace
    *  PATCH /api/v1/workspaces/{ws_id} */
-  update_workspace(ws_id: string, body: PatchBody): Promise<Record<string, unknown>> {
+  update_workspace(ws_id: string, body: harness_identity__workspaces__PatchBody): Promise<Record<string, unknown>> {
     const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PATCH", body);
   }
 
   /** Apply Template
    *  POST /api/v1/workspaces/{ws_id}/apply-template */
-  apply_template(ws_id: string, body: ApplyBody): Promise<Record<string, unknown>> {
+  apply_template_2(ws_id: string, body: ApplyBody): Promise<Record<string, unknown>> {
     const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/apply-template`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
   }
 
   /** Archive Workspace
    *  POST /api/v1/workspaces/{ws_id}/archive */
-  archive_workspace(ws_id: string, body?: ReasonBody): Promise<Record<string, unknown>> {
+  archive_workspace(ws_id: string, body?: harness_identity__workspaces__ReasonBody): Promise<Record<string, unknown>> {
     const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/archive`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
   }
@@ -1020,28 +1294,28 @@ export class IdentityClient {
 
   /** List Members
    *  GET /api/v1/workspaces/{ws_id}/members */
-  list_members_3(ws_id: string): Promise<Record<string, unknown>> {
+  list_members_4(ws_id: string): Promise<Record<string, unknown>> {
     const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/members`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
   }
 
   /** Put Member
    *  PUT /api/v1/workspaces/{ws_id}/members/{user_id} */
-  put_member(ws_id: string, user_id: string, body: MemberBody): Promise<Record<string, unknown>> {
+  put_member_2(ws_id: string, user_id: string, body: harness_identity__workspaces__MemberBody): Promise<Record<string, unknown>> {
     const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/members/${encodeURIComponent(user_id)}`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
   }
 
   /** Remove Member
    *  DELETE /api/v1/workspaces/{ws_id}/members/{user_id} */
-  remove_member_3(ws_id: string, user_id: string): Promise<unknown> {
+  remove_member_4(ws_id: string, user_id: string): Promise<unknown> {
     const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/members/${encodeURIComponent(user_id)}`;
     return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
   }
 
   /** Pause Workspace
    *  POST /api/v1/workspaces/{ws_id}/pause */
-  pause_workspace(ws_id: string, body?: ReasonBody): Promise<Record<string, unknown>> {
+  pause_workspace(ws_id: string, body?: harness_identity__workspaces__ReasonBody): Promise<Record<string, unknown>> {
     const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/pause`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
   }
@@ -1069,7 +1343,7 @@ export class IdentityClient {
 
   /** Restore Workspace
    *  POST /api/v1/workspaces/{ws_id}/restore */
-  restore_workspace(ws_id: string, body?: ReasonBody): Promise<Record<string, unknown>> {
+  restore_workspace(ws_id: string, body?: harness_identity__workspaces__ReasonBody): Promise<Record<string, unknown>> {
     const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/restore`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
   }
@@ -1133,8 +1407,8 @@ export class IdentityClient {
  * export interface/type BindingBody
  * export interface/type ChainNode
  * export interface/type CheckBody
- * export interface/type CreateBody
  * export interface/type CreateProjectBody
+ * export interface/type DefBody
  * export interface/type DeleteBody
  * export interface/type DocBody
  * export interface/type Draft
@@ -1152,16 +1426,15 @@ export class IdentityClient {
  * export interface/type KeyItemResponse
  * export interface/type KeyListResponse
  * export interface/type LinkBody
+ * export interface/type LinkRunBody
  * export interface/type LinkTeamBody
  * export interface/type LoginRequest
- * export interface/type MemberBody
  * export interface/type MemberItem
  * export interface/type MemberListResponse
  * export interface/type MemberRoleBody
  * export interface/type OkResponse
  * export interface/type OrgCreateBody
  * export interface/type OrgPatchBody
- * export interface/type PatchBody
  * export interface/type PlanUpdateBody
  * export interface/type PolicyDoc
  * export interface/type PreviewBody
@@ -1169,10 +1442,10 @@ export class IdentityClient {
  * export interface/type ProjectCreatedResponse
  * export interface/type ProjectListResponse
  * export interface/type ProjectOut
- * export interface/type ReasonBody
  * export interface/type RevertBody
  * export interface/type Rule
  * export interface/type RulesBody
+ * export interface/type SelectBody
  * export interface/type ServiceIdentityBody
  * export interface/type SessionResponse
  * export interface/type SettingsBody
@@ -1186,6 +1459,16 @@ export class IdentityClient {
  * export interface/type VerifyOtpRequest
  * export interface/type WsTicketRequest
  * export interface/type WsTicketResponse
+ * export interface/type harness_identity__agents__ReasonBody
  * export interface/type harness_identity__orgs__RoleBody
  * export interface/type harness_identity__policy__RoleBody
+ * export interface/type harness_identity__sessions__CreateBody
+ * export interface/type harness_identity__sessions__MemberBody
+ * export interface/type harness_identity__sessions__PatchBody
+ * export interface/type harness_identity__sessions__ReasonBody
+ * export interface/type harness_identity__sessions__RoleBody
+ * export interface/type harness_identity__workspaces__CreateBody
+ * export interface/type harness_identity__workspaces__MemberBody
+ * export interface/type harness_identity__workspaces__PatchBody
+ * export interface/type harness_identity__workspaces__ReasonBody
  */

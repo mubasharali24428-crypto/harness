@@ -45,6 +45,14 @@ export interface BudgetDegradedOut {
   warned?: boolean;  // optional
 }
 
+/** DecideBody. Required keys: decision. */
+export interface DecideBody {
+  decision: "grant" | "decline" | "cancel" | "accept" | "reject";
+  instructionId?: string | null;  // optional
+  reason?: string | null;  // optional
+  requestId?: string | null;  // optional
+}
+
 /** DemoSeedResponse. Required keys: planId, prId, projectId, projectName, runId, state. */
 export interface DemoSeedResponse {
   costUsd?: number | null;  // optional
@@ -96,10 +104,42 @@ export interface HandoffRequest {
   toUserId: string;
 }
 
+/** HeartbeatRequest. Required keys: deviceId. */
+export interface HeartbeatRequest {
+  deviceId: string;
+  state?: "online" | "idle";  // optional
+}
+
 /** HumanEditRequest. Required keys: content, path. */
 export interface HumanEditRequest {
   content: string;
   path: string;
+}
+
+/** IntentBody. Required keys: expectedVersion. */
+export interface IntentBody {
+  expectedVersion: number;
+  goal?: string | null;  // optional
+  permissions?: string[] | null;  // optional
+  requestId?: string | null;  // optional
+  scopePaths?: string[] | null;  // optional
+}
+
+/** LeaseBody. */
+export interface LeaseBody {
+  ttlSeconds?: number | null;  // optional
+}
+
+/** LeaveRequest. */
+export interface LeaveRequest {
+  deviceId?: string | null;  // optional
+}
+
+/** MergedIntent. */
+export interface MergedIntent {
+  goal?: string | null;  // optional
+  permissions?: string[] | null;  // optional
+  scopePaths?: string[] | null;  // optional
 }
 
 /** PlanActionRequest. Required keys: planId. */
@@ -145,6 +185,19 @@ export interface PlanRejectedResponse {
   status: string;
 }
 
+/** PrefsRequest. */
+export interface PrefsRequest {
+  muted?: boolean | null;  // optional
+  notify?: boolean | null;  // optional
+  sharePresence?: "everyone" | "team" | "nobody" | null;  // optional
+}
+
+/** ProgressBody. Required keys: percent. */
+export interface ProgressBody {
+  note?: string;  // optional
+  percent: number;
+}
+
 /** ProposePlanGateRequest. Required keys: goal. */
 export interface ProposePlanGateRequest {
   goal: string;
@@ -163,12 +216,30 @@ export interface ProposePlanResponse {
   runId: string;
 }
 
+/** ReasonBody. */
+export interface ReasonBody {
+  reason?: string | null;  // optional
+}
+
+/** ReassignBody. Required keys: agentId. */
+export interface ReassignBody {
+  agentId: string;
+  reason?: string | null;  // optional
+}
+
 /** RedirectRequest. Required keys: content. */
 export interface RedirectRequest {
   content: string;
   kind?: "guidance" | "scope_change" | "permission_change";  // optional
   reason?: string | null;  // optional
   requestId?: string | null;  // optional
+}
+
+/** ResolveBody. Required keys: expectedVersion, resolution. */
+export interface ResolveBody {
+  expectedVersion: number;
+  merged?: MergedIntent | null;  // optional
+  resolution: "keep_current" | "take_proposed" | "merge";
 }
 
 /** ReviewFindingsOut. Required keys: passed. */
@@ -180,6 +251,11 @@ export interface ReviewFindingsOut {
   passed: boolean;
   summary?: string;  // optional
   syntaxOk?: boolean;  // optional
+}
+
+/** RevokeBody. Required keys: reason. */
+export interface RevokeBody {
+  reason: string;
 }
 
 /** RunAggregateResponse. Required keys: runId, state. */
@@ -243,10 +319,54 @@ export interface RunsPage {
   nextCursor?: string | null;  // optional
 }
 
+/** ScopeBody. */
+export interface ScopeBody {
+  credentialRefs?: string[];  // optional
+  network?: string[];  // optional
+  paths?: string[];  // optional
+  permissions?: string[];  // optional
+  tools?: string[];  // optional
+}
+
+/** SettingsRequest. */
+export interface SettingsRequest {
+  maxParticipants?: number | null;  // optional
+  mode?: "full" | "limited" | "off" | null;  // optional
+  staleSeconds?: number | null;  // optional
+}
+
+/** SpawnBody. Required keys: agentId, title. */
+export interface SpawnBody {
+  agentId: string;
+  budgetUsd?: number | string;  // optional
+  parentAssignmentId?: string | null;  // optional
+  requestId?: string | null;  // optional
+  scope?: ScopeBody;  // optional
+  title: string;
+}
+
 /** StartRunResponse. Required keys: runId, state. */
 export interface StartRunResponse {
   runId: string;
   state: string;
+}
+
+/** ToolCallBody. Required keys: outcome, summary, tool. */
+export interface ToolCallBody {
+  costUsd?: number | string;  // optional
+  durationMs?: number | null;  // optional
+  finish?: "completed" | "failed" | null;  // optional
+  outcome: "ok" | "error" | "unavailable";
+  progress?: ProgressBody | null;  // optional
+  requestId?: string | null;  // optional
+  summary: string;
+  target?: string | null;  // optional
+  tool: string;
+}
+
+/** TransferBody. Required keys: toUserId. */
+export interface TransferBody {
+  toUserId: string;
 }
 
 /** UpgradeCtaOut. Required keys: cap, capField, tier, used. */
@@ -316,6 +436,20 @@ export class OrchestratorClient {
     return this.http.request<unknown>(this.baseUrl, _path, "POST", undefined);
   }
 
+  /** Get Settings
+   *  GET /api/v1/orchestrator/presence-settings */
+  get_settings(): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/presence-settings`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Put Settings
+   *  PUT /api/v1/orchestrator/presence-settings */
+  put_settings(body: SettingsRequest): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/presence-settings`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
   /** List Runs
    *  GET /api/v1/orchestrator/runs */
   list_runs(project_id?: string | null, status?: string | null, limit?: number, offset?: number | null, cursor?: string | null): Promise<RunsPage> {
@@ -329,6 +463,55 @@ export class OrchestratorClient {
   get_run(run_id: string): Promise<RunAggregateResponse> {
     const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}`;
     return this.http.request<RunAggregateResponse>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** List Agents
+   *  GET /api/v1/orchestrator/runs/{runId}/agents */
+  list_agents(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/agents`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Spawn
+   *  POST /api/v1/orchestrator/runs/{runId}/agents/spawn */
+  spawn(run_id: string, body: SpawnBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/agents/spawn`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Cancel
+   *  POST /api/v1/orchestrator/runs/{runId}/agents/{assignmentId}/cancel */
+  cancel(run_id: string, assignment_id: string, body?: ReasonBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/agents/${encodeURIComponent(assignment_id)}/cancel`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Pause
+   *  POST /api/v1/orchestrator/runs/{runId}/agents/{assignmentId}/pause */
+  pause(run_id: string, assignment_id: string, body?: ReasonBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/agents/${encodeURIComponent(assignment_id)}/pause`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Reassign
+   *  POST /api/v1/orchestrator/runs/{runId}/agents/{assignmentId}/reassign */
+  reassign(run_id: string, assignment_id: string, body: ReassignBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/agents/${encodeURIComponent(assignment_id)}/reassign`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Resume
+   *  POST /api/v1/orchestrator/runs/{runId}/agents/{assignmentId}/resume */
+  resume(run_id: string, assignment_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/agents/${encodeURIComponent(assignment_id)}/resume`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Record Tool Call
+   *  POST /api/v1/orchestrator/runs/{runId}/agents/{assignmentId}/tool-calls */
+  record_tool_call(run_id: string, assignment_id: string, body: ToolCallBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/agents/${encodeURIComponent(assignment_id)}/tool-calls`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
   }
 
   /** Collab Approval List
@@ -388,6 +571,62 @@ export class OrchestratorClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
   }
 
+  /** Control View
+   *  GET /api/v1/orchestrator/runs/{runId}/control */
+  control_view(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/control`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Control Acquire
+   *  POST /api/v1/orchestrator/runs/{runId}/control/acquire */
+  control_acquire(run_id: string, body?: LeaseBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/control/acquire`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Control Decide
+   *  POST /api/v1/orchestrator/runs/{runId}/control/decide */
+  control_decide(run_id: string, body: DecideBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/control/decide`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Control Release
+   *  POST /api/v1/orchestrator/runs/{runId}/control/release */
+  control_release(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/control/release`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Control Renew
+   *  POST /api/v1/orchestrator/runs/{runId}/control/renew */
+  control_renew(run_id: string, body?: LeaseBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/control/renew`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Control Request
+   *  POST /api/v1/orchestrator/runs/{runId}/control/request */
+  control_request(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/control/request`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Control Revoke
+   *  POST /api/v1/orchestrator/runs/{runId}/control/revoke */
+  control_revoke(run_id: string, body: RevokeBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/control/revoke`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Control Transfer
+   *  POST /api/v1/orchestrator/runs/{runId}/control/transfer */
+  control_transfer(run_id: string, body: TransferBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/control/transfer`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
   /** Signal Done
    *  POST /api/v1/orchestrator/runs/{runId}/done-signal */
   signal_done(run_id: string, body: DoneSignalRequest): Promise<DoneSignalResponse> {
@@ -423,6 +662,35 @@ export class OrchestratorClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
   }
 
+  /** Intent Get
+   *  GET /api/v1/orchestrator/runs/{runId}/intent */
+  intent_get(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/intent`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Intent Put
+   *  PUT /api/v1/orchestrator/runs/{runId}/intent */
+  intent_put(run_id: string, body: IntentBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/intent`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
+  /** Intent Conflicts
+   *  GET /api/v1/orchestrator/runs/{runId}/intent/conflicts */
+  intent_conflicts(run_id: string, state?: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/intent/conflicts`;
+    const params: Record<string, unknown> = {"state": state};
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** Intent Resolve
+   *  POST /api/v1/orchestrator/runs/{runId}/intent/conflicts/{conflictId}/resolve */
+  intent_resolve(run_id: string, conflict_id: string, body: ResolveBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/intent/conflicts/${encodeURIComponent(conflict_id)}/resolve`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
   /** Collab Join
    *  POST /api/v1/orchestrator/runs/{runId}/join */
   collab_join(run_id: string): Promise<Record<string, unknown>> {
@@ -442,6 +710,62 @@ export class OrchestratorClient {
   collab_roster(run_id: string): Promise<Record<string, unknown>> {
     const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/participants`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Leave
+   *  POST /api/v1/orchestrator/runs/{runId}/participation/leave */
+  leave(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/participation/leave`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Mute
+   *  POST /api/v1/orchestrator/runs/{runId}/participation/mute */
+  mute(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/participation/mute`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Observe
+   *  POST /api/v1/orchestrator/runs/{runId}/participation/observe */
+  observe(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/participation/observe`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Participate
+   *  POST /api/v1/orchestrator/runs/{runId}/participation/participate */
+  participate(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/participation/participate`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Get Prefs
+   *  GET /api/v1/orchestrator/runs/{runId}/participation/prefs */
+  get_prefs(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/participation/prefs`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Put Prefs
+   *  PUT /api/v1/orchestrator/runs/{runId}/participation/prefs */
+  put_prefs(run_id: string, body: PrefsRequest): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/participation/prefs`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
+  /** Rejoin
+   *  POST /api/v1/orchestrator/runs/{runId}/participation/rejoin */
+  rejoin(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/participation/rejoin`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Unmute
+   *  POST /api/v1/orchestrator/runs/{runId}/participation/unmute */
+  unmute(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/participation/unmute`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
   }
 
   /** Pause Agent
@@ -477,6 +801,27 @@ export class OrchestratorClient {
   reject_plan_2(run_id: string, body: PlanActionRequest): Promise<PlanDecisionResponse> {
     const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/plan/reject`;
     return this.http.request<PlanDecisionResponse>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Get Presence
+   *  GET /api/v1/orchestrator/runs/{runId}/presence */
+  get_presence(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/presence`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Heartbeat
+   *  POST /api/v1/orchestrator/runs/{runId}/presence/heartbeat */
+  heartbeat(run_id: string, body: HeartbeatRequest): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/presence/heartbeat`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Presence Leave
+   *  POST /api/v1/orchestrator/runs/{runId}/presence/leave */
+  presence_leave(run_id: string, body?: LeaveRequest): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/presence/leave`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
   }
 
   /** Collab Redirect
@@ -530,6 +875,7 @@ export class OrchestratorClient {
  * export interface/type ApprovalOutcome
  * export interface/type ApprovalRequest
  * export interface/type BudgetDegradedOut
+ * export interface/type DecideBody
  * export interface/type DemoSeedResponse
  * export interface/type DoneSignalRequest
  * export interface/type DoneSignalResponse
@@ -538,25 +884,41 @@ export class OrchestratorClient {
  * export interface/type HTTPValidationError
  * export interface/type HandoffDecision
  * export interface/type HandoffRequest
+ * export interface/type HeartbeatRequest
  * export interface/type HumanEditRequest
+ * export interface/type IntentBody
+ * export interface/type LeaseBody
+ * export interface/type LeaveRequest
+ * export interface/type MergedIntent
  * export interface/type PlanActionRequest
  * export interface/type PlanActionResponse
  * export interface/type PlanDecisionResponse
  * export interface/type PlanOut
  * export interface/type PlanProposedResponse
  * export interface/type PlanRejectedResponse
+ * export interface/type PrefsRequest
+ * export interface/type ProgressBody
  * export interface/type ProposePlanGateRequest
  * export interface/type ProposePlanRequest
  * export interface/type ProposePlanResponse
+ * export interface/type ReasonBody
+ * export interface/type ReassignBody
  * export interface/type RedirectRequest
+ * export interface/type ResolveBody
  * export interface/type ReviewFindingsOut
+ * export interface/type RevokeBody
  * export interface/type RunAggregateResponse
  * export interface/type RunIdStatusResponse
  * export interface/type RunItem
  * export interface/type RunStateResponse
  * export interface/type RunStatusResponse
  * export interface/type RunsPage
+ * export interface/type ScopeBody
+ * export interface/type SettingsRequest
+ * export interface/type SpawnBody
  * export interface/type StartRunResponse
+ * export interface/type ToolCallBody
+ * export interface/type TransferBody
  * export interface/type UpgradeCtaOut
  * export interface/type ValidationError
  * export interface/type _ErrorDetail

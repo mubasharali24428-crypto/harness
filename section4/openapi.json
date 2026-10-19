@@ -133,6 +133,62 @@
     "title": "BudgetDegradedOut",
     "type": "object"
    },
+   "DecideBody": {
+    "properties": {
+     "decision": {
+      "enum": [
+       "grant",
+       "decline",
+       "cancel",
+       "accept",
+       "reject"
+      ],
+      "title": "Decision",
+      "type": "string"
+     },
+     "instructionId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Instructionid"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     },
+     "requestId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Requestid"
+     }
+    },
+    "required": [
+     "decision"
+    ],
+    "title": "DecideBody",
+    "type": "object"
+   },
    "DemoSeedResponse": {
     "description": "Wire shape of POST /demo/seed (camelCase per api-conventions.md).",
     "properties": {
@@ -311,6 +367,31 @@
     "title": "HandoffRequest",
     "type": "object"
    },
+   "HeartbeatRequest": {
+    "properties": {
+     "deviceId": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Deviceid",
+      "type": "string"
+     },
+     "state": {
+      "default": "online",
+      "enum": [
+       "online",
+       "idle"
+      ],
+      "title": "State",
+      "type": "string"
+     }
+    },
+    "required": [
+     "deviceId"
+    ],
+    "title": "HeartbeatRequest",
+    "type": "object"
+   },
    "HumanEditRequest": {
     "properties": {
      "content": {
@@ -329,6 +410,161 @@
      "content"
     ],
     "title": "HumanEditRequest",
+    "type": "object"
+   },
+   "IntentBody": {
+    "properties": {
+     "expectedVersion": {
+      "minimum": 0.0,
+      "title": "Expectedversion",
+      "type": "integer"
+     },
+     "goal": {
+      "anyOf": [
+       {
+        "maxLength": 4000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Goal"
+     },
+     "permissions": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 50,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Permissions"
+     },
+     "requestId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Requestid"
+     },
+     "scopePaths": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 100,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Scopepaths"
+     }
+    },
+    "required": [
+     "expectedVersion"
+    ],
+    "title": "IntentBody",
+    "type": "object"
+   },
+   "LeaseBody": {
+    "properties": {
+     "ttlSeconds": {
+      "anyOf": [
+       {
+        "maximum": 3600.0,
+        "minimum": 30.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ttlseconds"
+     }
+    },
+    "title": "LeaseBody",
+    "type": "object"
+   },
+   "LeaveRequest": {
+    "properties": {
+     "deviceId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9_.:-]+$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Deviceid"
+     }
+    },
+    "title": "LeaveRequest",
+    "type": "object"
+   },
+   "MergedIntent": {
+    "properties": {
+     "goal": {
+      "anyOf": [
+       {
+        "maxLength": 4000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Goal"
+     },
+     "permissions": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 50,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Permissions"
+     },
+     "scopePaths": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 100,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Scopepaths"
+     }
+    },
+    "title": "MergedIntent",
     "type": "object"
    },
    "PlanActionRequest": {
@@ -491,6 +727,72 @@
     "title": "PlanRejectedResponse",
     "type": "object"
    },
+   "PrefsRequest": {
+    "properties": {
+     "muted": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Muted"
+     },
+     "notify": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Notify"
+     },
+     "sharePresence": {
+      "anyOf": [
+       {
+        "enum": [
+         "everyone",
+         "team",
+         "nobody"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Sharepresence"
+     }
+    },
+    "title": "PrefsRequest",
+    "type": "object"
+   },
+   "ProgressBody": {
+    "additionalProperties": false,
+    "properties": {
+     "note": {
+      "default": "",
+      "maxLength": 280,
+      "title": "Note",
+      "type": "string"
+     },
+     "percent": {
+      "maximum": 100.0,
+      "minimum": 0.0,
+      "title": "Percent",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "percent"
+    ],
+    "title": "ProgressBody",
+    "type": "object"
+   },
    "ProposePlanGateRequest": {
     "properties": {
      "goal": {
@@ -566,6 +868,52 @@
     "title": "ProposePlanResponse",
     "type": "object"
    },
+   "ReasonBody": {
+    "additionalProperties": false,
+    "properties": {
+     "reason": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     }
+    },
+    "title": "ReasonBody",
+    "type": "object"
+   },
+   "ReassignBody": {
+    "additionalProperties": false,
+    "properties": {
+     "agentId": {
+      "maxLength": 36,
+      "title": "Agentid",
+      "type": "string"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     }
+    },
+    "required": [
+     "agentId"
+    ],
+    "title": "ReassignBody",
+    "type": "object"
+   },
    "RedirectRequest": {
     "properties": {
      "content": {
@@ -612,6 +960,40 @@
      "content"
     ],
     "title": "RedirectRequest",
+    "type": "object"
+   },
+   "ResolveBody": {
+    "properties": {
+     "expectedVersion": {
+      "minimum": 0.0,
+      "title": "Expectedversion",
+      "type": "integer"
+     },
+     "merged": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/MergedIntent"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "resolution": {
+      "enum": [
+       "keep_current",
+       "take_proposed",
+       "merge"
+      ],
+      "title": "Resolution",
+      "type": "string"
+     }
+    },
+    "required": [
+     "resolution",
+     "expectedVersion"
+    ],
+    "title": "ResolveBody",
     "type": "object"
    },
    "ReviewFindingsOut": {
@@ -664,6 +1046,21 @@
      "passed"
     ],
     "title": "ReviewFindingsOut",
+    "type": "object"
+   },
+   "RevokeBody": {
+    "properties": {
+     "reason": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+     }
+    },
+    "required": [
+     "reason"
+    ],
+    "title": "RevokeBody",
     "type": "object"
    },
    "RunAggregateResponse": {
@@ -1016,6 +1413,165 @@
     "title": "RunsPage",
     "type": "object"
    },
+   "ScopeBody": {
+    "additionalProperties": false,
+    "properties": {
+     "credentialRefs": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 40,
+      "title": "Credentialrefs",
+      "type": "array"
+     },
+     "network": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 40,
+      "title": "Network",
+      "type": "array"
+     },
+     "paths": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 50,
+      "title": "Paths",
+      "type": "array"
+     },
+     "permissions": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Permissions",
+      "type": "array"
+     },
+     "tools": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 100,
+      "title": "Tools",
+      "type": "array"
+     }
+    },
+    "title": "ScopeBody",
+    "type": "object"
+   },
+   "SettingsRequest": {
+    "properties": {
+     "maxParticipants": {
+      "anyOf": [
+       {
+        "maximum": 200.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Maxparticipants"
+     },
+     "mode": {
+      "anyOf": [
+       {
+        "enum": [
+         "full",
+         "limited",
+         "off"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Mode"
+     },
+     "staleSeconds": {
+      "anyOf": [
+       {
+        "maximum": 3600.0,
+        "minimum": 15.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Staleseconds"
+     }
+    },
+    "title": "SettingsRequest",
+    "type": "object"
+   },
+   "SpawnBody": {
+    "additionalProperties": false,
+    "properties": {
+     "agentId": {
+      "maxLength": 36,
+      "title": "Agentid",
+      "type": "string"
+     },
+     "budgetUsd": {
+      "anyOf": [
+       {
+        "maximum": 1000.0,
+        "minimum": 0.0,
+        "type": "number"
+       },
+       {
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "type": "string"
+       }
+      ],
+      "default": "0",
+      "title": "Budgetusd"
+     },
+     "parentAssignmentId": {
+      "anyOf": [
+       {
+        "maxLength": 36,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Parentassignmentid"
+     },
+     "requestId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Requestid"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/ScopeBody"
+     },
+     "title": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "required": [
+     "agentId",
+     "title"
+    ],
+    "title": "SpawnBody",
+    "type": "object"
+   },
    "StartRunResponse": {
     "description": "200 body of /runs/{runId}/start (plan-gate variant returns state).",
     "properties": {
@@ -1033,6 +1589,131 @@
      "state"
     ],
     "title": "StartRunResponse",
+    "type": "object"
+   },
+   "ToolCallBody": {
+    "additionalProperties": false,
+    "description": "Summary and outcome only. ``extra=forbid`` rejects fields such as ``reasoning`` or\n``thoughts`` (422), so hidden reasoning has nowhere to be stored.",
+    "properties": {
+     "costUsd": {
+      "anyOf": [
+       {
+        "maximum": 1000.0,
+        "minimum": 0.0,
+        "type": "number"
+       },
+       {
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "type": "string"
+       }
+      ],
+      "default": "0",
+      "title": "Costusd"
+     },
+     "durationMs": {
+      "anyOf": [
+       {
+        "maximum": 3600000.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Durationms"
+     },
+     "finish": {
+      "anyOf": [
+       {
+        "enum": [
+         "completed",
+         "failed"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Finish"
+     },
+     "outcome": {
+      "enum": [
+       "ok",
+       "error",
+       "unavailable"
+      ],
+      "title": "Outcome",
+      "type": "string"
+     },
+     "progress": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ProgressBody"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "requestId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Requestid"
+     },
+     "summary": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Summary",
+      "type": "string"
+     },
+     "target": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Target"
+     },
+     "tool": {
+      "maxLength": 80,
+      "title": "Tool",
+      "type": "string"
+     }
+    },
+    "required": [
+     "tool",
+     "summary",
+     "outcome"
+    ],
+    "title": "ToolCallBody",
+    "type": "object"
+   },
+   "TransferBody": {
+    "properties": {
+     "toUserId": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Touserid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "toUserId"
+    ],
+    "title": "TransferBody",
     "type": "object"
    },
    "UpgradeCtaOut": {
@@ -1396,6 +2077,71 @@
     ]
    }
   },
+  "/api/v1/orchestrator/presence-settings": {
+   "get": {
+    "operationId": "get_settings_api_v1_orchestrator_presence_settings_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Settings Api V1 Orchestrator Presence Settings Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Get Settings",
+    "tags": [
+     "presence"
+    ]
+   },
+   "put": {
+    "description": "Team admins only. Fields not sent keep their current value. Turning presence ``off``\ndeletes the team's stored presence rows. Lowering the cap never evicts anyone.",
+    "operationId": "put_settings_api_v1_orchestrator_presence_settings_put",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SettingsRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Put Settings Api V1 Orchestrator Presence Settings Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put Settings",
+    "tags": [
+     "presence"
+    ]
+   }
+  },
   "/api/v1/orchestrator/runs": {
    "get": {
     "description": "List the caller's team's runs, newest first (contract M10-C2).\n\nCursor pagination per api-conventions.md: pass ``nextCursor`` back as\n``?cursor=`` for the next page. ``?offset=`` is accepted but IGNORED\nduring the one-release deprecation window (M14-W4 F3a).",
@@ -1554,6 +2300,424 @@
     "summary": "Get Run",
     "tags": [
      "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/agents": {
+   "get": {
+    "operationId": "list_agents_api_v1_orchestrator_runs__runId__agents_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Agents Api V1 Orchestrator Runs  Runid  Agents Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Agents",
+    "tags": [
+     "agents"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/agents/spawn": {
+   "post": {
+    "operationId": "spawn_api_v1_orchestrator_runs__runId__agents_spawn_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SpawnBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Spawn Api V1 Orchestrator Runs  Runid  Agents Spawn Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Spawn",
+    "tags": [
+     "agents"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/agents/{assignmentId}/cancel": {
+   "post": {
+    "operationId": "cancel_api_v1_orchestrator_runs__runId__agents__assignmentId__cancel_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "assignmentId",
+      "required": true,
+      "schema": {
+       "title": "Assignmentid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/ReasonBody"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Cancel Api V1 Orchestrator Runs  Runid  Agents  Assignmentid  Cancel Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Cancel",
+    "tags": [
+     "agents"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/agents/{assignmentId}/pause": {
+   "post": {
+    "operationId": "pause_api_v1_orchestrator_runs__runId__agents__assignmentId__pause_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "assignmentId",
+      "required": true,
+      "schema": {
+       "title": "Assignmentid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/ReasonBody"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Pause Api V1 Orchestrator Runs  Runid  Agents  Assignmentid  Pause Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Pause",
+    "tags": [
+     "agents"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/agents/{assignmentId}/reassign": {
+   "post": {
+    "description": "Hand the assignment to another APPROVED agent; scope and limits never grow.",
+    "operationId": "reassign_api_v1_orchestrator_runs__runId__agents__assignmentId__reassign_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "assignmentId",
+      "required": true,
+      "schema": {
+       "title": "Assignmentid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ReassignBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Reassign Api V1 Orchestrator Runs  Runid  Agents  Assignmentid  Reassign Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Reassign",
+    "tags": [
+     "agents"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/agents/{assignmentId}/resume": {
+   "post": {
+    "operationId": "resume_api_v1_orchestrator_runs__runId__agents__assignmentId__resume_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "assignmentId",
+      "required": true,
+      "schema": {
+       "title": "Assignmentid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Resume Api V1 Orchestrator Runs  Runid  Agents  Assignmentid  Resume Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Resume",
+    "tags": [
+     "agents"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/agents/{assignmentId}/tool-calls": {
+   "post": {
+    "operationId": "record_tool_call_api_v1_orchestrator_runs__runId__agents__assignmentId__tool_calls_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "assignmentId",
+      "required": true,
+      "schema": {
+       "title": "Assignmentid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ToolCallBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Record Tool Call Api V1 Orchestrator Runs  Runid  Agents  Assignmentid  Tool Calls Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Record Tool Call",
+    "tags": [
+     "agents"
     ]
    }
   },
@@ -2033,6 +3197,422 @@
     ]
    }
   },
+  "/api/v1/orchestrator/runs/{runId}/control": {
+   "get": {
+    "operationId": "control_view_api_v1_orchestrator_runs__runId__control_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Control View Api V1 Orchestrator Runs  Runid  Control Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Control View",
+    "tags": [
+     "control"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/control/acquire": {
+   "post": {
+    "operationId": "control_acquire_api_v1_orchestrator_runs__runId__control_acquire_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/LeaseBody"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Control Acquire Api V1 Orchestrator Runs  Runid  Control Acquire Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Control Acquire",
+    "tags": [
+     "control"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/control/decide": {
+   "post": {
+    "operationId": "control_decide_api_v1_orchestrator_runs__runId__control_decide_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DecideBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Control Decide Api V1 Orchestrator Runs  Runid  Control Decide Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Control Decide",
+    "tags": [
+     "control"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/control/release": {
+   "post": {
+    "operationId": "control_release_api_v1_orchestrator_runs__runId__control_release_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Control Release Api V1 Orchestrator Runs  Runid  Control Release Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Control Release",
+    "tags": [
+     "control"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/control/renew": {
+   "post": {
+    "operationId": "control_renew_api_v1_orchestrator_runs__runId__control_renew_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/LeaseBody"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Control Renew Api V1 Orchestrator Runs  Runid  Control Renew Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Control Renew",
+    "tags": [
+     "control"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/control/request": {
+   "post": {
+    "operationId": "control_request_api_v1_orchestrator_runs__runId__control_request_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Control Request Api V1 Orchestrator Runs  Runid  Control Request Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Control Request",
+    "tags": [
+     "control"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/control/revoke": {
+   "post": {
+    "operationId": "control_revoke_api_v1_orchestrator_runs__runId__control_revoke_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RevokeBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Control Revoke Api V1 Orchestrator Runs  Runid  Control Revoke Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Control Revoke",
+    "tags": [
+     "control"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/control/transfer": {
+   "post": {
+    "operationId": "control_transfer_api_v1_orchestrator_runs__runId__control_transfer_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TransferBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Control Transfer Api V1 Orchestrator Runs  Runid  Control Transfer Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Control Transfer",
+    "tags": [
+     "control"
+    ]
+   }
+  },
   "/api/v1/orchestrator/runs/{runId}/done-signal": {
    "post": {
     "operationId": "signal_done_api_v1_orchestrator_runs__runId__done_signal_post",
@@ -2342,6 +3922,219 @@
     ]
    }
   },
+  "/api/v1/orchestrator/runs/{runId}/intent": {
+   "get": {
+    "operationId": "intent_get_api_v1_orchestrator_runs__runId__intent_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Intent Get Api V1 Orchestrator Runs  Runid  Intent Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Intent Get",
+    "tags": [
+     "control"
+    ]
+   },
+   "put": {
+    "operationId": "intent_put_api_v1_orchestrator_runs__runId__intent_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/IntentBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Intent Put Api V1 Orchestrator Runs  Runid  Intent Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Intent Put",
+    "tags": [
+     "control"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/intent/conflicts": {
+   "get": {
+    "operationId": "intent_conflicts_api_v1_orchestrator_runs__runId__intent_conflicts_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "state",
+      "required": false,
+      "schema": {
+       "default": "open",
+       "title": "State",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Intent Conflicts Api V1 Orchestrator Runs  Runid  Intent Conflicts Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Intent Conflicts",
+    "tags": [
+     "control"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/intent/conflicts/{conflictId}/resolve": {
+   "post": {
+    "operationId": "intent_resolve_api_v1_orchestrator_runs__runId__intent_conflicts__conflictId__resolve_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "conflictId",
+      "required": true,
+      "schema": {
+       "title": "Conflictid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ResolveBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Intent Resolve Api V1 Orchestrator Runs  Runid  Intent Conflicts  Conflictid  Resolve Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Intent Resolve",
+    "tags": [
+     "control"
+    ]
+   }
+  },
   "/api/v1/orchestrator/runs/{runId}/join": {
    "post": {
     "operationId": "collab_join_api_v1_orchestrator_runs__runId__join_post",
@@ -2471,6 +4264,369 @@
     "summary": "Collab Roster",
     "tags": [
      "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/participation/leave": {
+   "post": {
+    "operationId": "leave_api_v1_orchestrator_runs__runId__participation_leave_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Leave Api V1 Orchestrator Runs  Runid  Participation Leave Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Leave",
+    "tags": [
+     "participation"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/participation/mute": {
+   "post": {
+    "operationId": "mute_api_v1_orchestrator_runs__runId__participation_mute_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Mute Api V1 Orchestrator Runs  Runid  Participation Mute Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Mute",
+    "tags": [
+     "participation"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/participation/observe": {
+   "post": {
+    "description": "Watch without taking part: participant -> observer.",
+    "operationId": "observe_api_v1_orchestrator_runs__runId__participation_observe_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Observe Api V1 Orchestrator Runs  Runid  Participation Observe Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Observe",
+    "tags": [
+     "participation"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/participation/participate": {
+   "post": {
+    "description": "Take part again: observer -> participant. Viewers and guests stay observers.",
+    "operationId": "participate_api_v1_orchestrator_runs__runId__participation_participate_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Participate Api V1 Orchestrator Runs  Runid  Participation Participate Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Participate",
+    "tags": [
+     "participation"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/participation/prefs": {
+   "get": {
+    "operationId": "get_prefs_api_v1_orchestrator_runs__runId__participation_prefs_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Prefs Api V1 Orchestrator Runs  Runid  Participation Prefs Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Prefs",
+    "tags": [
+     "participation"
+    ]
+   },
+   "put": {
+    "operationId": "put_prefs_api_v1_orchestrator_runs__runId__participation_prefs_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PrefsRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Put Prefs Api V1 Orchestrator Runs  Runid  Participation Prefs Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put Prefs",
+    "tags": [
+     "participation"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/participation/rejoin": {
+   "post": {
+    "description": "(Re)join the roster as observer (viewer/guest) or participant. Subject to the cap.",
+    "operationId": "rejoin_api_v1_orchestrator_runs__runId__participation_rejoin_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Rejoin Api V1 Orchestrator Runs  Runid  Participation Rejoin Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Rejoin",
+    "tags": [
+     "participation"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/participation/unmute": {
+   "post": {
+    "operationId": "unmute_api_v1_orchestrator_runs__runId__participation_unmute_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Unmute Api V1 Orchestrator Runs  Runid  Participation Unmute Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Unmute",
+    "tags": [
+     "participation"
     ]
    }
   },
@@ -2778,6 +4934,166 @@
     "summary": "Reject Plan",
     "tags": [
      "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/presence": {
+   "get": {
+    "operationId": "get_presence_api_v1_orchestrator_runs__runId__presence_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Presence Api V1 Orchestrator Runs  Runid  Presence Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Presence",
+    "tags": [
+     "presence"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/presence/heartbeat": {
+   "post": {
+    "operationId": "heartbeat_api_v1_orchestrator_runs__runId__presence_heartbeat_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/HeartbeatRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Heartbeat Api V1 Orchestrator Runs  Runid  Presence Heartbeat Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Heartbeat",
+    "tags": [
+     "presence"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/presence/leave": {
+   "post": {
+    "description": "Go offline now: expire this device (or all of yours). Idempotent. Roster membership\nis untouched, see ``participation/leave`` for that.",
+    "operationId": "presence_leave_api_v1_orchestrator_runs__runId__presence_leave_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/LeaveRequest"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Req"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Presence Leave Api V1 Orchestrator Runs  Runid  Presence Leave Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Presence Leave",
+    "tags": [
+     "presence"
     ]
    }
   },

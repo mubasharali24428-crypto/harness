@@ -51,19 +51,27 @@ class CheckBody(typing.TypedDict, total=False):
     permission: str  # required
     userId: str | None
 
-class CreateBody(typing.TypedDict, total=False):
-    """CreateBody. Required keys: name."""
-    dataResidency: str | None
-    name: str  # required
-    tags: list[str]
-    templateName: str | None
-    templateVersion: int | None
-    visibility: str | None
-
 class CreateProjectBody(typing.TypedDict, total=False):
     """CreateProjectBody. Required keys: name."""
     name: str  # required
     repoFullName: str | None
+
+class DefBody(typing.TypedDict, total=False):
+    """DefBody. Required keys: model."""
+    allowedPaths: list[str]
+    capabilities: list[str]
+    credentialRefs: list[str]
+    description: str
+    fallbackModel: str | None
+    maxBudgetUsd: float | str
+    maxChildren: int
+    maxDepth: int
+    model: str  # required
+    name: str | None
+    networkAllow: list[str]
+    permissions: list[str]
+    toolFallbacks: dict[str, typing.Any]
+    toolPermissions: list[str]
 
 class DeleteBody(typing.TypedDict, total=False):
     """DeleteBody."""
@@ -164,6 +172,11 @@ class LinkBody(typing.TypedDict, total=False):
     """LinkBody. Required keys: projectId."""
     projectId: str  # required
 
+class LinkRunBody(typing.TypedDict, total=False):
+    """LinkRunBody. Required keys: runId."""
+    parentRunId: str | None
+    runId: str  # required
+
 class LinkTeamBody(typing.TypedDict, total=False):
     """LinkTeamBody. Required keys: teamId."""
     teamId: str  # required
@@ -173,10 +186,6 @@ class LoginRequest(typing.TypedDict, total=False):
     email: str  # required
     teamId: str | None
     teamName: str | None
-
-class MemberBody(typing.TypedDict, total=False):
-    """MemberBody."""
-    role: str
 
 class MemberItem(typing.TypedDict, total=False):
     """MemberItem. Required keys: id, role, createdAt."""
@@ -210,13 +219,6 @@ class OrgPatchBody(typing.TypedDict, total=False):
     name: str | None
     requireMfa: bool | None
     requireSso: bool | None
-
-class PatchBody(typing.TypedDict, total=False):
-    """PatchBody."""
-    dataResidency: str | None
-    name: str | None
-    tags: list[str] | None
-    visibility: str | None
 
 class PlanUpdateBody(typing.TypedDict, total=False):
     """PlanUpdateBody. Required keys: plan."""
@@ -260,10 +262,6 @@ class ProjectOut(typing.TypedDict, total=False):
     name: str  # required
     repoFullName: str | None
 
-class ReasonBody(typing.TypedDict, total=False):
-    """ReasonBody."""
-    reason: str | None
-
 class RevertBody(typing.TypedDict, total=False):
     """RevertBody. Required keys: toVersion."""
     expectedVersion: int | None
@@ -280,6 +278,12 @@ class Rule(typing.TypedDict, total=False):
 class RulesBody(typing.TypedDict, total=False):
     """RulesBody. Required keys: rulesText."""
     rulesText: str  # required
+
+class SelectBody(typing.TypedDict, total=False):
+    """SelectBody."""
+    capabilities: list[str]
+    name: str | None
+    tools: list[str]
 
 class ServiceIdentityBody(typing.TypedDict, total=False):
     """ServiceIdentityBody. Required keys: name, scopes."""
@@ -353,6 +357,10 @@ class WsTicketResponse(typing.TypedDict, total=False):
     fingerprint: str  # required
     ticket: str  # required
 
+class harness_identity__agents__ReasonBody(typing.TypedDict, total=False):
+    """harness_identity__agents__ReasonBody."""
+    reason: str | None
+
 class harness_identity__orgs__RoleBody(typing.TypedDict, total=False):
     """harness_identity__orgs__RoleBody. Required keys: role."""
     guestDays: int | None
@@ -362,6 +370,63 @@ class harness_identity__policy__RoleBody(typing.TypedDict, total=False):
     """harness_identity__policy__RoleBody. Required keys: permissions."""
     permissions: list[str]  # required
 
+class harness_identity__sessions__CreateBody(typing.TypedDict, total=False):
+    """harness_identity__sessions__CreateBody. Required keys: title."""
+    clientRequestId: str | None
+    description: str | None
+    retentionDays: int | None
+    templateName: str | None
+    templateVersion: int | None
+    title: str  # required
+    workspaceId: str | None
+
+class harness_identity__sessions__MemberBody(typing.TypedDict, total=False):
+    """harness_identity__sessions__MemberBody."""
+    agentId: str | None
+    displayName: str | None
+    role: str
+    userId: str | None
+
+class harness_identity__sessions__PatchBody(typing.TypedDict, total=False):
+    """harness_identity__sessions__PatchBody."""
+    description: str | None
+    expectedVersion: int | None
+    leaderUserId: str | None
+    retentionDays: int | None
+    title: str | None
+
+class harness_identity__sessions__ReasonBody(typing.TypedDict, total=False):
+    """harness_identity__sessions__ReasonBody."""
+    reason: str | None
+
+class harness_identity__sessions__RoleBody(typing.TypedDict, total=False):
+    """harness_identity__sessions__RoleBody. Required keys: role."""
+    role: str  # required
+
+class harness_identity__workspaces__CreateBody(typing.TypedDict, total=False):
+    """harness_identity__workspaces__CreateBody. Required keys: name."""
+    dataResidency: str | None
+    name: str  # required
+    tags: list[str]
+    templateName: str | None
+    templateVersion: int | None
+    visibility: str | None
+
+class harness_identity__workspaces__MemberBody(typing.TypedDict, total=False):
+    """harness_identity__workspaces__MemberBody."""
+    role: str
+
+class harness_identity__workspaces__PatchBody(typing.TypedDict, total=False):
+    """harness_identity__workspaces__PatchBody."""
+    dataResidency: str | None
+    name: str | None
+    tags: list[str] | None
+    visibility: str | None
+
+class harness_identity__workspaces__ReasonBody(typing.TypedDict, total=False):
+    """harness_identity__workspaces__ReasonBody."""
+    reason: str | None
+
 class IdentityClient:
     """Client for the harness-identity service (default http://localhost:8001)."""
 
@@ -370,6 +435,63 @@ class IdentityClient:
         #: Service base URL; resolved by harness_sdk.client at construction.
         self.base_url = (base_url or "").rstrip("/")
 
+
+    def list_agents(self, state: str | None = None, name: str | None = None) -> dict[str, typing.Any]:
+        """List Agents
+
+        GET /api/v1/agents
+        """
+        _path = "/api/v1/agents"
+        _params: dict[str, typing.Any] = {"state": state, "name": name}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
+
+    def register(self, body: DefBody) -> dict[str, typing.Any]:
+        """Register
+
+        POST /api/v1/agents
+        """
+        _path = "/api/v1/agents"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def select_agents(self, body: SelectBody) -> dict[str, typing.Any]:
+        """Select Agents
+
+        POST /api/v1/agents/select
+        """
+        _path = "/api/v1/agents/select"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def get_agent(self, agent_id: str) -> dict[str, typing.Any]:
+        """Get Agent
+
+        GET /api/v1/agents/{agent_id}
+        """
+        _path = f"/api/v1/agents/{agent_id}"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def new_version(self, agent_id: str, body: DefBody) -> dict[str, typing.Any]:
+        """New Version
+
+        PUT /api/v1/agents/{agent_id}
+        """
+        _path = f"/api/v1/agents/{agent_id}"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
+
+    def approve(self, agent_id: str) -> dict[str, typing.Any]:
+        """Approve
+
+        POST /api/v1/agents/{agent_id}/approve
+        """
+        _path = f"/api/v1/agents/{agent_id}/approve"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def retire(self, agent_id: str, body: harness_identity__agents__ReasonBody | None = None) -> dict[str, typing.Any]:
+        """Retire
+
+        POST /api/v1/agents/{agent_id}/retire
+        """
+        _path = f"/api/v1/agents/{agent_id}/retire"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
 
     def list_audit(self, limit: int | None = None) -> dict[str, typing.Any]:
         """List Audit
@@ -810,6 +932,177 @@ class IdentityClient:
         _path = f"/api/v1/projects/{project_id}/rules"
         return self._http.request(self.base_url, "DELETE", _path)
 
+    def list_sessions(self, q: str | None = None, state: str | None = None, workspace_id: str | None = None, limit: int | None = None, cursor: str | None = None) -> dict[str, typing.Any]:
+        """List Sessions
+
+        GET /api/v1/sessions
+        """
+        _path = "/api/v1/sessions"
+        _params: dict[str, typing.Any] = {"q": q, "state": state, "workspaceId": workspace_id, "limit": limit, "cursor": cursor}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
+
+    def create_session(self, body: harness_identity__sessions__CreateBody) -> dict[str, typing.Any]:
+        """Create Session
+
+        POST /api/v1/sessions
+        """
+        _path = "/api/v1/sessions"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def list_templates(self) -> dict[str, typing.Any]:
+        """List Templates
+
+        GET /api/v1/sessions/templates
+        """
+        _path = "/api/v1/sessions/templates"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def save_template(self, body: TemplateBody) -> dict[str, typing.Any]:
+        """Save Template
+
+        POST /api/v1/sessions/templates
+        """
+        _path = "/api/v1/sessions/templates"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def get_session(self, sid: str) -> dict[str, typing.Any]:
+        """Get Session
+
+        GET /api/v1/sessions/{sid}
+        """
+        _path = f"/api/v1/sessions/{sid}"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def update_session(self, sid: str, body: harness_identity__sessions__PatchBody) -> dict[str, typing.Any]:
+        """Update Session
+
+        PATCH /api/v1/sessions/{sid}
+        """
+        _path = f"/api/v1/sessions/{sid}"
+        return self._http.request(self.base_url, "PATCH", _path, json_body=body)
+
+    def apply_template(self, sid: str, body: ApplyBody) -> dict[str, typing.Any]:
+        """Apply Template
+
+        POST /api/v1/sessions/{sid}/apply-template
+        """
+        _path = f"/api/v1/sessions/{sid}/apply-template"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def archive_session(self, sid: str, body: harness_identity__sessions__ReasonBody | None = None) -> dict[str, typing.Any]:
+        """Archive Session
+
+        POST /api/v1/sessions/{sid}/archive
+        """
+        _path = f"/api/v1/sessions/{sid}/archive"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def complete_session(self, sid: str, body: harness_identity__sessions__ReasonBody | None = None) -> dict[str, typing.Any]:
+        """Complete Session
+
+        POST /api/v1/sessions/{sid}/complete
+        """
+        _path = f"/api/v1/sessions/{sid}/complete"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def delete_session(self, sid: str, body: DeleteBody) -> dict[str, typing.Any]:
+        """Delete Session
+
+        POST /api/v1/sessions/{sid}/delete
+        """
+        _path = f"/api/v1/sessions/{sid}/delete"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def list_members_2(self, sid: str, status: str | None = None) -> dict[str, typing.Any]:
+        """List Members
+
+        GET /api/v1/sessions/{sid}/members
+        """
+        _path = f"/api/v1/sessions/{sid}/members"
+        _params: dict[str, typing.Any] = {"status": status}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
+
+    def add_member(self, sid: str, body: harness_identity__sessions__MemberBody) -> dict[str, typing.Any]:
+        """Add Member
+
+        POST /api/v1/sessions/{sid}/members
+        """
+        _path = f"/api/v1/sessions/{sid}/members"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def put_member(self, sid: str, ref: str, body: harness_identity__sessions__RoleBody) -> dict[str, typing.Any]:
+        """Put Member
+
+        PUT /api/v1/sessions/{sid}/members/{ref}
+        """
+        _path = f"/api/v1/sessions/{sid}/members/{ref}"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
+
+    def remove_member_2(self, sid: str, ref: str) -> typing.Any:
+        """Remove Member
+
+        DELETE /api/v1/sessions/{sid}/members/{ref}
+        """
+        _path = f"/api/v1/sessions/{sid}/members/{ref}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
+    def pause_session(self, sid: str, body: harness_identity__sessions__ReasonBody | None = None) -> dict[str, typing.Any]:
+        """Pause Session
+
+        POST /api/v1/sessions/{sid}/pause
+        """
+        _path = f"/api/v1/sessions/{sid}/pause"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def purge_session(self, sid: str) -> dict[str, typing.Any]:
+        """Purge Session
+
+        POST /api/v1/sessions/{sid}/purge
+        """
+        _path = f"/api/v1/sessions/{sid}/purge"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def restore_session(self, sid: str, body: harness_identity__sessions__ReasonBody | None = None) -> dict[str, typing.Any]:
+        """Restore Session
+
+        POST /api/v1/sessions/{sid}/restore
+        """
+        _path = f"/api/v1/sessions/{sid}/restore"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def resume_session(self, sid: str, limit: int | None = None) -> dict[str, typing.Any]:
+        """Resume Session
+
+        GET /api/v1/sessions/{sid}/resume
+        """
+        _path = f"/api/v1/sessions/{sid}/resume"
+        _params: dict[str, typing.Any] = {"limit": limit}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
+
+    def list_runs(self, sid: str) -> dict[str, typing.Any]:
+        """List Runs
+
+        GET /api/v1/sessions/{sid}/runs
+        """
+        _path = f"/api/v1/sessions/{sid}/runs"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def link_run(self, sid: str, body: LinkRunBody) -> dict[str, typing.Any]:
+        """Link Run
+
+        POST /api/v1/sessions/{sid}/runs
+        """
+        _path = f"/api/v1/sessions/{sid}/runs"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def unlink_run(self, sid: str, run_id: str) -> typing.Any:
+        """Unlink Run
+
+        DELETE /api/v1/sessions/{sid}/runs/{run_id}
+        """
+        _path = f"/api/v1/sessions/{sid}/runs/{run_id}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
     def stepup_verify(self, body: StepUpBody) -> dict[str, typing.Any]:
         """Stepup Verify
 
@@ -851,7 +1144,7 @@ class IdentityClient:
         _path = f"/api/v1/teams/{team_id}/invites/{invite_id}/resend"
         return self._http.request(self.base_url, "POST", _path)
 
-    def list_members_2(self, team_id: str) -> MemberListResponse:
+    def list_members_3(self, team_id: str) -> MemberListResponse:
         """List Members
 
         GET /api/v1/teams/{team_id}/members
@@ -859,7 +1152,7 @@ class IdentityClient:
         _path = f"/api/v1/teams/{team_id}/members"
         return self._http.request(self.base_url, "GET", _path)
 
-    def remove_member_2(self, team_id: str, user_id: str) -> typing.Any:
+    def remove_member_3(self, team_id: str, user_id: str) -> typing.Any:
         """Remove Member
 
         DELETE /api/v1/teams/{team_id}/members/{user_id}
@@ -940,7 +1233,7 @@ class IdentityClient:
         _params: dict[str, typing.Any] = {"q": q, "state": state, "template": template, "tag": tag, "limit": limit, "cursor": cursor}
         return self._http.request(self.base_url, "GET", _path, params=_params)
 
-    def create_workspace(self, body: CreateBody) -> dict[str, typing.Any]:
+    def create_workspace(self, body: harness_identity__workspaces__CreateBody) -> dict[str, typing.Any]:
         """Create Workspace
 
         POST /api/v1/workspaces
@@ -972,7 +1265,7 @@ class IdentityClient:
         _path = f"/api/v1/workspaces/allowlist/{entry_id}"
         return self._http.request(self.base_url, "DELETE", _path)
 
-    def list_templates(self) -> dict[str, typing.Any]:
+    def list_templates_2(self) -> dict[str, typing.Any]:
         """List Templates
 
         GET /api/v1/workspaces/templates
@@ -980,7 +1273,7 @@ class IdentityClient:
         _path = "/api/v1/workspaces/templates"
         return self._http.request(self.base_url, "GET", _path)
 
-    def save_template(self, body: TemplateBody) -> dict[str, typing.Any]:
+    def save_template_2(self, body: TemplateBody) -> dict[str, typing.Any]:
         """Save Template
 
         POST /api/v1/workspaces/templates
@@ -996,7 +1289,7 @@ class IdentityClient:
         _path = f"/api/v1/workspaces/{ws_id}"
         return self._http.request(self.base_url, "GET", _path)
 
-    def update_workspace(self, ws_id: str, body: PatchBody) -> dict[str, typing.Any]:
+    def update_workspace(self, ws_id: str, body: harness_identity__workspaces__PatchBody) -> dict[str, typing.Any]:
         """Update Workspace
 
         PATCH /api/v1/workspaces/{ws_id}
@@ -1004,7 +1297,7 @@ class IdentityClient:
         _path = f"/api/v1/workspaces/{ws_id}"
         return self._http.request(self.base_url, "PATCH", _path, json_body=body)
 
-    def apply_template(self, ws_id: str, body: ApplyBody) -> dict[str, typing.Any]:
+    def apply_template_2(self, ws_id: str, body: ApplyBody) -> dict[str, typing.Any]:
         """Apply Template
 
         POST /api/v1/workspaces/{ws_id}/apply-template
@@ -1012,7 +1305,7 @@ class IdentityClient:
         _path = f"/api/v1/workspaces/{ws_id}/apply-template"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
-    def archive_workspace(self, ws_id: str, body: ReasonBody | None = None) -> dict[str, typing.Any]:
+    def archive_workspace(self, ws_id: str, body: harness_identity__workspaces__ReasonBody | None = None) -> dict[str, typing.Any]:
         """Archive Workspace
 
         POST /api/v1/workspaces/{ws_id}/archive
@@ -1052,7 +1345,7 @@ class IdentityClient:
         _path = f"/api/v1/workspaces/{ws_id}/delete"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
-    def list_members_3(self, ws_id: str) -> dict[str, typing.Any]:
+    def list_members_4(self, ws_id: str) -> dict[str, typing.Any]:
         """List Members
 
         GET /api/v1/workspaces/{ws_id}/members
@@ -1060,7 +1353,7 @@ class IdentityClient:
         _path = f"/api/v1/workspaces/{ws_id}/members"
         return self._http.request(self.base_url, "GET", _path)
 
-    def put_member(self, ws_id: str, user_id: str, body: MemberBody) -> dict[str, typing.Any]:
+    def put_member_2(self, ws_id: str, user_id: str, body: harness_identity__workspaces__MemberBody) -> dict[str, typing.Any]:
         """Put Member
 
         PUT /api/v1/workspaces/{ws_id}/members/{user_id}
@@ -1068,7 +1361,7 @@ class IdentityClient:
         _path = f"/api/v1/workspaces/{ws_id}/members/{user_id}"
         return self._http.request(self.base_url, "PUT", _path, json_body=body)
 
-    def remove_member_3(self, ws_id: str, user_id: str) -> typing.Any:
+    def remove_member_4(self, ws_id: str, user_id: str) -> typing.Any:
         """Remove Member
 
         DELETE /api/v1/workspaces/{ws_id}/members/{user_id}
@@ -1076,7 +1369,7 @@ class IdentityClient:
         _path = f"/api/v1/workspaces/{ws_id}/members/{user_id}"
         return self._http.request(self.base_url, "DELETE", _path)
 
-    def pause_workspace(self, ws_id: str, body: ReasonBody | None = None) -> dict[str, typing.Any]:
+    def pause_workspace(self, ws_id: str, body: harness_identity__workspaces__ReasonBody | None = None) -> dict[str, typing.Any]:
         """Pause Workspace
 
         POST /api/v1/workspaces/{ws_id}/pause
@@ -1108,7 +1401,7 @@ class IdentityClient:
         _path = f"/api/v1/workspaces/{ws_id}/projects/{project_id}"
         return self._http.request(self.base_url, "DELETE", _path)
 
-    def restore_workspace(self, ws_id: str, body: ReasonBody | None = None) -> dict[str, typing.Any]:
+    def restore_workspace(self, ws_id: str, body: harness_identity__workspaces__ReasonBody | None = None) -> dict[str, typing.Any]:
         """Restore Workspace
 
         POST /api/v1/workspaces/{ws_id}/restore
@@ -1174,4 +1467,4 @@ class IdentityClient:
         return self._http.request(self.base_url, "GET", _path)
 
 
-__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AssignBody", "BindingBody", "ChainNode", "CheckBody", "CreateBody", "CreateProjectBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkTeamBody", "LoginRequest", "MemberBody", "MemberItem", "MemberListResponse", "MemberRoleBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "PatchBody", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "ReasonBody", "RevertBody", "Rule", "RulesBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "ValidationError", "VerifyOtpRequest", "WsTicketRequest", "WsTicketResponse", "harness_identity__orgs__RoleBody", "harness_identity__policy__RoleBody"]
+__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AssignBody", "BindingBody", "ChainNode", "CheckBody", "CreateProjectBody", "DefBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkRunBody", "LinkTeamBody", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "RevertBody", "Rule", "RulesBody", "SelectBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "ValidationError", "VerifyOtpRequest", "WsTicketRequest", "WsTicketResponse", "harness_identity__agents__ReasonBody", "harness_identity__orgs__RoleBody", "harness_identity__policy__RoleBody", "harness_identity__sessions__CreateBody", "harness_identity__sessions__MemberBody", "harness_identity__sessions__PatchBody", "harness_identity__sessions__ReasonBody", "harness_identity__sessions__RoleBody", "harness_identity__workspaces__CreateBody", "harness_identity__workspaces__MemberBody", "harness_identity__workspaces__PatchBody", "harness_identity__workspaces__ReasonBody"]

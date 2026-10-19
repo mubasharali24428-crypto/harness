@@ -97,6 +97,7 @@ APPEND_ONLY_ACTIONS = frozenset(
         "control.conflict_resolved",
         "control.instruction_queued",
         "control.instruction_rejected",
+        "intent.updated",
         "agent.registered",
         "agent.updated",
         "agent.approved",

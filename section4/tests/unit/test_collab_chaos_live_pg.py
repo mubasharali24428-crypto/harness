@@ -117,7 +117,8 @@ async def test_pending_approval_and_guidance_cursor_survive_restart(factory):
     await _join_all(factory, ["lead", "eng"])
     await collab.claim_leader(factory, _p("lead"), "r1")
     a = await collab.request_approval(factory, _p("eng"), "r1", "delete", ["a.py"], "rm", "-x")
-    await collab.redirect(factory, _p("eng"), "r1", "guidance", "use v2", None, None)
+    # the lease holder's guidance is recorded directly; a non-holder's is queued (part 42)
+    await collab.redirect(factory, _p("lead"), "r1", "guidance", "use v2", None, None)
     block, seq = await collab.guidance_since(factory, "r1", 0)
     assert "use v2" in block
     await collab.mark_guidance_delivered(factory, "r1", seq)  # jsonb insert on real PG

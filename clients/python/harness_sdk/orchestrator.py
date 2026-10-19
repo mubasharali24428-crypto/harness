@@ -50,6 +50,13 @@ class BudgetDegradedOut(typing.TypedDict, total=False):
     degraded: bool
     warned: bool
 
+class DecideBody(typing.TypedDict, total=False):
+    """DecideBody. Required keys: decision."""
+    decision: typing.Literal['grant', 'decline', 'cancel', 'accept', 'reject']  # required
+    instructionId: str | None
+    reason: str | None
+    requestId: str | None
+
 class DemoSeedResponse(typing.TypedDict, total=False):
     """DemoSeedResponse. Required keys: projectId, projectName, runId, state, planId, prId."""
     costUsd: float | None
@@ -93,10 +100,37 @@ class HandoffRequest(typing.TypedDict, total=False):
     """HandoffRequest. Required keys: toUserId."""
     toUserId: str  # required
 
+class HeartbeatRequest(typing.TypedDict, total=False):
+    """HeartbeatRequest. Required keys: deviceId."""
+    deviceId: str  # required
+    state: typing.Literal['online', 'idle']
+
 class HumanEditRequest(typing.TypedDict, total=False):
     """HumanEditRequest. Required keys: path, content."""
     content: str  # required
     path: str  # required
+
+class IntentBody(typing.TypedDict, total=False):
+    """IntentBody. Required keys: expectedVersion."""
+    expectedVersion: int  # required
+    goal: str | None
+    permissions: list[str] | None
+    requestId: str | None
+    scopePaths: list[str] | None
+
+class LeaseBody(typing.TypedDict, total=False):
+    """LeaseBody."""
+    ttlSeconds: int | None
+
+class LeaveRequest(typing.TypedDict, total=False):
+    """LeaveRequest."""
+    deviceId: str | None
+
+class MergedIntent(typing.TypedDict, total=False):
+    """MergedIntent."""
+    goal: str | None
+    permissions: list[str] | None
+    scopePaths: list[str] | None
 
 class PlanActionRequest(typing.TypedDict, total=False):
     """PlanActionRequest. Required keys: planId."""
@@ -135,6 +169,17 @@ class PlanRejectedResponse(typing.TypedDict, total=False):
     runId: str  # required
     status: str  # required
 
+class PrefsRequest(typing.TypedDict, total=False):
+    """PrefsRequest."""
+    muted: bool | None
+    notify: bool | None
+    sharePresence: typing.Literal['everyone', 'team', 'nobody'] | None
+
+class ProgressBody(typing.TypedDict, total=False):
+    """ProgressBody. Required keys: percent."""
+    note: str
+    percent: int  # required
+
 class ProposePlanGateRequest(typing.TypedDict, total=False):
     """ProposePlanGateRequest. Required keys: goal."""
     goal: str  # required
@@ -150,12 +195,27 @@ class ProposePlanResponse(typing.TypedDict, total=False):
     planId: str  # required
     runId: str  # required
 
+class ReasonBody(typing.TypedDict, total=False):
+    """ReasonBody."""
+    reason: str | None
+
+class ReassignBody(typing.TypedDict, total=False):
+    """ReassignBody. Required keys: agentId."""
+    agentId: str  # required
+    reason: str | None
+
 class RedirectRequest(typing.TypedDict, total=False):
     """RedirectRequest. Required keys: content."""
     content: str  # required
     kind: typing.Literal['guidance', 'scope_change', 'permission_change']
     reason: str | None
     requestId: str | None
+
+class ResolveBody(typing.TypedDict, total=False):
+    """ResolveBody. Required keys: resolution, expectedVersion."""
+    expectedVersion: int  # required
+    merged: MergedIntent | None
+    resolution: typing.Literal['keep_current', 'take_proposed', 'merge']  # required
 
 class ReviewFindingsOut(typing.TypedDict, total=False):
     """ReviewFindingsOut. Required keys: passed."""
@@ -166,6 +226,10 @@ class ReviewFindingsOut(typing.TypedDict, total=False):
     passed: bool  # required
     summary: str
     syntaxOk: bool
+
+class RevokeBody(typing.TypedDict, total=False):
+    """RevokeBody. Required keys: reason."""
+    reason: str  # required
 
 class RunAggregateResponse(typing.TypedDict, total=False):
     """RunAggregateResponse. Required keys: runId, state."""
@@ -222,10 +286,49 @@ class RunsPage(typing.TypedDict, total=False):
     items: list[RunItem]  # required
     nextCursor: str | None
 
+class ScopeBody(typing.TypedDict, total=False):
+    """ScopeBody."""
+    credentialRefs: list[str]
+    network: list[str]
+    paths: list[str]
+    permissions: list[str]
+    tools: list[str]
+
+class SettingsRequest(typing.TypedDict, total=False):
+    """SettingsRequest."""
+    maxParticipants: int | None
+    mode: typing.Literal['full', 'limited', 'off'] | None
+    staleSeconds: int | None
+
+class SpawnBody(typing.TypedDict, total=False):
+    """SpawnBody. Required keys: agentId, title."""
+    agentId: str  # required
+    budgetUsd: float | str
+    parentAssignmentId: str | None
+    requestId: str | None
+    scope: ScopeBody
+    title: str  # required
+
 class StartRunResponse(typing.TypedDict, total=False):
     """StartRunResponse. Required keys: runId, state."""
     runId: str  # required
     state: str  # required
+
+class ToolCallBody(typing.TypedDict, total=False):
+    """ToolCallBody. Required keys: tool, summary, outcome."""
+    costUsd: float | str
+    durationMs: int | None
+    finish: typing.Literal['completed', 'failed'] | None
+    outcome: typing.Literal['ok', 'error', 'unavailable']  # required
+    progress: ProgressBody | None
+    requestId: str | None
+    summary: str  # required
+    target: str | None
+    tool: str  # required
+
+class TransferBody(typing.TypedDict, total=False):
+    """TransferBody. Required keys: toUserId."""
+    toUserId: str  # required
 
 class UpgradeCtaOut(typing.TypedDict, total=False):
     """UpgradeCtaOut. Required keys: tier, cap, capField, used."""
@@ -294,6 +397,22 @@ class OrchestratorClient:
         _path = f"/api/v1/orchestrator/plans/{plan_id}/reject"
         return self._http.request(self.base_url, "POST", _path)
 
+    def get_settings(self) -> dict[str, typing.Any]:
+        """Get Settings
+
+        GET /api/v1/orchestrator/presence-settings
+        """
+        _path = "/api/v1/orchestrator/presence-settings"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def put_settings(self, body: SettingsRequest) -> dict[str, typing.Any]:
+        """Put Settings
+
+        PUT /api/v1/orchestrator/presence-settings
+        """
+        _path = "/api/v1/orchestrator/presence-settings"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
+
     def list_runs(self, project_id: str | None = None, status: str | None = None, limit: int | None = None, offset: int | None = None, cursor: str | None = None) -> RunsPage:
         """List Runs
 
@@ -310,6 +429,62 @@ class OrchestratorClient:
         """
         _path = f"/api/v1/orchestrator/runs/{run_id}"
         return self._http.request(self.base_url, "GET", _path)
+
+    def list_agents(self, run_id: str) -> dict[str, typing.Any]:
+        """List Agents
+
+        GET /api/v1/orchestrator/runs/{runId}/agents
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/agents"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def spawn(self, run_id: str, body: SpawnBody) -> dict[str, typing.Any]:
+        """Spawn
+
+        POST /api/v1/orchestrator/runs/{runId}/agents/spawn
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/agents/spawn"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def cancel(self, run_id: str, assignment_id: str, body: ReasonBody | None = None) -> dict[str, typing.Any]:
+        """Cancel
+
+        POST /api/v1/orchestrator/runs/{runId}/agents/{assignmentId}/cancel
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/agents/{assignment_id}/cancel"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def pause(self, run_id: str, assignment_id: str, body: ReasonBody | None = None) -> dict[str, typing.Any]:
+        """Pause
+
+        POST /api/v1/orchestrator/runs/{runId}/agents/{assignmentId}/pause
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/agents/{assignment_id}/pause"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def reassign(self, run_id: str, assignment_id: str, body: ReassignBody) -> dict[str, typing.Any]:
+        """Reassign
+
+        POST /api/v1/orchestrator/runs/{runId}/agents/{assignmentId}/reassign
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/agents/{assignment_id}/reassign"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def resume(self, run_id: str, assignment_id: str) -> dict[str, typing.Any]:
+        """Resume
+
+        POST /api/v1/orchestrator/runs/{runId}/agents/{assignmentId}/resume
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/agents/{assignment_id}/resume"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def record_tool_call(self, run_id: str, assignment_id: str, body: ToolCallBody) -> dict[str, typing.Any]:
+        """Record Tool Call
+
+        POST /api/v1/orchestrator/runs/{runId}/agents/{assignmentId}/tool-calls
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/agents/{assignment_id}/tool-calls"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
 
     def collab_approval_list(self, run_id: str) -> dict[str, typing.Any]:
         """Collab Approval List
@@ -376,6 +551,70 @@ class OrchestratorClient:
         _params: dict[str, typing.Any] = {"after": after, "limit": limit}
         return self._http.request(self.base_url, "GET", _path, params=_params)
 
+    def control_view(self, run_id: str) -> dict[str, typing.Any]:
+        """Control View
+
+        GET /api/v1/orchestrator/runs/{runId}/control
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/control"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def control_acquire(self, run_id: str, body: LeaseBody | None = None) -> dict[str, typing.Any]:
+        """Control Acquire
+
+        POST /api/v1/orchestrator/runs/{runId}/control/acquire
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/control/acquire"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def control_decide(self, run_id: str, body: DecideBody) -> dict[str, typing.Any]:
+        """Control Decide
+
+        POST /api/v1/orchestrator/runs/{runId}/control/decide
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/control/decide"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def control_release(self, run_id: str) -> dict[str, typing.Any]:
+        """Control Release
+
+        POST /api/v1/orchestrator/runs/{runId}/control/release
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/control/release"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def control_renew(self, run_id: str, body: LeaseBody | None = None) -> dict[str, typing.Any]:
+        """Control Renew
+
+        POST /api/v1/orchestrator/runs/{runId}/control/renew
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/control/renew"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def control_request(self, run_id: str) -> dict[str, typing.Any]:
+        """Control Request
+
+        POST /api/v1/orchestrator/runs/{runId}/control/request
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/control/request"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def control_revoke(self, run_id: str, body: RevokeBody) -> dict[str, typing.Any]:
+        """Control Revoke
+
+        POST /api/v1/orchestrator/runs/{runId}/control/revoke
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/control/revoke"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def control_transfer(self, run_id: str, body: TransferBody) -> dict[str, typing.Any]:
+        """Control Transfer
+
+        POST /api/v1/orchestrator/runs/{runId}/control/transfer
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/control/transfer"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
     def signal_done(self, run_id: str, body: DoneSignalRequest) -> DoneSignalResponse:
         """Signal Done
 
@@ -416,6 +655,39 @@ class OrchestratorClient:
         _path = f"/api/v1/orchestrator/runs/{run_id}/human-edit"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
+    def intent_get(self, run_id: str) -> dict[str, typing.Any]:
+        """Intent Get
+
+        GET /api/v1/orchestrator/runs/{runId}/intent
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/intent"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def intent_put(self, run_id: str, body: IntentBody) -> dict[str, typing.Any]:
+        """Intent Put
+
+        PUT /api/v1/orchestrator/runs/{runId}/intent
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/intent"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
+
+    def intent_conflicts(self, run_id: str, state: str | None = None) -> dict[str, typing.Any]:
+        """Intent Conflicts
+
+        GET /api/v1/orchestrator/runs/{runId}/intent/conflicts
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/intent/conflicts"
+        _params: dict[str, typing.Any] = {"state": state}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
+
+    def intent_resolve(self, run_id: str, conflict_id: str, body: ResolveBody) -> dict[str, typing.Any]:
+        """Intent Resolve
+
+        POST /api/v1/orchestrator/runs/{runId}/intent/conflicts/{conflictId}/resolve
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/intent/conflicts/{conflict_id}/resolve"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
     def collab_join(self, run_id: str) -> dict[str, typing.Any]:
         """Collab Join
 
@@ -439,6 +711,70 @@ class OrchestratorClient:
         """
         _path = f"/api/v1/orchestrator/runs/{run_id}/participants"
         return self._http.request(self.base_url, "GET", _path)
+
+    def leave(self, run_id: str) -> dict[str, typing.Any]:
+        """Leave
+
+        POST /api/v1/orchestrator/runs/{runId}/participation/leave
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/participation/leave"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def mute(self, run_id: str) -> dict[str, typing.Any]:
+        """Mute
+
+        POST /api/v1/orchestrator/runs/{runId}/participation/mute
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/participation/mute"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def observe(self, run_id: str) -> dict[str, typing.Any]:
+        """Observe
+
+        POST /api/v1/orchestrator/runs/{runId}/participation/observe
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/participation/observe"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def participate(self, run_id: str) -> dict[str, typing.Any]:
+        """Participate
+
+        POST /api/v1/orchestrator/runs/{runId}/participation/participate
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/participation/participate"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def get_prefs(self, run_id: str) -> dict[str, typing.Any]:
+        """Get Prefs
+
+        GET /api/v1/orchestrator/runs/{runId}/participation/prefs
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/participation/prefs"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def put_prefs(self, run_id: str, body: PrefsRequest) -> dict[str, typing.Any]:
+        """Put Prefs
+
+        PUT /api/v1/orchestrator/runs/{runId}/participation/prefs
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/participation/prefs"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
+
+    def rejoin(self, run_id: str) -> dict[str, typing.Any]:
+        """Rejoin
+
+        POST /api/v1/orchestrator/runs/{runId}/participation/rejoin
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/participation/rejoin"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def unmute(self, run_id: str) -> dict[str, typing.Any]:
+        """Unmute
+
+        POST /api/v1/orchestrator/runs/{runId}/participation/unmute
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/participation/unmute"
+        return self._http.request(self.base_url, "POST", _path)
 
     def pause_agent(self, run_id: str) -> RunIdStatusResponse:
         """Pause Agent
@@ -478,6 +814,30 @@ class OrchestratorClient:
         POST /api/v1/orchestrator/runs/{runId}/plan/reject
         """
         _path = f"/api/v1/orchestrator/runs/{run_id}/plan/reject"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def get_presence(self, run_id: str) -> dict[str, typing.Any]:
+        """Get Presence
+
+        GET /api/v1/orchestrator/runs/{runId}/presence
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/presence"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def heartbeat(self, run_id: str, body: HeartbeatRequest) -> dict[str, typing.Any]:
+        """Heartbeat
+
+        POST /api/v1/orchestrator/runs/{runId}/presence/heartbeat
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/presence/heartbeat"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def presence_leave(self, run_id: str, body: LeaveRequest | None = None) -> dict[str, typing.Any]:
+        """Presence Leave
+
+        POST /api/v1/orchestrator/runs/{runId}/presence/leave
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/presence/leave"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
     def collab_redirect(self, run_id: str, body: RedirectRequest) -> dict[str, typing.Any]:
@@ -529,4 +889,4 @@ class OrchestratorClient:
         return self._http.request(self.base_url, "POST", _path)
 
 
-__all__ = ["OrchestratorClient", "AggregateStepOut", "ApprovalDecision", "ApprovalDigest", "ApprovalOutcome", "ApprovalRequest", "BudgetDegradedOut", "DemoSeedResponse", "DoneSignalRequest", "DoneSignalResponse", "ErrorDetail", "ErrorEnvelope", "HTTPValidationError", "HandoffDecision", "HandoffRequest", "HumanEditRequest", "PlanActionRequest", "PlanActionResponse", "PlanDecisionResponse", "PlanOut", "PlanProposedResponse", "PlanRejectedResponse", "ProposePlanGateRequest", "ProposePlanRequest", "ProposePlanResponse", "RedirectRequest", "ReviewFindingsOut", "RunAggregateResponse", "RunIdStatusResponse", "RunItem", "RunStateResponse", "RunStatusResponse", "RunsPage", "StartRunResponse", "UpgradeCtaOut", "ValidationError", "_ErrorDetail", "_ErrorEnvelope"]
+__all__ = ["OrchestratorClient", "AggregateStepOut", "ApprovalDecision", "ApprovalDigest", "ApprovalOutcome", "ApprovalRequest", "BudgetDegradedOut", "DecideBody", "DemoSeedResponse", "DoneSignalRequest", "DoneSignalResponse", "ErrorDetail", "ErrorEnvelope", "HTTPValidationError", "HandoffDecision", "HandoffRequest", "HeartbeatRequest", "HumanEditRequest", "IntentBody", "LeaseBody", "LeaveRequest", "MergedIntent", "PlanActionRequest", "PlanActionResponse", "PlanDecisionResponse", "PlanOut", "PlanProposedResponse", "PlanRejectedResponse", "PrefsRequest", "ProgressBody", "ProposePlanGateRequest", "ProposePlanRequest", "ProposePlanResponse", "ReasonBody", "ReassignBody", "RedirectRequest", "ResolveBody", "ReviewFindingsOut", "RevokeBody", "RunAggregateResponse", "RunIdStatusResponse", "RunItem", "RunStateResponse", "RunStatusResponse", "RunsPage", "ScopeBody", "SettingsRequest", "SpawnBody", "StartRunResponse", "ToolCallBody", "TransferBody", "UpgradeCtaOut", "ValidationError", "_ErrorDetail", "_ErrorEnvelope"]
