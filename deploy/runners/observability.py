@@ -358,8 +358,12 @@ class RequestContextMiddleware:
             reset_request_id(token)
 
 
-def install_metrics_endpoint(app: "FastAPI") -> None:
+def install_metrics_endpoint(app: "FastAPI", extra=None) -> None:
     """Mount GET /metrics on an app (public like /health, no auth dependency).
+
+    ``extra``: optional zero-arg callable returning more Prometheus text (a
+    service's closed-label domain counters, e.g. harness_event_delivery_total);
+    appended after the HTTP series so ONE scrape of /metrics carries them.
 
     Root-level path on every service so ONE static prometheus.yml scrapes all
     backends uniformly. The orchestrator additionally keeps its legacy
@@ -369,8 +373,11 @@ def install_metrics_endpoint(app: "FastAPI") -> None:
 
     @app.get("/metrics", include_in_schema=False)
     async def metrics() -> Response:
+        body = METRICS.render()
+        if extra is not None:
+            body = body.rstrip("\n") + "\n" + extra()
         return Response(
-            content=METRICS.render(),
+            content=body,
             media_type="text/plain; version=0.0.4; charset=utf-8",
         )
 

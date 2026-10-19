@@ -217,20 +217,22 @@ harness_stale_running_claims > 0
 
 Defined in `alerts.yml`, group `harness-pilot`; they implement master prompt
 part 32 directive 007 (monitor failed approvals, cancellation, isolation,
-event delivery). All four read counters that session-2 lane A adds to the
-orchestrator. **Until the code emits them the expressions match no series and
-the alerts are silent; that is "no data", not "healthy"** - check
+event delivery). All four read closed-label counters defined in
+`section4/src/harness_orchestrator/domain_metrics.py` (event delivery also in
+`section1/.../domain_metrics.py`); every series is rendered at 0 from the first
+scrape. **No series at all means the service is not being scraped, not that it
+is healthy** - check
 `curl -s localhost:8004/metrics | grep -c '^harness_isolation_violation_total'`
-before relying on them. Counters only appear once incremented, so the
-isolation rule has an extra clause that fires on the first sample.
+before relying on them. A test (`test_alert_label_values_are_ones_the_code_emits`)
+fails if an alert matches a label value the code never emits.
 
-| Alert | Severity | Counter (lane A) | Fires when | First actions |
+| Alert | Severity | Counter | Fires when | First actions |
 |---|---|---|---|---|
 | HarnessApprovalDenialSpike | warning | `harness_approval_denied_total{reason}` | >10 denials in 10m | group by `reason`: stale digest = proposal changed under reviewers; self-approval/role = confusion about who approves; expired = TTL too short. Ask the operator what the team was doing. |
-| HarnessRunCancelFailure | warning | `harness_run_cancel_total{outcome}` | any non-clean outcome in 15m (clean = ok/success/stopped/cancelled/canceled/completed) | open the run, confirm the worker process is gone and the UI says stop is incomplete; see engine-concurrency.md and the stop-truth tests. If the outcome names differ in the code, edit the regex in `alerts.yml`. |
+| HarnessRunCancelFailure | warning | `harness_run_cancel_total{outcome}` | `outcome="unconfirmed"` in 15m (kill sent, engine not confirmed gone; `refused` is a normal 409 and does not alert) | open the run, confirm the worker process is gone and the UI says stop is incomplete; see engine-concurrency.md and the stop-truth tests. |
 | HarnessIsolationViolation | page | `harness_isolation_violation_total{kind}` | any increase in 5m | treat as a security incident: stop the pilot (pilot.md, stop conditions), stop the affected runs, preserve logs and the sandbox workspace, read `kind` against `docs/briefs/threat-model.md` T15-T17. |
-| HarnessEventDeliveryDrops | warning | `harness_event_delivery_total{outcome}` | dropped/failed deliveries (`outcome` matching `drop*`, `fail*`, `error`, `lost`) in 10m, sustained 5m | teammates may see stale state; check orchestrator logs and DB; polling remains the fallback. |
-| HarnessEventDeliveryDuplicates | warning | `harness_event_delivery_total{outcome}` | >5 `dup*` deliveries in 10m, sustained 5m | cursor-resume or client dedup fault; collect the run id and cursor values. |
+| HarnessEventDeliveryDrops | warning | `harness_event_delivery_total{outcome}` | `outcome="dropped"` in 10m, sustained 5m | teammates may see stale state; check orchestrator logs and DB; polling remains the fallback. |
+| HarnessEventDeliveryDuplicates | warning | `harness_event_delivery_total{outcome}` | `outcome="duplicate"` >5 in 10m, sustained 5m | cursor-resume or client dedup fault; collect the run id and cursor values. |
 
 Also in `alerts.yml`: `HarnessServiceDown` (page; `up == 0` for 2m) and
 `HarnessHigh5xxRate` (warning; 5xx ratio >5% for 10m on one instance, from

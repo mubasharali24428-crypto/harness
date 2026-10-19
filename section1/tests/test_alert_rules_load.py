@@ -17,6 +17,7 @@ import pytest
 import yaml
 
 REPO = Path(__file__).resolve().parents[2]
+METRICS_SRC = REPO / "section4" / "src" / "harness_orchestrator" / "domain_metrics.py"
 OBS = REPO / "deploy" / "observability"
 ALERTS = OBS / "alerts.yml"
 PROM = OBS / "prometheus.yml"
@@ -99,14 +100,26 @@ def test_prometheus_config_loads_the_rules_file():
     assert "./observability:/etc/prometheus" in volumes
 
 
+def test_alert_label_values_are_ones_the_code_emits():
+    """An alert matching a label value nothing emits would be silent forever."""
+    import re
+
+    src = METRICS_SRC.read_text()
+    for _, r in _rules():
+        for _label, _op, values in re.findall(r'(\w+)(=~?)"([^"]+)"', r["expr"]):
+            if _label not in {"reason", "outcome", "kind"}:
+                continue
+            for v in values.split("|"):
+                assert f'"{v}"' in src, (r["alert"], _label, v)
+
+
 def test_required_coverage_is_present():
     """Part 32 directive 007 plus service health, and the page-level isolation alert."""
     by_name = {r["alert"]: r for _, r in _rules()}
     exprs = " ".join(r["expr"] for r in by_name.values())
     for counter in LANE_A_COUNTERS:
         assert counter in exprs, f"no alert reads {counter}"
-        dependents = [r for r in by_name.values() if counter in r["expr"]]
-        assert all(counter in r["annotations"].get("depends_on", "") for r in dependents), counter
+        assert counter in METRICS_SRC.read_text(), f"{counter} is not defined in domain_metrics.py"
     assert by_name["HarnessIsolationViolation"]["labels"]["severity"] == "page"
     assert by_name["HarnessServiceDown"]["labels"]["severity"] == "page"
     assert 'up{job="harness-backends"}' in by_name["HarnessServiceDown"]["expr"]

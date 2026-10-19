@@ -681,3 +681,24 @@ async def test_stall_gauges_flag_old_queued_and_stale_running(obs, tmp_path, mon
     assert 590 <= age <= 700
     assert stale == 1
     await engine.dispose()
+
+
+def test_metrics_endpoint_appends_extra_domain_counters(obs):
+    """The root /metrics Prometheus scrapes must carry a service's domain counters."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    app = FastAPI()
+    obs.install_metrics_endpoint(app, lambda: 'harness_event_delivery_total{outcome="dropped"} 0\n')
+    body = TestClient(app).get("/metrics").text
+    assert 'harness_event_delivery_total{outcome="dropped"} 0' in body
+    plain = FastAPI()
+    obs.install_metrics_endpoint(plain)
+    assert "harness_event_delivery_total" not in TestClient(plain).get("/metrics").text
+
+
+def test_services_wire_domain_counters_into_the_scraped_metrics():
+    """Guard the real wiring: identity and orchestrator pass their renderers."""
+    src = (Path(__file__).resolve().parents[2] / "deploy" / "runners" / "services.py").read_text()
+    assert "_wire_observability(app, identity_domain_metrics.render)" in src
+    assert 'simple_app(router, "harness-orchestrator", orchestrator_domain_metrics.render)' in src

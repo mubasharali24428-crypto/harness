@@ -209,8 +209,8 @@ pg-up:
 
 pg-probe: pg-probe-integration pg-probe-s1 pg-probe-migrate
 
-pg-probe-integration:
-	@$(MAKE) --no-print-directory pg-guard
+pg-probe-integration: pg-up
+	@HARNESS_TEST_PG=1 $(MAKE) --no-print-directory pg-guard
 	cd integration && $(PG_ENV) ../section1/.venv/bin/python -m pytest test_checkpoint1.py -q
 
 pg-probe-s1: pg-up
@@ -224,8 +224,8 @@ pg-probe-s1: pg-up
 # so the dollar-quote splitter ($$ DO-blocks), statement ordering, the
 # legacy-marking branch and the compose-up re-run path all shipped unexercised.
 # Never touches the live cluster: scratch DB only, dropped on exit.
-pg-probe-migrate:
-	@$(MAKE) --no-print-directory pg-guard
+pg-probe-migrate: pg-up
+	@HARNESS_TEST_PG=1 $(MAKE) --no-print-directory pg-guard
 	$(PG_ENV) ./section1/.venv/bin/python deploy/runners/migrate_selftest.py
 
 pg-guard:

@@ -7,12 +7,12 @@
 #
 # severity: `page` = wake a human now; `warning` = look during working hours.
 # Every alert carries a `runbook` annotation (repo path + anchor, checked by the test).
-# Alerts marked depends_on: lane-A read counters that session-2 lane A adds
-# (harness_approval_denied_total, harness_run_cancel_total,
-# harness_isolation_violation_total, harness_event_delivery_total). Until the
-# code emits them the expressions return no series and the alerts stay silent;
-# that is "no data", not "healthy". Notification routing (Alertmanager) is NOT
-# configured: these fire inside Prometheus only (see alerting.md section 5).
+# The harness-pilot group reads the four closed-label counters defined in
+# section4 harness_orchestrator/domain_metrics.py (event delivery: also section1
+# harness_identity/domain_metrics.py). Every series is rendered at 0 from the
+# first scrape, so "no data" now means the service is not scraped. Notification
+# routing (Alertmanager) is NOT configured: these fire inside Prometheus only
+# (see alerting.md section 5).
 
 groups:
   - name: harness-availability
@@ -138,38 +138,33 @@ groups:
           summary: "More than 10 approval denials in 10m"
           description: "{{ $value }} denied approvals in 10m; see the reason label (stale digest, self-approval, expired, role)."
           runbook: docs/runbooks/alerting.md#6-pilot-alerts-session-2
-          depends_on: "lane-A: harness_approval_denied_total{reason}"
 
-      # outcome values are defined by lane A; anything that is not a clean
-      # stop alerts (incomplete or failed cancellation must be seen).
+      # outcome in {requested, confirmed, unconfirmed, noop, refused}: only
+      # `unconfirmed` (kill sent, engine not confirmed gone) is a failure;
+      # `refused` is a normal 409 (e.g. pause after stop).
       - alert: HarnessRunCancelFailure
         expr: |
-          sum(increase(harness_run_cancel_total{outcome!~"ok|success|stopped|cancelled|canceled|completed"}[15m])) > 0
+          sum(increase(harness_run_cancel_total{outcome="unconfirmed"}[15m])) > 0
         labels:
           severity: warning
         annotations:
           summary: "A run stop did not complete cleanly"
-          description: "{{ $value }} cancellation(s) in 15m ended in a non-clean outcome; verify the run is really stopped."
+          description: "{{ $value }} cancellation(s) in 15m were not confirmed (engine may still be able to mutate); verify the run is really stopped."
           runbook: docs/runbooks/alerting.md#6-pilot-alerts-session-2
-          depends_on: "lane-A: harness_run_cancel_total{outcome}"
 
-      # Second clause catches the FIRST violation: increase() reads 0 when a
-      # counter child appears already at 1 (no earlier sample to subtract).
       - alert: HarnessIsolationViolation
         expr: |
           sum(increase(harness_isolation_violation_total[5m])) > 0
-            or (sum(harness_isolation_violation_total) > 0 unless sum(harness_isolation_violation_total offset 5m))
         labels:
           severity: page
         annotations:
           summary: "Sandbox or run isolation violation detected"
           description: "harness_isolation_violation_total increased (kind label says which boundary). Treat as a security incident: stop the pilot."
           runbook: docs/runbooks/alerting.md#6-pilot-alerts-session-2
-          depends_on: "lane-A: harness_isolation_violation_total{kind}"
 
       - alert: HarnessEventDeliveryDrops
         expr: |
-          sum(increase(harness_event_delivery_total{outcome=~"drop.*|fail.*|error|lost"}[10m])) > 0
+          sum(increase(harness_event_delivery_total{outcome="dropped"}[10m])) > 0
         for: 5m
         labels:
           severity: warning
@@ -177,11 +172,10 @@ groups:
           summary: "Collaboration events are being dropped or failing delivery"
           description: "{{ $value }} dropped/failed deliveries in 10m; teammates may see stale state."
           runbook: docs/runbooks/alerting.md#6-pilot-alerts-session-2
-          depends_on: "lane-A: harness_event_delivery_total{outcome}"
 
       - alert: HarnessEventDeliveryDuplicates
         expr: |
-          sum(increase(harness_event_delivery_total{outcome=~"dup.*"}[10m])) > 5
+          sum(increase(harness_event_delivery_total{outcome="duplicate"}[10m])) > 5
         for: 5m
         labels:
           severity: warning
@@ -189,4 +183,3 @@ groups:
           summary: "Repeated duplicate event deliveries"
           description: "{{ $value }} duplicate deliveries in 10m; check cursor resume and client dedup."
           runbook: docs/runbooks/alerting.md#6-pilot-alerts-session-2
-          depends_on: "lane-A: harness_event_delivery_total{outcome}"

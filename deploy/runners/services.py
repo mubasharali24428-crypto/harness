@@ -98,7 +98,7 @@ def base_settings(**kw):
     return S(**kw)
 
 
-def _wire_observability(app) -> None:
+def _wire_observability(app, extra=None) -> None:
     """M20-T2 (OPS-21/22): request ids + JSON logs + /metrics on EVERY service.
 
     The orchestrator keeps its own Wave 8 wiring in app_orchestrator (its
@@ -114,7 +114,7 @@ def _wire_observability(app) -> None:
 
     configure_logging(os.environ.get("HARNESS_LOG_FORMAT", "json"))
     app.add_middleware(RequestContextMiddleware)  # X-Request-ID + access log
-    install_metrics_endpoint(app)  # public GET /metrics (Prometheus text)
+    install_metrics_endpoint(app, extra)  # public GET /metrics (Prometheus text)
 
 
 def _install_probes(app, port):
@@ -182,7 +182,7 @@ def _install_probes(app, port):
     app.state.ready_port = port
 
 
-def simple_app(router, title):
+def simple_app(router, title, extra_metrics=None):
     from fastapi import FastAPI
     from fastapi.middleware.cors import CORSMiddleware
 
@@ -211,7 +211,7 @@ def simple_app(router, title):
     install_error_envelope(app)
     # M20-T2: request ids + JSON logs + /metrics (shared with simple_app
     # consumers; identity/github get the identical stack below).
-    _wire_observability(app)
+    _wire_observability(app, extra_metrics)
     return app
 
 
@@ -228,7 +228,10 @@ def app_identity():
     install_rate_limit(app)
 
     # M20-T2: request ids + JSON logs + /metrics (identity, port 8001).
-    _wire_observability(app)
+    # The event-delivery counters are appended so Prometheus scrapes them.
+    from harness_identity import domain_metrics as identity_domain_metrics
+
+    _wire_observability(app, identity_domain_metrics.render)
     # M20-T3: /ready gates on db + migrations; compose healthcheck hits it.
     _install_probes(app, 8001)
 
@@ -357,7 +360,11 @@ def app_orchestrator():
             poll_interval=float(os.environ.get("HARNESS_WORKER_POLL_SECONDS", "0.5")),
         )
 
-    app = simple_app(router, "harness-orchestrator")
+    from harness_orchestrator import domain_metrics as orchestrator_domain_metrics
+
+    # Approval/cancel/isolation/event-delivery counters ride the scraped /metrics
+    # (simple_app registers it first; a later install_metrics_endpoint is shadowed).
+    app = simple_app(router, "harness-orchestrator", orchestrator_domain_metrics.render)
     app.add_middleware(RequestContextMiddleware)  # X-Request-ID + access log + metrics
     # M20-T3: /ready gates on db + migrations (orchestrator, port 8004).
     _install_probes(app, 8004)
