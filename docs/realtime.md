@@ -277,4 +277,4 @@ A non-numeric or non-positive value falls back to the default.
 * **Stale-client protection** exists only where the server has a version: intent edits, intent conflict resolution, approval digests, handoff state. The generic
   409 `STALE_CLIENT_STATE` is defined and tested but no existing route emits it yet; the older codes stay for compatibility (see 5.4).
 * **HTTP history** is still the older shape until the route is switched to `delivery.history_page`.
-* The browser client today treats socket frames only as a wake-up and re-reads over HTTP; the rules above are what the UI lane implements.
+* The browser client implements the rules above (`realtimeCore.ts`, `collabStream.ts`; see `docs/accessibility.md` and `evidence/s5/lane-x.md`). Hooked containers (panel, stream hook) are covered by tsc only, not by a browser run.

@@ -1,6 +1,6 @@
 # Harness Multiplayer AI — project state and resume guide
 
-Rewritten 2026-10-19 at the end of Session 4. Read this first in a new session, then `docs/briefs/path-to-9-plan.md`,
+Rewritten 2026-10-19 at the end of Session 5. Read this first in a new session, then `docs/briefs/path-to-9-plan.md`,
 `docs/briefs/capability-matrix.md` and `docs/briefs/path-to-9-checkpoint.md`. The repository is the source of truth:
 re-verify any number below before relying on it. Nothing here is a claim of readiness for real users (see "Not cleared").
 
@@ -14,7 +14,7 @@ over ten sessions (`path-to-9-plan.md`). 9/10 means: every directive implemented
 tests, an evidence file, docs matching behaviour, and a `verified` matrix row. 10/10 needs external evidence; externally gated
 parts are capped at 8: 03, 37/57, 53, 52/58, 61.
 
-Layout: section1 identity/auth/audit/eventbus/orgs/policy/workspaces (migrations 0001–0044; 43 files) · section3/6/8/10
+Layout: section1 identity/auth/audit/eventbus/orgs/policy/workspaces (migrations 0001–0046; 45 files) · section3/6/8/10
 auxiliary · section4 orchestrator · section5 sandbox · section7 Next.js UI + Playwright · `deploy/` compose stack, runners,
 observability, `deploy/pilot` disposable smoke stack · `docs/` · `scripts/` (spec_drift, sdk-gen) · `clients/` generated SDKs.
 
@@ -26,7 +26,8 @@ observability, `deploy/pilot` disposable smoke stack · `docs/` · `scripts/` (s
 | 2 | Pilot residuals + sandbox fixes | Done, committed (parts 05–08, 10, 11, 22, 23, 27 verified) |
 | 3 | Orgs, permissions, workspaces (37, 38, 39) | Done, committed, incl. the part 38 enforcement carry-over |
 | 4 | Sessions, presence, control leases, agent registry (40, 41, 42, 45) | Done, committed (lanes S, P, C, A, U) |
-| 5–10 | Discussion, plans/artifacts, integrations, compliance, scale, final acceptance | Not started |
+| 5 | Discussion, notifications, real-time delivery, collab UI (43, 46, 47, 56-collab) | Done, committed (lanes D, N, R, X) |
+| 6–10 | Plans/artifacts/search, integrations/admin/billing, security/compliance, scale, final acceptance | Not started |
 
 ## 3. Session 3 result
 
@@ -45,7 +46,21 @@ Parts 40, 41, 42, 45 verified (matrix rows list tests and gaps). Evidence `docs/
 command table); docs `sessions.md`, `presence.md`, `control.md`, `agents.md`. Behaviour change: a non-holder's guidance is queued until the
 lease holder accepts it (`control/decide`); the UI has the accept step.
 
-## 4. Verification record (commands run by me, 2026-10-19, Session 4)
+## 3c. Session 5 result
+
+Parts 43, 46, 47 verified; 56 stays partial (collaboration UI done, rest is Session 10). Evidence `docs/briefs/evidence/s5/` (`session5-summary.md`
+has the command table); docs `discussion.md`, `notifications.md`, `realtime.md`, `accessibility.md`. Migrations 0045 (discussion), 0046
+(notifications); no 0047. Collab events carry `prevSeq`; `collab-history` returns pages with `nextCursor/hasMore/headSeq`. Notification bell polls
+`/api/v1/notifications/unread-count` every 60 s. Needs `tzdata` in slim images and `HARNESS_APP_URL` for mail links.
+
+## 4. Verification record (commands run by me, 2026-10-19, Session 5)
+
+section1 pytest 944 passed/29 skipped; section4 pytest 1143 passed/37 skipped; ruff clean s1/s4; `make pg-probe-migrate` PASS 0001→0046;
+`make pg-probe-s1` 972 passed/1 skipped; section4 live-PG session 4/5 + collab chaos tests pass; section7 tsc clean, vitest 816 passed;
+`run_smoke.py --otp` passed. **Not run:** `make gate`, `make e2e*` beyond the smoke leg, `pip-audit`, `--real`, Linux Landlock, section5 suite,
+real-browser keyboard/axe tests of the new UI.
+
+(Session 4 record, superseded: section1 859, section4 979, vitest 572, migrations 0001→0044.)
 
 section1 pytest 859 passed/27 skipped; section4 pytest 979 passed/32 skipped; ruff clean s1/s4; `make pg-probe-migrate` PASS 0001→0044;
 `make pg-probe-s1` 885 passed/1 skipped; section4 live-PG session 4 + collab chaos tests pass; section7 tsc clean, vitest 572 passed;
@@ -55,7 +70,7 @@ section1 pytest 859 passed/27 skipped; section4 pytest 979 passed/32 skipped; ru
 ## 5. Open work, in order
 
 1. ~~Part 38 enforcement carry-over~~ done (`evidence/s3/part38-enforcement.md`). Remaining limits are in `docs/permissions.md`.
-2. ~~Session 4~~ done. Next: Session 5 per `path-to-9-plan.md` (discussion, notifications, real-time delivery). Use `docs/briefs/stable-prompt-prefix.md` as the first block.
+2. ~~Sessions 4 and 5~~ done. Next: Session 6 per `path-to-9-plan.md` (plans, artifacts, search, export: parts 44, 48, 50). Use `docs/briefs/stable-prompt-prefix.md` as the first block.
 3. Backend gaps from earlier: no UI to file/amend a proposal; approvals API lacks a decision timestamp; part 12 item 009 and
    responsive layout untested; audit chain has no external anchor; browser socket connection not asserted in e2e.
 4. Workspace gaps: no purge job after `purge_after`, running run not stopped on archive, `resume_agent` not gated, quota check race.
