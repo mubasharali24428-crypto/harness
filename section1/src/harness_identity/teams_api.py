@@ -48,6 +48,7 @@ from .audit_emit import emit_member_removed, emit_member_role_changed
 from .auth import get_principal
 from .models import Role as DbRole
 from .models import TeamMember
+from .policy import require_team_stepup
 
 router = APIRouter(prefix="/api/v1")
 
@@ -203,6 +204,8 @@ async def change_member_role(
                     detail=error_body("LAST_ADMIN", "cannot demote the last admin"),
                 )
         if new_role != old_role:
+            # Part 38.010: org policy may demand a fresh re-auth for role changes.
+            await require_team_stepup(db, request, principal, team_id, "role.change")
             membership_id = str(target.id)  # capture pre-commit (see DELETE note)
             target.role = DbRole(new_role)
             await db.commit()
