@@ -1,6 +1,6 @@
 # Harness Multiplayer AI — project state and resume guide
 
-Rewritten 2026-10-19 at the end of Session 5. Read this first in a new session, then `docs/briefs/path-to-9-plan.md`,
+Updated 2026-10-19 at the end of Session 6. Read this first in a new session, then `docs/briefs/path-to-9-plan.md`,
 `docs/briefs/capability-matrix.md` and `docs/briefs/path-to-9-checkpoint.md`. The repository is the source of truth:
 re-verify any number below before relying on it. Nothing here is a claim of readiness for real users (see "Not cleared").
 
@@ -14,7 +14,7 @@ over ten sessions (`path-to-9-plan.md`). 9/10 means: every directive implemented
 tests, an evidence file, docs matching behaviour, and a `verified` matrix row. 10/10 needs external evidence; externally gated
 parts are capped at 8: 03, 37/57, 53, 52/58, 61.
 
-Layout: section1 identity/auth/audit/eventbus/orgs/policy/workspaces (migrations 0001–0046; 45 files) · section3/6/8/10
+Layout: section1 identity/auth/audit/eventbus/orgs/policy/workspaces (migrations 0001–0050) · section3/6/8/10
 auxiliary · section4 orchestrator · section5 sandbox · section7 Next.js UI + Playwright · `deploy/` compose stack, runners,
 observability, `deploy/pilot` disposable smoke stack · `docs/` · `scripts/` (spec_drift, sdk-gen) · `clients/` generated SDKs.
 
@@ -27,7 +27,8 @@ observability, `deploy/pilot` disposable smoke stack · `docs/` · `scripts/` (s
 | 3 | Orgs, permissions, workspaces (37, 38, 39) | Done, committed, incl. the part 38 enforcement carry-over |
 | 4 | Sessions, presence, control leases, agent registry (40, 41, 42, 45) | Done, committed (lanes S, P, C, A, U) |
 | 5 | Discussion, notifications, real-time delivery, collab UI (43, 46, 47, 56-collab) | Done, committed (lanes D, N, R, X) |
-| 6–10 | Plans/artifacts/search, integrations/admin/billing, security/compliance, scale, final acceptance | Not started |
+| 6 | Plans/artifacts/search (44, 48, 50) | Integrated locally; 48 and 50 verified; 44 partial pending native version approval/execution |
+| 7–10 | Integrations/admin/billing, security/compliance, scale, final acceptance | Next: Session 7 (49, 51, 57) |
 
 ## 3. Session 3 result
 
@@ -53,12 +54,37 @@ has the command table); docs `discussion.md`, `notifications.md`, `realtime.md`,
 (notifications); no 0047. Collab events carry `prevSeq`; `collab-history` returns pages with `nextCursor/hasMore/headSeq`. Notification bell polls
 `/api/v1/notifications/unread-count` every 60 s. Needs `tzdata` in slim images and `HARNESS_APP_URL` for mail links.
 
-## 4. Verification record (commands run by me, 2026-10-19, Session 5)
+## 3d. Session 6 result
 
-section1 pytest 944 passed/29 skipped; section4 pytest 1143 passed/37 skipped; ruff clean s1/s4; `make pg-probe-migrate` PASS 0001→0046;
-`make pg-probe-s1` 972 passed/1 skipped; section4 live-PG session 4/5 + collab chaos tests pass; section7 tsc clean, vitest 816 passed;
-`run_smoke.py --otp` passed. **Not run:** `make gate`, `make e2e*` beyond the smoke leg, `pip-audit`, `--real`, Linux Landlock, section5 suite,
-real-browser keyboard/axe tests of the new UI.
+Parts 48 and 50 are verified; part 44 remains partial. Migrations 0047–0050 add versioned plans,
+execution records, artifacts/version-control metadata, search/export/deletion. Routers are mounted in
+`deploy/runners/services.py`; OpenAPI and SDKs were regenerated. Section 7 run details now include
+the Session 6 workbench. Evidence is in `docs/briefs/evidence/s6/`; docs are `plans.md`,
+`execution.md`, `artifacts.md`, and `search-and-export.md`.
+
+No route approves a native plan version, and the engine continues to execute the legacy in-memory
+plan. Tool-call counts are not enforced and the running-limit sweep is not scheduled. Artifact/export
+storage and search indexing also lack deploy schedulers.
+
+## 4. Verification record (Session 6, 2026-10-19)
+
+Session 6 lane tests: PL 53, EX 66, AR 93, SE 74 passed; integrated policy/spec checks 8 passed;
+Section 7 typecheck passed and full Vitest passed 817 tests across 68 files, including the new
+workbench test.
+
+Section 1 full suite: 923 passed, 29 skipped, 21 setup errors because SMTP/OIDC tests could not bind
+localhost sockets in this sandbox. Section 4 full suite was interrupted after 1353 passed, 37 skipped
+and 3 observed failures: one 1.011 s cost-rollup threshold miss and two macOS Seatbelt
+`sandbox_apply` failures; it stalled at 93% for 159 s. Session 6 live-PG probe and
+`make pg-probe-migrate` and `make pg-probe-s1` could not run: Docker socket absent and port 5499
+refused connections. OTP smoke was attempted once but the script found port 8101 occupied and
+declined to stop it. Section 4 full Ruff passed; Section 1 full Ruff reports three findings in the
+unrelated untracked `scripts/verify_audit_chain.py`. See
+`docs/briefs/evidence/s6/session6-summary.md` for the command record and gaps.
+
+Session 5 record (superseded): section1 944 passed/29 skipped; section4 1143 passed/37 skipped;
+Postgres migration probe through 0046 and live-PG checks passed; Section 7 typecheck and 816 Vitest
+tests passed; OTP smoke passed.
 
 (Session 4 record, superseded: section1 859, section4 979, vitest 572, migrations 0001→0044.)
 
@@ -70,7 +96,8 @@ section1 pytest 859 passed/27 skipped; section4 pytest 979 passed/32 skipped; ru
 ## 5. Open work, in order
 
 1. ~~Part 38 enforcement carry-over~~ done (`evidence/s3/part38-enforcement.md`). Remaining limits are in `docs/permissions.md`.
-2. ~~Sessions 4 and 5~~ done. Next: Session 6 per `path-to-9-plan.md` (plans, artifacts, search, export: parts 44, 48, 50). Use `docs/briefs/stable-prompt-prefix.md` as the first block.
+2. ~~Sessions 4 and 5~~ done. Session 6 integrated; next Session 7 (49, 51, 57) per
+   `path-to-9-plan.md`. Keep part 44 partial until native version approval and engine execution are connected.
 3. Backend gaps from earlier: no UI to file/amend a proposal; approvals API lacks a decision timestamp; part 12 item 009 and
    responsive layout untested; audit chain has no external anchor; browser socket connection not asserted in e2e.
 4. Workspace gaps: no purge job after `purge_after`, running run not stopped on archive, `resume_agent` not gated, quota check race.

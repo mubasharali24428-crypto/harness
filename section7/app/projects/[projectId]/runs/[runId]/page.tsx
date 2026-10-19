@@ -33,6 +33,7 @@ import {
 import { RunDetailAggregate } from "./runDetailAggregate";
 import { PlanGateCard } from "../../../../dashboard/planGate";
 import { SharedRunPanel } from "./sharedRunPanel";
+import { SessionSixWorkbench } from "./sessionSixWorkbench";
 
 const mutedStyle = { color: "var(--muted)" } as const;
 
@@ -164,6 +165,7 @@ export default function RunDetailPage({
       {/* Multiplayer pilot: leader, participants, pending decisions, direction. */}
       {runId && token && <PlanGateCard token={token} principal={loadSession()?.principal ?? null} runId={runId} />}
       {runId && <SharedRunPanel runId={runId} projectId={projectId ?? undefined} onStagedPendingChange={setStagedPending} />}
+      {runId && token && <SessionSixWorkbench runId={runId} token={token} />}
 
       {/* Legacy working area (F1b/F2b territory this wave — untouched). It
           self-guards on session absence, so it renders nothing until the

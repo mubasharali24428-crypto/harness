@@ -52,7 +52,10 @@ def other_ui_calls() -> set[str]:
 
 def generated() -> dict:
     from fastapi import FastAPI
-    from harness_orchestrator import agent_tree, control, discussion, participation, presence
+    from harness_orchestrator import (
+        agent_tree, artifacts, control, discussion, execution, exports, participation, plans,
+        presence, search,
+    )
     from harness_orchestrator.api import router
     from harness_orchestrator.demo import router as demo_router
     from harness_orchestrator.plan_gate import router as plan_gate_router
@@ -61,7 +64,8 @@ def generated() -> dict:
     # The same routers deploy/runners/services.py app_orchestrator() mounts.
     app = FastAPI(title="harness-orchestrator", version="0.1.0")
     for r in (router, runs_index_router, plan_gate_router, demo_router, presence.router,
-              participation.router, control.router, agent_tree.router, discussion.router):
+              participation.router, control.router, agent_tree.router, discussion.router,
+              plans.router, execution.router, artifacts.router, search.router, exports.router):
         app.include_router(r)
     return app.openapi()
 

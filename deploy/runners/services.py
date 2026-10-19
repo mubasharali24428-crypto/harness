@@ -454,15 +454,24 @@ def app_orchestrator():
 
     # Session 4 (parts 41, 42, 45): presence, participation, control leases, agent tree.
     # Session 5 (part 43): discussion (comments, mentions, promote, search, retention).
-    from harness_orchestrator import agent_tree, control, discussion, participation, presence
+    from harness_orchestrator import (
+        agent_tree, artifacts, control, discussion, execution, exports, participation, plans,
+        presence, search,
+    )
 
     presence.configure_presence(service)
     participation.configure_participation(service)
     control.configure_control(service)
     agent_tree.configure_agent_tree(service)
     discussion.configure_discussion(service)
+    plans.configure_plans(service)
+    execution.configure_execution(service)
+    artifacts.configure_artifacts(service)
+    search.configure_search(service)
+    exports.configure_exports(service)
     for _r in (presence.router, participation.router, control.router, agent_tree.router,
-               discussion.router):
+               discussion.router, plans.router, execution.router, artifacts.router, search.router,
+               exports.router):
         app.include_router(_r)
 
     # Part 38.005: org policy applies to every classified run/plan route of org-linked teams

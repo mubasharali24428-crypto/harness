@@ -927,6 +927,11 @@ class OrchestratorService(Orchestrator):
 
         await enforce_run_start(self, run_id, run_data.get("projectId"))  # part 39.008
         await enforce_session_run_start(self, run_id)  # part 40.005
+        # Part 44.005: execution limits, abandoned runs. Imported here, not at module level
+        # (execution.py imports api.py, which imports this module).
+        from harness_orchestrator.execution import enforce_execution_start
+
+        await enforce_execution_start(self, run_id)
         sm: AgentStateMachine = run_data["state_machine"]
         # M23-A (session-2 area 16): the approval above is durable, but is it
         # still FRESH? The event log is the witness for approvals this
@@ -1908,6 +1913,12 @@ class OrchestratorService(Orchestrator):
             return False
         # Part 40.005: same for a run whose session was paused/archived while it waited.
         if await check_session_run_start(self, run_id, where="claim"):
+            await finish_run(self.run_queue_factory, run_id)
+            return False
+        # Part 44.005: same for a run that hit an execution limit or was abandoned while it waited.
+        from harness_orchestrator.execution import check_execution_start  # import cycle, see above
+
+        if await check_execution_start(self, run_id, where="claim"):
             await finish_run(self.run_queue_factory, run_id)
             return False
         plan_id = run_data.get("plan_id")

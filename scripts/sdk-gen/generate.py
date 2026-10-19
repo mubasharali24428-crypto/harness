@@ -25,6 +25,7 @@ Standard library only. Idempotent: same specs -> byte-identical modules.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import keyword
 import re
@@ -686,8 +687,11 @@ def _py_to_ts_type(py_type: str) -> str:
             return f"Record<string, {convert(m.group(1))}>"
         m = re.fullmatch(r"typing\.Literal\[(.+)\]", s, re.DOTALL)
         if m:
-            # repr()-ed values are already valid TS literal syntax.
-            return m.group(1)
+            # SpecModel emits Python repr values separated by commas. Convert
+            # each value separately so a multi-value Literal stays a TS union.
+            values = _split_top(m.group(1), ",")
+            return " | ".join(json.dumps(ast.literal_eval(value.strip()))
+                               for value in values if value.strip())
         return s.replace("typing.", "")  # schema alias / class name
 
     out = convert(py_type)

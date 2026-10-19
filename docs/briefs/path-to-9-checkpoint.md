@@ -1,10 +1,23 @@
-# Checkpoint — Session 5: discussion, notifications, real-time delivery, collab UI (2026-10-19)
-1. Objective: parts 43, 46, 47 and 56 (collaboration UI only). 43, 46, 47 verified; 56 remains partial by design.
-2. Verified (paths): `evidence/s5/{lane-d,lane-n,lane-r,lane-x,session5-summary}.md`; `docs/discussion.md`, `notifications.md`, `realtime.md`, `accessibility.md`.
-3. Changed: migrations 0045, 0046; `discussion.py`, `notifications.py`, `notify.py` (+3 emit calls in `collab.py`, run-problem notify in `service.py`), `delivery.py`, `eventbus.py`, WS region of `app.py`, `realtime_metrics.py`; routers mounted in `app.py` and `deploy/runners/services.py`; `collab-history` returns `history_page`; specs/SDKs regenerated; section7 comments panel, notification bell/inbox/preferences, stream controller, announcer.
-4. Commands run (by me): section1 944 passed; section4 1143 passed; `pg-probe-s1` 972 passed; `pg-probe-migrate` 0001→0046; live-PG session 5 tests; tsc + vitest 816; smoke passed. Not run: `make gate`, other e2e, pip-audit, `--real`, Landlock, section5 suite, real-browser keyboard/axe.
-5. Blockers: none for Session 6.
-6. Risks: `STALE_CLIENT_STATE` emitted by no route; orchestrator rate-limit hook not installed in deploy; no purge jobs (comments, notifications); revocation of open sockets takes ~17 s; hooked UI containers tsc-only; English only.
-7. Decisions: table is the log, WebSocket is push, polling is the fallback; email notifications opt-in only; no sound or popups.
-8. Agents: D, N, R, X done; lead re-ran tests and integrated.
-9. Next: Session 6 (parts 44, 48, 50).
+# Checkpoint — Session 6: plans, execution, artifacts, search and export (2026-10-19)
+
+1. **Objective:** parts 44, 48, 50. Part 44 remains partial because native plan versions cannot be
+   approved or executed; parts 48 and 50 are verified with the limits listed in the matrix.
+2. **Evidence/docs:** `docs/briefs/evidence/s6/{lane-pl,lane-ex,lane-ar,lane-se,session6-summary}.md`;
+   `docs/{plans,execution,artifacts,search-and-export}.md`.
+3. **Changed:** migrations 0047–0050; five Section 4 routers mounted/configured in the deployment;
+   start/claim execution gates; spec-drift and policy-route coverage; OpenAPI + SDK generation;
+   Section 7 run-detail workbench for plans, tasks, execution, artifacts, changes, search, export and
+   deletion requests.
+4. **Verification:** PL 53, EX 66, AR 93, SE 74 tests passed; integrated policy/spec tests 8 passed;
+   Section 7 typecheck passed and full Vitest passed 817 tests. Full Section 1: 923 passed, 29 skipped, 21 local
+   socket setup errors. Full Section 4: interrupted after 1353 passed, 37 skipped and three
+   failures (one performance threshold, two macOS Seatbelt restrictions), stalled at 93%. Lane-file
+   Section 4 Ruff clean; Section 1 Ruff fails on three findings in an unrelated untracked audit script. Specs and UI calls match.
+5. **Postgres/smoke:** Session 6 PG probe and both PG make probes were unavailable (Docker socket
+   missing, port 5499 refused). OTP smoke was attempted once and declined because port 8101 was busy.
+6. **Open limits:** tool-call count/in-flight spend are not enforced; execution sweep, search index,
+   artifact retention and export cleanup have no deploy schedule. Artifact and export bytes are
+   local disk. Git tips are caller-recorded; merge approval does not gate GitHub. No antivirus,
+   browser keyboard/axe tests, or live-PG proof.
+7. **Next:** Session 7 (49, 51, 57); 57 remains capped at 8 for live provider evidence. Preserve the
+   part 44 gap until native version approval and engine execution are connected.

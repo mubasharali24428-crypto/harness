@@ -1,6 +1,42 @@
 {
  "components": {
   "schemas": {
+   "AbandonBody": {
+    "properties": {
+     "outcome": {
+      "default": "abandoned",
+      "enum": [
+       "abandoned",
+       "failed"
+      ],
+      "title": "Outcome",
+      "type": "string"
+     },
+     "reason": {
+      "maxLength": 500,
+      "minLength": 3,
+      "title": "Reason",
+      "type": "string"
+     },
+     "requestId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Requestid"
+     }
+    },
+    "required": [
+     "reason"
+    ],
+    "title": "AbandonBody",
+    "type": "object"
+   },
    "AggregateStepOut": {
     "description": "One ordered step of the W4-C2 aggregate (agent_events summary row).",
     "properties": {
@@ -116,6 +152,21 @@
     "title": "ApprovalRequest",
     "type": "object"
    },
+   "BlockBody": {
+    "properties": {
+     "reason": {
+      "maxLength": 500,
+      "minLength": 3,
+      "title": "Reason",
+      "type": "string"
+     }
+    },
+    "required": [
+     "reason"
+    ],
+    "title": "BlockBody",
+    "type": "object"
+   },
    "BudgetDegradedOut": {
     "description": "M18-C2 \u2014 operator-visible budget-gate health for this run.\n\n``degraded=true`` means at least one budget decision on this run was\nmade FAIL-CLOSED because the money store was unreachable (denial shaped\nlike an outage, never silently opened). ``warned=true`` (M23-B) means at\nleast one ALLOWED decision crossed the near-cap warning threshold \u2014 the\noperator sees the walk toward the cap before the hard stop. Absent/false\n= healthy / far from the cap.",
     "properties": {
@@ -131,6 +182,62 @@
      }
     },
     "title": "BudgetDegradedOut",
+    "type": "object"
+   },
+   "CommentBody": {
+    "additionalProperties": false,
+    "properties": {
+     "body": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Body",
+      "type": "string"
+     },
+     "fieldPath": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "pattern": "^[A-Za-z]{1,32}(/\\d{1,4})?$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Fieldpath"
+     },
+     "requestId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Requestid"
+     }
+    },
+    "required": [
+     "body"
+    ],
+    "title": "CommentBody",
+    "type": "object"
+   },
+   "CompleteBody": {
+    "properties": {
+     "expectedVersion": {
+      "minimum": 1.0,
+      "title": "Expectedversion",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "expectedVersion"
+    ],
+    "title": "CompleteBody",
     "type": "object"
    },
    "CreateBody": {
@@ -225,31 +332,26 @@
     "title": "CreateBody",
     "type": "object"
    },
-   "DecideBody": {
+   "DecisionBody": {
     "properties": {
-     "decision": {
-      "enum": [
-       "grant",
-       "decline",
-       "cancel",
-       "accept",
-       "reject"
-      ],
-      "title": "Decision",
-      "type": "string"
-     },
-     "instructionId": {
+     "note": {
       "anyOf": [
        {
-        "maxLength": 64,
+        "maxLength": 500,
         "type": "string"
        },
        {
         "type": "null"
        }
       ],
-      "title": "Instructionid"
-     },
+      "title": "Note"
+     }
+    },
+    "title": "DecisionBody",
+    "type": "object"
+   },
+   "DeletionBody": {
+    "properties": {
      "reason": {
       "anyOf": [
        {
@@ -275,10 +377,7 @@
       "title": "Requestid"
      }
     },
-    "required": [
-     "decision"
-    ],
-    "title": "DecideBody",
+    "title": "DeletionBody",
     "type": "object"
    },
    "DemoSeedResponse": {
@@ -455,6 +554,199 @@
      "error"
     ],
     "title": "ErrorEnvelope",
+    "type": "object"
+   },
+   "EvidenceBody": {
+    "properties": {
+     "kind": {
+      "enum": [
+       "file",
+       "diff",
+       "test",
+       "output",
+       "link",
+       "note",
+       "artifact"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "note": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note"
+     },
+     "ref": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Ref",
+      "type": "string"
+     }
+    },
+    "required": [
+     "kind",
+     "ref"
+    ],
+    "title": "EvidenceBody",
+    "type": "object"
+   },
+   "ExportBody": {
+    "properties": {
+     "format": {
+      "default": "json",
+      "enum": [
+       "json",
+       "ndjson"
+      ],
+      "title": "Format",
+      "type": "string"
+     },
+     "from": {
+      "anyOf": [
+       {
+        "maxLength": 40,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From"
+     },
+     "includeActors": {
+      "default": true,
+      "title": "Includeactors",
+      "type": "boolean"
+     },
+     "kind": {
+      "enum": [
+       "session_history",
+       "run_history",
+       "audit_evidence"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "requestId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Requestid"
+     },
+     "scopeId": {
+      "anyOf": [
+       {
+        "maxLength": 80,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Scopeid"
+     },
+     "to": {
+      "anyOf": [
+       {
+        "maxLength": 40,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "To"
+     }
+    },
+    "required": [
+     "kind"
+    ],
+    "title": "ExportBody",
+    "type": "object"
+   },
+   "GitStateBody": {
+    "properties": {
+     "baseBranch": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Basebranch"
+     },
+     "baseSha": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Basesha"
+     },
+     "headBranch": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Headbranch"
+     },
+     "observedHeadSha": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Observedheadsha"
+     },
+     "repoFullName": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Repofullname"
+     },
+     "runHeadSha": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Runheadsha"
+     }
+    },
+    "title": "GitStateBody",
     "type": "object"
    },
    "HTTPValidationError": {
@@ -649,6 +941,131 @@
     "title": "LeaveRequest",
     "type": "object"
    },
+   "LimitsBody": {
+    "properties": {
+     "expectedVersion": {
+      "anyOf": [
+       {
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expectedversion"
+     },
+     "maxCostMicrousd": {
+      "anyOf": [
+       {
+        "maximum": 1000000000000.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Maxcostmicrousd"
+     },
+     "maxModelCalls": {
+      "anyOf": [
+       {
+        "maximum": 100000.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Maxmodelcalls"
+     },
+     "maxSeconds": {
+      "anyOf": [
+       {
+        "maximum": 604800.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Maxseconds"
+     },
+     "maxToolCalls": {
+      "anyOf": [
+       {
+        "maximum": 1000000.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Maxtoolcalls"
+     }
+    },
+    "title": "LimitsBody",
+    "type": "object"
+   },
+   "MergeBody": {
+    "properties": {
+     "changesDigest": {
+      "title": "Changesdigest",
+      "type": "string"
+     },
+     "decision": {
+      "default": "approved",
+      "enum": [
+       "approved",
+       "rejected"
+      ],
+      "title": "Decision",
+      "type": "string"
+     },
+     "headSha": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Headsha"
+     },
+     "note": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note"
+     },
+     "requestId": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Requestid"
+     }
+    },
+    "required": [
+     "changesDigest"
+    ],
+    "title": "MergeBody",
+    "type": "object"
+   },
    "MergedIntent": {
     "properties": {
      "goal": {
@@ -722,6 +1139,74 @@
     "title": "ModerateBody",
     "type": "object"
    },
+   "OutputRef": {
+    "properties": {
+     "kind": {
+      "enum": [
+       "file",
+       "diff",
+       "artifact",
+       "test",
+       "log",
+       "link"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "note": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note"
+     },
+     "ref": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Ref",
+      "type": "string"
+     }
+    },
+    "required": [
+     "kind",
+     "ref"
+    ],
+    "title": "OutputRef",
+    "type": "object"
+   },
+   "PatchOp": {
+    "additionalProperties": false,
+    "properties": {
+     "op": {
+      "enum": [
+       "replace",
+       "add",
+       "remove"
+      ],
+      "title": "Op",
+      "type": "string"
+     },
+     "path": {
+      "pattern": "^/[A-Za-z]{1,32}(/(\\d{1,4}|-))?$",
+      "title": "Path",
+      "type": "string"
+     },
+     "value": {
+      "title": "Value"
+     }
+    },
+    "required": [
+     "op",
+     "path"
+    ],
+    "title": "PatchOp",
+    "type": "object"
+   },
    "PlanActionRequest": {
     "properties": {
      "planId": {
@@ -747,6 +1232,82 @@
      "runId"
     ],
     "title": "PlanActionResponse",
+    "type": "object"
+   },
+   "PlanContent": {
+    "additionalProperties": false,
+    "description": "The structured plan: the fields of the legacy AgentPlan, bounded.",
+    "properties": {
+     "estimatedCostUsd": {
+      "default": 0.0,
+      "maximum": 1000000.0,
+      "minimum": 0.0,
+      "title": "Estimatedcostusd",
+      "type": "number"
+     },
+     "expectedResult": {
+      "default": "",
+      "maxLength": 4000,
+      "title": "Expectedresult",
+      "type": "string"
+     },
+     "filesLikelyToChange": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 200,
+      "title": "Fileslikelytochange",
+      "type": "array"
+     },
+     "forbiddenPaths": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 200,
+      "title": "Forbiddenpaths",
+      "type": "array"
+     },
+     "goal": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Goal",
+      "type": "string"
+     },
+     "risks": {
+      "items": {
+       "maxLength": 1000,
+       "minLength": 1,
+       "type": "string"
+      },
+      "maxItems": 50,
+      "title": "Risks",
+      "type": "array"
+     },
+     "steps": {
+      "items": {
+       "maxLength": 2000,
+       "minLength": 1,
+       "type": "string"
+      },
+      "maxItems": 100,
+      "title": "Steps",
+      "type": "array"
+     },
+     "tests": {
+      "items": {
+       "maxLength": 1000,
+       "minLength": 1,
+       "type": "string"
+      },
+      "maxItems": 50,
+      "title": "Tests",
+      "type": "array"
+     }
+    },
+    "required": [
+     "goal"
+    ],
+    "title": "PlanContent",
     "type": "object"
    },
    "PlanDecisionResponse": {
@@ -992,6 +1553,50 @@
     "title": "PromoteBody",
     "type": "object"
    },
+   "ProposeBody": {
+    "additionalProperties": false,
+    "properties": {
+     "patch": {
+      "items": {
+       "$ref": "#/components/schemas/PatchOp"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "title": "Patch",
+      "type": "array"
+     },
+     "rationale": {
+      "anyOf": [
+       {
+        "maxLength": 1000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rationale"
+     },
+     "requestId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Requestid"
+     }
+    },
+    "required": [
+     "patch"
+    ],
+    "title": "ProposeBody",
+    "type": "object"
+   },
    "ProposePlanGateRequest": {
     "properties": {
      "goal": {
@@ -1188,6 +1793,63 @@
     "title": "RedirectRequest",
     "type": "object"
    },
+   "RejectBody": {
+    "properties": {
+     "reason": {
+      "maxLength": 500,
+      "minLength": 3,
+      "title": "Reason",
+      "type": "string"
+     },
+     "reportDigest": {
+      "maxLength": 64,
+      "minLength": 64,
+      "title": "Reportdigest",
+      "type": "string"
+     }
+    },
+    "required": [
+     "reportDigest",
+     "reason"
+    ],
+    "title": "RejectBody",
+    "type": "object"
+   },
+   "ReportBody": {
+    "properties": {
+     "outputs": {
+      "items": {
+       "$ref": "#/components/schemas/OutputRef"
+      },
+      "maxItems": 50,
+      "title": "Outputs",
+      "type": "array"
+     },
+     "requestId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Requestid"
+     },
+     "summary": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Summary",
+      "type": "string"
+     }
+    },
+    "required": [
+     "summary"
+    ],
+    "title": "ReportBody",
+    "type": "object"
+   },
    "ResolveBody": {
     "properties": {
      "expectedVersion": {
@@ -1220,6 +1882,66 @@
      "expectedVersion"
     ],
     "title": "ResolveBody",
+    "type": "object"
+   },
+   "RetryBody": {
+    "properties": {
+     "reason": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     },
+     "requestId": {
+      "maxLength": 64,
+      "minLength": 8,
+      "title": "Requestid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "requestId"
+    ],
+    "title": "RetryBody",
+    "type": "object"
+   },
+   "ReviewBody": {
+    "properties": {
+     "decision": {
+      "enum": [
+       "approved",
+       "rejected"
+      ],
+      "title": "Decision",
+      "type": "string"
+     },
+     "diffSha": {
+      "title": "Diffsha",
+      "type": "string"
+     },
+     "note": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note"
+     }
+    },
+    "required": [
+     "decision",
+     "diffSha"
+    ],
+    "title": "ReviewBody",
     "type": "object"
    },
    "ReviewFindingsOut": {
@@ -1864,6 +2586,175 @@
     "title": "StartRunResponse",
     "type": "object"
    },
+   "SubtaskCreate": {
+    "properties": {
+     "dependsOn": {
+      "items": {
+       "maxLength": 64,
+       "minLength": 1,
+       "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Dependson",
+      "type": "array"
+     },
+     "description": {
+      "default": "",
+      "maxLength": 2000,
+      "title": "Description",
+      "type": "string"
+     },
+     "requestId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Requestid"
+     },
+     "title": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "required": [
+     "title"
+    ],
+    "title": "SubtaskCreate",
+    "type": "object"
+   },
+   "SubtaskPatch": {
+    "properties": {
+     "dependsOn": {
+      "anyOf": [
+       {
+        "items": {
+         "maxLength": 64,
+         "minLength": 1,
+         "type": "string"
+        },
+        "maxItems": 20,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Dependson"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "maxLength": 2000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "expectedVersion": {
+      "minimum": 1.0,
+      "title": "Expectedversion",
+      "type": "integer"
+     },
+     "state": {
+      "anyOf": [
+       {
+        "enum": [
+         "todo",
+         "in_progress",
+         "cancelled"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "State"
+     },
+     "title": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Title"
+     }
+    },
+    "required": [
+     "expectedVersion"
+    ],
+    "title": "SubtaskPatch",
+    "type": "object"
+   },
+   "TaskBody": {
+    "additionalProperties": false,
+    "properties": {
+     "constraints": {
+      "items": {
+       "maxLength": 500,
+       "minLength": 1,
+       "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Constraints",
+      "type": "array"
+     },
+     "expectedVersion": {
+      "minimum": 0.0,
+      "title": "Expectedversion",
+      "type": "integer"
+     },
+     "ownerUserId": {
+      "anyOf": [
+       {
+        "maxLength": 36,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Owneruserid"
+     },
+     "statement": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Statement",
+      "type": "string"
+     },
+     "successCriteria": {
+      "items": {
+       "maxLength": 500,
+       "minLength": 1,
+       "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Successcriteria",
+      "type": "array"
+     }
+    },
+    "required": [
+     "statement",
+     "expectedVersion"
+    ],
+    "title": "TaskBody",
+    "type": "object"
+   },
    "ToolCallBody": {
     "additionalProperties": false,
     "description": "Summary and outcome only. ``extra=forbid`` rejects fields such as ``reasoning`` or\n``thoughts`` (422), so hidden reasoning has nowhere to be stored.",
@@ -1989,6 +2880,36 @@
     "title": "TransferBody",
     "type": "object"
    },
+   "UnblockBody": {
+    "properties": {
+     "blockerId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Blockerid"
+     },
+     "resolution": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Resolution"
+     }
+    },
+    "title": "UnblockBody",
+    "type": "object"
+   },
    "UpgradeCtaOut": {
     "description": "M22-M2 \u2014 structured upgrade call-to-action on a tier cap hit.\n\nEmitted when a TIER cap (e.g. free runs/day) refused this run: ``tier``\nnames the plan that capped it, ``cap``/``used`` quantify the hit,\n``capField`` says which limit (wire spelling), and ``upgradeTo``/``cta``\nare what the UI renders as the upgrade action. ``upgradeTo`` is null at\nthe top tier (nothing to sell; CTA degrades to contact-the-operator).",
     "properties": {
@@ -2074,6 +2995,38 @@
     "title": "ValidationError",
     "type": "object"
    },
+   "VersionBody": {
+    "additionalProperties": false,
+    "properties": {
+     "content": {
+      "$ref": "#/components/schemas/PlanContent"
+     },
+     "expectedVersion": {
+      "minimum": 0.0,
+      "title": "Expectedversion",
+      "type": "integer"
+     },
+     "requestId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Requestid"
+     }
+    },
+    "required": [
+     "content",
+     "expectedVersion"
+    ],
+    "title": "VersionBody",
+    "type": "object"
+   },
    "_ErrorDetail": {
     "description": "M13-G5a: frozen contract error entry for responses={} documentation.",
     "properties": {
@@ -2104,6 +3057,119 @@
     ],
     "title": "_ErrorEnvelope",
     "type": "object"
+   },
+   "harness_orchestrator__control__DecideBody": {
+    "properties": {
+     "decision": {
+      "enum": [
+       "grant",
+       "decline",
+       "cancel",
+       "accept",
+       "reject"
+      ],
+      "title": "Decision",
+      "type": "string"
+     },
+     "instructionId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Instructionid"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     },
+     "requestId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Requestid"
+     }
+    },
+    "required": [
+     "decision"
+    ],
+    "title": "DecideBody",
+    "type": "object"
+   },
+   "harness_orchestrator__execution__DecideBody": {
+    "properties": {
+     "reason": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     },
+     "reportDigest": {
+      "maxLength": 64,
+      "minLength": 64,
+      "title": "Reportdigest",
+      "type": "string"
+     }
+    },
+    "required": [
+     "reportDigest"
+    ],
+    "title": "DecideBody",
+    "type": "object"
+   },
+   "harness_orchestrator__plans__DecideBody": {
+    "additionalProperties": false,
+    "properties": {
+     "decision": {
+      "enum": [
+       "accept",
+       "reject"
+      ],
+      "title": "Decision",
+      "type": "string"
+     },
+     "note": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note"
+     }
+    },
+    "required": [
+     "decision"
+    ],
+    "title": "DecideBody",
+    "type": "object"
    }
   }
  },
@@ -2113,6 +3179,238 @@
  },
  "openapi": "3.1.0",
  "paths": {
+  "/api/v1/orchestrator/deletion-requests": {
+   "get": {
+    "operationId": "deletion_list_api_v1_orchestrator_deletion_requests_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "state",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "enum": [
+          "pending",
+          "approved",
+          "rejected",
+          "executed"
+         ],
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "State"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 50,
+       "maximum": 100,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Deletion List Api V1 Orchestrator Deletion Requests Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Deletion List",
+    "tags": [
+     "exports"
+    ]
+   },
+   "post": {
+    "operationId": "deletion_create_api_v1_orchestrator_deletion_requests_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DeletionBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Deletion Create Api V1 Orchestrator Deletion Requests Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Deletion Create",
+    "tags": [
+     "exports"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/deletion-requests/{requestId}/approve": {
+   "post": {
+    "operationId": "deletion_approve_api_v1_orchestrator_deletion_requests__requestId__approve_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "requestId",
+      "required": true,
+      "schema": {
+       "title": "Requestid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/DecisionBody"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Req"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Deletion Approve Api V1 Orchestrator Deletion Requests  Requestid  Approve Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Deletion Approve",
+    "tags": [
+     "exports"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/deletion-requests/{requestId}/reject": {
+   "post": {
+    "operationId": "deletion_reject_api_v1_orchestrator_deletion_requests__requestId__reject_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "requestId",
+      "required": true,
+      "schema": {
+       "title": "Requestid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/DecisionBody"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Req"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Deletion Reject Api V1 Orchestrator Deletion Requests  Requestid  Reject Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Deletion Reject",
+    "tags": [
+     "exports"
+    ]
+   }
+  },
   "/api/v1/orchestrator/demo/seed": {
    "post": {
     "description": "Materialize the canned demo for the CALLER'S team (M19-N4 / C10).\n\nOne project + repo binding + one COMPLETED run carrying its real diff,\nreal review verdict and real PR binding, replayed from recorded material.\nZero provider keys involved. Idempotent: repeat calls return the same\ndemo graph. Every persisted payload carries the replay marker.",
@@ -2297,6 +3595,178 @@
     "summary": "Discussions Search",
     "tags": [
      "discussion"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/exports": {
+   "get": {
+    "operationId": "exports_list_api_v1_orchestrator_exports_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 25,
+       "maximum": 100,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Exports List Api V1 Orchestrator Exports Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Exports List",
+    "tags": [
+     "exports"
+    ]
+   },
+   "post": {
+    "operationId": "exports_create_api_v1_orchestrator_exports_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ExportBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Exports Create Api V1 Orchestrator Exports Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Exports Create",
+    "tags": [
+     "exports"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/exports/{exportId}": {
+   "get": {
+    "operationId": "exports_get_api_v1_orchestrator_exports__exportId__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "exportId",
+      "required": true,
+      "schema": {
+       "title": "Exportid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Exports Get Api V1 Orchestrator Exports  Exportid  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Exports Get",
+    "tags": [
+     "exports"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/exports/{exportId}/download": {
+   "get": {
+    "operationId": "exports_download_api_v1_orchestrator_exports__exportId__download_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "exportId",
+      "required": true,
+      "schema": {
+       "title": "Exportid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Exports Download",
+    "tags": [
+     "exports"
     ]
    }
   },
@@ -2731,6 +4201,60 @@
     "summary": "Get Run",
     "tags": [
      "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/abandon": {
+   "post": {
+    "operationId": "abandon_route_api_v1_orchestrator_runs__runId__abandon_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AbandonBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Abandon Route Api V1 Orchestrator Runs  Runid  Abandon Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Abandon Route",
+    "tags": [
+     "execution"
     ]
    }
   },
@@ -3564,6 +5088,567 @@
     ]
    }
   },
+  "/api/v1/orchestrator/runs/{runId}/artifacts": {
+   "get": {
+    "operationId": "list_artifacts_api_v1_orchestrator_runs__runId__artifacts_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "state",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "enum": [
+          "available",
+          "quarantined",
+          "deleted",
+          "expired"
+         ],
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "State"
+      }
+     },
+     {
+      "in": "query",
+      "name": "kind",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "enum": [
+          "upload",
+          "output",
+          "diff",
+          "log"
+         ],
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Kind"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 100,
+       "maximum": 200,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "cursor",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 12,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Cursor"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response List Artifacts Api V1 Orchestrator Runs  Runid  Artifacts Get"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Artifacts",
+    "tags": [
+     "artifacts"
+    ]
+   },
+   "post": {
+    "description": "Raw-body upload: the request body IS the file; ``?name=`` is its display name.",
+    "operationId": "upload_artifact_api_v1_orchestrator_runs__runId__artifacts_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "name",
+      "required": false,
+      "schema": {
+       "default": "",
+       "title": "Name",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "kind",
+      "required": false,
+      "schema": {
+       "default": "upload",
+       "enum": [
+        "upload",
+        "output",
+        "diff",
+        "log"
+       ],
+       "title": "Kind",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "requestId",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 64,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Requestid"
+      }
+     },
+     {
+      "in": "query",
+      "name": "retentionDays",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maximum": 3650,
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Retentiondays"
+      }
+     },
+     {
+      "in": "query",
+      "name": "derivedFrom",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 36,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Derivedfrom"
+      }
+     },
+     {
+      "in": "query",
+      "name": "changeId",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 36,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Changeid"
+      }
+     }
+    ],
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Upload Artifact Api V1 Orchestrator Runs  Runid  Artifacts Post"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Upload Artifact",
+    "tags": [
+     "artifacts"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/artifacts/{artifactId}": {
+   "delete": {
+    "description": "Uploader or an administer holder. Bytes are removed (when no other row of the team\nshares them), the row stays as a tombstone.",
+    "operationId": "delete_artifact_api_v1_orchestrator_runs__runId__artifacts__artifactId__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "artifactId",
+      "required": true,
+      "schema": {
+       "title": "Artifactid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Delete Artifact Api V1 Orchestrator Runs  Runid  Artifacts  Artifactid  Delete"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Artifact",
+    "tags": [
+     "artifacts"
+    ]
+   },
+   "get": {
+    "operationId": "get_artifact_api_v1_orchestrator_runs__runId__artifacts__artifactId__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "artifactId",
+      "required": true,
+      "schema": {
+       "title": "Artifactid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Get Artifact Api V1 Orchestrator Runs  Runid  Artifacts  Artifactid  Get"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Artifact",
+    "tags": [
+     "artifacts"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/artifacts/{artifactId}/content": {
+   "get": {
+    "description": "Always an attachment with nosniff: the browser saves it, never renders it.",
+    "operationId": "artifact_content_api_v1_orchestrator_runs__runId__artifacts__artifactId__content_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "artifactId",
+      "required": true,
+      "schema": {
+       "title": "Artifactid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Artifact Content Api V1 Orchestrator Runs  Runid  Artifacts  Artifactid  Content Get"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Artifact Content",
+    "tags": [
+     "artifacts"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/artifacts/{artifactId}/preview": {
+   "get": {
+    "description": "JSON only. Text is returned as a JSON string (clients show it as text, never as HTML);\neverything else answers ``previewable: false`` and is download-only.",
+    "operationId": "artifact_preview_api_v1_orchestrator_runs__runId__artifacts__artifactId__preview_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "artifactId",
+      "required": true,
+      "schema": {
+       "title": "Artifactid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Artifact Preview Api V1 Orchestrator Runs  Runid  Artifacts  Artifactid  Preview Get"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Artifact Preview",
+    "tags": [
+     "artifacts"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/changes": {
+   "get": {
+    "description": "Changed files of the run, each bound to the plan version and a review state. Reading\nrecords any not-yet-recorded files from the done diff (derived, deterministic, audited once).",
+    "operationId": "list_changes_api_v1_orchestrator_runs__runId__changes_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response List Changes Api V1 Orchestrator Runs  Runid  Changes Get"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Changes",
+    "tags": [
+     "artifacts"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/changes/{changeId}/review": {
+   "post": {
+    "description": "An approve holder decides one change. The decision must echo the patch digest reviewed;\na change is decided once (a different patch is a different row).",
+    "operationId": "review_change_api_v1_orchestrator_runs__runId__changes__changeId__review_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "changeId",
+      "required": true,
+      "schema": {
+       "title": "Changeid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ReviewBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Review Change Api V1 Orchestrator Runs  Runid  Changes  Changeid  Review Post"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Change",
+    "tags": [
+     "artifacts"
+    ]
+   }
+  },
   "/api/v1/orchestrator/runs/{runId}/collab-history": {
    "get": {
     "operationId": "collab_history_api_v1_orchestrator_runs__runId__collab_history_get",
@@ -3635,6 +5720,212 @@
     "summary": "Collab History",
     "tags": [
      "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/completion": {
+   "get": {
+    "operationId": "completion_read_api_v1_orchestrator_runs__runId__completion_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Completion Read Api V1 Orchestrator Runs  Runid  Completion Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Completion Read",
+    "tags": [
+     "execution"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/completion/accept": {
+   "post": {
+    "operationId": "completion_accept_api_v1_orchestrator_runs__runId__completion_accept_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/harness_orchestrator__execution__DecideBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Completion Accept Api V1 Orchestrator Runs  Runid  Completion Accept Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Completion Accept",
+    "tags": [
+     "execution"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/completion/reject": {
+   "post": {
+    "operationId": "completion_reject_api_v1_orchestrator_runs__runId__completion_reject_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RejectBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Completion Reject Api V1 Orchestrator Runs  Runid  Completion Reject Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Completion Reject",
+    "tags": [
+     "execution"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/completion/report": {
+   "post": {
+    "operationId": "completion_report_route_api_v1_orchestrator_runs__runId__completion_report_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ReportBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Completion Report Route Api V1 Orchestrator Runs  Runid  Completion Report Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Completion Report Route",
+    "tags": [
+     "execution"
     ]
    }
   },
@@ -3761,7 +6052,7 @@
      "content": {
       "application/json": {
        "schema": {
-        "$ref": "#/components/schemas/DecideBody"
+        "$ref": "#/components/schemas/harness_orchestrator__control__DecideBody"
        }
       }
      },
@@ -4054,6 +6345,72 @@
     ]
    }
   },
+  "/api/v1/orchestrator/runs/{runId}/diff": {
+   "get": {
+    "description": "The done-signal diff as structured JSON. Binary, generated, minified and large files show\nstats only. Patch text is control-character-stripped and is never HTML; clients render it\nwith textContent.",
+    "operationId": "run_diff_api_v1_orchestrator_runs__runId__diff_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 100,
+       "maximum": 500,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "offset",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "minimum": 0,
+       "title": "Offset",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Run Diff Api V1 Orchestrator Runs  Runid  Diff Get"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Run Diff",
+    "tags": [
+     "artifacts"
+    ]
+   }
+  },
   "/api/v1/orchestrator/runs/{runId}/done-signal": {
    "post": {
     "operationId": "signal_done_api_v1_orchestrator_runs__runId__done_signal_post",
@@ -4187,6 +6544,282 @@
     "summary": "Get Engine Result",
     "tags": [
      "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/execution-limits": {
+   "get": {
+    "operationId": "execution_limits_get_api_v1_orchestrator_runs__runId__execution_limits_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Execution Limits Get Api V1 Orchestrator Runs  Runid  Execution Limits Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Execution Limits Get",
+    "tags": [
+     "execution"
+    ]
+   },
+   "put": {
+    "operationId": "execution_limits_put_api_v1_orchestrator_runs__runId__execution_limits_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LimitsBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Execution Limits Put Api V1 Orchestrator Runs  Runid  Execution Limits Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Execution Limits Put",
+    "tags": [
+     "execution"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/execution-status": {
+   "get": {
+    "operationId": "execution_status_api_v1_orchestrator_runs__runId__execution_status_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Execution Status Api V1 Orchestrator Runs  Runid  Execution Status Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Execution Status",
+    "tags": [
+     "execution"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/git-permissions": {
+   "get": {
+    "description": "Who may commit, push, open a PR and merge on this run, answered by the policy engine for\nthe caller and for the run's participants. Merge needs ``approve`` AND a current merge\napproval; the plan approval is not consulted.",
+    "operationId": "git_permissions_api_v1_orchestrator_runs__runId__git_permissions_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Git Permissions Api V1 Orchestrator Runs  Runid  Git Permissions Get"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Git Permissions",
+    "tags": [
+     "artifacts"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/git-state": {
+   "get": {
+    "operationId": "get_git_state_api_v1_orchestrator_runs__runId__git_state_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Get Git State Api V1 Orchestrator Runs  Runid  Git State Get"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Git State",
+    "tags": [
+     "artifacts"
+    ]
+   },
+   "put": {
+    "description": "Record what the caller observed. Partial: fields left out keep their value. Nothing here\ntalks to GitHub; staleness is base sha != observed head of the base branch.",
+    "operationId": "put_git_state_api_v1_orchestrator_runs__runId__git_state_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/GitStateBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Put Git State Api V1 Orchestrator Runs  Runid  Git State Put"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put Git State",
+    "tags": [
+     "artifacts"
     ]
    }
   },
@@ -4661,6 +7294,102 @@
     "summary": "Collab Claim Leader",
     "tags": [
      "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/lineage": {
+   "get": {
+    "description": "Task request -> plan versions -> changes -> review -> accepted completion -> merge\napproval, plus the artifacts. Built from the tables of those stages; a stage whose table is\nnot deployed or has no row is listed under ``missing``, never invented.",
+    "operationId": "lineage_api_v1_orchestrator_runs__runId__lineage_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Lineage Api V1 Orchestrator Runs  Runid  Lineage Get"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Lineage",
+    "tags": [
+     "artifacts"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/merge-approval": {
+   "post": {
+    "description": "The human merge decision. It is its own record: plan approval does not create, imply or\nsatisfy it, and holding it does not approve plans. Approving needs every current change\napproved, a fresh base, and echoes the changes digest and head sha being approved.",
+    "operationId": "merge_approval_api_v1_orchestrator_runs__runId__merge_approval_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/MergeBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Merge Approval Api V1 Orchestrator Runs  Runid  Merge Approval Post"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Merge Approval",
+    "tags": [
+     "artifacts"
     ]
    }
   },
@@ -5378,6 +8107,554 @@
     ]
    }
   },
+  "/api/v1/orchestrator/runs/{runId}/plan/versions": {
+   "get": {
+    "operationId": "plans_versions_list_api_v1_orchestrator_runs__runId__plan_versions_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Plans Versions List Api V1 Orchestrator Runs  Runid  Plan Versions Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Plans Versions List",
+    "tags": [
+     "plans"
+    ]
+   },
+   "post": {
+    "operationId": "plans_versions_create_api_v1_orchestrator_runs__runId__plan_versions_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/VersionBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Plans Versions Create Api V1 Orchestrator Runs  Runid  Plan Versions Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Plans Versions Create",
+    "tags": [
+     "plans"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/plan/versions/{n}": {
+   "get": {
+    "operationId": "plans_version_get_api_v1_orchestrator_runs__runId__plan_versions__n__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "n",
+      "required": true,
+      "schema": {
+       "title": "N",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Plans Version Get Api V1 Orchestrator Runs  Runid  Plan Versions  N  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Plans Version Get",
+    "tags": [
+     "plans"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/plan/versions/{n}/comments": {
+   "get": {
+    "operationId": "plans_comments_list_api_v1_orchestrator_runs__runId__plan_versions__n__comments_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "n",
+      "required": true,
+      "schema": {
+       "title": "N",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 50,
+       "maximum": 100,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "after",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 64,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "After"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Plans Comments List Api V1 Orchestrator Runs  Runid  Plan Versions  N  Comments Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Plans Comments List",
+    "tags": [
+     "plans"
+    ]
+   },
+   "post": {
+    "operationId": "plans_comments_create_api_v1_orchestrator_runs__runId__plan_versions__n__comments_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "n",
+      "required": true,
+      "schema": {
+       "title": "N",
+       "type": "integer"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CommentBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Plans Comments Create Api V1 Orchestrator Runs  Runid  Plan Versions  N  Comments Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Plans Comments Create",
+    "tags": [
+     "plans"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/plan/versions/{n}/diff": {
+   "get": {
+    "operationId": "plans_version_diff_api_v1_orchestrator_runs__runId__plan_versions__n__diff_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "n",
+      "required": true,
+      "schema": {
+       "title": "N",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "against",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Against"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Plans Version Diff Api V1 Orchestrator Runs  Runid  Plan Versions  N  Diff Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Plans Version Diff",
+    "tags": [
+     "plans"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/plan/versions/{n}/edits": {
+   "get": {
+    "operationId": "plans_edits_list_api_v1_orchestrator_runs__runId__plan_versions__n__edits_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "n",
+      "required": true,
+      "schema": {
+       "title": "N",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Plans Edits List Api V1 Orchestrator Runs  Runid  Plan Versions  N  Edits Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Plans Edits List",
+    "tags": [
+     "plans"
+    ]
+   },
+   "post": {
+    "operationId": "plans_edits_propose_api_v1_orchestrator_runs__runId__plan_versions__n__edits_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "n",
+      "required": true,
+      "schema": {
+       "title": "N",
+       "type": "integer"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ProposeBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Plans Edits Propose Api V1 Orchestrator Runs  Runid  Plan Versions  N  Edits Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Plans Edits Propose",
+    "tags": [
+     "plans"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/plan/versions/{n}/edits/{editId}/decide": {
+   "post": {
+    "operationId": "plans_edits_decide_api_v1_orchestrator_runs__runId__plan_versions__n__edits__editId__decide_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "n",
+      "required": true,
+      "schema": {
+       "title": "N",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "path",
+      "name": "editId",
+      "required": true,
+      "schema": {
+       "title": "Editid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/harness_orchestrator__plans__DecideBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Plans Edits Decide Api V1 Orchestrator Runs  Runid  Plan Versions  N  Edits  Editid  Decide Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Plans Edits Decide",
+    "tags": [
+     "plans"
+    ]
+   }
+  },
   "/api/v1/orchestrator/runs/{runId}/presence": {
    "get": {
     "operationId": "get_presence_api_v1_orchestrator_runs__runId__presence_get",
@@ -5634,6 +8911,60 @@
     ]
    }
   },
+  "/api/v1/orchestrator/runs/{runId}/retry": {
+   "post": {
+    "operationId": "retry_route_api_v1_orchestrator_runs__runId__retry_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RetryBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "202": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Retry Route Api V1 Orchestrator Runs  Runid  Retry Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Retry Route",
+    "tags": [
+     "execution"
+    ]
+   }
+  },
   "/api/v1/orchestrator/runs/{runId}/staged/approvals": {
    "post": {
     "description": "(Re)file approvals for whatever is currently withheld for this run.",
@@ -5833,6 +9164,530 @@
     "summary": "Stop Agent",
     "tags": [
      "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/subtasks": {
+   "get": {
+    "operationId": "subtasks_get_api_v1_orchestrator_runs__runId__subtasks_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Subtasks Get Api V1 Orchestrator Runs  Runid  Subtasks Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Subtasks Get",
+    "tags": [
+     "execution"
+    ]
+   },
+   "post": {
+    "operationId": "subtasks_post_api_v1_orchestrator_runs__runId__subtasks_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SubtaskCreate"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Subtasks Post Api V1 Orchestrator Runs  Runid  Subtasks Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Subtasks Post",
+    "tags": [
+     "execution"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/subtasks/{subtaskId}": {
+   "patch": {
+    "operationId": "subtasks_patch_api_v1_orchestrator_runs__runId__subtasks__subtaskId__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "subtaskId",
+      "required": true,
+      "schema": {
+       "title": "Subtaskid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SubtaskPatch"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Subtasks Patch Api V1 Orchestrator Runs  Runid  Subtasks  Subtaskid  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Subtasks Patch",
+    "tags": [
+     "execution"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/subtasks/{subtaskId}/block": {
+   "post": {
+    "operationId": "subtasks_block_api_v1_orchestrator_runs__runId__subtasks__subtaskId__block_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "subtaskId",
+      "required": true,
+      "schema": {
+       "title": "Subtaskid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/BlockBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Subtasks Block Api V1 Orchestrator Runs  Runid  Subtasks  Subtaskid  Block Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Subtasks Block",
+    "tags": [
+     "execution"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/subtasks/{subtaskId}/complete": {
+   "post": {
+    "operationId": "subtasks_complete_api_v1_orchestrator_runs__runId__subtasks__subtaskId__complete_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "subtaskId",
+      "required": true,
+      "schema": {
+       "title": "Subtaskid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CompleteBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Subtasks Complete Api V1 Orchestrator Runs  Runid  Subtasks  Subtaskid  Complete Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Subtasks Complete",
+    "tags": [
+     "execution"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/subtasks/{subtaskId}/evidence": {
+   "post": {
+    "operationId": "subtasks_evidence_api_v1_orchestrator_runs__runId__subtasks__subtaskId__evidence_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "subtaskId",
+      "required": true,
+      "schema": {
+       "title": "Subtaskid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/EvidenceBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Subtasks Evidence Api V1 Orchestrator Runs  Runid  Subtasks  Subtaskid  Evidence Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Subtasks Evidence",
+    "tags": [
+     "execution"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/subtasks/{subtaskId}/unblock": {
+   "post": {
+    "operationId": "subtasks_unblock_api_v1_orchestrator_runs__runId__subtasks__subtaskId__unblock_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "subtaskId",
+      "required": true,
+      "schema": {
+       "title": "Subtaskid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/UnblockBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Subtasks Unblock Api V1 Orchestrator Runs  Runid  Subtasks  Subtaskid  Unblock Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Subtasks Unblock",
+    "tags": [
+     "execution"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/task": {
+   "get": {
+    "operationId": "plans_task_get_api_v1_orchestrator_runs__runId__task_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "version",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Version"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Plans Task Get Api V1 Orchestrator Runs  Runid  Task Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Plans Task Get",
+    "tags": [
+     "plans"
+    ]
+   },
+   "put": {
+    "operationId": "plans_task_put_api_v1_orchestrator_runs__runId__task_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TaskBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Plans Task Put Api V1 Orchestrator Runs  Runid  Task Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Plans Task Put",
+    "tags": [
+     "plans"
     ]
    }
   },
@@ -6358,6 +10213,236 @@
     "summary": "Run Comments React",
     "tags": [
      "discussion"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/search": {
+   "get": {
+    "operationId": "search_route_api_v1_orchestrator_search_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "q",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 100,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Q"
+      }
+     },
+     {
+      "in": "query",
+      "name": "kind",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "enum": [
+          "run",
+          "session",
+          "comment",
+          "event",
+          "artifact",
+          "approval"
+         ],
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Kind"
+      }
+     },
+     {
+      "in": "query",
+      "name": "projectId",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 64,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Projectid"
+      }
+     },
+     {
+      "in": "query",
+      "name": "participantId",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 64,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Participantid"
+      }
+     },
+     {
+      "in": "query",
+      "name": "status",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 40,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     },
+     {
+      "in": "query",
+      "name": "approvalState",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 16,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Approvalstate"
+      }
+     },
+     {
+      "in": "query",
+      "name": "from",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 40,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "From"
+      }
+     },
+     {
+      "in": "query",
+      "name": "to",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 40,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "To"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 25,
+       "maximum": 50,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "cursor",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 512,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Cursor"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Search Route Api V1 Orchestrator Search Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Search Route",
+    "tags": [
+     "search"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/search/status": {
+   "get": {
+    "operationId": "search_status_route_api_v1_orchestrator_search_status_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Search Status Route Api V1 Orchestrator Search Status Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Search Status Route",
+    "tags": [
+     "search"
     ]
    }
   },

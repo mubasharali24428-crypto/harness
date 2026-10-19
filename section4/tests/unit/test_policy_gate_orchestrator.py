@@ -12,7 +12,18 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from harness_orchestrator import agent_tree, control, discussion, participation, presence
+from harness_orchestrator import (
+    agent_tree,
+    artifacts,
+    control,
+    discussion,
+    execution,
+    exports,
+    participation,
+    plans,
+    presence,
+    search,
+)
 from harness_orchestrator.api import router as run_router
 from harness_orchestrator.demo import router as demo_router
 from harness_orchestrator.plan_gate import router as plan_router
@@ -36,11 +47,25 @@ CREATE TABLE audit_log (seq INTEGER PRIMARY KEY AUTOINCREMENT, actor_member_id T
 
 def test_every_orchestrator_route_is_classified():
     app = FastAPI()
-    for r in (run_router, plan_router, index_router, demo_router, presence.router,
-              participation.router, control.router, agent_tree.router, discussion.router):
+    for r in (
+        run_router,
+        plan_router,
+        index_router,
+        demo_router,
+        presence.router,
+        participation.router,
+        control.router,
+        agent_tree.router,
+        discussion.router,
+        plans.router,
+        execution.router,
+        artifacts.router,
+        search.router,
+        exports.router,
+    ):
         app.include_router(r)
     paths = app.openapi()["paths"]
-    assert len(paths) >= 70  # guard against a vacuous walk
+    assert len(paths) >= 110  # guard against a vacuous walk
     missing = [
         f"{m.upper()} {p}"
         for p, ops in paths.items()
@@ -103,14 +128,17 @@ async def test_org_deny_blocks_run_control_but_not_reads_or_unlinked_teams(clien
     pause = "/api/v1/orchestrator/runs/r1/pause"
     r = await client.post(pause, headers={"x-team": "t-org"})
     assert r.status_code == 403 and r.json()["error"]["code"] == "POLICY_DENIED"
-    assert (await client.get(pause.replace("pause", "status"), headers={"x-team": "t-org"})
-            ).status_code == 200
+    assert (
+        await client.get(pause.replace("pause", "status"), headers={"x-team": "t-org"})
+    ).status_code == 200
     assert (await client.post(pause, headers={"x-team": "t-free"})).status_code == 200
     assert (await client.post(pause)).status_code == 200  # no session: the route answers
     async with client.factory() as db:
-        denied = (await db.execute(text(
-            "SELECT target_id, detail FROM audit_log WHERE action='policy.denied'"
-        ))).all()
+        denied = (
+            await db.execute(
+                text("SELECT target_id, detail FROM audit_log WHERE action='policy.denied'")
+            )
+        ).all()
         logged = (
             await db.execute(text("SELECT resource, decision FROM policy_decision_log"))
         ).all()
