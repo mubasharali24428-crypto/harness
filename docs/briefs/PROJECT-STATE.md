@@ -1,6 +1,6 @@
 # Harness Multiplayer AI — project state and resume guide
 
-Rewritten 2026-10-19 at the end of Session 3. Read this first in a new session, then `docs/briefs/path-to-9-plan.md`,
+Rewritten 2026-10-19 at the end of Session 4. Read this first in a new session, then `docs/briefs/path-to-9-plan.md`,
 `docs/briefs/capability-matrix.md` and `docs/briefs/path-to-9-checkpoint.md`. The repository is the source of truth:
 re-verify any number below before relying on it. Nothing here is a claim of readiness for real users (see "Not cleared").
 
@@ -14,7 +14,7 @@ over ten sessions (`path-to-9-plan.md`). 9/10 means: every directive implemented
 tests, an evidence file, docs matching behaviour, and a `verified` matrix row. 10/10 needs external evidence; externally gated
 parts are capped at 8: 03, 37/57, 53, 52/58, 61.
 
-Layout: section1 identity/auth/audit/eventbus/orgs/policy/workspaces (migrations 0001–0040; 39 files, number 0001→0040) · section3/6/8/10
+Layout: section1 identity/auth/audit/eventbus/orgs/policy/workspaces (migrations 0001–0044; 43 files) · section3/6/8/10
 auxiliary · section4 orchestrator · section5 sandbox · section7 Next.js UI + Playwright · `deploy/` compose stack, runners,
 observability, `deploy/pilot` disposable smoke stack · `docs/` · `scripts/` (spec_drift, sdk-gen) · `clients/` generated SDKs.
 
@@ -25,7 +25,8 @@ observability, `deploy/pilot` disposable smoke stack · `docs/` · `scripts/` (s
 | 1 | Truth ledger, baseline | Done, committed |
 | 2 | Pilot residuals + sandbox fixes | Done, committed (parts 05–08, 10, 11, 22, 23, 27 verified) |
 | 3 | Orgs, permissions, workspaces (37, 38, 39) | Done, committed, incl. the part 38 enforcement carry-over |
-| 4–10 | Presence/sessions/leases/agent registry (40, 41, 42, 45), then discussion, plans/artifacts, integrations, compliance, scale, final acceptance | Not started |
+| 4 | Sessions, presence, control leases, agent registry (40, 41, 42, 45) | Done, committed (lanes S, P, C, A, U) |
+| 5–10 | Discussion, plans/artifacts, integrations, compliance, scale, final acceptance | Not started |
 
 ## 3. Session 3 result
 
@@ -38,26 +39,23 @@ observability, `deploy/pilot` disposable smoke stack · `docs/` · `scripts/` (s
 Evidence: `docs/briefs/evidence/s3/` (`lane-o.md`, `lane-p.md`, `lane-w.md`, `session3-summary.md`). Docs: `organizations.md`,
 `permissions.md`, `workspaces.md`.
 
-## 4. Verification record (commands run by me, 2026-10-19)
+## 3b. Session 4 result
 
-| Check | Result |
-|---|---|
-| section1 pytest (sqlite) | 784 passed, 27 skipped |
-| `make pg-probe-s1` (live Postgres, includes `test_session3_pg.py`) | 810 passed, 1 skipped |
-| `make pg-probe-migrate` | PASS: 39 migrations (0001→0040), idempotent |
-| section4 pytest | 847 passed, 32 skipped |
-| ruff `src tests` section1, section4 | clean |
-| `scripts/spec_drift.py` and its test; section4 spec drift test | match / pass |
-| `run_smoke.py --otp` (two-user browser proof) | 1 passed, again after the gate was installed |
+Parts 40, 41, 42, 45 verified (matrix rows list tests and gaps). Evidence `docs/briefs/evidence/s4/` (`session4-summary.md` has the
+command table); docs `sessions.md`, `presence.md`, `control.md`, `agents.md`. Behaviour change: a non-holder's guidance is queued until the
+lease holder accepts it (`control/decide`); the UI has the accept step.
 
-**Not run:** section5/section7 suites this session (unchanged except one e2e timeout), `make gate`, `make e2e*` (beyond the smoke leg),
-`pip-audit`, `run_smoke.py --real`, Linux Landlock, a true multi-process archive-vs-start race, the concurrent-owner race on Postgres.
+## 4. Verification record (commands run by me, 2026-10-19, Session 4)
+
+section1 pytest 859 passed/27 skipped; section4 pytest 979 passed/32 skipped; ruff clean s1/s4; `make pg-probe-migrate` PASS 0001→0044;
+`make pg-probe-s1` 885 passed/1 skipped; section4 live-PG session 4 + collab chaos tests pass; section7 tsc clean, vitest 572 passed;
+`run_smoke.py --otp` passed (after one failure fixed by lane U). **Not run:** `make gate`, `make e2e*` beyond the smoke leg, `pip-audit`,
+`--real`, Linux Landlock, section5 suite, a multi-process race, browser tests of the new UI handlers.
 
 ## 5. Open work, in order
 
 1. ~~Part 38 enforcement carry-over~~ done (`evidence/s3/part38-enforcement.md`). Remaining limits are in `docs/permissions.md`.
-2. Session 4 (parts 40, 41, 42, 45): sessions containing runs, presence (also closes 05-002), control leases, agent registry.
-   Use `docs/briefs/stable-prompt-prefix.md` as the first block of the prompt.
+2. ~~Session 4~~ done. Next: Session 5 per `path-to-9-plan.md` (discussion, notifications, real-time delivery). Use `docs/briefs/stable-prompt-prefix.md` as the first block.
 3. Backend gaps from earlier: no UI to file/amend a proposal; approvals API lacks a decision timestamp; part 12 item 009 and
    responsive layout untested; audit chain has no external anchor; browser socket connection not asserted in e2e.
 4. Workspace gaps: no purge job after `purge_after`, running run not stopped on archive, `resume_agent` not gated, quota check race.
@@ -90,5 +88,5 @@ and Stripe unproven, no pentest, PITR unproven, counsel review absent.
 ```
 cd "/Users/user/untitled folder 2/harness"
 git status --short | head -40
-make pg-probe-s1 && make pg-probe-migrate
+make pg-probe-s1 && make pg-probe-migrate  # expect 43 migrations
 ```
