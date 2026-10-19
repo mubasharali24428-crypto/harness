@@ -1980,6 +1980,101 @@
     "title": "VerifyOtpRequest",
     "type": "object"
    },
+   "WebhookCreateBody": {
+    "properties": {
+     "endpointUrl": {
+      "maxLength": 2048,
+      "minLength": 12,
+      "title": "Endpointurl",
+      "type": "string"
+     },
+     "eventTypes": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 40,
+      "minItems": 1,
+      "title": "Eventtypes",
+      "type": "array"
+     }
+    },
+    "required": [
+     "endpointUrl",
+     "eventTypes"
+    ],
+    "title": "WebhookCreateBody",
+    "type": "object"
+   },
+   "WebhookCreated": {
+    "properties": {
+     "active": {
+      "title": "Active",
+      "type": "boolean"
+     },
+     "createdAt": {
+      "title": "Createdat",
+      "type": "string"
+     },
+     "endpointUrl": {
+      "title": "Endpointurl",
+      "type": "string"
+     },
+     "eventTypes": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Eventtypes",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "secretHint": {
+      "title": "Secrethint",
+      "type": "string"
+     },
+     "signingSecret": {
+      "title": "Signingsecret",
+      "type": "string"
+     },
+     "version": {
+      "title": "Version",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "id",
+     "endpointUrl",
+     "eventTypes",
+     "secretHint",
+     "active",
+     "version",
+     "createdAt",
+     "signingSecret"
+    ],
+    "title": "WebhookCreated",
+    "type": "object"
+   },
+   "WebhookPatchBody": {
+    "properties": {
+     "active": {
+      "title": "Active",
+      "type": "boolean"
+     },
+     "expectedVersion": {
+      "minimum": 1.0,
+      "title": "Expectedversion",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "active",
+     "expectedVersion"
+    ],
+    "title": "WebhookPatchBody",
+    "type": "object"
+   },
    "WsTicketRequest": {
     "properties": {
      "projectId": {
@@ -7440,6 +7535,335 @@
     "summary": "Add Agent Seat"
    }
   },
+  "/api/v1/teams/{team_id}/settings/integrations/v1/webhooks": {
+   "get": {
+    "operationId": "list_webhooks_api_v1_teams__team_id__settings_integrations_v1_webhooks_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Webhooks Api V1 Teams  Team Id  Settings Integrations V1 Webhooks Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Webhooks"
+   },
+   "post": {
+    "operationId": "create_webhook_api_v1_teams__team_id__settings_integrations_v1_webhooks_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/WebhookCreateBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/WebhookCreated"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Webhook"
+   }
+  },
+  "/api/v1/teams/{team_id}/settings/integrations/v1/webhooks/event-types": {
+   "get": {
+    "operationId": "list_event_types_api_v1_teams__team_id__settings_integrations_v1_webhooks_event_types_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Event Types Api V1 Teams  Team Id  Settings Integrations V1 Webhooks Event Types Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Event Types"
+   }
+  },
+  "/api/v1/teams/{team_id}/settings/integrations/v1/webhooks/{webhook_id}": {
+   "delete": {
+    "operationId": "delete_webhook_api_v1_teams__team_id__settings_integrations_v1_webhooks__webhook_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "webhook_id",
+      "required": true,
+      "schema": {
+       "title": "Webhook Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Webhook"
+   },
+   "patch": {
+    "operationId": "set_webhook_active_api_v1_teams__team_id__settings_integrations_v1_webhooks__webhook_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "webhook_id",
+      "required": true,
+      "schema": {
+       "title": "Webhook Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/WebhookPatchBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Set Webhook Active Api V1 Teams  Team Id  Settings Integrations V1 Webhooks  Webhook Id  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Set Webhook Active"
+   }
+  },
+  "/api/v1/teams/{team_id}/settings/integrations/v1/webhooks/{webhook_id}/deliveries": {
+   "get": {
+    "description": "Bounded health view; response bodies and endpoint secrets are never stored.",
+    "operationId": "list_deliveries_api_v1_teams__team_id__settings_integrations_v1_webhooks__webhook_id__deliveries_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "webhook_id",
+      "required": true,
+      "schema": {
+       "title": "Webhook Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Deliveries Api V1 Teams  Team Id  Settings Integrations V1 Webhooks  Webhook Id  Deliveries Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Deliveries"
+   }
+  },
+  "/api/v1/teams/{team_id}/settings/integrations/v1/webhooks/{webhook_id}/rotate-secret": {
+   "post": {
+    "operationId": "rotate_secret_api_v1_teams__team_id__settings_integrations_v1_webhooks__webhook_id__rotate_secret_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "webhook_id",
+      "required": true,
+      "schema": {
+       "title": "Webhook Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Rotate Secret Api V1 Teams  Team Id  Settings Integrations V1 Webhooks  Webhook Id  Rotate Secret Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Rotate Secret"
+   }
+  },
   "/api/v1/teams/{team_id}/settings/reviewer-thresholds": {
    "delete": {
     "description": "Reset to defaults by removing the stored document. Idempotent.",
@@ -9016,6 +9440,18 @@
   "/health": {
    "get": {
     "operationId": "health_health_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "deep",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "title": "Deep",
+       "type": "integer"
+      }
+     }
+    ],
     "responses": {
      "200": {
       "content": {
@@ -9024,25 +9460,19 @@
        }
       },
       "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
      }
     },
     "summary": "Health"
-   }
-  },
-  "/ready": {
-   "get": {
-    "operationId": "ready_ready_get",
-    "responses": {
-     "200": {
-      "content": {
-       "application/json": {
-        "schema": {}
-       }
-      },
-      "description": "Successful Response"
-     }
-    },
-    "summary": "Ready"
    }
   }
  }

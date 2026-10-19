@@ -384,6 +384,27 @@ class VerifyOtpRequest(typing.TypedDict, total=False):
     code: str  # required
     email: str  # required
 
+class WebhookCreateBody(typing.TypedDict, total=False):
+    """WebhookCreateBody. Required keys: endpointUrl, eventTypes."""
+    endpointUrl: str  # required
+    eventTypes: list[str]  # required
+
+class WebhookCreated(typing.TypedDict, total=False):
+    """WebhookCreated. Required keys: id, endpointUrl, eventTypes, secretHint, active, version, createdAt, signingSecret."""
+    active: bool  # required
+    createdAt: str  # required
+    endpointUrl: str  # required
+    eventTypes: list[str]  # required
+    id: str  # required
+    secretHint: str  # required
+    signingSecret: str  # required
+    version: int  # required
+
+class WebhookPatchBody(typing.TypedDict, total=False):
+    """WebhookPatchBody. Required keys: active, expectedVersion."""
+    active: bool  # required
+    expectedVersion: int  # required
+
 class WsTicketRequest(typing.TypedDict, total=False):
     """WsTicketRequest. Required keys: projectId."""
     projectId: str  # required
@@ -1337,6 +1358,62 @@ class IdentityClient:
         _path = f"/api/v1/teams/{team_id}/seats/agent"
         return self._http.request(self.base_url, "POST", _path)
 
+    def list_webhooks(self, team_id: str) -> dict[str, typing.Any]:
+        """List Webhooks
+
+        GET /api/v1/teams/{team_id}/settings/integrations/v1/webhooks
+        """
+        _path = f"/api/v1/teams/{team_id}/settings/integrations/v1/webhooks"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def create_webhook(self, team_id: str, body: WebhookCreateBody) -> WebhookCreated:
+        """Create Webhook
+
+        POST /api/v1/teams/{team_id}/settings/integrations/v1/webhooks
+        """
+        _path = f"/api/v1/teams/{team_id}/settings/integrations/v1/webhooks"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def list_event_types(self, team_id: str) -> dict[str, typing.Any]:
+        """List Event Types
+
+        GET /api/v1/teams/{team_id}/settings/integrations/v1/webhooks/event-types
+        """
+        _path = f"/api/v1/teams/{team_id}/settings/integrations/v1/webhooks/event-types"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def delete_webhook(self, team_id: str, webhook_id: str) -> typing.Any:
+        """Delete Webhook
+
+        DELETE /api/v1/teams/{team_id}/settings/integrations/v1/webhooks/{webhook_id}
+        """
+        _path = f"/api/v1/teams/{team_id}/settings/integrations/v1/webhooks/{webhook_id}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
+    def set_webhook_active(self, team_id: str, webhook_id: str, body: WebhookPatchBody) -> dict[str, typing.Any]:
+        """Set Webhook Active
+
+        PATCH /api/v1/teams/{team_id}/settings/integrations/v1/webhooks/{webhook_id}
+        """
+        _path = f"/api/v1/teams/{team_id}/settings/integrations/v1/webhooks/{webhook_id}"
+        return self._http.request(self.base_url, "PATCH", _path, json_body=body)
+
+    def list_deliveries(self, team_id: str, webhook_id: str) -> dict[str, typing.Any]:
+        """List Deliveries
+
+        GET /api/v1/teams/{team_id}/settings/integrations/v1/webhooks/{webhook_id}/deliveries
+        """
+        _path = f"/api/v1/teams/{team_id}/settings/integrations/v1/webhooks/{webhook_id}/deliveries"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def rotate_secret(self, team_id: str, webhook_id: str) -> dict[str, typing.Any]:
+        """Rotate Secret
+
+        POST /api/v1/teams/{team_id}/settings/integrations/v1/webhooks/{webhook_id}/rotate-secret
+        """
+        _path = f"/api/v1/teams/{team_id}/settings/integrations/v1/webhooks/{webhook_id}/rotate-secret"
+        return self._http.request(self.base_url, "POST", _path)
+
     def get_reviewer_thresholds(self, team_id: str) -> dict[str, typing.Any]:
         """Get Reviewer Thresholds
 
@@ -1611,21 +1688,14 @@ class IdentityClient:
         _path = "/api/v1/ws-ticket"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
-    def health(self) -> typing.Any:
+    def health(self, deep: int | None = None) -> typing.Any:
         """Health
 
         GET /health
         """
         _path = "/health"
-        return self._http.request(self.base_url, "GET", _path)
-
-    def ready_ready_get(self) -> typing.Any:
-        """Ready
-
-        GET /ready
-        """
-        _path = "/ready"
-        return self._http.request(self.base_url, "GET", _path)
+        _params: dict[str, typing.Any] = {"deep": deep}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
 
 
-__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AssignBody", "BindingBody", "ChainNode", "CheckBody", "CreateProjectBody", "DefBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "GlobalPrefsBody", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkRunBody", "LinkTeamBody", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "MuteBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "ReadAllBody", "RevertBody", "Rule", "RulesBody", "ScopePrefsBody", "SelectBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SnoozeBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "UnsubscribeBody", "ValidationError", "VerifyOtpRequest", "WsTicketRequest", "WsTicketResponse", "_DigestBody", "_QuietBody", "harness_identity__agents__ReasonBody", "harness_identity__orgs__RoleBody", "harness_identity__policy__RoleBody", "harness_identity__sessions__CreateBody", "harness_identity__sessions__MemberBody", "harness_identity__sessions__PatchBody", "harness_identity__sessions__ReasonBody", "harness_identity__sessions__RoleBody", "harness_identity__workspaces__CreateBody", "harness_identity__workspaces__MemberBody", "harness_identity__workspaces__PatchBody", "harness_identity__workspaces__ReasonBody"]
+__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AssignBody", "BindingBody", "ChainNode", "CheckBody", "CreateProjectBody", "DefBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "GlobalPrefsBody", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkRunBody", "LinkTeamBody", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "MuteBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "ReadAllBody", "RevertBody", "Rule", "RulesBody", "ScopePrefsBody", "SelectBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SnoozeBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "UnsubscribeBody", "ValidationError", "VerifyOtpRequest", "WebhookCreateBody", "WebhookCreated", "WebhookPatchBody", "WsTicketRequest", "WsTicketResponse", "_DigestBody", "_QuietBody", "harness_identity__agents__ReasonBody", "harness_identity__orgs__RoleBody", "harness_identity__policy__RoleBody", "harness_identity__sessions__CreateBody", "harness_identity__sessions__MemberBody", "harness_identity__sessions__PatchBody", "harness_identity__sessions__ReasonBody", "harness_identity__sessions__RoleBody", "harness_identity__workspaces__CreateBody", "harness_identity__workspaces__MemberBody", "harness_identity__workspaces__PatchBody", "harness_identity__workspaces__ReasonBody"]

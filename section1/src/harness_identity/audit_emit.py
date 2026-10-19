@@ -84,7 +84,7 @@ async def _emit(
     payload.update(_scrub(detail))
     try:
         member_id = await _member_id(db, user_id, team_id)
-        return await write_audit(
+        row = await write_audit(
             db,
             action,
             actor_member_id=member_id,
@@ -93,6 +93,18 @@ async def _emit(
             target_id=target_id,
             detail=payload,
         )
+        # Outbound integrations consume only a closed identity projection of
+        # selected audit events. Keep the audit commit authoritative if an
+        # older schema has not yet applied the optional integration migration.
+        try:
+            from .webhooks import enqueue_audit_event
+
+            if await enqueue_audit_event(db, row):
+                await db.commit()
+        except Exception:  # noqa: BLE001 — a webhook sink never blocks audit
+            await db.rollback()
+            logger.warning("webhook event enqueue failed for %s", action, exc_info=True)
+        return row
     except Exception:  # noqa: BLE001 — emission must never break the request path
         logger.warning("audit emission failed for %s", action, exc_info=True)
         if session_owner:

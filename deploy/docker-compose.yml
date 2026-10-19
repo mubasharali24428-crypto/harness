@@ -255,6 +255,23 @@ services:
     restart: unless-stopped
     depends_on: *backend-depends
 
+  webhook-delivery:
+    <<: *backend-build
+    logging: *logging-caps
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_JOB_CPU_LIMIT:-0.25}"
+          memory: ${HARNESS_JOB_MEM_LIMIT:-256m}
+          pids: ${HARNESS_JOB_PIDS_LIMIT:-64}
+    environment:
+      <<: *backend-env
+      HARNESS_SERVICE: webhook-delivery
+      HARNESS_WEBHOOK_ALLOWED_HOSTS: ${HARNESS_WEBHOOK_ALLOWED_HOSTS:-}
+      HARNESS_WEBHOOK_POLL_SECONDS: ${HARNESS_WEBHOOK_POLL_SECONDS:-5}
+    depends_on: *backend-depends
+    restart: unless-stopped
+
   github:
     <<: *backend-build
     logging: *logging-caps

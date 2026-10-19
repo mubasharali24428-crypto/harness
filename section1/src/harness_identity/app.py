@@ -49,6 +49,7 @@ from .limits import (
 from .models import AuthSession, TeamMember
 from .models import Role as DbRole
 from .ratelimit import effective_client_ip
+from .webhooks import router as webhooks_router
 
 LOGIN_RATE_LIMIT = 20  # attempts
 LOGIN_RATE_WINDOW_S = 60
@@ -215,6 +216,10 @@ def make_app(session_factory, settings: Settings):
     from .stripe_adapter import router as stripe_adapter
 
     app.include_router(billing_router)
+
+    # Session 7 (part 49): versioned, team-admin-managed outbound webhooks.
+    # The model import registers migration 0051's ORM mirror for test schemas.
+    app.include_router(webhooks_router)
 
     # Mission22-M3 merge wiring: LIVE Stripe adapter + checkout/webhook routes
     # behind the SAME flag. With HARNESS_BILLING unset this injects nothing —

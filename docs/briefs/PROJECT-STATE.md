@@ -1,6 +1,6 @@
 # Harness Multiplayer AI — project state and resume guide
 
-Updated 2026-10-19 at the end of Session 6. Read this first in a new session, then `docs/briefs/path-to-9-plan.md`,
+Updated 2026-10-19 at the end of Session 7. Read this first in a new session, then `docs/briefs/path-to-9-plan.md`,
 `docs/briefs/capability-matrix.md` and `docs/briefs/path-to-9-checkpoint.md`. The repository is the source of truth:
 re-verify any number below before relying on it. Nothing here is a claim of readiness for real users (see "Not cleared").
 
@@ -14,7 +14,7 @@ over ten sessions (`path-to-9-plan.md`). 9/10 means: every directive implemented
 tests, an evidence file, docs matching behaviour, and a `verified` matrix row. 10/10 needs external evidence; externally gated
 parts are capped at 8: 03, 37/57, 53, 52/58, 61.
 
-Layout: section1 identity/auth/audit/eventbus/orgs/policy/workspaces (migrations 0001–0050) · section3/6/8/10
+Layout: section1 identity/auth/audit/eventbus/orgs/policy/workspaces/integrations (migrations 0001–0051) · section3/6/8/10
 auxiliary · section4 orchestrator · section5 sandbox · section7 Next.js UI + Playwright · `deploy/` compose stack, runners,
 observability, `deploy/pilot` disposable smoke stack · `docs/` · `scripts/` (spec_drift, sdk-gen) · `clients/` generated SDKs.
 
@@ -28,7 +28,8 @@ observability, `deploy/pilot` disposable smoke stack · `docs/` · `scripts/` (s
 | 4 | Sessions, presence, control leases, agent registry (40, 41, 42, 45) | Done, committed (lanes S, P, C, A, U) |
 | 5 | Discussion, notifications, real-time delivery, collab UI (43, 46, 47, 56-collab) | Done, committed (lanes D, N, R, X) |
 | 6 | Plans/artifacts/search (44, 48, 50) | Integrated locally; 48 and 50 verified; 44 partial pending native version approval/execution |
-| 7–10 | Integrations/admin/billing, security/compliance, scale, final acceptance | Next: Session 7 (49, 51, 57) |
+| 7 | Integrations/admin/billing (49, 51, 57) | Done locally; partial outcomes and cap 8 for 57; see Session 7 evidence |
+| 8–10 | Security/compliance, scale, final acceptance | Next: Session 8 (52, 58, 31 enforcement) |
 
 ## 3. Session 3 result
 
@@ -66,7 +67,28 @@ No route approves a native plan version, and the engine continues to execute the
 plan. Tool-call counts are not enforced and the running-limit sweep is not scheduled. Artifact/export
 storage and search indexing also lack deploy schedulers.
 
-## 4. Verification record (Session 6, 2026-10-19)
+## 3e. Session 7 result
+
+Part 49 remains partial: team-scoped versioned outbound webhooks now have encrypted one-time
+secrets, HMAC timestamped signatures, idempotency keys, bounded retries, host allowlisting and
+rotation. GitHub still uses broad `repo` scope; issue tracker/chat adapters and extension sandbox
+are absent. Part 51 remains partial: Section 7 now exposes organization membership/role, policy
+preview/save, emergency access, history and team integration controls; dual policy approval,
+org-wide execution disablement and retention/residency configuration remain absent. Part 57 is
+partial and capped at 8 for live Stripe/OIDC evidence. Local tier and spend gates exist, but daily
+run cap checks are not atomic and tool-call/in-flight spend caps and billing alerts are absent.
+Details: `docs/briefs/evidence/s7/` and `docs/{integrations,billing-and-quotas}.md`.
+
+## 4. Verification record (Session 7, 2026-10-19)
+
+Session 7 targeted checks: Section 1 webhook/policy/billing/Stripe tests 58 passed; Section 4 budget
+and tier tests 45 passed; Section 7 billing API UI test 7 passed; Section 7 typecheck and TypeScript
+SDK typecheck passed; touched Section 1 Ruff passed. Contracts Ruff reports two findings in
+untouched `contracts/src/harness_contracts/__init__.py` and `ratelimit.py`. No PostgreSQL migration,
+full section suites, browser E2E or live provider check ran. See
+`docs/briefs/evidence/s7/session7-summary.md`.
+
+Session 6 verification record (2026-10-19):
 
 Session 6 lane tests: PL 53, EX 66, AR 93, SE 74 passed; integrated policy/spec checks 8 passed;
 Section 7 typecheck passed and full Vitest passed 817 tests across 68 files, including the new

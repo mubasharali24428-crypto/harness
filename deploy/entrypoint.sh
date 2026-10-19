@@ -6,10 +6,10 @@ cd "$(dirname "$0")/runners"
 
 if [ -n "${HARNESS_SERVICE:-}" ]; then
   case "$HARNESS_SERVICE" in
-    migrate|identity|github|models|orchestrator|sandbox|meeting|review) ;;
+    migrate|identity|github|models|orchestrator|sandbox|meeting|review|webhook-delivery) ;;
     *)
       echo "unknown HARNESS_SERVICE: $HARNESS_SERVICE" >&2
-      echo "expected: migrate identity github models orchestrator sandbox meeting review" >&2
+      echo "expected: migrate identity github models orchestrator sandbox meeting review webhook-delivery" >&2
       exit 1
       ;;
   esac
@@ -132,6 +132,10 @@ except Exception as exc:
     print(f"DRIFT GATE REFUSED BOOT: {exc}", file=sys.stderr)
     sys.exit(37)
 PYGATE
+
+  if [ "$HARNESS_SERVICE" = webhook-delivery ]; then
+    exec python -m harness_identity.webhook_worker
+  fi
 
   case "$HARNESS_SERVICE" in
     sandbox|orchestrator)

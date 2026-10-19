@@ -435,6 +435,30 @@ export interface VerifyOtpRequest {
   email: string;
 }
 
+/** WebhookCreateBody. Required keys: endpointUrl, eventTypes. */
+export interface WebhookCreateBody {
+  endpointUrl: string;
+  eventTypes: string[];
+}
+
+/** WebhookCreated. Required keys: active, createdAt, endpointUrl, eventTypes, id, secretHint, signingSecret, version. */
+export interface WebhookCreated {
+  active: boolean;
+  createdAt: string;
+  endpointUrl: string;
+  eventTypes: string[];
+  id: string;
+  secretHint: string;
+  signingSecret: string;
+  version: number;
+}
+
+/** WebhookPatchBody. Required keys: active, expectedVersion. */
+export interface WebhookPatchBody {
+  active: boolean;
+  expectedVersion: number;
+}
+
 /** WsTicketRequest. Required keys: projectId. */
 export interface WsTicketRequest {
   projectId: string;
@@ -1299,6 +1323,55 @@ export class IdentityClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
   }
 
+  /** List Webhooks
+   *  GET /api/v1/teams/{team_id}/settings/integrations/v1/webhooks */
+  list_webhooks(team_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/integrations/v1/webhooks`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Create Webhook
+   *  POST /api/v1/teams/{team_id}/settings/integrations/v1/webhooks */
+  create_webhook(team_id: string, body: WebhookCreateBody): Promise<WebhookCreated> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/integrations/v1/webhooks`;
+    return this.http.request<WebhookCreated>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** List Event Types
+   *  GET /api/v1/teams/{team_id}/settings/integrations/v1/webhooks/event-types */
+  list_event_types(team_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/integrations/v1/webhooks/event-types`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Delete Webhook
+   *  DELETE /api/v1/teams/{team_id}/settings/integrations/v1/webhooks/{webhook_id} */
+  delete_webhook(team_id: string, webhook_id: string): Promise<unknown> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/integrations/v1/webhooks/${encodeURIComponent(webhook_id)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** Set Webhook Active
+   *  PATCH /api/v1/teams/{team_id}/settings/integrations/v1/webhooks/{webhook_id} */
+  set_webhook_active(team_id: string, webhook_id: string, body: WebhookPatchBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/integrations/v1/webhooks/${encodeURIComponent(webhook_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PATCH", body);
+  }
+
+  /** List Deliveries
+   *  GET /api/v1/teams/{team_id}/settings/integrations/v1/webhooks/{webhook_id}/deliveries */
+  list_deliveries(team_id: string, webhook_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/integrations/v1/webhooks/${encodeURIComponent(webhook_id)}/deliveries`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Rotate Secret
+   *  POST /api/v1/teams/{team_id}/settings/integrations/v1/webhooks/{webhook_id}/rotate-secret */
+  rotate_secret(team_id: string, webhook_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/integrations/v1/webhooks/${encodeURIComponent(webhook_id)}/rotate-secret`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
   /** Get Reviewer Thresholds
    *  GET /api/v1/teams/{team_id}/settings/reviewer-thresholds */
   get_reviewer_thresholds(team_id: string): Promise<Record<string, unknown>> {
@@ -1541,16 +1614,10 @@ export class IdentityClient {
 
   /** Health
    *  GET /health */
-  health(): Promise<unknown> {
+  health(deep?: number): Promise<unknown> {
     const _path = `/health`;
-    return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined);
-  }
-
-  /** Ready
-   *  GET /ready */
-  ready_ready_get(): Promise<unknown> {
-    const _path = `/ready`;
-    return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined);
+    const params: Record<string, unknown> = {"deep": deep};
+    return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined, params);
   }
 }
 
@@ -1618,6 +1685,9 @@ export class IdentityClient {
  * export interface/type UnsubscribeBody
  * export interface/type ValidationError
  * export interface/type VerifyOtpRequest
+ * export interface/type WebhookCreateBody
+ * export interface/type WebhookCreated
+ * export interface/type WebhookPatchBody
  * export interface/type WsTicketRequest
  * export interface/type WsTicketResponse
  * export interface/type _DigestBody

@@ -1,23 +1,22 @@
-# Checkpoint — Session 6: plans, execution, artifacts, search and export (2026-10-19)
+# Checkpoint — Session 7: integrations, administration and billing (2026-10-19)
 
-1. **Objective:** parts 44, 48, 50. Part 44 remains partial because native plan versions cannot be
-   approved or executed; parts 48 and 50 are verified with the limits listed in the matrix.
-2. **Evidence/docs:** `docs/briefs/evidence/s6/{lane-pl,lane-ex,lane-ar,lane-se,session6-summary}.md`;
-   `docs/{plans,execution,artifacts,search-and-export}.md`.
-3. **Changed:** migrations 0047–0050; five Section 4 routers mounted/configured in the deployment;
-   start/claim execution gates; spec-drift and policy-route coverage; OpenAPI + SDK generation;
-   Section 7 run-detail workbench for plans, tasks, execution, artifacts, changes, search, export and
-   deletion requests.
-4. **Verification:** PL 53, EX 66, AR 93, SE 74 tests passed; integrated policy/spec tests 8 passed;
-   Section 7 typecheck passed and full Vitest passed 817 tests. Full Section 1: 923 passed, 29 skipped, 21 local
-   socket setup errors. Full Section 4: interrupted after 1353 passed, 37 skipped and three
-   failures (one performance threshold, two macOS Seatbelt restrictions), stalled at 93%. Lane-file
-   Section 4 Ruff clean; Section 1 Ruff fails on three findings in an unrelated untracked audit script. Specs and UI calls match.
-5. **Postgres/smoke:** Session 6 PG probe and both PG make probes were unavailable (Docker socket
-   missing, port 5499 refused). OTP smoke was attempted once and declined because port 8101 was busy.
-6. **Open limits:** tool-call count/in-flight spend are not enforced; execution sweep, search index,
-   artifact retention and export cleanup have no deploy schedule. Artifact and export bytes are
-   local disk. Git tips are caller-recorded; merge approval does not gate GitHub. No antivirus,
-   browser keyboard/axe tests, or live-PG proof.
-7. **Next:** Session 7 (49, 51, 57); 57 remains capped at 8 for live provider evidence. Preserve the
-   part 44 gap until native version approval and engine execution are connected.
+1. **Objective:** parts 49, 51 and 57. Parts 49 and 51 remain partial for provider/extension and
+   high-assurance governance gaps. Part 57 remains partial and capped at 8 pending live provider evidence.
+2. **Evidence/docs:** `docs/briefs/evidence/s7/{part49,part51,part57,session7-summary}.md`;
+   `docs/{integrations,billing-and-quotas,organizations,permissions}.md`.
+3. **Changed:** migration 0051; versioned team-scoped outbound webhook API/outbox/worker and Compose
+   service; Section 7 integrations/governance pages; identity OpenAPI and generated Python/TypeScript
+   SDK updates; capability matrix rows 49, 51, 57.
+4. **Verification:** Section 1 targeted 58 passed; Section 4 budget/tier 45 passed; billing UI 7
+   passed; Section 7 typecheck and TS SDK typecheck passed; touched Section 1 Ruff passed. Contracts
+   Ruff reports two findings in untouched files (`__init__.py`, `ratelimit.py`). Exact commands and
+   limits are in `evidence/s7/session7-summary.md`.
+5. **Postgres/provider:** No PG migration or live Stripe/OIDC/provider delivery was run. Prior
+   checkpoint records the unavailable Docker socket and local Postgres port; this session does not
+   claim those checks passed.
+6. **Open limits:** GitHub OAuth still requests broad `repo`; no issue-tracker/chat adapter or
+   extension sandbox; governance has no dual policy approval, org-wide execution kill switch, or
+   retention/residency controls; run count is not atomically reserved and tool-call/in-flight spend
+   caps and alerts are absent. Part 44 stays partial.
+7. **Next:** Session 8 prompt is `docs/briefs/path-to-9-session8-prompt.md` (parts 52, 58, and 31
+   enforcement). Do not treat this checkpoint as permission to start it.

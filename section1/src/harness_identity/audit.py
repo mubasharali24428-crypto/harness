@@ -54,6 +54,11 @@ APPEND_ONLY_ACTIONS = frozenset(
         "emergency.revoked",
         "emergency.expired",
         "emergency.used",
+        # Session 7 (part 49): outbound integration lifecycle, ids and state only.
+        "integration.webhook_created",
+        "integration.webhook_updated",
+        "integration.webhook_secret_rotated",
+        "integration.webhook_deleted",
         "workspace.created",
         "workspace.updated",
         "workspace.settings_changed",
