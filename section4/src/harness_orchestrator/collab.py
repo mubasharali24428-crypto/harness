@@ -18,6 +18,11 @@ Rules (documented, enforced here and by the DB in migration 0035):
   must echo the digest the approver reviewed; any amend re-pends the request.
   Decisions and claims are compare-and-swap UPDATEs (race-safe).
 
+Part 42 (docs/control.md): the leader is the holder of an expiring control lease
+(migration 0043). ``_leader_id`` vacates a lapsed leader, so every leader path above
+respects expiry; non-holders' guidance is queued for the holder (control.py). A run
+without a ``control_leases`` row keeps the untimed leader described above.
+
 Honest limit: this module gates and records. The DeepSeek SDK performs its own
 file edits inside a run, so per-action enforcement inside the engine is not
 wired yet - callers (sandbox/engine) must ``claim`` before executing.
@@ -37,7 +42,7 @@ from typing import Any
 from harness_contracts.roles import READ_ONLY, Principal, Role
 from harness_contracts.timeutil import db_now
 from sqlalchemy import text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from harness_orchestrator import domain_metrics
 
@@ -211,13 +216,118 @@ async def _participant(db: Any, run_id: str, user_id: str) -> Any:
 
 
 async def _leader_id(db: Any, run_id: str) -> str | None:
+    """The current holder. The leader IS the lease holder (part 42): a leader whose
+    lease has lapsed is vacated here, in the caller's transaction, so every leader
+    path (redirect, handoff, approvals, claim) respects expiry."""
     row = (
         await db.execute(
             text("SELECT user_id FROM run_participants WHERE run_id = :r AND role = 'leader'"),
             {"r": run_id},
         )
     ).first()
-    return row.user_id if row else None
+    if row is None or await expire_lease_if_due(db, run_id) is not None:
+        return None
+    return row.user_id
+
+
+# ------------------------------------------------------- control lease (part 42)
+# Model and rules: docs/control.md. A run with no control_leases row (pre-0043 leader,
+# or a schema without the table) keeps an untimed leader exactly as before.
+
+LEASE_SECONDS_ENV = "HARNESS_CONTROL_LEASE_SECONDS"
+LEASE_ACTOR = "system:control-lease"
+
+
+def _int_env(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, default))
+    except ValueError:
+        return default
+
+
+def lease_ttl(seconds: int | None = None) -> timedelta:
+    return timedelta(seconds=min(max(seconds or _int_env(LEASE_SECONDS_ENV, 900), 30), 3600))
+
+
+async def lease_sql(db: Any, sql: str, **kw: Any) -> Any:
+    """Run lease SQL. None = migration 0043 not installed (legacy SQLite schemas only;
+    on Postgres a missing table is a real error and propagates)."""
+    try:
+        return await db.execute(text(sql), kw)
+    except OperationalError as exc:
+        if db.bind.dialect.name == "sqlite" and _collab_not_installed(exc):
+            return None
+        raise
+
+
+async def get_lease(db: Any, run_id: str) -> Any:
+    res = await lease_sql(
+        db,
+        "SELECT holder_user_id, team_id, acquired_at, renewed_at, expires_at, version"
+        " FROM control_leases WHERE run_id = :r",
+        r=run_id,
+    )
+    return res.first() if res is not None else None
+
+
+async def set_lease(
+    db: Any, team_id: str, run_id: str, holder: str, ttl: timedelta | None = None
+) -> Any:
+    """Replace the run's lease with a fresh one for ``holder`` (caller changed the role)."""
+    now = db_now()
+    if await lease_sql(db, "DELETE FROM control_leases WHERE run_id = :r", r=run_id) is None:
+        return None
+    expires = now + (ttl or lease_ttl())
+    await lease_sql(
+        db,
+        "INSERT INTO control_leases (run_id, team_id, holder_user_id, acquired_at, renewed_at,"
+        " expires_at, version) VALUES (:r, :t, :h, :n, :n, :x, 1)",
+        r=run_id, t=team_id, h=holder, n=now, x=expires,
+    )
+    return expires
+
+
+async def cancel_handoffs(db: Any, run_id: str) -> None:
+    await db.execute(
+        text(
+            "UPDATE run_handoffs SET state = 'cancelled', decided_at = :ts"
+            " WHERE run_id = :r AND state = 'pending'"
+        ),
+        {"r": run_id, "ts": db_now()},
+    )
+
+
+async def expire_lease_if_due(db: Any, run_id: str) -> Any:
+    """Atomically drop a lapsed lease (DELETE ... RETURNING is the compare-and-swap),
+    demote its holder, cancel the pending handoff, and record ``control.expired``.
+    Returns the lapsed lease row, or None when nothing expired."""
+    res = await lease_sql(
+        db,
+        "DELETE FROM control_leases WHERE run_id = :r AND expires_at <= :now"
+        " RETURNING holder_user_id, team_id, expires_at",
+        r=run_id, now=db_now(),
+    )
+    row = res.first() if res is not None else None
+    if row is None:
+        return None
+    await db.execute(
+        text(
+            "UPDATE run_participants SET role = 'participant'"
+            " WHERE run_id = :r AND user_id = :u AND role = 'leader'"
+        ),
+        {"r": run_id, "u": row.holder_user_id},
+    )
+    await cancel_handoffs(db, run_id)
+    who = Principal(userId=LEASE_ACTOR, teamId=row.team_id, role=Role.ENGINEER)
+    detail = {
+        "holder": row.holder_user_id,
+        "expiredAt": str(row.expires_at),
+        "before": {"holder": row.holder_user_id},
+        "after": {"holder": None},
+    }
+    await _event(db, who, run_id, "control.expired", detail, None)
+    await _audit(db, who, "control.expired", run_id, detail)
+    return row
 
 
 async def audit_denial(
@@ -268,6 +378,12 @@ async def join(factory: Any, p: Principal, run_id: str) -> dict[str, Any]:
     role = "observer" if p.role in READ_ONLY else "participant"
     async with factory() as db:
         if await _participant(db, run_id, p.userId) is None:
+            try:  # lane P (part 41); lazy because participation may import this module
+                from harness_orchestrator.participation import capacity_ok
+            except ImportError:  # module not installed yet: no capacity limit
+                capacity_ok = None
+            if capacity_ok is not None and not await capacity_ok(db, run_id, p.teamId, p.userId):
+                raise CollabError(409, "SESSION_FULL", "this run has reached its participant limit")
             await db.execute(
                 text(
                     "INSERT INTO run_participants (run_id, team_id, user_id, role, joined_at)"
@@ -283,6 +399,8 @@ async def join(factory: Any, p: Principal, run_id: str) -> dict[str, Any]:
 
 async def roster(factory: Any, run_id: str) -> dict[str, Any]:
     async with factory() as db:
+        await expire_lease_if_due(db, run_id)  # the roster never shows a lapsed leader
+        await db.commit()
         rows = (
             await db.execute(
                 text(
@@ -349,6 +467,7 @@ async def claim_leader(factory: Any, p: Principal, run_id: str) -> dict[str, Any
                     ),
                     {"r": run_id, "u": p.userId},
                 )
+                await set_lease(db, p.teamId, run_id, p.userId)
                 detail = {
                     "leader": p.userId,
                     "from": prev,
@@ -370,6 +489,7 @@ async def claim_leader(factory: Any, p: Principal, run_id: str) -> dict[str, Any
             )
             if res.rowcount != 1:
                 raise CollabError(409, "LEADER_EXISTS", "run already has a leader; use handoff")
+            await set_lease(db, p.teamId, run_id, p.userId)
             assigned = {
                 "leader": p.userId,
                 "before": {"leader": None},
@@ -420,6 +540,13 @@ async def redirect(
             if dup:
                 domain_metrics.inc("harness_event_delivery_total", "duplicate")
                 return {"seq": dup.seq, "duplicate": True, "invalidatedApprovals": 0}
+        if not changes_scope:  # shared steering: non-holder guidance is queued (docs/control.md)
+            from harness_orchestrator import control  # lazy: control imports this module
+
+            queued = await control.queue_if_held(db, p, run_id, content, request_id)
+            if queued is not None:
+                await db.commit()
+                return queued
         invalidated = 0
         if changes_scope:
             await _require_leader(db, p, run_id, f"redirect:{kind}")
@@ -561,6 +688,7 @@ async def decide_handoff(
                 ),
                 {"r": run_id, "u": p.userId},
             )
+            await set_lease(db, p.teamId, run_id, p.userId)
         decided = {
             "handoffId": handoff_id,
             "from": h.from_user_id,
