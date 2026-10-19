@@ -78,6 +78,8 @@ ORCHESTRATOR_RULES: tuple[tuple[str, str, str], ...] = (
     ("*", r"/(health|ready|metrics)", EXEMPT),
     ("*", r"/api/v1/orchestrator/metrics", EXEMPT),
     ("GET", r"/api/v1/orchestrator/(runs|sessions)/[^/]+/comments/export", "export"),
+    # Session 6: bulk export jobs (status, download) need `export`.
+    ("GET", r"/api/v1/orchestrator/exports(/.*)?", "export"),
     ("GET", r"/api/v1/orchestrator/.*", "read"),
     # Session 5 discussion: commenting needs `comment`; turning a comment into guidance is steering.
     ("POST", r"/api/v1/orchestrator/(runs|sessions)/[^/]+/comments/[^/]+/promote", "steer"),
@@ -86,6 +88,19 @@ ORCHESTRATOR_RULES: tuple[tuple[str, str, str], ...] = (
     ("PUT", r"/api/v1/orchestrator/discussion-settings", "administer"),
     ("POST|PATCH|DELETE",
      r"/api/v1/orchestrator/(runs|sessions)/[^/]+/comments(/[^/]+(/reactions)?)?", "comment"),
+    # Session 6 plans and execution (part 44): proposing edits and plan comments are `comment`;
+    # deciding an edit, accepting or rejecting completion, reviewing a change and merge approval
+    # are `approve`. Everything else on those resources is the steer fallback below.
+    ("POST", r"/api/v1/orchestrator/runs/[^/]+/plan/versions/[^/]+/(comments|edits)", "comment"),
+    ("POST", r"/api/v1/orchestrator/runs/[^/]+/plan/versions/[^/]+/edits/[^/]+/decide", "approve"),
+    ("POST", r"/api/v1/orchestrator/runs/[^/]+/(completion/(accept|reject)|merge-approval"
+            r"|changes/[^/]+/review)", "approve"),
+    # Session 6 export and deletion requests (part 50): exports need `export`; a deletion request
+    # is self-service (the route limits it to the caller's own data unless an admin), its decision
+    # is admin-only.
+    ("POST", r"/api/v1/orchestrator/exports", "export"),
+    ("POST", r"/api/v1/orchestrator/deletion-requests", "read"),
+    ("POST", r"/api/v1/orchestrator/deletion-requests/[^/]+/(approve|reject)", "administer"),
     # Participant self-service (observers and viewers included): presence and participation.
     ("POST", r"/api/v1/orchestrator/runs/[^/]+/(presence/.*|participation/.*)", "read"),
     ("PUT", r"/api/v1/orchestrator/runs/[^/]+/participation/prefs", "read"),
