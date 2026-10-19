@@ -57,6 +57,7 @@ from harness_contracts import Principal, error_body
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import DateTime, ForeignKey, select
 from sqlalchemy import delete as sa_delete
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .audit_emit import emit_sso_config_deleted, emit_sso_config_saved
@@ -64,6 +65,7 @@ from .auth import SESSION_TTL_HOURS, get_principal, hash_token
 from .billing import BillingPlan
 from .crypto import ensure_kdf_params, load_kdf_params
 from .models import AuthSession, Base, User
+from .orgs import mark_session_assurance
 
 router = APIRouter(prefix="/api/v1")
 
@@ -807,4 +809,10 @@ async def _mint_session(factory, principal: Principal) -> str:
             )
         )
         await db.commit()
+        # Part 37: record that this session came from the IdP so an org's require_sso passes.
+        # Bare schemas without migration 0038 simply have no table to record into.
+        try:
+            await mark_session_assurance(db, hash_token(raw), sso=True)
+        except DBAPIError:
+            await db.rollback()
     return raw
