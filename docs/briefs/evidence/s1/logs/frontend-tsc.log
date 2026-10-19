@@ -1,0 +1,7 @@
+cd section7 && npx tsc --noEmit
+.next/types/app/projects/[projectId]/runs/[runId]/page.ts(34,29): error TS2344: Type '{ params: Promise<{ projectId: string; runId: string; }> | { projectId: string; runId: string; }; }' does not satisfy the constraint 'PageProps'.
+  Types of property 'params' are incompatible.
+    Type 'Promise<{ projectId: string; runId: string; }> | { projectId: string; runId: string; }' is not assignable to type 'Promise<any> | undefined'.
+      Type '{ projectId: string; runId: string; }' is missing the following properties from type 'Promise<any>': then, catch, finally, [Symbol.toStringTag]
+make: *** [frontend-tsc] Error 2
+exit=2 dur=2s

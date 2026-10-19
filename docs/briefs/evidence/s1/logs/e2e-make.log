@@ -1,0 +1,10 @@
+cd section7 && npx playwright test
+
+[e2e] SKIP: compose stack is not reachable (frontend http://localhost:3000, api http://localhost:8001).
+[e2e] The hero-journey suite needs the full stack.
+[e2e] Start it with:
+[e2e]   docker compose -f deploy/docker-compose.yml up -d --build --wait
+[e2e] or point E2E_BASE_URL / E2E_API_URL at a running environment.
+[e2e] Exiting 246 so CI can distinguish skip-from-failure.
+
+make: *** [e2e] Error 246

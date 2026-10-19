@@ -1,0 +1,262 @@
+
+> harness-ts-sdk@1.0.0rc1 test
+> tsx --test test/*.test.ts
+
+TAP version 13
+# Subtest: parseApiError
+    # Subtest: parses the direct contract envelope
+    ok 1 - parses the direct contract envelope
+      ---
+      duration_ms: 0.568375
+      type: 'test'
+      ...
+    # Subtest: parses the FastAPI-wrapped envelope
+    ok 2 - parses the FastAPI-wrapped envelope
+      ---
+      duration_ms: 0.075792
+      type: 'test'
+      ...
+    # Subtest: prefers the contract envelope when both shapes ship
+    ok 3 - prefers the contract envelope when both shapes ship
+      ---
+      duration_ms: 0.063584
+      type: 'test'
+      ...
+    # Subtest: falls back to the plain string detail
+    ok 4 - falls back to the plain string detail
+      ---
+      duration_ms: 0.058041
+      type: 'test'
+      ...
+    # Subtest: falls through to generic UNKNOWN for junk bodies
+    ok 5 - falls through to generic UNKNOWN for junk bodies
+      ---
+      duration_ms: 0.152708
+      type: 'test'
+      ...
+    # Subtest: defaults missing envelope fields
+    ok 6 - defaults missing envelope fields
+      ---
+      duration_ms: 0.057
+      type: 'test'
+      ...
+    # Subtest: ApiError carries code/status/body
+    ok 7 - ApiError carries code/status/body
+      ---
+      duration_ms: 0.435667
+      type: 'test'
+      ...
+    1..7
+ok 1 - parseApiError
+  ---
+  duration_ms: 2.017875
+  type: 'suite'
+  ...
+# Subtest: backoff (extraction pins backoff.ts constants)
+    # Subtest: exponentialDelay sequence: 1s, 2s, 4s … capped at 30s
+    ok 1 - exponentialDelay sequence: 1s, 2s, 4s … capped at 30s
+      ---
+      duration_ms: 0.198833
+      type: 'test'
+      ...
+    # Subtest: backoffDelay stays within [0, ceiling] (full jitter)
+    ok 2 - backoffDelay stays within [0, ceiling] (full jitter)
+      ---
+      duration_ms: 0.286208
+      type: 'test'
+      ...
+    # Subtest: honors custom base/cap
+    ok 3 - honors custom base/cap
+      ---
+      duration_ms: 0.212
+      type: 'test'
+      ...
+    # Subtest: exports the documented base constant
+    ok 4 - exports the documented base constant
+      ---
+      duration_ms: 0.054833
+      type: 'test'
+      ...
+    1..4
+ok 2 - backoff (extraction pins backoff.ts constants)
+  ---
+  duration_ms: 1.009375
+  type: 'suite'
+  ...
+# Subtest: HarnessHttp transport
+    # Subtest: sends the bearer token and decodes JSON
+    ok 1 - sends the bearer token and decodes JSON
+      ---
+      duration_ms: 12.057875
+      type: 'test'
+      ...
+    # Subtest: omits the auth header when no token is set
+    ok 2 - omits the auth header when no token is set
+      ---
+      duration_ms: 0.206791
+      type: 'test'
+      ...
+    # Subtest: honors auth:false and per-call token overrides (WS mint path)
+    ok 3 - honors auth:false and per-call token overrides (WS mint path)
+      ---
+      duration_ms: 0.16525
+      type: 'test'
+      ...
+    # Subtest: raises ApiError with the parsed envelope on non-2xx
+    ok 4 - raises ApiError with the parsed envelope on non-2xx
+      ---
+      duration_ms: 0.418417
+      type: 'test'
+      ...
+    # Subtest: drops unset optional query params (None-sentinel semantics)
+    ok 5 - drops unset optional query params (None-sentinel semantics)
+      ---
+      duration_ms: 0.16025
+      type: 'test'
+      ...
+    # Subtest: retries transient 503 on idempotent methods then succeeds
+    ok 6 - retries transient 503 on idempotent methods then succeeds
+      ---
+      duration_ms: 0.2365
+      type: 'test'
+      ...
+    # Subtest: never retries non-idempotent POST on 503
+    ok 7 - never retries non-idempotent POST on 503
+      ---
+      duration_ms: 0.25075
+      type: 'test'
+      ...
+    # Subtest: retries 429 anywhere and honors Retry-After
+    ok 8 - retries 429 anywhere and honors Retry-After
+      ---
+      duration_ms: 0.724458
+      type: 'test'
+      ...
+    # Subtest: wraps transport failures in TRANSPORT_ERROR after exhausting retries
+    ok 9 - wraps transport failures in TRANSPORT_ERROR after exhausting retries
+      ---
+      duration_ms: 0.409875
+      type: 'test'
+      ...
+    # Subtest: returns text for non-JSON content types
+    ok 10 - returns text for non-JSON content types
+      ---
+      duration_ms: 0.489375
+      type: 'test'
+      ...
+    # Subtest: baseUrlFor resolves env overrides and default ports
+    ok 11 - baseUrlFor resolves env overrides and default ports
+      ---
+      duration_ms: 0.10525
+      type: 'test'
+      ...
+    1..11
+ok 3 - HarnessHttp transport
+  ---
+  duration_ms: 16.1385
+  type: 'suite'
+  ...
+# Subtest: generated surface (identity module)
+    # Subtest: builds correct requests end-to-end from the generated stubs
+    ok 1 - builds correct requests end-to-end from the generated stubs
+      ---
+      duration_ms: 0.276334
+      type: 'test'
+      ...
+    # Subtest: encodes path params and omits unset query params (orchestrator shape)
+    ok 2 - encodes path params and omits unset query params (orchestrator shape)
+      ---
+      duration_ms: 3.406459
+      type: 'test'
+      ...
+    1..2
+ok 4 - generated surface (identity module)
+  ---
+  duration_ms: 3.763875
+  type: 'suite'
+  ...
+# Subtest: parseFrame (handleMessage extraction)
+    # Subtest: accepts a valid envelope
+    ok 1 - accepts a valid envelope
+      ---
+      duration_ms: 0.433084
+      type: 'test'
+      ...
+    # Subtest: drops malformed frames instead of throwing
+    ok 2 - drops malformed frames instead of throwing
+      ---
+      duration_ms: 0.085166
+      type: 'test'
+      ...
+    # Subtest: recognizes the M16-X3 replayTruncated marker
+    ok 3 - recognizes the M16-X3 replayTruncated marker
+      ---
+      duration_ms: 0.121416
+      type: 'test'
+      ...
+    1..3
+ok 5 - parseFrame (handleMessage extraction)
+  ---
+  duration_ms: 1.226041
+  type: 'suite'
+  ...
+# Subtest: computeWsFingerprint
+    # Subtest: is sha256(ua + ip)[:16] — byte-identical to the server derivation
+    ok 1 - is sha256(ua + ip)[:16] — byte-identical to the server derivation
+      ---
+      duration_ms: 0.27625
+      type: 'test'
+      ...
+    1..1
+ok 6 - computeWsFingerprint
+  ---
+  duration_ms: 0.403916
+  type: 'suite'
+  ...
+# Subtest: EventStreamController
+    # Subtest: mints a ticket per connect and rides ?ticket= (+fingerprint param), never the bearer token
+    ok 1 - mints a ticket per connect and rides ?ticket= (+fingerprint param), never the bearer token
+      ---
+      duration_ms: 17.128208
+      type: 'test'
+      ...
+    # Subtest: updates lastSeq from frames and resumes from it on reconnect
+    ok 2 - updates lastSeq from frames and resumes from it on reconnect
+      ---
+      duration_ms: 21.080542
+      type: 'test'
+      ...
+    # Subtest: dedupes by seq across the reconnect overlap race (mergeEvents semantics)
+    ok 3 - dedupes by seq across the reconnect overlap race (mergeEvents semantics)
+      ---
+      duration_ms: 28.751083
+      type: 'test'
+      ...
+    # Subtest: resets the backoff attempt counter on successful open
+    ok 4 - resets the backoff attempt counter on successful open
+      ---
+      duration_ms: 20.3225
+      type: 'test'
+      ...
+    # Subtest: surfaces permanent rejections through onPermanentClose and stops
+    ok 5 - surfaces permanent rejections through onPermanentClose and stops
+      ---
+      duration_ms: 14.6035
+      type: 'test'
+      ...
+    1..5
+ok 7 - EventStreamController
+  ---
+  duration_ms: 102.525208
+  type: 'suite'
+  ...
+1..7
+# tests 33
+# suites 7
+# pass 33
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 293.294667
+exit=0 dur=1s

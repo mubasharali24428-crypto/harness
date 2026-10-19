@@ -1,0 +1,30 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.13, pytest-9.1.1, pluggy-1.6.0 -- /Users/user/untitled folder 2/harness/section4/.venv/bin/python
+rootdir: /Users/user/untitled folder 2/harness/section4
+configfile: pyproject.toml
+plugins: asyncio-1.4.0, anyio-4.14.2
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 18 items
+
+section4/tests/integration/test_container_p0.py::test_kernel_boundary[import os; assert os.getuid() != 0] PASSED [  5%]
+section4/tests/integration/test_container_p0.py::test_kernel_boundary[from pathlib import Path; Path('own').write_text('ok')] PASSED [ 11%]
+section4/tests/integration/test_container_p0.py::test_kernel_boundary[from pathlib import Path; Path('/tmp/own').write_text('ok')] PASSED [ 16%]
+section4/tests/integration/test_container_p0.py::test_kernel_boundary[open('/root-denied','w')] PASSED [ 22%]
+section4/tests/integration/test_container_p0.py::test_kernel_boundary[open('/etc/denied','w')] PASSED [ 27%]
+section4/tests/integration/test_container_p0.py::test_kernel_boundary[open('/var/denied','w')] PASSED [ 33%]
+section4/tests/integration/test_container_p0.py::test_kernel_boundary[import os; assert not os.path.exists('/var/run/docker.sock')] PASSED [ 38%]
+section4/tests/integration/test_container_p0.py::test_kernel_boundary[import os; assert not any(k.startswith(('AWS_', 'HARNESS_')) for k in os.environ)] PASSED [ 44%]
+section4/tests/integration/test_container_p0.py::test_kernel_boundary[s=open('/proc/self/status').read(); assert 'CapEff:\\t0000000000000000' in s] PASSED [ 50%]
+section4/tests/integration/test_container_p0.py::test_kernel_boundary[s=open('/proc/self/status').read(); assert 'NoNewPrivs:\\t1' in s] PASSED [ 55%]
+section4/tests/integration/test_container_p0.py::test_kernel_boundary[import socket; s=socket.socket(); s.settimeout(1); s.connect(('1.1.1.1',443))] PASSED [ 61%]
+section4/tests/integration/test_container_p0.py::test_kernel_boundary[import socket; s=socket.socket(); s.settimeout(1); s.connect(('host.docker.internal',11434))] PASSED [ 66%]
+section4/tests/integration/test_container_p0.py::test_two_concurrent_runs PASSED [ 72%]
+section4/tests/integration/test_container_p0.py::test_sibling_read_write_and_session_hidden PASSED [ 77%]
+section4/tests/integration/test_container_p0.py::test_stop_kills_container_and_children PASSED [ 83%]
+section4/tests/integration/test_container_p0.py::test_model_relay_only PASSED [ 88%]
+section4/tests/integration/test_container_p0.py::test_real_gate_stays_closed PASSED [ 94%]
+section4/tests/integration/test_container_p0.py::test_real_hello_world PASSED [100%]
+
+- generated xml file: /private/tmp/claude-501/-Users-user-untitled-folder-2/c89ea7f1-430b-453c-b624-dd4c66f88c61/scratchpad/p0.xml -
+======================== 18 passed in 73.85s (0:01:13) =========================
+exit=0 dur=74s

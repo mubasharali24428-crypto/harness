@@ -1,0 +1,4 @@
+cd integration && HARNESS_TEST_PG=1 HARNESS_DATABASE_URL="postgresql+asyncpg://harness:harness@127.0.0.1:55433/harness" ../section1/.venv/bin/python -m pytest test_checkpoint1.py -q
+....                                                                     [100%]
+4 passed in 0.59s
+exit=0 dur=1s

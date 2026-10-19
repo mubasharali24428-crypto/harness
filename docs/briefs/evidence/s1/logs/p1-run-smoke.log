@@ -1,0 +1,74 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from worker.Dockerfile
+#1 transferring dockerfile: 1.46kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c
+#2 DONE 0.0s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 202B done
+#3 DONE 0.0s
+
+#4 [internal] load build context
+#4 transferring context: 3.87kB done
+#4 DONE 0.0s
+
+#5 [base 1/9] FROM docker.io/library/python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c
+#5 resolve docker.io/library/python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c 0.0s done
+#5 DONE 0.0s
+
+#6 [base 8/9] RUN pip install --no-deps --no-build-isolation /build/contracts '/build/section4[live]'     && rm -rf /build
+#6 CACHED
+
+#7 [base 9/9] WORKDIR /tmp
+#7 CACHED
+
+#8 [base 5/9] RUN --mount=type=cache,target=/root/.cache/pip python -c "import tomllib, subprocess; from pathlib import Path; projects=[tomllib.loads(p.read_text())['project'] for p in Path('/build').glob('*/pyproject.toml')]; deps=[d for p in projects for d in p['dependencies'] if d != 'harness-contracts']; deps += [d for p in projects for d in p.get('optional-dependencies', {}).get('live', [])]; subprocess.check_call(['pip','install','setuptools','wheel',*deps])"
+#8 CACHED
+
+#9 [base 7/9] COPY section4/src /build/section4/src
+#9 CACHED
+
+#10 [base 3/9] COPY contracts/pyproject.toml /build/contracts/pyproject.toml
+#10 CACHED
+
+#11 [base 4/9] COPY section4/pyproject.toml /build/section4/pyproject.toml
+#11 CACHED
+
+#12 [base 2/9] RUN apt-get update && apt-get install -y --no-install-recommends bash ca-certificates git     && rm -rf /var/lib/apt/lists/*     && useradd --uid 10001 --create-home worker
+#12 CACHED
+
+#13 [isolation-tests 1/2] COPY section4/tests/unit/standin_worker.py /opt/probes/standin_worker.py
+#13 CACHED
+
+#14 [base 6/9] COPY contracts/src /build/contracts/src
+#14 CACHED
+
+#15 [isolation-tests 2/2] COPY deploy/pilot/worker.py /opt/probes/pilot_worker.py
+#15 CACHED
+
+#16 exporting to image
+#16 exporting layers done
+#16 exporting manifest sha256:7c12198b61c571194d6db8385ae6b1fa4f51d81768468c533a94a216690dfbda done
+#16 exporting config sha256:398457682d6dba448c24d90199c79179d12b71549644b2f0249933233647d183 done
+#16 exporting attestation manifest sha256:f5b13e23c39a6531192264fab62ffa3acb599530a926d0ce55115917a8ede3aa done
+#16 exporting manifest list sha256:0fd2b5422754edadb60fa73593b15182c4be57c31a067d694acaebdc2a5ba457 done
+#16 naming to docker.io/library/harness-engine-worker:p1-tests done
+#16 unpacking to docker.io/library/harness-engine-worker:p1-tests done
+#16 DONE 0.1s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/jz1s7bbiizilr5pfskoqcofmr
+P1 scratch database migrated and two engineers seeded
+
+> harness-section7@0.1.0 e2e
+> playwright test multiplayer.e2e.ts --retries=0 --reporter=list,junit
+
+
+Running 1 test using 1 worker
+
+  ✓  1 [chromium] › e2e/multiplayer.e2e.ts:4:5 › P1 shared pilot: create → join → redirect → handoff → approve/apply → stop (22.4s)
+
+  1 passed (24.3s)
+exit=0 dur=32s

@@ -1,0 +1,867 @@
+........ssssssssssssssssss.............................................. [  9%]
+........................................................................ [ 19%]
+........................................................................ [ 29%]
+........................................................................ [ 39%]
+.....................................................................sss [ 49%]
+s....................................................................... [ 59%]
+...........ssss.............ss.................s........................ [ 69%]
+.............................................s.......................... [ 79%]
+........................................................................ [ 89%]
+....................................F................................... [ 99%]
+....                                                                     [100%]
+=================================== FAILURES ===================================
+_____________ test_stop_kills_worker_confirms_and_reports_stopped ______________
+
+env = (<function env.<locals>.as_ at 0x1178b6e80>, async_sessionmaker(class_='AsyncSession', bind=<sqlalchemy.ext.asyncio.engine.AsyncEngine object at 0x11781a1d0>, autoflush=True, expire_on_commit=False))
+worker_env = None
+tmp_path = PosixPath('/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/pytest-of-user/pytest-1177/test_stop_kills_worker_confirm0')
+
+    def test_stop_kills_worker_confirms_and_reports_stopped(env, worker_env, tmp_path):
+        as_, f = env
+        lead_run(as_)
+        svc, eng, ws = setup_service(tmp_path, {})
+        pidfile = ws / "child.pid"
+    
+        async def go():
+            rd = await svc._ensure_run("r1")
+            rd["state_machine"].state = AgentState.EXECUTING
+            task = asyncio.create_task(svc._execute(rd, SimpleNamespace(goal="slow")))
+            rd["task"] = task
+            for _ in range(100):
+                if pidfile.exists() and pidfile.read_text():
+                    break
+                await asyncio.sleep(0.05)
+            child = int(pidfile.read_text())
+            assert eng.is_worker_running("r1") and not svc.engine_quiesced("r1")
+            t0 = time.monotonic()
+            await svc.stop_agent("r1")
+            return child, time.monotonic() - t0, svc.engine_quiesced("r1")
+    
+>       child, took, quiet = asyncio.run(go())
+                             ^^^^^^^^^^^^^^^^^
+
+tests/unit/test_staging_e2e.py:162: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../1/lib/python3.13/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+../../../1/lib/python3.13/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../1/lib/python3.13/asyncio/base_events.py:725: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/unit/test_staging_e2e.py:159: in go
+    await svc.stop_agent("r1")
+src/harness_orchestrator/service.py:1161: in stop_agent
+    if await self._kill_engine(run_id):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/harness_orchestrator/service.py:1233: in _kill_engine
+    return bool(await asyncio.to_thread(cancel, run_id))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../1/lib/python3.13/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../1/lib/python3.13/concurrent/futures/thread.py:59: in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <harness_orchestrator.engine.DeepSeekHarnessWrapper object at 0x1178a2360>
+session_id = 'r1'
+
+    def cancel(self, session_id: str) -> bool:
+        """Kill the container (or process group) and confirm it is gone.
+    
+        Docker daemon loss is not confirmation. Idempotent for stopped workers.
+        """
+        with self._proc_lock:
+            self._cancel_requested.add(session_id)
+            proc = self._procs.get(session_id)
+            boundary = self._containers.get(session_id)
+        if boundary is not None:
+            return boundary.kill(proc)
+        if proc is None:
+            return True
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)  # pgid == pid (start_new_session)
+        except ProcessLookupError:
+            pass
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            return False
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            try:
+>               os.killpg(proc.pid, 0)
+E               PermissionError: [Errno 1] Operation not permitted
+
+src/harness_orchestrator/engine.py:180: PermissionError
+----------------------------- Captured stderr call -----------------------------
+--- Logging error ---
+Traceback (most recent call last):
+  File "/Users/user/1/lib/python3.13/logging/__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: I/O operation on closed file.
+Call stack:
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(_console_main())
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/config/__init__.py", line 253, in _console_main
+    code = _main(prog=_get_prog_name(sys.argv))
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/config/__init__.py", line 229, in _main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/main.py", line 377, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/main.py", line 330, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/main.py", line 384, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/main.py", line 408, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 139, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 249, in call_and_report
+    call = CallInfo.from_call(
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 361, in from_call
+    result: TResult | None = func()
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 250, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 184, in pytest_runtest_call
+    item.runtest()
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/python.py", line 1707, in runtest
+    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/python.py", line 167, in pytest_pyfunc_call
+    result = testfunction(**testargs)
+  File "/Users/user/untitled folder 2/harness/section4/tests/unit/test_staging_e2e.py", line 143, in test_stop_kills_worker_confirms_and_reports_stopped
+    lead_run(as_)
+  File "/Users/user/untitled folder 2/harness/section4/tests/unit/test_collab_backend.py", line 135, in lead_run
+    assert as_("lead").post(f"{P}/r1/leader").status_code == 200
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/starlette/testclient.py", line 556, in post
+    return super().post(
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/httpx/_client.py", line 1144, in post
+    return self.request(
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/starlette/testclient.py", line 455, in request
+    return super().request(
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/httpx/_client.py", line 825, in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/httpx/_client.py", line 914, in send
+    response = self._send_handling_auth(
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+    response = self._send_handling_redirects(
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/httpx/_client.py", line 979, in _send_handling_redirects
+    response = self._send_single_request(request)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/httpx/_client.py", line 1025, in _send_single_request
+    logger.info(
+Message: 'HTTP Request: %s %s "%s %d %s"'
+Arguments: ('POST', URL('http://testserver/api/v1/orchestrator/runs/r1/leader'), 'HTTP/1.1', 200, 'OK')
+--- Logging error ---
+Traceback (most recent call last):
+  File "/Users/user/1/lib/python3.13/logging/__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: I/O operation on closed file.
+Call stack:
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(_console_main())
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/config/__init__.py", line 253, in _console_main
+    code = _main(prog=_get_prog_name(sys.argv))
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/config/__init__.py", line 229, in _main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/main.py", line 377, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/main.py", line 330, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/main.py", line 384, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/main.py", line 408, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 139, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 249, in call_and_report
+    call = CallInfo.from_call(
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 361, in from_call
+    result: TResult | None = func()
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 250, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 184, in pytest_runtest_call
+    item.runtest()
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/python.py", line 1707, in runtest
+    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/python.py", line 167, in pytest_pyfunc_call
+    result = testfunction(**testargs)
+  File "/Users/user/untitled folder 2/harness/section4/tests/unit/test_staging_e2e.py", line 143, in test_stop_kills_worker_confirms_and_reports_stopped
+    lead_run(as_)
+  File "/Users/user/untitled folder 2/harness/section4/tests/unit/test_collab_backend.py", line 136, in lead_run
+    as_("eng2").post(f"{P}/r1/join")
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/starlette/testclient.py", line 556, in post
+    return super().post(
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/httpx/_client.py", line 1144, in post
+    return self.request(
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/starlette/testclient.py", line 455, in request
+    return super().request(
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/httpx/_client.py", line 825, in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/httpx/_client.py", line 914, in send
+    response = self._send_handling_auth(
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+    response = self._send_handling_redirects(
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/httpx/_client.py", line 979, in _send_handling_redirects
+    response = self._send_single_request(request)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/httpx/_client.py", line 1025, in _send_single_request
+    logger.info(
+Message: 'HTTP Request: %s %s "%s %d %s"'
+Arguments: ('POST', URL('http://testserver/api/v1/orchestrator/runs/r1/join'), 'HTTP/1.1', 200, 'OK')
+--- Logging error ---
+Traceback (most recent call last):
+  File "/Users/user/1/lib/python3.13/logging/__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: I/O operation on closed file.
+Call stack:
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(_console_main())
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/config/__init__.py", line 253, in _console_main
+    code = _main(prog=_get_prog_name(sys.argv))
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/config/__init__.py", line 229, in _main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/main.py", line 377, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/main.py", line 330, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/main.py", line 384, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/main.py", line 408, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 139, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 249, in call_and_report
+    call = CallInfo.from_call(
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 361, in from_call
+    result: TResult | None = func()
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 250, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 184, in pytest_runtest_call
+    item.runtest()
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/python.py", line 1707, in runtest
+    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/python.py", line 167, in pytest_pyfunc_call
+    result = testfunction(**testargs)
+  File "/Users/user/untitled folder 2/harness/section4/tests/unit/test_staging_e2e.py", line 143, in test_stop_kills_worker_confirms_and_reports_stopped
+    lead_run(as_)
+  File "/Users/user/untitled folder 2/harness/section4/tests/unit/test_collab_backend.py", line 137, in lead_run
+    as_("view").post(f"{P}/r1/join")
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/starlette/testclient.py", line 556, in post
+    return super().post(
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/httpx/_client.py", line 1144, in post
+    return self.request(
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/starlette/testclient.py", line 455, in request
+    return super().request(
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/httpx/_client.py", line 825, in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/httpx/_client.py", line 914, in send
+    response = self._send_handling_auth(
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+    response = self._send_handling_redirects(
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/httpx/_client.py", line 979, in _send_handling_redirects
+    response = self._send_single_request(request)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/httpx/_client.py", line 1025, in _send_single_request
+    logger.info(
+Message: 'HTTP Request: %s %s "%s %d %s"'
+Arguments: ('POST', URL('http://testserver/api/v1/orchestrator/runs/r1/join'), 'HTTP/1.1', 200, 'OK')
+--- Logging error ---
+Traceback (most recent call last):
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py", line 213, in execute
+    self._adapt_connection._handle_exception(error)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py", line 373, in _handle_exception
+    raise error
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py", line 195, in execute
+    self.await_(_cursor.execute(operation, parameters))
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/cursor.py", line 40, in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/cursor.py", line 32, in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/core.py", line 160, in _execute
+    return await future
+           ^^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/core.py", line 63, in _connection_worker_thread
+    result = function()
+sqlite3.OperationalError: no such table: run_claims
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/user/untitled folder 2/harness/section4/src/harness_orchestrator/service.py", line 924, in _heartbeat
+    await heartbeat_run(self.run_queue_factory, run_id, self.worker_id)
+  File "/Users/user/untitled folder 2/harness/section4/src/harness_orchestrator/run_queue.py", line 263, in heartbeat_run
+    await db.execute(
+    ...<5 lines>...
+    )
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/ext/asyncio/session.py", line 448, in execute
+    result = await greenlet_spawn(
+             ^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 201, in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2373, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2280, in _execute_internal
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1421, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 526, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1643, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1848, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1988, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2365, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py", line 213, in execute
+    self._adapt_connection._handle_exception(error)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py", line 373, in _handle_exception
+    raise error
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py", line 195, in execute
+    self.await_(_cursor.execute(operation, parameters))
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/cursor.py", line 40, in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/cursor.py", line 32, in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/core.py", line 160, in _execute
+    return await future
+           ^^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/core.py", line 63, in _connection_worker_thread
+    result = function()
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: run_claims
+[SQL: UPDATE run_claims SET heartbeat_at = ? WHERE run_id = ? AND state = 'running' AND worker_id = ?]
+[parameters: ('2026-10-18T15:43:14.353179+00:00', 'r1', 'users-MacBook-Pro-4.local:43094:663909')]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/user/1/lib/python3.13/logging/__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: I/O operation on closed file.
+Call stack:
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(_console_main())
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/config/__init__.py", line 253, in _console_main
+    code = _main(prog=_get_prog_name(sys.argv))
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/config/__init__.py", line 229, in _main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/main.py", line 377, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/main.py", line 330, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/main.py", line 384, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/main.py", line 408, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 139, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 249, in call_and_report
+    call = CallInfo.from_call(
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 361, in from_call
+    result: TResult | None = func()
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 250, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 184, in pytest_runtest_call
+    item.runtest()
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/python.py", line 1707, in runtest
+    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/python.py", line 167, in pytest_pyfunc_call
+    result = testfunction(**testargs)
+  File "/Users/user/untitled folder 2/harness/section4/tests/unit/test_staging_e2e.py", line 162, in test_stop_kills_worker_confirms_and_reports_stopped
+    child, took, quiet = asyncio.run(go())
+  File "/Users/user/1/lib/python3.13/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+  File "/Users/user/1/lib/python3.13/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+  File "/Users/user/1/lib/python3.13/asyncio/base_events.py", line 712, in run_until_complete
+    self.run_forever()
+  File "/Users/user/1/lib/python3.13/asyncio/base_events.py", line 683, in run_forever
+    self._run_once()
+  File "/Users/user/1/lib/python3.13/asyncio/base_events.py", line 2061, in _run_once
+    handle._run()
+  File "/Users/user/1/lib/python3.13/asyncio/events.py", line 89, in _run
+    self._context.run(self._callback, *self._args)
+  File "/Users/user/untitled folder 2/harness/section4/src/harness_orchestrator/service.py", line 926, in _heartbeat
+    logger.exception("heartbeat failed for run %s", run_id)
+Message: 'heartbeat failed for run %s'
+Arguments: ('r1',)
+--- Logging error ---
+Traceback (most recent call last):
+  File "/Users/user/1/lib/python3.13/logging/__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: I/O operation on closed file.
+Call stack:
+  File "/Users/user/1/lib/python3.13/threading.py", line 1015, in _bootstrap
+    self._bootstrap_inner()
+  File "/Users/user/1/lib/python3.13/threading.py", line 1044, in _bootstrap_inner
+    self.run()
+  File "/Users/user/1/lib/python3.13/threading.py", line 995, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/user/1/lib/python3.13/concurrent/futures/thread.py", line 93, in _worker
+    work_item.run()
+  File "/Users/user/1/lib/python3.13/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/Users/user/untitled folder 2/harness/section4/src/harness_orchestrator/engine.py", line 360, in execute_goal
+    result_text, status, used_model, events = self._run_live_events(
+  File "/Users/user/untitled folder 2/harness/section4/src/harness_orchestrator/engine.py", line 427, in _run_live_events
+    return self._run_isolated(goal, session_id, model)
+  File "/Users/user/untitled folder 2/harness/section4/src/harness_orchestrator/engine.py", line 224, in _run_isolated
+    logger.warning(
+Message: 'engine worker for %s runs UNCONFINED (no OS confinement on this host)'
+Arguments: ('r1',)
+------------------------------ Captured log call -------------------------------
+INFO     httpx:_client.py:1025 HTTP Request: POST http://testserver/api/v1/orchestrator/runs/r1/leader "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1025 HTTP Request: POST http://testserver/api/v1/orchestrator/runs/r1/join "HTTP/1.1 200 OK"
+INFO     httpx:_client.py:1025 HTTP Request: POST http://testserver/api/v1/orchestrator/runs/r1/join "HTTP/1.1 200 OK"
+ERROR    harness_orchestrator.service:service.py:926 heartbeat failed for run r1
+Traceback (most recent call last):
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py", line 213, in execute
+    self._adapt_connection._handle_exception(error)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py", line 373, in _handle_exception
+    raise error
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py", line 195, in execute
+    self.await_(_cursor.execute(operation, parameters))
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/cursor.py", line 40, in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/cursor.py", line 32, in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/core.py", line 160, in _execute
+    return await future
+           ^^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/core.py", line 63, in _connection_worker_thread
+    result = function()
+sqlite3.OperationalError: no such table: run_claims
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/user/untitled folder 2/harness/section4/src/harness_orchestrator/service.py", line 924, in _heartbeat
+    await heartbeat_run(self.run_queue_factory, run_id, self.worker_id)
+  File "/Users/user/untitled folder 2/harness/section4/src/harness_orchestrator/run_queue.py", line 263, in heartbeat_run
+    await db.execute(
+    ...<5 lines>...
+    )
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/ext/asyncio/session.py", line 448, in execute
+    result = await greenlet_spawn(
+             ^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 201, in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2373, in execute
+    return self._execute_internal(
+           ~~~~~~~~~~~~~~~~~~~~~~^
+        statement,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        _add_event=_add_event,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2280, in _execute_internal
+    result = conn.execute(
+        statement, params or {}, execution_options=execution_options
+    )
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1421, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 526, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1643, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1848, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1988, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2365, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py", line 213, in execute
+    self._adapt_connection._handle_exception(error)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py", line 373, in _handle_exception
+    raise error
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/dialects/sqlite/aiosqlite.py", line 195, in execute
+    self.await_(_cursor.execute(operation, parameters))
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/cursor.py", line 40, in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/cursor.py", line 32, in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/core.py", line 160, in _execute
+    return await future
+           ^^^^^^^^^^^^
+  File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/core.py", line 63, in _connection_worker_thread
+    result = function()
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: run_claims
+[SQL: UPDATE run_claims SET heartbeat_at = ? WHERE run_id = ? AND state = 'running' AND worker_id = ?]
+[parameters: ('2026-10-18T15:43:14.353179+00:00', 'r1', 'users-MacBook-Pro-4.local:43094:663909')]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+WARNING  harness_orchestrator.engine:engine.py:224 engine worker for r1 runs UNCONFINED (no OS confinement on this host)
+=============================== warnings summary ===============================
+.venv/lib/python3.13/site-packages/fastapi/testclient.py:1
+  /Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_claim_batching.py: 25 warnings
+tests/test_done_signal.py: 5 warnings
+tests/test_g2_ratelimit_hooks.py: 44 warnings
+tests/test_plan_concurrency.py: 16 warnings
+tests/test_plan_gate.py: 8 warnings
+tests/test_plan_gate_project_binding.py: 3 warnings
+tests/test_stateless_orchestrator_n1.py: 12 warnings
+tests/test_timestamptz_hygiene.py: 2 warnings
+tests/unit/test_authz_failclosed.py: 5 warnings
+tests/unit/test_budget.py: 8 warnings
+tests/unit/test_collab_backend.py: 479 warnings
+tests/unit/test_collab_denial_audit.py: 478 warnings
+tests/unit/test_cost_rollup.py: 10000 warnings
+tests/unit/test_demo_seed.py: 96 warnings
+tests/unit/test_done_diff_reference.py: 2 warnings
+tests/unit/test_edge_cases_decisions.py: 5 warnings
+tests/unit/test_pilot_metrics.py: 315 warnings
+tests/unit/test_plan_approval_ttl.py: 1 warning
+tests/unit/test_retention.py: 103 warnings
+tests/unit/test_run_metering.py: 7 warnings
+tests/unit/test_run_queue.py: 1 warning
+tests/unit/test_runs_index.py: 152 warnings
+tests/unit/test_s1_r05_lifecycle_audit.py: 9 warnings
+tests/unit/test_s1_r05_resume_queue.py: 2 warnings
+tests/unit/test_staging_e2e.py: 94 warnings
+tests/unit/test_tiers.py: 2 warnings
+  /Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/core.py:63: DeprecationWarning: The default datetime adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    result = function()
+
+tests/unit/test_spec_drift.py::test_repo_specs_and_ui_calls_match_router
+tests/unit/test_spec_drift.py::test_drift_is_detected
+tests/unit/test_spec_drift.py::test_new_unspecced_ui_call_fails
+tests/unit/test_spec_drift.py::test_known_gap_that_is_now_served_must_be_removed
+  /Users/user/untitled folder 2/harness/deploy/runners/services.py:279: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+tests/unit/test_spec_drift.py::test_repo_specs_and_ui_calls_match_router
+tests/unit/test_spec_drift.py::test_repo_specs_and_ui_calls_match_router
+tests/unit/test_spec_drift.py::test_drift_is_detected
+tests/unit/test_spec_drift.py::test_drift_is_detected
+tests/unit/test_spec_drift.py::test_new_unspecced_ui_call_fails
+tests/unit/test_spec_drift.py::test_new_unspecced_ui_call_fails
+tests/unit/test_spec_drift.py::test_known_gap_that_is_now_served_must_be_removed
+tests/unit/test_spec_drift.py::test_known_gap_that_is_now_served_must_be_removed
+  /Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/fastapi/applications.py:4681: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+tests/unit/test_spec_drift.py::test_repo_specs_and_ui_calls_match_router
+tests/unit/test_spec_drift.py::test_drift_is_detected
+tests/unit/test_spec_drift.py::test_new_unspecced_ui_call_fails
+tests/unit/test_spec_drift.py::test_known_gap_that_is_now_served_must_be_removed
+  /Users/user/untitled folder 2/harness/deploy/runners/services.py:285: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+tests/unit/test_spec_drift.py::test_repo_specs_and_ui_calls_match_router
+tests/unit/test_spec_drift.py::test_repo_specs_and_ui_calls_match_router
+tests/unit/test_spec_drift.py::test_drift_is_detected
+tests/unit/test_spec_drift.py::test_drift_is_detected
+tests/unit/test_spec_drift.py::test_new_unspecced_ui_call_fails
+tests/unit/test_spec_drift.py::test_new_unspecced_ui_call_fails
+tests/unit/test_spec_drift.py::test_known_gap_that_is_now_served_must_be_removed
+tests/unit/test_spec_drift.py::test_known_gap_that_is_now_served_must_be_removed
+  /Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/fastapi/openapi/utils.py:303: UserWarning: Duplicate Operation ID health_health_get for function health at /Users/user/untitled folder 2/harness/deploy/runners/services.py
+    warnings.warn(message, stacklevel=1)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/unit/test_staging_e2e.py::test_stop_kills_worker_confirms_and_reports_stopped
+1 failed, 693 passed, 30 skipped, 11899 warnings in 24.53s
+exit=1 dur=25s

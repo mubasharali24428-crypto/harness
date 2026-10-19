@@ -1,0 +1,71 @@
+cd section7 && npx vitest run
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+
+ RUN  v2.1.9 /Users/user/untitled folder 2/harness/section7
+
+ ✓ app/onboarding/onboardingDerived.test.ts (19 tests) 9ms
+ ✓ app/dashboard/planGateApi.test.ts (15 tests) 7ms
+ ✓ tests/unit/useOptimistic.test.ts (13 tests) 11ms
+ ✓ tests/unit/useEventStream.test.ts (18 tests) 15ms
+ ✓ app/dashboard/planGate.test.tsx (19 tests) 18ms
+ ✓ app/projects/[projectId]/tree/treeView.test.tsx (15 tests) 18ms
+ ✓ tests/unit/uiPrimitives.test.tsx (20 tests) 22ms
+ ✓ app/settings/team/invitesLifecycle.test.tsx (9 tests) 34ms
+ ✓ src/components/AppShell.responsive.test.tsx (13 tests) 56ms
+ ✓ tests/unit/meetingRestore.test.tsx (13 tests) 182ms
+ ✓ tests/unit/a11yAccessibleNames.test.tsx (9 tests) 212ms
+ ✓ tests/unit/runAggregate.test.ts (17 tests) 11ms
+ ✓ tests/unit/costDashboard.test.ts (21 tests) 11ms
+ ✓ tests/unit/meetingOverride.test.tsx (5 tests) 22ms
+ ✓ app/settings/team/teamApi.test.tsx (10 tests) 16ms
+ ✓ app/projects/[projectId]/runs/[runId]/collab.test.tsx (17 tests) 25ms
+ ✓ tests/unit/meetingPagination.test.ts (8 tests) 7ms
+ ✓ tests/unit/contextApi.test.ts (14 tests) 9ms
+ ✓ tests/unit/focus.test.ts (10 tests) 4ms
+ ✓ tests/unit/migratedPagesSmoke.test.tsx (8 tests) 220ms
+ ✓ app/onboarding/checklistView.test.tsx (7 tests) 66ms
+ ✓ tests/unit/runDetailPage.test.tsx (16 tests) 43ms
+ ✓ tests/unit/meetingSession.test.ts (9 tests) 5ms
+ ✓ tests/unit/apiClients.test.ts (8 tests) 7ms
+ ✓ app/onboarding/onboardingApi.test.ts (8 tests) 7ms
+ ✓ app/projects/[projectId]/tree/treeIndexSearch.test.ts (9 tests) 9ms
+ ✓ app/review/prSource.test.ts (18 tests) 4ms
+ ✓ tests/unit/meetingSend.test.ts (5 tests) 5ms
+ ✓ app/runs/runsTable.test.tsx (8 tests) 119ms
+ ✓ app/settings/project/projectRulesApi.test.tsx (10 tests) 169ms
+ ✓ lib/session.test.ts (6 tests) 5ms
+ ✓ tests/unit/apiInterceptor.test.ts (2 tests) 3ms
+ ✓ tests/unit/backoff.test.ts (11 tests) 31ms
+ ✓ app/projects/[projectId]/tree/treeApi.test.ts (8 tests) 7ms
+ ✓ tests/stress/deriveView.stress.test.ts (8 tests) 16ms
+ ✓ tests/conformance/wire.test.ts (4 tests) 7ms
+ ✓ app/meeting/refAutocomplete.test.tsx (9 tests) 16ms
+ ✓ app/meeting/contextPreviewPanel.test.tsx (8 tests) 93ms
+ ✓ app/settings/billing/billingApi.test.ts (7 tests) 135ms
+ ✓ tests/unit/deriveView.test.ts (9 tests) 4ms
+ ✓ src/lib/demoApi.test.ts (5 tests) 9ms
+ ✓ tests/unit/proposedPrimitives.test.tsx (5 tests) 9ms
+ ✓ tests/unit/friendlyErrors.test.ts (6 tests) 32ms
+ ✓ tests/unit/sessionWipe.test.ts (1 test) 3ms
+ ✓ app/settings/keys/revokeCell.test.tsx (6 tests) 22ms
+ ✓ tests/unit/ssoEntry.test.ts (6 tests) 4ms
+ ✓ tests/unit/checkpointsApi.test.ts (4 tests) 7ms
+ ✓ tests/unit/format.test.ts (9 tests) 95ms
+ ✓ tests/stress/api.stress.test.ts (6 tests) 3ms
+ ✓ src/components/Breadcrumbs.test.tsx (5 tests) 17ms
+ ✓ src/components/AppShell.test.tsx (4 tests) 2ms
+ ✓ tests/unit/auth.test.ts (2 tests) 3ms
+ ✓ tests/unit/api.test.ts (4 tests) 4ms
+ ✓ tests/stress/useEventStream.stress.test.ts (4 tests) 5ms
+ ✓ app/demo/demoEntry.test.ts (3 tests) 14ms
+ ✓ app/review/prEmptyState.test.tsx (3 tests) 10ms
+ ✓ tests/stress/codemirror.stress.test.ts (4 tests) 4ms
+ ✓ tests/unit/codemirror.test.ts (5 tests) 2ms
+ ✓ tests/unit/ssoCallback.test.tsx (1 test) 94ms
+
+ Test Files  59 passed (59)
+      Tests  526 passed (526)
+   Start at  08:43:12
+   Duration  2.59s (transform 1.64s, setup 0ms, collect 5.61s, tests 2.00s, environment 8ms, prepare 5.03s)
+
+exit=0 dur=3s

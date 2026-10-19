@@ -1,0 +1,3 @@
+cd section4 && if [ -d scripts ]; then ./.venv/bin/ruff check src tests scripts; else ./.venv/bin/ruff check src tests; fi
+All checks passed!
+exit=0 dur=0s

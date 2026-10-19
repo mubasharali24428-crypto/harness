@@ -1,0 +1,188 @@
+........ssssssssssssssssss.............................................. [  9%]
+....................................................................F... [ 19%]
+........................................................................ [ 29%]
+........................................................................ [ 39%]
+........................................s.............................ss [ 49%]
+ss...................................................................... [ 59%]
+............ssss.............ss.................s....................... [ 69%]
+................................................s....................... [ 79%]
+........................................................................ [ 89%]
+........................................................................ [ 99%]
+.......                                                                  [100%]
+=================================== FAILURES ===================================
+________________ test_claim_query_contention_skip_locked_guard _________________
+
+    def test_claim_query_contention_skip_locked_guard():
+        """PG dialect gets FOR UPDATE OF rc SKIP LOCKED; SQLite never sees the
+        clause; a row already claimed ('running') cannot be double-claimed."""
+        # The compiled PG statement carries the clause against the rc alias...
+        pg_compiled = text(_CLAIM_SQL + "\nFOR UPDATE OF rc SKIP LOCKED").compile(
+            dialect=postgresql.dialect()
+        )
+        assert "FOR UPDATE OF rc SKIP LOCKED" in str(pg_compiled)
+    
+        # ...and the runtime guard appends it ONLY for postgresql.
+        class FakeBind:
+            def __init__(self, name):
+                self.dialect = type("D", (), {"name": name})()
+    
+        class FakeResult:
+            class _M:
+                def first(self):
+                    return None
+    
+            def mappings(self):
+                return self._M()
+    
+        class FakeDB:
+            bind = FakeBind("postgresql")
+    
+            async def execute(self, *a, **k):
+                return FakeResult()
+    
+            async def commit(self):
+                return None
+    
+        captured = {}
+    
+        async def fake_exec(sql, params):
+            captured["sql"] = str(sql)
+            return FakeResult()
+    
+        db = FakeDB()
+        db.execute = fake_exec
+>       run(claim_next_run(lambda: _ctx(db), "w1", max_per_team=4))
+
+tests/test_heartbeat_claims.py:183: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_heartbeat_claims.py:110: in run
+    return _LOOP.run_until_complete(coro)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../1/lib/python3.13/asyncio/base_events.py:725: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+factory = <function test_claim_query_contention_skip_locked_guard.<locals>.<lambda> at 0x1094b45e0>
+worker_id = 'w1', max_per_team = 4
+
+    async def claim_next_run(factory, worker_id: str, max_per_team: int) -> dict[str, Any] | None:
+        """Atomically claim the oldest queued run under its team's running cap.
+    
+        On PostgreSQL the inner SELECT takes ``FOR UPDATE OF rc SKIP LOCKED`` so two
+        workers polling concurrently can never serialize behind each other (or
+        double-claim): rows already locked by another claim simply fall out of the
+        candidate set. The clause lives INSIDE the subquery (before RETURNING) —
+        that is where the rc alias's rows are selected and the only position PG
+        accepts for this statement shape (verified live against PostgreSQL 18:
+        a clause after RETURNING is a syntax error). SQLite (aiosqlite tests +
+        single-writer reality) has no row locks — the clause would be a syntax
+        error there — so the injection happens only when the bound engine's
+        dialect is postgresql.
+        """
+        from sqlalchemy import text
+    
+        async with factory() as db:
+            sql = _CLAIM_SQL
+            if db.bind.dialect.name == "postgresql":
+                # Lock the candidate row inside its subquery, before RETURNING.
+                sql = _inject_skip_locked(sql)
+                # Per-team cap is a COUNT(*) inside the UPDATE; under READ COMMITTED
+                # concurrent claimers all see the same count and overshoot the cap
+                # (measured on PG18: cap=4, 16 claimers -> 12-16 running). A global
+                # xact-scoped advisory lock serializes claims (they are one short
+                # statement) so each count sees the previous commit.
+>               await db.execute(text("SELECT pg_advisory_xact_lock(7270001)"))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               TypeError: test_claim_query_contention_skip_locked_guard.<locals>.fake_exec() missing 1 required positional argument: 'params'
+
+src/harness_orchestrator/run_queue.py:187: TypeError
+=============================== warnings summary ===============================
+.venv/lib/python3.13/site-packages/fastapi/testclient.py:1
+  /Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_claim_batching.py: 25 warnings
+tests/test_done_signal.py: 5 warnings
+tests/test_g2_ratelimit_hooks.py: 44 warnings
+tests/test_plan_concurrency.py: 16 warnings
+tests/test_plan_gate.py: 8 warnings
+tests/test_plan_gate_project_binding.py: 3 warnings
+tests/test_stateless_orchestrator_n1.py: 12 warnings
+tests/test_timestamptz_hygiene.py: 2 warnings
+tests/unit/test_authz_failclosed.py: 5 warnings
+tests/unit/test_budget.py: 8 warnings
+tests/unit/test_collab_backend.py: 479 warnings
+tests/unit/test_collab_denial_audit.py: 478 warnings
+tests/unit/test_cost_rollup.py: 10000 warnings
+tests/unit/test_demo_seed.py: 96 warnings
+tests/unit/test_done_diff_reference.py: 2 warnings
+tests/unit/test_edge_cases_decisions.py: 5 warnings
+tests/unit/test_pilot_metrics.py: 315 warnings
+tests/unit/test_plan_approval_ttl.py: 1 warning
+tests/unit/test_retention.py: 103 warnings
+tests/unit/test_run_metering.py: 7 warnings
+tests/unit/test_run_queue.py: 1 warning
+tests/unit/test_runs_index.py: 152 warnings
+tests/unit/test_s1_r05_lifecycle_audit.py: 9 warnings
+tests/unit/test_s1_r05_resume_queue.py: 2 warnings
+tests/unit/test_staging_e2e.py: 94 warnings
+tests/unit/test_tiers.py: 2 warnings
+  /Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/core.py:63: DeprecationWarning: The default datetime adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    result = function()
+
+tests/unit/test_spec_drift.py::test_repo_specs_and_ui_calls_match_router
+tests/unit/test_spec_drift.py::test_drift_is_detected
+tests/unit/test_spec_drift.py::test_new_unspecced_ui_call_fails
+tests/unit/test_spec_drift.py::test_known_gap_that_is_now_served_must_be_removed
+  /Users/user/untitled folder 2/harness/deploy/runners/services.py:279: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+tests/unit/test_spec_drift.py::test_repo_specs_and_ui_calls_match_router
+tests/unit/test_spec_drift.py::test_repo_specs_and_ui_calls_match_router
+tests/unit/test_spec_drift.py::test_drift_is_detected
+tests/unit/test_spec_drift.py::test_drift_is_detected
+tests/unit/test_spec_drift.py::test_new_unspecced_ui_call_fails
+tests/unit/test_spec_drift.py::test_new_unspecced_ui_call_fails
+tests/unit/test_spec_drift.py::test_known_gap_that_is_now_served_must_be_removed
+tests/unit/test_spec_drift.py::test_known_gap_that_is_now_served_must_be_removed
+  /Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/fastapi/applications.py:4681: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+tests/unit/test_spec_drift.py::test_repo_specs_and_ui_calls_match_router
+tests/unit/test_spec_drift.py::test_drift_is_detected
+tests/unit/test_spec_drift.py::test_new_unspecced_ui_call_fails
+tests/unit/test_spec_drift.py::test_known_gap_that_is_now_served_must_be_removed
+  /Users/user/untitled folder 2/harness/deploy/runners/services.py:285: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+tests/unit/test_spec_drift.py::test_repo_specs_and_ui_calls_match_router
+tests/unit/test_spec_drift.py::test_repo_specs_and_ui_calls_match_router
+tests/unit/test_spec_drift.py::test_drift_is_detected
+tests/unit/test_spec_drift.py::test_drift_is_detected
+tests/unit/test_spec_drift.py::test_new_unspecced_ui_call_fails
+tests/unit/test_spec_drift.py::test_new_unspecced_ui_call_fails
+tests/unit/test_spec_drift.py::test_known_gap_that_is_now_served_must_be_removed
+tests/unit/test_spec_drift.py::test_known_gap_that_is_now_served_must_be_removed
+  /Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/fastapi/openapi/utils.py:303: UserWarning: Duplicate Operation ID health_health_get for function health at /Users/user/untitled folder 2/harness/deploy/runners/services.py
+    warnings.warn(message, stacklevel=1)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_heartbeat_claims.py::test_claim_query_contention_skip_locked_guard
+1 failed, 695 passed, 31 skipped, 11899 warnings in 22.39s

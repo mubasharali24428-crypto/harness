@@ -1,0 +1,5 @@
+
+> harness-ts-sdk@1.0.0rc1 typecheck
+> tsc --noEmit
+
+exit=0

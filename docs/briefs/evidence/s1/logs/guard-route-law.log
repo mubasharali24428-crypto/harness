@@ -1,0 +1,6 @@
+sh -n section7/scripts/ci_route_module_guard.sh
+GUARD[routes] OK: 17 route module(s) checked — every app/**/page.tsx is default-export-only.
+sh -n section7/scripts/ci_route_module_guard.sh
+GUARD[isolation] OK: 171 src file(s) across 10 section(s) —
+                 no cross-section tree/package/sys.path/star-reexport edges.
+exit=0

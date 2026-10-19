@@ -1,0 +1,6 @@
+/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/fastapi/openapi/utils.py:303: UserWarning: Duplicate Operation ID health_health_get for function health at /Users/user/untitled folder 2/harness/deploy/runners/services.py
+  warnings.warn(message, stacklevel=1)
+/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/fastapi/openapi/utils.py:303: UserWarning: Duplicate Operation ID health_health_get for function health at /Users/user/untitled folder 2/harness/deploy/runners/services.py
+  warnings.warn(message, stacklevel=1)
+orchestrator specs and UI calls match the router.
+exit=0 dur=1s

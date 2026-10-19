@@ -1,0 +1,3 @@
+HARNESS_TEST_PG=1 HARNESS_DATABASE_URL="postgresql+asyncpg://harness:harness@127.0.0.1:55433/harness" ./section1/.venv/bin/python deploy/runners/migrate_selftest.py
+migrate_selftest PASS: 34 migrations (0001→0035) applied clean on real PG; re-run idempotent.
+exit=0 dur=1s
