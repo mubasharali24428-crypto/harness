@@ -9,9 +9,10 @@ from datetime import UTC, datetime
 from typing import NamedTuple  # M16-X2 unblock: ReplayPage below needs this
 
 from harness_contracts import EventEnvelope, EventType, event_envelope
-from sqlalchemy import select
+from sqlalchemy import bindparam, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from . import domain_metrics
 from .models import AgentEvent, AgentRun
 
 logger = logging.getLogger(__name__)
@@ -127,6 +128,48 @@ class ReplayPage(NamedTuple):
     has_more: bool = False
 
 
+class CollabPage(NamedTuple):
+    """One bounded slice of a run's collaboration history (ascending by seq).
+
+    ``truncated`` + ``oldest_seq_sent`` mean the gap exceeded the replay cap and the
+    NEWEST events were sent, same honesty rule as :class:`ReplayPage`.
+    """
+
+    frames: list[dict]
+    truncated: bool = False
+    oldest_seq_sent: int | None = None
+
+
+COLLAB_CHANNEL = "collab_events"
+COLLAB_NOISE_KINDS = ("guidance.delivered",)  # engine cursor markers, not product events
+
+
+def _collab_frame(row, project_id: str | None) -> dict:
+    """run_collab_events row -> wire frame. Payload is bounded; bodies over the bus
+    cap are replaced by an explicit marker (consumers refetch via collab-history)."""
+    payload = row["payload"]
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except ValueError:
+            payload = {}
+    if payload_wire_size(payload) > _bus_payload_max_bytes():
+        payload = {"omitted": True, "reason": "payload exceeds the event bound"}
+    ts = row["ts"]
+    return {
+        "channel": "collab",
+        "seq": int(row["seq"]),
+        "kind": row["kind"],
+        "actor": row["actor_user_id"],
+        "payload": payload or {},
+        "ts": ts.isoformat() if hasattr(ts, "isoformat") else str(ts),
+        "runId": row["run_id"],
+        "projectId": project_id,
+        "teamId": row["team_id"],
+        "schemaVersion": int(row["schema_version"] or 1),
+    }
+
+
 def _envelope_from_row(row) -> EventEnvelope:
     """DB row -> wire envelope. Accepts an ORM AgentEvent (attribute access)
     or a keyed mapping row from a streamed column select (same key names)."""
@@ -182,6 +225,10 @@ class EventBus:
         # subscribes to the same project.
         self._delivered_seqs: deque[int] = deque(maxlen=4096)
         self._bg_tasks: set[asyncio.Task] = set()
+        # Collaboration push: run_id -> wake events set by the NOTIFY listener (or by an
+        # in-process producer via notify_collab). Rows are always re-read from the table,
+        # so a missed wake only delays delivery to the next poll tick; it never loses events.
+        self._collab_wakers: dict[str, set[asyncio.Event]] = {}
 
     # ------------------------------------------------------------ pg listener
     # G-LIVE: each service process owns an EventBus instance, but the log is one
@@ -236,6 +283,8 @@ class EventBus:
         redundant fetch + queue copy).
         """
         fresh = [s for s in signals if int(s[0]) not in self._delivered_seqs]
+        if len(fresh) < len(signals):
+            domain_metrics.inc("duplicate", len(signals) - len(fresh))
         if not fresh:
             return
 
@@ -301,21 +350,28 @@ class EventBus:
                         # stays far below any human-observable threshold.
                         timer = loop.call_later(0.005, _flush)
 
+                def _on_collab_notify(_conn, _pid, _channel, raw: str, _self=self):
+                    try:
+                        _self.notify_collab(str(json.loads(raw)["runId"]))
+                    except Exception:  # noqa: BLE001 — malformed notify, skip
+                        return
+
                 maybe_coro = self._attach_listener(conn, _on_notify)
                 if maybe_coro is not None:
                     await maybe_coro
-                    await asyncio.Event().wait()  # park forever; callbacks drive us
-                else:
-                    await asyncio.Event().wait()
+                collab_coro = self._attach_listener(conn, _on_collab_notify, COLLAB_CHANNEL)
+                if collab_coro is not None:
+                    await collab_coro
+                await asyncio.Event().wait()  # park forever; callbacks drive us
             except asyncio.CancelledError:
                 raise
             except Exception:  # noqa: BLE001 — DB restarts etc.; reconnect
                 logger.exception("eventbus listener reconnecting")
                 await asyncio.sleep(1)
 
-    def _attach_listener(self, conn, callback):
+    def _attach_listener(self, conn, callback, channel: str = "agent_events"):
         """asyncpg >=0.30 made add_listener a coroutine; older versions are sync."""
-        result = conn.add_listener("agent_events", callback)
+        result = conn.add_listener(channel, callback)
         if inspect.iscoroutine(result):
             return result
         return None
@@ -332,6 +388,7 @@ class EventBus:
                 except AttributeError:
                     pass
         if dropped:
+            domain_metrics.inc("dropped", dropped)
             logger.warning(
                 "eventbus(notify): dropped %d live deliveries on %s",
                 dropped,
@@ -413,6 +470,7 @@ class EventBus:
                 except AttributeError:
                     pass
         if dropped:
+            domain_metrics.inc("dropped", dropped)
             logger.warning(
                 "eventbus: dropped %d/%d live deliveries on project %s (slow subscribers)",
                 dropped,
@@ -435,6 +493,101 @@ class EventBus:
     async def unsubscribe(self, project_id: str, q: asyncio.Queue[EventEnvelope]) -> None:
         async with self._lock:
             self._subscribers.get(project_id, set()).discard(q)
+
+    # ------------------------------------------------ collaboration events (push)
+
+    def collab_waker(self, run_id: str) -> asyncio.Event:
+        """Register a wake-up event for one run; call ``release_collab_waker`` when done."""
+        self._maybe_start_listener()
+        ev = asyncio.Event()
+        self._collab_wakers.setdefault(run_id, set()).add(ev)
+        return ev
+
+    def release_collab_waker(self, run_id: str, ev: asyncio.Event) -> None:
+        wakers = self._collab_wakers.get(run_id)
+        if wakers is not None:
+            wakers.discard(ev)
+            if not wakers:
+                del self._collab_wakers[run_id]
+
+    def notify_collab(self, run_id: str) -> None:
+        """Wake every subscriber of this run (NOTIFY listener or an in-process producer)."""
+        for ev in list(self._collab_wakers.get(run_id, ())):
+            ev.set()
+
+    _COLLAB_COLS = "seq, run_id, team_id, actor_user_id, kind, payload, ts, schema_version"
+
+    async def _project_of(self, run_id: str) -> str | None:
+        async with self._sessions() as session:
+            row = (
+                await session.execute(
+                    text("SELECT project_id FROM agent_runs WHERE id = :r"), {"r": run_id}
+                )
+            ).first()
+        return row.project_id if row else None
+
+    async def collab_replay_page(
+        self, run_id: str, team_id: str, after_seq: int = 0
+    ) -> CollabPage:
+        """Catch-up slice for a (re)connecting client: events with seq > after_seq,
+        capped at REPLAY_MAX_EVENTS. A larger gap sends the NEWEST cap events plus an
+        honest truncation flag. Team-scoped in SQL, so a foreign team's rows can never
+        be returned even for a guessed run id."""
+        cap = _replay_max_events()
+        async with self._sessions() as session:
+            rows = (
+                (
+                    await session.execute(
+                        text(
+                            f"SELECT {self._COLLAB_COLS} FROM run_collab_events"
+                            " WHERE run_id = :r AND team_id = :t AND seq > :a"
+                            " AND kind NOT IN :noise ORDER BY seq DESC LIMIT :n"
+                        ).bindparams(
+                            bindparam("noise", expanding=True)
+                        ),
+                        {
+                            "r": run_id, "t": team_id, "a": max(0, int(after_seq)),
+                            "noise": list(COLLAB_NOISE_KINDS), "n": cap + 1,
+                        },
+                    )
+                )
+                .mappings()
+                .all()
+            )
+        truncated = len(rows) > cap
+        rows = list(reversed(rows[:cap]))
+        project_id = await self._project_of(run_id)
+        frames = [_collab_frame(r, project_id) for r in rows]
+        return CollabPage(frames, truncated, frames[0]["seq"] if frames else None)
+
+    async def collab_since(
+        self, run_id: str, team_id: str, after_seq: int, limit: int = 200
+    ) -> list[dict]:
+        """Ascending live slice: events with seq > after_seq (cursor never moves back)."""
+        async with self._sessions() as session:
+            rows = (
+                (
+                    await session.execute(
+                        text(
+                            f"SELECT {self._COLLAB_COLS} FROM run_collab_events"
+                            " WHERE run_id = :r AND team_id = :t AND seq > :a"
+                            " AND kind NOT IN :noise ORDER BY seq ASC LIMIT :n"
+                        ).bindparams(
+                            bindparam("noise", expanding=True)
+                        ),
+                        {
+                            "r": run_id, "t": team_id, "a": int(after_seq),
+                            "noise": list(COLLAB_NOISE_KINDS), "n": max(1, min(limit, 500)),
+                        },
+                    )
+                )
+                .mappings()
+                .all()
+            )
+        if not rows:
+            return []
+        project_id = await self._project_of(run_id)
+        return [_collab_frame(r, project_id) for r in rows]
 
     def add_event_listener(self, callback) -> None:
         """Wave 9D: process-wide tap on every published envelope (all event

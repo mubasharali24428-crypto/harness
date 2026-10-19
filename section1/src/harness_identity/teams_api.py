@@ -158,7 +158,12 @@ async def remove_member(
             actor_user_id=principal.userId,
             team_id=team_id,
             target_id=membership_id,
-            detail={"removedUserId": user_id, "role": removed_role},
+            detail={
+                "removedUserId": user_id,
+                "role": removed_role,
+                "before": {"role": removed_role, "member": True},
+                "after": {"role": None, "member": False},
+            },
         )
     # 204: empty body by contract.
 
@@ -210,6 +215,9 @@ async def change_member_role(
                     "targetUserId": user_id,
                     "fromRole": old_role,
                     "toRole": new_role,
+                    # part 11.003: uniform before/after for consequential changes
+                    "before": {"role": old_role},
+                    "after": {"role": new_role},
                 },
             )
         # No-op PATCH: 200 with current state, no audit row (api_keys parity).

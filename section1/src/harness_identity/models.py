@@ -365,6 +365,11 @@ class AuditLog(Base):
     ts: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    # Migration 0036: hash chain sealed by the database at commit (never set by
+    # callers). chain_pos is commit order; row_hash covers prev_hash + this row.
+    chain_pos: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    prev_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    row_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class AuthSession(Base):

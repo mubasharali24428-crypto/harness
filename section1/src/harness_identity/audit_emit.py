@@ -586,3 +586,22 @@ async def emit_sso_config_deleted(
         actor_kind=actor_kind,
         session_owner=session_owner,
     )
+
+
+async def emit_audit_exported(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    detail: dict[str, Any] | None = None,
+) -> AuditLog | None:
+    """audit.exported - an admin read the team's audit/event evidence (stream, cursor, rows)."""
+    return await _emit(
+        session,
+        "audit.exported",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team",
+        target_id=team_id,
+        detail=detail,
+    )

@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from . import domain_metrics
 from .audit import register_append_only_guard
 from .auth import get_principal, hash_token, issue_otp, login_or_register, verify_otp
 from .config import Settings
@@ -641,6 +642,150 @@ async def list_audit(
     return {"items": items, "limit": limit}
 
 
+# Part 11.009: authorised, team-scoped, bounded export of audit evidence and of the
+# product (collaboration) event history. Ascending + cursor-paged so an auditor can
+# walk the whole range and verify the hash chain offline (chainPos/prevHash/rowHash).
+EXPORT_PAGE_MAX = 1000
+EXPORT_PAGE_DEFAULT = 200
+EXPORT_STREAMS = ("audit", "collab")
+
+_AUDIT_TEAM_SCOPE = (
+    "(actor_member_id IN (SELECT id FROM team_members WHERE team_id = :team)"
+    " OR (actor_member_id IS NULL AND CAST(detail AS TEXT) LIKE '%' || :needle || '%'))"
+)
+
+
+def _as_dict(value: Any) -> dict:
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            return {}
+    return value if isinstance(value, dict) else {}
+
+
+@router.get("/audit/export")
+async def export_audit(
+    request: Request,
+    principal: Annotated[object, Depends(get_principal)],
+    stream: str = "audit",
+    afterSeq: int = 0,
+    limit: int = EXPORT_PAGE_DEFAULT,
+    runId: str = "",
+) -> dict:
+    """Admin-only evidence export for the CALLER's team (there is no team parameter, so a
+    foreign team's rows can never be requested). ``stream=audit`` is the security audit
+    log; ``stream=collab`` is the product event history of shared runs (optionally one
+    ``runId``). Ascending by ``seq`` from ``afterSeq``; at most EXPORT_PAGE_MAX rows per
+    call; follow ``nextCursor`` while ``hasMore``. Each export is itself audited."""
+    if principal.role != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="admin only")
+    if stream not in EXPORT_STREAMS:
+        raise HTTPException(status_code=422, detail=f"stream must be one of {EXPORT_STREAMS}")
+    limit = max(1, min(int(limit), EXPORT_PAGE_MAX))
+    after = max(0, int(afterSeq))
+    factory = request.app.state.session_factory
+    async with factory() as db:
+        if stream == "audit":
+            rows = (
+                (
+                    await db.execute(
+                        text(
+                            "SELECT seq, actor_member_id, actor_kind, action, target_type,"
+                            " target_id, detail, ts, chain_pos, prev_hash, row_hash"
+                            f" FROM audit_log WHERE seq > :after AND {_AUDIT_TEAM_SCOPE}"
+                            " ORDER BY seq ASC LIMIT :n"
+                        ),
+                        {
+                            "after": after,
+                            "team": principal.teamId,
+                            "needle": f'"teamId": "{principal.teamId}"',
+                            "n": limit + 1,
+                        },
+                    )
+                )
+                .mappings()
+                .all()
+            )
+            items = [
+                {
+                    "seq": r["seq"],
+                    "actorMemberId": r["actor_member_id"],
+                    "actorKind": r["actor_kind"],
+                    "action": r["action"],
+                    "targetType": r["target_type"],
+                    "targetId": r["target_id"],
+                    "detail": _as_dict(r["detail"]),
+                    "ts": str(r["ts"]) if r["ts"] is not None else None,
+                    "chainPos": r["chain_pos"],
+                    "prevHash": r["prev_hash"],
+                    "rowHash": r["row_hash"],
+                }
+                for r in rows[:limit]
+            ]
+        else:
+            try:
+                rows = (
+                    (
+                        await db.execute(
+                            text(
+                                "SELECT seq, run_id, actor_user_id, kind, request_id, payload, ts"
+                                " FROM run_collab_events WHERE team_id = :team AND seq > :after"
+                                " AND (:run = '' OR run_id = :run) AND kind <> 'guidance.delivered'"
+                                " ORDER BY seq ASC LIMIT :n"
+                            ),
+                            {"team": principal.teamId, "after": after, "run": runId,
+                             "n": limit + 1},
+                        )
+                    )
+                    .mappings()
+                    .all()
+                )
+            except Exception as exc:  # noqa: BLE001 - table absent: fail closed, say why
+                raise HTTPException(
+                    status_code=503, detail="collaboration events unavailable"
+                ) from exc
+            items = [
+                {
+                    "seq": r["seq"],
+                    "runId": r["run_id"],
+                    "actor": r["actor_user_id"],
+                    "kind": r["kind"],
+                    "requestId": r["request_id"],
+                    "payload": _as_dict(r["payload"]),
+                    "ts": str(r["ts"]) if r["ts"] is not None else None,
+                }
+                for r in rows[:limit]
+            ]
+        has_more = len(rows) > limit
+    await _audit_export_access(request, principal, stream, after, len(items))
+    return {
+        "stream": stream,
+        "items": items,
+        "limit": limit,
+        "hasMore": has_more,
+        "nextCursor": items[-1]["seq"] if items else after,
+    }
+
+
+async def _audit_export_access(
+    request: Request, principal, stream: str, after: int, n: int
+) -> None:
+    """Reading evidence is itself a consequential action: leave a row (best-effort)."""
+    from .audit_emit import emit_audit_exported
+
+    try:
+        async with request.app.state.session_factory() as db:
+            await emit_audit_exported(
+                db,
+                actor_user_id=principal.userId,
+                team_id=principal.teamId,
+                detail={"stream": stream, "afterSeq": after, "rows": n},
+            )
+    except Exception:  # noqa: BLE001 - never fail the export on the audit write
+        logger.warning("audit export access row not written", exc_info=True)
+
+
 # C-001 (M11-W1-A1): the legacy direct-add invite endpoint was REMOVED —
 # it attached any pre-created user to a team as ENGINEER with no consent
 # (cross-team account injection). Team joining goes exclusively through the
@@ -676,11 +821,13 @@ async def issue_ws_ticket(
     )
 
 
-@router.websocket("/ws/{project_id}")
-async def project_ws(
-    websocket: WebSocket, project_id: str, token: str = "", afterSeq: int = 0,
-    ticket: str = "", fingerprint: str = "",
+async def _ws_authenticate(
+    websocket: WebSocket, project_id: str, token: str, ticket: str, fingerprint: str
 ):
+    """Shared WebSocket admission: ticket (preferred) / legacy token / bearer header,
+    client-fingerprint binding, then team access to the project. Returns the Principal,
+    or None after closing the socket with the matching code (4401 unauthenticated,
+    4403 fingerprint mismatch, 4404 unknown or foreign project - no oracle)."""
     # M15-W5-S2: redemption result carries the mint-time client fingerprint
     # (None when no ticket was presented, or for pre-0025 rows — grace path).
     redeemed = None
@@ -717,7 +864,7 @@ async def project_ws(
         )
     if principal is None:
         await websocket.close(code=4401)
-        return
+        return None
 
     # M15-W5-S2 client-binding: recompute the fingerprint from THIS upgrade
     # request (its UA + peer address) and compare against what mint stored.
@@ -757,7 +904,7 @@ async def project_ws(
                     project_id,
                 )
                 await websocket.close(code=4403, reason="TICKET_FINGERPRINT_MISMATCH")
-                return
+                return None
             ua_only_fp = compute_client_fingerprint(ws_user_agent, "")
             if (
                 len(presented) != FINGERPRINT_HEX_LEN
@@ -770,7 +917,7 @@ async def project_ws(
                     presented[:4],
                 )
                 await websocket.close(code=4403, reason="TICKET_FINGERPRINT_MISMATCH")
-                return
+                return None
         if bound is not None and bound != upgrade_fp:
             logger.warning(
                 "WS upgrade rejected: TICKET_FINGERPRINT_MISMATCH "
@@ -778,7 +925,7 @@ async def project_ws(
                 project_id,
             )
             await websocket.close(code=4403, reason="TICKET_FINGERPRINT_MISMATCH")
-            return
+            return None
     try:
         await _require_project_access(
             websocket.app.state.session_factory, principal, project_id
@@ -787,6 +934,18 @@ async def project_ws(
         # M13-G5a no-oracle law: foreign-project upgrades close with the same
         # code as an unknown project — 4403 is reserved for auth failures.
         await websocket.close(code=4404)
+        return None
+
+    return principal
+
+
+@router.websocket("/ws/{project_id}")
+async def project_ws(
+    websocket: WebSocket, project_id: str, token: str = "", afterSeq: int = 0,
+    ticket: str = "", fingerprint: str = "",
+):
+    principal = await _ws_authenticate(websocket, project_id, token, ticket, fingerprint)
+    if principal is None:
         return
 
     bus: EventBus = websocket.app.state.event_bus
@@ -816,6 +975,7 @@ async def project_ws(
         for envelope in page.envelopes:
             await websocket.send_json(envelope.model_dump())
             last_seq = max(last_seq, envelope.seq)
+        domain_metrics.inc("replayed", len(page.envelopes))
         if page.truncated and page.oldest_seq_sent is not None:
             await websocket.send_json(
                 {
@@ -841,12 +1001,119 @@ async def project_ws(
                 await websocket.close(code=1013)
                 break
             await websocket.send_json(envelope.model_dump())
+            domain_metrics.inc("delivered")
             last_seq = envelope.seq
     except WebSocketDisconnect:
         pass
     finally:
         watcher.cancel()
         await bus.unsubscribe(project_id, queue)
+
+
+COLLAB_WS_POLL_SECONDS_DEFAULT = 2.0
+
+
+def _collab_poll_seconds() -> float:
+    """Safety-net poll interval (NOTIFY normally wakes the socket within milliseconds)."""
+    import os
+
+    try:
+        value = float(os.environ.get("COLLAB_WS_POLL_SECONDS", ""))
+    except ValueError:
+        return COLLAB_WS_POLL_SECONDS_DEFAULT
+    return value if value > 0 else COLLAB_WS_POLL_SECONDS_DEFAULT
+
+
+@router.websocket("/ws/{project_id}/runs/{run_id}/collab")
+async def run_collab_ws(
+    websocket: WebSocket, project_id: str, run_id: str, token: str = "", afterSeq: int = 0,
+    ticket: str = "", fingerprint: str = "",
+):
+    """Server push of one run's collaboration events (roster, leader, handoff, redirect,
+    approval) - the same admission as the project socket (ticket, fingerprint, team
+    access), plus the run must belong to that project.
+
+    Protocol: frames are JSON ``{channel: "collab", seq, kind, actor, payload, ts, runId,
+    projectId}``. ``seq`` is the run's collaboration cursor: it only ever increases on one
+    connection, and a client resumes with ``?afterSeq=<last seq seen>`` (the catch-up is
+    replayed first, capped at REPLAY_MAX_EVENTS with a ``replayTruncated`` marker frame,
+    then live delivery follows). Clients de-duplicate by ``seq``. The HTTP endpoint
+    ``GET .../collab-history?after=`` stays available as the polling fallback.
+    """
+    principal = await _ws_authenticate(websocket, project_id, token, ticket, fingerprint)
+    if principal is None:
+        return
+    factory = websocket.app.state.session_factory
+    async with factory() as db:
+        owned = (
+            await db.execute(
+                text("SELECT 1 FROM agent_runs WHERE id = :r AND project_id = :p"),
+                {"r": run_id, "p": project_id},
+            )
+        ).first()
+    if owned is None:
+        await websocket.close(code=4404)  # same code as an unknown/foreign project
+        return
+
+    bus: EventBus = websocket.app.state.event_bus
+    team_id = principal.teamId
+    await websocket.accept()
+    wake = bus.collab_waker(run_id)  # register BEFORE replaying: nothing falls in the gap
+
+    async def _watch_disconnect() -> None:
+        while True:
+            await websocket.receive()
+
+    watcher = asyncio.ensure_future(_watch_disconnect())
+    try:
+        last_seq = max(0, int(afterSeq))
+        page = await bus.collab_replay_page(run_id, team_id, last_seq)
+        for frame in page.frames:
+            await websocket.send_json(frame)
+            last_seq = max(last_seq, frame["seq"])
+        domain_metrics.inc("replayed", len(page.frames))
+        if page.truncated and page.oldest_seq_sent is not None:
+            await websocket.send_json(
+                {
+                    "channel": "collab",
+                    "replayTruncated": True,
+                    "oldestSeqSent": page.oldest_seq_sent,
+                    "afterSeq": max(0, int(afterSeq)),
+                }
+            )
+        poll = _collab_poll_seconds()
+        while True:
+            waiter = asyncio.ensure_future(wake.wait())
+            done, _pending = await asyncio.wait(
+                {waiter, watcher}, timeout=poll, return_when=asyncio.FIRST_COMPLETED
+            )
+            if watcher in done:
+                waiter.cancel()
+                break
+            woken = waiter in done
+            if not woken:
+                waiter.cancel()
+            wake.clear()
+            sent = 0
+            while True:  # drain everything past the cursor, in order
+                frames = await bus.collab_since(run_id, team_id, last_seq)
+                for frame in frames:
+                    if frame["seq"] <= last_seq:  # never move the cursor back or repeat
+                        domain_metrics.inc("duplicate")
+                        continue
+                    await websocket.send_json(frame)
+                    last_seq = frame["seq"]
+                    sent += 1
+                    domain_metrics.inc("delivered")
+                if len(frames) < 200:
+                    break
+            if woken and not sent:
+                domain_metrics.inc("duplicate")  # a wake-up for an event already delivered
+    except WebSocketDisconnect:
+        pass
+    finally:
+        watcher.cancel()
+        bus.release_collab_waker(run_id, wake)
 
 
 @router.get(

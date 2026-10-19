@@ -27,6 +27,12 @@ APPEND_ONLY_ACTIONS = frozenset(
         "billing.plan_changed",
         "run.started",
         "run.stopped",
+        # P2.3: cancel request vs confirmed-gone (section4 api.py stop route).
+        "run.cancel_requested",
+        "run.cancel_confirmed",
+        "approval.self_denied",
+        # Part 11.009: an admin exported the team's audit/event evidence.
+        "audit.exported",
         "forbidden.command_blocked",
         # S1-R05a: denied-but-unprovable ownership checks (raw-SQL writer in
         # section4 authz.py; canonical allowlist lives here).
@@ -47,6 +53,7 @@ APPEND_ONLY_ACTIONS = frozenset(
         # (raw-SQL writer in section4 collab.py; canonical allowlist is here).
         "participant.joined",
         "leader.assigned",
+        "leader.takeover",
         "redirect.recorded",
         "redirect.scope_changed",
         "handoff.requested",
@@ -55,6 +62,7 @@ APPEND_ONLY_ACTIONS = frozenset(
         "approval.requested",
         "approval.approved",
         "approval.rejected",
+        "approval.amended",
         "approval.invalidated",
         "approval.expired",
         "approval.claimed",
