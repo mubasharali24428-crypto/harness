@@ -70,12 +70,22 @@ IDENTITY_RULES: tuple[tuple[str, str, str], ...] = (
     ("*", r"/api/v1/agents/select", "steer"),
     ("*", r"/api/v1/agents(/.*)?", "administer"),
     ("*", r"/api/v1/sessions(/.*)?", "steer"),
+    # Session 5: a user's own inbox and preferences are self-service (viewers included).
+    ("*", r"/api/v1/notifications(/.*)?", "read"),
 )
 
 ORCHESTRATOR_RULES: tuple[tuple[str, str, str], ...] = (
     ("*", r"/(health|ready|metrics)", EXEMPT),
     ("*", r"/api/v1/orchestrator/metrics", EXEMPT),
+    ("GET", r"/api/v1/orchestrator/(runs|sessions)/[^/]+/comments/export", "export"),
     ("GET", r"/api/v1/orchestrator/.*", "read"),
+    # Session 5 discussion: commenting needs `comment`; turning a comment into guidance is steering.
+    ("POST", r"/api/v1/orchestrator/(runs|sessions)/[^/]+/comments/[^/]+/promote", "steer"),
+    ("POST", r"/api/v1/orchestrator/(runs|sessions)/[^/]+/comments/[^/]+/moderate",
+     "administer"),
+    ("PUT", r"/api/v1/orchestrator/discussion-settings", "administer"),
+    ("POST|PATCH|DELETE",
+     r"/api/v1/orchestrator/(runs|sessions)/[^/]+/comments(/[^/]+(/reactions)?)?", "comment"),
     # Participant self-service (observers and viewers included): presence and participation.
     ("POST", r"/api/v1/orchestrator/runs/[^/]+/(presence/.*|participation/.*)", "read"),
     ("PUT", r"/api/v1/orchestrator/runs/[^/]+/participation/prefs", "read"),
