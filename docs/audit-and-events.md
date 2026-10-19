@@ -193,7 +193,7 @@ checks the renderer text, not an HTTP scrape.
 | The sweep and DELETE | the application role can delete audit rows (retention needs it); the sweep and the pruned-prefix case are not exercised together in a test |
 | Export cannot prove completeness | it is team-scoped, so `chainPos` gaps are normal and linkage cannot be checked from it; recomputing `rowHash` needs Postgres's jsonb text and microsecond `ts`, which the JSON export does not guarantee. Verification is the database CLI. Paging is by `seq`, which is assigned before commit, so a row that commits late can fall behind `nextCursor`; re-export from an earlier `afterSeq` to catch it |
 | "Export is audited" is best effort | an `audit.exported` write failure is swallowed |
-| Not audited | `pause` and `resume` requests (no audit action exists; only `agent_events`), a 403 on `/audit` or `/audit/export`, WebSocket admission failures, `PILOT_NOT_ENABLED` refusals, and staged approvals voided because the staged files changed (the new request is audited, the voided one is not) |
+| Not audited | a 403 on `/audit` or `/audit/export`, WebSocket admission failures, `PILOT_NOT_ENABLED` refusals, and staged approvals voided because the staged files changed (the new request is audited, the voided one is not) |
 | Sockets are not re-validated after upgrade | a revoked session or removed member keeps receiving frames until the socket closes (threat T10b) |
 | Free text | guidance content and approval summaries can hold secrets; only secret-shaped keys are scrubbed |
 | One global chain | every committing audit row serializes on the head row at commit; throughput was not measured |

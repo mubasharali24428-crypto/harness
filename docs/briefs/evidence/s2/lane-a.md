@@ -28,4 +28,4 @@ Counters were missing from the scraped root `/metrics`; alert label values were 
 
 ## Not run / limits
 `make gate`, `make e2e*`, pip-audit, full compose up, `run_smoke.py --real`, Linux Landlock. Audit chain has no external anchor.
-UI still polls every 3 s; server-side push is tested but the UI does not consume it yet.
+Follow-up (after this evidence): pause/resume now audited (`run.paused`/`run.resumed`, `test_pause_and_resume_routes_write_audit_rows`); the shared-run panel opens the collab socket (ticket + cursor) as a wake-up and polls every 20 s while it is up, 3 s otherwise (`collabSocket.test.tsx`, vitest 542 passed; smoke --otp 1 passed). Not proven: that the browser socket actually connected in the smoke run.

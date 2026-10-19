@@ -25,6 +25,8 @@ from harness_orchestrator import domain_metrics
 from harness_orchestrator.authz import (
     AUDIT_ACTION_CANCEL_CONFIRMED,
     AUDIT_ACTION_CANCEL_REQUESTED,
+    AUDIT_ACTION_RUN_PAUSED,
+    AUDIT_ACTION_RUN_RESUMED,
     AUDIT_ACTION_RUN_STARTED,
     AUDIT_ACTION_RUN_STOPPED,
     AuthzUnavailableError,
@@ -685,6 +687,9 @@ async def pause_agent(runId: str, actor: RunWriter) -> dict[str, str]:
             status_code=status.HTTP_409_CONFLICT,
             detail={"error": {"code": "RUN_TERMINAL", "message": str(e)}},
         ) from e
+    await emit_run_lifecycle(
+        _service, action=AUDIT_ACTION_RUN_PAUSED, run_id=runId, principal=actor
+    )
     # Honest status: "pausing" while the engine can still mutate files.
     return {
         "runId": runId,
@@ -699,6 +704,9 @@ async def pause_agent(runId: str, actor: RunWriter) -> dict[str, str]:
 )
 async def resume_agent(runId: str, actor: RunWriter) -> dict[str, str]:
     await _service.resume_agent(runId)
+    await emit_run_lifecycle(
+        _service, action=AUDIT_ACTION_RUN_RESUMED, run_id=runId, principal=actor
+    )
     # RunStateResponse carries `state`, not `status` — and resume is not
     # statically EXECUTING: terminal runs no-op silently (resume-from-DONE is
     # pinned by tests/unit/test_resume.py), so report the machine's real state.

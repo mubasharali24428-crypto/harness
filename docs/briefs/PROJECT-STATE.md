@@ -95,7 +95,7 @@ Linux Landlock path, screen-reader/contrast checks.
    `docs/briefs/evidence/s2/part05-gap-checklist.md`. If missing, re-run it: read-only on code, docs/evidence only.
 2. **One smoke run on the integrated tree**: `python3 deploy/pilot/run_smoke.py --otp`. Never two at once; wait ~2 minutes after a
    previous run (port TIME_WAIT); it overwrites `docs/briefs/evidence/p1/*` (expected).
-3. **UI consumes the WebSocket push** for collaboration events (server side exists; UI still polls every 3 s as the fallback).
+3. ~~UI consumes the WebSocket push~~ done in Session 3 prep (wake-up socket, 20 s safety poll); pause/resume audited. Browser-connected socket not asserted in e2e.
 4. Fill the `PENDING-LEAD` rows in `docs/briefs/evidence/s2/acceptance-core-flow.md` with fresh results.
 5. Update matrix rows 01, 02, 05–08, 10, 11, 22, 23, 27 (and 09/12/24/28/32 if evidence changed); extend `threat-model.md`;
    overwrite `path-to-9-checkpoint.md`; then commit lane A per task with per-file pathspecs.

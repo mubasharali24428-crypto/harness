@@ -47,6 +47,11 @@ AUDIT_ACTION_AUTHZ_DENIED = "authz.denied"
 #: sections may import only ``harness_contracts``.
 AUDIT_ACTION_RUN_STARTED = "run.started"
 AUDIT_ACTION_RUN_STOPPED = "run.stopped"
+#: P2.3: cancel is a request until the worker is confirmed gone.
+AUDIT_ACTION_CANCEL_REQUESTED = "run.cancel_requested"
+AUDIT_ACTION_CANCEL_CONFIRMED = "run.cancel_confirmed"
+AUDIT_ACTION_RUN_PAUSED = "run.paused"
+AUDIT_ACTION_RUN_RESUMED = "run.resumed"
 
 
 async def emit_run_lifecycle(

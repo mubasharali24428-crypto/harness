@@ -30,6 +30,9 @@ APPEND_ONLY_ACTIONS = frozenset(
         # P2.3: cancel request vs confirmed-gone (section4 api.py stop route).
         "run.cancel_requested",
         "run.cancel_confirmed",
+        # Session 2 follow-up: pause/resume requests were unaudited.
+        "run.paused",
+        "run.resumed",
         "approval.self_denied",
         # Part 11.009: an admin exported the team's audit/event evidence.
         "audit.exported",

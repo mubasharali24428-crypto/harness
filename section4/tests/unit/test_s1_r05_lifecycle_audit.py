@@ -225,3 +225,19 @@ async def test_bare_mode_emit_is_a_silent_noop():
         run_id="run-bare",
         principal=_principal(),
     )
+
+
+def test_pause_and_resume_routes_write_audit_rows(db_parts, monkeypatch):
+    service: OrchestratorService = db_parts["service"]
+    factory = db_parts["factory"]
+    monkeypatch.setattr(service, "pause_agent", AsyncMock())
+    monkeypatch.setattr(service, "resume_agent", AsyncMock())
+    monkeypatch.setattr(service, "get_status", AsyncMock(return_value={"state": "EXECUTING"}))
+    client = _client(monkeypatch, service, _principal())
+
+    assert client.post("/api/v1/orchestrator/runs/run-x/pause").status_code == 200
+    assert client.post("/api/v1/orchestrator/runs/run-x/resume").status_code == 200
+
+    rows = asyncio.run(_rows(factory))
+    assert [r["action"] for r in rows] == ["run.paused", "run.resumed"]
+    assert all(r["actor_member_id"] == "mem-1" for r in rows)
