@@ -58,6 +58,7 @@ from harness_orchestrator.state_machine import (
     approved_at_from_wire,
     plan_approval_ttl_seconds,
 )
+from harness_orchestrator.workspace_gate import check_run_start, enforce_run_start
 
 logger = logging.getLogger(__name__)
 
@@ -881,6 +882,7 @@ class OrchestratorService(Orchestrator):
             logger.info("run %s already started durably; ignoring re-start", run_id)
             return
 
+        await enforce_run_start(self, run_id, run_data.get("projectId"))  # part 39.008
         sm: AgentStateMachine = run_data["state_machine"]
         # M23-A (session-2 area 16): the approval above is durable, but is it
         # still FRESH? The event log is the witness for approvals this
@@ -1853,6 +1855,12 @@ class OrchestratorService(Orchestrator):
                 return False
         live = run_data.get("task")
         if live is not None and not live.done():
+            return False
+        # Part 39.008: a run queued before its workspace was archived must not start.
+        if await check_run_start(
+            self, run_id, run_data.get("projectId") or claim.get("project_id"), where="claim"
+        ):
+            await finish_run(self.run_queue_factory, run_id)
             return False
         plan_id = run_data.get("plan_id")
         if not plan_id or not await self._plan_is_approved(plan_id):
