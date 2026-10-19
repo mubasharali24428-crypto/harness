@@ -12,6 +12,8 @@ Date: 2026-10-19. Scope: master prompt parts 49, 51 and 57. No live provider cal
   TypeScript SDK clients from the updated app schema.
 - Added operational instructions in `docs/integrations.md`; billing boundary and known enforcement
   limits in `docs/billing-and-quotas.md`.
+- Session 7 follow-up adds a step-up protected organization execution stop and admin-configurable
+  team monthly cap, concurrency limit, and budget warning threshold.
 - Wrote directive-level reports in `part49.md`, `part51.md`, and `part57.md`; updated matrix rows.
 
 ## Verification
@@ -35,16 +37,42 @@ tests; it was corrected to the repository's `test_billing.py` and `test_stripe_a
   scope is broad; there is no issue-tracker or chat adapter, third-party extension sandbox, common
   provider health API, or automated compatibility checker. Live provider connections were not
   tested.
-- **51 partial.** The governance page exposes existing member/role/policy/emergency/history APIs
-  and policy simulation. Policy updates do not use dual approval. No organization-wide execution
-  kill switch or retention/residency/deletion configuration exists in this surface.
-- **57 partial (cap 8).** Local run-start tier/spend gates, agent-pool reservations and Stripe event
-  deduplication are present. Daily run count is not atomically reserved; tool-call and in-flight
-  spend caps and billing alerts are absent. Live Stripe/OIDC, refunds and reconciliation remain
-  externally unverified. The pilot should not be described as live-billing ready.
+- **51 partial.** The governance page exposes member/role/policy/emergency/history APIs, policy
+  simulation, and an audited organization execution stop. Policy updates do not use dual approval;
+  retention/residency/deletion configuration is still absent. Active runs stop cooperatively as
+  workers observe the organization setting.
+- **57 partial (cap 8).** Local run-start tier/spend gates, configurable team monthly/concurrency
+  limits, warning threshold, agent-pool reservations and Stripe event deduplication are present.
+  Daily run count is not atomically reserved; tool-call/in-flight spend caps and alert delivery are
+  absent. Live Stripe/OIDC, refunds and reconciliation remain externally unverified. The pilot
+  should not be described as live-billing ready.
 - Part 44 remains partial as recorded in Session 6.
 
 No full Section 1/2/4/7 suite or PostgreSQL migration/smoke was run during Session 7. The prior
 environment record documents unavailable local Docker/Postgres access and localhost socket
 restrictions; Session 7 does not claim those checks passed. No changes were made to frozen
 contracts. Unrelated dirty work was preserved.
+
+## Session 7 completion pass
+
+The follow-up closed two locally actionable gaps: an audited, step-up protected organization-wide
+execution stop and billing-admin controls for the team monthly cap, concurrent-run limit, and
+warning threshold. New requests and queue claims observe the stop immediately; active workers cancel
+cooperatively when they poll the organization flag. Migration `0052_governance_and_billing_limits.sql`
+adds the control and override fields. Identity OpenAPI and generated SDKs were refreshed.
+
+| Command | Result |
+|---|---|
+| Section 1 billing + policy API tests | 27 passed, 34 deprecation warnings |
+| Section 4 org execution gate, configurable queue caps, queue, budget and tier tests | 56 passed, 12 deprecation warnings |
+| Section 1 Ruff on touched files | passed |
+| Section 4 Ruff on touched files | passed |
+| `npm run typecheck` (Section 7) | passed |
+| `npx tsc --noEmit` (TypeScript SDK) | passed |
+| `git diff --check` | passed |
+
+Parts 49, 51 and 57 remain partial. Part 49 still needs narrower GitHub authorization and provider
+adapters/extension governance. Part 51 still lacks dual approval and retention/residency controls.
+Part 57 remains capped at 8 until live Stripe/OIDC evidence; daily-run count reservation, in-flight
+spend/tool-call caps and alert delivery remain incomplete. PostgreSQL migration execution and live
+provider behavior were not verified in this pass.

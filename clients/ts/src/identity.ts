@@ -126,6 +126,12 @@ export interface EventReplayResponse {
   replayTruncated?: boolean | null;  // optional
 }
 
+/** ExecutionControlBody. Required keys: disabled, reason. */
+export interface ExecutionControlBody {
+  disabled: boolean;
+  reason: string;
+}
+
 /** GlobalPrefsBody. */
 export interface GlobalPrefsBody {
   digest?: _DigestBody | null;  // optional
@@ -262,9 +268,12 @@ export interface OrgPatchBody {
   requireSso?: boolean | null;  // optional
 }
 
-/** PlanUpdateBody. Required keys: plan. */
+/** PlanUpdateBody. */
 export interface PlanUpdateBody {
-  plan: "free" | "pro" | "team";
+  budgetAlertPercent?: number | string | null;  // optional
+  maxConcurrentRuns?: number | null;  // optional
+  monthlyBudgetUsd?: number | string | null;  // optional
+  plan?: "free" | "pro" | "team" | null;  // optional
 }
 
 /** PolicyDoc. */
@@ -893,6 +902,20 @@ export class IdentityClient {
   patch_org(org_id: string, body: OrgPatchBody): Promise<Record<string, unknown>> {
     const _path = `/api/v1/orgs/${encodeURIComponent(org_id)}`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PATCH", body);
+  }
+
+  /** Get Execution Control
+   *  GET /api/v1/orgs/{org_id}/execution-control */
+  get_execution_control(org_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orgs/${encodeURIComponent(org_id)}/execution-control`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Set Execution Control
+   *  PUT /api/v1/orgs/{org_id}/execution-control */
+  set_execution_control(org_id: string, body: ExecutionControlBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orgs/${encodeURIComponent(org_id)}/execution-control`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
   }
 
   /** Org History
@@ -1639,6 +1662,7 @@ export class IdentityClient {
  * export interface/type ErrorEnvelope
  * export interface/type EventEnvelopeOut
  * export interface/type EventReplayResponse
+ * export interface/type ExecutionControlBody
  * export interface/type GlobalPrefsBody
  * export interface/type HTTPValidationError
  * export interface/type InviteBody

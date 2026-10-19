@@ -9,6 +9,7 @@ export interface OrganizationDto {
   requireSso?: boolean;
   requireMfa?: boolean;
   allowedDomains?: string[];
+  executionDisabled?: boolean;
 }
 
 export interface OrganizationMemberDto {
@@ -60,6 +61,36 @@ export function listOrganizations(token: string): Promise<{ items: OrganizationD
 
 export function getOrganization(orgId: string, token: string): Promise<OrganizationDto> {
   return request(orgPath(orgId), token);
+}
+
+export function getExecutionControl(orgId: string, token: string): Promise<{ orgId: string; disabled: boolean }> {
+  return request(`${orgPath(orgId)}/execution-control`, token);
+}
+
+export function setExecutionControl(
+  orgId: string,
+  disabled: boolean,
+  reason: string,
+  token: string,
+): Promise<{ orgId: string; disabled: boolean }> {
+  return request(`${orgPath(orgId)}/execution-control`, token, {
+    method: "PUT",
+    body: JSON.stringify({ disabled, reason }),
+  });
+}
+
+export function requestStepupCode(email: string, token: string): Promise<{ ok: boolean }> {
+  return request("/api/v1/auth/request-login", token, {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function verifyStepupCode(code: string, token: string): Promise<{ verified: boolean }> {
+  return request("/api/v1/stepup/verify", token, {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
 }
 
 export function listOrganizationMembers(

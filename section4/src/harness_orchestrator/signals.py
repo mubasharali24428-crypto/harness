@@ -73,6 +73,12 @@ class RunNotLiveForDoneSignalError(DoneSignalRejectedError):
     code = "RUN_NOT_LIVE"
 
 
+class StagedApprovalPendingError(RunNotLiveForDoneSignalError):
+    """Withheld changes must be resolved before review/completion."""
+
+    code = "STAGED_APPROVAL_PENDING"
+
+
 # Executor class: who may declare work done. Read-only roles (viewer/guest)
 # are excluded deliberately — same staff set frozen contracts already trust
 # with run control ("write"), which is what a done-signal effectively is.

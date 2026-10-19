@@ -176,6 +176,12 @@ async def claim_next_run(factory, worker_id: str, max_per_team: int) -> dict[str
 
     async with factory() as db:
         sql = _CLAIM_SQL
+        try:
+            await db.execute(text("SELECT concurrent_runs_override FROM billing_plans LIMIT 0"))
+            sql = _CLAIM_SQL_CONFIGURABLE
+        except Exception:  # noqa: BLE001 — pre-0052 scratch schema uses the worker default
+            if db.in_transaction():
+                await db.rollback()
         if db.bind.dialect.name == "postgresql":
             # Lock the candidate row inside its subquery, before RETURNING.
             sql = _inject_skip_locked(sql)
@@ -259,6 +265,12 @@ WHERE run_id = (
 )
 RETURNING run_id, project_id
 """
+
+_CLAIM_SQL_CONFIGURABLE = _CLAIM_SQL.replace(
+    "< :max_per_team",
+    "< COALESCE((SELECT bp.concurrent_runs_override FROM billing_plans bp "
+    "WHERE bp.team_id = p.team_id), :max_per_team)",
+)
 
 
 async def heartbeat_run(factory, run_id: str, worker_id: str) -> bool:

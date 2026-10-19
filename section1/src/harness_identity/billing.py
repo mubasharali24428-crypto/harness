@@ -42,7 +42,7 @@ error_body() envelope.
 import os
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_EVEN, Decimal
-from typing import Annotated, Literal, Protocol
+from typing import Annotated, Any, Literal, Protocol
 
 import harness_contracts
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -55,7 +55,7 @@ from harness_contracts import (
     resolve_cap,
     tier_caps,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, func, select, text
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -103,6 +103,12 @@ class BillingPlan(Base):
     )
     context_index_max_chunks_override: Mapped[int | None] = mapped_column(
         "context_index_max_chunks_override", Integer, nullable=True, default=None
+    )
+    concurrent_runs_override: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, default=None
+    )
+    budget_warn_pct_override: Mapped[Decimal | None] = mapped_column(
+        Numeric(5, 2), nullable=True, default=None
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -241,6 +247,8 @@ async def _state_payload(request: Request, principal: Principal) -> dict:
     if adapter is not None:
         try:
             remote = await adapter.fetch_state(principal.teamId)
+            async with session_factory() as db:
+                limits = await _team_billing_limits(db, principal.teamId, principal)
             return {
                 "enabled": True,
                 "plan": remote.get("plan") or "free",
@@ -249,6 +257,7 @@ async def _state_payload(request: Request, principal: Principal) -> dict:
                     "usedUsd": _money_wire(remote.get("usedUsd", 0)),
                 },
                 "source": "stripe",
+                "limits": limits,
                 # M22-M2: tier facts ride along in BOTH sources so the UI can
                 # always render what the plan buys (and a cap-hit CTA later).
                 **_tier_wire(remote.get("plan")),
@@ -260,11 +269,13 @@ async def _state_payload(request: Request, principal: Principal) -> dict:
         plan_row = (
             await db.execute(select(BillingPlan).where(BillingPlan.team_id == principal.teamId))
         ).scalar_one_or_none()
+        limits = await _team_billing_limits(db, principal.teamId, principal)
     return {
         "enabled": True,
         "plan": plan_row.plan if plan_row is not None else "free",
         "quota": quota,
         "source": "local",
+        "limits": limits,
         **_tier_wire(
             plan_row.plan if plan_row is not None else "free",
             overrides=(
@@ -320,7 +331,79 @@ async def billing_state(
 
 
 class PlanUpdateBody(BaseModel):
-    plan: Literal["free", "pro", "team"]
+    plan: Literal["free", "pro", "team"] | None = None
+    monthlyBudgetUsd: Decimal | None = Field(default=None, ge=0, le=100000000)
+    maxConcurrentRuns: int | None = Field(default=None, ge=0, le=100)
+    budgetAlertPercent: Decimal | None = Field(default=None, ge=0, le=99.99)
+
+    @model_validator(mode="after")
+    def has_update(self):
+        if all(
+            getattr(self, name) is None
+            for name in ("plan", "monthlyBudgetUsd", "maxConcurrentRuns", "budgetAlertPercent")
+        ):
+            raise ValueError("at least one billing or usage limit field is required")
+        return self
+
+
+async def _team_billing_limits(
+    db, team_id: str, principal: Principal | None = None
+) -> dict[str, Any]:
+    can_manage = False
+    if principal is not None:
+        can_manage = await _billing_manager(db, principal)
+    plan = (
+        await db.execute(select(BillingPlan).where(BillingPlan.team_id == team_id))
+    ).scalar_one_or_none()
+    budget = (
+        await db.execute(text("SELECT budget_usd FROM teams WHERE id = :t"), {"t": team_id})
+    ).scalar_one_or_none()
+    plan_budget = float(plan.monthly_budget_usd) if plan else 0
+    concurrency_override = plan.concurrent_runs_override if plan else None
+    warning_override = plan.budget_warn_pct_override if plan else None
+    return {
+        "teamId": team_id,
+        "monthlyBudgetUsd": float(budget) if budget is not None else plan_budget,
+        "maxConcurrentRuns": int(concurrency_override) if concurrency_override else 4,
+        "budgetAlertPercent": (
+            float(warning_override)
+            if warning_override is not None
+            else _configured_warn_percent()
+        ),
+        "concurrentRunsOverride": concurrency_override,
+        "budgetAlertPercentOverride": (
+            float(warning_override)
+            if warning_override is not None
+            else None
+        ),
+        "canManage": can_manage,
+    }
+
+
+async def _billing_manager(db, principal: Principal) -> bool:
+    team_role = getattr(principal.role, "value", principal.role)
+    try:
+        org_id = (await db.execute(
+            text("SELECT org_id FROM teams WHERE id = :t"), {"t": principal.teamId}
+        )).scalar_one_or_none()
+    except Exception:  # noqa: BLE001 — migration 0038 not applied to this scratch store
+        if db.in_transaction():
+            await db.rollback()
+        org_id = None
+    if not org_id:
+        return team_role == Role.ADMIN.value
+    from .orgs import org_role
+
+    return await org_role(db, str(org_id), principal.userId) in {"owner", "billing_admin"}
+
+
+def _configured_warn_percent() -> float:
+    raw = os.environ.get("HARNESS_TEAM_BUDGET_WARN_PCT", "").strip()
+    try:
+        value = float(raw) if raw else 80.0
+    except ValueError:
+        return 80.0
+    return value if 0 < value < 100 else 0.0
 
 
 @router.put("/billing/plan")
@@ -330,12 +413,15 @@ async def update_billing_plan(
     principal: Annotated[Principal, Depends(get_principal)],
 ) -> dict:
     """Upsert the team's billing_plans row (admin-only) and return the state."""
-    if principal.role != Role.ADMIN:
+    async with request.app.state.session_factory() as auth_db:
+        can_manage = await _billing_manager(auth_db, principal)
+    if not can_manage:
         raise HTTPException(
             status_code=403,
-            detail=error_body("FORBIDDEN", "admin role required to change the billing plan"),
+            detail=error_body("FORBIDDEN", "billing administrator permission required"),
         )
     async with request.app.state.session_factory() as db:
+        before_limits = await _team_billing_limits(db, principal.teamId, principal)
         row = (
             await db.execute(select(BillingPlan).where(BillingPlan.team_id == principal.teamId))
         ).scalar_one_or_none()
@@ -343,21 +429,50 @@ async def update_billing_plan(
         if row is None:
             row = BillingPlan(
                 team_id=principal.teamId,
-                plan=body.plan,
+                plan=body.plan or "free",
                 monthly_budget_usd=Decimal("0"),
             )
             db.add(row)
-        else:
+        elif body.plan is not None:
             row.plan = body.plan
+        if body.monthlyBudgetUsd is not None:
+            await db.execute(
+                text("UPDATE teams SET budget_usd = :b WHERE id = :t"),
+                {"b": float(body.monthlyBudgetUsd), "t": principal.teamId},
+            )
+        if body.maxConcurrentRuns is not None:
+            row.concurrent_runs_override = body.maxConcurrentRuns or None
+        if body.budgetAlertPercent is not None:
+            row.budget_warn_pct_override = body.budgetAlertPercent
         row.updated_at = datetime.now(UTC)
         await db.commit()
         # C-002 audit: plan changes are money-adjacent and admin-gated. Emitted
         # after commit; detail carries plan names only, never provider secrets.
-        await emit_billing_plan_changed(
-            db,
-            actor_user_id=principal.userId,
-            team_id=principal.teamId,
-            target_id=row.id,
-            detail={"from": previous, "to": body.plan},
-        )
+        if body.plan is not None:
+            await emit_billing_plan_changed(
+                db,
+                actor_user_id=principal.userId,
+                team_id=principal.teamId,
+                target_id=row.id,
+                detail={"from": previous, "to": body.plan},
+            )
+        if any(
+            value is not None
+            for value in (body.monthlyBudgetUsd, body.maxConcurrentRuns, body.budgetAlertPercent)
+        ):
+            from .audit_emit import emit_billing_limits_changed
+
+            after_limits = await _team_billing_limits(db, principal.teamId, principal)
+            await emit_billing_limits_changed(
+                db,
+                actor_user_id=principal.userId,
+                team_id=principal.teamId,
+                target_id=row.id,
+                before=before_limits,
+                after={
+                    "monthlyBudgetUsd": after_limits["monthlyBudgetUsd"],
+                    "maxConcurrentRuns": after_limits["maxConcurrentRuns"],
+                    "budgetAlertPercent": after_limits["budgetAlertPercent"],
+                },
+            )
         return await _state_payload(request, principal)

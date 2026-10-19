@@ -283,6 +283,27 @@ async def emit_billing_plan_changed(
     )
 
 
+async def emit_billing_limits_changed(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str = "",
+    before: dict[str, Any],
+    after: dict[str, Any],
+) -> AuditLog | None:
+    """billing.limits_changed — before/after operational quotas, with no secret data."""
+    return await _emit(
+        session,
+        "billing.limits_changed",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="billing_plan",
+        target_id=target_id or team_id,
+        detail={"before": before, "after": after},
+    )
+
+
 async def emit_run_started(
     session: AsyncSession,
     *,

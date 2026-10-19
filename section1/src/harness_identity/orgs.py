@@ -41,6 +41,8 @@ SERVICE_SCOPES = frozenset(
 HISTORY_ACTIONS = (
     "org.created",
     "org.updated",
+    "org.execution_control_changed",
+    "org.execution_refused",
     "org.member_added",
     "org.member_role_changed",
     "org.member_removed",
@@ -635,6 +637,66 @@ async def patch_org(
                 },
             )
         return await _org_public(db, org_id)
+
+
+class ExecutionControlBody(BaseModel):
+    disabled: bool
+    reason: str = Field(min_length=10, max_length=500)
+
+
+@router.get("/{org_id}/execution-control")
+async def get_execution_control(
+    org_id: str, request: Request, principal: Annotated[Principal, Depends(get_principal)]
+) -> dict:
+    async with request.app.state.session_factory() as db:
+        await _authz(db, request, principal, org_id, MANAGER_ROLES)
+        row = (
+            await db.execute(
+                text("SELECT execution_disabled FROM organizations WHERE id = :o"),
+                {"o": org_id},
+            )
+        ).first()
+        return {"orgId": org_id, "disabled": bool(row[0])}
+
+
+@router.put("/{org_id}/execution-control")
+async def set_execution_control(
+    org_id: str,
+    body: ExecutionControlBody,
+    request: Request,
+    principal: Annotated[Principal, Depends(get_principal)],
+) -> dict:
+    """Owner/admin emergency stop with fresh step-up and before/after audit."""
+    async with request.app.state.session_factory() as db:
+        await _authz(db, request, principal, org_id, MANAGER_ROLES)
+        from .policy import require_stepup
+
+        # ``policy.save`` is a frozen, default step-up action shared by the
+        # policy engine; the distinct audit action below identifies this stop.
+        await require_stepup(db, request, principal, org_id, "policy.save")
+        old = (
+            await db.execute(
+                text("SELECT execution_disabled FROM organizations WHERE id = :o"),
+                {"o": org_id},
+            )
+        ).scalar_one()
+        before = bool(old)
+        await db.execute(
+            text("UPDATE organizations SET execution_disabled = :d WHERE id = :o"),
+            {"d": body.disabled, "o": org_id},
+        )
+        await _audit(
+            db,
+            "org.execution_control_changed",
+            org_id,
+            principal.userId,
+            {
+                "reason": body.reason,
+                "before": {"executionDisabled": before},
+                "after": {"executionDisabled": body.disabled},
+            },
+        )
+        return {"orgId": org_id, "disabled": body.disabled}
 
 
 @router.delete("/{org_id}", status_code=204)

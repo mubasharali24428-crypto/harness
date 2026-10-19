@@ -121,6 +121,11 @@ class EventReplayResponse(typing.TypedDict, total=False):
     oldestSeqSent: int | None
     replayTruncated: bool | None
 
+class ExecutionControlBody(typing.TypedDict, total=False):
+    """ExecutionControlBody. Required keys: disabled, reason."""
+    disabled: bool  # required
+    reason: str  # required
+
 class GlobalPrefsBody(typing.TypedDict, total=False):
     """GlobalPrefsBody."""
     digest: _DigestBody | None
@@ -238,8 +243,11 @@ class OrgPatchBody(typing.TypedDict, total=False):
     requireSso: bool | None
 
 class PlanUpdateBody(typing.TypedDict, total=False):
-    """PlanUpdateBody. Required keys: plan."""
-    plan: typing.Literal['free', 'pro', 'team']  # required
+    """PlanUpdateBody."""
+    budgetAlertPercent: float | str | None
+    maxConcurrentRuns: int | None
+    monthlyBudgetUsd: float | str | None
+    plan: typing.Literal['free', 'pro', 'team'] | None
 
 class PolicyDoc(typing.TypedDict, total=False):
     """PolicyDoc."""
@@ -869,6 +877,22 @@ class IdentityClient:
         """
         _path = f"/api/v1/orgs/{org_id}"
         return self._http.request(self.base_url, "PATCH", _path, json_body=body)
+
+    def get_execution_control(self, org_id: str) -> dict[str, typing.Any]:
+        """Get Execution Control
+
+        GET /api/v1/orgs/{org_id}/execution-control
+        """
+        _path = f"/api/v1/orgs/{org_id}/execution-control"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def set_execution_control(self, org_id: str, body: ExecutionControlBody) -> dict[str, typing.Any]:
+        """Set Execution Control
+
+        PUT /api/v1/orgs/{org_id}/execution-control
+        """
+        _path = f"/api/v1/orgs/{org_id}/execution-control"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
 
     def org_history(self, org_id: str, limit: int | None = None) -> dict[str, typing.Any]:
         """Org History
@@ -1698,4 +1722,4 @@ class IdentityClient:
         return self._http.request(self.base_url, "GET", _path, params=_params)
 
 
-__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AssignBody", "BindingBody", "ChainNode", "CheckBody", "CreateProjectBody", "DefBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "GlobalPrefsBody", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkRunBody", "LinkTeamBody", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "MuteBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "ReadAllBody", "RevertBody", "Rule", "RulesBody", "ScopePrefsBody", "SelectBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SnoozeBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "UnsubscribeBody", "ValidationError", "VerifyOtpRequest", "WebhookCreateBody", "WebhookCreated", "WebhookPatchBody", "WsTicketRequest", "WsTicketResponse", "_DigestBody", "_QuietBody", "harness_identity__agents__ReasonBody", "harness_identity__orgs__RoleBody", "harness_identity__policy__RoleBody", "harness_identity__sessions__CreateBody", "harness_identity__sessions__MemberBody", "harness_identity__sessions__PatchBody", "harness_identity__sessions__ReasonBody", "harness_identity__sessions__RoleBody", "harness_identity__workspaces__CreateBody", "harness_identity__workspaces__MemberBody", "harness_identity__workspaces__PatchBody", "harness_identity__workspaces__ReasonBody"]
+__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AssignBody", "BindingBody", "ChainNode", "CheckBody", "CreateProjectBody", "DefBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "ExecutionControlBody", "GlobalPrefsBody", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkRunBody", "LinkTeamBody", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "MuteBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "ReadAllBody", "RevertBody", "Rule", "RulesBody", "ScopePrefsBody", "SelectBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SnoozeBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "UnsubscribeBody", "ValidationError", "VerifyOtpRequest", "WebhookCreateBody", "WebhookCreated", "WebhookPatchBody", "WsTicketRequest", "WsTicketResponse", "_DigestBody", "_QuietBody", "harness_identity__agents__ReasonBody", "harness_identity__orgs__RoleBody", "harness_identity__policy__RoleBody", "harness_identity__sessions__CreateBody", "harness_identity__sessions__MemberBody", "harness_identity__sessions__PatchBody", "harness_identity__sessions__ReasonBody", "harness_identity__sessions__RoleBody", "harness_identity__workspaces__CreateBody", "harness_identity__workspaces__MemberBody", "harness_identity__workspaces__PatchBody", "harness_identity__workspaces__ReasonBody"]

@@ -28,6 +28,17 @@ export interface BillingStateDto {
   plan?: string | null;
   quota: BillingQuotaDto | null;
   source: BillingSource;
+  limits?: TeamBillingLimitsDto;
+}
+
+export interface TeamBillingLimitsDto {
+  teamId: string;
+  monthlyBudgetUsd: number;
+  maxConcurrentRuns: number;
+  budgetAlertPercent: number;
+  concurrentRunsOverride: number | null;
+  budgetAlertPercentOverride: number | null;
+  canManage: boolean;
 }
 
 /**
@@ -64,6 +75,16 @@ async function request<T>(path: string, token: string, init?: RequestInit): Prom
 
 export function getBillingState(token: string): Promise<BillingStateDto> {
   return request("/api/v1/billing/state", token);
+}
+
+export function updateBillingLimits(
+  limits: Pick<TeamBillingLimitsDto, "monthlyBudgetUsd" | "maxConcurrentRuns" | "budgetAlertPercent">,
+  token: string,
+): Promise<BillingStateDto> {
+  return request("/api/v1/billing/plan", token, {
+    method: "PUT",
+    body: JSON.stringify(limits),
+  });
 }
 
 /** M10-C3 PUT /api/v1/billing/plan {plan} — admin-only; resolves to updated state. */

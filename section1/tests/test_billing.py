@@ -300,12 +300,21 @@ async def test_admin_changes_plan_engineer_forbidden(billing_factory, billing_cl
     assert r.status_code == 200, r.text
     body = r.json()
     # M22-M2: the state payload grew the tierCaps block (additive).
-    assert set(body) == {"enabled", "plan", "quota", "source", "tierCaps"}
+    assert set(body) == {"enabled", "plan", "quota", "source", "tierCaps", "limits"}
     assert body == {
         "enabled": True,
         "plan": "pro",
         "quota": {"monthlyBudgetUsd": 0.0, "usedUsd": 0.0},
         "source": "local",
+        "limits": {
+            "teamId": admin["teamId"],
+            "monthlyBudgetUsd": 0.0,
+            "maxConcurrentRuns": 4,
+            "budgetAlertPercent": 80.0,
+            "concurrentRunsOverride": None,
+            "budgetAlertPercentOverride": None,
+            "canManage": True,
+        },
         # M22-M2 tier facts ride along with every state read.
         "tierCaps": {
             "tier": "pro",
@@ -333,6 +342,53 @@ async def test_admin_changes_plan_engineer_forbidden(billing_factory, billing_cl
     assert r.json()["plan"] == "team"
 
 
+async def test_team_limits_are_admin_only_and_audited(billing_factory, billing_client):
+    from harness_identity.models import AuditLog
+
+    admin = await _seed_user(billing_factory, "limits-admin@example.test", role="admin")
+    engineer = await _seed_user(
+        billing_factory, "limits-engineer@example.test", role="engineer", team_id=admin["teamId"]
+    )
+    denied = await billing_client.put(
+        "/api/v1/billing/plan",
+        json={"monthlyBudgetUsd": 18.25, "maxConcurrentRuns": 2, "budgetAlertPercent": 65},
+        headers=_bearer(engineer["token"]),
+    )
+    assert denied.status_code == 403
+    response = await billing_client.put(
+        "/api/v1/billing/plan",
+        json={"monthlyBudgetUsd": 18.25, "maxConcurrentRuns": 2, "budgetAlertPercent": 65},
+        headers=_bearer(admin["token"]),
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["limits"]["monthlyBudgetUsd"] == 18.25
+    assert response.json()["limits"]["maxConcurrentRuns"] == 2
+    assert response.json()["limits"]["budgetAlertPercent"] == 65
+    async with billing_factory() as db:
+        entry = (
+            await db.execute(
+                select(AuditLog).where(AuditLog.action == "billing.limits_changed")
+            )
+        ).scalar_one()
+        assert entry.detail["before"]["monthlyBudgetUsd"] == 0
+        assert entry.detail["after"] == {
+            "monthlyBudgetUsd": 18.25,
+            "maxConcurrentRuns": 2,
+            "budgetAlertPercent": 65.0,
+        }
+
+
+def test_governance_and_billing_limits_migration_is_additive():
+    from pathlib import Path
+
+    sql = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "0052_governance_and_billing_limits.sql"
+    ).read_text()
+    assert "ADD COLUMN execution_disabled BOOLEAN NOT NULL DEFAULT FALSE" in sql
+    assert "ADD COLUMN concurrent_runs_override INTEGER" in sql
+    assert "ADD COLUMN budget_warn_pct_override NUMERIC(5,2)" in sql
 async def test_put_plan_validation_and_auth(billing_factory, billing_client, monkeypatch):
     monkeypatch.setenv("HARNESS_BILLING", "local")
     admin = await _seed_user(billing_factory, "val@x.com", role="admin")
@@ -416,6 +472,8 @@ def test_billing_model_matches_frozen_migration_shape():
         "monthly_budget_usd",
         "runs_per_day_override",
         "context_index_max_chunks_override",
+        "concurrent_runs_override",
+        "budget_warn_pct_override",
         "updated_at",
     }
     assert cols["id"].primary_key

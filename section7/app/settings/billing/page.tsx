@@ -12,10 +12,12 @@ import { loadSession } from "@/lib/auth";
 import {
   BILLING_PLANS,
   BillingStateDto,
+  TeamBillingLimitsDto,
   formatUsd,
   isOverBudget,
   meterPct,
   updatePlan,
+  updateBillingLimits,
   getBillingState,
 } from "./billingApi";
 
@@ -42,6 +44,7 @@ function pctLabel(pct: number): string {
 
 export default function BillingSettingsPage() {
   const [state, setState] = useState<BillingStateDto | null>(null);
+  const [limits, setLimits] = useState<TeamBillingLimitsDto | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -50,7 +53,10 @@ export default function BillingSettingsPage() {
   const [selectedPlan, setSelectedPlan] = useState("");
 
   const refresh = useCallback(async () => {
-    setState(await getBillingState(loadSession()?.token ?? ""));
+    const token = loadSession()?.token ?? "";
+    const billing = await getBillingState(token);
+    setState(billing);
+    setLimits(billing.limits ?? null);
   }, []);
 
   useEffect(() => {
@@ -78,6 +84,31 @@ export default function BillingSettingsPage() {
     }
   };
 
+  const onSaveLimits = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!limits) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const saved = await updateBillingLimits(
+        {
+          monthlyBudgetUsd: Number(limits.monthlyBudgetUsd),
+          maxConcurrentRuns: Number(limits.maxConcurrentRuns),
+          budgetAlertPercent: Number(limits.budgetAlertPercent),
+        },
+        loadSession()?.token ?? "",
+      );
+      setState(saved);
+      setLimits(saved.limits ?? null);
+      setNotice("Team spend and concurrency limits saved and audited.");
+    } catch (e) {
+      setError(String((e as Error)?.message ?? e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const enabled = state?.enabled === true;
   // M10-C3 flag-off payload is {enabled:false, plan:null, quota:null,
   // source:"flag-off"} — the quota helpers below only ever run when the
@@ -85,7 +116,7 @@ export default function BillingSettingsPage() {
   const quota = state?.quota ?? null;
   const overBudget = quota !== null && isOverBudget(quota);
   const pct = quota !== null ? meterPct(quota) : 0;
-  const isAdmin = loadSession()?.principal.role === "admin";
+  const canManageBilling = limits?.canManage ?? loadSession()?.principal.role === "admin";
 
   const meterColor = overBudget ? "var(--red)" : "var(--green)";
 
@@ -119,6 +150,60 @@ export default function BillingSettingsPage() {
             Usage tracking and paid plans are switched off here. Ask your deployment operator to
             enable billing (set the HARNESS_BILLING flag) to manage plans and monthly budgets.
           </p>
+        </section>
+      )}
+
+      {enabled && limits && canManageBilling && (
+        <section className="card" style={{ maxWidth: 760, marginBottom: 20 }}>
+          <h2>Team usage limits</h2>
+          <p style={{ color: "var(--muted)" }}>
+            These limits apply even while Stripe billing is disabled. A $0 monthly budget blocks
+            provider spend. Set the alert to 0 to disable budget warnings.
+          </p>
+          <form onSubmit={onSaveLimits} style={{ display: "grid", gap: 12, maxWidth: 440 }}>
+            <label>
+              Monthly spend hard limit (USD)
+              <input
+                aria-label="Monthly spend hard limit in USD"
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                value={limits.monthlyBudgetUsd}
+                disabled={busy}
+                onChange={(event) => setLimits({ ...limits, monthlyBudgetUsd: Number(event.target.value) })}
+              />
+            </label>
+            <label>
+              Maximum concurrent runs
+              <input
+                aria-label="Maximum concurrent runs"
+                type="number"
+                min="1"
+                max="100"
+                step="1"
+                required
+                value={limits.maxConcurrentRuns}
+                disabled={busy}
+                onChange={(event) => setLimits({ ...limits, maxConcurrentRuns: Number(event.target.value) })}
+              />
+            </label>
+            <label>
+              Budget warning threshold (%)
+              <input
+                aria-label="Budget warning threshold percent"
+                type="number"
+                min="0"
+                max="99.99"
+                step="0.01"
+                required
+                value={limits.budgetAlertPercent}
+                disabled={busy}
+                onChange={(event) => setLimits({ ...limits, budgetAlertPercent: Number(event.target.value) })}
+              />
+            </label>
+            <button type="submit" className="btn primary" disabled={busy}>Save usage limits</button>
+          </form>
         </section>
       )}
 
@@ -174,7 +259,7 @@ export default function BillingSettingsPage() {
             </section>
           )}
 
-          {isAdmin ? (
+          {canManageBilling ? (
             <section className="card" style={{ maxWidth: 760, marginBottom: 20 }}>
               <h2>Change plan</h2>
               <form onSubmit={onChangePlan} style={{ display: "flex", gap: 8 }}>

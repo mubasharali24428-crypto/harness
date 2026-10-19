@@ -86,3 +86,11 @@ One gate for both services: `contracts/src/harness_contracts/policy_enforce.py`.
   own ownership checks do).
 - Non-HTTP actors (queue worker, engine) are not evaluated; they act on runs already authorised at request time.
 - Cost: an org-linked request adds about six small policy reads; no caching yet.
+
+### Organization execution stop
+
+`PUT /api/v1/orgs/{org_id}/execution-control` is an owner/admin emergency control. It requires
+step-up verification and a reason, and writes `org.execution_control_changed` with before/after
+state. New execution requests and queue claims are refused while disabled. Active workers observe
+the organization flag and cancel their run cooperatively; termination is not instantaneous. A read
+failure after the control schema is expected fails closed for linked organizations.

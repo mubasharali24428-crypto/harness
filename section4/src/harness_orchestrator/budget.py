@@ -547,6 +547,7 @@ async def check_budget(
 
     team_override = None
     plan_budget = None
+    warning_pct = None
     spent = 0.0
 
     try:
@@ -573,6 +574,21 @@ async def check_budget(
                     plan_budget = None
                     if db.in_transaction():
                         await db.rollback()
+                try:
+                    warning_row = (
+                        await db.execute(
+                            text(
+                                "SELECT budget_warn_pct_override FROM billing_plans "
+                                "WHERE team_id = :team_id"
+                            ),
+                            {"team_id": team_id},
+                        )
+                    ).first()
+                    if warning_row is not None and warning_row[0] is not None:
+                        warning_pct = float(warning_row[0])
+                except Exception:  # noqa: BLE001 — old scratch schemas use the env default
+                    if db.in_transaction():
+                        await db.rollback()
             try:
                 spent = await _month_to_date_spend(db, team_id)
             except Exception:
@@ -594,4 +610,4 @@ async def check_budget(
         estimated_call_cost_usd
         if estimated_call_cost_usd is not None
         else estimate_next_call_cost_usd(model_router=model_router, role=reviewer_role)
-    ))
+    ), warn_pct=warning_pct)

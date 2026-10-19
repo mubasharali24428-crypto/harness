@@ -37,16 +37,32 @@ async def env(db):
     )
     app = make_app(db, settings)
     app.include_router(policy.router)
+    async with db() as s:
+        connection = await s.connection()
+        await connection.run_sync(policy._md.create_all)
     app.state.policy_clock = clock
     app.state.stepup_verifier = good_verifier
     async with db() as s:
         for ddl in (
             "CREATE TABLE IF NOT EXISTS organizations "
-            "(id TEXT PRIMARY KEY, name TEXT, slug TEXT, status TEXT, created_at TEXT)",
+            "(id TEXT PRIMARY KEY, name TEXT, slug TEXT, status TEXT, created_at TEXT, "
+            "require_sso BOOLEAN DEFAULT FALSE, require_mfa BOOLEAN DEFAULT FALSE, "
+            "allowed_domains TEXT DEFAULT '[]', execution_disabled BOOLEAN NOT NULL DEFAULT FALSE)",
             "CREATE TABLE IF NOT EXISTS org_members (org_id TEXT, user_id TEXT, role TEXT, "
             "expires_at TEXT, created_at TEXT, removed_at TEXT)",
+            "CREATE TABLE IF NOT EXISTS policy_documents (id TEXT PRIMARY KEY, org_id TEXT, "
+            "level TEXT, scope_id TEXT, version INTEGER, doc TEXT, "
+            "updated_by TEXT, updated_at TEXT)",
         ):
             await s.execute(text(ddl))
+        for org_id in (ORG, ORG_B):
+            await s.execute(
+                text(
+                    "INSERT INTO organizations (id, name, slug, status, created_at) "
+                    "VALUES (:o, :o, :o, 'active', :n)"
+                ),
+                {"o": org_id, "n": T0},
+            )
         await s.commit()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         users = {}
@@ -86,6 +102,37 @@ def uid(c, name):
 async def stepup(c, name):
     r = await c.post("/api/v1/stepup/verify", json={"code": "000000"}, headers=H(c, name))
     assert r.status_code == 200, r.text
+
+
+async def test_org_execution_stop_requires_stepup_and_is_audited(env):
+    c = env
+    url = f"/api/v1/orgs/{ORG}/execution-control"
+    before = await c.get(url, headers=H(c, "alice"))
+    assert before.status_code == 200 and before.json()["disabled"] is False
+    denied = await c.put(
+        url,
+        json={"disabled": True, "reason": "Incident response containment"},
+        headers=H(c, "alice"),
+    )
+    assert denied.status_code == 403
+    assert denied.json()["detail"]["error"]["code"] == "STEPUP_REQUIRED"
+    await stepup(c, "alice")
+    stopped = await c.put(
+        url,
+        json={"disabled": True, "reason": "Incident response containment"},
+        headers=H(c, "alice"),
+    )
+    assert stopped.status_code == 200 and stopped.json()["disabled"] is True
+    outsider = await c.get(url, headers=H(c, "eve"))
+    assert outsider.status_code == 404
+    async with c.db() as db:
+        audit = (
+            await db.execute(
+                text("SELECT detail FROM audit_log WHERE action='org.execution_control_changed'")
+            )
+        ).scalar_one()
+        assert '"executionDisabled": false' in audit
+        assert '"executionDisabled": true' in audit
 
 
 def P(path):

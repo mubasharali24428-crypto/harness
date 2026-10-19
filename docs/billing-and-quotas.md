@@ -12,15 +12,17 @@ Usage is attributed to the team through the project/run ownership chain. Section
 daily run limit and estimated call cost before run start. Agent run pools reserve child budgets with
 conditional database updates; work that exceeds an allocated pool is refused.
 
-The daily run count is checked before inserting a run, so two simultaneous starts can both observe
-space under the cap. The monthly spend check also evaluates recorded usage plus an estimate; it is
-not a provider-side atomic spend reservation. Tool-call count and in-flight spend are not capped.
-These constraints are why quota controls are not marked complete. The billing UI exposes current
-plan, usage, cap and tier limits, while administrative changes remain separate from run permissions.
+Billing administrators can set a hard team monthly cap, concurrent-run limit, and warning
+threshold. Concurrent queue claims apply the configured limit under the queue's serialized claim
+transaction. The daily run count is checked before inserting a run, so simultaneous starts can both
+observe space under the cap. The monthly spend check evaluates recorded usage plus an estimate; it
+is not a provider-side atomic spend reservation. Tool-call count and in-flight spend are not capped.
+These constraints are why quota controls are not marked complete. Billing settings are separate
+from run permissions.
 
 Stripe inbound events validate the raw-body signature timestamp and use the event id as a
 transactional idempotency claim when synchronizing tier state. Live subscription lifecycle,
-refunds, disputes and reconciliation remain unverified. No alerts configuration or notification
-delivery is exposed yet.
+refunds, disputes and reconciliation remain unverified. The warning threshold is configurable, but
+notification delivery is not implemented.
 
 See `docs/briefs/evidence/s7/part57.md` for the directive map and exact local verification.

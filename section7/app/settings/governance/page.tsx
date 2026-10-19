@@ -11,6 +11,7 @@ import {
   decideEmergencyGrant,
   getOrganizationHistory,
   getOrganization,
+  getExecutionControl,
   getPolicyDecisions,
   inviteOrganizationMember,
   listEmergencyGrants,
@@ -19,8 +20,11 @@ import {
   listPolicyDocuments,
   previewPolicy,
   requestEmergencyGrant,
+  requestStepupCode,
+  setExecutionControl,
   savePolicyDocument,
   updateOrganizationMember,
+  verifyStepupCode,
 } from "./governanceApi";
 
 const DEFAULT_POLICY: Record<string, unknown> = {
@@ -52,6 +56,8 @@ export default function GovernanceSettingsPage() {
   const [inviteRole, setInviteRole] = useState("member");
   const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [emergencyReason, setEmergencyReason] = useState("");
+  const [stepupCode, setStepupCode] = useState("");
+  const [executionReason, setExecutionReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -72,15 +78,16 @@ export default function GovernanceSettingsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [org, roster, documents, orgHistory, policyDecisions, emergency] = await Promise.all([
+      const [org, execution, roster, documents, orgHistory, policyDecisions, emergency] = await Promise.all([
         getOrganization(orgId, token),
+        getExecutionControl(orgId, token),
         listOrganizationMembers(orgId, token),
         listPolicyDocuments(orgId, token),
         getOrganizationHistory(orgId, token),
         getPolicyDecisions(orgId, token),
         listEmergencyGrants(orgId, token),
       ]);
-      setOrganizations((current) => current.map((item) => item.id === org.id ? { ...item, ...org } : item));
+      setOrganizations((current) => current.map((item) => item.id === org.id ? { ...item, ...org, executionDisabled: execution.disabled } : item));
       setMembers(roster.items);
       setTargetUserId((current) => current || roster.items[0]?.userId || "");
       setHistory(orgHistory.items);
@@ -201,6 +208,50 @@ export default function GovernanceSettingsPage() {
     }
   };
 
+  const onRequestStepup = async () => {
+    if (!token || !session || !members.length) return;
+    const email = members.find((member) => member.userId === session.principal.userId)?.email;
+    if (!email) {
+      setError("Your organization membership email is not available for re-authentication.");
+      return;
+    }
+    setError(null);
+    try {
+      await requestStepupCode(email, token);
+      setNotice(`Verification code sent to ${email}.`);
+    } catch (cause) {
+      setError(String((cause as Error)?.message ?? cause));
+    }
+  };
+
+  const onVerifyStepup = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!token) return;
+    setError(null);
+    try {
+      await verifyStepupCode(stepupCode.trim(), token);
+      setStepupCode("");
+      setNotice("This session is re-authenticated for high-impact organization changes.");
+    } catch (cause) {
+      setError(String((cause as Error)?.message ?? cause));
+    }
+  };
+
+  const onExecutionControl = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!token || !orgId || !selectedOrg) return;
+    setError(null);
+    try {
+      const disabled = !selectedOrg.executionDisabled;
+      const result = await setExecutionControl(orgId, disabled, executionReason.trim(), token);
+      setOrganizations((current) => current.map((item) => item.id === orgId ? { ...item, executionDisabled: result.disabled } : item));
+      setExecutionReason("");
+      setNotice(disabled ? "Organization execution stopped. New and queued work is blocked; active runs stop as workers observe the change." : "Organization execution re-enabled.");
+    } catch (cause) {
+      setError(String((cause as Error)?.message ?? cause));
+    }
+  };
+
   return (
     <AppShell active="/settings">
       <BreadcrumbTrail items={[{ label: "Settings", href: "/settings" }, { label: "Organization governance" }]} />
@@ -224,6 +275,28 @@ export default function GovernanceSettingsPage() {
         <>
           <p>Organization role: <strong>{selectedOrg.role}</strong>. Admin changes are audited and version checked.</p>
           {loading && <p role="status">Loading organization controls…</p>}
+
+          <section className="card" style={{ maxWidth: 900, marginBottom: 16 }}>
+            <h2>Emergency execution control</h2>
+            <p role="status">Agent execution is {selectedOrg.executionDisabled ? "stopped" : "enabled"} for this organization.</p>
+            <form onSubmit={onExecutionControl} style={{ display: "grid", gap: 8, maxWidth: 520 }}>
+              <label>
+                Reason
+                <input value={executionReason} minLength={10} maxLength={500} required onChange={(event) => setExecutionReason(event.target.value)} />
+              </label>
+              <button type="submit" className={selectedOrg.executionDisabled ? "btn" : "btn danger"}>
+                {selectedOrg.executionDisabled ? "Re-enable execution" : "Stop organization execution"}
+              </button>
+            </form>
+            <form onSubmit={onVerifyStepup} style={{ display: "flex", gap: 8, marginTop: 12, maxWidth: 520 }}>
+              <button type="button" className="btn" onClick={onRequestStepup}>Send verification code</button>
+              <label>
+                Re-authentication code
+                <input value={stepupCode} maxLength={12} inputMode="numeric" onChange={(event) => setStepupCode(event.target.value)} />
+              </label>
+              <button type="submit" className="btn" disabled={stepupCode.trim().length < 4}>Verify</button>
+            </form>
+          </section>
 
           <section className="card" style={{ maxWidth: 900, marginBottom: 16 }}>
             <h2>Membership</h2>

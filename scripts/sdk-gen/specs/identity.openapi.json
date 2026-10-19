@@ -541,6 +541,26 @@
     "title": "EventReplayResponse",
     "type": "object"
    },
+   "ExecutionControlBody": {
+    "properties": {
+     "disabled": {
+      "title": "Disabled",
+      "type": "boolean"
+     },
+     "reason": {
+      "maxLength": 500,
+      "minLength": 10,
+      "title": "Reason",
+      "type": "string"
+     }
+    },
+    "required": [
+     "disabled",
+     "reason"
+    ],
+    "title": "ExecutionControlBody",
+    "type": "object"
+   },
    "GlobalPrefsBody": {
     "additionalProperties": false,
     "properties": {
@@ -1190,19 +1210,70 @@
    },
    "PlanUpdateBody": {
     "properties": {
-     "plan": {
-      "enum": [
-       "free",
-       "pro",
-       "team"
+     "budgetAlertPercent": {
+      "anyOf": [
+       {
+        "maximum": 99.99,
+        "minimum": 0.0,
+        "type": "number"
+       },
+       {
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
       ],
-      "title": "Plan",
-      "type": "string"
+      "title": "Budgetalertpercent"
+     },
+     "maxConcurrentRuns": {
+      "anyOf": [
+       {
+        "maximum": 100.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Maxconcurrentruns"
+     },
+     "monthlyBudgetUsd": {
+      "anyOf": [
+       {
+        "maximum": 100000000.0,
+        "minimum": 0.0,
+        "type": "number"
+       },
+       {
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Monthlybudgetusd"
+     },
+     "plan": {
+      "anyOf": [
+       {
+        "enum": [
+         "free",
+         "pro",
+         "team"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Plan"
      }
     },
-    "required": [
-     "plan"
-    ],
     "title": "PlanUpdateBody",
     "type": "object"
    },
@@ -4501,6 +4572,97 @@
      }
     },
     "summary": "Patch Org"
+   }
+  },
+  "/api/v1/orgs/{org_id}/execution-control": {
+   "get": {
+    "operationId": "get_execution_control_api_v1_orgs__org_id__execution_control_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Execution Control Api V1 Orgs  Org Id  Execution Control Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Execution Control"
+   },
+   "put": {
+    "description": "Owner/admin emergency stop with fresh step-up and before/after audit.",
+    "operationId": "set_execution_control_api_v1_orgs__org_id__execution_control_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ExecutionControlBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Set Execution Control Api V1 Orgs  Org Id  Execution Control Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Set Execution Control"
    }
   },
   "/api/v1/orgs/{org_id}/history": {

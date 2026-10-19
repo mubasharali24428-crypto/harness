@@ -926,6 +926,9 @@ class OrchestratorService(Orchestrator):
             return
 
         await enforce_run_start(self, run_id, run_data.get("projectId"))  # part 39.008
+        from harness_orchestrator.org_execution_gate import enforce_organization_execution
+
+        await enforce_organization_execution(self, run_id, run_data.get("projectId"))
         await enforce_session_run_start(self, run_id)  # part 40.005
         # Part 44.005: execution limits, abandoned runs. Imported here, not at module level
         # (execution.py imports api.py, which imports this module).
@@ -1002,9 +1005,18 @@ class OrchestratorService(Orchestrator):
                             self._fence_tasks.add(fence)
                             fence.add_done_callback(self._fence_tasks.discard)
                             return
+                        await self._stop_if_organization_disabled(run_data)
                     await asyncio.sleep(_HEARTBEAT_INTERVAL_SECONDS)
 
             heartbeat_task = asyncio.create_task(_heartbeat())
+        elif self.session_factory is not None:
+
+            async def _organization_watch() -> None:
+                while True:
+                    await asyncio.sleep(_HEARTBEAT_INTERVAL_SECONDS)
+                    await self._stop_if_organization_disabled(run_data)
+
+            heartbeat_task = asyncio.create_task(_organization_watch())
         try:
             if await self._budget_gate(run_data, plan):  # Wave 9 B: no model call over cap
                 return
@@ -1143,6 +1155,32 @@ class OrchestratorService(Orchestrator):
         # showing a local EXECUTING that nobody is driving.
         run_data["_stale"] = True
 
+    async def _stop_if_organization_disabled(self, run_data: dict[str, Any]) -> None:
+        from fastapi import HTTPException
+
+        from harness_orchestrator.org_execution_gate import check_organization_execution
+
+        try:
+            blocked = await check_organization_execution(
+                self,
+                run_data["runId"],
+                run_data.get("projectId"),
+                where="active-run",
+            )
+        except HTTPException as exc:
+            if exc.status_code != 503:
+                raise
+            blocked = "control_unavailable"
+        if blocked:
+            run_data["_cancel_reason"] = (
+                "organization_execution_disabled"
+                if blocked != "control_unavailable"
+                else "organization_control_unavailable"
+            )
+            await self.stop_agent(
+                run_data["runId"], reason=str(run_data["_cancel_reason"])
+            )
+
     async def get_engine_result(self, run_id: str) -> dict[str, Any]:
         run_data = await self._ensure_run(run_id)
         result = run_data.get("engine_result")
@@ -1280,7 +1318,7 @@ class OrchestratorService(Orchestrator):
             )
         return foreign
 
-    async def stop_agent(self, run_id: str) -> bool:
+    async def stop_agent(self, run_id: str, *, reason: str = "user_requested_stop") -> bool:
         """Stop the run (terminal). True when THIS call stopped it; False when it
         was already finished (idempotent repeat) - callers audit only real stops."""
         run_data = await self._ensure_run(run_id)
@@ -1296,7 +1334,7 @@ class OrchestratorService(Orchestrator):
         # (finish() is deliberately silent). Emit a paused envelope so
         # notification consumers see a truthful "stopped by user, not an
         # engine failure". Best-effort: telemetry must never break stopping.
-        self._emit_paused_event(run_data, reason="user_requested_stop")
+        self._emit_paused_event(run_data, reason=reason)
         self._cancel_live_task(run_data)
         foreign = await self._release_claim_for_cancel(run_id)
         if not foreign and await self._kill_engine(run_id):
@@ -1907,6 +1945,13 @@ class OrchestratorService(Orchestrator):
             return False
         # Part 39.008: a run queued before its workspace was archived must not start.
         if await check_run_start(
+            self, run_id, run_data.get("projectId") or claim.get("project_id"), where="claim"
+        ):
+            await finish_run(self.run_queue_factory, run_id)
+            return False
+        from harness_orchestrator.org_execution_gate import check_organization_execution
+
+        if await check_organization_execution(
             self, run_id, run_data.get("projectId") or claim.get("project_id"), where="claim"
         ):
             await finish_run(self.run_queue_factory, run_id)
