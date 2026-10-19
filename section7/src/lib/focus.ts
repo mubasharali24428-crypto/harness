@@ -113,3 +113,13 @@ export function useSkipTarget(targetId: string = MAIN_CONTENT_ID): {
   };
   return { skipHref, onSkipActivate };
 }
+
+/**
+ * Part 56: call this in the onClick of a button whose action removes or disables it (accept, reject,
+ * take control, offer handoff ...). Focus moves to the nearest ancestor marked `data-focus-park`
+ * (give it tabIndex={-1}) BEFORE the button disappears, so a keyboard user is never dropped to <body>.
+ */
+export function parkFocus(e: { currentTarget: unknown }): void {
+  const from = e.currentTarget as { closest?: (sel: string) => { focus?: (o?: object) => void } | null } | null;
+  from?.closest?.("[data-focus-park]")?.focus?.({ preventScroll: true });
+}

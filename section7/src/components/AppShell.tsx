@@ -11,6 +11,8 @@ import { listProjects } from "@/lib/api";
 import { clearSession, getToken, getProjectId, getRunId, setProjectId, loadSession } from "@/lib/auth";
 // M14-F1b (raw-03 P2): skip-link behavior + the shared main-content landmark id.
 import { MAIN_CONTENT_ID, useSkipTarget } from "@/lib/focus";
+// Part 47: unread badge as a plain link (no sound, no popup); renders nothing without a session.
+import NotificationBell from "../../app/notifications/NotificationBell";
 
 const AREAS = [
   { href: "/", label: "Command Center" },
@@ -140,6 +142,7 @@ export default function AppShell({
             ))}
           </select>
         </div>
+        <NotificationBell />
         <nav>
           {AREAS.slice(0, 1).map((a) => (
             <Link

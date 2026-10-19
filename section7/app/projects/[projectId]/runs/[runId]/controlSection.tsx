@@ -3,7 +3,9 @@
 // Part 42 UI: who holds control, suggestions waiting for the holder (accept / reject), the request queue
 // and intent conflicts. Views are props-driven (static-render tested); RunControlSection fetches and acts.
 import * as React from "react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useContext, useEffect, useRef } from "react";
+import { AnnounceContext } from "@/components/LiveAnnouncer";
+import { parkFocus } from "@/lib/focus";
 import { Button } from "@/components/ui";
 import { Notice } from "@/components/ui/Notice";
 import {
@@ -47,8 +49,8 @@ export function SuggestionsWaiting(p: {
             <span id={`${ids}-${s.id}`}><strong>{s.author}{s.author === p.me ? " (you)" : ""}</strong> suggests: {s.content}</span>{" "}
             {p.isHolder
               ? <span role="group" aria-label="Decide on this suggestion">
-                  <Button size="sm" variant="primary" disabled={p.busy} aria-describedby={`${ids}-${s.id}`} onClick={() => p.onDecide(s.id, "accept")}>Accept</Button>{" "}
-                  <Button size="sm" variant="danger" disabled={p.busy} aria-describedby={`${ids}-${s.id}`} onClick={() => p.onDecide(s.id, "reject")}>Reject</Button>
+                  <Button size="sm" variant="primary" disabled={p.busy} aria-describedby={`${ids}-${s.id}`} onClick={(e) => { parkFocus(e); p.onDecide(s.id, "accept"); }}>Accept</Button>{" "}
+                  <Button size="sm" variant="danger" disabled={p.busy} aria-describedby={`${ids}-${s.id}`} onClick={(e) => { parkFocus(e); p.onDecide(s.id, "reject"); }}>Reject</Button>
                 </span>
               : <span style={muted}>Waiting for review.</span>}
           </li>
@@ -75,9 +77,9 @@ export function ControlStatus(p: {
           : "Nobody holds control."}
       </p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {viewer.canAcquire && <Button size="sm" variant="primary" disabled={p.busy} onClick={p.onAcquire}>Take control</Button>}
-        {viewer.canRequest && <Button size="sm" disabled={p.busy} onClick={p.onRequest}>Request control</Button>}
-        {viewer.isHolder && <Button size="sm" disabled={p.busy} onClick={p.onRelease}>Release control</Button>}
+        {viewer.canAcquire && <Button size="sm" variant="primary" disabled={p.busy} onClick={(e) => { parkFocus(e); p.onAcquire(); }}>Take control</Button>}
+        {viewer.canRequest && <Button size="sm" disabled={p.busy} onClick={(e) => { parkFocus(e); p.onRequest(); }}>Request control</Button>}
+        {viewer.isHolder && <Button size="sm" disabled={p.busy} onClick={(e) => { parkFocus(e); p.onRelease(); }}>Release control</Button>}
       </div>
       {queue.length > 0 && (
         <ol aria-label="Control requests" style={{ margin: "6px 0 0", paddingLeft: 24 }}>
@@ -85,10 +87,10 @@ export function ControlStatus(p: {
             <li key={q.requestId}>
               {q.userId}{q.userId === viewer.userId ? " (you)" : ""} is waiting for control.{" "}
               {viewer.isHolder && <>
-                <Button size="sm" disabled={p.busy} onClick={() => p.onQueue(q.requestId, "grant")}>Hand over</Button>{" "}
-                <Button size="sm" disabled={p.busy} onClick={() => p.onQueue(q.requestId, "decline")}>Decline</Button>
+                <Button size="sm" disabled={p.busy} onClick={(e) => { parkFocus(e); p.onQueue(q.requestId, "grant"); }}>Hand over</Button>{" "}
+                <Button size="sm" disabled={p.busy} onClick={(e) => { parkFocus(e); p.onQueue(q.requestId, "decline"); }}>Decline</Button>
               </>}
-              {q.userId === viewer.userId && <Button size="sm" disabled={p.busy} onClick={() => p.onQueue(q.requestId, "cancel")}>Cancel my request</Button>}
+              {q.userId === viewer.userId && <Button size="sm" disabled={p.busy} onClick={(e) => { parkFocus(e); p.onQueue(q.requestId, "cancel"); }}>Cancel my request</Button>}
             </li>
           ))}
         </ol>
@@ -128,8 +130,8 @@ export function ConflictList(p: {
           </table>
           {p.canResolve
             ? <div role="group" aria-label="Resolve" style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                <Button size="sm" disabled={p.busy} onClick={() => p.onResolve(c, "keep_current")}>Keep current</Button>
-                <Button size="sm" variant="primary" disabled={p.busy} onClick={() => p.onResolve(c, "take_proposed")}>Use their version</Button>
+                <Button size="sm" disabled={p.busy} onClick={(e) => { parkFocus(e); p.onResolve(c, "keep_current"); }}>Keep current</Button>
+                <Button size="sm" variant="primary" disabled={p.busy} onClick={(e) => { parkFocus(e); p.onResolve(c, "take_proposed"); }}>Use their version</Button>
               </div>
             : <p style={muted}>Only the person in control or a team admin can resolve this.</p>}
         </div>
@@ -145,6 +147,8 @@ export function RunControlSection({ runId, token, tick, isAdmin, onChanged }: {
   const [conflicts, reloadConflicts] = usePolled(useCallback(() => getConflicts(runId, token), [runId, token]), tick, 15000);
   const after = useCallback(async () => { await Promise.all([reloadControl(), reloadConflicts()]); onChanged(); }, [reloadControl, reloadConflicts, onChanged]);
   const { busy, error, said, setSaid, run } = useAction(after);
+  const announce = useContext(AnnounceContext); // inside the shared panel the one throttled region speaks
+  useEffect(() => { if (announce && said) announce(said); }, [announce, said]);
 
   // Announce a change of holder (polite live region).
   const holder = control ? (control.holder?.userId ?? null) : undefined;
@@ -159,8 +163,8 @@ export function RunControlSection({ runId, token, tick, isAdmin, onChanged }: {
   if (!control) return null;
   const isHolder = control.viewer.isHolder;
   return (
-    <div data-testid="run-control">
-      <div role="status" aria-live="polite" data-testid="control-live" style={{ position: "absolute", left: -9999 }}>{said}</div>
+    <div data-testid="run-control" role="group" aria-label="Run control" tabIndex={-1} data-focus-park="">
+      <div role="status" aria-live="polite" data-testid="control-live" style={{ position: "absolute", left: -9999 }}>{announce ? "" : said}</div>
       {error && <Notice tone="danger" role="alert">{error}</Notice>}
       <SuggestionsWaiting
         items={control.queuedInstructions} me={control.viewer.userId} holder={control.holder?.userId ?? null}

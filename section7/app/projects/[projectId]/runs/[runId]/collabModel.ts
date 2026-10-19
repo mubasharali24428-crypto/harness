@@ -74,6 +74,13 @@ export function describeEvent(e: CollabEvent): string {
     case "handoff.requested": return `${who} offered the lead to ${String(e.payload.to ?? "?")}`;
     case "handoff.accepted": return `${who} accepted the lead`;
     case "handoff.rejected": return `${who} declined the lead`;
+    // Part 43: comment events carry ids only (never the text), so the line says what happened and nothing more.
+    case "comment.created": return `${who} commented`;
+    case "comment.edited": return `${who} edited a comment`;
+    case "comment.deleted": return `${who} deleted a comment`;
+    case "comment.hidden": return `${who} hid a comment`;
+    case "comment.restored": return `${who} restored a comment`;
+    case "comment.promoted": return `${who} sent a comment to the agent as guidance`;
     // Unknown kinds print the kind only, never the payload (nothing unvetted reaches the shared view).
     default: return `${who}: ${e.kind.replace(/[._]/g, " ")}`;
   }
@@ -140,4 +147,23 @@ export function mergeEvents(prev: CollabEvent[], next: CollabEvent[]): CollabEve
 export function clipDiff(diff: string | undefined, max = 4000): string {
   const d = diff ?? "";
   return d.length > max ? `${d.slice(0, max)}\n… (${d.length - max} more characters)` : d;
+}
+
+const clip = (t: string, n: number) => (t.length > n ? `${t.slice(0, n - 1)}…` : t);
+
+/** Part 56: what to SAY when a new approval request shows up. Silent on the first load (`before` null) and for
+ *  requests already known. Urgent (assertive) only for the person who has to decide; everyone else hears it politely. */
+export function approvalAnnouncements(before: Approval[] | null, next: Approval[], leader: string | null, me: string): { text: string; urgent: boolean }[] {
+  if (!before) return [];
+  const known = new Set(before.map((a) => a.id));
+  return next.filter((a) => a.state === "pending" && !known.has(a.id)).map((a) => {
+    const what = `${a.action === "delete" ? "delete" : "change"} ${clip(a.paths.join(", "), 80)}`;
+    const mine = leader !== null && leader === me;
+    return { text: mine ? `Approval needed from you: ${what}` : `New approval request: ${what}`, urgent: mine };
+  });
+}
+
+/** Lines to announce for events that arrived now: other people's, and fresh (within `maxAgeMs`). Replaying old history is silent. */
+export function freshEventLines(events: CollabEvent[], me: string, nowMs: number, maxAgeMs = 60_000): string[] {
+  return events.filter((e) => e.actor !== me && nowMs - Date.parse(e.ts) < maxAgeMs).map((e) => clip(describeEvent(e), 140));
 }

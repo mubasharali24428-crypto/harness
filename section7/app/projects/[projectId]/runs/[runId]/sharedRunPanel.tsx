@@ -3,9 +3,10 @@
 // Multiplayer pilot S3 — shared run panel: who leads, who is here, what is
 // blocked and who must decide, direction composer, handoff, and the ordered
 // collaboration history. Presentational SharedRunView is props-driven (tested
-// by static render); SharedRunPanel adds fetching + 3s polling (no collab push
-// channel exists yet, history resumes by seq).
-import { useCallback, useEffect, useRef, useState } from "react";
+// by static render); SharedRunPanel adds fetching. Part 46: events arrive through useCollabStream
+// (socket + cursor + reducer + polling fallback, docs/realtime.md section 5); roster and approvals are
+// re-read on every delivered batch and on a safety poll (3 s when the socket is not live, 20 s when it is).
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as React from "react";
 import { Button } from "@/components/ui";
 import { Card } from "@/components/ui";
@@ -13,16 +14,23 @@ import { Notice } from "@/components/ui/Notice";
 import { Pill } from "@/components/ui";
 import { loadSession } from "@/lib/auth";
 import { ApiError, getPlan } from "@/lib/api";
+import { createRefetchCoalescer } from "@/lib/backoff";
+import { parkFocus } from "@/lib/focus";
+import { AnnounceContext, useAnnouncer } from "@/components/LiveAnnouncer";
 import {
   type Approval, type CollabEvent, type RedirectKind, type Roster,
-  hasUnappliedStaged, applyApproval, claimLeader, decideApproval, decideHandoff, getHistory, getRoster, joinRun,
+  hasUnappliedStaged, applyApproval, claimLeader, decideApproval, decideHandoff, getRoster, joinRun,
   listApprovals, requestHandoff, sendRedirect,
-  openCollabSocket,
 } from "./collabApi";
 import {
-  type CollabView, approvalLabel, clipDiff, deriveCollabView, describeDecision,
-  describeEvent, fileStatuses, isOpenApproval, mergeEvents, redirectProblem, reopenedApprovals,
+  type CollabView, approvalAnnouncements, approvalLabel, clipDiff, deriveCollabView, describeDecision,
+  fileStatuses, freshEventLines, isOpenApproval, mergeEvents, redirectProblem, reopenedApprovals,
 } from "./collabModel";
+import { type StreamView, useCollabStream } from "./useCollabStream";
+import { ConnectionStatus } from "./connectionStatus";
+import { HistoryLog } from "./historyLog";
+import { cooldownSeconds, mutationError } from "./realtimeCore";
+import { DiscussionSection } from "./discussionSection";
 import { AgentTreeSection } from "./agentTree";
 import { RunControlSection } from "./controlSection";
 import { PresenceSection } from "./presenceSection";
@@ -44,8 +52,13 @@ export interface SharedRunViewProps {
   goal?: string | null;
   /** A polite note about the last thing you did (e.g. your direction was queued, not sent). */
   notice?: string | null;
+  /** Part 46: live connection state; the indicator renders only when given. */
+  connection?: StreamView;
+  onReload?: () => void;
   /** Presence, control and agent sections (parts 41/42/45), rendered between participants and decisions. */
   children?: React.ReactNode;
+  /** Part 43: the discussion panel, rendered after the team history so it never pushes decisions down. */
+  discussion?: React.ReactNode;
   onJoin: () => void;
   onClaim: () => void;
   onDecide: (a: Approval, approve: boolean) => void;
@@ -91,7 +104,8 @@ export function SharedRunView(p: SharedRunViewProps) {
   const owner = view.leader ? `${view.leader}${view.isLeader ? " (you)" : ""}` : null;
 
   return (
-    <Card title="Shared run" testId="shared-run-panel">
+    <Card title="Shared run" testId="shared-run-panel" aria-label="Shared run" tabIndex={-1} data-focus-park="">
+      {p.connection && <ConnectionStatus status={p.connection.status} updateRequired={p.connection.updateRequired} onReload={p.onReload} />}
       {p.error && <Notice tone="danger" role="alert">{p.error}</Notice>}
       {p.notice && <Notice tone="info" role="status" testId="direction-notice">{p.notice}</Notice>}
 
@@ -105,8 +119,8 @@ export function SharedRunView(p: SharedRunViewProps) {
           : <>You have not joined this run.</>}
       </p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-        {!view.joined && <Button variant="primary" size="sm" disabled={p.busy} onClick={p.onJoin}>Join this run</Button>}
-        {view.canClaimLeader && <Button size="sm" disabled={p.busy} onClick={p.onClaim}>Become session leader</Button>}
+        {!view.joined && <Button variant="primary" size="sm" disabled={p.busy} onClick={(e) => { parkFocus(e); p.onJoin(); }}>Join this run</Button>}
+        {view.canClaimLeader && <Button size="sm" disabled={p.busy} onClick={(e) => { parkFocus(e); p.onClaim(); }}>Become session leader</Button>}
       </div>
 
       {view.blockedReason && (
@@ -115,8 +129,8 @@ export function SharedRunView(p: SharedRunViewProps) {
       {view.handoffForMe && (
         <Notice tone="info" role="status" testId="handoff-offer">
           {view.handoffForMe.from} offered you the lead.{" "}
-          <Button size="sm" variant="primary" disabled={p.busy} onClick={() => p.onHandoffDecision(view.handoffForMe!.id, true)}>Accept</Button>{" "}
-          <Button size="sm" disabled={p.busy} onClick={() => p.onHandoffDecision(view.handoffForMe!.id, false)}>Decline</Button>
+          <Button size="sm" variant="primary" disabled={p.busy} onClick={(e) => { parkFocus(e); p.onHandoffDecision(view.handoffForMe!.id, true); }}>Accept</Button>{" "}
+          <Button size="sm" disabled={p.busy} onClick={(e) => { parkFocus(e); p.onHandoffDecision(view.handoffForMe!.id, false); }}>Decline</Button>
         </Notice>
       )}
       {view.handoffFromMe && (
@@ -138,13 +152,13 @@ export function SharedRunView(p: SharedRunViewProps) {
               {view.handoffTargets.map((u) => <option key={u} value={u}>{u}</option>)}
             </select>
           </label>{" "}
-          <Button size="sm" disabled={p.busy || !target} onClick={() => p.onHandoff(target)}>Offer handoff</Button>
+          <Button size="sm" disabled={p.busy || !target} onClick={(e) => { parkFocus(e); p.onHandoff(target); }}>Offer handoff</Button>
         </div>
       )}
 
       {p.children}
 
-      <section aria-label="Pending decisions" aria-live="polite">
+      <section aria-label="Pending decisions">
         <h3 style={{ fontSize: 13 }}>Pending decisions ({open.filter((a) => a.state === "pending").length})</h3>
         {open.length === 0 && <p style={muted}>No high-impact requests.</p>}
         {open.map((a) => (
@@ -221,27 +235,25 @@ export function SharedRunView(p: SharedRunViewProps) {
                 <option value="permission_change" disabled={!view.isLeader}>Change permissions (leader)</option>
               </select>
             </label>
-            <textarea aria-label="Direction for the agent" aria-invalid={(problem !== null && content.length > 0) || undefined} aria-describedby={problem && content.length > 0 ? `${ids}-problem` : undefined} rows={3} value={content} onChange={(e) => setContent(e.target.value)} style={{ display: "block", width: "100%", margin: "6px 0" }} />
+            <textarea aria-label="Direction for the agent" onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !problem && !p.busy) { e.preventDefault(); p.onRedirect(kind, content, reason); setContent(""); setReason(""); } }} aria-invalid={(problem !== null && content.length > 0) || undefined} aria-describedby={problem && content.length > 0 ? `${ids}-problem` : undefined} rows={3} value={content} onChange={(e) => setContent(e.target.value)} style={{ display: "block", width: "100%", margin: "6px 0" }} />
             {leaderOnly && <input aria-label="Reason for this change" aria-required="true" placeholder="Reason (required)" value={reason} onChange={(e) => setReason(e.target.value)} style={{ display: "block", width: "100%", marginBottom: 6 }} />}
             {leaderOnly && <p style={muted}>Changing scope or permissions voids open approvals; they must be requested again.</p>}
-            <p style={muted}>The agent picks this up the next time it starts or resumes, not mid-step.</p>
+            <p style={muted}>The agent picks this up the next time it starts or resumes, not mid-step. Press Ctrl+Enter (Cmd+Enter on a Mac) in the box to send.</p>
             <Button type="submit" size="sm" variant="primary" disabled={p.busy || problem !== null}>Send direction</Button>
             {problem && content.length > 0 && <span role="status" id={`${ids}-problem`} style={{ ...muted, marginLeft: 8 }}>{problem}</span>}
           </form>}
 
       <h3 style={{ fontSize: 13 }}>Team history</h3>
-      <ol role="log" aria-label="Collaboration history" style={{ margin: 0, paddingLeft: 28, maxHeight: 220, overflow: "auto" }}>
-        {p.events.map((e) => (
-          <li key={e.seq}><span style={muted}>{new Date(e.ts).toLocaleTimeString()}</span> {describeEvent(e)}</li>
-        ))}
-        {p.events.length === 0 && <li style={muted}>Nothing yet.</li>}
-      </ol>
+      <HistoryLog events={p.events} />
+
+      {p.discussion}
     </Card>
   );
 }
 
 const POLL_MS = 3000;
-const POLL_LIVE_MS = 20000; // safety net while the push socket is up
+const POLL_LIVE_MS = 20000; // safety net while the push socket is live (docs/realtime.md 5.3)
+const WAKE_MS = 250; // coalesce a burst of delivered events into one re-read of roster and approvals
 
 export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
   runId: string; projectId?: string; onStagedPendingChange?: (pending: boolean) => void;
@@ -255,36 +267,52 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
   const [events, setEvents] = useState<CollabEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [cooling, setCooling] = useState(false);
   const [notEnabled, setNotEnabled] = useState(false);
   const [goal, setGoal] = useState<string | null>(null);
   const [reopened, setReopened] = useState<string[]>([]);
-  const [live, setLive] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const lastSeq = useRef(0);
-  const seen = useRef<Approval[]>([]);
+  const seen = useRef<Approval[] | null>(null);
+  const meRef = useRef({ me, leader: null as string | null });
+  const { announce, region } = useAnnouncer();
 
   const refresh = useCallback(async () => {
     if (!token) return;
     try {
-      const [r, a, h] = await Promise.all([
-        getRoster(runId, token), listApprovals(runId, token), getHistory(runId, token, lastSeq.current),
-      ]);
+      const [r, a] = await Promise.all([getRoster(runId, token), listApprovals(runId, token)]);
       setRoster(r);
       setApprovals(a.approvals);
-      const again = reopenedApprovals(seen.current, a.approvals);
-      seen.current = a.approvals;
-      if (again.length) setReopened((prev) => [...new Set([...prev, ...again])]);
-      onStagedPendingChange?.(hasUnappliedStaged(a.approvals));
-      if (h.events.length) {
-        lastSeq.current = h.events[h.events.length - 1].seq;
-        setEvents((prev) => mergeEvents(prev, h.events));
+      meRef.current.leader = r.leader;
+      const before = seen.current;
+      if (before) {
+        const again = reopenedApprovals(before, a.approvals);
+        if (again.length) setReopened((prev) => [...new Set([...prev, ...again])]);
+        // A new request is spoken once: assertively for the person who must decide, politely for the rest.
+        for (const x of approvalAnnouncements(before, a.approvals, r.leader, meRef.current.me)) announce(x.text, x.urgent);
       }
+      seen.current = a.approvals;
+      onStagedPendingChange?.(hasUnappliedStaged(a.approvals));
       setError(null);
     } catch (e) {
       if (e instanceof ApiError && e.code === PILOT_NOT_ENABLED) setNotEnabled(true);
       else setError(e instanceof ApiError ? e.message : String((e as Error)?.message ?? e));
     }
-  }, [runId, token, onStagedPendingChange]);
+  }, [runId, token, onStagedPendingChange, announce]);
+  meRef.current.me = me;
+
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  const wake = useMemo(() => createRefetchCoalescer(WAKE_MS, () => void refreshRef.current()), []);
+  useEffect(() => () => wake.cancel(), [wake]);
+
+  // Part 46: ordered, de-duplicated events from the stream. Each delivered batch re-reads roster/approvals.
+  const onEvents = useCallback((frames: CollabEvent[]) => {
+    setEvents((prev) => mergeEvents(prev, frames));
+    wake.push();
+    for (const line of freshEventLines(frames, meRef.current.me, Date.now())) announce(line); // catching up on history is silent
+  }, [wake, announce]);
+  const onReset = useCallback(() => setEvents([]), []);
+  const stream = useCollabStream({ projectId, runId, token, enabled: !!token && !notEnabled, onEvents, onReset, announce });
 
   useEffect(() => { // the waiting suggestion itself stays listed under "Suggestions waiting"
     if (!notice) return;
@@ -296,6 +324,7 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
     if (token) getPlan(runId, token).then((plan) => setGoal(plan?.goal?.trim() || null), () => setGoal(null));
   }, [runId, token]);
 
+  const live = stream.status === "live";
   useEffect(() => {
     if (notEnabled) return;
     void refresh();
@@ -303,16 +332,14 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
     return () => clearInterval(t);
   }, [refresh, notEnabled, live]);
 
-  useEffect(() => {
-    if (!token || !projectId || notEnabled || typeof WebSocket === "undefined") return;
-    return openCollabSocket(projectId, runId, token, () => lastSeq.current, () => void refresh(), setLive);
-  }, [projectId, runId, token, notEnabled, refresh]);
-
   const act = (fn: () => Promise<unknown>) => async () => {
     if (!token) return;
     setBusy(true);
     try { await fn(); setError(null); } catch (e) {
-      setError(e instanceof ApiError ? e.message : String((e as Error)?.message ?? e));
+      // Stale view: the refresh below re-reads, the message says so, nothing is resubmitted (5.4).
+      setError(mutationError(e, (x) => (x instanceof ApiError ? x.message : String((x as Error)?.message ?? x))));
+      const wait = cooldownSeconds(e);
+      if (wait !== null) { setCooling(true); setTimeout(() => setCooling(false), wait * 1000); }
     } finally { setBusy(false); await refresh(); }
   };
   const run = (fn: () => Promise<unknown>) => void act(fn)();
@@ -322,28 +349,34 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
   const view = deriveCollabView(roster, approvals, me, canLead);
   const tick = events.length ? events[events.length - 1].seq : 0; // new collab event -> side sections refetch
   const changed = () => void refresh();
+  const people = (roster?.participants ?? []).map((m) => m.userId);
   return (
-    <SharedRunView
-      me={me} roster={roster} view={view} approvals={approvals} events={events}
-      error={error} busy={busy} reopened={reopened} goal={goal} notice={notice}
-      onJoin={() => run(() => joinRun(runId, token))}
-      onClaim={() => run(() => claimLeader(runId, token))}
-      onApply={(a) => run(() => applyApproval(runId, token, a))}
-      onDecide={(a, ok) => run(() => decideApproval(runId, token, a, ok))}
-      onHandoff={(to) => run(() => requestHandoff(runId, token, to))}
-      onHandoffDecision={(id, ok) => run(() => decideHandoff(runId, token, id, ok))}
-      onRedirect={(kind, content, reason) =>
-        run(async () => {
-          const r = await sendRedirect(runId, token, { kind, content, reason: reason || undefined, requestId: crypto.randomUUID() });
-          // Guidance from someone who does not hold control is queued, not sent: say so.
-          setNotice(r.queued
-            ? `Your direction is queued. ${view.leader ?? "The person in control"} must accept it before the agent sees it.`
-            : null);
-        })}
-    >
-      <PresenceSection runId={runId} token={token} tick={tick} onChanged={changed} />
-      <RunControlSection runId={runId} token={token} tick={tick} isAdmin={session?.principal.role === "admin"} onChanged={changed} />
-      <AgentTreeSection runId={runId} token={token} tick={tick} canSteer={canLead && view.joined} />
-    </SharedRunView>
+    <AnnounceContext.Provider value={announce}>
+      {region}
+      <SharedRunView
+        me={me} roster={roster} view={view} approvals={approvals} events={events}
+        error={error} busy={busy || cooling} reopened={reopened} goal={goal} notice={notice}
+        connection={stream} onReload={() => window.location.reload()}
+        discussion={<DiscussionSection scope={{ kind: "run", id: runId }} token={token} me={me} role={session?.principal.role} canSteer={canLead && view.joined} people={people} tick={tick} />}
+        onJoin={() => run(() => joinRun(runId, token))}
+        onClaim={() => run(() => claimLeader(runId, token))}
+        onApply={(a) => run(() => applyApproval(runId, token, a))}
+        onDecide={(a, ok) => run(() => decideApproval(runId, token, a, ok))}
+        onHandoff={(to) => run(() => requestHandoff(runId, token, to))}
+        onHandoffDecision={(id, ok) => run(() => decideHandoff(runId, token, id, ok))}
+        onRedirect={(kind, content, reason) =>
+          run(async () => {
+            const r = await sendRedirect(runId, token, { kind, content, reason: reason || undefined, requestId: crypto.randomUUID() });
+            // Guidance from someone who does not hold control is queued, not sent: say so.
+            setNotice(r.queued
+              ? `Your direction is queued. ${view.leader ?? "The person in control"} must accept it before the agent sees it.`
+              : null);
+          })}
+      >
+        <PresenceSection runId={runId} token={token} tick={tick} onChanged={changed} />
+        <RunControlSection runId={runId} token={token} tick={tick} isAdmin={session?.principal.role === "admin"} onChanged={changed} />
+        <AgentTreeSection runId={runId} token={token} tick={tick} canSteer={canLead && view.joined} />
+      </SharedRunView>
+    </AnnounceContext.Provider>
   );
 }

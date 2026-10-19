@@ -60,7 +60,11 @@ export async function call<T>(url: string, token: string, init?: RequestInit): P
   }
   if (!res.ok) {
     const { message, code } = parseApiError(res.status, body);
-    throw new ApiError(message, code, res.status);
+    const err: ApiError & { retryAfter?: number } = new ApiError(message, code, res.status);
+    // 429: keep Retry-After (seconds) so the UI can say how long a control stays disabled (docs/realtime.md 5.3/5.4).
+    const ra = Number(res.headers?.get?.("retry-after"));
+    if (Number.isFinite(ra) && ra > 0) err.retryAfter = ra;
+    throw err;
   }
   return body as T;
 }

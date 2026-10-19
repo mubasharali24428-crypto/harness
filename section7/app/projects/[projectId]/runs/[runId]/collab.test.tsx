@@ -277,7 +277,9 @@ describe("keyboard operability and status language", () => {
     expect(html).toContain('role="group" aria-label="Decide"');
   });
   it("announces state in words and through live regions, never colour alone", () => {
-    expect(html).toContain('aria-label="Pending decisions" aria-live="polite"');
+    // Part 56: arrivals are spoken by the throttled announcer, not by a live region wrapping the whole list.
+    expect(html).toContain('<section aria-label="Pending decisions">');
+    expect(html).not.toContain('aria-label="Pending decisions" aria-live');
     expect(html).toContain('role="status" data-testid="blocked-banner"');
     for (const state of ["pending", "approved", "rejected", "invalidated", "expired", "executing", "completed", "failed"] as const) {
       expect(approvalLabel(approval({ state }), "lead").length).toBeGreaterThan(3);

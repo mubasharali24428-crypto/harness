@@ -3,8 +3,10 @@
 // Part 45 UI: compact subtask tree. Pause / resume / cancel only change the server's ledger (docs/agents.md);
 // the buttons say what they do and are shown to people who can steer.
 import * as React from "react";
-import { useCallback } from "react";
+import { useCallback, useContext, useEffect } from "react";
+import { AnnounceContext } from "@/components/LiveAnnouncer";
 import { Button } from "@/components/ui";
+import { parkFocus } from "@/lib/focus";
 import { Notice } from "@/components/ui/Notice";
 import { Pill } from "@/components/ui";
 import { type AgentItem, agentAction, getAgents } from "./controlApi";
@@ -35,7 +37,7 @@ function Row({ n, canSteer, busy, onAct }: {
   const last = a.recentToolCalls?.[0];
   const live = a.state === "active" || a.state === "paused";
   return (
-    <li data-testid={`agent-${a.id}`}>
+    <li data-testid={`agent-${a.id}`} tabIndex={-1} data-focus-park="">
       <span id={ids}><strong>{a.title}</strong> ({a.agentName} v{a.agentVersion})</span>{" "}
       <Pill tone={tone(a.state)}>{a.state === "paused" && a.pauseReason ? `paused: ${a.pauseReason.replace(/_/g, " ")}` : a.state}</Pill>
       <span style={muted}>
@@ -46,9 +48,9 @@ function Row({ n, canSteer, busy, onAct }: {
       {canSteer && live && (
         <span role="group" aria-label="Agent controls" style={{ marginLeft: 8 }}>
           {a.state === "active"
-            ? <Button size="sm" disabled={busy} aria-describedby={ids} onClick={() => onAct(a.id, "pause")}>Pause</Button>
-            : <Button size="sm" disabled={busy} aria-describedby={ids} onClick={() => onAct(a.id, "resume")}>Resume</Button>}{" "}
-          <Button size="sm" variant="danger" disabled={busy} aria-describedby={ids} onClick={() => onAct(a.id, "cancel")}>Cancel</Button>
+            ? <Button size="sm" disabled={busy} aria-describedby={ids} onClick={(e) => { parkFocus(e); onAct(a.id, "pause"); }}>Pause</Button>
+            : <Button size="sm" disabled={busy} aria-describedby={ids} onClick={(e) => { parkFocus(e); onAct(a.id, "resume"); }}>Resume</Button>}{" "}
+          <Button size="sm" variant="danger" disabled={busy} aria-describedby={ids} onClick={(e) => { parkFocus(e); onAct(a.id, "cancel"); }}>Cancel</Button>
         </span>
       )}
       {n.children.length > 0 && (
@@ -83,9 +85,11 @@ export function AgentTreeSection({ runId, token, tick, canSteer }: {
 }) {
   const [data, reload] = usePolled(useCallback(() => getAgents(runId, token), [runId, token]), tick, 10000);
   const { busy, error, said, run } = useAction(reload);
+  const announce = useContext(AnnounceContext); // inside the shared panel the one throttled region speaks
+  useEffect(() => { if (announce && said) announce(said); }, [announce, said]);
   return (
     <AgentTree
-      items={data?.items ?? []} canSteer={canSteer} busy={busy} error={error} said={said}
+      items={data?.items ?? []} canSteer={canSteer} busy={busy} error={error} said={announce ? "" : said}
       onAct={(id, a) => void run(() => agentAction(runId, token, id, a),
         () => ({ pause: "Agent paused", resume: "Agent resumed", cancel: "Agent cancelled" })[a])}
     />

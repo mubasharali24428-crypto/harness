@@ -3,7 +3,8 @@
 // Part 41 UI: roster chips with the server's own status sentence and coarse last-seen, participation
 // controls, a heartbeat while this tab is visible, and a polite live region for changes.
 import * as React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { AnnounceContext } from "@/components/LiveAnnouncer";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui";
 import { Notice } from "@/components/ui/Notice";
@@ -79,6 +80,8 @@ export function PresenceSection({ runId, token, tick, onChanged }: {
   const after = useCallback(async () => { await reload(); onChanged(); }, [reload, onChanged]);
   const { busy, error, said, setSaid, run } = useAction(after);
   const [left, setLeft] = useState(false);
+  const announce = useContext(AnnounceContext); // inside the shared panel the one throttled region speaks
+  useEffect(() => { if (announce && said) announce(said); }, [announce, said]);
 
   // Other people's status changes -> live region.
   const prev = useRef<PresenceEntry[] | null>(null);
@@ -127,7 +130,7 @@ export function PresenceSection({ runId, token, tick, onChanged }: {
   if (!data) return null;
   return (
     <PresenceRoster
-      data={data} said={said} error={error} busy={busy} left={left}
+      data={data} said={announce ? "" : said} error={error} busy={busy} left={left}
       onAction={(a) => void run(async () => {
         const r = await participation(runId, token, a);
         if (a === "leave") setLeft(true);

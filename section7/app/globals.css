@@ -490,3 +490,16 @@ ul {
 tr[tabindex="0"]:focus-visible {
   outline-offset: -3px;
 }
+
+/* Part 56: respect "reduce motion". Nothing here is essential animation (drawer slide, skip-link
+   drop); with the setting on they become instant and smooth scrolling is off. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
