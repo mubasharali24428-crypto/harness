@@ -19,6 +19,7 @@ DeepSeek runtime exposing per-tool hooks. Limits: the baseline is a full copy
 from __future__ import annotations
 
 import difflib
+import hashlib
 import json
 import os
 import shutil
@@ -26,6 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from harness_orchestrator import domain_metrics
 from harness_orchestrator.collab import MAX_DIFF, proposal_digest
 
 SUBSTANTIAL_LINES_ENV = "HARNESS_SUBSTANTIAL_LINES"
@@ -78,6 +80,17 @@ def _paths(run_id: str, root: str) -> tuple[Path, Path]:
     return r / ".baseline" / run_id, r / ".staged" / run_id
 
 
+def _inside(path: Path, base: Path) -> None:
+    """Refuse to touch ``path`` when any parent resolves outside ``base``.
+
+    The agent controls the workspace tree, so a directory swapped for a symlink
+    would otherwise redirect the orchestrator's own writes/unlinks."""
+    real_base = os.path.realpath(base)
+    if os.path.commonpath([real_base, os.path.realpath(path.parent)]) != real_base:
+        domain_metrics.inc("harness_isolation_violation_total", "symlink_escape")
+        raise StagingError(f"path escapes its root via a symlink: {path.name}")
+
+
 def _walk(base: Path) -> dict[str, tuple[str, Any]]:
     """relpath -> ('file', bytes) | ('link', target)."""
     out: dict[str, tuple[str, Any]] = {}
@@ -93,6 +106,14 @@ def _walk(base: Path) -> dict[str, tuple[str, Any]]:
             elif full.is_file():
                 out[rel] = ("file", full.read_bytes())
     return out
+
+
+def _fingerprint(entry: tuple[str, Any] | None) -> list[str] | None:
+    """Type plus full-content hash (or link target): what the approval must bind."""
+    if entry is None:
+        return None
+    kind, val = entry
+    return [kind, hashlib.sha256(val).hexdigest() if kind == "file" else val]
 
 
 def _text(b: bytes) -> list[str] | None:
@@ -152,26 +173,36 @@ def _load_manifest(staged: Path) -> dict[str, dict[str, Any]]:
     return json.loads(f.read_text()) if f.exists() else {}
 
 
-def _groups(baseline: Path, staged: Path, manifest: dict[str, dict[str, Any]]) -> list[Group]:
+def _read_staged(sp: Path) -> tuple[str, Any]:
+    return ("link", os.readlink(sp)) if sp.is_symlink() else ("file", sp.read_bytes())
+
+
+def _groups(
+    baseline: Path,
+    staged: Path,
+    manifest: dict[str, dict[str, Any]],
+    snap: dict[str, tuple[str, Any]] | None = None,
+) -> list[Group]:
     groups: list[Group] = []
     for action in ("delete", "modify"):
         paths = sorted(p for p, m in manifest.items() if m["action"] == action)
         if not paths:
             continue
         old = _walk(baseline)
-        diffs = []
+        diffs, prints = [], []
         for p in paths:
             if action == "delete":
                 new = None
             else:
-                sp = staged / "files" / p
-                new = ("link", os.readlink(sp)) if sp.is_symlink() else ("file", sp.read_bytes())
+                new = snap[p] if snap and p in snap else _read_staged(staged / "files" / p)
             diffs.append(_udiff(p, old.get(p), new)[0])
+            prints.append([p, _fingerprint(old.get(p)), _fingerprint(new)])
         diff = "".join(diffs)[:MAX_DIFF]
+        content = hashlib.sha256(json.dumps(sorted(prints)).encode()).hexdigest()
         verb = "Delete" if action == "delete" else "Substantially modify"
         groups.append(
             Group(action, paths, f"{verb} {len(paths)} file(s): {', '.join(paths[:5])}",
-                  diff, proposal_digest(action, paths, diff))
+                  diff, proposal_digest(action, paths, diff, content))
         )
     return groups
 
@@ -196,6 +227,8 @@ def stage(run_id: str, workspace: str, root: str) -> StageReport:
             continue
         target = ws / change.path
         stage_file = staged / "files" / change.path
+        _inside(target, ws)
+        _inside(stage_file, staged / "files")
         stage_file.parent.mkdir(parents=True, exist_ok=True)
         if stage_file.is_symlink() or stage_file.exists():
             stage_file.unlink()
@@ -232,7 +265,18 @@ def apply_group(
     manifest = _load_manifest(staged)
     if any(manifest.get(p, {}).get("action") != action for p in paths):
         raise StagingError("approved paths are not staged for this action")
-    current = [g for g in _groups(baseline, staged, manifest) if g.action == action]
+    # Read the withheld files ONCE: the digest check and the landed bytes use this same
+    # snapshot, so a concurrent writer cannot swap content between check and copy.
+    snap = None
+    if action == "modify":
+        snap = {
+            p: _read_staged(staged / "files" / p)
+            for p in paths
+            if (staged / "files" / p).is_symlink() or (staged / "files" / p).exists()
+        }
+    if snap is not None and set(snap) != set(paths):
+        raise StagingError("staged content no longer matches the approved proposal")
+    current = [g for g in _groups(baseline, staged, manifest, snap) if g.action == action]
     if not current or sorted(paths) != current[0].paths or current[0].digest != digest:
         raise StagingError("staged content no longer matches the approved proposal")
     ws = Path(os.path.realpath(workspace))
@@ -240,12 +284,14 @@ def apply_group(
         tpath = ws / p
         parent = Path(os.path.realpath(tpath.parent))
         if os.path.isabs(p) or ".." in Path(p).parts or os.path.commonpath([ws, parent]) != str(ws):
+            domain_metrics.inc("harness_isolation_violation_total", "path_traversal")
             raise StagingError(f"path escapes the workspace: {p}")
         src = staged / "files" / p
-        if action == "modify" and src.is_symlink():
-            link = os.readlink(src)
+        if action == "modify" and snap[p][0] == "link":
+            link = snap[p][1]
             resolved = os.path.normpath(os.path.join(os.path.dirname(tpath), link))
             if os.path.isabs(link) or os.path.commonpath([ws, Path(resolved)]) != str(ws):
+                domain_metrics.inc("harness_isolation_violation_total", "symlink_escape")
                 raise StagingError(f"symlink target escapes the workspace: {p}")
     for p in paths:
         tpath, src, base = ws / p, staged / "files" / p, baseline / p
@@ -253,10 +299,12 @@ def apply_group(
             tpath.unlink()
         if action == "modify":
             tpath.parent.mkdir(parents=True, exist_ok=True)
-            if src.is_symlink():
-                os.symlink(os.readlink(src), tpath)
+            kind, val = snap[p]
+            if kind == "link":
+                os.symlink(val, tpath)
             else:
-                shutil.copy2(src, tpath)
+                tpath.write_bytes(val)
+                shutil.copymode(src, tpath)
         # the landed state becomes the new baseline so it is not re-withheld
         if base.is_symlink() or base.exists():
             base.unlink()

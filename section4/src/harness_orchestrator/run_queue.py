@@ -179,6 +179,12 @@ async def claim_next_run(factory, worker_id: str, max_per_team: int) -> dict[str
         if db.bind.dialect.name == "postgresql":
             # Lock the candidate row inside its subquery, before RETURNING.
             sql = _inject_skip_locked(sql)
+            # Per-team cap is a COUNT(*) inside the UPDATE; under READ COMMITTED
+            # concurrent claimers all see the same count and overshoot the cap
+            # (measured on PG18: cap=4, 16 claimers -> 12-16 running). A global
+            # xact-scoped advisory lock serializes claims (they are one short
+            # statement) so each count sees the previous commit.
+            await db.execute(text("SELECT pg_advisory_xact_lock(7270001)"), {})
         row = (
             await db.execute(
                 text(sql),
@@ -290,12 +296,20 @@ async def queue_available(factory) -> bool:
     return True
 
 
-async def finish_run(factory, run_id: str) -> None:
+async def finish_run(factory, run_id: str, worker_id: str | None = None) -> None:
+    """Release a run's claim. With ``worker_id`` only THAT worker's claim is deleted:
+    a worker that lost its claim (reaped, re-queued, re-claimed elsewhere) must not
+    delete the new owner's row when it unwinds (no duplicate execution on reclaim)."""
     from sqlalchemy import text
 
+    sql = "DELETE FROM run_claims WHERE run_id = :r"
+    params: dict[str, Any] = {"r": run_id}
+    if worker_id is not None:
+        sql += " AND worker_id = :w"
+        params["w"] = worker_id
     async with factory() as db:
         try:
-            await db.execute(text("DELETE FROM run_claims WHERE run_id = :r"), {"r": run_id})
+            await db.execute(text(sql), params)
             await db.commit()
         except Exception:  # noqa: BLE001 — no queue table (bare test DB): nothing to clear
             logger.info("run_claims unavailable; finish_run skipped for %s", run_id)

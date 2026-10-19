@@ -20,10 +20,12 @@ stays honest (raw-02 L1): the ``engine`` field always names the model
 that actually answered.
 """
 
+import hashlib
 import json
 import logging
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -32,7 +34,8 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from harness_orchestrator import confine
+from harness_orchestrator import confine, domain_metrics
+from harness_orchestrator.container_runtime import ContainerBoundary
 from harness_orchestrator.live_mode import (
     LiveMode,
     parse_live_mode,
@@ -72,6 +75,7 @@ class DeepSeekHarnessWrapper:
             else os.environ.get("HARNESS_ENGINE_ISOLATED", "1") != "0"
         )
         self._procs: dict[str, subprocess.Popen] = {}
+        self._containers: dict[str, ContainerBoundary] = {}
         self._cancel_requested: set[str] = set()
         self._proc_lock = threading.Lock()
         self.workspace = workspace_dir or os.environ.get(
@@ -82,9 +86,7 @@ class DeepSeekHarnessWrapper:
         )
         # Explicit constructor values win over the environment; blank env
         # entries behave like unset ones (compose "${VAR:-}" emptiness).
-        self.api_key = (
-            api_key if api_key is not None else os.environ.get("DEEPSEEK_API_KEY", "")
-        )
+        self.api_key = api_key if api_key is not None else os.environ.get("DEEPSEEK_API_KEY", "")
         self.base_url = (
             base_url if base_url is not None else os.environ.get("DEEPSEEK_BASE_URL", "")
         )
@@ -118,11 +120,31 @@ class DeepSeekHarnessWrapper:
         can never share or reach into each other's files.
         """
         if not _SESSION_ID_RE.fullmatch(session_id or ""):
+            domain_metrics.inc("harness_isolation_violation_total", "bad_session_id")
             raise ValueError(f"invalid session id for workspace: {session_id!r}")
         root = os.path.realpath(self.workspace)
         path = os.path.realpath(os.path.join(root, session_id))
         if os.path.dirname(path) != root:
+            domain_metrics.inc("harness_isolation_violation_total", "workspace_escape")
             raise ValueError(f"workspace for {session_id!r} escapes the workspace root")
+        return path
+
+    def provision_workspace(self, session_id: str) -> str:
+        """Create the run workspace once; seed it from ``HARNESS_WORKSPACE_SEED`` if set.
+
+        Resumes keep whatever is already there. The seed is a local directory (a checkout
+        the operator prepared); ``.git`` is not copied. Unset = an empty workspace.
+        """
+        path = self.run_workspace(session_id)
+        if os.path.isdir(path):
+            return path
+        seed = os.environ.get("HARNESS_WORKSPACE_SEED", "").strip()
+        if seed:
+            if not os.path.isdir(seed):
+                raise ValueError("HARNESS_WORKSPACE_SEED is not a directory")
+            shutil.copytree(seed, path, symlinks=True, ignore=shutil.ignore_patterns(".git"))
+        else:
+            os.makedirs(path)
         return path
 
     def run_session_dir(self, session_id: str) -> str:
@@ -134,19 +156,58 @@ class DeepSeekHarnessWrapper:
         self.run_workspace(session_id)
         return os.path.join(os.path.realpath(self.workspace), ".run-tmp", session_id)
 
+    def workspace_identity(self, session_id: str) -> dict[str, Any]:
+        """Run-metadata identity of this run's workspace: stable, non-secret, no host path.
+
+        ``id`` is the run-scoped directory name, ``fingerprint`` a short hash of the
+        resolved location (distinguishes two hosts/roots without revealing the path),
+        ``isolation`` the confinement the worker would run under. Never includes env,
+        keys, or the absolute path.
+        """
+        path = self.run_workspace(session_id)
+        return {
+            "id": session_id,
+            "fingerprint": hashlib.sha256(path.encode()).hexdigest()[:16],
+            "isolated": bool(self.isolated),
+            "isolation": confine.resolve_mode() if self.isolated else "in-process",
+        }
+
+    def cleanup_scratch(self, session_id: str) -> bool:
+        """Delete the per-run scratch dir (``.run-tmp/<id>``: TMPDIR/HOME of the worker).
+
+        Only for a finished run: refuses while a worker is alive, refuses symlinks and any
+        path that resolves outside the workspace root. Outputs (the run workspace) and the
+        staging baseline are NOT touched here - retention owns those.
+        """
+        if self.is_worker_running(session_id):
+            return False
+        path = self.run_tmp_dir(session_id)
+        root = os.path.realpath(self.workspace)
+        if os.path.islink(path):
+            domain_metrics.inc("harness_isolation_violation_total", "symlink_escape")
+            return False
+        if not os.path.isdir(path) or os.path.commonpath([root, os.path.realpath(path)]) != root:
+            return False
+        shutil.rmtree(path, ignore_errors=True)
+        return True
+
     def cancel(self, session_id: str) -> bool:
-        """Kill the run's worker process GROUP (worker + dsh runtime + shell
-        children). Returns True only when the group is confirmed gone; also
-        returns True when no worker is running. Idempotent."""
+        """Kill the container (or process group) and confirm it is gone.
+
+        Docker daemon loss is not confirmation. Idempotent for stopped workers.
+        """
         with self._proc_lock:
             self._cancel_requested.add(session_id)
             proc = self._procs.get(session_id)
+            boundary = self._containers.get(session_id)
+        if boundary is not None:
+            return boundary.kill(proc)
         if proc is None:
             return True
         try:
             os.killpg(proc.pid, signal.SIGKILL)  # pgid == pid (start_new_session)
-        except ProcessLookupError:
-            pass
+        except (ProcessLookupError, PermissionError):
+            pass  # macOS returns EPERM for a group whose leader is already reaped
         try:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
@@ -155,8 +216,8 @@ class DeepSeekHarnessWrapper:
         while time.monotonic() < deadline:
             try:
                 os.killpg(proc.pid, 0)
-            except ProcessLookupError:
-                return True
+            except (ProcessLookupError, PermissionError):
+                return True  # EPERM = group gone/zombie, not ours any more
             time.sleep(0.05)
         return False
 
@@ -168,12 +229,16 @@ class DeepSeekHarnessWrapper:
     def is_worker_running(self, session_id: str) -> bool:
         with self._proc_lock:
             proc = self._procs.get(session_id)
-        return proc is not None and proc.poll() is None
+            boundary = self._containers.get(session_id)
+        return (proc is not None and proc.poll() is None) or (
+            boundary is not None and not boundary.confirmed_gone()
+        )
 
-    def _run_isolated(self, goal: str, session_id: str, model: str) -> tuple[
-        str, str, str | None, list[Any]
-    ]:
+    def _run_isolated(
+        self, goal: str, session_id: str, model: str
+    ) -> tuple[str, str, str | None, list[Any]]:
         """Run the SDK call in a confined, killable worker process (B2/B4)."""
+        boundary = None
         try:
             workspace = self.run_workspace(session_id)
             sess = self.run_session_dir(session_id)
@@ -182,7 +247,8 @@ class DeepSeekHarnessWrapper:
                 os.makedirs(d, exist_ok=True)
             module = os.environ.get("HARNESS_ENGINE_WORKER_MODULE", REAL_WORKER_MODULE)
             if module == REAL_WORKER_MODULE and (
-                os.environ.get(confine.CONFINEMENT_ENV, "auto").strip().lower() != "off"
+                os.environ.get(confine.CONFINEMENT_ENV, "auto").strip().lower()
+                not in {"off", "container"}
             ):
                 # sandbox-exec breaks the dsh runtime's PTY shell (even allow-default), so
                 # seatbelt cannot confine the real runtime; fail closed, never degrade silently.
@@ -205,6 +271,9 @@ class DeepSeekHarnessWrapper:
                 },
                 tmp,
             )
+            if mode == "container":
+                boundary = ContainerBoundary(self.base_url)
+                env["DEEPSEEK_BASE_URL"] = boundary.start()
             argv = confine.wrap_command(
                 [sys.executable, "-m", module],
                 mode=mode,
@@ -212,6 +281,10 @@ class DeepSeekHarnessWrapper:
                 workspace=workspace,
                 session_dir=sess,
                 tmp_dir=tmp,
+                container_name=boundary.name if boundary else None,
+                network=boundary.network if boundary else None,
+                image=boundary.image if boundary else "",
+                env=env,
             )
             request = json.dumps(
                 {
@@ -236,12 +309,17 @@ class DeepSeekHarnessWrapper:
                     start_new_session=True,  # own process group => killable as a unit
                 )
                 self._procs[session_id] = proc
+                if boundary:
+                    self._containers[session_id] = boundary
             try:
                 out, err = proc.communicate(request + "\n")
             finally:
                 with self._proc_lock:
                     if self._procs.get(session_id) is proc:
+                        if boundary and not boundary.kill(proc):
+                            raise RuntimeError("container termination could not be confirmed")
                         del self._procs[session_id]
+                        self._containers.pop(session_id, None)
             if session_id in self._cancel_requested:
                 return "Execution cancelled.", "cancelled", model, []
             lines = [ln for ln in (out or "").splitlines() if ln.strip()]
@@ -259,6 +337,10 @@ class DeepSeekHarnessWrapper:
         except Exception as exc:  # noqa: BLE001 - includes ConfinementUnavailableError: fail closed
             msg = scrub_secrets(f"DeepSeek Harness run failed: {exc}", self.api_key)
             return msg, "error", model, []
+
+        finally:
+            if boundary:
+                boundary.close()
 
     @property
     def mode(self) -> LiveMode:
@@ -363,16 +445,16 @@ class DeepSeekHarnessWrapper:
             return f"deepseek-harness-sdk:{model_used or self.model}"
         return "stub"
 
-    def _run_live(self, goal: str, session_id: str, model: str | None = None) -> tuple[
-        str, str, str | None
-    ]:
+    def _run_live(
+        self, goal: str, session_id: str, model: str | None = None
+    ) -> tuple[str, str, str | None]:
         """Legacy 3-tuple surface: (text, status, model_that_answered)."""
         text, status, used_model, _events = self._run_live_events(goal, session_id, model)
         return text, status, used_model
 
-    def _run_live_events(self, goal: str, session_id: str, model: str | None = None) -> tuple[
-        str, str, str | None, list[Any]
-    ]:
+    def _run_live_events(
+        self, goal: str, session_id: str, model: str | None = None
+    ) -> tuple[str, str, str | None, list[Any]]:
         """One attempt against exactly one model — no ladder, no retries on
         other models. Returns (text, status, model_that_answered, events); the
         third element keeps attribution honest even on failure paths and the
@@ -404,9 +486,7 @@ class DeepSeekHarnessWrapper:
             )
             if self.base_url:
                 kwargs["base_url"] = self.base_url
-            patches = tuple(
-                p for p in os.environ.get("DSH_PATCH_FILES", "").split(os.pathsep) if p
-            )
+            patches = tuple(p for p in os.environ.get("DSH_PATCH_FILES", "").split(os.pathsep) if p)
             missing = [p for p in patches if not os.path.exists(p)]
             if missing:  # fail closed: a missing restriction patch must not be skipped
                 raise FileNotFoundError(f"DSH_PATCH_FILES entry not found: {missing[0]}")
@@ -416,6 +496,16 @@ class DeepSeekHarnessWrapper:
                 result = harness.run(goal, session_id=session_id)
             text = result.final_response
             events = list(result.events or [])
+            if getattr(result, "finish_reason", None) == "error":
+                message = "runtime reported a failed turn"
+                for event in reversed(events):
+                    if isinstance(event, dict) and event.get("type") == "turn/end":
+                        reason = event.get("data", {}).get("reason", {})
+                        failure = reason.get("error") or reason.get("failure") or {}
+                        if isinstance(failure, dict):
+                            message = str(failure.get("message") or message)
+                        break
+                return scrub_secrets(message, self.api_key), "error", model, events
             return text, "completed", model, events
         except ImportError:
             return (
@@ -425,6 +515,9 @@ class DeepSeekHarnessWrapper:
                 [],
             )
         except Exception as exc:  # noqa: BLE001 — surface engine failures to the UI
-            return scrub_secrets(
-                f"DeepSeek Harness run failed: {exc}", self.api_key
-            ), "error", model, []
+            return (
+                scrub_secrets(f"DeepSeek Harness run failed: {exc}", self.api_key),
+                "error",
+                model,
+                [],
+            )

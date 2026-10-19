@@ -5,6 +5,7 @@ import logging
 import os
 import secrets
 import socket
+import time
 from decimal import Decimal
 from typing import Any
 
@@ -14,7 +15,7 @@ from harness_contracts.signatures import Orchestrator
 from harness_contracts.timeutil import db_now
 from sqlalchemy import text
 
-from harness_orchestrator import collab, staging
+from harness_orchestrator import collab, domain_metrics, staging
 from harness_orchestrator.budget import BudgetStatus, TierGateStatus, check_budget, check_tier
 from harness_orchestrator.context_resolver import (
     DEFAULT_MIN_SCORE,
@@ -29,6 +30,7 @@ from harness_orchestrator.engine_runtime import (
     EngineRuntime,
     EngineRunTimeout,
 )
+from harness_orchestrator.lifecycle import lifecycle_view
 from harness_orchestrator.planner import PlanNotApprovedError, PlanService
 from harness_orchestrator.redact import scrub_secrets
 from harness_orchestrator.reviewer import ReviewerSubAgent, ReviewFindings
@@ -45,12 +47,13 @@ from harness_orchestrator.run_queue import (
     release_timed_out_claims,
     resolve_heartbeat_timeout_seconds,
 )
-from harness_orchestrator.signals import gate_done_signal
+from harness_orchestrator.signals import StagedApprovalPendingError, gate_done_signal
 from harness_orchestrator.state_machine import (
     PLAN_REJECTED_EVENT,
     TERMINAL_STATES,
     AgentState,
     AgentStateMachine,
+    InvalidStateTransitionError,
     approval_expired,
     approved_at_from_wire,
     plan_approval_ttl_seconds,
@@ -80,6 +83,7 @@ class RunNotFoundError(KeyError):
     the 404 NOT_FOUND envelope; a foreign team's run answers the exact same
     envelope (no-oracle law lives in the authz dependency).
     """
+
 
 _HEARTBEAT_INTERVAL_SECONDS = 10.0
 
@@ -215,6 +219,12 @@ class OrchestratorService(Orchestrator):
         # truth and replays deterministically, so RAM holds only live runs.
         self.runs: dict[str, dict[str, Any]] = {}
         self._bg_tasks: set[asyncio.Task] = set()
+        self._fence_tasks: set[asyncio.Task] = set()  # claim-lost fences in flight
+        # run_id -> monotonic deadline: another replica's worker held this run when it was
+        # stopped/paused here. We cannot observe that process, so the run reads
+        # stopping/pausing (never stopped/paused) until its heartbeat has had time to
+        # notice the released claim and fence its own engine.
+        self._foreign_engine_until: dict[str, float] = {}
         # Wave 6 (D3): per-run publish chains. Fire-and-forget tasks raced under
         # fast successive actions — execution_started once landed BEFORE the
         # plan_approved that caused it (live smoke evidence). Each run's publishes
@@ -304,9 +314,7 @@ class OrchestratorService(Orchestrator):
             else:
                 run_data.pop("budget_degraded", None)
                 reason = f"Plan limit reached: {tier_status.reason}"
-            logger.warning(
-                "blocking run %s pre-call: %s", run_data.get("runId"), reason
-            )
+            logger.warning("blocking run %s pre-call: %s", run_data.get("runId"), reason)
             sm: AgentStateMachine = run_data["state_machine"]
             sm.execution_failed(reason)
             # Structured upgrade CTA (M22-M2): {tier, cap, capField, used,
@@ -319,9 +327,7 @@ class OrchestratorService(Orchestrator):
         status: BudgetStatus = await check_budget(
             factory,
             team_id,
-            estimated_call_cost_usd=(
-                float(plan.estimatedCostUsd) if plan is not None else None
-            ),
+            estimated_call_cost_usd=(float(plan.estimatedCostUsd) if plan is not None else None),
         )
         if status.allowed:
             run_data.pop("budget_degraded", None)
@@ -342,9 +348,7 @@ class OrchestratorService(Orchestrator):
         sm.execution_failed(reason)
         return True
 
-    def _note_budget_warning(
-        self, run_data: dict[str, Any], status: BudgetStatus
-    ) -> None:
+    def _note_budget_warning(self, run_data: dict[str, Any], status: BudgetStatus) -> None:
         """M23-B: log + flag the FIRST near-cap decision of this run.
 
         Dedupe is per run (in-process, like the other run_data flags): the
@@ -355,8 +359,7 @@ class OrchestratorService(Orchestrator):
             return
         run_data["budget_warned"] = True
         logger.warning(
-            "budget warning for run %s: projected spend crossed $%.4f "
-            "(%.0f%% of the $%.2f cap)",
+            "budget warning for run %s: projected spend crossed $%.4f (%.0f%% of the $%.2f cap)",
             run_data.get("runId"),
             status.warnAtUsd or 0.0,
             (100.0 * (status.warnAtUsd or 0.0) / status.capUsd) if status.capUsd else 0.0,
@@ -406,6 +409,11 @@ class OrchestratorService(Orchestrator):
     # ------------------------------------------------------------------- runs
 
     async def _ensure_run(self, run_id: str, project_id: str | None = None) -> dict[str, Any]:
+        cached = self.runs.get(run_id)
+        if cached is not None and cached.get("_stale"):
+            task = cached.get("task")
+            if task is None or task.done():
+                del self.runs[run_id]  # fenced: replay the durable truth instead
         if run_id in self.runs:
             return self.runs[run_id]
 
@@ -452,9 +460,7 @@ class OrchestratorService(Orchestrator):
 
         try:
             async with self.session_factory() as db:
-                rows = (
-                    (await db.execute(text(_REHYDRATE_SQL), {"run_id": run_id})).mappings().all()
-                )
+                rows = (await db.execute(text(_REHYDRATE_SQL), {"run_id": run_id})).mappings().all()
                 plan_row = (
                     (await db.execute(text(_PLAN_SQL), {"run_id": run_id})).mappings().first()
                 )
@@ -518,6 +524,7 @@ class OrchestratorService(Orchestrator):
                 # and a later done-signal could drive it forward.
                 sm.state = AgentState.DONE
                 stopped = True
+                rd["_stopped"] = True  # lifecycle view: DONE-by-stop, not DONE-by-review
                 last_seq_state = True
                 continue
             if etype == EventType.PLAN_APPROVED.value:
@@ -538,9 +545,7 @@ class OrchestratorService(Orchestrator):
                     # (legacy pre-M23 events carry none; the start-path
                     # durable check then falls back to the row ts).
                     if isinstance(payload, dict) and sm.plan_approved_at is None:
-                        sm.plan_approved_at = approved_at_from_wire(
-                            payload.get("approvedAt")
-                        )
+                        sm.plan_approved_at = approved_at_from_wire(payload.get("approvedAt"))
                 continue
             # M19-N1: replay the done-gate PATH like the live machine does
             # (H-008 semantics, previously missing from rehydration): a
@@ -633,8 +638,9 @@ class OrchestratorService(Orchestrator):
 
     # ------------------------------------------------------------------- api
 
-    async def propose_plan(self, run_id: str, goal: str | None = None,
-                           project_id: str | None = None) -> str:
+    async def propose_plan(
+        self, run_id: str, goal: str | None = None, project_id: str | None = None
+    ) -> str:
         run_data = await self._ensure_run(run_id, project_id=project_id)
         sm: AgentStateMachine = run_data["state_machine"]
         if goal:
@@ -647,9 +653,7 @@ class OrchestratorService(Orchestrator):
         # Loaded best-effort (missing table/DB ⇒ ""), never blocks planning;
         # stored on the run so tests can assert the assembled prompt block
         # and future engine calls can carry it into system context.
-        rules_text = await load_project_rules(
-            self.session_factory, run_data.get("projectId")
-        )
+        rules_text = await load_project_rules(self.session_factory, run_data.get("projectId"))
         run_data["rules_prompt_block"] = build_rules_block(rules_text)
         # M21-X2: @refs in the brief text resolve (advisory, best-effort) into
         # a bounded context bundle that AUGMENTS the pasted goal. Resolution
@@ -697,9 +701,7 @@ class OrchestratorService(Orchestrator):
             **rag_kwargs,
         )
         if seeded_files:
-            logger.info(
-                "plan %s seeded %d file(s) from resolved @refs", plan_id, len(seeded_files)
-            )
+            logger.info("plan %s seeded %d file(s) from resolved @refs", plan_id, len(seeded_files))
         run_data["plan_id"] = plan_id
         await self._persist_plan(run_id, plan_id, plan, status="proposed")
 
@@ -734,14 +736,8 @@ class OrchestratorService(Orchestrator):
         factory = self.session_factory
         if factory is None:
             # Bare unit mode: no durable mirror, no CAS token — legacy walk.
-            flip = (
-                self.planner.approve_plan
-                if decision == "approved"
-                else self.planner.reject_plan
-            )
-            announce = (
-                sm.approve_plan if decision == "approved" else sm.reject_plan
-            )
+            flip = self.planner.approve_plan if decision == "approved" else self.planner.reject_plan
+            announce = sm.approve_plan if decision == "approved" else sm.reject_plan
             flip(plan_id)
             announce(plan_id, principal_user_id)
             return
@@ -764,8 +760,7 @@ class OrchestratorService(Orchestrator):
             # nothing durable raced us that we can see; keep the legacy
             # best-effort walk instead of failing an undecidable request.
             logger.warning(
-                "plan %s decided without a durable CAS (mirror absent); "
-                "continuing best-effort",
+                "plan %s decided without a durable CAS (mirror absent); continuing best-effort",
                 plan_id,
             )
 
@@ -790,14 +785,10 @@ class OrchestratorService(Orchestrator):
             sm.reject_plan(plan_id, principal_user_id)
 
     async def approve_plan(self, run_id: str, plan_id: str, principal_user_id: str) -> None:
-        await self._decide_plan(
-            run_id, plan_id, principal_user_id, decision="approved"
-        )
+        await self._decide_plan(run_id, plan_id, principal_user_id, decision="approved")
 
     async def reject_plan(self, run_id: str, plan_id: str, principal_user_id: str) -> None:
-        await self._decide_plan(
-            run_id, plan_id, principal_user_id, decision="rejected"
-        )
+        await self._decide_plan(run_id, plan_id, principal_user_id, decision="rejected")
         # S-010: persist the rejection as an agent_events row (run-scoped, no
         # project FK) so it survives restart and is queryable alongside the
         # audit row. The S1 bus requires an EventType member + project FK and
@@ -902,9 +893,7 @@ class OrchestratorService(Orchestrator):
         # convergence): the spawner must be able to announce the lifecycle.
         sm.plan_approved = True
         plan = self.planner.get_plan(plan_id)
-        if self.run_queue_factory is not None and await queue_available(
-            self.run_queue_factory
-        ):
+        if self.run_queue_factory is not None and await queue_available(self.run_queue_factory):
             # M19-N1 exactly-once spawner election: the INSERT race elects
             # the ONE replica that may announce + queue this lifecycle. The
             # loser returns BEFORE any state mutation or EXECUTION_STARTED
@@ -947,9 +936,21 @@ class OrchestratorService(Orchestrator):
             async def _heartbeat() -> None:
                 while True:
                     try:
-                        await heartbeat_run(self.run_queue_factory, run_id, self.worker_id)
+                        owns_claim = await heartbeat_run(
+                            self.run_queue_factory, run_id, self.worker_id
+                        )
                     except Exception:  # noqa: BLE001 — heartbeat must not kill execution
                         logger.exception("heartbeat failed for run %s", run_id)
+                    else:
+                        if not owns_claim:
+                            # Claim reaped/re-queued/re-claimed elsewhere: another worker may
+                            # now own this run. Stop OUR engine (fence) so a reclaim can never
+                            # run the same run twice at once.
+                            # Own task: _execute's unwind cancels THIS heartbeat task.
+                            fence = asyncio.create_task(self._fence_lost_claim(run_data, sm))
+                            self._fence_tasks.add(fence)
+                            fence.add_done_callback(self._fence_tasks.discard)
+                            return
                     await asyncio.sleep(_HEARTBEAT_INTERVAL_SECONDS)
 
             heartbeat_task = asyncio.create_task(_heartbeat())
@@ -984,6 +985,10 @@ class OrchestratorService(Orchestrator):
                 result = await self.engine_runtime.run(
                     self.engine, goal=plan.goal + extra, session_id=run_id
                 )
+                if extra:  # persist the cursor so a restart does not re-deliver
+                    await collab.mark_guidance_delivered(
+                        self.session_factory, run_id, run_data["guidance_seq"]
+                    )
             except asyncio.CancelledError:
                 # Pause keeps the run resumable: no terminal result written. Stop and
                 # other terminal cancellations record an honest 'cancelled' outcome.
@@ -1045,7 +1050,9 @@ class OrchestratorService(Orchestrator):
             staging_error = await self._stage_outputs(run_data)
             if staging_error:
                 run_data["engine_result"] = {
-                    "sessionId": run_id, "engine": "staging_failed", "status": "error",
+                    "sessionId": run_id,
+                    "engine": "staging_failed",
+                    "status": "error",
                     "finalResponse": staging_error,
                 }
                 sm.execution_failed(staging_error)
@@ -1069,7 +1076,21 @@ class OrchestratorService(Orchestrator):
             if heartbeat_task is not None:
                 heartbeat_task.cancel()
             if self.run_queue_factory is not None:
-                await finish_run(self.run_queue_factory, run_id)
+                await finish_run(self.run_queue_factory, run_id, worker_id=self.worker_id)
+
+    async def _fence_lost_claim(self, run_data: dict[str, Any], sm: AgentStateMachine) -> None:
+        """Our claim on this run is gone: stop our engine, leave the run to its new owner."""
+        run_id = run_data["runId"]
+        logger.warning("run %s: claim lost to another worker; fencing local engine", run_id)
+        run_data["_cancel_reason"] = "claim_lost"
+        domain_metrics.inc("harness_run_cancel_total", "requested")
+        self._cancel_live_task(run_data)
+        confirmed = await self._kill_engine(run_id)
+        domain_metrics.inc("harness_run_cancel_total", "confirmed" if confirmed else "unconfirmed")
+        # This replica's copy of the run is now stale (another worker or a stop/pause owns
+        # the truth). Drop it on next access so reads replay the durable log instead of
+        # showing a local EXECUTING that nobody is driving.
+        run_data["_stale"] = True
 
     async def get_engine_result(self, run_id: str) -> dict[str, Any]:
         run_data = await self._ensure_run(run_id)
@@ -1090,10 +1111,19 @@ class OrchestratorService(Orchestrator):
         run_data = await self._ensure_run(run_id)
         sm: AgentStateMachine = run_data["state_machine"]
         run_data["_cancel_reason"] = "pause"
-        sm.pause(reason="user_requested")
+        try:
+            sm.pause(reason="user_requested")
+        except InvalidStateTransitionError:
+            domain_metrics.inc("harness_run_cancel_total", "refused")
+            raise  # pause after stop/finish is refused, never silently accepted
         self._cancel_live_task(run_data)
-        if await self._kill_engine(run_id):
+        domain_metrics.inc("harness_run_cancel_total", "requested")
+        foreign = await self._release_claim_for_cancel(run_id)
+        if not foreign and await self._kill_engine(run_id):
+            domain_metrics.inc("harness_run_cancel_total", "confirmed")
             await self._stage_outputs(run_data)
+        else:
+            domain_metrics.inc("harness_run_cancel_total", "unconfirmed")
 
     async def resume_agent(self, run_id: str) -> None:
         """Resume a paused/blocked run by RE-SPAWNING the engine task.
@@ -1131,9 +1161,14 @@ class OrchestratorService(Orchestrator):
             EventType.PAUSED.value,
             EventType.BLOCKED_AWAITING_CLARIFICATION.value,
         }
-        if head is None or head in suspended_heads or sm.state in (
-            AgentState.PAUSED,
-            AgentState.BLOCKED,
+        if (
+            head is None
+            or head in suspended_heads
+            or sm.state
+            in (
+                AgentState.PAUSED,
+                AgentState.BLOCKED,
+            )
         ):
             # M19-N1: the plan object itself is no longer needed here — the
             # queue path re-reads everything durable at claim time, and the
@@ -1160,24 +1195,68 @@ class OrchestratorService(Orchestrator):
             return  # worker loop will claim and spawn
         self._spawn_execution(run_data, self.planner.get_plan(plan_id))
 
-    async def stop_agent(self, run_id: str) -> None:
+    async def _release_claim_for_cancel(self, run_id: str) -> bool:
+        """Cancel is durable across replicas: drop the run's queue claim unless THIS worker
+        is the one running it (its own unwind releases that). The owning worker's next
+        heartbeat then sees the claim gone and fences its engine. True when another
+        worker held a running claim, i.e. an engine this process cannot observe."""
+        if self.run_queue_factory is None:
+            return False
+        try:
+            async with self.run_queue_factory() as db:
+                row = (
+                    await db.execute(
+                        text("SELECT state, worker_id FROM run_claims WHERE run_id = :r"),
+                        {"r": run_id},
+                    )
+                ).first()
+                if row is None or (row.state == "running" and row.worker_id == self.worker_id):
+                    return False  # nothing queued, or ours: our own unwind releases it
+                await db.execute(
+                    text(
+                        "DELETE FROM run_claims WHERE run_id = :r"
+                        " AND NOT (state = 'running' AND worker_id = :w)"
+                    ),
+                    {"r": run_id, "w": self.worker_id},
+                )
+                await db.commit()
+        except Exception:  # noqa: BLE001 - no queue table (bare/scratch store): nothing to release
+            return False
+        foreign = row.state == "running" and row.worker_id != self.worker_id
+        if foreign:
+            self._foreign_engine_until[run_id] = (
+                time.monotonic() + 2 * _HEARTBEAT_INTERVAL_SECONDS + 5
+            )
+        return foreign
+
+    async def stop_agent(self, run_id: str) -> bool:
+        """Stop the run (terminal). True when THIS call stopped it; False when it
+        was already finished (idempotent repeat) - callers audit only real stops."""
         run_data = await self._ensure_run(run_id)
         sm: AgentStateMachine = run_data["state_machine"]
         if sm.state in TERMINAL_STATES:
-            return  # idempotent: a repeated stop on a finished run is a no-op, not a 500
+            domain_metrics.inc("harness_run_cancel_total", "noop")
+            return False  # idempotent: a repeated stop on a finished run is a no-op, not a 500
         run_data["_cancel_reason"] = "stop"  # terminal: overwrites any earlier 'pause'
+        run_data["_stopped"] = True
         sm.finish()
+        domain_metrics.inc("harness_run_cancel_total", "requested")
         # M12-G7: the only transition that reaches DONE without a bus event
         # (finish() is deliberately silent). Emit a paused envelope so
         # notification consumers see a truthful "stopped by user, not an
         # engine failure". Best-effort: telemetry must never break stopping.
         self._emit_paused_event(run_data, reason="user_requested_stop")
         self._cancel_live_task(run_data)
-        if await self._kill_engine(run_id):
+        foreign = await self._release_claim_for_cancel(run_id)
+        if not foreign and await self._kill_engine(run_id):
+            domain_metrics.inc("harness_run_cancel_total", "confirmed")
             await self._stage_outputs(run_data)
+        else:
+            domain_metrics.inc("harness_run_cancel_total", "unconfirmed")
         # M19-N1: DONE is terminal and fully replayable from the event log —
         # when the log corroborates it, the RAM entry dies with it (cache-only).
         await self._evict_if_terminal(run_data)
+        return True
 
     def _emit_paused_event(self, run_data: dict[str, Any], reason: str) -> None:
         """M12-G7: fire-and-forget PAUSED emission for silent terminal paths.
@@ -1202,6 +1281,8 @@ class OrchestratorService(Orchestrator):
         if not self._isolated_engine():
             return
         rid = run_data["runId"]
+        provision = getattr(self.engine, "provision_workspace", self.engine.run_workspace)
+        await asyncio.to_thread(provision, rid)
         await asyncio.to_thread(
             staging.ensure_baseline, rid, self.engine.run_workspace(rid), self.engine.workspace
         )
@@ -1251,6 +1332,11 @@ class OrchestratorService(Orchestrator):
         Stop marks the run DONE immediately (cancel *requested*); the thread
         may outlive it, so cancel is only *confirmed* when this returns True.
         """
+        until = self._foreign_engine_until.get(run_id)
+        if until is not None:
+            if time.monotonic() < until:
+                return False  # another replica's engine may still be winding down
+            del self._foreign_engine_until[run_id]
         worker = getattr(self.engine, "is_worker_running", None)
         if worker is not None and getattr(self.engine, "isolated", False):
             return not worker(run_id)  # process truth: dead worker cannot mutate files
@@ -1289,11 +1375,7 @@ class OrchestratorService(Orchestrator):
             return None
         try:
             async with factory() as db:
-                row = (
-                    await db.execute(
-                        text(_PLAN_DECISION_SQL), {"plan_id": plan_id}
-                    )
-                ).first()
+                row = (await db.execute(text(_PLAN_DECISION_SQL), {"plan_id": plan_id})).first()
         except Exception:  # noqa: BLE001 — unreadable store degrades to cache
             return None
         if row is None:
@@ -1328,9 +1410,7 @@ class OrchestratorService(Orchestrator):
             self._refresh_plan_cache(plan_id, decision["status"])
         return self.planner.is_approved(plan_id)
 
-    async def _assert_plan_approval_fresh(
-        self, run_id: str, sm: AgentStateMachine
-    ) -> None:
+    async def _assert_plan_approval_fresh(self, run_id: str, sm: AgentStateMachine) -> None:
         """M23-A (session-2 area 16): refuse to start on a stale approval.
 
         Enforcement point is the START REQUEST (queue announce / bare spawn):
@@ -1504,13 +1584,7 @@ class OrchestratorService(Orchestrator):
             return None
         try:
             async with factory() as db:
-                rows = (
-                    (
-                        await db.execute(text(_REHYDRATE_SQL), {"run_id": run_id})
-                    )
-                    .mappings()
-                    .all()
-                )
+                rows = (await db.execute(text(_REHYDRATE_SQL), {"run_id": run_id})).mappings().all()
         except Exception:  # noqa: BLE001 — unreadable store: keep the cache
             return None
         state: AgentState | None = None
@@ -1562,12 +1636,13 @@ class OrchestratorService(Orchestrator):
         keeps its RAM entry, because there the dict is the only witness. With
         a healthy bus the entry dies and every later read replays.
         """
-        if self.session_factory is None:
-            return False
         sm: AgentStateMachine | None = rd.get("state_machine")
         if sm is None or sm.state not in TERMINAL_STATES:
             return False
         run_id: str | None = rd.get("runId")
+        await self._cleanup_terminal_scratch(run_id)  # terminal in any mode, DB or not
+        if self.session_factory is None:
+            return False
         # M19-N1 ordering law: this process's own announcements for the run
         # must be FLUSHED to the store before RAM lets go — otherwise the
         # log could miss the very event that justifies the eviction.
@@ -1585,6 +1660,19 @@ class OrchestratorService(Orchestrator):
             del self.runs[run_id]
             logger.info("evicted terminal run %s from RAM cache", run_id)
         return True
+
+    async def _cleanup_terminal_scratch(self, run_id: str | None) -> None:
+        """A terminal run's per-run scratch dir is dead weight: remove it once the engine
+        is confirmed gone. Best-effort (retention is the backstop); never touches outputs."""
+        cleanup = getattr(self.engine, "cleanup_scratch", None)
+        if cleanup is None or not run_id or not self._isolated_engine():
+            return
+        if not self.engine_quiesced(run_id):
+            return
+        try:
+            await asyncio.to_thread(cleanup, run_id)
+        except Exception:  # noqa: BLE001 - cleanup must never fail a lifecycle transition
+            logger.exception("scratch cleanup failed for run %s", run_id)
 
     async def _has_durable_events(self, run_id: str) -> bool:
         """True when the event log carries ANY history for this run (M19-N1).
@@ -1644,9 +1732,7 @@ class OrchestratorService(Orchestrator):
                 # when this process never saw it) so BLOCKED is real state,
                 # not a fiction.
                 try:
-                    run_data = await self._ensure_run(
-                        run_id, project_id=row.get("project_id")
-                    )
+                    run_data = await self._ensure_run(run_id, project_id=row.get("project_id"))
                     sm: AgentStateMachine | None = run_data["state_machine"]
                 except Exception:  # noqa: BLE001 — machine loss must not stop release
                     logger.exception("state machine unavailable for reaped run %s", run_id)
@@ -1680,9 +1766,7 @@ class OrchestratorService(Orchestrator):
         age = heartbeat_age_seconds(heartbeat_at, now=db_now())
         return age is not None and age >= self.heartbeat_timeout_seconds
 
-    async def poll_once(
-        self, max_claims: int | None = None
-    ) -> str | list[str] | None:
+    async def poll_once(self, max_claims: int | None = None) -> str | list[str] | None:
         """Claim queued run(s) and spawn their engine tasks.
 
         Legacy shape (``max_claims`` unset/falsy): claim ONE run, return its
@@ -1807,9 +1891,7 @@ class OrchestratorService(Orchestrator):
         sm.submit_human_edit(path=path)
         self._cancel_live_task(run_data)
 
-    async def gate_done_signal(
-        self, run_id: str, principal: Any, diff_text: str
-    ) -> None:
+    async def gate_done_signal(self, run_id: str, principal: Any, diff_text: str) -> None:
         """H-007: validate a done-signal BEFORE any transition or review spend.
 
         Centralizes the signals.py gate at the service seam so the FastAPI
@@ -1820,8 +1902,18 @@ class OrchestratorService(Orchestrator):
         run_data = await self._ensure_run(run_id)
         sm: AgentStateMachine = run_data["state_machine"]
         gate_done_signal(principal, sm.state, diff_text)
+        await self._gate_staged_completion(run_id)
+
+    async def _gate_staged_completion(self, run_id: str) -> None:
+        if self.session_factory is not None and await collab.unapplied_staged_approval(
+            self.session_factory, run_id
+        ):
+            raise StagedApprovalPendingError(
+                "Resolve and apply staged changes before completing this run or opening a PR."
+            )
 
     async def signal_done(self, run_id: str, diff_text: str = "") -> ReviewFindings:
+        await self._gate_staged_completion(run_id)
         run_data = await self._ensure_run(run_id)
         sm: AgentStateMachine = run_data["state_machine"]
         sm.signal_done()
@@ -1923,9 +2015,7 @@ class OrchestratorService(Orchestrator):
             return None
         try:
             async with factory() as db:
-                row = (
-                    await db.execute(self._REVIEW_DIFF_SQL, {"run_id": run_id})
-                ).first()
+                row = (await db.execute(self._REVIEW_DIFF_SQL, {"run_id": run_id})).first()
         except Exception:  # noqa: BLE001 — unreadable store degrades to None
             return None
         if row is None:
@@ -2000,6 +2090,16 @@ class OrchestratorService(Orchestrator):
             cost_usd = Decimal(str(cost_usd))
         return float(cost_usd.quantize(Decimal("0.000001")))
 
+    def _workspace_identity(self, run_id: str) -> dict[str, Any] | None:
+        """Part 09.010: which workspace this run owns, without paths or secrets."""
+        identify = getattr(self.engine, "workspace_identity", None)
+        if identify is None or not self._isolated_engine():
+            return None
+        try:
+            return identify(run_id)
+        except ValueError:  # run id not usable as a workspace name: no workspace exists
+            return None
+
     async def _run_aggregate(self, run_id: str) -> dict[str, Any]:
         """One aggregate read for a single run — W4-C2 shape.
 
@@ -2046,6 +2146,14 @@ class OrchestratorService(Orchestrator):
             # cap hit. The UI renders an upgrade action from it — never a
             # bare dead-end denial.
             "upgrade": run_data.get("upgrade"),
+            # Part 10: honest lifecycle. `stopped`/`paused` appear only once the
+            # engine is confirmed gone (process truth), else stopping/pausing.
+            "workspace": self._workspace_identity(run_id),
+            "lifecycle": lifecycle_view(
+                sm.state,
+                stop_requested=bool(run_data.get("_stopped")),
+                engine_quiesced=self.engine_quiesced(run_id),
+            ),
         }
         factory = self.session_factory
         if factory is None:
@@ -2053,9 +2161,7 @@ class OrchestratorService(Orchestrator):
         try:
             async with factory() as db:
                 enrich_row = (
-                    (await db.execute(self._RUN_ENRICH_SQL, {"r": run_id}))
-                    .mappings()
-                    .first()
+                    (await db.execute(self._RUN_ENRICH_SQL, {"r": run_id})).mappings().first()
                 )
                 step_rows = (
                     (
@@ -2179,8 +2285,7 @@ class OrchestratorService(Orchestrator):
                         return None
                     await db.rollback()
                     raise PlanAlreadyDecidedError(
-                        f"Plan '{plan_id}' was already decided (stale version"
-                        f" {expected_version})."
+                        f"Plan '{plan_id}' was already decided (stale version {expected_version})."
                     )
                 new_version: int | None = (
                     await db.execute(

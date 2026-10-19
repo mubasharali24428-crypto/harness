@@ -3,6 +3,7 @@ import logging
 import threading
 import time
 import uuid
+from contextvars import ContextVar
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
@@ -20,7 +21,10 @@ from pydantic import BaseModel, Field
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.routing import Match
 
+from harness_orchestrator import domain_metrics
 from harness_orchestrator.authz import (
+    AUDIT_ACTION_CANCEL_CONFIRMED,
+    AUDIT_ACTION_CANCEL_REQUESTED,
     AUDIT_ACTION_RUN_STARTED,
     AUDIT_ACTION_RUN_STOPPED,
     AuthzUnavailableError,
@@ -152,7 +156,7 @@ class MetricsCollector:
                 f"{hist_sum.get((method, path), 0.0)!r}"
             )
             lines.append(f"http_request_duration_seconds_count{{{labels}}} {total}")
-        return "\n".join(lines) + "\n"
+        return "\n".join(lines) + "\n" + domain_metrics.render()
 
 
 METRICS = MetricsCollector()
@@ -275,7 +279,22 @@ async def get_principal(request: Request) -> Principal:
 RequirePrincipal = Annotated[Principal, Depends(get_principal)]
 
 
-def _authz_dep(action):
+# (principal, run id, "METHOD route") of the collab request in flight, set by the
+# audited guard so denials raised later (guard or collab layer) can be attributed.
+_denial_ctx: ContextVar[tuple[Principal, str, str] | None] = ContextVar("_denial_ctx", default=None)
+
+
+async def _audit_guard_denial(audit: bool, code: str, http_status: int) -> None:
+    ctx = _denial_ctx.get()
+    if audit and ctx is not None:
+        from harness_orchestrator import collab as _c
+
+        await _c.audit_denial(
+            getattr(_service, "session_factory", None), ctx[0], ctx[1], ctx[2], code, http_status
+        )
+
+
+def _authz_dep(action, audit=False):
     """D5 (P0.5): one dependency = identity + team ownership + role permission.
 
     ``action`` is a frozen TeamScopedAction ("read" for GETs, "write" for run
@@ -285,14 +304,19 @@ def _authz_dep(action):
     403 AUTHZ_UNAVAILABLE instead of silently allowing.
     """
 
-    async def guard(runId: str, principal: RequirePrincipal) -> Principal:
+    async def guard(request: Request, runId: str, principal: RequirePrincipal) -> Principal:
         try:
             # Role gate FIRST (M18-C1): viewer/guest keep their uniform
             # ROLE_DENIED for every id, even when the ownership half would
             # answer AUTHZ_UNAVAILABLE — no new oracle for low-priv roles.
+            if audit:
+                route = request.scope.get("route")
+                path = getattr(route, "path", request.url.path)
+                _denial_ctx.set((principal, runId, f"{request.method} {path}"))
             require_role(principal, action)
             await authorize_run(_service, runId, principal)
         except AuthzUnavailableError as e:
+            await _audit_guard_denial(audit, "AUTHZ_UNAVAILABLE", 403)
             # M18-C1 fail-closed: "couldn't prove ownership" is an explicit,
             # audited denial — distinct from both 404 (unknown/foreign) and
             # ROLE_DENIED so operators can see the wiring/attribution gap.
@@ -306,6 +330,7 @@ def _authz_dep(action):
                 },
             ) from e
         except OwnershipDeniedError as e:
+            await _audit_guard_denial(audit, "NOT_FOUND", 404)
             # M13-G5a no-oracle law: a foreign team's run answers EXACTLY what
             # an unknown run id answers — 404 NOT_FOUND, same envelope. A 403
             # here would confirm the run exists across the tenant boundary.
@@ -319,6 +344,7 @@ def _authz_dep(action):
                 },
             ) from e
         except RoleDeniedError as e:
+            await _audit_guard_denial(audit, "ROLE_DENIED", 403)
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail={"error": {"code": "ROLE_DENIED", "message": f"role may not {action}"}},
@@ -329,8 +355,10 @@ def _authz_dep(action):
 
 
 RunReader = Annotated[Principal, Depends(_authz_dep("read"))]
-RunWriter = Annotated[Principal, Depends(_authz_dep("write"))]
-PlanApprover = Annotated[Principal, Depends(_authz_dep("approve"))]
+# Control verbs (start/pause/resume/stop/human-edit, plan approve/reject) audit their
+# denials like the collaboration routes do (part 11.010): a refused stop is evidence.
+RunWriter = Annotated[Principal, Depends(_authz_dep("write", audit=True))]
+PlanApprover = Annotated[Principal, Depends(_authz_dep("approve", audit=True))]
 
 
 class PlanActionRequest(BaseModel):
@@ -397,6 +425,8 @@ class RunStatusResponse(BaseModel):
     executing: bool = False
     engineMode: str | None = None
     prId: str | None = None
+    lifecycle: dict | None = None
+    workspace: dict | None = None
 
 
 class AggregateStepOut(BaseModel):
@@ -463,6 +493,11 @@ class RunAggregateResponse(BaseModel):
     budget: BudgetDegradedOut = Field(default_factory=BudgetDegradedOut)
     # M22-M2 (additive): structured upgrade CTA; explicit null = no cap hit.
     upgrade: UpgradeCtaOut | None = None
+    # Part 10 (additive): honest lifecycle {phase, cancelRequested, cancelConfirmed,
+    # mutationPossible}; see harness_orchestrator.lifecycle.
+    lifecycle: dict | None = None
+    # Part 09.010 (additive): {id, fingerprint, isolated, isolation}; no paths, no secrets.
+    workspace: dict | None = None
 
 
 class ErrorDetail(BaseModel):
@@ -642,8 +677,19 @@ async def start_execution(runId: str, actor: RunWriter) -> dict[str, str]:
     response_model=RunIdStatusResponse,
 )
 async def pause_agent(runId: str, actor: RunWriter) -> dict[str, str]:
-    await _service.pause_agent(runId)
-    return {"runId": runId, "status": "paused"}
+    try:
+        await _service.pause_agent(runId)
+    except InvalidStateTransitionError as e:
+        # pause vs stop/complete race: the run is already finished, say so (409), not a 500.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": {"code": "RUN_TERMINAL", "message": str(e)}},
+        ) from e
+    # Honest status: "pausing" while the engine can still mutate files.
+    return {
+        "runId": runId,
+        "status": "paused" if _service.engine_quiesced(runId) else "pausing",
+    }
 
 
 @router.post(
@@ -666,20 +712,34 @@ async def resume_agent(runId: str, actor: RunWriter) -> dict[str, str]:
     response_model=RunIdStatusResponse,
 )
 async def stop_agent(runId: str, actor: RunWriter) -> dict[str, str]:
-    await _service.stop_agent(runId)
-    # S1-R05e: durable lifecycle record — "who stopped what, when".
     await emit_run_lifecycle(
-        _service,
-        action=AUDIT_ACTION_RUN_STOPPED,
-        run_id=runId,
-        principal=actor,
+        _service, action=AUDIT_ACTION_CANCEL_REQUESTED, run_id=runId, principal=actor
     )
+    changed = await _service.stop_agent(runId)
+    # S1-R05e: durable lifecycle record - "who stopped what, when". A repeated stop
+    # (changed=False) is idempotent: the request is audited above, but no second
+    # `run.stopped` / `run.cancel_confirmed` row claims a stop that did not happen.
+    if changed:
+        await emit_run_lifecycle(
+            _service,
+            action=AUDIT_ACTION_RUN_STOPPED,
+            run_id=runId,
+            principal=actor,
+        )
     # Honest status: "stopping" while the engine thread is still alive (it
     # cannot be killed); "stopped" only once cancellation is confirmed.
-    return {
-        "runId": runId,
-        "status": "stopped" if _service.engine_quiesced(runId) else "stopping",
-    }
+    quiesced = _service.engine_quiesced(runId)
+    if quiesced and changed:
+        await emit_run_lifecycle(
+            _service, action=AUDIT_ACTION_CANCEL_CONFIRMED, run_id=runId, principal=actor
+        )
+    if not changed:
+        # Repeat stop: report what the run actually is (a run that completed
+        # normally is "completed", not "stopped").
+        phase = (await _service.get_status(runId)).get("lifecycle", {}).get("phase")
+        if phase in ("stopped", "stopping", "completed"):
+            return {"runId": runId, "status": phase}
+    return {"runId": runId, "status": "stopped" if quiesced else "stopping"}
 
 
 @router.post("/runs/{runId}/human-edit", status_code=status.HTTP_200_OK)
@@ -794,6 +854,22 @@ async def get_plan(runId: str, reader: RunReader) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 from harness_orchestrator import collab  # noqa: E402
 
+CollabReader = Annotated[Principal, Depends(_authz_dep("read", audit=True))]
+CollabWriter = Annotated[Principal, Depends(_authz_dep("write", audit=True))]
+
+
+def _pilot_gate(actor: Principal) -> None:
+    """Collaboration is limited to HARNESS_PILOT_TEAMS when set (unset = open).
+
+    Other teams get a 404 with code PILOT_NOT_ENABLED (the UI shows a plain notice).
+    """
+    if not collab.pilot_allowed(actor.teamId):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": {"code": "PILOT_NOT_ENABLED",
+                              "message": "Shared runs are not enabled for your team."}},
+        )
+
 
 async def _collab(call):
     factory = getattr(_service, "session_factory", None)
@@ -805,6 +881,9 @@ async def _collab(call):
     try:
         return await call(factory)
     except collab.CollabError as e:
+        ctx = _denial_ctx.get()
+        if not e.audited and ctx is not None:
+            await collab.audit_denial(factory, ctx[0], ctx[1], ctx[2], e.code, e.status)
         raise HTTPException(
             status_code=e.status, detail={"error": {"code": e.code, "message": str(e)}}
         ) from e
@@ -879,48 +958,56 @@ class ApprovalOutcome(BaseModel):
 
 
 @router.post("/runs/{runId}/join")
-async def collab_join(runId: str, actor: RunReader) -> dict:
+async def collab_join(runId: str, actor: CollabReader) -> dict:
+    _pilot_gate(actor)
     await _persist_run(runId)
     return await _collab(lambda f: collab.join(f, actor, runId))
 
 
 @router.get("/runs/{runId}/participants")
-async def collab_roster(runId: str, actor: RunReader) -> dict:
+async def collab_roster(runId: str, actor: CollabReader) -> dict:
+    _pilot_gate(actor)
     return await _collab(lambda f: collab.roster(f, runId))
 
 
 @router.post("/runs/{runId}/leader")
-async def collab_claim_leader(runId: str, actor: RunWriter) -> dict:
+async def collab_claim_leader(runId: str, actor: CollabWriter) -> dict:
+    _pilot_gate(actor)
     await _persist_run(runId)
     return await _collab(lambda f: collab.claim_leader(f, actor, runId))
 
 
 @router.post("/runs/{runId}/redirect")
-async def collab_redirect(runId: str, req: RedirectRequest, actor: RunWriter) -> dict:
+async def collab_redirect(runId: str, req: RedirectRequest, actor: CollabWriter) -> dict:
+    _pilot_gate(actor)
     return await _collab(
         lambda f: collab.redirect(f, actor, runId, req.kind, req.content, req.reason, req.requestId)
     )
 
 
 @router.get("/runs/{runId}/collab-history")
-async def collab_history(runId: str, actor: RunReader, after: int = 0, limit: int = 200) -> dict:
+async def collab_history(runId: str, actor: CollabReader, after: int = 0, limit: int = 200) -> dict:
+    _pilot_gate(actor)
     return {"events": await _collab(lambda f: collab.history(f, runId, after, limit))}
 
 
 @router.post("/runs/{runId}/handoff")
-async def collab_handoff(runId: str, req: HandoffRequest, actor: RunWriter) -> dict:
+async def collab_handoff(runId: str, req: HandoffRequest, actor: CollabWriter) -> dict:
+    _pilot_gate(actor)
     return await _collab(lambda f: collab.request_handoff(f, actor, runId, req.toUserId))
 
 
 @router.post("/runs/{runId}/handoff/{handoffId}")
 async def collab_handoff_decide(
-    runId: str, handoffId: str, req: HandoffDecision, actor: RunWriter
+    runId: str, handoffId: str, req: HandoffDecision, actor: CollabWriter
 ) -> dict:
+    _pilot_gate(actor)
     return await _collab(lambda f: collab.decide_handoff(f, actor, runId, handoffId, req.accept))
 
 
 @router.post("/runs/{runId}/approvals", status_code=status.HTTP_201_CREATED)
-async def collab_approval_request(runId: str, req: ApprovalRequest, actor: RunWriter) -> dict:
+async def collab_approval_request(runId: str, req: ApprovalRequest, actor: CollabWriter) -> dict:
+    _pilot_gate(actor)
     return await _collab(
         lambda f: collab.request_approval(
             f, actor, runId, req.action, req.paths, req.summary, req.diff
@@ -929,14 +1016,16 @@ async def collab_approval_request(runId: str, req: ApprovalRequest, actor: RunWr
 
 
 @router.get("/runs/{runId}/approvals")
-async def collab_approval_list(runId: str, actor: RunReader) -> dict:
+async def collab_approval_list(runId: str, actor: CollabReader) -> dict:
+    _pilot_gate(actor)
     return {"approvals": await _collab(lambda f: collab.list_approvals(f, runId))}
 
 
 @router.put("/runs/{runId}/approvals/{approvalId}")
 async def collab_approval_amend(
-    runId: str, approvalId: str, req: ApprovalRequest, actor: RunWriter
+    runId: str, approvalId: str, req: ApprovalRequest, actor: CollabWriter
 ) -> dict:
+    _pilot_gate(actor)
     return await _collab(
         lambda f: collab.amend_approval(
             f, actor, runId, approvalId, req.paths, req.summary, req.diff
@@ -946,8 +1035,9 @@ async def collab_approval_amend(
 
 @router.post("/runs/{runId}/approvals/{approvalId}/decision")
 async def collab_approval_decide(
-    runId: str, approvalId: str, req: ApprovalDecision, actor: RunWriter
+    runId: str, approvalId: str, req: ApprovalDecision, actor: CollabWriter
 ) -> dict:
+    _pilot_gate(actor)
     return await _collab(
         lambda f: collab.decide_approval(f, actor, runId, approvalId, req.approve, req.digest)
     )
@@ -955,15 +1045,17 @@ async def collab_approval_decide(
 
 @router.post("/runs/{runId}/approvals/{approvalId}/claim")
 async def collab_approval_claim(
-    runId: str, approvalId: str, req: ApprovalDigest, actor: RunWriter
+    runId: str, approvalId: str, req: ApprovalDigest, actor: CollabWriter
 ) -> dict:
+    _pilot_gate(actor)
     return await _collab(lambda f: collab.claim_approval(f, actor, runId, approvalId, req.digest))
 
 
 @router.post("/runs/{runId}/approvals/{approvalId}/complete")
 async def collab_approval_complete(
-    runId: str, approvalId: str, req: ApprovalOutcome, actor: RunWriter
+    runId: str, approvalId: str, req: ApprovalOutcome, actor: CollabWriter
 ) -> dict:
+    _pilot_gate(actor)
     return await _collab(
         lambda f: collab.complete_approval(f, actor, runId, approvalId, req.ok, req.outcome)
     )
@@ -983,8 +1075,9 @@ def _staging_root() -> tuple[str, str] | None:
 
 
 @router.post("/runs/{runId}/staged/approvals")
-async def collab_staged_approvals(runId: str, actor: RunWriter) -> dict:
+async def collab_staged_approvals(runId: str, actor: CollabWriter) -> dict:
     """(Re)file approvals for whatever is currently withheld for this run."""
+    _pilot_gate(actor)
     cfg = _staging_root()
     if cfg is None:
         return {"approvals": []}
@@ -997,9 +1090,10 @@ async def collab_staged_approvals(runId: str, actor: RunWriter) -> dict:
 
 @router.post("/runs/{runId}/approvals/{approvalId}/apply")
 async def collab_apply_staged(
-    runId: str, approvalId: str, req: ApprovalDigest, actor: RunWriter
+    runId: str, approvalId: str, req: ApprovalDigest, actor: CollabWriter
 ) -> dict:
     """Land an APPROVED staged change: claim (digest re-checked) -> apply -> complete."""
+    _pilot_gate(actor)
     cfg = _staging_root()
     if cfg is None:
         raise HTTPException(
@@ -1017,7 +1111,8 @@ async def collab_apply_staged(
             )
         except staging.StagingError as e:
             await collab.complete_approval(f, actor, runId, approvalId, False, str(e))
-            raise collab.CollabError(409, "STAGING_MISMATCH", str(e)) from e
+            domain_metrics.inc("harness_approval_denied_total", "staging_mismatch")
+            raise collab.CollabError(409, "STAGING_MISMATCH", str(e), audited=True) from e
         return await collab.complete_approval(
             f, actor, runId, approvalId, True, f"applied {len(applied)} file(s)"
         )
