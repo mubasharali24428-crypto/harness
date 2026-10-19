@@ -1,10 +1,10 @@
-# Checkpoint — Session 2 (INTERIM, lane A pending): pilot residuals + sandbox fixes (2026-10-18)
-1. Objective: NOT complete. Done: baseline cleanup, sandbox T15-T17/T7b, shared UI + Playwright legs, alerts/rollback/runbook. Pending lane A: lifecycle (10,22,23), audit chain/WS push/metrics (11), approval rules (05-08); acceptance map (27) has PENDING-LEAD rows.
-2. Verified (paths): `evidence/s2/lane-b.md`, `lane-c.md`, `lane-d.md`; `docs/sandbox-isolation.md`; `docs/runbooks/pilot.md`; `deploy/observability/alerts.yml`.
-3. Changed: engine.py EPERM fix (uncommitted, section4/src shared with lane A), Makefile pg-up, section5 sandbox, section7 UI, run_smoke.py, alerts. Migrations: none by me; lane A may add 0036+.
-4. Commands run (by me): `make pg-probe-s1` 662 passed; section5 230 passed 1 skipped; vitest 540 passed; tsc clean; promtool check config 15 rules; flag-rollback 8 passed; alert-load+observability 26 passed 1 skipped; claim/stop tests 3/3 and 5/5. Lane C ran `run_smoke.py --otp` (1 passed, twice). Not run by me yet: smoke after integration, `make gate`, `make e2e*`, pip-audit, `--real`.
-5. Blockers: lane A unreported; major: pilot counters (harness_approval_denied_total etc.) absent so pilot alerts are silent; sdk-gen sandbox spec lacks `resume`.
-6. Risks: Landlock path unrun; `confinement=off` no boundary; no Alertmanager; backup/WAL alerts inert; UI lacks proposal file/amend and decision timestamp.
-7. Decisions: commits made (5, no push, see git log); `HARNESS_PILOT_TEAMS` empty = open to all teams (rollback needs non-empty list without the team).
-8. Agents: B, C, D done and committed; A running. Session 1: baseline, contracts, ops, threat model (carried).
-9. Next: integrate lane A, reconcile alert label regexes, spec_drift --write, one smoke run, finish rows 01,02,05-08,10,11,22,23,27, commit lane A.
+# Checkpoint — Session 2: pilot residuals + sandbox fixes (2026-10-18)
+1. Objective: done for lane A/B/C/D deliverables; parts 05-08, 10, 11, 22, 23, 27 now `verified` in the matrix. Parts 01, 02, 12, 24, 32 unchanged (see below).
+2. Verified (paths): `evidence/s2/{lane-a,lane-b,lane-c,lane-d,part05-gap-checklist,acceptance-core-flow}.md`; `docs/audit-and-events.md`; `docs/lifecycle.md`; `docs/sandbox-isolation.md`; `docs/runbooks/pilot.md`.
+3. Changed: lifecycle table, audit hash chain (migrations 0036, 0037), WS push, approval rules, domain metrics wired to root `/metrics`, alert labels reconciled, sandbox T15-T17/T7b, SDK specs regenerated.
+4. Commands run (by me): `make pg-probe-s1` 706 passed; `make pg-probe-migrate` PASS 0001→0037; section1 681 passed; section4 833 passed; live-PG chaos 6 passed; section5 230 passed; vitest 540; tsc clean; ruff clean s1/s4/s5; `run_smoke.py --otp` 1 passed on the integrated tree. Not run: `make gate`, `make e2e*`, pip-audit, `--real`, Landlock.
+5. Blockers: none for Session 3; UI still polls (WS push unused by UI).
+6. Risks: audit chain has no external anchor; no Alertmanager; `confinement=off` has no boundary; pause/resume not audited; part 05-002 live presence missing.
+7. Decisions: `HARNESS_PILOT_TEAMS` empty = open to all teams; commits local, no push.
+8. Agents: A, B, C, D done and verified by lead.
+9. Next: UI consumes WS push; decision timestamp/amend event in approvals API; Session 3.

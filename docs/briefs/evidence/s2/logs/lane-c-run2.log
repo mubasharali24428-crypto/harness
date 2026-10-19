@@ -1,0 +1,104 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from worker.Dockerfile
+#1 transferring dockerfile: 1.46kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c
+#2 DONE 0.0s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 202B done
+#3 DONE 0.0s
+
+#4 [internal] load build context
+#4 transferring context: 178.28kB done
+#4 DONE 0.0s
+
+#5 [base 1/9] FROM docker.io/library/python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c
+#5 resolve docker.io/library/python:3.12.12-slim-bookworm@sha256:593bd06efe90efa80dc4eee3948be7c0fde4134606dd40d8dd8dbcade98e669c 0.0s done
+#5 DONE 0.0s
+
+#6 [base 5/9] RUN --mount=type=cache,target=/root/.cache/pip python -c "import tomllib, subprocess; from pathlib import Path; projects=[tomllib.loads(p.read_text())['project'] for p in Path('/build').glob('*/pyproject.toml')]; deps=[d for p in projects for d in p['dependencies'] if d != 'harness-contracts']; deps += [d for p in projects for d in p.get('optional-dependencies', {}).get('live', [])]; subprocess.check_call(['pip','install','setuptools','wheel',*deps])"
+#6 CACHED
+
+#7 [base 4/9] COPY section4/pyproject.toml /build/section4/pyproject.toml
+#7 CACHED
+
+#8 [base 2/9] RUN apt-get update && apt-get install -y --no-install-recommends bash ca-certificates git     && rm -rf /var/lib/apt/lists/*     && useradd --uid 10001 --create-home worker
+#8 CACHED
+
+#9 [base 3/9] COPY contracts/pyproject.toml /build/contracts/pyproject.toml
+#9 CACHED
+
+#10 [base 6/9] COPY contracts/src /build/contracts/src
+#10 CACHED
+
+#11 [base 7/9] COPY section4/src /build/section4/src
+#11 DONE 0.0s
+
+#12 [base 8/9] RUN pip install --no-deps --no-build-isolation /build/contracts '/build/section4[live]'     && rm -rf /build
+#12 1.132 Processing /build/contracts
+#12 1.133   Preparing metadata (pyproject.toml): started
+#12 1.599   Preparing metadata (pyproject.toml): finished with status 'done'
+#12 1.601 Processing /build/section4
+#12 1.602   Preparing metadata (pyproject.toml): started
+#12 2.071   Preparing metadata (pyproject.toml): finished with status 'done'
+#12 2.074 Building wheels for collected packages: harness-contracts, harness-orchestrator
+#12 2.075   Building wheel for harness-contracts (pyproject.toml): started
+#12 2.569   Building wheel for harness-contracts (pyproject.toml): finished with status 'done'
+#12 2.569   Created wheel for harness-contracts: filename=harness_contracts-1.0.0rc2-py3-none-any.whl size=36937 sha256=1ab3bc01d941a6c3f594b5a9d70a47ea60246b00e6b3a6755cb8419263e868c8
+#12 2.569   Stored in directory: /tmp/pip-ephem-wheel-cache-z02ufljo/wheels/39/59/7e/758b60a0496e29e7807264de95fa2739ad41a90532717dd45c
+#12 2.574   Building wheel for harness-orchestrator (pyproject.toml): started
+#12 3.073   Building wheel for harness-orchestrator (pyproject.toml): finished with status 'done'
+#12 3.073   Created wheel for harness-orchestrator: filename=harness_orchestrator-0.1.0-py3-none-any.whl size=163976 sha256=f000f3d3521518fd299cd5579e8aad8737e904c4d8433eefc1efc7dcd94f7348
+#12 3.073   Stored in directory: /tmp/pip-ephem-wheel-cache-z02ufljo/wheels/b3/46/eb/cd4b30fdbb7f1c96af0d79cd2da4139ca947a546da41be5085
+#12 3.074 Successfully built harness-contracts harness-orchestrator
+#12 3.075 Installing collected packages: harness-orchestrator, harness-contracts
+#12 3.163 Successfully installed harness-contracts-1.0.0rc2 harness-orchestrator-0.1.0
+#12 3.163 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+#12 4.006 
+#12 4.006 [notice] A new release of pip is available: 25.0.1 -> 26.2.1
+#12 4.006 [notice] To update, run: pip install --upgrade pip
+#12 DONE 4.1s
+
+#13 [base 9/9] WORKDIR /tmp
+#13 DONE 0.0s
+
+#14 [isolation-tests 1/2] COPY section4/tests/unit/standin_worker.py /opt/probes/standin_worker.py
+#14 DONE 0.0s
+
+#15 [isolation-tests 2/2] COPY deploy/pilot/worker.py /opt/probes/pilot_worker.py
+#15 DONE 0.0s
+
+#16 exporting to image
+#16 exporting layers 0.1s done
+#16 exporting manifest sha256:a4f344c0101ad4e0b8f4afce25141b941fbde5e009c7efccaef18e3c937857e7 done
+#16 exporting config sha256:88cb04d759f334b8f01692ff890778bf36fcb228fb919b7cf889b4bec96ec37f
+#16 exporting config sha256:88cb04d759f334b8f01692ff890778bf36fcb228fb919b7cf889b4bec96ec37f done
+#16 exporting attestation manifest sha256:30e4119569840397178cabfa4bf0b26baad2ac7fa3fe3917d86fb43b08c6c239 done
+#16 exporting manifest list sha256:70cab4c1bdaa60973db21b2d51e76089bf06f221e8b57b483559d201307ae30c done
+#16 naming to docker.io/library/harness-engine-worker:p1-tests done
+#16 unpacking to docker.io/library/harness-engine-worker:p1-tests 0.0s done
+#16 DONE 0.2s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/xv7romy99ldqyrgvbt0ncrkgz
+P1 scratch database migrated and two engineers seeded
+
+> harness-section7@0.1.0 e2e
+> playwright test multiplayer.e2e.ts --retries=0 --reporter=list,junit
+
+
+Running 1 test using 1 worker
+
+  ✓  1 [chromium] › e2e/multiplayer.e2e.ts:18:5 › P1 shared pilot: create → join → redirect → handoff → approve/apply → stop (43.6s)
+
+  1 passed (45.6s)
+Traceback (most recent call last):
+  File "/Users/user/untitled folder 2/harness/deploy/pilot/run_smoke.py", line 304, in <module>
+    main()
+    ~~~~^^
+  File "/Users/user/untitled folder 2/harness/deploy/pilot/run_smoke.py", line 247, in main
+    assert len(workspaces) == 2, f"expected two run workspaces, found {workspaces}"
+           ^^^^^^^^^^^^^^^^^^^^
+AssertionError: expected two run workspaces, found ['.baseline', '.run-tmp', '.staged', 'run-bd693e1e4cad', 'run-e27fae619590']

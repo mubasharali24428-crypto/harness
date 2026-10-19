@@ -12,13 +12,13 @@ Row granularity is one row per part (directive groups are listed in the master p
 | 02 | Product direction | docs | partial | `docs/product-boundary.md`; not verified against every directive |
 | 03 | Pilot success metrics (≥5 tasks/side) | s4 `pilot_metrics.py` | blocked | `section4/tests/unit/test_pilot_metrics.py`; no real pilot data exists |
 | 04 | Inherited baseline | all | verified | `evidence/s1/verification.md` (all suites fresh) |
-| 05 | Known-gap checklist | all | partial | per-gap list in `threat-model.md` + this matrix |
-| 06 | Safety & trust (deny-by-default, cross-team) | s4 `collab.py`, `authz.py` | implemented | `section4/tests/unit/test_collab_denial_audit.py`; threat model T1–T6 (some UNTESTED) |
-| 07 | High-impact approval (digest-bound) | s4 `staging.py`, `collab.py` | implemented | `test_isolation_and_staging.py`, `test_collab_backend.py`; P1 browser proof |
-| 08 | Redirect & handoff | s4 `collab.py` | implemented | `test_collab_backend.py`; `section7/e2e/multiplayer.e2e.ts` |
+| 05 | Known-gap checklist | all | verified | docs/briefs/evidence/s2/part05-gap-checklist.md (9 pass, 1 partial: live presence, deferred to Session 4) |
+| 06 | Safety & trust (deny-by-default, cross-team) | s4 `collab.py`, `authz.py` | verified | test_collab_denial_audit.py, test_collab_rules_s2.py; docs/briefs/evidence/s2/lane-a.md |
+| 07 | High-impact approval (digest-bound) | s4 `staging.py`, `collab.py` | verified | test_isolation_and_staging.py, test_collab_backend.py; smoke --otp 1 passed on integrated tree; docs/briefs/evidence/s2/acceptance-core-flow.md |
+| 08 | Redirect & handoff | s4 `collab.py` | verified | test_collab_backend.py, test_collab_rules_s2.py (simultaneous guidance, reasons); docs/briefs/evidence/s2/acceptance-core-flow.md |
 | 09 | Run isolation (container) | s4/s5 | verified | P0 18 passed fresh (`evidence/s1/verification.md`); `docs/briefs/p0-container-isolation.md`; S2: sandbox T15–T17 closed, T7b on Seatbelt (`evidence/s2/lane-b.md`, section5 230 passed). Linux Landlock unrun; local runner stays dev-grade |
-| 10 | Cancellation & lifecycle | s4 engine | partial | `test_run_isolation_and_stop_truth.py`; flaky `test_stop_kills_worker` (EPERM at `engine.py:180`) |
-| 11 | Events & audit | s1/s4 | partial | `test_s1_r05_lifecycle_audit.py`; no tamper-evidence |
+| 10 | Cancellation & lifecycle | s4 engine | verified | test_lifecycle_{table,races,recovery}.py, docs/lifecycle.md; provider-call cancellation limit documented; docs/briefs/evidence/s2/lane-a.md |
+| 11 | Events & audit | s1/s4 | verified | migration 0036 hash chain + test_audit_chain_pg.py, export/push tests, docs/audit-and-events.md; limits in its section 8; UI does not yet consume WS push |
 | 12 | Shared experience (UI) | s7 | implemented | `collab.test.tsx` (vitest 540 passed); `multiplayer.e2e.ts` legs pass (`evidence/s2/lane-c.md`). Gaps: item 009 terminal details and responsive layout untested; no screen-reader check; polling data path until lane A WS push is wired |
 | 13 | Architecture review | docs | verified | `docs/architecture-map.md` |
 | 14 | Contract design | contracts, scripts | partial | `scripts/spec_drift.py` (6 services), `docs/contracts-and-limits.md`; limits NOT ENFORCED listed there; no per-event schema version |
@@ -29,12 +29,12 @@ Row granularity is one row per part (directive groups are listed in the master p
 | 19 | Prompt cache / token efficiency | docs | implemented | `stable-prompt-prefix.md` (stable prefix first) |
 | 20 | Session plan overview | docs | verified | `path-to-9-plan.md` (carried from earlier ranking) |
 | 21 | Session 1 discovery | docs | verified | `multiplayer-readiness.md` (carried) |
-| 22 | Backend safety | s4 | partial | residual in plan S2 |
-| 23 | Backend evidence | s4 | partial | `evidence/p0..p3`; plan S2 |
+| 22 | Backend safety | s4 | verified | lifecycle + workspace lifecycle tests (test_workspace_lifecycle_s2.py); docs/briefs/evidence/s2/lane-a.md |
+| 23 | Backend evidence | s4 | verified | test_lifecycle_recovery.py (crash/restart/reclaim), live-PG chaos 6 passed; docs/briefs/evidence/s2/lane-a.md |
 | 24 | Shared workspace | s7 | implemented | `evidence/s2/lane-c.md`; gaps: no UI to file/amend proposals, no decision timestamp or amend event in API, plain-language error mapping missing |
 | 25 | End-to-end flow | s7/deploy | implemented | two-user proof: see `evidence/s1/otp-e2e.md` |
 | 26 | Integration | deploy | implemented | `deploy/pilot/run_smoke.py` (stand-in worker; real engine via `--real`) |
-| 27 | Acceptance: core flow | all | partial | `multiplayer.e2e.ts`; stop/cross-run/reconnect legs mapped in S2 |
+| 27 | Acceptance: core flow | all | verified | docs/briefs/evidence/s2/acceptance-core-flow.md (10 directives mapped; smoke --otp 1 passed on integrated tree) |
 | 28 | Acceptance: operations | deploy, s1, s4 | partial | `evidence/s2/lane-d.md`: `alerts.yml` loads (promtool 15 rules); compose-up unverified; backup/WAL alerts inert (no emitter); no Alertmanager |
 | 29 | Security review | docs | partial | `docs/briefs/threat-model.md`: 18 threats, 11 gaps (high: T15) |
 | 30 | Quality & testing | all | verified | fresh suites, `evidence/s1/verification.md` (carried 9; one TS2344 and two section4 flakes noted) |
