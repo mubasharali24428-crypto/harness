@@ -860,7 +860,7 @@ async def get_plan(runId: str, reader: RunReader) -> dict[str, Any]:
 # Every route is guarded by the run-ownership dependency (foreign run => 404);
 # the acting identity is always the authenticated Principal, never the body.
 # ---------------------------------------------------------------------------
-from harness_orchestrator import collab  # noqa: E402
+from harness_orchestrator import collab, delivery  # noqa: E402
 
 CollabReader = Annotated[Principal, Depends(_authz_dep("read", audit=True))]
 CollabWriter = Annotated[Principal, Depends(_authz_dep("write", audit=True))]
@@ -994,9 +994,12 @@ async def collab_redirect(runId: str, req: RedirectRequest, actor: CollabWriter)
 
 
 @router.get("/runs/{runId}/collab-history")
-async def collab_history(runId: str, actor: CollabReader, after: int = 0, limit: int = 200) -> dict:
+async def collab_history(
+    runId: str, actor: CollabReader, after: int = 0, limit: int = 200, schemaVersion: int = 1
+) -> dict:
     _pilot_gate(actor)
-    return {"events": await _collab(lambda f: collab.history(f, runId, after, limit))}
+    return await _collab(lambda f: delivery.history_page(
+        f, actor.teamId, runId, after, limit, schemaVersion))
 
 
 @router.post("/runs/{runId}/handoff")

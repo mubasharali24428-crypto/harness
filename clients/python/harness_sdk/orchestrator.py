@@ -50,6 +50,16 @@ class BudgetDegradedOut(typing.TypedDict, total=False):
     degraded: bool
     warned: bool
 
+class CreateBody(typing.TypedDict, total=False):
+    """CreateBody. Required keys: body."""
+    body: str  # required
+    mentions: list[str]
+    parentId: str | None
+    refId: str | None
+    refKind: typing.Literal['plan', 'file', 'diff', 'approval', 'event'] | None
+    refPos: int | None
+    requestId: str | None
+
 class DecideBody(typing.TypedDict, total=False):
     """DecideBody. Required keys: decision."""
     decision: typing.Literal['grant', 'decline', 'cancel', 'accept', 'reject']  # required
@@ -78,6 +88,12 @@ class DoneSignalResponse(typing.TypedDict, total=False):
     """DoneSignalResponse. Required keys: runId, findings."""
     findings: ReviewFindingsOut  # required
     runId: str  # required
+
+class EditBody(typing.TypedDict, total=False):
+    """EditBody. Required keys: body, expectedVersion."""
+    body: str  # required
+    expectedVersion: int  # required
+    mentions: list[str] | None
 
 class ErrorDetail(typing.TypedDict, total=False):
     """ErrorDetail. Required keys: code, message."""
@@ -132,6 +148,11 @@ class MergedIntent(typing.TypedDict, total=False):
     permissions: list[str] | None
     scopePaths: list[str] | None
 
+class ModerateBody(typing.TypedDict, total=False):
+    """ModerateBody. Required keys: action, reason."""
+    action: typing.Literal['hide', 'restore', 'delete']  # required
+    reason: str  # required
+
 class PlanActionRequest(typing.TypedDict, total=False):
     """PlanActionRequest. Required keys: planId."""
     planId: str  # required
@@ -180,6 +201,13 @@ class ProgressBody(typing.TypedDict, total=False):
     note: str
     percent: int  # required
 
+class PromoteBody(typing.TypedDict, total=False):
+    """PromoteBody. Required keys: action, expectedVersion."""
+    action: str  # required
+    expectedVersion: int  # required
+    reason: str | None
+    runId: str | None
+
 class ProposePlanGateRequest(typing.TypedDict, total=False):
     """ProposePlanGateRequest. Required keys: goal."""
     goal: str  # required
@@ -194,6 +222,11 @@ class ProposePlanResponse(typing.TypedDict, total=False):
     """ProposePlanResponse. Required keys: runId, planId."""
     planId: str  # required
     runId: str  # required
+
+class ReactBody(typing.TypedDict, total=False):
+    """ReactBody. Required keys: reaction."""
+    present: bool
+    reaction: typing.Literal['thumbs_up', 'thumbs_down', 'heart', 'eyes', 'celebrate', 'question', 'check']  # required
 
 class ReasonBody(typing.TypedDict, total=False):
     """ReasonBody."""
@@ -294,6 +327,12 @@ class ScopeBody(typing.TypedDict, total=False):
     permissions: list[str]
     tools: list[str]
 
+class SettingsBody(typing.TypedDict, total=False):
+    """SettingsBody."""
+    auditSensitive: typing.Literal['auto', 'always'] | None
+    editWindowSeconds: int | None
+    retentionDays: int | None
+
 class SettingsRequest(typing.TypedDict, total=False):
     """SettingsRequest."""
     maxParticipants: int | None
@@ -372,6 +411,31 @@ class OrchestratorClient:
         """
         _path = "/api/v1/orchestrator/demo/seed"
         return self._http.request(self.base_url, "POST", _path)
+
+    def discussion_settings_get(self) -> dict[str, typing.Any]:
+        """Discussion Settings Get
+
+        GET /api/v1/orchestrator/discussion-settings
+        """
+        _path = "/api/v1/orchestrator/discussion-settings"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def discussion_settings_put(self, body: SettingsBody) -> dict[str, typing.Any]:
+        """Discussion Settings Put
+
+        PUT /api/v1/orchestrator/discussion-settings
+        """
+        _path = "/api/v1/orchestrator/discussion-settings"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
+
+    def discussions_search(self, q: str | None = None, scope_kind: typing.Literal['run', 'session'] | None = None, limit: int | None = None, before: str | None = None) -> dict[str, typing.Any]:
+        """Discussions Search
+
+        GET /api/v1/orchestrator/discussions/search
+        """
+        _path = "/api/v1/orchestrator/discussions/search"
+        _params: dict[str, typing.Any] = {"q": q, "scopeKind": scope_kind, "limit": limit, "before": before}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
 
     def propose_plan(self, body: ProposePlanGateRequest) -> PlanProposedResponse:
         """Propose Plan
@@ -542,13 +606,13 @@ class OrchestratorClient:
         _path = f"/api/v1/orchestrator/runs/{run_id}/approvals/{approval_id}/decision"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
-    def collab_history(self, run_id: str, after: int | None = None, limit: int | None = None) -> dict[str, typing.Any]:
+    def collab_history(self, run_id: str, after: int | None = None, limit: int | None = None, schema_version: int | None = None) -> dict[str, typing.Any]:
         """Collab History
 
         GET /api/v1/orchestrator/runs/{runId}/collab-history
         """
         _path = f"/api/v1/orchestrator/runs/{run_id}/collab-history"
-        _params: dict[str, typing.Any] = {"after": after, "limit": limit}
+        _params: dict[str, typing.Any] = {"after": after, "limit": limit, "schemaVersion": schema_version}
         return self._http.request(self.base_url, "GET", _path, params=_params)
 
     def control_view(self, run_id: str) -> dict[str, typing.Any]:
@@ -888,5 +952,151 @@ class OrchestratorClient:
         _path = f"/api/v1/orchestrator/runs/{run_id}/stop"
         return self._http.request(self.base_url, "POST", _path)
 
+    def run_comments_list(self, scope_id: str, limit: int | None = None, after: str | None = None) -> dict[str, typing.Any]:
+        """Run Comments List
 
-__all__ = ["OrchestratorClient", "AggregateStepOut", "ApprovalDecision", "ApprovalDigest", "ApprovalOutcome", "ApprovalRequest", "BudgetDegradedOut", "DecideBody", "DemoSeedResponse", "DoneSignalRequest", "DoneSignalResponse", "ErrorDetail", "ErrorEnvelope", "HTTPValidationError", "HandoffDecision", "HandoffRequest", "HeartbeatRequest", "HumanEditRequest", "IntentBody", "LeaseBody", "LeaveRequest", "MergedIntent", "PlanActionRequest", "PlanActionResponse", "PlanDecisionResponse", "PlanOut", "PlanProposedResponse", "PlanRejectedResponse", "PrefsRequest", "ProgressBody", "ProposePlanGateRequest", "ProposePlanRequest", "ProposePlanResponse", "ReasonBody", "ReassignBody", "RedirectRequest", "ResolveBody", "ReviewFindingsOut", "RevokeBody", "RunAggregateResponse", "RunIdStatusResponse", "RunItem", "RunStateResponse", "RunStatusResponse", "RunsPage", "ScopeBody", "SettingsRequest", "SpawnBody", "StartRunResponse", "ToolCallBody", "TransferBody", "UpgradeCtaOut", "ValidationError", "_ErrorDetail", "_ErrorEnvelope"]
+        GET /api/v1/orchestrator/runs/{scopeId}/comments
+        """
+        _path = f"/api/v1/orchestrator/runs/{scope_id}/comments"
+        _params: dict[str, typing.Any] = {"limit": limit, "after": after}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
+
+    def run_comments_create(self, scope_id: str, body: CreateBody) -> dict[str, typing.Any]:
+        """Run Comments Create
+
+        POST /api/v1/orchestrator/runs/{scopeId}/comments
+        """
+        _path = f"/api/v1/orchestrator/runs/{scope_id}/comments"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def run_comments_export(self, scope_id: str) -> dict[str, typing.Any]:
+        """Run Comments Export
+
+        GET /api/v1/orchestrator/runs/{scopeId}/comments/export
+        """
+        _path = f"/api/v1/orchestrator/runs/{scope_id}/comments/export"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def run_comments_delete(self, scope_id: str, comment_id: str) -> dict[str, typing.Any]:
+        """Run Comments Delete
+
+        DELETE /api/v1/orchestrator/runs/{scopeId}/comments/{commentId}
+        """
+        _path = f"/api/v1/orchestrator/runs/{scope_id}/comments/{comment_id}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
+    def run_comments_edit(self, scope_id: str, comment_id: str, body: EditBody) -> dict[str, typing.Any]:
+        """Run Comments Edit
+
+        PATCH /api/v1/orchestrator/runs/{scopeId}/comments/{commentId}
+        """
+        _path = f"/api/v1/orchestrator/runs/{scope_id}/comments/{comment_id}"
+        return self._http.request(self.base_url, "PATCH", _path, json_body=body)
+
+    def run_comments_history(self, scope_id: str, comment_id: str) -> dict[str, typing.Any]:
+        """Run Comments History
+
+        GET /api/v1/orchestrator/runs/{scopeId}/comments/{commentId}/history
+        """
+        _path = f"/api/v1/orchestrator/runs/{scope_id}/comments/{comment_id}/history"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def run_comments_moderate(self, scope_id: str, comment_id: str, body: ModerateBody) -> dict[str, typing.Any]:
+        """Run Comments Moderate
+
+        POST /api/v1/orchestrator/runs/{scopeId}/comments/{commentId}/moderate
+        """
+        _path = f"/api/v1/orchestrator/runs/{scope_id}/comments/{comment_id}/moderate"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def run_comments_promote(self, scope_id: str, comment_id: str, body: PromoteBody) -> dict[str, typing.Any]:
+        """Run Comments Promote
+
+        POST /api/v1/orchestrator/runs/{scopeId}/comments/{commentId}/promote
+        """
+        _path = f"/api/v1/orchestrator/runs/{scope_id}/comments/{comment_id}/promote"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def run_comments_react(self, scope_id: str, comment_id: str, body: ReactBody) -> dict[str, typing.Any]:
+        """Run Comments React
+
+        POST /api/v1/orchestrator/runs/{scopeId}/comments/{commentId}/reactions
+        """
+        _path = f"/api/v1/orchestrator/runs/{scope_id}/comments/{comment_id}/reactions"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def session_comments_list(self, scope_id: str, limit: int | None = None, after: str | None = None) -> dict[str, typing.Any]:
+        """Session Comments List
+
+        GET /api/v1/orchestrator/sessions/{scopeId}/comments
+        """
+        _path = f"/api/v1/orchestrator/sessions/{scope_id}/comments"
+        _params: dict[str, typing.Any] = {"limit": limit, "after": after}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
+
+    def session_comments_create(self, scope_id: str, body: CreateBody) -> dict[str, typing.Any]:
+        """Session Comments Create
+
+        POST /api/v1/orchestrator/sessions/{scopeId}/comments
+        """
+        _path = f"/api/v1/orchestrator/sessions/{scope_id}/comments"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def session_comments_export(self, scope_id: str) -> dict[str, typing.Any]:
+        """Session Comments Export
+
+        GET /api/v1/orchestrator/sessions/{scopeId}/comments/export
+        """
+        _path = f"/api/v1/orchestrator/sessions/{scope_id}/comments/export"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def session_comments_delete(self, scope_id: str, comment_id: str) -> dict[str, typing.Any]:
+        """Session Comments Delete
+
+        DELETE /api/v1/orchestrator/sessions/{scopeId}/comments/{commentId}
+        """
+        _path = f"/api/v1/orchestrator/sessions/{scope_id}/comments/{comment_id}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
+    def session_comments_edit(self, scope_id: str, comment_id: str, body: EditBody) -> dict[str, typing.Any]:
+        """Session Comments Edit
+
+        PATCH /api/v1/orchestrator/sessions/{scopeId}/comments/{commentId}
+        """
+        _path = f"/api/v1/orchestrator/sessions/{scope_id}/comments/{comment_id}"
+        return self._http.request(self.base_url, "PATCH", _path, json_body=body)
+
+    def session_comments_history(self, scope_id: str, comment_id: str) -> dict[str, typing.Any]:
+        """Session Comments History
+
+        GET /api/v1/orchestrator/sessions/{scopeId}/comments/{commentId}/history
+        """
+        _path = f"/api/v1/orchestrator/sessions/{scope_id}/comments/{comment_id}/history"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def session_comments_moderate(self, scope_id: str, comment_id: str, body: ModerateBody) -> dict[str, typing.Any]:
+        """Session Comments Moderate
+
+        POST /api/v1/orchestrator/sessions/{scopeId}/comments/{commentId}/moderate
+        """
+        _path = f"/api/v1/orchestrator/sessions/{scope_id}/comments/{comment_id}/moderate"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def session_comments_promote(self, scope_id: str, comment_id: str, body: PromoteBody) -> dict[str, typing.Any]:
+        """Session Comments Promote
+
+        POST /api/v1/orchestrator/sessions/{scopeId}/comments/{commentId}/promote
+        """
+        _path = f"/api/v1/orchestrator/sessions/{scope_id}/comments/{comment_id}/promote"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def session_comments_react(self, scope_id: str, comment_id: str, body: ReactBody) -> dict[str, typing.Any]:
+        """Session Comments React
+
+        POST /api/v1/orchestrator/sessions/{scopeId}/comments/{commentId}/reactions
+        """
+        _path = f"/api/v1/orchestrator/sessions/{scope_id}/comments/{comment_id}/reactions"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+
+__all__ = ["OrchestratorClient", "AggregateStepOut", "ApprovalDecision", "ApprovalDigest", "ApprovalOutcome", "ApprovalRequest", "BudgetDegradedOut", "CreateBody", "DecideBody", "DemoSeedResponse", "DoneSignalRequest", "DoneSignalResponse", "EditBody", "ErrorDetail", "ErrorEnvelope", "HTTPValidationError", "HandoffDecision", "HandoffRequest", "HeartbeatRequest", "HumanEditRequest", "IntentBody", "LeaseBody", "LeaveRequest", "MergedIntent", "ModerateBody", "PlanActionRequest", "PlanActionResponse", "PlanDecisionResponse", "PlanOut", "PlanProposedResponse", "PlanRejectedResponse", "PrefsRequest", "ProgressBody", "PromoteBody", "ProposePlanGateRequest", "ProposePlanRequest", "ProposePlanResponse", "ReactBody", "ReasonBody", "ReassignBody", "RedirectRequest", "ResolveBody", "ReviewFindingsOut", "RevokeBody", "RunAggregateResponse", "RunIdStatusResponse", "RunItem", "RunStateResponse", "RunStatusResponse", "RunsPage", "ScopeBody", "SettingsBody", "SettingsRequest", "SpawnBody", "StartRunResponse", "ToolCallBody", "TransferBody", "UpgradeCtaOut", "ValidationError", "_ErrorDetail", "_ErrorEnvelope"]

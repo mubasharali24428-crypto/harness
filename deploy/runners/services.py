@@ -230,8 +230,10 @@ def app_identity():
     # M20-T2: request ids + JSON logs + /metrics (identity, port 8001).
     # The event-delivery counters are appended so Prometheus scrapes them.
     from harness_identity import domain_metrics as identity_domain_metrics
+    from harness_identity import realtime_metrics
 
-    _wire_observability(app, identity_domain_metrics.render)
+    _wire_observability(
+        app, lambda: identity_domain_metrics.render() + realtime_metrics.render())
     # M20-T3: /ready gates on db + migrations; compose healthcheck hits it.
     _install_probes(app, 8001)
 
@@ -451,13 +453,16 @@ def app_orchestrator():
     app.include_router(demo_router)
 
     # Session 4 (parts 41, 42, 45): presence, participation, control leases, agent tree.
-    from harness_orchestrator import agent_tree, control, participation, presence
+    # Session 5 (part 43): discussion (comments, mentions, promote, search, retention).
+    from harness_orchestrator import agent_tree, control, discussion, participation, presence
 
     presence.configure_presence(service)
     participation.configure_participation(service)
     control.configure_control(service)
     agent_tree.configure_agent_tree(service)
-    for _r in (presence.router, participation.router, control.router, agent_tree.router):
+    discussion.configure_discussion(service)
+    for _r in (presence.router, participation.router, control.router, agent_tree.router,
+               discussion.router):
         app.include_router(_r)
 
     # Part 38.005: org policy applies to every classified run/plan route of org-linked teams

@@ -126,6 +126,17 @@ export interface EventReplayResponse {
   replayTruncated?: boolean | null;  // optional
 }
 
+/** GlobalPrefsBody. */
+export interface GlobalPrefsBody {
+  digest?: _DigestBody | null;  // optional
+  email?: string | null;  // optional
+  events?: { [key: string]: unknown } | null;  // optional
+  expectedVersion?: number | null;  // optional
+  inapp?: string | null;  // optional
+  quietHours?: _QuietBody | null;  // optional
+  timezone?: string | null;  // optional
+}
+
 /** HTTPValidationError. */
 export interface HTTPValidationError {
   detail?: ValidationError[];  // optional
@@ -224,6 +235,14 @@ export interface MemberRoleBody {
   role: string;
 }
 
+/** MuteBody. Required keys: scopeId, scopeKind. */
+export interface MuteBody {
+  minutes?: number | null;  // optional
+  scopeId: string;
+  scopeKind: string;
+  until?: string | null;  // optional
+}
+
 /** OkResponse. Required keys: ok. */
 export interface OkResponse {
   ok: boolean;
@@ -292,6 +311,11 @@ export interface ProjectOut {
   repoFullName?: string | null;  // optional
 }
 
+/** ReadAllBody. */
+export interface ReadAllBody {
+  kind?: string | null;  // optional
+}
+
 /** RevertBody. Required keys: toVersion. */
 export interface RevertBody {
   expectedVersion?: number | null;  // optional
@@ -310,6 +334,14 @@ export interface Rule {
 /** RulesBody. Required keys: rulesText. */
 export interface RulesBody {
   rulesText: string;
+}
+
+/** ScopePrefsBody. */
+export interface ScopePrefsBody {
+  email?: string | null;  // optional
+  events?: { [key: string]: unknown } | null;  // optional
+  expectedVersion?: number | null;  // optional
+  inapp?: string | null;  // optional
 }
 
 /** SelectBody. */
@@ -336,6 +368,12 @@ export interface SessionResponse {
 export interface SettingsBody {
   expectedVersion?: number | null;  // optional
   settings: { [key: string]: unknown };
+}
+
+/** SnoozeBody. */
+export interface SnoozeBody {
+  minutes?: number | null;  // optional
+  until?: string | null;  // optional
 }
 
 /** SsoCompleteBody. Required keys: code, redirectUri, state, teamId. */
@@ -377,6 +415,11 @@ export interface ThresholdsBody {
   thresholds: { [key: string]: unknown };
 }
 
+/** UnsubscribeBody. Required keys: token. */
+export interface UnsubscribeBody {
+  token: string;
+}
+
 /** ValidationError. Required keys: loc, msg, type. */
 export interface ValidationError {
   ctx?: { [key: string]: unknown };  // optional
@@ -402,6 +445,19 @@ export interface WsTicketResponse {
   expiresInSeconds: number;
   fingerprint: string;
   ticket: string;
+}
+
+/** _DigestBody. */
+export interface _DigestBody {
+  hour?: number | null;  // optional
+  period?: string | null;  // optional
+}
+
+/** _QuietBody. */
+export interface _QuietBody {
+  enabled?: boolean | null;  // optional
+  end?: string | null;  // optional
+  start?: string | null;  // optional
 }
 
 /** harness_identity__agents__ReasonBody. */
@@ -658,6 +714,105 @@ export class IdentityClient {
   me(): Promise<PrincipalResponse> {
     const _path = `/api/v1/me`;
     return this.http.request<PrincipalResponse>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** List Inbox
+   *  GET /api/v1/notifications */
+  list_inbox(unread?: boolean, kind?: string | null, state?: string | null, limit?: number, cursor?: string | null): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/notifications`;
+    const params: Record<string, unknown> = {"unread": unread, "kind": kind, "state": state, "limit": limit, "cursor": cursor};
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** Open Link
+   *  GET /api/v1/notifications/link/{nid} */
+  open_link(nid: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/notifications/link/${encodeURIComponent(nid)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Mute
+   *  POST /api/v1/notifications/mute */
+  mute(body: MuteBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/notifications/mute`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Unmute
+   *  DELETE /api/v1/notifications/mute/{mute_id} */
+  unmute(mute_id: string): Promise<unknown> {
+    const _path = `/api/v1/notifications/mute/${encodeURIComponent(mute_id)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** Get Preferences
+   *  GET /api/v1/notifications/preferences */
+  get_preferences(): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/notifications/preferences`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Put Preferences
+   *  PUT /api/v1/notifications/preferences */
+  put_preferences(body: GlobalPrefsBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/notifications/preferences`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
+  /** Get Scope Preferences
+   *  GET /api/v1/notifications/preferences/scopes/{scope_kind}/{scope_id} */
+  get_scope_preferences(scope_kind: string, scope_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/notifications/preferences/scopes/${encodeURIComponent(scope_kind)}/${encodeURIComponent(scope_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Put Scope Preferences
+   *  PUT /api/v1/notifications/preferences/scopes/{scope_kind}/{scope_id} */
+  put_scope_preferences(scope_kind: string, scope_id: string, body: ScopePrefsBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/notifications/preferences/scopes/${encodeURIComponent(scope_kind)}/${encodeURIComponent(scope_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
+  /** Read All
+   *  POST /api/v1/notifications/read-all */
+  read_all(body?: ReadAllBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/notifications/read-all`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Unread Count
+   *  GET /api/v1/notifications/unread-count */
+  unread_count(): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/notifications/unread-count`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Unsubscribe
+   *  POST /api/v1/notifications/unsubscribe */
+  unsubscribe(body: UnsubscribeBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/notifications/unsubscribe`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Dismiss
+   *  POST /api/v1/notifications/{nid}/dismiss */
+  dismiss(nid: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/notifications/${encodeURIComponent(nid)}/dismiss`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Mark Read
+   *  POST /api/v1/notifications/{nid}/read */
+  mark_read(nid: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/notifications/${encodeURIComponent(nid)}/read`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Snooze
+   *  POST /api/v1/notifications/{nid}/snooze */
+  snooze(nid: string, body: SnoozeBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/notifications/${encodeURIComponent(nid)}/snooze`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
   }
 
   /** List Orgs
@@ -1417,6 +1572,7 @@ export class IdentityClient {
  * export interface/type ErrorEnvelope
  * export interface/type EventEnvelopeOut
  * export interface/type EventReplayResponse
+ * export interface/type GlobalPrefsBody
  * export interface/type HTTPValidationError
  * export interface/type InviteBody
  * export interface/type InviteCreateBody
@@ -1432,6 +1588,7 @@ export class IdentityClient {
  * export interface/type MemberItem
  * export interface/type MemberListResponse
  * export interface/type MemberRoleBody
+ * export interface/type MuteBody
  * export interface/type OkResponse
  * export interface/type OrgCreateBody
  * export interface/type OrgPatchBody
@@ -1442,23 +1599,29 @@ export class IdentityClient {
  * export interface/type ProjectCreatedResponse
  * export interface/type ProjectListResponse
  * export interface/type ProjectOut
+ * export interface/type ReadAllBody
  * export interface/type RevertBody
  * export interface/type Rule
  * export interface/type RulesBody
+ * export interface/type ScopePrefsBody
  * export interface/type SelectBody
  * export interface/type ServiceIdentityBody
  * export interface/type SessionResponse
  * export interface/type SettingsBody
+ * export interface/type SnoozeBody
  * export interface/type SsoCompleteBody
  * export interface/type SsoConfigBody
  * export interface/type SsoStartBody
  * export interface/type StepUpBody
  * export interface/type TemplateBody
  * export interface/type ThresholdsBody
+ * export interface/type UnsubscribeBody
  * export interface/type ValidationError
  * export interface/type VerifyOtpRequest
  * export interface/type WsTicketRequest
  * export interface/type WsTicketResponse
+ * export interface/type _DigestBody
+ * export interface/type _QuietBody
  * export interface/type harness_identity__agents__ReasonBody
  * export interface/type harness_identity__orgs__RoleBody
  * export interface/type harness_identity__policy__RoleBody

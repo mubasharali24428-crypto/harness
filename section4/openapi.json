@@ -133,6 +133,98 @@
     "title": "BudgetDegradedOut",
     "type": "object"
    },
+   "CreateBody": {
+    "properties": {
+     "body": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Body",
+      "type": "string"
+     },
+     "mentions": {
+      "items": {
+       "maxLength": 64,
+       "minLength": 1,
+       "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Mentions",
+      "type": "array"
+     },
+     "parentId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Parentid"
+     },
+     "refId": {
+      "anyOf": [
+       {
+        "maxLength": 512,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Refid"
+     },
+     "refKind": {
+      "anyOf": [
+       {
+        "enum": [
+         "plan",
+         "file",
+         "diff",
+         "approval",
+         "event"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Refkind"
+     },
+     "refPos": {
+      "anyOf": [
+       {
+        "maximum": 100000000.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Refpos"
+     },
+     "requestId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Requestid"
+     }
+    },
+    "required": [
+     "body"
+    ],
+    "title": "CreateBody",
+    "type": "object"
+   },
    "DecideBody": {
     "properties": {
      "decision": {
@@ -293,6 +385,44 @@
      "findings"
     ],
     "title": "DoneSignalResponse",
+    "type": "object"
+   },
+   "EditBody": {
+    "properties": {
+     "body": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Body",
+      "type": "string"
+     },
+     "expectedVersion": {
+      "minimum": 1.0,
+      "title": "Expectedversion",
+      "type": "integer"
+     },
+     "mentions": {
+      "anyOf": [
+       {
+        "items": {
+         "maxLength": 64,
+         "minLength": 1,
+         "type": "string"
+        },
+        "maxItems": 10,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Mentions"
+     }
+    },
+    "required": [
+     "body",
+     "expectedVersion"
+    ],
+    "title": "EditBody",
     "type": "object"
    },
    "ErrorDetail": {
@@ -567,6 +697,31 @@
     "title": "MergedIntent",
     "type": "object"
    },
+   "ModerateBody": {
+    "properties": {
+     "action": {
+      "enum": [
+       "hide",
+       "restore",
+       "delete"
+      ],
+      "title": "Action",
+      "type": "string"
+     },
+     "reason": {
+      "maxLength": 500,
+      "minLength": 3,
+      "title": "Reason",
+      "type": "string"
+     }
+    },
+    "required": [
+     "action",
+     "reason"
+    ],
+    "title": "ModerateBody",
+    "type": "object"
+   },
    "PlanActionRequest": {
     "properties": {
      "planId": {
@@ -793,6 +948,50 @@
     "title": "ProgressBody",
     "type": "object"
    },
+   "PromoteBody": {
+    "properties": {
+     "action": {
+      "const": "send_as_guidance",
+      "title": "Action",
+      "type": "string"
+     },
+     "expectedVersion": {
+      "minimum": 1.0,
+      "title": "Expectedversion",
+      "type": "integer"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     },
+     "runId": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Runid"
+     }
+    },
+    "required": [
+     "action",
+     "expectedVersion"
+    ],
+    "title": "PromoteBody",
+    "type": "object"
+   },
    "ProposePlanGateRequest": {
     "properties": {
      "goal": {
@@ -866,6 +1065,33 @@
      "planId"
     ],
     "title": "ProposePlanResponse",
+    "type": "object"
+   },
+   "ReactBody": {
+    "properties": {
+     "present": {
+      "default": true,
+      "title": "Present",
+      "type": "boolean"
+     },
+     "reaction": {
+      "enum": [
+       "thumbs_up",
+       "thumbs_down",
+       "heart",
+       "eyes",
+       "celebrate",
+       "question",
+       "check"
+      ],
+      "title": "Reaction",
+      "type": "string"
+     }
+    },
+    "required": [
+     "reaction"
+    ],
+    "title": "ReactBody",
     "type": "object"
    },
    "ReasonBody": {
@@ -1460,6 +1686,53 @@
     "title": "ScopeBody",
     "type": "object"
    },
+   "SettingsBody": {
+    "properties": {
+     "auditSensitive": {
+      "anyOf": [
+       {
+        "enum": [
+         "auto",
+         "always"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Auditsensitive"
+     },
+     "editWindowSeconds": {
+      "anyOf": [
+       {
+        "maximum": 86400.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Editwindowseconds"
+     },
+     "retentionDays": {
+      "anyOf": [
+       {
+        "maximum": 3650.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Retentiondays"
+     }
+    },
+    "title": "SettingsBody",
+    "type": "object"
+   },
    "SettingsRequest": {
     "properties": {
      "maxParticipants": {
@@ -1866,6 +2139,165 @@
     "summary": "Seed Demo",
     "tags": [
      "demo"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/discussion-settings": {
+   "get": {
+    "operationId": "discussion_settings_get_api_v1_orchestrator_discussion_settings_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Discussion Settings Get Api V1 Orchestrator Discussion Settings Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Discussion Settings Get",
+    "tags": [
+     "discussion"
+    ]
+   },
+   "put": {
+    "operationId": "discussion_settings_put_api_v1_orchestrator_discussion_settings_put",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SettingsBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Discussion Settings Put Api V1 Orchestrator Discussion Settings Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Discussion Settings Put",
+    "tags": [
+     "discussion"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/discussions/search": {
+   "get": {
+    "operationId": "discussions_search_api_v1_orchestrator_discussions_search_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "q",
+      "required": true,
+      "schema": {
+       "maxLength": 100,
+       "minLength": 2,
+       "title": "Q",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "scopeKind",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "enum": [
+          "run",
+          "session"
+         ],
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Scopekind"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 25,
+       "maximum": 50,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "before",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 64,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Before"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Discussions Search Api V1 Orchestrator Discussions Search Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Discussions Search",
+    "tags": [
+     "discussion"
     ]
    }
   },
@@ -3163,6 +3595,16 @@
       "schema": {
        "default": 200,
        "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "schemaVersion",
+      "required": false,
+      "schema": {
+       "default": 1,
+       "title": "Schemaversion",
        "type": "integer"
       }
      }
@@ -5392,6 +5834,1056 @@
     "summary": "Stop Agent",
     "tags": [
      "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{scopeId}/comments": {
+   "get": {
+    "operationId": "run_comments_list_api_v1_orchestrator_runs__scopeId__comments_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scopeId",
+      "required": true,
+      "schema": {
+       "title": "Scopeid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 50,
+       "maximum": 100,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "after",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 64,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "After"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Run Comments List Api V1 Orchestrator Runs  Scopeid  Comments Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Run Comments List",
+    "tags": [
+     "discussion"
+    ]
+   },
+   "post": {
+    "operationId": "run_comments_create_api_v1_orchestrator_runs__scopeId__comments_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scopeId",
+      "required": true,
+      "schema": {
+       "title": "Scopeid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CreateBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Run Comments Create Api V1 Orchestrator Runs  Scopeid  Comments Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Run Comments Create",
+    "tags": [
+     "discussion"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{scopeId}/comments/export": {
+   "get": {
+    "operationId": "run_comments_export_api_v1_orchestrator_runs__scopeId__comments_export_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scopeId",
+      "required": true,
+      "schema": {
+       "title": "Scopeid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Run Comments Export Api V1 Orchestrator Runs  Scopeid  Comments Export Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Run Comments Export",
+    "tags": [
+     "discussion"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{scopeId}/comments/{commentId}": {
+   "delete": {
+    "operationId": "run_comments_delete_api_v1_orchestrator_runs__scopeId__comments__commentId__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scopeId",
+      "required": true,
+      "schema": {
+       "title": "Scopeid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "commentId",
+      "required": true,
+      "schema": {
+       "title": "Commentid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Run Comments Delete Api V1 Orchestrator Runs  Scopeid  Comments  Commentid  Delete",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Run Comments Delete",
+    "tags": [
+     "discussion"
+    ]
+   },
+   "patch": {
+    "operationId": "run_comments_edit_api_v1_orchestrator_runs__scopeId__comments__commentId__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scopeId",
+      "required": true,
+      "schema": {
+       "title": "Scopeid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "commentId",
+      "required": true,
+      "schema": {
+       "title": "Commentid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/EditBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Run Comments Edit Api V1 Orchestrator Runs  Scopeid  Comments  Commentid  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Run Comments Edit",
+    "tags": [
+     "discussion"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{scopeId}/comments/{commentId}/history": {
+   "get": {
+    "operationId": "run_comments_history_api_v1_orchestrator_runs__scopeId__comments__commentId__history_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scopeId",
+      "required": true,
+      "schema": {
+       "title": "Scopeid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "commentId",
+      "required": true,
+      "schema": {
+       "title": "Commentid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Run Comments History Api V1 Orchestrator Runs  Scopeid  Comments  Commentid  History Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Run Comments History",
+    "tags": [
+     "discussion"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{scopeId}/comments/{commentId}/moderate": {
+   "post": {
+    "operationId": "run_comments_moderate_api_v1_orchestrator_runs__scopeId__comments__commentId__moderate_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scopeId",
+      "required": true,
+      "schema": {
+       "title": "Scopeid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "commentId",
+      "required": true,
+      "schema": {
+       "title": "Commentid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ModerateBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Run Comments Moderate Api V1 Orchestrator Runs  Scopeid  Comments  Commentid  Moderate Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Run Comments Moderate",
+    "tags": [
+     "discussion"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{scopeId}/comments/{commentId}/promote": {
+   "post": {
+    "operationId": "run_comments_promote_api_v1_orchestrator_runs__scopeId__comments__commentId__promote_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scopeId",
+      "required": true,
+      "schema": {
+       "title": "Scopeid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "commentId",
+      "required": true,
+      "schema": {
+       "title": "Commentid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PromoteBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Run Comments Promote Api V1 Orchestrator Runs  Scopeid  Comments  Commentid  Promote Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Run Comments Promote",
+    "tags": [
+     "discussion"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{scopeId}/comments/{commentId}/reactions": {
+   "post": {
+    "operationId": "run_comments_react_api_v1_orchestrator_runs__scopeId__comments__commentId__reactions_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scopeId",
+      "required": true,
+      "schema": {
+       "title": "Scopeid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "commentId",
+      "required": true,
+      "schema": {
+       "title": "Commentid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ReactBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Run Comments React Api V1 Orchestrator Runs  Scopeid  Comments  Commentid  Reactions Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Run Comments React",
+    "tags": [
+     "discussion"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/sessions/{scopeId}/comments": {
+   "get": {
+    "operationId": "session_comments_list_api_v1_orchestrator_sessions__scopeId__comments_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scopeId",
+      "required": true,
+      "schema": {
+       "title": "Scopeid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 50,
+       "maximum": 100,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "after",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maxLength": 64,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "After"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Session Comments List Api V1 Orchestrator Sessions  Scopeid  Comments Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Session Comments List",
+    "tags": [
+     "discussion"
+    ]
+   },
+   "post": {
+    "operationId": "session_comments_create_api_v1_orchestrator_sessions__scopeId__comments_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scopeId",
+      "required": true,
+      "schema": {
+       "title": "Scopeid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CreateBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Session Comments Create Api V1 Orchestrator Sessions  Scopeid  Comments Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Session Comments Create",
+    "tags": [
+     "discussion"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/sessions/{scopeId}/comments/export": {
+   "get": {
+    "operationId": "session_comments_export_api_v1_orchestrator_sessions__scopeId__comments_export_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scopeId",
+      "required": true,
+      "schema": {
+       "title": "Scopeid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Session Comments Export Api V1 Orchestrator Sessions  Scopeid  Comments Export Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Session Comments Export",
+    "tags": [
+     "discussion"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/sessions/{scopeId}/comments/{commentId}": {
+   "delete": {
+    "operationId": "session_comments_delete_api_v1_orchestrator_sessions__scopeId__comments__commentId__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scopeId",
+      "required": true,
+      "schema": {
+       "title": "Scopeid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "commentId",
+      "required": true,
+      "schema": {
+       "title": "Commentid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Session Comments Delete Api V1 Orchestrator Sessions  Scopeid  Comments  Commentid  Delete",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Session Comments Delete",
+    "tags": [
+     "discussion"
+    ]
+   },
+   "patch": {
+    "operationId": "session_comments_edit_api_v1_orchestrator_sessions__scopeId__comments__commentId__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scopeId",
+      "required": true,
+      "schema": {
+       "title": "Scopeid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "commentId",
+      "required": true,
+      "schema": {
+       "title": "Commentid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/EditBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Session Comments Edit Api V1 Orchestrator Sessions  Scopeid  Comments  Commentid  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Session Comments Edit",
+    "tags": [
+     "discussion"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/sessions/{scopeId}/comments/{commentId}/history": {
+   "get": {
+    "operationId": "session_comments_history_api_v1_orchestrator_sessions__scopeId__comments__commentId__history_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scopeId",
+      "required": true,
+      "schema": {
+       "title": "Scopeid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "commentId",
+      "required": true,
+      "schema": {
+       "title": "Commentid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Session Comments History Api V1 Orchestrator Sessions  Scopeid  Comments  Commentid  History Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Session Comments History",
+    "tags": [
+     "discussion"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/sessions/{scopeId}/comments/{commentId}/moderate": {
+   "post": {
+    "operationId": "session_comments_moderate_api_v1_orchestrator_sessions__scopeId__comments__commentId__moderate_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scopeId",
+      "required": true,
+      "schema": {
+       "title": "Scopeid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "commentId",
+      "required": true,
+      "schema": {
+       "title": "Commentid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ModerateBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Session Comments Moderate Api V1 Orchestrator Sessions  Scopeid  Comments  Commentid  Moderate Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Session Comments Moderate",
+    "tags": [
+     "discussion"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/sessions/{scopeId}/comments/{commentId}/promote": {
+   "post": {
+    "operationId": "session_comments_promote_api_v1_orchestrator_sessions__scopeId__comments__commentId__promote_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scopeId",
+      "required": true,
+      "schema": {
+       "title": "Scopeid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "commentId",
+      "required": true,
+      "schema": {
+       "title": "Commentid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PromoteBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Session Comments Promote Api V1 Orchestrator Sessions  Scopeid  Comments  Commentid  Promote Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Session Comments Promote",
+    "tags": [
+     "discussion"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/sessions/{scopeId}/comments/{commentId}/reactions": {
+   "post": {
+    "operationId": "session_comments_react_api_v1_orchestrator_sessions__scopeId__comments__commentId__reactions_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scopeId",
+      "required": true,
+      "schema": {
+       "title": "Scopeid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "commentId",
+      "required": true,
+      "schema": {
+       "title": "Commentid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ReactBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Session Comments React Api V1 Orchestrator Sessions  Scopeid  Comments  Commentid  Reactions Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Session Comments React",
+    "tags": [
+     "discussion"
     ]
    }
   }

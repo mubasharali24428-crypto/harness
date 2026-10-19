@@ -87,7 +87,7 @@ team-scoped. Nobody else has a read path.
 | Query | `stream` (`audit` default, `collab`; else 422), `afterSeq` (default 0), `limit` (default 200, clamped to 1..1000), `runId` (collab only) |
 | Paging | ascending by `seq`; response `{stream, items, limit, hasMore, nextCursor}`; follow `nextCursor` while `hasMore` |
 | Audit fields | `seq, actorMemberId, actorKind, action, targetType, targetId, detail, ts, chainPos, prevHash, rowHash` (the chain fields are null on SQLite) |
-| Collab fields | `seq, runId, actor, kind, requestId, payload, ts` (no cursor markers) |
+| Collab fields | `seq, prevSeq, runId, actor, kind, requestId, payload, ts, schemaVersion`; the page also carries `nextCursor, hasMore, headSeq` (no cursor markers; `prevSeq` chain and schema rules: `docs/realtime.md`) |
 | Audited | each call writes `audit.exported` with `{stream, afterSeq, rows}` for the admin, best effort: a failed audit write is logged and the export still succeeds |
 | 503 | `stream=collab` when `run_collab_events` does not exist |
 
@@ -104,7 +104,7 @@ Tests (`section1/tests/test_audit_export_and_collab_push.py`): `test_export_is_t
 |---|---|
 | Auth | same admission as the project socket: one-time `?ticket=` from `POST /api/v1/ws-ticket {projectId}` (30 s, project-bound, bound to a client fingerprint sent as `X-WS-Fingerprint` or `?fingerprint=`); deprecated `?token=` and `Authorization: Bearer` still work. Close codes: 4401 unauthenticated, 4403 fingerprint mismatch, 4404 unknown or foreign project, or a run that is not in that project (no oracle) |
 | Scope | rows are read with `team_id = principal team` in SQL; another team's events are never sent |
-| Frame | `{channel:"collab", seq, kind, actor, payload, ts, runId, projectId, teamId, schemaVersion}` (exact field set pinned by `test_connect_replays_history_in_order_then_resumes_from_a_cursor`) |
+| Frame | `{channel:"collab", seq, prevSeq, kind, actor, payload, ts, runId, projectId, teamId, schemaVersion}` (exact field set pinned by `test_connect_replays_history_in_order_then_resumes_from_a_cursor`) |
 | Resume | connect with `?afterSeq=<last seq seen>`; the catch-up is replayed first in ascending order, then live frames follow |
 | Duplicates | the server never sends a `seq` at or below the connection's cursor and counts the skip as `duplicate`; clients still de-duplicate by `seq` across reconnects |
 | Truncation | a gap larger than `REPLAY_MAX_EVENTS` (default 5000) sends the newest N frames, then `{channel:"collab", replayTruncated:true, oldestSeqSent, afterSeq}`; backfill the older part with `collab-history?after=<afterSeq>` |
@@ -165,6 +165,10 @@ Closed label sets, every series rendered at 0 from process start, values in memo
 | `harness_isolation_violation_total{kind}` | `bad_session_id`, `workspace_escape` (`engine.run_workspace`), `symlink_escape` (`engine.cleanup_scratch`, `staging._inside`, `staging.apply_group`), `path_traversal` (`collab.validate_paths`, `staging.apply_group`). `other` declared, never emitted | `s4/engine.py`, `s4/staging.py`, `s4/collab.py` |
 | `harness_event_delivery_total{outcome}` | `delivered`, `replayed`, `duplicate`, `dropped` | identity: `delivered` and `replayed` count frames sent on the project and collaboration sockets; `duplicate` = NOTIFY for a seq already delivered directly, a collaboration frame at or below the cursor, or a wake-up that found nothing new; `dropped` = a project-stream subscriber queue was full (`eventbus.publish`, `_fanout_local`; the socket is closed 1013 to resync). Orchestrator: only `duplicate` (a `requestId` retry suppressed in `collab.redirect`) |
 
+Realtime counters (`harness_realtime_*`, `harness_event_delivery_lag_seconds`) are documented in `docs/realtime.md` section 6.
+
+Comment events on the run stream (`comment.created|edited|deleted|hidden|restored|promoted`, ids only) are described in `docs/discussion.md`.
+
 Reading the counters honestly:
 
 * `unconfirmed` means "not confirmed gone when the request returned". A stop sent to a replica that does not own the worker is
@@ -194,7 +198,7 @@ checks the renderer text, not an HTTP scrape.
 | Export cannot prove completeness | it is team-scoped, so `chainPos` gaps are normal and linkage cannot be checked from it; recomputing `rowHash` needs Postgres's jsonb text and microsecond `ts`, which the JSON export does not guarantee. Verification is the database CLI. Paging is by `seq`, which is assigned before commit, so a row that commits late can fall behind `nextCursor`; re-export from an earlier `afterSeq` to catch it |
 | "Export is audited" is best effort | an `audit.exported` write failure is swallowed |
 | Not audited | a 403 on `/audit` or `/audit/export`, WebSocket admission failures, `PILOT_NOT_ENABLED` refusals, and staged approvals voided because the staged files changed (the new request is audited, the voided one is not) |
-| Sockets are not re-validated after upgrade | a revoked session or removed member keeps receiving frames until the socket closes (threat T10b) |
+| Socket revalidation is polled | open sockets re-check access every 15 s (`WS_REVALIDATE_SECONDS`) and close 4410 when the member, project/run or session is gone, so revocation takes about 17 s; logging out one device does not close another device's sockets (`docs/realtime.md` section 9; threat T10b narrowed, not closed) |
 | Free text | guidance content and approval summaries can hold secrets; only secret-shaped keys are scrubbed |
 | One global chain | every committing audit row serializes on the head row at commit; throughput was not measured |
 | Retention is mostly opt-in | the collaboration-event purge is a manual CLI and the agent_events/audit sweeps are an opt-in compose profile |

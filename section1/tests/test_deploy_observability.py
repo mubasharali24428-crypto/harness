@@ -700,5 +700,5 @@ def test_metrics_endpoint_appends_extra_domain_counters(obs):
 def test_services_wire_domain_counters_into_the_scraped_metrics():
     """Guard the real wiring: identity and orchestrator pass their renderers."""
     src = (Path(__file__).resolve().parents[2] / "deploy" / "runners" / "services.py").read_text()
-    assert "_wire_observability(app, identity_domain_metrics.render)" in src
+    assert "identity_domain_metrics.render() + realtime_metrics.render()" in src
     assert 'simple_app(router, "harness-orchestrator", orchestrator_domain_metrics.render)' in src

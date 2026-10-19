@@ -541,6 +541,112 @@
     "title": "EventReplayResponse",
     "type": "object"
    },
+   "GlobalPrefsBody": {
+    "additionalProperties": false,
+    "properties": {
+     "digest": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/_DigestBody"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "email": {
+      "anyOf": [
+       {
+        "maxLength": 16,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Email"
+     },
+     "events": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "anyOf": [
+          {
+           "additionalProperties": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ]
+           },
+           "type": "object"
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Events"
+     },
+     "expectedVersion": {
+      "anyOf": [
+       {
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expectedversion"
+     },
+     "inapp": {
+      "anyOf": [
+       {
+        "maxLength": 16,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Inapp"
+     },
+     "quietHours": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/_QuietBody"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "timezone": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Timezone"
+     }
+    },
+    "title": "GlobalPrefsBody",
+    "type": "object"
+   },
    "HTTPValidationError": {
     "properties": {
      "detail": {
@@ -946,6 +1052,53 @@
     "title": "MemberRoleBody",
     "type": "object"
    },
+   "MuteBody": {
+    "additionalProperties": false,
+    "properties": {
+     "minutes": {
+      "anyOf": [
+       {
+        "maximum": 525600.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Minutes"
+     },
+     "scopeId": {
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Scopeid",
+      "type": "string"
+     },
+     "scopeKind": {
+      "maxLength": 12,
+      "title": "Scopekind",
+      "type": "string"
+     },
+     "until": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Until"
+     }
+    },
+    "required": [
+     "scopeKind",
+     "scopeId"
+    ],
+    "title": "MuteBody",
+    "type": "object"
+   },
    "OkResponse": {
     "properties": {
      "ok": {
@@ -1268,6 +1421,25 @@
     "title": "ProjectOut",
     "type": "object"
    },
+   "ReadAllBody": {
+    "additionalProperties": false,
+    "properties": {
+     "kind": {
+      "anyOf": [
+       {
+        "maxLength": 20,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Kind"
+     }
+    },
+    "title": "ReadAllBody",
+    "type": "object"
+   },
    "RevertBody": {
     "properties": {
      "expectedVersion": {
@@ -1353,6 +1525,80 @@
      "rulesText"
     ],
     "title": "RulesBody",
+    "type": "object"
+   },
+   "ScopePrefsBody": {
+    "additionalProperties": false,
+    "properties": {
+     "email": {
+      "anyOf": [
+       {
+        "maxLength": 16,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Email"
+     },
+     "events": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "anyOf": [
+          {
+           "additionalProperties": {
+            "anyOf": [
+             {
+              "type": "string"
+             },
+             {
+              "type": "null"
+             }
+            ]
+           },
+           "type": "object"
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Events"
+     },
+     "expectedVersion": {
+      "anyOf": [
+       {
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expectedversion"
+     },
+     "inapp": {
+      "anyOf": [
+       {
+        "maxLength": 16,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Inapp"
+     }
+    },
+    "title": "ScopePrefsBody",
     "type": "object"
    },
    "SelectBody": {
@@ -1469,6 +1715,38 @@
      "settings"
     ],
     "title": "SettingsBody",
+    "type": "object"
+   },
+   "SnoozeBody": {
+    "additionalProperties": false,
+    "properties": {
+     "minutes": {
+      "anyOf": [
+       {
+        "maximum": 43200.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Minutes"
+     },
+     "until": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Until"
+     }
+    },
+    "title": "SnoozeBody",
     "type": "object"
    },
    "SsoCompleteBody": {
@@ -1626,6 +1904,22 @@
     "title": "ThresholdsBody",
     "type": "object"
    },
+   "UnsubscribeBody": {
+    "additionalProperties": false,
+    "properties": {
+     "token": {
+      "maxLength": 200,
+      "minLength": 16,
+      "title": "Token",
+      "type": "string"
+     }
+    },
+    "required": [
+     "token"
+    ],
+    "title": "UnsubscribeBody",
+    "type": "object"
+   },
    "ValidationError": {
     "properties": {
      "ctx": {
@@ -1721,6 +2015,80 @@
      "fingerprint"
     ],
     "title": "WsTicketResponse",
+    "type": "object"
+   },
+   "_DigestBody": {
+    "additionalProperties": false,
+    "properties": {
+     "hour": {
+      "anyOf": [
+       {
+        "maximum": 23.0,
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Hour"
+     },
+     "period": {
+      "anyOf": [
+       {
+        "maxLength": 8,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Period"
+     }
+    },
+    "title": "_DigestBody",
+    "type": "object"
+   },
+   "_QuietBody": {
+    "additionalProperties": false,
+    "properties": {
+     "enabled": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Enabled"
+     },
+     "end": {
+      "anyOf": [
+       {
+        "maxLength": 5,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "End"
+     },
+     "start": {
+      "anyOf": [
+       {
+        "maxLength": 5,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Start"
+     }
+    },
+    "title": "_QuietBody",
     "type": "object"
    },
    "harness_identity__agents__ReasonBody": {
@@ -3162,6 +3530,628 @@
      }
     },
     "summary": "Me"
+   }
+  },
+  "/api/v1/notifications": {
+   "get": {
+    "operationId": "list_inbox_api_v1_notifications_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "unread",
+      "required": false,
+      "schema": {
+       "default": false,
+       "title": "Unread",
+       "type": "boolean"
+      }
+     },
+     {
+      "in": "query",
+      "name": "kind",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Kind"
+      }
+     },
+     {
+      "in": "query",
+      "name": "state",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "State"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 30,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "cursor",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Cursor"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Inbox Api V1 Notifications Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Inbox"
+   }
+  },
+  "/api/v1/notifications/link/{nid}": {
+   "get": {
+    "description": "The target path of one notification, or 404 when it is not the caller's OR the caller can\nno longer see the run, session or workspace it points at. Checked on every open.",
+    "operationId": "open_link_api_v1_notifications_link__nid__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "nid",
+      "required": true,
+      "schema": {
+       "title": "Nid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Open Link Api V1 Notifications Link  Nid  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Open Link"
+   }
+  },
+  "/api/v1/notifications/mute": {
+   "post": {
+    "operationId": "mute_api_v1_notifications_mute_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/MuteBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Mute Api V1 Notifications Mute Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Mute"
+   }
+  },
+  "/api/v1/notifications/mute/{mute_id}": {
+   "delete": {
+    "description": "Ends the mute (kept as history). Repeating the call is a no-op.",
+    "operationId": "unmute_api_v1_notifications_mute__mute_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "mute_id",
+      "required": true,
+      "schema": {
+       "title": "Mute Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Unmute"
+   }
+  },
+  "/api/v1/notifications/preferences": {
+   "get": {
+    "operationId": "get_preferences_api_v1_notifications_preferences_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Preferences Api V1 Notifications Preferences Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Get Preferences"
+   },
+   "put": {
+    "operationId": "put_preferences_api_v1_notifications_preferences_put",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/GlobalPrefsBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Put Preferences Api V1 Notifications Preferences Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put Preferences"
+   }
+  },
+  "/api/v1/notifications/preferences/scopes/{scope_kind}/{scope_id}": {
+   "get": {
+    "operationId": "get_scope_preferences_api_v1_notifications_preferences_scopes__scope_kind___scope_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scope_kind",
+      "required": true,
+      "schema": {
+       "title": "Scope Kind",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "scope_id",
+      "required": true,
+      "schema": {
+       "title": "Scope Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Scope Preferences Api V1 Notifications Preferences Scopes  Scope Kind   Scope Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Scope Preferences"
+   },
+   "put": {
+    "operationId": "put_scope_preferences_api_v1_notifications_preferences_scopes__scope_kind___scope_id__put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "scope_kind",
+      "required": true,
+      "schema": {
+       "title": "Scope Kind",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "scope_id",
+      "required": true,
+      "schema": {
+       "title": "Scope Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ScopePrefsBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Put Scope Preferences Api V1 Notifications Preferences Scopes  Scope Kind   Scope Id  Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put Scope Preferences"
+   }
+  },
+  "/api/v1/notifications/read-all": {
+   "post": {
+    "operationId": "read_all_api_v1_notifications_read_all_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/ReadAllBody"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Read All Api V1 Notifications Read All Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Read All"
+   }
+  },
+  "/api/v1/notifications/unread-count": {
+   "get": {
+    "operationId": "unread_count_api_v1_notifications_unread_count_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Unread Count Api V1 Notifications Unread Count Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Unread Count"
+   }
+  },
+  "/api/v1/notifications/unsubscribe": {
+   "post": {
+    "description": "Email unsubscribe from the link in a mail: the token IS the credential (no session).\n\nIdempotent and single-use: the first call switches the email channel off for that person and\naudits it, a repeat answers 200 ``alreadyApplied`` and changes nothing (so an old mail can never\nswitch off an email channel the person has re-enabled since). Unknown or expired: 404.",
+    "operationId": "unsubscribe_api_v1_notifications_unsubscribe_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/UnsubscribeBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Unsubscribe Api V1 Notifications Unsubscribe Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Unsubscribe"
+   }
+  },
+  "/api/v1/notifications/{nid}/dismiss": {
+   "post": {
+    "operationId": "dismiss_api_v1_notifications__nid__dismiss_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "nid",
+      "required": true,
+      "schema": {
+       "title": "Nid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Dismiss Api V1 Notifications  Nid  Dismiss Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Dismiss"
+   }
+  },
+  "/api/v1/notifications/{nid}/read": {
+   "post": {
+    "operationId": "mark_read_api_v1_notifications__nid__read_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "nid",
+      "required": true,
+      "schema": {
+       "title": "Nid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Mark Read Api V1 Notifications  Nid  Read Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Mark Read"
+   }
+  },
+  "/api/v1/notifications/{nid}/snooze": {
+   "post": {
+    "operationId": "snooze_api_v1_notifications__nid__snooze_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "nid",
+      "required": true,
+      "schema": {
+       "title": "Nid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SnoozeBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Snooze Api V1 Notifications  Nid  Snooze Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Snooze"
    }
   },
   "/api/v1/orgs": {

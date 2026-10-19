@@ -45,6 +45,17 @@ export interface BudgetDegradedOut {
   warned?: boolean;  // optional
 }
 
+/** CreateBody. Required keys: body. */
+export interface CreateBody {
+  body: string;
+  mentions?: string[];  // optional
+  parentId?: string | null;  // optional
+  refId?: string | null;  // optional
+  refKind?: "plan" | "file" | "diff" | "approval" | "event" | null;  // optional
+  refPos?: number | null;  // optional
+  requestId?: string | null;  // optional
+}
+
 /** DecideBody. Required keys: decision. */
 export interface DecideBody {
   decision: "grant" | "decline" | "cancel" | "accept" | "reject";
@@ -76,6 +87,13 @@ export interface DoneSignalRequest {
 export interface DoneSignalResponse {
   findings: ReviewFindingsOut;
   runId: string;
+}
+
+/** EditBody. Required keys: body, expectedVersion. */
+export interface EditBody {
+  body: string;
+  expectedVersion: number;
+  mentions?: string[] | null;  // optional
 }
 
 /** ErrorDetail. Required keys: code, message. */
@@ -142,6 +160,12 @@ export interface MergedIntent {
   scopePaths?: string[] | null;  // optional
 }
 
+/** ModerateBody. Required keys: action, reason. */
+export interface ModerateBody {
+  action: "hide" | "restore" | "delete";
+  reason: string;
+}
+
 /** PlanActionRequest. Required keys: planId. */
 export interface PlanActionRequest {
   planId: string;
@@ -198,6 +222,14 @@ export interface ProgressBody {
   percent: number;
 }
 
+/** PromoteBody. Required keys: action, expectedVersion. */
+export interface PromoteBody {
+  action: string;
+  expectedVersion: number;
+  reason?: string | null;  // optional
+  runId?: string | null;  // optional
+}
+
 /** ProposePlanGateRequest. Required keys: goal. */
 export interface ProposePlanGateRequest {
   goal: string;
@@ -214,6 +246,12 @@ export interface ProposePlanRequest {
 export interface ProposePlanResponse {
   planId: string;
   runId: string;
+}
+
+/** ReactBody. Required keys: reaction. */
+export interface ReactBody {
+  present?: boolean;  // optional
+  reaction: "thumbs_up" | "thumbs_down" | "heart" | "eyes" | "celebrate" | "question" | "check";
 }
 
 /** ReasonBody. */
@@ -328,6 +366,13 @@ export interface ScopeBody {
   tools?: string[];  // optional
 }
 
+/** SettingsBody. */
+export interface SettingsBody {
+  auditSensitive?: "auto" | "always" | null;  // optional
+  editWindowSeconds?: number | null;  // optional
+  retentionDays?: number | null;  // optional
+}
+
 /** SettingsRequest. */
 export interface SettingsRequest {
   maxParticipants?: number | null;  // optional
@@ -413,6 +458,28 @@ export class OrchestratorClient {
   seed_demo(): Promise<DemoSeedResponse> {
     const _path = `/api/v1/orchestrator/demo/seed`;
     return this.http.request<DemoSeedResponse>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Discussion Settings Get
+   *  GET /api/v1/orchestrator/discussion-settings */
+  discussion_settings_get(): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/discussion-settings`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Discussion Settings Put
+   *  PUT /api/v1/orchestrator/discussion-settings */
+  discussion_settings_put(body: SettingsBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/discussion-settings`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
+  /** Discussions Search
+   *  GET /api/v1/orchestrator/discussions/search */
+  discussions_search(q?: string, scope_kind?: 'run', 'session' | null, limit?: number, before?: string | null): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/discussions/search`;
+    const params: Record<string, unknown> = {"q": q, "scopeKind": scope_kind, "limit": limit, "before": before};
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
   }
 
   /** Propose Plan
@@ -565,9 +632,9 @@ export class OrchestratorClient {
 
   /** Collab History
    *  GET /api/v1/orchestrator/runs/{runId}/collab-history */
-  collab_history(run_id: string, after?: number, limit?: number): Promise<Record<string, unknown>> {
+  collab_history(run_id: string, after?: number, limit?: number, schema_version?: number): Promise<Record<string, unknown>> {
     const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/collab-history`;
-    const params: Record<string, unknown> = {"after": after, "limit": limit};
+    const params: Record<string, unknown> = {"after": after, "limit": limit, "schemaVersion": schema_version};
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
   }
 
@@ -865,6 +932,134 @@ export class OrchestratorClient {
     const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/stop`;
     return this.http.request<RunIdStatusResponse>(this.baseUrl, _path, "POST", undefined);
   }
+
+  /** Run Comments List
+   *  GET /api/v1/orchestrator/runs/{scopeId}/comments */
+  run_comments_list(scope_id: string, limit?: number, after?: string | null): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(scope_id)}/comments`;
+    const params: Record<string, unknown> = {"limit": limit, "after": after};
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** Run Comments Create
+   *  POST /api/v1/orchestrator/runs/{scopeId}/comments */
+  run_comments_create(scope_id: string, body: CreateBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(scope_id)}/comments`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Run Comments Export
+   *  GET /api/v1/orchestrator/runs/{scopeId}/comments/export */
+  run_comments_export(scope_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(scope_id)}/comments/export`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Run Comments Delete
+   *  DELETE /api/v1/orchestrator/runs/{scopeId}/comments/{commentId} */
+  run_comments_delete(scope_id: string, comment_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(scope_id)}/comments/${encodeURIComponent(comment_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** Run Comments Edit
+   *  PATCH /api/v1/orchestrator/runs/{scopeId}/comments/{commentId} */
+  run_comments_edit(scope_id: string, comment_id: string, body: EditBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(scope_id)}/comments/${encodeURIComponent(comment_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PATCH", body);
+  }
+
+  /** Run Comments History
+   *  GET /api/v1/orchestrator/runs/{scopeId}/comments/{commentId}/history */
+  run_comments_history(scope_id: string, comment_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(scope_id)}/comments/${encodeURIComponent(comment_id)}/history`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Run Comments Moderate
+   *  POST /api/v1/orchestrator/runs/{scopeId}/comments/{commentId}/moderate */
+  run_comments_moderate(scope_id: string, comment_id: string, body: ModerateBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(scope_id)}/comments/${encodeURIComponent(comment_id)}/moderate`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Run Comments Promote
+   *  POST /api/v1/orchestrator/runs/{scopeId}/comments/{commentId}/promote */
+  run_comments_promote(scope_id: string, comment_id: string, body: PromoteBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(scope_id)}/comments/${encodeURIComponent(comment_id)}/promote`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Run Comments React
+   *  POST /api/v1/orchestrator/runs/{scopeId}/comments/{commentId}/reactions */
+  run_comments_react(scope_id: string, comment_id: string, body: ReactBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(scope_id)}/comments/${encodeURIComponent(comment_id)}/reactions`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Session Comments List
+   *  GET /api/v1/orchestrator/sessions/{scopeId}/comments */
+  session_comments_list(scope_id: string, limit?: number, after?: string | null): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/sessions/${encodeURIComponent(scope_id)}/comments`;
+    const params: Record<string, unknown> = {"limit": limit, "after": after};
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** Session Comments Create
+   *  POST /api/v1/orchestrator/sessions/{scopeId}/comments */
+  session_comments_create(scope_id: string, body: CreateBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/sessions/${encodeURIComponent(scope_id)}/comments`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Session Comments Export
+   *  GET /api/v1/orchestrator/sessions/{scopeId}/comments/export */
+  session_comments_export(scope_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/sessions/${encodeURIComponent(scope_id)}/comments/export`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Session Comments Delete
+   *  DELETE /api/v1/orchestrator/sessions/{scopeId}/comments/{commentId} */
+  session_comments_delete(scope_id: string, comment_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/sessions/${encodeURIComponent(scope_id)}/comments/${encodeURIComponent(comment_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** Session Comments Edit
+   *  PATCH /api/v1/orchestrator/sessions/{scopeId}/comments/{commentId} */
+  session_comments_edit(scope_id: string, comment_id: string, body: EditBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/sessions/${encodeURIComponent(scope_id)}/comments/${encodeURIComponent(comment_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PATCH", body);
+  }
+
+  /** Session Comments History
+   *  GET /api/v1/orchestrator/sessions/{scopeId}/comments/{commentId}/history */
+  session_comments_history(scope_id: string, comment_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/sessions/${encodeURIComponent(scope_id)}/comments/${encodeURIComponent(comment_id)}/history`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Session Comments Moderate
+   *  POST /api/v1/orchestrator/sessions/{scopeId}/comments/{commentId}/moderate */
+  session_comments_moderate(scope_id: string, comment_id: string, body: ModerateBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/sessions/${encodeURIComponent(scope_id)}/comments/${encodeURIComponent(comment_id)}/moderate`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Session Comments Promote
+   *  POST /api/v1/orchestrator/sessions/{scopeId}/comments/{commentId}/promote */
+  session_comments_promote(scope_id: string, comment_id: string, body: PromoteBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/sessions/${encodeURIComponent(scope_id)}/comments/${encodeURIComponent(comment_id)}/promote`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Session Comments React
+   *  POST /api/v1/orchestrator/sessions/{scopeId}/comments/{commentId}/reactions */
+  session_comments_react(scope_id: string, comment_id: string, body: ReactBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/sessions/${encodeURIComponent(scope_id)}/comments/${encodeURIComponent(comment_id)}/reactions`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
 }
 
 /* Module surface (mirrors __all__ in clients/python):
@@ -875,10 +1070,12 @@ export class OrchestratorClient {
  * export interface/type ApprovalOutcome
  * export interface/type ApprovalRequest
  * export interface/type BudgetDegradedOut
+ * export interface/type CreateBody
  * export interface/type DecideBody
  * export interface/type DemoSeedResponse
  * export interface/type DoneSignalRequest
  * export interface/type DoneSignalResponse
+ * export interface/type EditBody
  * export interface/type ErrorDetail
  * export interface/type ErrorEnvelope
  * export interface/type HTTPValidationError
@@ -890,6 +1087,7 @@ export class OrchestratorClient {
  * export interface/type LeaseBody
  * export interface/type LeaveRequest
  * export interface/type MergedIntent
+ * export interface/type ModerateBody
  * export interface/type PlanActionRequest
  * export interface/type PlanActionResponse
  * export interface/type PlanDecisionResponse
@@ -898,9 +1096,11 @@ export class OrchestratorClient {
  * export interface/type PlanRejectedResponse
  * export interface/type PrefsRequest
  * export interface/type ProgressBody
+ * export interface/type PromoteBody
  * export interface/type ProposePlanGateRequest
  * export interface/type ProposePlanRequest
  * export interface/type ProposePlanResponse
+ * export interface/type ReactBody
  * export interface/type ReasonBody
  * export interface/type ReassignBody
  * export interface/type RedirectRequest
@@ -914,6 +1114,7 @@ export class OrchestratorClient {
  * export interface/type RunStatusResponse
  * export interface/type RunsPage
  * export interface/type ScopeBody
+ * export interface/type SettingsBody
  * export interface/type SettingsRequest
  * export interface/type SpawnBody
  * export interface/type StartRunResponse

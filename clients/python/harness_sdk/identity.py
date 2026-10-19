@@ -121,6 +121,16 @@ class EventReplayResponse(typing.TypedDict, total=False):
     oldestSeqSent: int | None
     replayTruncated: bool | None
 
+class GlobalPrefsBody(typing.TypedDict, total=False):
+    """GlobalPrefsBody."""
+    digest: _DigestBody | None
+    email: str | None
+    events: dict[str, typing.Any] | None
+    expectedVersion: int | None
+    inapp: str | None
+    quietHours: _QuietBody | None
+    timezone: str | None
+
 class HTTPValidationError(typing.TypedDict, total=False):
     """HTTPValidationError."""
     detail: list[ValidationError]
@@ -204,6 +214,13 @@ class MemberRoleBody(typing.TypedDict, total=False):
     """MemberRoleBody. Required keys: role."""
     role: str  # required
 
+class MuteBody(typing.TypedDict, total=False):
+    """MuteBody. Required keys: scopeKind, scopeId."""
+    minutes: int | None
+    scopeId: str  # required
+    scopeKind: str  # required
+    until: str | None
+
 class OkResponse(typing.TypedDict, total=False):
     """OkResponse. Required keys: ok."""
     ok: bool  # required
@@ -262,6 +279,10 @@ class ProjectOut(typing.TypedDict, total=False):
     name: str  # required
     repoFullName: str | None
 
+class ReadAllBody(typing.TypedDict, total=False):
+    """ReadAllBody."""
+    kind: str | None
+
 class RevertBody(typing.TypedDict, total=False):
     """RevertBody. Required keys: toVersion."""
     expectedVersion: int | None
@@ -278,6 +299,13 @@ class Rule(typing.TypedDict, total=False):
 class RulesBody(typing.TypedDict, total=False):
     """RulesBody. Required keys: rulesText."""
     rulesText: str  # required
+
+class ScopePrefsBody(typing.TypedDict, total=False):
+    """ScopePrefsBody."""
+    email: str | None
+    events: dict[str, typing.Any] | None
+    expectedVersion: int | None
+    inapp: str | None
 
 class SelectBody(typing.TypedDict, total=False):
     """SelectBody."""
@@ -300,6 +328,11 @@ class SettingsBody(typing.TypedDict, total=False):
     """SettingsBody. Required keys: settings."""
     expectedVersion: int | None
     settings: dict[str, typing.Any]  # required
+
+class SnoozeBody(typing.TypedDict, total=False):
+    """SnoozeBody."""
+    minutes: int | None
+    until: str | None
 
 class SsoCompleteBody(typing.TypedDict, total=False):
     """SsoCompleteBody. Required keys: teamId, code, state, redirectUri."""
@@ -334,6 +367,10 @@ class ThresholdsBody(typing.TypedDict, total=False):
     """ThresholdsBody. Required keys: thresholds."""
     thresholds: dict[str, typing.Any]  # required
 
+class UnsubscribeBody(typing.TypedDict, total=False):
+    """UnsubscribeBody. Required keys: token."""
+    token: str  # required
+
 class ValidationError(typing.TypedDict, total=False):
     """ValidationError. Required keys: loc, msg, type."""
     ctx: dict[str, typing.Any]
@@ -356,6 +393,17 @@ class WsTicketResponse(typing.TypedDict, total=False):
     expiresInSeconds: int  # required
     fingerprint: str  # required
     ticket: str  # required
+
+class _DigestBody(typing.TypedDict, total=False):
+    """_DigestBody."""
+    hour: int | None
+    period: str | None
+
+class _QuietBody(typing.TypedDict, total=False):
+    """_QuietBody."""
+    enabled: bool | None
+    end: str | None
+    start: str | None
 
 class harness_identity__agents__ReasonBody(typing.TypedDict, total=False):
     """harness_identity__agents__ReasonBody."""
@@ -623,6 +671,119 @@ class IdentityClient:
         """
         _path = "/api/v1/me"
         return self._http.request(self.base_url, "GET", _path)
+
+    def list_inbox(self, unread: bool | None = None, kind: str | None = None, state: str | None = None, limit: int | None = None, cursor: str | None = None) -> dict[str, typing.Any]:
+        """List Inbox
+
+        GET /api/v1/notifications
+        """
+        _path = "/api/v1/notifications"
+        _params: dict[str, typing.Any] = {"unread": unread, "kind": kind, "state": state, "limit": limit, "cursor": cursor}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
+
+    def open_link(self, nid: str) -> dict[str, typing.Any]:
+        """Open Link
+
+        GET /api/v1/notifications/link/{nid}
+        """
+        _path = f"/api/v1/notifications/link/{nid}"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def mute(self, body: MuteBody) -> dict[str, typing.Any]:
+        """Mute
+
+        POST /api/v1/notifications/mute
+        """
+        _path = "/api/v1/notifications/mute"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def unmute(self, mute_id: str) -> typing.Any:
+        """Unmute
+
+        DELETE /api/v1/notifications/mute/{mute_id}
+        """
+        _path = f"/api/v1/notifications/mute/{mute_id}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
+    def get_preferences(self) -> dict[str, typing.Any]:
+        """Get Preferences
+
+        GET /api/v1/notifications/preferences
+        """
+        _path = "/api/v1/notifications/preferences"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def put_preferences(self, body: GlobalPrefsBody) -> dict[str, typing.Any]:
+        """Put Preferences
+
+        PUT /api/v1/notifications/preferences
+        """
+        _path = "/api/v1/notifications/preferences"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
+
+    def get_scope_preferences(self, scope_kind: str, scope_id: str) -> dict[str, typing.Any]:
+        """Get Scope Preferences
+
+        GET /api/v1/notifications/preferences/scopes/{scope_kind}/{scope_id}
+        """
+        _path = f"/api/v1/notifications/preferences/scopes/{scope_kind}/{scope_id}"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def put_scope_preferences(self, scope_kind: str, scope_id: str, body: ScopePrefsBody) -> dict[str, typing.Any]:
+        """Put Scope Preferences
+
+        PUT /api/v1/notifications/preferences/scopes/{scope_kind}/{scope_id}
+        """
+        _path = f"/api/v1/notifications/preferences/scopes/{scope_kind}/{scope_id}"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
+
+    def read_all(self, body: ReadAllBody | None = None) -> dict[str, typing.Any]:
+        """Read All
+
+        POST /api/v1/notifications/read-all
+        """
+        _path = "/api/v1/notifications/read-all"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def unread_count(self) -> dict[str, typing.Any]:
+        """Unread Count
+
+        GET /api/v1/notifications/unread-count
+        """
+        _path = "/api/v1/notifications/unread-count"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def unsubscribe(self, body: UnsubscribeBody) -> dict[str, typing.Any]:
+        """Unsubscribe
+
+        POST /api/v1/notifications/unsubscribe
+        """
+        _path = "/api/v1/notifications/unsubscribe"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def dismiss(self, nid: str) -> dict[str, typing.Any]:
+        """Dismiss
+
+        POST /api/v1/notifications/{nid}/dismiss
+        """
+        _path = f"/api/v1/notifications/{nid}/dismiss"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def mark_read(self, nid: str) -> dict[str, typing.Any]:
+        """Mark Read
+
+        POST /api/v1/notifications/{nid}/read
+        """
+        _path = f"/api/v1/notifications/{nid}/read"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def snooze(self, nid: str, body: SnoozeBody) -> dict[str, typing.Any]:
+        """Snooze
+
+        POST /api/v1/notifications/{nid}/snooze
+        """
+        _path = f"/api/v1/notifications/{nid}/snooze"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
 
     def list_orgs(self) -> dict[str, typing.Any]:
         """List Orgs
@@ -1467,4 +1628,4 @@ class IdentityClient:
         return self._http.request(self.base_url, "GET", _path)
 
 
-__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AssignBody", "BindingBody", "ChainNode", "CheckBody", "CreateProjectBody", "DefBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkRunBody", "LinkTeamBody", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "RevertBody", "Rule", "RulesBody", "SelectBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "ValidationError", "VerifyOtpRequest", "WsTicketRequest", "WsTicketResponse", "harness_identity__agents__ReasonBody", "harness_identity__orgs__RoleBody", "harness_identity__policy__RoleBody", "harness_identity__sessions__CreateBody", "harness_identity__sessions__MemberBody", "harness_identity__sessions__PatchBody", "harness_identity__sessions__ReasonBody", "harness_identity__sessions__RoleBody", "harness_identity__workspaces__CreateBody", "harness_identity__workspaces__MemberBody", "harness_identity__workspaces__PatchBody", "harness_identity__workspaces__ReasonBody"]
+__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AssignBody", "BindingBody", "ChainNode", "CheckBody", "CreateProjectBody", "DefBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "GlobalPrefsBody", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkRunBody", "LinkTeamBody", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "MuteBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "ReadAllBody", "RevertBody", "Rule", "RulesBody", "ScopePrefsBody", "SelectBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SnoozeBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "UnsubscribeBody", "ValidationError", "VerifyOtpRequest", "WsTicketRequest", "WsTicketResponse", "_DigestBody", "_QuietBody", "harness_identity__agents__ReasonBody", "harness_identity__orgs__RoleBody", "harness_identity__policy__RoleBody", "harness_identity__sessions__CreateBody", "harness_identity__sessions__MemberBody", "harness_identity__sessions__PatchBody", "harness_identity__sessions__ReasonBody", "harness_identity__sessions__RoleBody", "harness_identity__workspaces__CreateBody", "harness_identity__workspaces__MemberBody", "harness_identity__workspaces__PatchBody", "harness_identity__workspaces__ReasonBody"]
