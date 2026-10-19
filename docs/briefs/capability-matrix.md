@@ -44,9 +44,9 @@ Row granularity is one row per part (directive groups are listed in the master p
 | 34 | Final deliverables | docs | implemented | `stable-prompt-prefix.md` |
 | 35 | Final response format | docs | implemented | `stable-prompt-prefix.md` |
 | 36 | Product boundary & maturity | docs | verified | `docs/product-boundary.md`, this file |
-| 37 | Organizations & identity | s1 | partial | teams, OTP, SSO config exist; no orgs/step-up/emergency access; live SSO/Stripe gated |
-| 38 | Permissions & policy model | s4 `authz.py` | partial | role checks only; no policy engine/inheritance/preview (S3) |
-| 39 | Workspace & project model | s1/s4 | partial | projects exist; no templates/lifecycle (S3) |
+| 37 | Organizations & identity | s1 | verified (cap 8) | orgs, roles, invites, guests, service identities, revocation: test_orgs.py (22) + live-PG test_session3_pg.py; SSO login now records session assurance; step-up and emergency access via part 38; live SSO/Stripe unproven (external). docs/organizations.md, evidence/s3/lane-o.md |
+| 38 | Permissions & policy model | s1 `policy.py` | partial | engine, custom roles, preview, decision log, step-up, emergency access tested (test_policy_engine.py, test_policy_api.py, live PG). NOT 9: legacy routes still use `Role.ADMIN`/`authz.py` (38.005 "every read and mutation" unmet); step-up wired only to team role change and audit export. Carry-over to Session 4. docs/permissions.md, evidence/s3/lane-p.md |
+| 39 | Workspace & project model | s1/s4 | verified | workspaces, members, settings versions, templates, allowlisted bindings, pause/archive/restore/delete; run-start gate in s4 (test_workspaces_*.py 28, test_workspace_gate.py 10, live PG). Known gaps (no purge job, running run not stopped on archive, quota race, residency is a label): evidence/s3/lane-w.md |
 | 40 | Session & run domain model | s4 | partial | run = session today (S4) |
 | 41 | Presence & participation | — | missing | roster only (`collab.roster`); no presence (S4) |
 | 42 | Simultaneous control & conflicts | s4 | partial | single leader; no control leases (S4) |

@@ -1,6 +1,232 @@
 {
  "components": {
   "schemas": {
+   "AcceptBody": {
+    "properties": {
+     "token": {
+      "maxLength": 256,
+      "minLength": 16,
+      "title": "Token",
+      "type": "string"
+     }
+    },
+    "required": [
+     "token"
+    ],
+    "title": "AcceptBody",
+    "type": "object"
+   },
+   "ApplyBody": {
+    "properties": {
+     "name": {
+      "maxLength": 80,
+      "title": "Name",
+      "type": "string"
+     },
+     "version": {
+      "anyOf": [
+       {
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Version"
+     }
+    },
+    "required": [
+     "name"
+    ],
+    "title": "ApplyBody",
+    "type": "object"
+   },
+   "AssignBody": {
+    "properties": {
+     "expiresAt": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expiresat"
+     },
+     "level": {
+      "title": "Level",
+      "type": "string"
+     },
+     "role": {
+      "title": "Role",
+      "type": "string"
+     },
+     "scopeId": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Scopeid",
+      "type": "string"
+     },
+     "userId": {
+      "title": "Userid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "userId",
+     "level",
+     "scopeId",
+     "role"
+    ],
+    "title": "AssignBody",
+    "type": "object"
+   },
+   "BindingBody": {
+    "properties": {
+     "kind": {
+      "maxLength": 16,
+      "title": "Kind",
+      "type": "string"
+     },
+     "value": {
+      "maxLength": 400,
+      "minLength": 1,
+      "title": "Value",
+      "type": "string"
+     }
+    },
+    "required": [
+     "kind",
+     "value"
+    ],
+    "title": "BindingBody",
+    "type": "object"
+   },
+   "ChainNode": {
+    "properties": {
+     "id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+     },
+     "level": {
+      "title": "Level",
+      "type": "string"
+     }
+    },
+    "required": [
+     "level",
+     "id"
+    ],
+    "title": "ChainNode",
+    "type": "object"
+   },
+   "CheckBody": {
+    "properties": {
+     "chain": {
+      "default": [],
+      "items": {
+       "$ref": "#/components/schemas/ChainNode"
+      },
+      "title": "Chain",
+      "type": "array"
+     },
+     "permission": {
+      "title": "Permission",
+      "type": "string"
+     },
+     "userId": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Userid"
+     }
+    },
+    "required": [
+     "permission"
+    ],
+    "title": "CheckBody",
+    "type": "object"
+   },
+   "CreateBody": {
+    "properties": {
+     "dataResidency": {
+      "anyOf": [
+       {
+        "maxLength": 16,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Dataresidency"
+     },
+     "name": {
+      "maxLength": 200,
+      "title": "Name",
+      "type": "string"
+     },
+     "tags": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Tags",
+      "type": "array"
+     },
+     "templateName": {
+      "anyOf": [
+       {
+        "maxLength": 80,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Templatename"
+     },
+     "templateVersion": {
+      "anyOf": [
+       {
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Templateversion"
+     },
+     "visibility": {
+      "anyOf": [
+       {
+        "maxLength": 16,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Visibility"
+     }
+    },
+    "required": [
+     "name"
+    ],
+    "title": "CreateBody",
+    "type": "object"
+   },
    "CreateProjectBody": {
     "properties": {
      "name": {
@@ -25,6 +251,116 @@
      "name"
     ],
     "title": "CreateProjectBody",
+    "type": "object"
+   },
+   "DeleteBody": {
+    "properties": {
+     "reason": {
+      "default": "",
+      "maxLength": 500,
+      "title": "Reason",
+      "type": "string"
+     }
+    },
+    "title": "DeleteBody",
+    "type": "object"
+   },
+   "DocBody": {
+    "properties": {
+     "doc": {
+      "$ref": "#/components/schemas/PolicyDoc"
+     },
+     "expectedVersion": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expectedversion"
+     }
+    },
+    "required": [
+     "doc"
+    ],
+    "title": "DocBody",
+    "type": "object"
+   },
+   "Draft": {
+    "properties": {
+     "doc": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/PolicyDoc"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "level": {
+      "title": "Level",
+      "type": "string"
+     },
+     "scopeId": {
+      "title": "Scopeid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "level",
+     "scopeId"
+    ],
+    "title": "Draft",
+    "type": "object"
+   },
+   "EmergencyBody": {
+    "properties": {
+     "durationMinutes": {
+      "maximum": 1440.0,
+      "minimum": 5.0,
+      "title": "Durationminutes",
+      "type": "integer"
+     },
+     "level": {
+      "default": "org",
+      "title": "Level",
+      "type": "string"
+     },
+     "permissions": {
+      "items": {
+       "type": "string"
+      },
+      "minItems": 1,
+      "title": "Permissions",
+      "type": "array"
+     },
+     "reason": {
+      "maxLength": 500,
+      "minLength": 10,
+      "title": "Reason",
+      "type": "string"
+     },
+     "scopeId": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Scopeid"
+     }
+    },
+    "required": [
+     "permissions",
+     "reason",
+     "durationMinutes"
+    ],
+    "title": "EmergencyBody",
     "type": "object"
    },
    "ErrorDetail": {
@@ -158,6 +494,39 @@
      }
     },
     "title": "HTTPValidationError",
+    "type": "object"
+   },
+   "InviteBody": {
+    "properties": {
+     "email": {
+      "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+      "title": "Email",
+      "type": "string"
+     },
+     "guestDays": {
+      "anyOf": [
+       {
+        "maximum": 90.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Guestdays"
+     },
+     "role": {
+      "pattern": "^(admin|billing_admin|member|guest)$",
+      "title": "Role",
+      "type": "string"
+     }
+    },
+    "required": [
+     "email",
+     "role"
+    ],
+    "title": "InviteBody",
     "type": "object"
    },
    "InviteCreateBody": {
@@ -340,6 +709,33 @@
     "title": "KeyListResponse",
     "type": "object"
    },
+   "LinkBody": {
+    "properties": {
+     "projectId": {
+      "maxLength": 36,
+      "title": "Projectid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "projectId"
+    ],
+    "title": "LinkBody",
+    "type": "object"
+   },
+   "LinkTeamBody": {
+    "properties": {
+     "teamId": {
+      "title": "Teamid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "teamId"
+    ],
+    "title": "LinkTeamBody",
+    "type": "object"
+   },
    "LoginRequest": {
     "properties": {
      "email": {
@@ -376,6 +772,18 @@
      "email"
     ],
     "title": "LoginRequest",
+    "type": "object"
+   },
+   "MemberBody": {
+    "properties": {
+     "role": {
+      "default": "member",
+      "maxLength": 16,
+      "title": "Role",
+      "type": "string"
+     }
+    },
+    "title": "MemberBody",
     "type": "object"
    },
    "MemberItem": {
@@ -479,6 +887,139 @@
     "title": "OkResponse",
     "type": "object"
    },
+   "OrgCreateBody": {
+    "properties": {
+     "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+     },
+     "slug": {
+      "pattern": "^[a-z0-9][a-z0-9-]{1,38}$",
+      "title": "Slug",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name",
+     "slug"
+    ],
+    "title": "OrgCreateBody",
+    "type": "object"
+   },
+   "OrgPatchBody": {
+    "properties": {
+     "allowedDomains": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Alloweddomains"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "requireMfa": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Requiremfa"
+     },
+     "requireSso": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Requiresso"
+     }
+    },
+    "title": "OrgPatchBody",
+    "type": "object"
+   },
+   "PatchBody": {
+    "properties": {
+     "dataResidency": {
+      "anyOf": [
+       {
+        "maxLength": 16,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Dataresidency"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "tags": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "maxItems": 20,
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tags"
+     },
+     "visibility": {
+      "anyOf": [
+       {
+        "maxLength": 16,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Visibility"
+     }
+    },
+    "title": "PatchBody",
+    "type": "object"
+   },
    "PlanUpdateBody": {
     "properties": {
      "plan": {
@@ -495,6 +1036,121 @@
      "plan"
     ],
     "title": "PlanUpdateBody",
+    "type": "object"
+   },
+   "PolicyDoc": {
+    "additionalProperties": false,
+    "properties": {
+     "allow_lower_grants": {
+      "default": false,
+      "title": "Allow Lower Grants",
+      "type": "boolean"
+     },
+     "emergency_max_minutes": {
+      "default": 240,
+      "maximum": 1440.0,
+      "minimum": 5.0,
+      "title": "Emergency Max Minutes",
+      "type": "integer"
+     },
+     "rules": {
+      "default": [],
+      "items": {
+       "$ref": "#/components/schemas/Rule"
+      },
+      "maxItems": 100,
+      "title": "Rules",
+      "type": "array"
+     },
+     "stepup_actions": {
+      "default": [
+       "emergency.grant",
+       "export",
+       "policy.save",
+       "role.change"
+      ],
+      "items": {
+       "type": "string"
+      },
+      "title": "Stepup Actions",
+      "type": "array"
+     },
+     "stepup_max_age_seconds": {
+      "default": 300,
+      "maximum": 3600.0,
+      "minimum": 30.0,
+      "title": "Stepup Max Age Seconds",
+      "type": "integer"
+     }
+    },
+    "title": "PolicyDoc",
+    "type": "object"
+   },
+   "PreviewBody": {
+    "properties": {
+     "chain": {
+      "default": [],
+      "items": {
+       "$ref": "#/components/schemas/ChainNode"
+      },
+      "title": "Chain",
+      "type": "array"
+     },
+     "customRoles": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "items": {
+          "type": "string"
+         },
+         "type": "array"
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Customroles"
+     },
+     "drafts": {
+      "default": [],
+      "items": {
+       "$ref": "#/components/schemas/Draft"
+      },
+      "title": "Drafts",
+      "type": "array"
+     },
+     "permissions": {
+      "default": [
+       "read",
+       "comment",
+       "steer",
+       "approve",
+       "administer",
+       "export",
+       "billing"
+      ],
+      "items": {
+       "type": "string"
+      },
+      "title": "Permissions",
+      "type": "array"
+     },
+     "userIds": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "Userids",
+      "type": "array"
+     }
+    },
+    "required": [
+     "userIds"
+    ],
+    "title": "PreviewBody",
     "type": "object"
    },
    "PrincipalResponse": {
@@ -597,6 +1253,97 @@
     "title": "ProjectOut",
     "type": "object"
    },
+   "ReasonBody": {
+    "properties": {
+     "reason": {
+      "anyOf": [
+       {
+        "maxLength": 500,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     }
+    },
+    "title": "ReasonBody",
+    "type": "object"
+   },
+   "RevertBody": {
+    "properties": {
+     "expectedVersion": {
+      "anyOf": [
+       {
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expectedversion"
+     },
+     "toVersion": {
+      "minimum": 1.0,
+      "title": "Toversion",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "toVersion"
+    ],
+    "title": "RevertBody",
+    "type": "object"
+   },
+   "Rule": {
+    "additionalProperties": false,
+    "properties": {
+     "effect": {
+      "pattern": "^(allow|deny)$",
+      "title": "Effect",
+      "type": "string"
+     },
+     "id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.-]+$",
+      "title": "Id",
+      "type": "string"
+     },
+     "overridable": {
+      "default": false,
+      "title": "Overridable",
+      "type": "boolean"
+     },
+     "permissions": {
+      "items": {
+       "type": "string"
+      },
+      "minItems": 1,
+      "title": "Permissions",
+      "type": "array"
+     },
+     "subjects": {
+      "default": [
+       "*"
+      ],
+      "items": {
+       "type": "string"
+      },
+      "title": "Subjects",
+      "type": "array"
+     }
+    },
+    "required": [
+     "id",
+     "effect",
+     "permissions"
+    ],
+    "title": "Rule",
+    "type": "object"
+   },
    "RulesBody": {
     "properties": {
      "rulesText": {
@@ -609,6 +1356,43 @@
      "rulesText"
     ],
     "title": "RulesBody",
+    "type": "object"
+   },
+   "ServiceIdentityBody": {
+    "properties": {
+     "expiresInDays": {
+      "anyOf": [
+       {
+        "maximum": 365.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expiresindays"
+     },
+     "name": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+     },
+     "scopes": {
+      "items": {
+       "type": "string"
+      },
+      "minItems": 1,
+      "title": "Scopes",
+      "type": "array"
+     }
+    },
+    "required": [
+     "name",
+     "scopes"
+    ],
+    "title": "ServiceIdentityBody",
     "type": "object"
    },
    "SessionResponse": {
@@ -627,6 +1411,32 @@
      "principal"
     ],
     "title": "SessionResponse",
+    "type": "object"
+   },
+   "SettingsBody": {
+    "properties": {
+     "expectedVersion": {
+      "anyOf": [
+       {
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expectedversion"
+     },
+     "settings": {
+      "additionalProperties": true,
+      "title": "Settings",
+      "type": "object"
+     }
+    },
+    "required": [
+     "settings"
+    ],
+    "title": "SettingsBody",
     "type": "object"
    },
    "SsoCompleteBody": {
@@ -731,6 +1541,41 @@
      "redirectUri"
     ],
     "title": "SsoStartBody",
+    "type": "object"
+   },
+   "StepUpBody": {
+    "properties": {
+     "code": {
+      "maxLength": 12,
+      "minLength": 4,
+      "title": "Code",
+      "type": "string"
+     }
+    },
+    "required": [
+     "code"
+    ],
+    "title": "StepUpBody",
+    "type": "object"
+   },
+   "TemplateBody": {
+    "properties": {
+     "defaults": {
+      "additionalProperties": true,
+      "title": "Defaults",
+      "type": "object"
+     },
+     "name": {
+      "maxLength": 200,
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name",
+     "defaults"
+    ],
+    "title": "TemplateBody",
     "type": "object"
    },
    "ThresholdsBody": {
@@ -844,6 +1689,49 @@
      "fingerprint"
     ],
     "title": "WsTicketResponse",
+    "type": "object"
+   },
+   "harness_identity__orgs__RoleBody": {
+    "properties": {
+     "guestDays": {
+      "anyOf": [
+       {
+        "maximum": 90.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Guestdays"
+     },
+     "role": {
+      "pattern": "^(owner|admin|billing_admin|member|guest)$",
+      "title": "Role",
+      "type": "string"
+     }
+    },
+    "required": [
+     "role"
+    ],
+    "title": "RoleBody",
+    "type": "object"
+   },
+   "harness_identity__policy__RoleBody": {
+    "properties": {
+     "permissions": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Permissions",
+      "type": "array"
+     }
+    },
+    "required": [
+     "permissions"
+    ],
+    "title": "RoleBody",
     "type": "object"
    }
   }
@@ -1499,6 +2387,1498 @@
     "summary": "Me"
    }
   },
+  "/api/v1/orgs": {
+   "get": {
+    "operationId": "list_orgs_api_v1_orgs_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Orgs Api V1 Orgs Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "List Orgs"
+   },
+   "post": {
+    "operationId": "create_org_api_v1_orgs_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/OrgCreateBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Org Api V1 Orgs Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Org"
+   }
+  },
+  "/api/v1/orgs/invites/accept": {
+   "post": {
+    "description": "Redeem an invite. Bound to the invited mailbox: a mismatched caller sees plain 404.",
+    "operationId": "accept_invite_api_v1_orgs_invites_accept_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AcceptBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Accept Invite Api V1 Orgs Invites Accept Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Accept Invite"
+   }
+  },
+  "/api/v1/orgs/me/identity": {
+   "delete": {
+    "description": "Delete the caller's identity: leave every org, kill every session and the service\nidentities they created. Refused (409) while they are the sole owner of any org.",
+    "operationId": "delete_my_identity_api_v1_orgs_me_identity_delete",
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Delete My Identity"
+   }
+  },
+  "/api/v1/orgs/service/whoami": {
+   "get": {
+    "description": "Authenticate a service identity token (Bearer hsi_...). Updates last_used_at.",
+    "operationId": "service_whoami_api_v1_orgs_service_whoami_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Service Whoami Api V1 Orgs Service Whoami Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Service Whoami"
+   }
+  },
+  "/api/v1/orgs/{org_id}": {
+   "delete": {
+    "description": "Owner only. Marks the org deleted, removes all members, kills every session on its\nteams and revokes every service identity, immediately.",
+    "operationId": "delete_org_api_v1_orgs__org_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Org"
+   },
+   "get": {
+    "operationId": "get_org_api_v1_orgs__org_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Org Api V1 Orgs  Org Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Org"
+   },
+   "patch": {
+    "description": "Name and domain policy: owner or admin. require_sso / require_mfa: owner only, and the\nowner may always change them (break-glass) even from a session that fails the flags.",
+    "operationId": "patch_org_api_v1_orgs__org_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/OrgPatchBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Patch Org Api V1 Orgs  Org Id  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Patch Org"
+   }
+  },
+  "/api/v1/orgs/{org_id}/history": {
+   "get": {
+    "description": "Membership and role changes (with before/after) read straight from the audit log.",
+    "operationId": "org_history_api_v1_orgs__org_id__history_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 100,
+       "title": "Limit",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Org History Api V1 Orgs  Org Id  History Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Org History"
+   }
+  },
+  "/api/v1/orgs/{org_id}/invites": {
+   "get": {
+    "operationId": "list_invites_api_v1_orgs__org_id__invites_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Invites Api V1 Orgs  Org Id  Invites Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Invites"
+   },
+   "post": {
+    "operationId": "create_invite_api_v1_orgs__org_id__invites_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/InviteBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Invite Api V1 Orgs  Org Id  Invites Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Invite"
+   }
+  },
+  "/api/v1/orgs/{org_id}/invites/{invite_id}": {
+   "delete": {
+    "operationId": "revoke_invite_api_v1_orgs__org_id__invites__invite_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "invite_id",
+      "required": true,
+      "schema": {
+       "title": "Invite Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Revoke Invite"
+   }
+  },
+  "/api/v1/orgs/{org_id}/members": {
+   "get": {
+    "operationId": "list_members_api_v1_orgs__org_id__members_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Members Api V1 Orgs  Org Id  Members Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Members"
+   }
+  },
+  "/api/v1/orgs/{org_id}/members/{user_id}": {
+   "delete": {
+    "description": "Admins remove non-owners, owners remove anyone, anyone may remove themselves (leave).\nSessions, team seats and the member's service identities die in the same transaction.",
+    "operationId": "remove_member_api_v1_orgs__org_id__members__user_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Remove Member"
+   },
+   "patch": {
+    "description": "Invariants: only an owner touches owners (grant or demote), an admin can never create\nan owner, and an org always keeps at least one owner.",
+    "operationId": "change_role_api_v1_orgs__org_id__members__user_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/harness_identity__orgs__RoleBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Change Role Api V1 Orgs  Org Id  Members  User Id  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Change Role"
+   }
+  },
+  "/api/v1/orgs/{org_id}/service-identities": {
+   "get": {
+    "operationId": "list_service_identities_api_v1_orgs__org_id__service_identities_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Service Identities Api V1 Orgs  Org Id  Service Identities Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Service Identities"
+   },
+   "post": {
+    "operationId": "create_service_identity_api_v1_orgs__org_id__service_identities_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ServiceIdentityBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Service Identity Api V1 Orgs  Org Id  Service Identities Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Service Identity"
+   }
+  },
+  "/api/v1/orgs/{org_id}/service-identities/{sid}": {
+   "delete": {
+    "operationId": "revoke_service_identity_api_v1_orgs__org_id__service_identities__sid__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "sid",
+      "required": true,
+      "schema": {
+       "title": "Sid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Revoke Service Identity"
+   }
+  },
+  "/api/v1/orgs/{org_id}/teams": {
+   "post": {
+    "description": "Attach a team to the org. Needs org owner/admin AND admin of that team (the caller's\nown session team): you cannot claim a team you do not run. A team joins one org only.",
+    "operationId": "link_team_api_v1_orgs__org_id__teams_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LinkTeamBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Link Team Api V1 Orgs  Org Id  Teams Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Link Team"
+   }
+  },
+  "/api/v1/orgs/{org_id}/teams/{team_id}/members/{user_id}": {
+   "delete": {
+    "description": "Team departure: drop the user's seat on one org team and kill their sessions for it.",
+    "operationId": "remove_from_team_api_v1_orgs__org_id__teams__team_id__members__user_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Remove From Team"
+   }
+  },
+  "/api/v1/policy/orgs/{org_id}/assignments": {
+   "post": {
+    "description": "Grant a role on a node below the org. Anti-escalation: grantor must hold every\npermission the role carries at that node. Target must be an active org member.",
+    "operationId": "assign_role_api_v1_policy_orgs__org_id__assignments_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AssignBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Assign Role Api V1 Policy Orgs  Org Id  Assignments Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Assign Role"
+   }
+  },
+  "/api/v1/policy/orgs/{org_id}/check": {
+   "post": {
+    "description": "Explainable decision for yourself (any member) or another user (administer).",
+    "operationId": "check_api_v1_policy_orgs__org_id__check_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CheckBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Check Api V1 Policy Orgs  Org Id  Check Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Check"
+   }
+  },
+  "/api/v1/policy/orgs/{org_id}/decisions": {
+   "get": {
+    "description": "Admin query of the decision log. Bounded: <=200 rows, window <=31 days (default 24h).",
+    "operationId": "decisions_api_v1_policy_orgs__org_id__decisions_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 50,
+       "maximum": 200,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "since",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "format": "date-time",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Since"
+      }
+     },
+     {
+      "in": "query",
+      "name": "until",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "format": "date-time",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Until"
+      }
+     },
+     {
+      "in": "query",
+      "name": "subject",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Subject"
+      }
+     },
+     {
+      "in": "query",
+      "name": "decision",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "pattern": "^(allow|deny)$",
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Decision"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Decisions Api V1 Policy Orgs  Org Id  Decisions Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Decisions"
+   }
+  },
+  "/api/v1/policy/orgs/{org_id}/documents": {
+   "get": {
+    "operationId": "list_documents_api_v1_policy_orgs__org_id__documents_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Documents Api V1 Policy Orgs  Org Id  Documents Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Documents"
+   }
+  },
+  "/api/v1/policy/orgs/{org_id}/documents/{level}/{scope_id}": {
+   "put": {
+    "operationId": "put_document_api_v1_policy_orgs__org_id__documents__level___scope_id__put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "level",
+      "required": true,
+      "schema": {
+       "title": "Level",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "scope_id",
+      "required": true,
+      "schema": {
+       "title": "Scope Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DocBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Put Document Api V1 Policy Orgs  Org Id  Documents  Level   Scope Id  Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put Document"
+   }
+  },
+  "/api/v1/policy/orgs/{org_id}/emergency": {
+   "get": {
+    "operationId": "emergency_list_api_v1_policy_orgs__org_id__emergency_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Emergency List Api V1 Policy Orgs  Org Id  Emergency Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Emergency List"
+   },
+   "post": {
+    "description": "Any org member requests time-boxed access for themselves; someone else approves.",
+    "operationId": "emergency_request_api_v1_policy_orgs__org_id__emergency_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/EmergencyBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Emergency Request Api V1 Policy Orgs  Org Id  Emergency Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Emergency Request"
+   }
+  },
+  "/api/v1/policy/orgs/{org_id}/emergency/{gid}/approve": {
+   "post": {
+    "operationId": "emergency_approve_api_v1_policy_orgs__org_id__emergency__gid__approve_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "gid",
+      "required": true,
+      "schema": {
+       "title": "Gid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Emergency Approve Api V1 Policy Orgs  Org Id  Emergency  Gid  Approve Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Emergency Approve"
+   }
+  },
+  "/api/v1/policy/orgs/{org_id}/emergency/{gid}/revoke": {
+   "post": {
+    "operationId": "emergency_revoke_api_v1_policy_orgs__org_id__emergency__gid__revoke_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "gid",
+      "required": true,
+      "schema": {
+       "title": "Gid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Emergency Revoke Api V1 Policy Orgs  Org Id  Emergency  Gid  Revoke Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Emergency Revoke"
+   }
+  },
+  "/api/v1/policy/orgs/{org_id}/preview": {
+   "post": {
+    "description": "Effective-permission diff (current vs draft) for the given users. Reads only; the\nsame ``decide`` as real enforcement, so preview == post-save evaluation.",
+    "operationId": "preview_api_v1_policy_orgs__org_id__preview_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PreviewBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Preview Api V1 Policy Orgs  Org Id  Preview Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Preview"
+   }
+  },
+  "/api/v1/policy/orgs/{org_id}/roles": {
+   "get": {
+    "operationId": "list_roles_api_v1_policy_orgs__org_id__roles_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Roles Api V1 Policy Orgs  Org Id  Roles Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Roles"
+   }
+  },
+  "/api/v1/policy/orgs/{org_id}/roles/{name}": {
+   "put": {
+    "operationId": "put_role_api_v1_policy_orgs__org_id__roles__name__put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "name",
+      "required": true,
+      "schema": {
+       "title": "Name",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/harness_identity__policy__RoleBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Put Role Api V1 Policy Orgs  Org Id  Roles  Name  Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put Role"
+   }
+  },
   "/api/v1/projects": {
    "get": {
     "operationId": "list_projects_api_v1_projects_get",
@@ -1795,6 +4175,47 @@
      }
     },
     "summary": "Save Rules"
+   }
+  },
+  "/api/v1/stepup/verify": {
+   "post": {
+    "description": "Pluggable: ``app.state.stepup_verifier`` (async (request, db, principal, code) -> bool)\noverrides the default OTP verifier (tests use a double).",
+    "operationId": "stepup_verify_api_v1_stepup_verify_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/StepUpBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Stepup Verify Api V1 Stepup Verify Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Stepup Verify"
    }
   },
   "/api/v1/teams/{team_id}/invites": {
@@ -2439,6 +4860,1274 @@
      }
     },
     "summary": "Put Sso Config"
+   }
+  },
+  "/api/v1/workspaces": {
+   "get": {
+    "operationId": "search_workspaces_api_v1_workspaces_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "q",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Q"
+      }
+     },
+     {
+      "in": "query",
+      "name": "state",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "State"
+      }
+     },
+     {
+      "in": "query",
+      "name": "template",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Template"
+      }
+     },
+     {
+      "in": "query",
+      "name": "tag",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Tag"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 25,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "cursor",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Cursor"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Search Workspaces Api V1 Workspaces Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Search Workspaces"
+   },
+   "post": {
+    "operationId": "create_workspace_api_v1_workspaces_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CreateBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Workspace Api V1 Workspaces Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Workspace"
+   }
+  },
+  "/api/v1/workspaces/allowlist": {
+   "get": {
+    "operationId": "list_allowlist_api_v1_workspaces_allowlist_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Allowlist Api V1 Workspaces Allowlist Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "List Allowlist"
+   },
+   "post": {
+    "operationId": "approve_binding_api_v1_workspaces_allowlist_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/BindingBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Approve Binding Api V1 Workspaces Allowlist Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Approve Binding"
+   }
+  },
+  "/api/v1/workspaces/allowlist/{entry_id}": {
+   "delete": {
+    "operationId": "revoke_allowlist_api_v1_workspaces_allowlist__entry_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "entry_id",
+      "required": true,
+      "schema": {
+       "title": "Entry Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Revoke Allowlist"
+   }
+  },
+  "/api/v1/workspaces/templates": {
+   "get": {
+    "operationId": "list_templates_api_v1_workspaces_templates_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Templates Api V1 Workspaces Templates Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "List Templates"
+   },
+   "post": {
+    "operationId": "save_template_api_v1_workspaces_templates_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TemplateBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Save Template Api V1 Workspaces Templates Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Save Template"
+   }
+  },
+  "/api/v1/workspaces/{ws_id}": {
+   "get": {
+    "operationId": "get_workspace_api_v1_workspaces__ws_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ws_id",
+      "required": true,
+      "schema": {
+       "title": "Ws Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Workspace Api V1 Workspaces  Ws Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Workspace"
+   },
+   "patch": {
+    "operationId": "update_workspace_api_v1_workspaces__ws_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ws_id",
+      "required": true,
+      "schema": {
+       "title": "Ws Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PatchBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Update Workspace Api V1 Workspaces  Ws Id  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Update Workspace"
+   }
+  },
+  "/api/v1/workspaces/{ws_id}/apply-template": {
+   "post": {
+    "operationId": "apply_template_api_v1_workspaces__ws_id__apply_template_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ws_id",
+      "required": true,
+      "schema": {
+       "title": "Ws Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ApplyBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Apply Template Api V1 Workspaces  Ws Id  Apply Template Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Apply Template"
+   }
+  },
+  "/api/v1/workspaces/{ws_id}/archive": {
+   "post": {
+    "operationId": "archive_workspace_api_v1_workspaces__ws_id__archive_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ws_id",
+      "required": true,
+      "schema": {
+       "title": "Ws Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/ReasonBody"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Archive Workspace Api V1 Workspaces  Ws Id  Archive Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Archive Workspace"
+   }
+  },
+  "/api/v1/workspaces/{ws_id}/bindings": {
+   "get": {
+    "operationId": "list_bindings_api_v1_workspaces__ws_id__bindings_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ws_id",
+      "required": true,
+      "schema": {
+       "title": "Ws Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Bindings Api V1 Workspaces  Ws Id  Bindings Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Bindings"
+   },
+   "post": {
+    "operationId": "add_binding_api_v1_workspaces__ws_id__bindings_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ws_id",
+      "required": true,
+      "schema": {
+       "title": "Ws Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/BindingBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Add Binding Api V1 Workspaces  Ws Id  Bindings Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Add Binding"
+   }
+  },
+  "/api/v1/workspaces/{ws_id}/bindings/{binding_id}": {
+   "delete": {
+    "operationId": "remove_binding_api_v1_workspaces__ws_id__bindings__binding_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ws_id",
+      "required": true,
+      "schema": {
+       "title": "Ws Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "binding_id",
+      "required": true,
+      "schema": {
+       "title": "Binding Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Remove Binding"
+   }
+  },
+  "/api/v1/workspaces/{ws_id}/delete": {
+   "post": {
+    "operationId": "delete_workspace_api_v1_workspaces__ws_id__delete_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ws_id",
+      "required": true,
+      "schema": {
+       "title": "Ws Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DeleteBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Delete Workspace Api V1 Workspaces  Ws Id  Delete Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Workspace"
+   }
+  },
+  "/api/v1/workspaces/{ws_id}/members": {
+   "get": {
+    "operationId": "list_members_api_v1_workspaces__ws_id__members_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ws_id",
+      "required": true,
+      "schema": {
+       "title": "Ws Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Members Api V1 Workspaces  Ws Id  Members Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Members"
+   }
+  },
+  "/api/v1/workspaces/{ws_id}/members/{user_id}": {
+   "delete": {
+    "operationId": "remove_member_api_v1_workspaces__ws_id__members__user_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ws_id",
+      "required": true,
+      "schema": {
+       "title": "Ws Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Remove Member"
+   },
+   "put": {
+    "operationId": "put_member_api_v1_workspaces__ws_id__members__user_id__put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ws_id",
+      "required": true,
+      "schema": {
+       "title": "Ws Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/MemberBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Put Member Api V1 Workspaces  Ws Id  Members  User Id  Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put Member"
+   }
+  },
+  "/api/v1/workspaces/{ws_id}/pause": {
+   "post": {
+    "operationId": "pause_workspace_api_v1_workspaces__ws_id__pause_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ws_id",
+      "required": true,
+      "schema": {
+       "title": "Ws Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/ReasonBody"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Pause Workspace Api V1 Workspaces  Ws Id  Pause Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Pause Workspace"
+   }
+  },
+  "/api/v1/workspaces/{ws_id}/projects": {
+   "get": {
+    "operationId": "list_projects_api_v1_workspaces__ws_id__projects_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ws_id",
+      "required": true,
+      "schema": {
+       "title": "Ws Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Projects Api V1 Workspaces  Ws Id  Projects Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Projects"
+   },
+   "post": {
+    "operationId": "link_project_api_v1_workspaces__ws_id__projects_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ws_id",
+      "required": true,
+      "schema": {
+       "title": "Ws Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LinkBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Link Project Api V1 Workspaces  Ws Id  Projects Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Link Project"
+   }
+  },
+  "/api/v1/workspaces/{ws_id}/projects/{project_id}": {
+   "delete": {
+    "operationId": "unlink_project_api_v1_workspaces__ws_id__projects__project_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ws_id",
+      "required": true,
+      "schema": {
+       "title": "Ws Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Unlink Project"
+   }
+  },
+  "/api/v1/workspaces/{ws_id}/restore": {
+   "post": {
+    "operationId": "restore_workspace_api_v1_workspaces__ws_id__restore_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ws_id",
+      "required": true,
+      "schema": {
+       "title": "Ws Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "anyOf": [
+         {
+          "$ref": "#/components/schemas/ReasonBody"
+         },
+         {
+          "type": "null"
+         }
+        ],
+        "title": "Body"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Restore Workspace Api V1 Workspaces  Ws Id  Restore Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Restore Workspace"
+   }
+  },
+  "/api/v1/workspaces/{ws_id}/settings": {
+   "get": {
+    "operationId": "get_settings_api_v1_workspaces__ws_id__settings_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ws_id",
+      "required": true,
+      "schema": {
+       "title": "Ws Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Settings Api V1 Workspaces  Ws Id  Settings Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Settings"
+   },
+   "put": {
+    "operationId": "put_settings_api_v1_workspaces__ws_id__settings_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ws_id",
+      "required": true,
+      "schema": {
+       "title": "Ws Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SettingsBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Put Settings Api V1 Workspaces  Ws Id  Settings Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put Settings"
+   }
+  },
+  "/api/v1/workspaces/{ws_id}/settings/history": {
+   "get": {
+    "operationId": "settings_history_api_v1_workspaces__ws_id__settings_history_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ws_id",
+      "required": true,
+      "schema": {
+       "title": "Ws Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "default": 50,
+       "title": "Limit",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Settings History Api V1 Workspaces  Ws Id  Settings History Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Settings History"
+   }
+  },
+  "/api/v1/workspaces/{ws_id}/settings/revert": {
+   "post": {
+    "operationId": "revert_settings_api_v1_workspaces__ws_id__settings_revert_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "ws_id",
+      "required": true,
+      "schema": {
+       "title": "Ws Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RevertBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Revert Settings Api V1 Workspaces  Ws Id  Settings Revert Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Revert Settings"
    }
   },
   "/api/v1/ws-ticket": {

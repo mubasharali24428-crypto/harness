@@ -236,6 +236,15 @@ def make_app(session_factory, settings: Settings):
 
     app.include_router(settings_api_router)
 
+    # Session 3 (parts 37-39): organizations, policy engine, workspaces.
+    from .orgs import router as orgs_router
+    from .policy import router as policy_router
+    from .workspaces import router as workspaces_router
+
+    app.include_router(orgs_router)
+    app.include_router(policy_router)
+    app.include_router(workspaces_router)
+
     # M15-W5-S1 merge wiring: browser CSP violation collector (unauthed,
     # size-capped, allow-listed logging — see csp_report.py).
     from .csp_report import router as csp_report_router
@@ -686,6 +695,10 @@ async def export_audit(
     after = max(0, int(afterSeq))
     factory = request.app.state.session_factory
     async with factory() as db:
+        # Part 38.010: org policy may demand a fresh re-auth before evidence leaves the system.
+        from .policy import require_team_stepup
+
+        await require_team_stepup(db, request, principal, principal.teamId, "export")
         if stream == "audit":
             rows = (
                 (

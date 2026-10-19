@@ -18,10 +18,75 @@ import typing
 from .runtime import HarnessHTTP
 
 
+class AcceptBody(typing.TypedDict, total=False):
+    """AcceptBody. Required keys: token."""
+    token: str  # required
+
+class ApplyBody(typing.TypedDict, total=False):
+    """ApplyBody. Required keys: name."""
+    name: str  # required
+    version: int | None
+
+class AssignBody(typing.TypedDict, total=False):
+    """AssignBody. Required keys: userId, level, scopeId, role."""
+    expiresAt: str | None
+    level: str  # required
+    role: str  # required
+    scopeId: str  # required
+    userId: str  # required
+
+class BindingBody(typing.TypedDict, total=False):
+    """BindingBody. Required keys: kind, value."""
+    kind: str  # required
+    value: str  # required
+
+class ChainNode(typing.TypedDict, total=False):
+    """ChainNode. Required keys: level, id."""
+    id: str  # required
+    level: str  # required
+
+class CheckBody(typing.TypedDict, total=False):
+    """CheckBody. Required keys: permission."""
+    chain: list[ChainNode]
+    permission: str  # required
+    userId: str | None
+
+class CreateBody(typing.TypedDict, total=False):
+    """CreateBody. Required keys: name."""
+    dataResidency: str | None
+    name: str  # required
+    tags: list[str]
+    templateName: str | None
+    templateVersion: int | None
+    visibility: str | None
+
 class CreateProjectBody(typing.TypedDict, total=False):
     """CreateProjectBody. Required keys: name."""
     name: str  # required
     repoFullName: str | None
+
+class DeleteBody(typing.TypedDict, total=False):
+    """DeleteBody."""
+    reason: str
+
+class DocBody(typing.TypedDict, total=False):
+    """DocBody. Required keys: doc."""
+    doc: PolicyDoc  # required
+    expectedVersion: int | None
+
+class Draft(typing.TypedDict, total=False):
+    """Draft. Required keys: level, scopeId."""
+    doc: PolicyDoc | None
+    level: str  # required
+    scopeId: str  # required
+
+class EmergencyBody(typing.TypedDict, total=False):
+    """EmergencyBody. Required keys: permissions, reason, durationMinutes."""
+    durationMinutes: int  # required
+    level: str
+    permissions: list[str]  # required
+    reason: str  # required
+    scopeId: str | None
 
 class ErrorDetail(typing.TypedDict, total=False):
     """ErrorDetail. Required keys: code, message."""
@@ -51,6 +116,12 @@ class EventReplayResponse(typing.TypedDict, total=False):
 class HTTPValidationError(typing.TypedDict, total=False):
     """HTTPValidationError."""
     detail: list[ValidationError]
+
+class InviteBody(typing.TypedDict, total=False):
+    """InviteBody. Required keys: email, role."""
+    email: str  # required
+    guestDays: int | None
+    role: str  # required
 
 class InviteCreateBody(typing.TypedDict, total=False):
     """InviteCreateBody. Required keys: email, role."""
@@ -89,11 +160,23 @@ class KeyListResponse(typing.TypedDict, total=False):
     """KeyListResponse. Required keys: items."""
     items: list[KeyItemResponse]  # required
 
+class LinkBody(typing.TypedDict, total=False):
+    """LinkBody. Required keys: projectId."""
+    projectId: str  # required
+
+class LinkTeamBody(typing.TypedDict, total=False):
+    """LinkTeamBody. Required keys: teamId."""
+    teamId: str  # required
+
 class LoginRequest(typing.TypedDict, total=False):
     """LoginRequest. Required keys: email."""
     email: str  # required
     teamId: str | None
     teamName: str | None
+
+class MemberBody(typing.TypedDict, total=False):
+    """MemberBody."""
+    role: str
 
 class MemberItem(typing.TypedDict, total=False):
     """MemberItem. Required keys: id, role, createdAt."""
@@ -116,9 +199,44 @@ class OkResponse(typing.TypedDict, total=False):
     """OkResponse. Required keys: ok."""
     ok: bool  # required
 
+class OrgCreateBody(typing.TypedDict, total=False):
+    """OrgCreateBody. Required keys: name, slug."""
+    name: str  # required
+    slug: str  # required
+
+class OrgPatchBody(typing.TypedDict, total=False):
+    """OrgPatchBody."""
+    allowedDomains: list[str] | None
+    name: str | None
+    requireMfa: bool | None
+    requireSso: bool | None
+
+class PatchBody(typing.TypedDict, total=False):
+    """PatchBody."""
+    dataResidency: str | None
+    name: str | None
+    tags: list[str] | None
+    visibility: str | None
+
 class PlanUpdateBody(typing.TypedDict, total=False):
     """PlanUpdateBody. Required keys: plan."""
     plan: typing.Literal['free', 'pro', 'team']  # required
+
+class PolicyDoc(typing.TypedDict, total=False):
+    """PolicyDoc."""
+    allow_lower_grants: bool
+    emergency_max_minutes: int
+    rules: list[Rule]
+    stepup_actions: list[str]
+    stepup_max_age_seconds: int
+
+class PreviewBody(typing.TypedDict, total=False):
+    """PreviewBody. Required keys: userIds."""
+    chain: list[ChainNode]
+    customRoles: dict[str, typing.Any] | None
+    drafts: list[Draft]
+    permissions: list[str]
+    userIds: list[str]  # required
 
 class PrincipalResponse(typing.TypedDict, total=False):
     """PrincipalResponse. Required keys: userId, teamId, role."""
@@ -142,14 +260,42 @@ class ProjectOut(typing.TypedDict, total=False):
     name: str  # required
     repoFullName: str | None
 
+class ReasonBody(typing.TypedDict, total=False):
+    """ReasonBody."""
+    reason: str | None
+
+class RevertBody(typing.TypedDict, total=False):
+    """RevertBody. Required keys: toVersion."""
+    expectedVersion: int | None
+    toVersion: int  # required
+
+class Rule(typing.TypedDict, total=False):
+    """Rule. Required keys: id, effect, permissions."""
+    effect: str  # required
+    id: str  # required
+    overridable: bool
+    permissions: list[str]  # required
+    subjects: list[str]
+
 class RulesBody(typing.TypedDict, total=False):
     """RulesBody. Required keys: rulesText."""
     rulesText: str  # required
+
+class ServiceIdentityBody(typing.TypedDict, total=False):
+    """ServiceIdentityBody. Required keys: name, scopes."""
+    expiresInDays: int | None
+    name: str  # required
+    scopes: list[str]  # required
 
 class SessionResponse(typing.TypedDict, total=False):
     """SessionResponse. Required keys: token, principal."""
     principal: PrincipalResponse  # required
     token: str  # required
+
+class SettingsBody(typing.TypedDict, total=False):
+    """SettingsBody. Required keys: settings."""
+    expectedVersion: int | None
+    settings: dict[str, typing.Any]  # required
 
 class SsoCompleteBody(typing.TypedDict, total=False):
     """SsoCompleteBody. Required keys: teamId, code, state, redirectUri."""
@@ -170,6 +316,15 @@ class SsoStartBody(typing.TypedDict, total=False):
     """SsoStartBody. Required keys: teamId, redirectUri."""
     redirectUri: str  # required
     teamId: str  # required
+
+class StepUpBody(typing.TypedDict, total=False):
+    """StepUpBody. Required keys: code."""
+    code: str  # required
+
+class TemplateBody(typing.TypedDict, total=False):
+    """TemplateBody. Required keys: name, defaults."""
+    defaults: dict[str, typing.Any]  # required
+    name: str  # required
 
 class ThresholdsBody(typing.TypedDict, total=False):
     """ThresholdsBody. Required keys: thresholds."""
@@ -197,6 +352,15 @@ class WsTicketResponse(typing.TypedDict, total=False):
     expiresInSeconds: int  # required
     fingerprint: str  # required
     ticket: str  # required
+
+class harness_identity__orgs__RoleBody(typing.TypedDict, total=False):
+    """harness_identity__orgs__RoleBody. Required keys: role."""
+    guestDays: int | None
+    role: str  # required
+
+class harness_identity__policy__RoleBody(typing.TypedDict, total=False):
+    """harness_identity__policy__RoleBody. Required keys: permissions."""
+    permissions: list[str]  # required
 
 class IdentityClient:
     """Client for the harness-identity service (default http://localhost:8001)."""
@@ -338,6 +502,264 @@ class IdentityClient:
         _path = "/api/v1/me"
         return self._http.request(self.base_url, "GET", _path)
 
+    def list_orgs(self) -> dict[str, typing.Any]:
+        """List Orgs
+
+        GET /api/v1/orgs
+        """
+        _path = "/api/v1/orgs"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def create_org(self, body: OrgCreateBody) -> dict[str, typing.Any]:
+        """Create Org
+
+        POST /api/v1/orgs
+        """
+        _path = "/api/v1/orgs"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def accept_invite(self, body: AcceptBody) -> dict[str, typing.Any]:
+        """Accept Invite
+
+        POST /api/v1/orgs/invites/accept
+        """
+        _path = "/api/v1/orgs/invites/accept"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def delete_my_identity(self) -> typing.Any:
+        """Delete My Identity
+
+        DELETE /api/v1/orgs/me/identity
+        """
+        _path = "/api/v1/orgs/me/identity"
+        return self._http.request(self.base_url, "DELETE", _path)
+
+    def service_whoami(self) -> dict[str, typing.Any]:
+        """Service Whoami
+
+        GET /api/v1/orgs/service/whoami
+        """
+        _path = "/api/v1/orgs/service/whoami"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def get_org(self, org_id: str) -> dict[str, typing.Any]:
+        """Get Org
+
+        GET /api/v1/orgs/{org_id}
+        """
+        _path = f"/api/v1/orgs/{org_id}"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def delete_org(self, org_id: str) -> typing.Any:
+        """Delete Org
+
+        DELETE /api/v1/orgs/{org_id}
+        """
+        _path = f"/api/v1/orgs/{org_id}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
+    def patch_org(self, org_id: str, body: OrgPatchBody) -> dict[str, typing.Any]:
+        """Patch Org
+
+        PATCH /api/v1/orgs/{org_id}
+        """
+        _path = f"/api/v1/orgs/{org_id}"
+        return self._http.request(self.base_url, "PATCH", _path, json_body=body)
+
+    def org_history(self, org_id: str, limit: int | None = None) -> dict[str, typing.Any]:
+        """Org History
+
+        GET /api/v1/orgs/{org_id}/history
+        """
+        _path = f"/api/v1/orgs/{org_id}/history"
+        _params: dict[str, typing.Any] = {"limit": limit}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
+
+    def list_invites(self, org_id: str) -> dict[str, typing.Any]:
+        """List Invites
+
+        GET /api/v1/orgs/{org_id}/invites
+        """
+        _path = f"/api/v1/orgs/{org_id}/invites"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def create_invite(self, org_id: str, body: InviteBody) -> dict[str, typing.Any]:
+        """Create Invite
+
+        POST /api/v1/orgs/{org_id}/invites
+        """
+        _path = f"/api/v1/orgs/{org_id}/invites"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def revoke_invite(self, org_id: str, invite_id: str) -> typing.Any:
+        """Revoke Invite
+
+        DELETE /api/v1/orgs/{org_id}/invites/{invite_id}
+        """
+        _path = f"/api/v1/orgs/{org_id}/invites/{invite_id}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
+    def list_members(self, org_id: str) -> dict[str, typing.Any]:
+        """List Members
+
+        GET /api/v1/orgs/{org_id}/members
+        """
+        _path = f"/api/v1/orgs/{org_id}/members"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def remove_member(self, org_id: str, user_id: str) -> typing.Any:
+        """Remove Member
+
+        DELETE /api/v1/orgs/{org_id}/members/{user_id}
+        """
+        _path = f"/api/v1/orgs/{org_id}/members/{user_id}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
+    def change_role(self, org_id: str, user_id: str, body: harness_identity__orgs__RoleBody) -> dict[str, typing.Any]:
+        """Change Role
+
+        PATCH /api/v1/orgs/{org_id}/members/{user_id}
+        """
+        _path = f"/api/v1/orgs/{org_id}/members/{user_id}"
+        return self._http.request(self.base_url, "PATCH", _path, json_body=body)
+
+    def list_service_identities(self, org_id: str) -> dict[str, typing.Any]:
+        """List Service Identities
+
+        GET /api/v1/orgs/{org_id}/service-identities
+        """
+        _path = f"/api/v1/orgs/{org_id}/service-identities"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def create_service_identity(self, org_id: str, body: ServiceIdentityBody) -> dict[str, typing.Any]:
+        """Create Service Identity
+
+        POST /api/v1/orgs/{org_id}/service-identities
+        """
+        _path = f"/api/v1/orgs/{org_id}/service-identities"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def revoke_service_identity(self, org_id: str, sid: str) -> typing.Any:
+        """Revoke Service Identity
+
+        DELETE /api/v1/orgs/{org_id}/service-identities/{sid}
+        """
+        _path = f"/api/v1/orgs/{org_id}/service-identities/{sid}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
+    def link_team(self, org_id: str, body: LinkTeamBody) -> dict[str, typing.Any]:
+        """Link Team
+
+        POST /api/v1/orgs/{org_id}/teams
+        """
+        _path = f"/api/v1/orgs/{org_id}/teams"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def remove_from_team(self, org_id: str, team_id: str, user_id: str) -> typing.Any:
+        """Remove From Team
+
+        DELETE /api/v1/orgs/{org_id}/teams/{team_id}/members/{user_id}
+        """
+        _path = f"/api/v1/orgs/{org_id}/teams/{team_id}/members/{user_id}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
+    def assign_role(self, org_id: str, body: AssignBody) -> dict[str, typing.Any]:
+        """Assign Role
+
+        POST /api/v1/policy/orgs/{org_id}/assignments
+        """
+        _path = f"/api/v1/policy/orgs/{org_id}/assignments"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def check(self, org_id: str, body: CheckBody) -> dict[str, typing.Any]:
+        """Check
+
+        POST /api/v1/policy/orgs/{org_id}/check
+        """
+        _path = f"/api/v1/policy/orgs/{org_id}/check"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def decisions(self, org_id: str, limit: int | None = None, since: str | None = None, until: str | None = None, subject: str | None = None, decision: str | None = None) -> dict[str, typing.Any]:
+        """Decisions
+
+        GET /api/v1/policy/orgs/{org_id}/decisions
+        """
+        _path = f"/api/v1/policy/orgs/{org_id}/decisions"
+        _params: dict[str, typing.Any] = {"limit": limit, "since": since, "until": until, "subject": subject, "decision": decision}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
+
+    def list_documents(self, org_id: str) -> dict[str, typing.Any]:
+        """List Documents
+
+        GET /api/v1/policy/orgs/{org_id}/documents
+        """
+        _path = f"/api/v1/policy/orgs/{org_id}/documents"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def put_document(self, org_id: str, level: str, scope_id: str, body: DocBody) -> dict[str, typing.Any]:
+        """Put Document
+
+        PUT /api/v1/policy/orgs/{org_id}/documents/{level}/{scope_id}
+        """
+        _path = f"/api/v1/policy/orgs/{org_id}/documents/{level}/{scope_id}"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
+
+    def emergency_list(self, org_id: str) -> dict[str, typing.Any]:
+        """Emergency List
+
+        GET /api/v1/policy/orgs/{org_id}/emergency
+        """
+        _path = f"/api/v1/policy/orgs/{org_id}/emergency"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def emergency_request(self, org_id: str, body: EmergencyBody) -> dict[str, typing.Any]:
+        """Emergency Request
+
+        POST /api/v1/policy/orgs/{org_id}/emergency
+        """
+        _path = f"/api/v1/policy/orgs/{org_id}/emergency"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def emergency_approve(self, org_id: str, gid: str) -> dict[str, typing.Any]:
+        """Emergency Approve
+
+        POST /api/v1/policy/orgs/{org_id}/emergency/{gid}/approve
+        """
+        _path = f"/api/v1/policy/orgs/{org_id}/emergency/{gid}/approve"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def emergency_revoke(self, org_id: str, gid: str) -> dict[str, typing.Any]:
+        """Emergency Revoke
+
+        POST /api/v1/policy/orgs/{org_id}/emergency/{gid}/revoke
+        """
+        _path = f"/api/v1/policy/orgs/{org_id}/emergency/{gid}/revoke"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def preview(self, org_id: str, body: PreviewBody) -> dict[str, typing.Any]:
+        """Preview
+
+        POST /api/v1/policy/orgs/{org_id}/preview
+        """
+        _path = f"/api/v1/policy/orgs/{org_id}/preview"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def list_roles(self, org_id: str) -> dict[str, typing.Any]:
+        """List Roles
+
+        GET /api/v1/policy/orgs/{org_id}/roles
+        """
+        _path = f"/api/v1/policy/orgs/{org_id}/roles"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def put_role(self, org_id: str, name: str, body: harness_identity__policy__RoleBody) -> dict[str, typing.Any]:
+        """Put Role
+
+        PUT /api/v1/policy/orgs/{org_id}/roles/{name}
+        """
+        _path = f"/api/v1/policy/orgs/{org_id}/roles/{name}"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
+
     def list_projects(self, limit: int | None = None) -> ProjectListResponse:
         """List Projects
 
@@ -388,7 +810,15 @@ class IdentityClient:
         _path = f"/api/v1/projects/{project_id}/rules"
         return self._http.request(self.base_url, "DELETE", _path)
 
-    def list_invites(self, team_id: str, status: str | None = None) -> dict[str, typing.Any]:
+    def stepup_verify(self, body: StepUpBody) -> dict[str, typing.Any]:
+        """Stepup Verify
+
+        POST /api/v1/stepup/verify
+        """
+        _path = "/api/v1/stepup/verify"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def list_invites_2(self, team_id: str, status: str | None = None) -> dict[str, typing.Any]:
         """List Invites
 
         GET /api/v1/teams/{team_id}/invites
@@ -397,7 +827,7 @@ class IdentityClient:
         _params: dict[str, typing.Any] = {"status": status}
         return self._http.request(self.base_url, "GET", _path, params=_params)
 
-    def create_invite(self, team_id: str, body: InviteCreateBody) -> dict[str, typing.Any]:
+    def create_invite_2(self, team_id: str, body: InviteCreateBody) -> dict[str, typing.Any]:
         """Create Invite
 
         POST /api/v1/teams/{team_id}/invites
@@ -405,7 +835,7 @@ class IdentityClient:
         _path = f"/api/v1/teams/{team_id}/invites"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
-    def revoke_invite(self, team_id: str, invite_id: str) -> dict[str, typing.Any]:
+    def revoke_invite_2(self, team_id: str, invite_id: str) -> dict[str, typing.Any]:
         """Revoke Invite
 
         DELETE /api/v1/teams/{team_id}/invites/{invite_id}
@@ -421,7 +851,7 @@ class IdentityClient:
         _path = f"/api/v1/teams/{team_id}/invites/{invite_id}/resend"
         return self._http.request(self.base_url, "POST", _path)
 
-    def list_members(self, team_id: str) -> MemberListResponse:
+    def list_members_2(self, team_id: str) -> MemberListResponse:
         """List Members
 
         GET /api/v1/teams/{team_id}/members
@@ -429,7 +859,7 @@ class IdentityClient:
         _path = f"/api/v1/teams/{team_id}/members"
         return self._http.request(self.base_url, "GET", _path)
 
-    def remove_member(self, team_id: str, user_id: str) -> typing.Any:
+    def remove_member_2(self, team_id: str, user_id: str) -> typing.Any:
         """Remove Member
 
         DELETE /api/v1/teams/{team_id}/members/{user_id}
@@ -501,6 +931,224 @@ class IdentityClient:
         _path = f"/api/v1/teams/{team_id}/sso/config"
         return self._http.request(self.base_url, "DELETE", _path)
 
+    def search_workspaces(self, q: str | None = None, state: str | None = None, template: str | None = None, tag: str | None = None, limit: int | None = None, cursor: str | None = None) -> dict[str, typing.Any]:
+        """Search Workspaces
+
+        GET /api/v1/workspaces
+        """
+        _path = "/api/v1/workspaces"
+        _params: dict[str, typing.Any] = {"q": q, "state": state, "template": template, "tag": tag, "limit": limit, "cursor": cursor}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
+
+    def create_workspace(self, body: CreateBody) -> dict[str, typing.Any]:
+        """Create Workspace
+
+        POST /api/v1/workspaces
+        """
+        _path = "/api/v1/workspaces"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def list_allowlist(self) -> dict[str, typing.Any]:
+        """List Allowlist
+
+        GET /api/v1/workspaces/allowlist
+        """
+        _path = "/api/v1/workspaces/allowlist"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def approve_binding(self, body: BindingBody) -> dict[str, typing.Any]:
+        """Approve Binding
+
+        POST /api/v1/workspaces/allowlist
+        """
+        _path = "/api/v1/workspaces/allowlist"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def revoke_allowlist(self, entry_id: str) -> typing.Any:
+        """Revoke Allowlist
+
+        DELETE /api/v1/workspaces/allowlist/{entry_id}
+        """
+        _path = f"/api/v1/workspaces/allowlist/{entry_id}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
+    def list_templates(self) -> dict[str, typing.Any]:
+        """List Templates
+
+        GET /api/v1/workspaces/templates
+        """
+        _path = "/api/v1/workspaces/templates"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def save_template(self, body: TemplateBody) -> dict[str, typing.Any]:
+        """Save Template
+
+        POST /api/v1/workspaces/templates
+        """
+        _path = "/api/v1/workspaces/templates"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def get_workspace(self, ws_id: str) -> dict[str, typing.Any]:
+        """Get Workspace
+
+        GET /api/v1/workspaces/{ws_id}
+        """
+        _path = f"/api/v1/workspaces/{ws_id}"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def update_workspace(self, ws_id: str, body: PatchBody) -> dict[str, typing.Any]:
+        """Update Workspace
+
+        PATCH /api/v1/workspaces/{ws_id}
+        """
+        _path = f"/api/v1/workspaces/{ws_id}"
+        return self._http.request(self.base_url, "PATCH", _path, json_body=body)
+
+    def apply_template(self, ws_id: str, body: ApplyBody) -> dict[str, typing.Any]:
+        """Apply Template
+
+        POST /api/v1/workspaces/{ws_id}/apply-template
+        """
+        _path = f"/api/v1/workspaces/{ws_id}/apply-template"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def archive_workspace(self, ws_id: str, body: ReasonBody | None = None) -> dict[str, typing.Any]:
+        """Archive Workspace
+
+        POST /api/v1/workspaces/{ws_id}/archive
+        """
+        _path = f"/api/v1/workspaces/{ws_id}/archive"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def list_bindings(self, ws_id: str) -> dict[str, typing.Any]:
+        """List Bindings
+
+        GET /api/v1/workspaces/{ws_id}/bindings
+        """
+        _path = f"/api/v1/workspaces/{ws_id}/bindings"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def add_binding(self, ws_id: str, body: BindingBody) -> dict[str, typing.Any]:
+        """Add Binding
+
+        POST /api/v1/workspaces/{ws_id}/bindings
+        """
+        _path = f"/api/v1/workspaces/{ws_id}/bindings"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def remove_binding(self, ws_id: str, binding_id: str) -> typing.Any:
+        """Remove Binding
+
+        DELETE /api/v1/workspaces/{ws_id}/bindings/{binding_id}
+        """
+        _path = f"/api/v1/workspaces/{ws_id}/bindings/{binding_id}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
+    def delete_workspace(self, ws_id: str, body: DeleteBody) -> dict[str, typing.Any]:
+        """Delete Workspace
+
+        POST /api/v1/workspaces/{ws_id}/delete
+        """
+        _path = f"/api/v1/workspaces/{ws_id}/delete"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def list_members_3(self, ws_id: str) -> dict[str, typing.Any]:
+        """List Members
+
+        GET /api/v1/workspaces/{ws_id}/members
+        """
+        _path = f"/api/v1/workspaces/{ws_id}/members"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def put_member(self, ws_id: str, user_id: str, body: MemberBody) -> dict[str, typing.Any]:
+        """Put Member
+
+        PUT /api/v1/workspaces/{ws_id}/members/{user_id}
+        """
+        _path = f"/api/v1/workspaces/{ws_id}/members/{user_id}"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
+
+    def remove_member_3(self, ws_id: str, user_id: str) -> typing.Any:
+        """Remove Member
+
+        DELETE /api/v1/workspaces/{ws_id}/members/{user_id}
+        """
+        _path = f"/api/v1/workspaces/{ws_id}/members/{user_id}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
+    def pause_workspace(self, ws_id: str, body: ReasonBody | None = None) -> dict[str, typing.Any]:
+        """Pause Workspace
+
+        POST /api/v1/workspaces/{ws_id}/pause
+        """
+        _path = f"/api/v1/workspaces/{ws_id}/pause"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def list_projects_2(self, ws_id: str) -> dict[str, typing.Any]:
+        """List Projects
+
+        GET /api/v1/workspaces/{ws_id}/projects
+        """
+        _path = f"/api/v1/workspaces/{ws_id}/projects"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def link_project(self, ws_id: str, body: LinkBody) -> dict[str, typing.Any]:
+        """Link Project
+
+        POST /api/v1/workspaces/{ws_id}/projects
+        """
+        _path = f"/api/v1/workspaces/{ws_id}/projects"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def unlink_project(self, ws_id: str, project_id: str) -> typing.Any:
+        """Unlink Project
+
+        DELETE /api/v1/workspaces/{ws_id}/projects/{project_id}
+        """
+        _path = f"/api/v1/workspaces/{ws_id}/projects/{project_id}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
+    def restore_workspace(self, ws_id: str, body: ReasonBody | None = None) -> dict[str, typing.Any]:
+        """Restore Workspace
+
+        POST /api/v1/workspaces/{ws_id}/restore
+        """
+        _path = f"/api/v1/workspaces/{ws_id}/restore"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def get_settings(self, ws_id: str) -> dict[str, typing.Any]:
+        """Get Settings
+
+        GET /api/v1/workspaces/{ws_id}/settings
+        """
+        _path = f"/api/v1/workspaces/{ws_id}/settings"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def put_settings(self, ws_id: str, body: SettingsBody) -> dict[str, typing.Any]:
+        """Put Settings
+
+        PUT /api/v1/workspaces/{ws_id}/settings
+        """
+        _path = f"/api/v1/workspaces/{ws_id}/settings"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
+
+    def settings_history(self, ws_id: str, limit: int | None = None) -> dict[str, typing.Any]:
+        """Settings History
+
+        GET /api/v1/workspaces/{ws_id}/settings/history
+        """
+        _path = f"/api/v1/workspaces/{ws_id}/settings/history"
+        _params: dict[str, typing.Any] = {"limit": limit}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
+
+    def revert_settings(self, ws_id: str, body: RevertBody) -> dict[str, typing.Any]:
+        """Revert Settings
+
+        POST /api/v1/workspaces/{ws_id}/settings/revert
+        """
+        _path = f"/api/v1/workspaces/{ws_id}/settings/revert"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
     def issue_ws_ticket(self, body: WsTicketRequest) -> WsTicketResponse:
         """Issue Ws Ticket
 
@@ -526,4 +1174,4 @@ class IdentityClient:
         return self._http.request(self.base_url, "GET", _path)
 
 
-__all__ = ["IdentityClient", "CreateProjectBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "HTTPValidationError", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "OkResponse", "PlanUpdateBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "RulesBody", "SessionResponse", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "ThresholdsBody", "ValidationError", "VerifyOtpRequest", "WsTicketRequest", "WsTicketResponse"]
+__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AssignBody", "BindingBody", "ChainNode", "CheckBody", "CreateBody", "CreateProjectBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkTeamBody", "LoginRequest", "MemberBody", "MemberItem", "MemberListResponse", "MemberRoleBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "PatchBody", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "ReasonBody", "RevertBody", "Rule", "RulesBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "ValidationError", "VerifyOtpRequest", "WsTicketRequest", "WsTicketResponse", "harness_identity__orgs__RoleBody", "harness_identity__policy__RoleBody"]

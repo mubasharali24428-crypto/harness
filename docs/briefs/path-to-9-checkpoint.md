@@ -1,10 +1,10 @@
-# Checkpoint — Session 2: pilot residuals + sandbox fixes (2026-10-18)
-1. Objective: done for lane A/B/C/D deliverables; parts 05-08, 10, 11, 22, 23, 27 now `verified` in the matrix. Parts 01, 02, 12, 24, 32 unchanged (see below).
-2. Verified (paths): `evidence/s2/{lane-a,lane-b,lane-c,lane-d,part05-gap-checklist,acceptance-core-flow}.md`; `docs/audit-and-events.md`; `docs/lifecycle.md`; `docs/sandbox-isolation.md`; `docs/runbooks/pilot.md`.
-3. Changed: lifecycle table, audit hash chain (migrations 0036, 0037), WS push, approval rules, domain metrics wired to root `/metrics`, alert labels reconciled, sandbox T15-T17/T7b, SDK specs regenerated.
-4. Commands run (by me): `make pg-probe-s1` 706 passed; `make pg-probe-migrate` PASS 0001→0037; section1 681 passed; section4 833 passed; live-PG chaos 6 passed; section5 230 passed; vitest 540; tsc clean; ruff clean s1/s4/s5; `run_smoke.py --otp` 1 passed on the integrated tree. Not run: `make gate`, `make e2e*`, pip-audit, `--real`, Landlock.
-5. Blockers: none for Session 3; UI still polls (WS push unused by UI).
-6. Risks: audit chain has no external anchor; no Alertmanager; `confinement=off` has no boundary; pause/resume not audited; part 05-002 live presence missing.
-7. Decisions: `HARNESS_PILOT_TEAMS` empty = open to all teams; commits local, no push.
-8. Agents: A, B, C, D done and verified by lead.
-9. Next: UI consumes WS push; decision timestamp/amend event in approvals API; Session 3.
+# Checkpoint — Session 3: organizations, permissions, workspaces (2026-10-19)
+1. Objective: parts 37, 38, 39. 37 verified (cap 8), 39 verified, 38 **partial** (engine done, enforcement across legacy routes and section4 not).
+2. Verified (paths): `evidence/s3/{lane-o,lane-p,lane-w,session3-summary}.md`; `docs/organizations.md`, `permissions.md`, `workspaces.md`.
+3. Changed: migrations 0038–0040; `orgs.py`, `policy.py`, `workspaces.py`; `workspace_gate.py` (+2 calls in `service.py`); routers mounted; step-up on team role change and audit export; SSO records session assurance; specs/SDKs regenerated; e2e offline timeout 30 s.
+4. Commands run (by me): section1 778 passed; `make pg-probe-s1` 804 passed; `make pg-probe-migrate` 39 migrations 0001→0040; section4 844 passed; ruff clean s1/s4; `run_smoke.py --otp` 1 passed (first run failed on a 15 s timeout, fixed). Not run: section5/7 suites, `make gate`, pip-audit, `--real`, Landlock.
+5. Blockers: none for Session 4.
+6. Risks: part 38 enforcement incomplete; no MFA factor; no purge job; running runs not stopped on archive; audit chain unanchored.
+7. Decisions: 38 stays `partial` rather than claiming 9; section5 openapi left as committed (hand-written response docs).
+8. Agents: O, P, W done and verified by lead (W's teardown hang fixed by lead).
+9. Next: part 38 enforcement carry-over, then Session 4 (parts 40, 41, 42, 45).

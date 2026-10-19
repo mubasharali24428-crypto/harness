@@ -7,10 +7,86 @@
  *     python scripts/sdk-gen/fetch_specs.py && \
  *         python scripts/sdk-gen/generate.py --target ts
  */
+/** AcceptBody. Required keys: token. */
+export interface AcceptBody {
+  token: string;
+}
+
+/** ApplyBody. Required keys: name. */
+export interface ApplyBody {
+  name: string;
+  version?: number | null;  // optional
+}
+
+/** AssignBody. Required keys: level, role, scopeId, userId. */
+export interface AssignBody {
+  expiresAt?: string | null;  // optional
+  level: string;
+  role: string;
+  scopeId: string;
+  userId: string;
+}
+
+/** BindingBody. Required keys: kind, value. */
+export interface BindingBody {
+  kind: string;
+  value: string;
+}
+
+/** ChainNode. Required keys: id, level. */
+export interface ChainNode {
+  id: string;
+  level: string;
+}
+
+/** CheckBody. Required keys: permission. */
+export interface CheckBody {
+  chain?: ChainNode[];  // optional
+  permission: string;
+  userId?: string | null;  // optional
+}
+
+/** CreateBody. Required keys: name. */
+export interface CreateBody {
+  dataResidency?: string | null;  // optional
+  name: string;
+  tags?: string[];  // optional
+  templateName?: string | null;  // optional
+  templateVersion?: number | null;  // optional
+  visibility?: string | null;  // optional
+}
+
 /** CreateProjectBody. Required keys: name. */
 export interface CreateProjectBody {
   name: string;
   repoFullName?: string | null;  // optional
+}
+
+/** DeleteBody. */
+export interface DeleteBody {
+  reason?: string;  // optional
+}
+
+/** DocBody. Required keys: doc. */
+export interface DocBody {
+  doc: PolicyDoc;
+  expectedVersion?: number | null;  // optional
+}
+
+/** Draft. Required keys: level, scopeId. */
+export interface Draft {
+  doc?: PolicyDoc | null;  // optional
+  level: string;
+  scopeId: string;
+}
+
+/** EmergencyBody. Required keys: durationMinutes, permissions, reason. */
+export interface EmergencyBody {
+  durationMinutes: number;
+  level?: string;  // optional
+  permissions: string[];
+  reason: string;
+  scopeId?: string | null;  // optional
 }
 
 /** ErrorDetail. Required keys: code, message. */
@@ -45,6 +121,13 @@ export interface EventReplayResponse {
 /** HTTPValidationError. */
 export interface HTTPValidationError {
   detail?: ValidationError[];  // optional
+}
+
+/** InviteBody. Required keys: email, role. */
+export interface InviteBody {
+  email: string;
+  guestDays?: number | null;  // optional
+  role: string;
 }
 
 /** InviteCreateBody. Required keys: email, role. */
@@ -90,11 +173,26 @@ export interface KeyListResponse {
   items: KeyItemResponse[];
 }
 
+/** LinkBody. Required keys: projectId. */
+export interface LinkBody {
+  projectId: string;
+}
+
+/** LinkTeamBody. Required keys: teamId. */
+export interface LinkTeamBody {
+  teamId: string;
+}
+
 /** LoginRequest. Required keys: email. */
 export interface LoginRequest {
   email: string;
   teamId?: string | null;  // optional
   teamName?: string | null;  // optional
+}
+
+/** MemberBody. */
+export interface MemberBody {
+  role?: string;  // optional
 }
 
 /** MemberItem. Required keys: createdAt, id, role. */
@@ -122,9 +220,49 @@ export interface OkResponse {
   ok: boolean;
 }
 
+/** OrgCreateBody. Required keys: name, slug. */
+export interface OrgCreateBody {
+  name: string;
+  slug: string;
+}
+
+/** OrgPatchBody. */
+export interface OrgPatchBody {
+  allowedDomains?: string[] | null;  // optional
+  name?: string | null;  // optional
+  requireMfa?: boolean | null;  // optional
+  requireSso?: boolean | null;  // optional
+}
+
+/** PatchBody. */
+export interface PatchBody {
+  dataResidency?: string | null;  // optional
+  name?: string | null;  // optional
+  tags?: string[] | null;  // optional
+  visibility?: string | null;  // optional
+}
+
 /** PlanUpdateBody. Required keys: plan. */
 export interface PlanUpdateBody {
   plan: "free" | "pro" | "team";
+}
+
+/** PolicyDoc. */
+export interface PolicyDoc {
+  allow_lower_grants?: boolean;  // optional
+  emergency_max_minutes?: number;  // optional
+  rules?: Rule[];  // optional
+  stepup_actions?: string[];  // optional
+  stepup_max_age_seconds?: number;  // optional
+}
+
+/** PreviewBody. Required keys: userIds. */
+export interface PreviewBody {
+  chain?: ChainNode[];  // optional
+  customRoles?: { [key: string]: unknown } | null;  // optional
+  drafts?: Draft[];  // optional
+  permissions?: string[];  // optional
+  userIds: string[];
 }
 
 /** PrincipalResponse. Required keys: role, teamId, userId. */
@@ -153,15 +291,48 @@ export interface ProjectOut {
   repoFullName?: string | null;  // optional
 }
 
+/** ReasonBody. */
+export interface ReasonBody {
+  reason?: string | null;  // optional
+}
+
+/** RevertBody. Required keys: toVersion. */
+export interface RevertBody {
+  expectedVersion?: number | null;  // optional
+  toVersion: number;
+}
+
+/** Rule. Required keys: effect, id, permissions. */
+export interface Rule {
+  effect: string;
+  id: string;
+  overridable?: boolean;  // optional
+  permissions: string[];
+  subjects?: string[];  // optional
+}
+
 /** RulesBody. Required keys: rulesText. */
 export interface RulesBody {
   rulesText: string;
+}
+
+/** ServiceIdentityBody. Required keys: name, scopes. */
+export interface ServiceIdentityBody {
+  expiresInDays?: number | null;  // optional
+  name: string;
+  scopes: string[];
 }
 
 /** SessionResponse. Required keys: principal, token. */
 export interface SessionResponse {
   principal: PrincipalResponse;
   token: string;
+}
+
+/** SettingsBody. Required keys: settings. */
+export interface SettingsBody {
+  expectedVersion?: number | null;  // optional
+  settings: { [key: string]: unknown };
 }
 
 /** SsoCompleteBody. Required keys: code, redirectUri, state, teamId. */
@@ -185,6 +356,17 @@ export interface SsoConfigBody {
 export interface SsoStartBody {
   redirectUri: string;
   teamId: string;
+}
+
+/** StepUpBody. Required keys: code. */
+export interface StepUpBody {
+  code: string;
+}
+
+/** TemplateBody. Required keys: defaults, name. */
+export interface TemplateBody {
+  defaults: { [key: string]: unknown };
+  name: string;
 }
 
 /** ThresholdsBody. Required keys: thresholds. */
@@ -217,6 +399,17 @@ export interface WsTicketResponse {
   expiresInSeconds: number;
   fingerprint: string;
   ticket: string;
+}
+
+/** harness_identity__orgs__RoleBody. Required keys: role. */
+export interface harness_identity__orgs__RoleBody {
+  guestDays?: number | null;  // optional
+  role: string;
+}
+
+/** harness_identity__policy__RoleBody. Required keys: permissions. */
+export interface harness_identity__policy__RoleBody {
+  permissions: string[];
 }
 
 import { HarnessHttp } from "./runtime.js";
@@ -343,6 +536,232 @@ export class IdentityClient {
     return this.http.request<PrincipalResponse>(this.baseUrl, _path, "GET", undefined);
   }
 
+  /** List Orgs
+   *  GET /api/v1/orgs */
+  list_orgs(): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orgs`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Create Org
+   *  POST /api/v1/orgs */
+  create_org(body: OrgCreateBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orgs`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Accept Invite
+   *  POST /api/v1/orgs/invites/accept */
+  accept_invite(body: AcceptBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orgs/invites/accept`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Delete My Identity
+   *  DELETE /api/v1/orgs/me/identity */
+  delete_my_identity(): Promise<unknown> {
+    const _path = `/api/v1/orgs/me/identity`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** Service Whoami
+   *  GET /api/v1/orgs/service/whoami */
+  service_whoami(): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orgs/service/whoami`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Get Org
+   *  GET /api/v1/orgs/{org_id} */
+  get_org(org_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orgs/${encodeURIComponent(org_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Delete Org
+   *  DELETE /api/v1/orgs/{org_id} */
+  delete_org(org_id: string): Promise<unknown> {
+    const _path = `/api/v1/orgs/${encodeURIComponent(org_id)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** Patch Org
+   *  PATCH /api/v1/orgs/{org_id} */
+  patch_org(org_id: string, body: OrgPatchBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orgs/${encodeURIComponent(org_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PATCH", body);
+  }
+
+  /** Org History
+   *  GET /api/v1/orgs/{org_id}/history */
+  org_history(org_id: string, limit?: number): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orgs/${encodeURIComponent(org_id)}/history`;
+    const params: Record<string, unknown> = {"limit": limit};
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** List Invites
+   *  GET /api/v1/orgs/{org_id}/invites */
+  list_invites(org_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orgs/${encodeURIComponent(org_id)}/invites`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Create Invite
+   *  POST /api/v1/orgs/{org_id}/invites */
+  create_invite(org_id: string, body: InviteBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orgs/${encodeURIComponent(org_id)}/invites`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Revoke Invite
+   *  DELETE /api/v1/orgs/{org_id}/invites/{invite_id} */
+  revoke_invite(org_id: string, invite_id: string): Promise<unknown> {
+    const _path = `/api/v1/orgs/${encodeURIComponent(org_id)}/invites/${encodeURIComponent(invite_id)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** List Members
+   *  GET /api/v1/orgs/{org_id}/members */
+  list_members(org_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orgs/${encodeURIComponent(org_id)}/members`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Remove Member
+   *  DELETE /api/v1/orgs/{org_id}/members/{user_id} */
+  remove_member(org_id: string, user_id: string): Promise<unknown> {
+    const _path = `/api/v1/orgs/${encodeURIComponent(org_id)}/members/${encodeURIComponent(user_id)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** Change Role
+   *  PATCH /api/v1/orgs/{org_id}/members/{user_id} */
+  change_role(org_id: string, user_id: string, body: harness_identity__orgs__RoleBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orgs/${encodeURIComponent(org_id)}/members/${encodeURIComponent(user_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PATCH", body);
+  }
+
+  /** List Service Identities
+   *  GET /api/v1/orgs/{org_id}/service-identities */
+  list_service_identities(org_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orgs/${encodeURIComponent(org_id)}/service-identities`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Create Service Identity
+   *  POST /api/v1/orgs/{org_id}/service-identities */
+  create_service_identity(org_id: string, body: ServiceIdentityBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orgs/${encodeURIComponent(org_id)}/service-identities`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Revoke Service Identity
+   *  DELETE /api/v1/orgs/{org_id}/service-identities/{sid} */
+  revoke_service_identity(org_id: string, sid: string): Promise<unknown> {
+    const _path = `/api/v1/orgs/${encodeURIComponent(org_id)}/service-identities/${encodeURIComponent(sid)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** Link Team
+   *  POST /api/v1/orgs/{org_id}/teams */
+  link_team(org_id: string, body: LinkTeamBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orgs/${encodeURIComponent(org_id)}/teams`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Remove From Team
+   *  DELETE /api/v1/orgs/{org_id}/teams/{team_id}/members/{user_id} */
+  remove_from_team(org_id: string, team_id: string, user_id: string): Promise<unknown> {
+    const _path = `/api/v1/orgs/${encodeURIComponent(org_id)}/teams/${encodeURIComponent(team_id)}/members/${encodeURIComponent(user_id)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** Assign Role
+   *  POST /api/v1/policy/orgs/{org_id}/assignments */
+  assign_role(org_id: string, body: AssignBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/policy/orgs/${encodeURIComponent(org_id)}/assignments`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Check
+   *  POST /api/v1/policy/orgs/{org_id}/check */
+  check(org_id: string, body: CheckBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/policy/orgs/${encodeURIComponent(org_id)}/check`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Decisions
+   *  GET /api/v1/policy/orgs/{org_id}/decisions */
+  decisions(org_id: string, limit?: number, since?: string | null, until?: string | null, subject?: string | null, decision?: string | null): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/policy/orgs/${encodeURIComponent(org_id)}/decisions`;
+    const params: Record<string, unknown> = {"limit": limit, "since": since, "until": until, "subject": subject, "decision": decision};
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** List Documents
+   *  GET /api/v1/policy/orgs/{org_id}/documents */
+  list_documents(org_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/policy/orgs/${encodeURIComponent(org_id)}/documents`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Put Document
+   *  PUT /api/v1/policy/orgs/{org_id}/documents/{level}/{scope_id} */
+  put_document(org_id: string, level: string, scope_id: string, body: DocBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/policy/orgs/${encodeURIComponent(org_id)}/documents/${encodeURIComponent(level)}/${encodeURIComponent(scope_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
+  /** Emergency List
+   *  GET /api/v1/policy/orgs/{org_id}/emergency */
+  emergency_list(org_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/policy/orgs/${encodeURIComponent(org_id)}/emergency`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Emergency Request
+   *  POST /api/v1/policy/orgs/{org_id}/emergency */
+  emergency_request(org_id: string, body: EmergencyBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/policy/orgs/${encodeURIComponent(org_id)}/emergency`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Emergency Approve
+   *  POST /api/v1/policy/orgs/{org_id}/emergency/{gid}/approve */
+  emergency_approve(org_id: string, gid: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/policy/orgs/${encodeURIComponent(org_id)}/emergency/${encodeURIComponent(gid)}/approve`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Emergency Revoke
+   *  POST /api/v1/policy/orgs/{org_id}/emergency/{gid}/revoke */
+  emergency_revoke(org_id: string, gid: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/policy/orgs/${encodeURIComponent(org_id)}/emergency/${encodeURIComponent(gid)}/revoke`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Preview
+   *  POST /api/v1/policy/orgs/{org_id}/preview */
+  preview(org_id: string, body: PreviewBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/policy/orgs/${encodeURIComponent(org_id)}/preview`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** List Roles
+   *  GET /api/v1/policy/orgs/{org_id}/roles */
+  list_roles(org_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/policy/orgs/${encodeURIComponent(org_id)}/roles`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Put Role
+   *  PUT /api/v1/policy/orgs/{org_id}/roles/{name} */
+  put_role(org_id: string, name: string, body: harness_identity__policy__RoleBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/policy/orgs/${encodeURIComponent(org_id)}/roles/${encodeURIComponent(name)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
   /** List Projects
    *  GET /api/v1/projects */
   list_projects(limit?: number): Promise<ProjectListResponse> {
@@ -387,9 +806,16 @@ export class IdentityClient {
     return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
   }
 
+  /** Stepup Verify
+   *  POST /api/v1/stepup/verify */
+  stepup_verify(body: StepUpBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/stepup/verify`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
   /** List Invites
    *  GET /api/v1/teams/{team_id}/invites */
-  list_invites(team_id: string, status?: string | null): Promise<Record<string, unknown>> {
+  list_invites_2(team_id: string, status?: string | null): Promise<Record<string, unknown>> {
     const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/invites`;
     const params: Record<string, unknown> = {"status": status};
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
@@ -397,14 +823,14 @@ export class IdentityClient {
 
   /** Create Invite
    *  POST /api/v1/teams/{team_id}/invites */
-  create_invite(team_id: string, body: InviteCreateBody): Promise<Record<string, unknown>> {
+  create_invite_2(team_id: string, body: InviteCreateBody): Promise<Record<string, unknown>> {
     const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/invites`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
   }
 
   /** Revoke Invite
    *  DELETE /api/v1/teams/{team_id}/invites/{invite_id} */
-  revoke_invite(team_id: string, invite_id: string): Promise<Record<string, unknown>> {
+  revoke_invite_2(team_id: string, invite_id: string): Promise<Record<string, unknown>> {
     const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/invites/${encodeURIComponent(invite_id)}`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "DELETE", undefined);
   }
@@ -418,14 +844,14 @@ export class IdentityClient {
 
   /** List Members
    *  GET /api/v1/teams/{team_id}/members */
-  list_members(team_id: string): Promise<MemberListResponse> {
+  list_members_2(team_id: string): Promise<MemberListResponse> {
     const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/members`;
     return this.http.request<MemberListResponse>(this.baseUrl, _path, "GET", undefined);
   }
 
   /** Remove Member
    *  DELETE /api/v1/teams/{team_id}/members/{user_id} */
-  remove_member(team_id: string, user_id: string): Promise<unknown> {
+  remove_member_2(team_id: string, user_id: string): Promise<unknown> {
     const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/members/${encodeURIComponent(user_id)}`;
     return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
   }
@@ -486,6 +912,197 @@ export class IdentityClient {
     return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
   }
 
+  /** Search Workspaces
+   *  GET /api/v1/workspaces */
+  search_workspaces(q?: string | null, state?: string | null, template?: string | null, tag?: string | null, limit?: number, cursor?: string | null): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces`;
+    const params: Record<string, unknown> = {"q": q, "state": state, "template": template, "tag": tag, "limit": limit, "cursor": cursor};
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** Create Workspace
+   *  POST /api/v1/workspaces */
+  create_workspace(body: CreateBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** List Allowlist
+   *  GET /api/v1/workspaces/allowlist */
+  list_allowlist(): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/allowlist`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Approve Binding
+   *  POST /api/v1/workspaces/allowlist */
+  approve_binding(body: BindingBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/allowlist`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Revoke Allowlist
+   *  DELETE /api/v1/workspaces/allowlist/{entry_id} */
+  revoke_allowlist(entry_id: string): Promise<unknown> {
+    const _path = `/api/v1/workspaces/allowlist/${encodeURIComponent(entry_id)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** List Templates
+   *  GET /api/v1/workspaces/templates */
+  list_templates(): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/templates`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Save Template
+   *  POST /api/v1/workspaces/templates */
+  save_template(body: TemplateBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/templates`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Get Workspace
+   *  GET /api/v1/workspaces/{ws_id} */
+  get_workspace(ws_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Update Workspace
+   *  PATCH /api/v1/workspaces/{ws_id} */
+  update_workspace(ws_id: string, body: PatchBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PATCH", body);
+  }
+
+  /** Apply Template
+   *  POST /api/v1/workspaces/{ws_id}/apply-template */
+  apply_template(ws_id: string, body: ApplyBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/apply-template`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Archive Workspace
+   *  POST /api/v1/workspaces/{ws_id}/archive */
+  archive_workspace(ws_id: string, body?: ReasonBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/archive`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** List Bindings
+   *  GET /api/v1/workspaces/{ws_id}/bindings */
+  list_bindings(ws_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/bindings`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Add Binding
+   *  POST /api/v1/workspaces/{ws_id}/bindings */
+  add_binding(ws_id: string, body: BindingBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/bindings`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Remove Binding
+   *  DELETE /api/v1/workspaces/{ws_id}/bindings/{binding_id} */
+  remove_binding(ws_id: string, binding_id: string): Promise<unknown> {
+    const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/bindings/${encodeURIComponent(binding_id)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** Delete Workspace
+   *  POST /api/v1/workspaces/{ws_id}/delete */
+  delete_workspace(ws_id: string, body: DeleteBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/delete`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** List Members
+   *  GET /api/v1/workspaces/{ws_id}/members */
+  list_members_3(ws_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/members`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Put Member
+   *  PUT /api/v1/workspaces/{ws_id}/members/{user_id} */
+  put_member(ws_id: string, user_id: string, body: MemberBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/members/${encodeURIComponent(user_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
+  /** Remove Member
+   *  DELETE /api/v1/workspaces/{ws_id}/members/{user_id} */
+  remove_member_3(ws_id: string, user_id: string): Promise<unknown> {
+    const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/members/${encodeURIComponent(user_id)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** Pause Workspace
+   *  POST /api/v1/workspaces/{ws_id}/pause */
+  pause_workspace(ws_id: string, body?: ReasonBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/pause`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** List Projects
+   *  GET /api/v1/workspaces/{ws_id}/projects */
+  list_projects_2(ws_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/projects`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Link Project
+   *  POST /api/v1/workspaces/{ws_id}/projects */
+  link_project(ws_id: string, body: LinkBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/projects`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Unlink Project
+   *  DELETE /api/v1/workspaces/{ws_id}/projects/{project_id} */
+  unlink_project(ws_id: string, project_id: string): Promise<unknown> {
+    const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/projects/${encodeURIComponent(project_id)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** Restore Workspace
+   *  POST /api/v1/workspaces/{ws_id}/restore */
+  restore_workspace(ws_id: string, body?: ReasonBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/restore`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Get Settings
+   *  GET /api/v1/workspaces/{ws_id}/settings */
+  get_settings(ws_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/settings`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Put Settings
+   *  PUT /api/v1/workspaces/{ws_id}/settings */
+  put_settings(ws_id: string, body: SettingsBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/settings`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
+  /** Settings History
+   *  GET /api/v1/workspaces/{ws_id}/settings/history */
+  settings_history(ws_id: string, limit?: number): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/settings/history`;
+    const params: Record<string, unknown> = {"limit": limit};
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** Revert Settings
+   *  POST /api/v1/workspaces/{ws_id}/settings/revert */
+  revert_settings(ws_id: string, body: RevertBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/workspaces/${encodeURIComponent(ws_id)}/settings/revert`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
   /** Issue Ws Ticket
    *  POST /api/v1/ws-ticket */
   issue_ws_ticket(body: WsTicketRequest): Promise<WsTicketResponse> {
@@ -510,36 +1127,65 @@ export class IdentityClient {
 
 /* Module surface (mirrors __all__ in clients/python):
  * export class IdentityClient
+ * export interface/type AcceptBody
+ * export interface/type ApplyBody
+ * export interface/type AssignBody
+ * export interface/type BindingBody
+ * export interface/type ChainNode
+ * export interface/type CheckBody
+ * export interface/type CreateBody
  * export interface/type CreateProjectBody
+ * export interface/type DeleteBody
+ * export interface/type DocBody
+ * export interface/type Draft
+ * export interface/type EmergencyBody
  * export interface/type ErrorDetail
  * export interface/type ErrorEnvelope
  * export interface/type EventEnvelopeOut
  * export interface/type EventReplayResponse
  * export interface/type HTTPValidationError
+ * export interface/type InviteBody
  * export interface/type InviteCreateBody
  * export interface/type InviteRedeemBody
  * export interface/type KeyCreateBody
  * export interface/type KeyCreatedResponse
  * export interface/type KeyItemResponse
  * export interface/type KeyListResponse
+ * export interface/type LinkBody
+ * export interface/type LinkTeamBody
  * export interface/type LoginRequest
+ * export interface/type MemberBody
  * export interface/type MemberItem
  * export interface/type MemberListResponse
  * export interface/type MemberRoleBody
  * export interface/type OkResponse
+ * export interface/type OrgCreateBody
+ * export interface/type OrgPatchBody
+ * export interface/type PatchBody
  * export interface/type PlanUpdateBody
+ * export interface/type PolicyDoc
+ * export interface/type PreviewBody
  * export interface/type PrincipalResponse
  * export interface/type ProjectCreatedResponse
  * export interface/type ProjectListResponse
  * export interface/type ProjectOut
+ * export interface/type ReasonBody
+ * export interface/type RevertBody
+ * export interface/type Rule
  * export interface/type RulesBody
+ * export interface/type ServiceIdentityBody
  * export interface/type SessionResponse
+ * export interface/type SettingsBody
  * export interface/type SsoCompleteBody
  * export interface/type SsoConfigBody
  * export interface/type SsoStartBody
+ * export interface/type StepUpBody
+ * export interface/type TemplateBody
  * export interface/type ThresholdsBody
  * export interface/type ValidationError
  * export interface/type VerifyOtpRequest
  * export interface/type WsTicketRequest
  * export interface/type WsTicketResponse
+ * export interface/type harness_identity__orgs__RoleBody
+ * export interface/type harness_identity__policy__RoleBody
  */

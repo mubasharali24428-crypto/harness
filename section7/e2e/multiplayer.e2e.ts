@@ -205,7 +205,8 @@ test("P1 shared pilot: create → join → redirect → handoff → approve/appl
       // Network drop on the peer: it shows an error, the leader keeps working, and the peer catches up on its own.
       offlineWindow = true;
       await contexts[1].setOffline(true);
-      await expect(peer.getByTestId("shared-run-panel").getByRole("alert")).toBeVisible({ timeout: 15000 });
+      // With the push socket up the UI's safety poll is 20 s, so the error can take that long to show.
+      await expect(peer.getByTestId("shared-run-panel").getByRole("alert")).toBeVisible({ timeout: 30000 });
       await leader.getByLabel("Direction for the agent").fill("Sent while the peer was offline");
       await leader.getByRole("button", { name: "Send direction" }).click();
       await expect(history(leader)).toContainText("Sent while the peer was offline");
