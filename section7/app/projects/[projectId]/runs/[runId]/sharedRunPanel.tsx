@@ -23,6 +23,9 @@ import {
   type CollabView, approvalLabel, clipDiff, deriveCollabView, describeDecision,
   describeEvent, fileStatuses, isOpenApproval, mergeEvents, redirectProblem, reopenedApprovals,
 } from "./collabModel";
+import { AgentTreeSection } from "./agentTree";
+import { RunControlSection } from "./controlSection";
+import { PresenceSection } from "./presenceSection";
 
 const muted = { color: "var(--muted)" } as const;
 const mono = { fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12 } as const;
@@ -39,6 +42,10 @@ export interface SharedRunViewProps {
   reopened?: string[];
   /** The run's goal as recorded on the server (null until known). */
   goal?: string | null;
+  /** A polite note about the last thing you did (e.g. your direction was queued, not sent). */
+  notice?: string | null;
+  /** Presence, control and agent sections (parts 41/42/45), rendered between participants and decisions. */
+  children?: React.ReactNode;
   onJoin: () => void;
   onClaim: () => void;
   onDecide: (a: Approval, approve: boolean) => void;
@@ -86,6 +93,7 @@ export function SharedRunView(p: SharedRunViewProps) {
   return (
     <Card title="Shared run" testId="shared-run-panel">
       {p.error && <Notice tone="danger" role="alert">{p.error}</Notice>}
+      {p.notice && <Notice tone="info" role="status" testId="direction-notice">{p.notice}</Notice>}
 
       {p.goal && <p data-testid="goal-line" style={{ marginTop: 0 }}>Goal: <strong>{p.goal}</strong></p>}
       <p data-testid="leader-line" style={{ marginTop: 0 }}>
@@ -133,6 +141,8 @@ export function SharedRunView(p: SharedRunViewProps) {
           <Button size="sm" disabled={p.busy || !target} onClick={() => p.onHandoff(target)}>Offer handoff</Button>
         </div>
       )}
+
+      {p.children}
 
       <section aria-label="Pending decisions" aria-live="polite">
         <h3 style={{ fontSize: 13 }}>Pending decisions ({open.filter((a) => a.state === "pending").length})</h3>
@@ -249,6 +259,7 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
   const [goal, setGoal] = useState<string | null>(null);
   const [reopened, setReopened] = useState<string[]>([]);
   const [live, setLive] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const lastSeq = useRef(0);
   const seen = useRef<Approval[]>([]);
 
@@ -274,6 +285,12 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
       else setError(e instanceof ApiError ? e.message : String((e as Error)?.message ?? e));
     }
   }, [runId, token, onStagedPendingChange]);
+
+  useEffect(() => { // the waiting suggestion itself stays listed under "Suggestions waiting"
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 10000);
+    return () => clearTimeout(t);
+  }, [notice]);
 
   useEffect(() => {
     if (token) getPlan(runId, token).then((plan) => setGoal(plan?.goal?.trim() || null), () => setGoal(null));
@@ -303,10 +320,12 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
   if (!token) return null;
   if (notEnabled) return <NotEnabled />;
   const view = deriveCollabView(roster, approvals, me, canLead);
+  const tick = events.length ? events[events.length - 1].seq : 0; // new collab event -> side sections refetch
+  const changed = () => void refresh();
   return (
     <SharedRunView
       me={me} roster={roster} view={view} approvals={approvals} events={events}
-      error={error} busy={busy} reopened={reopened} goal={goal}
+      error={error} busy={busy} reopened={reopened} goal={goal} notice={notice}
       onJoin={() => run(() => joinRun(runId, token))}
       onClaim={() => run(() => claimLeader(runId, token))}
       onApply={(a) => run(() => applyApproval(runId, token, a))}
@@ -314,7 +333,17 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
       onHandoff={(to) => run(() => requestHandoff(runId, token, to))}
       onHandoffDecision={(id, ok) => run(() => decideHandoff(runId, token, id, ok))}
       onRedirect={(kind, content, reason) =>
-        run(() => sendRedirect(runId, token, { kind, content, reason: reason || undefined, requestId: crypto.randomUUID() }))}
-    />
+        run(async () => {
+          const r = await sendRedirect(runId, token, { kind, content, reason: reason || undefined, requestId: crypto.randomUUID() });
+          // Guidance from someone who does not hold control is queued, not sent: say so.
+          setNotice(r.queued
+            ? `Your direction is queued. ${view.leader ?? "The person in control"} must accept it before the agent sees it.`
+            : null);
+        })}
+    >
+      <PresenceSection runId={runId} token={token} tick={tick} onChanged={changed} />
+      <RunControlSection runId={runId} token={token} tick={tick} isAdmin={session?.principal.role === "admin"} onChanged={changed} />
+      <AgentTreeSection runId={runId} token={token} tick={tick} canSteer={canLead && view.joined} />
+    </SharedRunView>
   );
 }

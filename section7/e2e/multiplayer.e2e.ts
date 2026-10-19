@@ -64,6 +64,11 @@ test("P1 shared pilot: create → join → redirect → handoff → approve/appl
     await expect(peer.getByTestId("leader-line")).toContainText("p1-a");
     await peer.getByLabel("Direction for the agent").fill("Keep keep.txt unchanged");
     await peer.getByRole("button", { name: "Send direction" }).click();
+    // A non-holder's guidance is queued, not sent: the sender is told so and the leader accepts it first.
+    await expect(peer.getByTestId("direction-notice")).toContainText("queued");
+    const suggestions = leader.getByRole("region", { name: "Suggestions waiting" });
+    await expect(suggestions).toContainText("Keep keep.txt unchanged");
+    await suggestions.getByRole("button", { name: "Accept" }).click();
     await expect(leader.getByRole("log", { name: "Collaboration history" })).toContainText("Keep keep.txt unchanged");
     await leader.getByLabel("Hand off lead to").selectOption("p1-b");
     await leader.getByRole("button", { name: "Offer handoff" }).click();

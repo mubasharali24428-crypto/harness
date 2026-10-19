@@ -38,10 +38,10 @@ export interface CollabEvent {
   ts: string;
 }
 
-const root = (runId: string) =>
+export const root = (runId: string) =>
   `${PLAN_GATE_BASE}/api/v1/orchestrator/runs/${encodeURIComponent(runId)}`;
 
-async function call<T>(url: string, token: string, init?: RequestInit): Promise<T> {
+export async function call<T>(url: string, token: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
     headers: {
@@ -64,7 +64,7 @@ async function call<T>(url: string, token: string, init?: RequestInit): Promise<
   }
   return body as T;
 }
-const post = <T,>(url: string, token: string, body: unknown = {}) =>
+export const post = <T,>(url: string, token: string, body: unknown = {}) =>
   call<T>(url, token, { method: "POST", body: JSON.stringify(body) });
 
 export const getRoster = (runId: string, t: string) =>
@@ -75,7 +75,7 @@ export const sendRedirect = (
   runId: string,
   t: string,
   b: { kind: RedirectKind; content: string; reason?: string; requestId?: string },
-) => post<{ seq: number; duplicate: boolean; invalidatedApprovals: number }>(`${root(runId)}/redirect`, t, b);
+) => post<{ seq: number | null; duplicate: boolean; invalidatedApprovals: number; queued?: boolean; instructionId?: string }>(`${root(runId)}/redirect`, t, b);
 export const getHistory = (runId: string, t: string, after = 0) =>
   call<{ events: CollabEvent[] }>(`${root(runId)}/collab-history?after=${after}`, t);
 export const requestHandoff = (runId: string, t: string, toUserId: string) =>
