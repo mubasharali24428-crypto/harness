@@ -32,6 +32,7 @@ import sys
 import threading
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from harness_orchestrator import confine, domain_metrics
@@ -50,6 +51,26 @@ logger = logging.getLogger(__name__)
 DEFAULT_DSH_PROFILE = "sdk-minimal"
 REAL_WORKER_MODULE = "harness_orchestrator.engine_worker"
 _SESSION_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
+
+
+def _execution_policy_patch(session_dir: str, workspace_dir: str) -> str:
+    """Write the mandatory final SDK overlay that confines writes to this run.
+
+    sdk-minimal's shipped sandbox-policy defaults to danger-full-access. This
+    per-run patch is appended after operator transport patches so none can
+    loosen the runtime policy for the selected SDK profile.
+    """
+    patch = Path(session_dir) / "harness-execution-policy.yml"
+    patch.write_text(
+        "- id: sandbox-policy\n"
+        "  name: '@deepseek-ai/dsh-sandbox-policy'\n"
+        "  disabled: false\n"
+        "  config:\n"
+        "    mode: workspace-write\n"
+        f"    workspaceRoot: {json.dumps(os.path.realpath(workspace_dir))}\n",
+        encoding="utf-8",
+    )
+    return str(patch)
 
 
 class DeepSeekHarnessWrapper:
@@ -475,23 +496,27 @@ class DeepSeekHarnessWrapper:
             # restricted profile instead of the default danger-full-access
             # composition, optional patch files; credentials go to the runtime
             # child via kwargs (no mutation of this process's environment).
+            policy_patch = _execution_policy_patch(self.run_session_dir(session_id), run_cwd)
             kwargs: dict[str, Any] = dict(
                 provider="deepseek-official",
                 model=model,
                 max_tokens=4096,
                 cwd=run_cwd,
                 dsh_home=self.run_session_dir(session_id),
-                profile=os.environ.get("DSH_PROFILE", DEFAULT_DSH_PROFILE),
+                # Do not allow an environment override to select a profile
+                # whose tool roster or sandbox policy was not reviewed here.
+                profile=DEFAULT_DSH_PROFILE,
                 api_key=self.api_key,
             )
             if self.base_url:
                 kwargs["base_url"] = self.base_url
-            patches = tuple(p for p in os.environ.get("DSH_PATCH_FILES", "").split(os.pathsep) if p)
-            missing = [p for p in patches if not os.path.exists(p)]
+            operator_patches = tuple(
+                p for p in os.environ.get("DSH_PATCH_FILES", "").split(os.pathsep) if p
+            )
+            missing = [p for p in operator_patches if not os.path.exists(p)]
             if missing:  # fail closed: a missing restriction patch must not be skipped
                 raise FileNotFoundError(f"DSH_PATCH_FILES entry not found: {missing[0]}")
-            if patches:
-                kwargs["patches"] = patches
+            kwargs["patches"] = (*operator_patches, policy_patch)
             with DeepSeekHarness(**kwargs) as harness:
                 result = harness.run(goal, session_id=session_id)
             text = result.final_response

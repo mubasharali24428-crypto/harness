@@ -68,6 +68,18 @@ plan. Tool-call counts are not enforced and the running-limit sweep is not sched
 storage and search indexing also lack deploy schedulers.
 
 ## 3e. Session 7 result
+## 3f. Session 8 status
+
+Session 8 reviewed parts 31, 52 and 58. Reports under `docs/briefs/evidence/s8/` map the directives
+and record verification. Section 4 pins the SDK `sdk-minimal` profile, applies a mandatory per-run
+`workspace-write` overlay, and refuses plans with non-empty `forbiddenPaths` before SDK invocation.
+Its shell still lacks Section 5's command allow-list. Migration 0056 adds operator-managed run holds
+that the Section 4 run purge honors; the event/audit retention sidecar, deletion workflow, and backup
+expiry do not. Parts 31/52/58 remain partial; 52/58 require external evidence, and account-wide
+deletion and tenant-specific residency remain absent. No legal/compliance claim is made. See
+`docs/briefs/evidence/s8/session8-summary.md`.
+
+
 
 Part 49 remains partial: team-scoped versioned outbound webhooks now have encrypted one-time
 secrets, HMAC timestamped signatures, idempotency keys, bounded retries, host allowlisting and

@@ -74,7 +74,9 @@ async def purge(
                     " (SELECT MAX(a.ts) FROM audit_log a WHERE a.target_id = r.id"
                     " AND a.action = 'run.stopped') AS stop_ts,"
                     " (SELECT MAX(e.ts) FROM agent_events e WHERE e.run_id = r.id) AS last_ts"
-                    " FROM agent_runs r WHERE NOT EXISTS (SELECT 1 FROM high_impact_approvals h"
+                    " FROM agent_runs r WHERE NOT EXISTS (SELECT 1 FROM run_retention_holds l"
+                    " WHERE l.run_id = r.id)"
+                    " AND NOT EXISTS (SELECT 1 FROM high_impact_approvals h"
                     " WHERE h.run_id = r.id AND h.state IN ('pending', 'approved', 'executing'))"
                 )
             )

@@ -1018,6 +1018,23 @@ class OrchestratorService(Orchestrator):
 
             heartbeat_task = asyncio.create_task(_organization_watch())
         try:
+            if getattr(plan, "forbiddenPaths", None):
+                # The live SDK shell is not mediated by Section 5's path
+                # policy. Never treat plan metadata or prompt text as a hard
+                # constraint: until the shared executor is wired, refuse any
+                # plan that declares forbidden paths before invoking tools.
+                reason = (
+                    "execution refused: this runtime cannot enforce plan forbidden paths; "
+                    "use the Section 5 mediated executor"
+                )
+                run_data["engine_result"] = {
+                    "sessionId": run_id,
+                    "engine": "policy_blocked",
+                    "status": "error",
+                    "finalResponse": reason,
+                }
+                sm.execution_failed(reason)
+                return
             if await self._budget_gate(run_data, plan):  # Wave 9 B: no model call over cap
                 return
             if self.session_factory is not None:

@@ -4,6 +4,28 @@ Date 2026-10-18. Read-only review of source; no source changed. Sources: `collab
 
 **Scope and trust.** Callers are authenticated humans (bearer session, role re-read from DB per REST request, `contracts/.../fastapi_auth.py:27-60`). The agent worker is untrusted (it controls its workspace tree and anything it can write). Teammates are semi-trusted (can send guidance). Not covered: model-provider compromise, host/Docker-daemon compromise, TLS/SMTP transport (see `smtp-tls-policy-options.md`).
 
+## Session 8 addendum (2026-10-19)
+
+The Section 5 allow-list and `forbidden_paths` checks cover commands and edits submitted through the
+Section 5 sandbox API. The live Section 4 DeepSeek SDK path creates a `DeepSeekHarness` in the
+Section 4 worker. Session 8 confirmed that the shipped `sdk-minimal` profile's sandbox-policy mode
+defaults to `danger-full-access`. Section 4 now pins that profile and appends a mandatory
+`workspace-write` overlay scoped to the run workspace after operator transport patches. The SDK
+persistent shell still does not route commands through Section 5's allow-list, and plan
+`forbiddenPaths` cannot be selectively enforced, so Section 4 refuses execution before SDK
+invocation whenever the approved plan declares any. The SDK persistent shell still does not route
+commands through Section 5's allow-list; a common enforcement seam is still required.
+The installed SDK callback reports notifications after dispatch and does not expose a pre-tool
+authorization hook, so event inspection in the current wrapper cannot enforce the allow-list.
+
+Lifecycle review confirms that migration 0056 adds operator-managed run holds that the Section 4
+run purge honors. There is no audited hold-management API, and the event/audit retention sidecar,
+user deletion workflow and backup expiry do not honor these holds. Retention runners are opt-in, and
+part 50's deletion workflow erases authored collaboration content rather than the identity account.
+Tenant-specific residency is not enforced across storage/providers/backups.
+Independent penetration testing, provider/deployment control evidence and counsel review remain
+outside this source audit. Details and local test outcomes: `docs/briefs/evidence/s8/`.
+
 **Legend.** Test column: a named test that fails if the mitigation is removed, else `UNTESTED`. `MITIGATION NOT FOUND` = I read the code and the control is absent. `(probe)` = I reproduced it in a temp dir with `-I` Python (evidence file). Section owners: S1 identity, S4 orchestrator, S5 sandbox.
 
 ## Result summary
