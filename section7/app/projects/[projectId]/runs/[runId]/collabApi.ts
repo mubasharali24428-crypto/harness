@@ -2,7 +2,7 @@
 // routes (see section4/src/harness_orchestrator/collab.py for the rules).
 // Identity is the bearer token only; the server never trusts an actor in the
 // body. Base URL / error handling mirror planGateApi.ts.
-import { ApiError, parseApiError } from "@/lib/api";
+import { ApiError, IDENTITY_BASE, parseApiError } from "@/lib/api";
 import { PLAN_GATE_BASE } from "../../../../dashboard/planGateApi";
 
 export type ParticipantRole = "leader" | "participant" | "observer";
@@ -96,3 +96,38 @@ export const applyApproval = (runId: string, t: string, a: Approval) =>
   post<Approval>(`${root(runId)}/approvals/${encodeURIComponent(a.id)}/apply`, t, { digest: a.digest });
 export const hasUnappliedStaged = (approvals: Approval[]) => approvals.some((a) =>
   a.requester === "system:staging" && ["pending", "approved", "executing"].includes(a.state));
+
+// Server push (part 11): a one-time ticket, then a socket whose frames are only a
+// wake-up - the caller re-reads over HTTP, so a lost or duplicated frame is harmless.
+// Returns a closer. `onState(false)` means "poll faster": the socket is down.
+export function openCollabSocket(
+  projectId: string, runId: string, token: string, lastSeq: () => number,
+  onWake: () => void, onState: (live: boolean) => void,
+): () => void {
+  let ws: WebSocket | null = null;
+  let closed = false;
+  let retry: ReturnType<typeof setTimeout> | undefined;
+  const connect = async () => {
+    try {
+      const t = await post<{ ticket: string; fingerprint?: string }>(
+        `${IDENTITY_BASE}/api/v1/ws-ticket`, token, { projectId });
+      if (closed) return;
+      const base = IDENTITY_BASE.replace(/^http/, "ws");
+      const q = new URLSearchParams({ ticket: t.ticket, afterSeq: String(lastSeq()) });
+      if (t.fingerprint) q.set("fingerprint", t.fingerprint);
+      ws = new WebSocket(
+        `${base}/api/v1/ws/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/collab?${q}`);
+      ws.onopen = () => onState(true);
+      ws.onmessage = () => onWake();
+      ws.onclose = () => {
+        onState(false);
+        if (!closed) retry = setTimeout(() => void connect(), 5000);
+      };
+    } catch {
+      onState(false);
+      if (!closed) retry = setTimeout(() => void connect(), 5000);
+    }
+  };
+  void connect();
+  return () => { closed = true; clearTimeout(retry); ws?.close(); };
+}

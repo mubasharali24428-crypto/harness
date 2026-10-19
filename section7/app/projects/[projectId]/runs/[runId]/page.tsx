@@ -163,7 +163,7 @@ export default function RunDetailPage({
 
       {/* Multiplayer pilot: leader, participants, pending decisions, direction. */}
       {runId && token && <PlanGateCard token={token} principal={loadSession()?.principal ?? null} runId={runId} />}
-      {runId && <SharedRunPanel runId={runId} onStagedPendingChange={setStagedPending} />}
+      {runId && <SharedRunPanel runId={runId} projectId={projectId ?? undefined} onStagedPendingChange={setStagedPending} />}
 
       {/* Legacy working area (F1b/F2b territory this wave — untouched). It
           self-guards on session absence, so it renders nothing until the

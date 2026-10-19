@@ -17,6 +17,7 @@ import {
   type Approval, type CollabEvent, type RedirectKind, type Roster,
   hasUnappliedStaged, applyApproval, claimLeader, decideApproval, decideHandoff, getHistory, getRoster, joinRun,
   listApprovals, requestHandoff, sendRedirect,
+  openCollabSocket,
 } from "./collabApi";
 import {
   type CollabView, approvalLabel, clipDiff, deriveCollabView, describeDecision,
@@ -230,9 +231,10 @@ export function SharedRunView(p: SharedRunViewProps) {
 }
 
 const POLL_MS = 3000;
+const POLL_LIVE_MS = 20000; // safety net while the push socket is up
 
-export function SharedRunPanel({ runId, onStagedPendingChange }: {
-  runId: string; onStagedPendingChange?: (pending: boolean) => void;
+export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
+  runId: string; projectId?: string; onStagedPendingChange?: (pending: boolean) => void;
 }) {
   const session = loadSession();
   const token = session?.token ?? null;
@@ -246,6 +248,7 @@ export function SharedRunPanel({ runId, onStagedPendingChange }: {
   const [notEnabled, setNotEnabled] = useState(false);
   const [goal, setGoal] = useState<string | null>(null);
   const [reopened, setReopened] = useState<string[]>([]);
+  const [live, setLive] = useState(false);
   const lastSeq = useRef(0);
   const seen = useRef<Approval[]>([]);
 
@@ -279,9 +282,14 @@ export function SharedRunPanel({ runId, onStagedPendingChange }: {
   useEffect(() => {
     if (notEnabled) return;
     void refresh();
-    const t = setInterval(() => void refresh(), POLL_MS);
+    const t = setInterval(() => void refresh(), live ? POLL_LIVE_MS : POLL_MS);
     return () => clearInterval(t);
-  }, [refresh, notEnabled]);
+  }, [refresh, notEnabled, live]);
+
+  useEffect(() => {
+    if (!token || !projectId || notEnabled || typeof WebSocket === "undefined") return;
+    return openCollabSocket(projectId, runId, token, () => lastSeq.current, () => void refresh(), setLive);
+  }, [projectId, runId, token, notEnabled, refresh]);
 
   const act = (fn: () => Promise<unknown>) => async () => {
     if (!token) return;
