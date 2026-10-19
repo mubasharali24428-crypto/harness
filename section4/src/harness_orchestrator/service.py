@@ -47,6 +47,10 @@ from harness_orchestrator.run_queue import (
     release_timed_out_claims,
     resolve_heartbeat_timeout_seconds,
 )
+from harness_orchestrator.session_gate import (
+    check_session_run_start,
+    enforce_session_run_start,
+)
 from harness_orchestrator.signals import StagedApprovalPendingError, gate_done_signal
 from harness_orchestrator.state_machine import (
     PLAN_REJECTED_EVENT,
@@ -883,6 +887,7 @@ class OrchestratorService(Orchestrator):
             return
 
         await enforce_run_start(self, run_id, run_data.get("projectId"))  # part 39.008
+        await enforce_session_run_start(self, run_id)  # part 40.005
         sm: AgentStateMachine = run_data["state_machine"]
         # M23-A (session-2 area 16): the approval above is durable, but is it
         # still FRESH? The event log is the witness for approvals this
@@ -1860,6 +1865,10 @@ class OrchestratorService(Orchestrator):
         if await check_run_start(
             self, run_id, run_data.get("projectId") or claim.get("project_id"), where="claim"
         ):
+            await finish_run(self.run_queue_factory, run_id)
+            return False
+        # Part 40.005: same for a run whose session was paused/archived while it waited.
+        if await check_session_run_start(self, run_id, where="claim"):
             await finish_run(self.run_queue_factory, run_id)
             return False
         plan_id = run_data.get("plan_id")
