@@ -73,10 +73,11 @@ storage and search indexing also lack deploy schedulers.
 Session 8 reviewed parts 31, 52 and 58. Reports under `docs/briefs/evidence/s8/` map the directives
 and record verification. Section 4 pins the SDK `sdk-minimal` profile, applies a mandatory per-run
 `workspace-write` overlay, and refuses plans with non-empty `forbiddenPaths` before SDK invocation.
-Its shell still lacks Section 5's command allow-list. Migration 0056 adds operator-managed run holds
-that the Section 4 run purge honors; the event/audit retention sidecar, deletion workflow, and backup
-expiry do not. Parts 31/52/58 remain partial; 52/58 require external evidence, and account-wide
-deletion and tenant-specific residency remain absent. No legal/compliance claim is made. See
+Its shell still lacks Section 5's command allow-list. Migration 0056 adds team-admin run holds with
+audited create/read/release routes; Section 4 run purge, Section 1 event/audit pruning, and PostgreSQL
+event-partition retirement honor them. User deletion and backup expiry do not. Parts 31/52/58 remain
+partial; 52/58 require external evidence, and account-wide deletion and tenant-specific residency
+remain absent. No legal/compliance claim is made. See
 `docs/briefs/evidence/s8/session8-summary.md`.
 
 

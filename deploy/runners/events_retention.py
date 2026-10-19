@@ -63,7 +63,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 
 HARNESS_ROOT = Path(__file__).resolve().parents[2]
 for section in sorted(HARNESS_ROOT.glob("section*")):
@@ -151,7 +151,8 @@ def _as_utc(dt: datetime | None = None) -> datetime:
     return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt
 
 
-def build_prune_sql(table: str, ts_column: str, dialect_name: str) -> str:
+def build_prune_sql(table: str, ts_column: str, dialect_name: str,
+                    *, holds_available: bool = True) -> str:
     """Batched DELETE honoring a ts cutoff, parameterized throughout.
 
     One statement shape serves both dialects (SQLite allows a LIMIT-ed same-
@@ -162,10 +163,21 @@ def build_prune_sql(table: str, ts_column: str, dialect_name: str) -> str:
     come ONLY from this module's internal call sites, never user input.
     """
     if dialect_name in ("postgresql", "sqlite"):
+        hold_guard = ""
+        if holds_available and table == EVENTS_TABLE:
+            hold_guard = (
+                " AND NOT EXISTS (SELECT 1 FROM run_retention_holds h "
+                f"WHERE h.run_id = {table}.run_id)"
+            )
+        elif holds_available and table == AUDIT_TABLE:
+            hold_guard = (
+                " AND NOT (target_type = 'agent_run' AND EXISTS ("
+                "SELECT 1 FROM run_retention_holds h WHERE h.run_id = target_id))"
+            )
         return (
             f"DELETE FROM {table} WHERE seq IN ("
             f"SELECT seq FROM {table} "
-            f"WHERE {ts_column} < :cutoff ORDER BY seq LIMIT :batch)"
+            f"WHERE {ts_column} < :cutoff{hold_guard} ORDER BY seq LIMIT :batch)"
         )
     raise ValueError(f"unsupported dialect for retention sweep: {dialect_name}")
 
@@ -198,12 +210,26 @@ def _engine_of(factory):
     return engine, engine.url.get_backend_name()
 
 
-async def _loop_batches(session_factory, stmt, params, *, batch_size, max_batches) -> int:
+async def _retention_holds_available(factory) -> bool:
+    """Compatibility for schema-only SQLite fixtures and pre-0056 databases."""
+    engine, _ = _engine_of(factory)
+    async with engine.connect() as conn:
+        return await conn.run_sync(
+            lambda sync_conn: inspect(sync_conn).has_table("run_retention_holds")
+        )
+
+
+async def _loop_batches(session_factory, stmt, params, *, batch_size, max_batches,
+                        hold_lock: bool = False) -> int:
     """Shared batch loop: commit-per-batch, stop on the first short batch."""
     deleted_total = 0
     batches = 0
     while True:
         async with session_factory() as session:
+            if hold_lock and session.bind.dialect.name == "postgresql":
+                await session.execute(text(
+                    "SELECT pg_advisory_xact_lock(hashtextextended('run-retention-holds', 0))"
+                ))
             result = await session.execute(stmt, params)
             await session.commit()
         deleted = int(result.rowcount or 0)
@@ -228,10 +254,13 @@ async def sweep_once(factory, *, retention_days: int, batch_size: int,
     """
     cutoff = cutoff_for(retention_days, now)
     _, dialect = _engine_of(factory)
-    delete_sql = text(build_delete_sql(dialect))
+    holds_available = await _retention_holds_available(factory)
+    delete_sql = text(build_prune_sql(
+        EVENTS_TABLE, "ts", dialect, holds_available=holds_available
+    ))
     deleted_total = await _loop_batches(
         factory, delete_sql, {"cutoff": cutoff, "batch": batch_size},
-        batch_size=batch_size, max_batches=max_batches,
+        batch_size=batch_size, max_batches=max_batches, hold_lock=holds_available,
     )
     logger.info(
         "retention sweep done: %d rows deleted, cutoff=%s",
@@ -248,10 +277,14 @@ async def prune_table_once(factory, *, table: str, ts_column: str, retention_day
     sweep_once; caller supplies the table's own retention window."""
     cutoff = cutoff_for(retention_days, now)
     _, dialect = _engine_of(factory)
-    stmt = text(build_prune_sql(table, ts_column, dialect))
+    holds_available = await _retention_holds_available(factory)
+    stmt = text(build_prune_sql(
+        table, ts_column, dialect, holds_available=holds_available
+    ))
     deleted = await _loop_batches(
         factory, stmt, {"cutoff": cutoff, "batch": batch_size},
         batch_size=batch_size, max_batches=max_batches,
+        hold_lock=holds_available and table in (EVENTS_TABLE, AUDIT_TABLE),
     )
     logger.info("%s prune done: %d rows deleted, cutoff=%s", table, deleted, cutoff.isoformat())
     return deleted
@@ -417,6 +450,7 @@ async def drop_expired_partitions(factory, *, cutoff: datetime,
     if dialect != "postgresql":
         return 0
     dropped = 0
+    holds_available = await _retention_holds_available(factory)
     for name, _lower, upper in await list_event_partitions(factory):
         if max_partitions is not None and dropped >= max_partitions:
             break
@@ -425,7 +459,20 @@ async def drop_expired_partitions(factory, *, cutoff: datetime,
             continue
         if upper > cutoff or not _IDENT_RE.match(name):
             continue
+        # Preserve a partition containing held-run events.
         async with factory() as session:
+            if holds_available:
+                await session.execute(text(
+                    "SELECT pg_advisory_xact_lock(hashtextextended('run-retention-holds', 0))"
+                ))
+                held_rows = (await session.execute(text(
+                    f"SELECT EXISTS (SELECT 1 FROM {name} e "
+                    "JOIN run_retention_holds h ON h.run_id=e.run_id)"
+                ))).scalar_one()
+                if held_rows:
+                    logger.info("retention hold keeps partition %s attached", name)
+                    await session.rollback()
+                    continue
             await session.execute(text(f"ALTER TABLE {EVENTS_TABLE} DETACH PARTITION {name}"))
             await session.execute(text(f"DROP TABLE IF EXISTS {name}"))
             await session.commit()

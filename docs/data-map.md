@@ -12,18 +12,18 @@ compose profiles; unless operators enable and monitor them, expired data remains
 | Identity & sessions | `users`, `auth_sessions`, `ws_tickets`, `login_otps`, `oauth_states`, `sso_login_states`, `key_derivation_params` | identity (section1) | OTP/ticket/state rows carry `expires_at`; no general scheduled purge of expired rows or account deletion flow | Dev OTP console output exists only in explicit dev transport; production SMTP errors log type/status, not message contents (`section1/src/harness_identity/notifier.py`) |
 | Teams & settings | `teams`, `team_members`, `team_invites`, `team_settings`, `user_settings`, `team_sso_configs`, `api_keys` | identity teams/settings/api_keys modules | FK deletion story in migration 0023; no scheduled purge | API keys encrypted (vault, `crypto.py`, `reencrypt_vault.py`) |
 | Projects & work | `projects`, `meetings`, `meeting_messages`, `engineering_briefs`, `agent_plans`, `project_rules`, `context_chunks` (pgvector) | identity / orchestrator | none scheduled | `context_chunks` holds repo-derived text |
-| Runs | `agent_runs`, `run_claims`, `run_participants`, `run_handoffs`, `pull_requests`, `review_comments`, `github_connections`, `model_configs`, `run_retention_holds` | orchestrator | run rows kept; `retention.py` purges staged material only for eligible, unheld runs | holds are database-operator managed; there is no audited hold API. `github_connections` holds tokens (encrypted) |
+| Runs | `agent_runs`, `run_claims`, `run_participants`, `run_handoffs`, `pull_requests`, `review_comments`, `github_connections`, `model_configs`, `run_retention_holds` | orchestrator | run rows kept; `retention.py` purges staged material only for eligible, unheld runs | Team admins can create/read/release run holds through the audited Section 4 API; Section 1 event/audit pruning and PostgreSQL event-partition removal preserve held-run evidence. `github_connections` holds tokens (encrypted) |
 | Collaboration events | `run_collab_events` | orchestrator `collab.py` | deleted by `retention.py` for eligible runs (default 30 d, `HARNESS_RETENTION_DAYS`) | guidance text may contain sensitive content |
 | Approvals | `high_impact_approvals` | orchestrator `staging.py` | metadata (digest, paths, state) never purged; diffs blanked by retention | |
-| Event stream | `agent_events` (monthly partitions, 0028) | orchestrator + WS replay | 30 d deployment default via events-retention runner; orgs can request shorter windows in 0055 | runner is opt-in; org-specific deletes run before global retention; WS replay is bounded by stored rows |
-| Audit | `audit_log` | identity `audit.py` route | 365 d deployment default via sidecar; orgs can request shorter windows in 0055 | append-only/hash-chain while retained; retention is opt-in and shorter org window does not override global purge |
+| Event stream | `agent_events` (monthly partitions, 0028) | orchestrator + WS replay | 30 d deployment default via events-retention runner; orgs can request shorter windows in 0055 | runner is opt-in; held-run events are excluded from global deletes and prevent dropping any partition that contains held evidence; WS replay is bounded by stored rows |
+| Audit | `audit_log` | identity `audit.py` route | 365 d deployment default via sidecar; orgs can request shorter windows in 0055 | append-only/hash-chain while retained; run-targeted audit rows survive while their run hold exists; retention is opt-in and shorter org window does not override global purge |
 | Billing & cost | `billing_plans`, `cost_ledger`, `cost_ledger_daily`, `stripe_webhook_events`, `rate_buckets` | identity billing | none scheduled | Stripe never driven against live provider (part 57 gate) |
 | Delivery | `notification_outbox`, `idempotency_keys` | identity notifier | outbox 30 d (`OUTBOX_RETENTION_DAYS`) | outbox is the only notification path today |
 
 ## Files, logs, caches
 | Data class | Location | Reader | Retention / deletion | Notes |
 |---|---|---|---|---|
-| Per-run workspace (outputs) | `P1_WORKSPACE`/`DSH_WORKSPACE` per run id | sandbox/engine worker | Section 4 run-retention CLI is dry-run unless `--apply`; workspace output is kept unless `--include-workspace`; held runs are excluded | Section 4 hold applies only to this run purge, not account erasure, event/audit retention, or backups |
+| Per-run workspace (outputs) | `P1_WORKSPACE`/`DSH_WORKSPACE` per run id | sandbox/engine worker | Section 4 run-retention CLI is dry-run unless `--apply`; workspace output is kept unless `--include-workspace`; held runs are excluded | User deletion and backup expiry remain separate workflows and do not honor run holds |
 | Staging baseline + withheld files | engine session root (`DSH_SESSION_ROOT`) | orchestrator staging | removed by `retention.py` after run end unless the run has a hold | withheld material awaiting a decision is never deleted |
 | Diff store | `diffstore.py` | orchestrator | follows run retention (unverified) | crafted-diff risk: see threat model |
 | Service logs | stdout of each service | operators | operator-defined | correlation ids: see ops evidence |
@@ -39,9 +39,9 @@ compose profiles; unless operators enable and monitor them, expired data remains
 
 ## Gaps confirmed in Session 8
 
-- Migration 0056 adds operator-managed run holds honored by Section 4's run purge. There is no
-  audited create/release API; the event/audit sidecar, user deletion workflow and backup expiry do
-  not honor the table. This is a limited retention exclusion, not a complete legal-hold workflow.
+- Migration 0056 adds run holds managed by team admins through Section 4's audited API. Section 4
+  run purge, Section 1 event/audit pruning and PostgreSQL partition retirement honor active holds.
+  User deletion requests and backup expiry remain separate workflows and do not honor run holds.
 - No tenant-specific physical residency routing. Workspace `dataResidency` is a declared workspace
   field; it does not route databases, event partitions, exports, provider calls, or backups.
 - No account deletion workflow or identity-table expiry sweep. Part 50 deletion is an authored-content

@@ -7,8 +7,9 @@ Continued the Session 8 review of parts 31, 52 and 58. Section 4 fixes the SDK p
 overlay after operator patches. It also refuses approved plans with non-empty `forbiddenPaths`
 before invoking the SDK. The SDK shell still does not use Section 5's command allow-list, and path
 enforcement is all-or-nothing at run start; a common execution adapter remains necessary. Migration
-0056 adds operator-managed run-retention holds, which Section 4's run purge honors. The global
-event/audit retention worker, account deletion, and backup expiry do not honor those holds; this is
+0056 adds run-retention holds with audited team-admin create/read/release routes. Section 4 run
+purge, Section 1 global event/audit pruning, and PostgreSQL event-partition
+retirement preserve held-run evidence. User deletion and backup expiry do not honor holds; this is
 not a complete legal-hold workflow.
 
 The Session 7 prerequisite commit `f583d89` is in local history. Its continuation edits remain in the
@@ -42,14 +43,30 @@ backup expiry or external security/counsel check was run. No contracts were chan
 The installed DeepSeek SDK API was source-inspected: its callback observes notifications after
 dispatch and exposes no pre-tool authorization hook suitable for the Section 5 allow-list.
 
+## Hold lifecycle continuation
+
+Added team-admin GET/PUT/DELETE operations at `/api/v1/orchestrator/runs/{runId}/retention-hold`.
+Create and release write run-targeted audit records in the same transaction as the hold change.
+PostgreSQL advisory locks serialize hold changes with Section 4 run purge and Section 1 event/audit
+pruning; event partition retirement checks for held rows while holding the same retention lock.
+The run hold reason is stored as a bounded operator-entered note. User-authored content deletion and
+backup expiry remain outside the hold boundary.
+
+Continuation checks: Ruff passed for `deploy/runners/events_retention.py`,
+`section4/src/harness_orchestrator/retention.py` and `retention_holds.py`; Python byte-compilation
+passed for those files and the Section 4 service assembly; `git diff --check` passed. The new hold
+API and retention behavior have not had their targeted tests run, and no PostgreSQL concurrency or
+partition-retirement drill was performed.
+
 ## Remaining high-priority work
 
 1. Wire every Section 4 model/tool invocation through a common hard execution boundary with Section
    5 command allow-list and selective path checks, covering run start, queue claim, retry, agents and
    reviewers. The current SDK shell has workspace-write confinement and a run-level refusal when
    any forbidden path is declared, but it has no command allow-list integration.
-2. Add an audited hold administration flow and make event/audit retention, user deletion and backup
-   expiry honor holds. Current migration 0056 holds protect Section 4 run purge only.
+2. Extend hold coverage to authored-content deletion and backup expiry, and document the operator
+   process for evidence review and release. Current holds protect run files, run-targeted event/audit
+   rows and event partitions, while user deletion and backups remain separate.
 3. Decide account erasure and retention for identity/session/provider tables; part 50's authored
    content deletion is not complete account deletion.
 4. Obtain operator evidence for encryption, deployment roles, provider data handling and backup

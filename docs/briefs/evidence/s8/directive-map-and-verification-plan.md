@@ -41,7 +41,7 @@ list in `PROJECT-STATE.md`. The Session 7 prerequisite commit is present in loca
 |---|---|---|
 | 001 target markets/obligations | privacy/terms docs | document unresolved counsel decision; do not infer applicability |
 | 002 personal/sensitive data map | `docs/data-map.md` | refresh against current migrations and providers |
-| 003 retention, legal hold, backup expiry | event/audit retention, workspace retention, backup runbook | targeted retention tests; legal hold currently expected absent |
+| 003 retention, legal hold, backup expiry | event/audit retention, Section 4 run retention, migration 0056, audited hold API, backup runbook | review that run-file/event/audit retention and partition retirement honor holds; record user-deletion and backup-expiry gaps |
 | 004 export/deletion workflows | Section 4 search/export and org/user deletion paths | verify owner auth, scope and deletion coverage |
 | 005 subprocessors/model-provider handling | provider config and privacy docs | reconcile actual providers and disclosures |
 | 006 residency controls | deployment topology | explicitly document deployment-wide region only |

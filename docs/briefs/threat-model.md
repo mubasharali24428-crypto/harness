@@ -18,10 +18,10 @@ commands through Section 5's allow-list; a common enforcement seam is still requ
 The installed SDK callback reports notifications after dispatch and does not expose a pre-tool
 authorization hook, so event inspection in the current wrapper cannot enforce the allow-list.
 
-Lifecycle review confirms that migration 0056 adds operator-managed run holds that the Section 4
-run purge honors. There is no audited hold-management API, and the event/audit retention sidecar,
-user deletion workflow and backup expiry do not honor these holds. Retention runners are opt-in, and
-part 50's deletion workflow erases authored collaboration content rather than the identity account.
+Lifecycle review confirms that migration 0056 adds run holds with audited team-admin create/read/release
+routes. Section 4 run purge, Section 1 event/audit pruning and PostgreSQL event-partition retirement
+honor active holds. User deletion and backup expiry do not honor these holds. Retention runners are
+opt-in, and part 50's deletion workflow erases authored collaboration content rather than the identity account.
 Tenant-specific residency is not enforced across storage/providers/backups.
 Independent penetration testing, provider/deployment control evidence and counsel review remain
 outside this source audit. Details and local test outcomes: `docs/briefs/evidence/s8/`.

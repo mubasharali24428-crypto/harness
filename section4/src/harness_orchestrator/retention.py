@@ -54,6 +54,15 @@ def _rm(path: str, root: str) -> bool:
     return True
 
 
+async def _lock_run_retention(db: Any, run_id: str) -> None:
+    """Serialize a purge with hold creation/release on PostgreSQL."""
+    if db.bind.dialect.name == "postgresql":
+        await db.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:run_id, 0))"),
+            {"run_id": run_id},
+        )
+
+
 async def purge(
     factory: Any,
     workspace_root: str,
@@ -89,9 +98,18 @@ async def purge(
             and _aware(done) < cutoff
             and (r.last_ts is None or _aware(r.last_ts) < cutoff)  # resumed since => still live
         )
-        report: dict[str, Any] = {"runs": runs, "applied": apply, "removedDirs": 0}
         if not apply:
-            return report
+            return {"runs": runs, "applied": False, "removedDirs": 0}
+        eligible_runs: list[str] = []
+        for rid in runs:
+            await _lock_run_retention(db, rid)
+            held = (await db.execute(text(
+                "SELECT 1 FROM run_retention_holds WHERE run_id=:r"
+            ), {"r": rid})).first()
+            if held is None:
+                eligible_runs.append(rid)
+        runs = eligible_runs
+        report: dict[str, Any] = {"runs": runs, "applied": True, "removedDirs": 0}
         for rid in runs:
             targets = [
                 (f"{workspace_root}/.baseline/{rid}", workspace_root),

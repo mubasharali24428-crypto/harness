@@ -38,7 +38,7 @@ Row granularity is one row per part (directive groups are listed in the master p
 | 28 | Acceptance: operations | deploy, s1, s4 | partial | `evidence/s2/lane-d.md`: `alerts.yml` loads (promtool 15 rules); compose-up unverified; backup/WAL alerts inert (no emitter); no Alertmanager |
 | 29 | Security review | docs | partial | `docs/briefs/threat-model.md`: 18 threats, 11 gaps (high: T15) |
 | 30 | Quality & testing | all | verified | fresh suites, `evidence/s1/verification.md` (carried 9; one TS2344 and two section4 flakes noted) |
-| 31 | Data & privacy | s1/s4/s5/docs | partial | Data map refreshed; Section 4 refuses plans with forbidden paths and run purge honors operator-managed holds. SDK shell lacks Section 5 command allow-list; no audited hold API or account-wide deletion. `evidence/s8/part31.md` |
+| 31 | Data & privacy | s1/s4/s5/docs | partial | Data map refreshed; Section 4 refuses plans with forbidden paths; audited holds protect run purge and event/audit retention. SDK shell lacks Section 5 command allow-list; account-wide deletion remains absent. `evidence/s8/part31.md` |
 | 32 | Release strategy | deploy | implemented | `docs/runbooks/pilot.md`, `test_pilot_flag_rollback.py` (8 passed), `alerts.yml`. `HARNESS_PILOT_TEAMS` is an allowlist (empty = all teams open). Pilot-counter alerts wait on lane A metrics; staged rollout S10 |
 | 33 | Checkpoint template | docs | verified | `docs/briefs/checkpoint-template.md` |
 | 34 | Final deliverables | docs | implemented | `stable-prompt-prefix.md` |
@@ -65,7 +65,7 @@ Row granularity is one row per part (directive groups are listed in the master p
 | 55 | Observability & support | s1/s4 | partial | request id in logs; metrics gauges added; no SLOs/dashboards |
 | 56 | Accessibility, localization, clients | s7 | partial | collaboration UI done (S5): one throttled announcer, keyboard operation tests at handler level, reduced motion, Intl dates/numbers, windowed long history, `docs/accessibility.md`; no real-browser keyboard/axe/screen-reader run, English only, `html lang` fixed; rest of part 56 is S10 |
 | 57 | Billing, quotas, cost controls | s1/s4/s7 | partial (cap 8) | Tier daily-run and estimated monthly spend gates; admin-configurable team monthly cap, concurrency and warning threshold; agent-pool conditional reservations and Stripe idempotency. Daily run count is not atomically reserved; no tool-call/in-flight spend cap or alert delivery. Live Stripe/OIDC unverified. `docs/billing-and-quotas.md`, `evidence/s7/part57.md` |
-| 58 | Compliance & data lifecycle | s1/s4/docs | partial (external cap 8) | Scoped export/content deletion and opt-in retention exist; migration 0056 holds protect Section 4 run purge only. No audited hold lifecycle, full account erasure, tenant routing/residency or counsel review. `evidence/s8/part58.md` |
+| 58 | Compliance & data lifecycle | s1/s4/docs | partial (external cap 8) | Scoped export/content deletion and opt-in retention exist; audited team-admin run holds protect run purge and event/audit retention. User deletion and backup expiry do not honor holds; full account erasure, tenant routing/residency and counsel review remain. `evidence/s8/part58.md` |
 | 59 | Rollout, migration, compatibility | deploy | partial | flag + rollback runbook; staged rollout S10 |
 | 60 | Full product roadmap | docs | verified | `docs/roadmap.md` |
 | 61 | Full product acceptance | all | blocked | ledger = this file; acceptance run is S10 |

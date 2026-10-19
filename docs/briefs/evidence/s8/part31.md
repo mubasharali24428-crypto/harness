@@ -9,7 +9,7 @@
 | 003 | Implemented locally with limits | Session/API keys are hashed or vault-encrypted; audit scrubbing and notifier error handling avoid credential values. Production logging/provider boundaries were not independently inspected. |
 | 004 | Implemented locally | Run, comment, plan, artifact and guidance stores are treated as user content; visibility is scoped by auth guards and export filters. |
 | 005 | Partial | Audit/export and run-history endpoints have team/run guards; no single concise product-facing access policy lists every data class. |
-| 006 | Partial | Event/audit retention sidecar and Section 4 run-retention/deletion workflows exist. Section 4 run purge skips runs with an operator-managed `run_retention_holds` row; the opt-in event/audit sidecar and user deletion workflow do not honor this table. No account-wide purge or audited hold-management endpoint exists. |
+| 006 | Partial | Event/audit retention sidecar and Section 4 run-retention/deletion workflows exist. Team-admin hold create/read/release operations are audited, and run purge, event/audit pruning and PostgreSQL event-partition retirement preserve held-run evidence. User deletion and backup expiry do not honor holds; there is no account-wide purge. |
 | 007 | Implemented locally with limits | Section 4 exports authorize the requester, enforce size/expiry, redact secret-shaped values and audit operations; local export files depend on operator filesystem controls. |
 | 008 | Partial | Demo fixtures are synthetic by construction in the inspected runner; no global product guard prevents a user from supplying real data. |
 | 009 | Partial | `docs/data-map.md` describes telemetry fields; no complete participant-facing telemetry notice found. |
