@@ -177,9 +177,27 @@ def test_stop_route_writes_run_stopped_audit_row(db_parts, monkeypatch):
     assert res.status_code == 200, res.text
 
     rows = asyncio.run(_rows(factory))
-    assert len(rows) == 1
-    assert rows[0]["action"] == AUDIT_ACTION_RUN_STOPPED == "run.stopped"
-    assert rows[0]["actor_member_id"] == "mem-1"
+    # P2.3: request -> stop -> confirmation are each durable, in order.
+    assert [r["action"] for r in rows] == [
+        "run.cancel_requested",
+        AUDIT_ACTION_RUN_STOPPED,
+        "run.cancel_confirmed",
+    ]
+    assert AUDIT_ACTION_RUN_STOPPED == "run.stopped"
+    assert all(r["actor_member_id"] == "mem-1" for r in rows)
+
+
+def test_stop_without_confirmation_records_no_cancel_confirmed(db_parts, monkeypatch):
+    service: OrchestratorService = db_parts["service"]
+    factory = db_parts["factory"]
+    _stub_verbs(monkeypatch, service)
+    monkeypatch.setattr(service, "engine_quiesced", lambda run_id: False)
+    client = _client(monkeypatch, service, _principal())
+
+    res = client.post("/api/v1/orchestrator/runs/run-x/stop")
+    assert res.json()["status"] == "stopping"
+    rows = asyncio.run(_rows(factory))
+    assert [r["action"] for r in rows] == ["run.cancel_requested", "run.stopped"]
 
 
 def test_non_member_actor_binds_null_and_keeps_detail_identity(db_parts, monkeypatch):
@@ -194,8 +212,7 @@ def test_non_member_actor_binds_null_and_keeps_detail_identity(db_parts, monkeyp
     assert res.status_code == 200, res.text
 
     rows = asyncio.run(_rows(factory))
-    assert len(rows) == 1
-    assert rows[0]["actor_member_id"] is None
+    assert rows and all(r["actor_member_id"] is None for r in rows)
     assert json.loads(rows[0]["detail"])["userId"] == "u-ghost"
 
 
