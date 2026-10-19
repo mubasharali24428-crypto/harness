@@ -54,11 +54,35 @@ Evaluation is default deny. Collect every matching rule down the chain: role gra
 
 `policy_decision_log` (decision, subject, permission, resource, rule ids, ts). Every `authorize()` call writes a row (allow and deny). Admin query is bounded to 200 rows and a 31-day window. Retention: keep 90 days, purge by scheduled job (see the migration header); it is an operational log, the audit chain stays the record of consequence.
 
-## Enforcement wiring (lead, Session 3)
-- `require_stepup` / `require_team_stepup` (policy.py) are shared by the policy routes and two legacy routes:
-  `PATCH /teams/{id}/members/{user}` (`role.change`) and `GET /audit/export` (`export`). They apply only to teams linked to an
-  organization (`teams.org_id`); unlinked pilot teams behave as before. Tested in `test_policy_api.py`.
-- Legacy invites (`/teams/{id}/invites`) are admin-only and the admin role holds every permission, so they cannot escalate;
-  `missing_for_grant` guards org-level grants (assignments, custom roles, emergency approval).
-- Still on the legacy role check: billing, teams, settings, SSO, rules, api-keys routes and all section4 run/plan/approve/steer
-  paths. Routing them through the engine is the carry-over that keeps part 38 at `partial`.
+## Enforcement (part 38.005)
+
+One gate for both services: `contracts/src/harness_contracts/policy_enforce.py`. The pure engine moved to
+`contracts/.../policy_engine.py` (identity re-exports it from `policy.py`), so identity and orchestrator evaluate the same rules.
+
+- **Classification table.** `IDENTITY_RULES` and `ORCHESTRATOR_RULES` map (method, concrete path) to a permission or `EXEMPT`.
+  GET = `read`; run/plan control and engineer-level writes = `steer`; plan/change decisions = `approve`; admin-only routes =
+  `administer`; audit export = `export`; plan changes = `billing`. Tests fail when any OpenAPI route is unclassified
+  (`test_policy_gate.py`, `test_policy_gate_orchestrator.py`).
+- **Exempt:** `/health`, `/ready`, `/metrics`, `/auth/*`, `csp-report`, `invites/redeem`, `stepup/verify`, `/orgs/*` (own org-scoped
+  checks in `orgs.py`) and `/policy/*` (gated by `policy._gate`).
+- **Middleware** (`install_policy_gate`, installed in `make_app` and in `deploy/runners/services.app_orchestrator`). For a caller
+  whose team has `teams.org_id`, it loads the org's policy with raw SQL, evaluates the chain org > team > (project | workspace | run
+  from the path) and answers 403 `POLICY_DENIED` on deny. Every deny and every non-read allow lands in `policy_decision_log`;
+  every deny also writes a `policy.denied` audit row. Read allows are not logged (volume).
+- **Composition.** The gate is additive to each route's legacy role check: a request needs both. So policy can narrow what a
+  role allows (deny rules, custom-role limits, emergency expiry) but a policy allow cannot widen a route past its legacy check.
+  A user of an org team who is not an org member is evaluated with their team role only; org deny rules still bind them.
+- **Fail-closed.** An unclassified `/api/` route for an org team answers 403 `POLICY_UNCLASSIFIED`; any fault other than a missing
+  policy schema answers 503 `POLICY_UNAVAILABLE`. A bare schema without the org/policy tables enforces nothing.
+- **Teams without an org are untouched**, so the pilot behaves as before until a team is linked.
+- **Step-up** is wired to team role change (`role.change`), audit export (`export`) and the policy API's own mutations.
+- Legacy invites are admin-only and the admin role holds every permission, so they cannot escalate; `missing_for_grant` guards
+  org-level grants (assignments, custom roles, emergency approval).
+
+### Known limits
+- The collaboration WebSocket is not passed through the gate (it is bound by single-use, fingerprint-bound tickets).
+- `/orgs/*` routes use org roles, not the engine's deny documents or custom roles.
+- Project and workspace ids come from the URL path; the gate does not verify that the project belongs to the team (the routes'
+  own ownership checks do).
+- Non-HTTP actors (queue worker, engine) are not evaluated; they act on runs already authorised at request time.
+- Cost: an org-linked request adds about six small policy reads; no caching yet.

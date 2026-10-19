@@ -449,6 +449,18 @@ def app_orchestrator():
     from harness_orchestrator.demo import router as demo_router
 
     app.include_router(demo_router)
+
+    # Part 38.005: org policy applies to every classified run/plan route of org-linked teams
+    # (additive to authz.require_role; teams without an org are untouched).
+    from harness_contracts.policy_enforce import ORCHESTRATOR_RULES, install_policy_gate
+
+    async def _policy_principal(request):
+        try:
+            return await request.app.state.get_principal(request)
+        except Exception:  # noqa: BLE001 - the route's own dependency answers 401
+            return None
+
+    install_policy_gate(app, ORCHESTRATOR_RULES, _policy_principal, lambda _r: factory)
     return app
 
 

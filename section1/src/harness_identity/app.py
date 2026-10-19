@@ -250,6 +250,20 @@ def make_app(session_factory, settings: Settings):
     from .csp_report import router as csp_report_router
 
     app.include_router(csp_report_router)
+
+    # Part 38.005: org policy applies to every classified route of org-linked teams
+    # (additive to the legacy role checks; teams without an org are untouched).
+    from harness_contracts.policy_enforce import IDENTITY_RULES, install_policy_gate
+
+    async def _policy_principal(request):
+        try:
+            return await get_principal(request)
+        except HTTPException:
+            return None  # the route's own dependency answers 401
+
+    install_policy_gate(
+        app, IDENTITY_RULES, _policy_principal, lambda r: r.app.state.session_factory
+    )
     return app
 
 

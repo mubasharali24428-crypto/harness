@@ -111,6 +111,18 @@ async def test_orgs_policy_workspaces_on_real_postgres(env):
     assert r.status_code == 200 and r.json()["allowed"] is True, r.text
     assert (await c.get(f"/api/v1/policy/orgs/{org}/decisions", headers=ha)).status_code == 200
 
+    # --- part 38.005: the shared gate enforces org policy on a legacy route (real PG, raw SQL)
+    r = await c.get("/api/v1/audit/export", headers=ha)
+    assert r.status_code == 200, r.text
+    deny = {"doc": {"rules": [{"id": "no-audit", "effect": "deny", "permissions": ["export"],
+                               "subjects": [f"user:{alice['userId']}"]}]}}
+    r = await c.put(url, json=deny, headers=ha)
+    assert r.status_code == 200, r.text
+    r = await c.get("/api/v1/audit/export", headers=ha)
+    assert r.status_code == 403 and r.json()["error"]["code"] == "POLICY_DENIED", r.text
+    assert (await c.put(url, json=doc, headers=ha)).status_code == 200  # restore
+    assert (await c.get("/api/v1/audit/export", headers=ha)).status_code == 200
+
     # --- part 37/38 wiring: legacy team role change is step-up gated for org teams
     hb, bob = await login(c, "bob@example.com")
     assert bob["teamId"] != alice["teamId"]
@@ -134,5 +146,5 @@ async def test_orgs_policy_workspaces_on_real_postgres(env):
         actions = {a for (a,) in (await conn.execute(text("SELECT action FROM audit_log"))).all()}
     assert rep.ok, rep.problems
     assert {"org.created", "org.team_linked", "policy.saved", "stepup.verified",
-            "workspace.created", "workspace.paused", "workspace.archived",
+            "policy.denied", "workspace.created", "workspace.paused", "workspace.archived",
             "workspace.restored"} <= actions
