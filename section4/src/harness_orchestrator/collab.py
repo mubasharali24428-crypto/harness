@@ -44,7 +44,7 @@ from harness_contracts.timeutil import db_now
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, OperationalError
 
-from harness_orchestrator import domain_metrics
+from harness_orchestrator import domain_metrics, notify
 
 logger = logging.getLogger(__name__)
 
@@ -182,6 +182,22 @@ async def _event(
         },
     )
     return res.scalar()
+
+
+async def _notify(
+    db: Any, p: Principal, run_id: str, user_id: str | None, *, kind: str, source_kind: str,
+    source_id: str, **kw: Any,
+) -> None:
+    """Part 47: one inbox row for ``user_id`` in the caller's transaction. emit never raises;
+    the guard also covers a signature mistake, so a notification can never break an approval or
+    a handoff. The actor is never told about their own action."""
+    if user_id is None or user_id == p.userId:
+        return
+    try:
+        await notify.emit(db, team_id=p.teamId, user_id=user_id, run_id=run_id, kind=kind,
+                          source_kind=source_kind, source_id=source_id, **kw)
+    except Exception:  # noqa: BLE001
+        logger.warning("notification failed for run %s", run_id, exc_info=True)
 
 
 def _denied(reason: str) -> None:
@@ -637,6 +653,9 @@ async def request_handoff(
             }
             await _event(db, p, run_id, "handoff.requested", requested, None)
             await _audit(db, p, "handoff.requested", run_id, requested)
+            await _notify(db, p, run_id, to_user_id, kind="handoff", source_kind="handoff",
+                          source_id=hid, summary_code="handoff_offered",
+                          dedupe_key=f"handoff:{hid}:offered")
             await db.commit()
         except IntegrityError:
             raise CollabError(409, "HANDOFF_PENDING", "a handoff is already pending") from None
@@ -697,6 +716,9 @@ async def decide_handoff(
         }
         await _event(db, p, run_id, f"handoff.{new}", decided, None)
         await _audit(db, p, f"handoff.{new}", run_id, decided)
+        await _notify(db, p, run_id, h.from_user_id, kind="handoff", source_kind="handoff",
+                      source_id=handoff_id, summary_code=f"handoff_{new}",
+                      dedupe_key=f"handoff:{handoff_id}:{new}")
         await db.commit()
     return {"handoffId": handoff_id, "state": new, "leader": p.userId if accept else h.from_user_id}
 
@@ -807,6 +829,9 @@ async def request_approval(
             db, p, run_id, "approval.requested", aid, None, {"state": "pending"},
             {"action": action, "paths": paths, "leader": leader},
         )
+        await _notify(db, p, run_id, leader, kind="approval", source_kind="approval",
+                      source_id=aid, summary_code="approval_requested", urgent=True,
+                      dedupe_key=f"approval:{aid}")
         await db.commit()
         row = await _get_approval(db, run_id, aid)
     return {**_view(row), "designatedApprover": leader}

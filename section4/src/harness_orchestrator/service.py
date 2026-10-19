@@ -151,6 +151,13 @@ _EVENT_STATE_MAP: dict[str, AgentState] = {
     EventType.PR_OPENED.value: AgentState.PR_OPENED,
 }
 
+# Part 47: run events that put a row in the run participants' inbox -> (kind, summary_code).
+_RUN_PROBLEMS: dict[str, tuple[str, str]] = {
+    EventType.ENGINE_FAILED.value: ("failure", "run_failed"),
+    EventType.REVIEW_FAILED.value: ("failure", "review_failed"),
+    EventType.BLOCKED_AWAITING_CLARIFICATION.value: ("blocked", "run_blocked"),
+}
+
 
 class OrchestratorService(Orchestrator):
     """Section 4 Orchestration Engine implementing the Orchestrator Protocol.
@@ -265,6 +272,38 @@ class OrchestratorService(Orchestrator):
                 del self._publish_chains[rid]
 
         task.add_done_callback(_chain_done)
+        problem = _RUN_PROBLEMS.get(str(getattr(event_type, "value", event_type)))
+        if problem is not None and self.session_factory is not None:
+            ntask = loop.create_task(self._notify_run_problem(run_id, *problem))
+            self._bg_tasks.add(ntask)
+            ntask.add_done_callback(self._bg_tasks.discard)
+
+    async def _notify_run_problem(self, run_id: str, kind: str, code: str) -> None:
+        """Part 47: tell the run's leader and participants (not observers) in-app. Own session:
+        the event is not inside a request transaction. Never raises into the run."""
+        from sqlalchemy import text
+
+        from harness_orchestrator import notify
+
+        try:
+            async with self.session_factory() as db:
+                rows = (
+                    await db.execute(
+                        text(
+                            "SELECT user_id, team_id FROM run_participants"
+                            " WHERE run_id = :r AND role IN ('leader', 'participant')"
+                        ),
+                        {"r": run_id},
+                    )
+                ).all()
+                for r in rows:
+                    await notify.emit(
+                        db, team_id=r.team_id, user_id=r.user_id, kind=kind, source_kind="run",
+                        source_id=run_id, run_id=run_id, summary_code=code,
+                    )
+                await db.commit()
+        except Exception:  # noqa: BLE001 - a notification must never disturb a run
+            logger.warning("run notification failed for %s", run_id, exc_info=True)
 
     async def _publish_ordered(
         self, prev: asyncio.Task | None, event_type, project_id, payload, run_id

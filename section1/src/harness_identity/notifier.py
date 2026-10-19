@@ -472,6 +472,16 @@ class NotificationWorker:
             except Exception:  # noqa: BLE001 — one bad drain must never kill the worker
                 logger.exception("notification drain failed")
                 unhealthy = True
+            try:  # part 47: opt-in inbox email; its failures never stop the loop
+                from . import notifications
+
+                now = datetime.now(UTC)
+                await notifications.deliver_due(self.session_factory, now, settings=self.settings)
+                await notifications.run_digests(self.session_factory, now, settings=self.settings)
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001
+                logger.exception("inbox email delivery failed")
             self._unhealthy_streak = self._unhealthy_streak + 1 if unhealthy else 0
             delay = self.poll_interval * (2 ** min(self._unhealthy_streak, 5))
             await asyncio.sleep(delay)
