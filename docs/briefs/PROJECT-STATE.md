@@ -192,6 +192,15 @@ linked from `/settings`). The person types their email; the card says up front w
 says nothing was changed, an unknown failure does not claim to know; the local session is cleared only when the server confirms. 15 tests,
 11 mutants killed. Not covered: no browser run (node-env static render only), and `apiFetch` in `src/lib/api.ts` is now exported for it.
 
+### 3g-9. Expired identity rows are swept
+
+`events_retention.prune_identity_expired_once` (in the opt-in `events-retention` sidecar, also part of `run_sweep`) deletes rows that expired
+more than a day ago from `login_otps`, `auth_sessions`, `ws_tickets`, `oauth_states` and `sso_login_states` in batches; before, only some
+were removed as a side effect of minting a new one, so an idle system kept them (with user and team ids) indefinitely. Expiry is a timestamp in
+two tables and ISO text in three, so the comparison is typed per table. Invites are left alone (history). Tests `test_identity_expiry.py` (5,
+sqlite) and `test_session11_pg.py::test_expired_identity_rows_are_pruned_on_the_real_schema` (PG 18); 7 mutants killed, one only by the PG test.
+Only runs where the sidecar is deployed and monitored, like the other retention windows.
+
 ## 3e. Session 7 result
 
 Part 49 remains partial: team-scoped versioned outbound webhooks have encrypted one-time secrets,
@@ -254,7 +263,7 @@ Every Session 11 change has now run on a real PostgreSQL 18 (§3g-8); no PG-only
 3. Part 14 limits: the project-stream envelope has no schema version; `STALE_CLIENT_STATE` has no emitter.
 4. Part 49: no issue-tracker or chat adapter, no sandboxed extensions (large); GitHub's default scope still permits public-repo writes.
 5. Parts 48/50: index sync and export purge run in every replica (not leader-elected); artifacts live on local disk.
-6. Part 57: in-flight engine spend is an estimate. Parts 31/58: backups expired outside the scripts are not covered; no identity-table expiry sweep.
+6. Part 57: in-flight engine spend is an estimate. Parts 31/58: backups expired outside the scripts are not covered.
 7. Part 11/29: the audit chain has no external anchor.
 8. Parts 28/55: no Alertmanager route or delivery destination (a config can be written, not exercised without compose); Part 54: no fresh load run.
 Not a gap: a paused workspace only blocks new starts, by design (`workspace_gate.py` docstring).

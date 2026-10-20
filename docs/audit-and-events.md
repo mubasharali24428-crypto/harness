@@ -50,7 +50,7 @@ team-scoped. Nobody else has a read path.
 | Who seals | a deferred constraint trigger (`audit_log_seal`) at COMMIT, so ORM writers and raw-SQL writers are both chained and the head lock is taken last (no lock-order deadlock with collaboration rows) |
 | Update refusal | trigger `audit_log_no_update` raises `audit_log is append-only (seq N)` for any UPDATE except the one-time sealing (`row_hash` NULL to value, content unchanged). The ORM also refuses update/delete (`s1/audit.py` `register_append_only_guard`) |
 | Delete | allowed at the database (retention needs it) |
-| Retention | `events_retention.py` prunes `audit_log` by `ts` (365 days, `AUDIT_RETENTION_DAYS`, opt-in profile). Verification treats a pruned prefix as anchored at the first surviving row and reports `pruned_prefix` |
+| Retention | `events_retention.py` also deletes expired sign-in codes, sessions, OAuth/SSO states and WebSocket tickets (one day after expiry); it prunes `audit_log` by `ts` (365 days, `AUDIT_RETENTION_DAYS`, opt-in profile). Verification treats a pruned prefix as anchored at the first surviving row and reports `pruned_prefix` |
 | Backfill | rows that existed before 0036 are sealed by the migration in `seq` order (`test_migration_backfills_pre_existing_rows`) |
 | Rollback | in the migration header (drop triggers, functions, `audit_chain_head`, three columns); no test runs it |
 | Allowlist | `write_audit` raises on an action outside `APPEND_ONLY_ACTIONS`; raw-SQL writers are not checked against it |

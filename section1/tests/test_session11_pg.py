@@ -35,6 +35,12 @@ _spec = importlib.util.spec_from_file_location(
 migrate_mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(migrate_mod)
 
+_ret = importlib.util.spec_from_file_location(
+    "events_retention_s11", ROOT / "deploy" / "runners" / "events_retention.py"
+)
+retention = importlib.util.module_from_spec(_ret)
+_ret.loader.exec_module(retention)
+
 # CHECK constraints a generic filler cannot guess.
 FILL = {
     ("notification_inbox", "kind"): "budget", ("notification_inbox", "source_kind"): "team",
@@ -277,3 +283,33 @@ async def test_no_real_table_with_personal_data_is_forgotten(env):
     assert found - known == set(), f"decide purge or keep for: {sorted(found - known)}"
     # erasure deletes from the purge tables; a RESTRICT/NO ACTION foreign key into one refuses it
     assert [dict(b) for b in blocking] == []
+
+
+# ------------------------------------------------------------- expired identity rows
+
+
+async def test_expired_identity_rows_are_pruned_on_the_real_schema(env):
+    """Two of the five tables keep expiry as a timestamp, three as ISO text: both must compare."""
+    import asyncpg
+    now = datetime.now(UTC)
+    when = {"long": now - timedelta(days=3), "just": now - timedelta(hours=1),
+            "live": now + timedelta(hours=1)}
+    text_keys = (("ws_tickets", "token_hash"), ("oauth_states", "state"),
+                 ("sso_login_states", "state_hash"))
+    conn = await asyncpg.connect(env.dsn)
+    try:
+        await conn.execute("SET session_replication_role = replica")  # parents are not the point
+        for tag, at in when.items():
+            await fill(conn, "login_otps", id=f"otp-{tag}", email=f"{tag}@a.io", expires_at=at)
+            await fill(conn, "auth_sessions", token_hash=f"sess-{tag}", expires_at=at)
+            for table, key in text_keys:
+                await fill(conn, table, **{key: f"{table}-{tag}", "expires_at": at.isoformat()})
+        out = await retention.prune_identity_expired_once(env.factory, batch_size=100)
+        assert out == dict.fromkeys(
+            ("login_otps", "auth_sessions", "ws_tickets", "oauth_states", "sso_login_states"), 1)
+        for table, key in (("login_otps", "id"), ("auth_sessions", "token_hash"), *text_keys):
+            left = sorted(r[0].rsplit("-", 1)[-1] for r in await conn.fetch(
+                f"SELECT {key} FROM {table}"))
+            assert left == ["just", "live"], table
+    finally:
+        await conn.close()

@@ -9,7 +9,7 @@ compose profiles; unless operators enable and monitor them, expired data remains
 ## Database tables (Postgres, owner: section1 migrations)
 | Data class | Tables | Reader (code) | Retention / deletion rule | Notes |
 |---|---|---|---|---|
-| Identity & sessions | `users`, `auth_sessions`, `ws_tickets`, `login_otps`, `oauth_states`, `sso_login_states`, `key_derivation_params` | identity (section1) | OTP/ticket/state rows carry `expires_at`; no general scheduled purge of expired rows; `POST /api/v1/account/erasure` pseudonymises the account (see Gaps, below) | Dev OTP console output exists only in explicit dev transport; production SMTP errors log type/status, not message contents (`section1/src/harness_identity/notifier.py`) |
+| Identity & sessions | `users`, `auth_sessions`, `ws_tickets`, `login_otps`, `oauth_states`, `sso_login_states`, `key_derivation_params` | identity (section1) | OTP/ticket/state rows carry `expires_at`; the opt-in `events-retention` sidecar deletes rows expired more than a day ago from `login_otps`, `auth_sessions`, `ws_tickets`, `oauth_states` and `sso_login_states` (`prune_identity_expired_once`); invites are kept as history; `POST /api/v1/account/erasure` pseudonymises the account (see Gaps, below) | Dev OTP console output exists only in explicit dev transport; production SMTP errors log type/status, not message contents (`section1/src/harness_identity/notifier.py`) |
 | Teams & settings | `teams`, `team_members`, `team_invites`, `team_settings`, `user_settings`, `team_sso_configs`, `api_keys` | identity teams/settings/api_keys modules | FK deletion story in migration 0023; no scheduled purge | API keys encrypted (vault, `crypto.py`, `reencrypt_vault.py`) |
 | Projects & work | `projects`, `meetings`, `meeting_messages`, `engineering_briefs`, `agent_plans`, `project_rules`, `context_chunks` (pgvector) | identity / orchestrator | none scheduled | `context_chunks` holds repo-derived text |
 | Runs | `agent_runs`, `run_claims`, `run_participants`, `run_handoffs`, `pull_requests`, `review_comments`, `github_connections`, `model_configs`, `run_retention_holds` | orchestrator | run rows kept; `retention.py` purges staged material only for eligible, unheld runs | Team admins can create/read/release run holds through the audited Section 4 API; Section 1 event/audit pruning and PostgreSQL event-partition removal preserve held-run evidence. `github_connections` holds tokens (encrypted) |
@@ -56,7 +56,7 @@ compose profiles; unless operators enable and monitor them, expired data remains
   a guard test fails for any new table with a personal column that is in no list). Authored text is removed by a
   Part 50 deletion request, which honors holds. Run on PostgreSQL 18 against the full migration chain
   (`section1/tests/test_session11_pg.py`, which also scans every real table for personal columns); the screen is
-  `/settings/account`. No identity-table expiry sweep.
+  `/settings/account`.
 - Event/audit retention is only active when the opt-in retention sidecar is deployed and monitored.
 - Section 4 now pins the SDK `sdk-minimal` profile and adds a per-run `workspace-write` policy overlay
   after operator patches. Runs whose approved plan has non-empty `forbiddenPaths` are refused before

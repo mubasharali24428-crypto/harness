@@ -88,6 +88,18 @@ EVENTS_TABLE = "agent_events"
 OUTBOX_TABLE = "notification_outbox"
 AUDIT_TABLE = "audit_log"
 
+# Parts 31/58: credentials and one-shot states that are useless once expired. A day of grace covers
+# clock skew between replicas; nothing live or recently expired is touched.
+# (table, primary key, expiry column, expiry stored as UTC ISO text rather than a timestamp)
+IDENTITY_EXPIRY = (
+    ("login_otps", "id", "expires_at", False),
+    ("auth_sessions", "token_hash", "expires_at", False),
+    ("ws_tickets", "token_hash", "expires_at", True),
+    ("oauth_states", "state", "expires_at", True),
+    ("sso_login_states", "state_hash", "expires_at", True),
+)
+IDENTITY_GRACE = timedelta(days=1)
+
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 # Partition bound text, e.g. FOR VALUES FROM ('2026-09-01 00:00:00+00') TO
 # ('2026-10-01 00:00:00+00'); MINVALUE/MAXVALUE mark open-ended edges.
@@ -305,6 +317,31 @@ async def prune_outbox_once(factory, *, retention_days: int, batch_size: int,
     logger.info("notification_outbox prune done: %d rows deleted, cutoff=%s",
                 deleted, cutoff.isoformat())
     return deleted
+
+
+async def prune_identity_expired_once(factory, *, batch_size: int, max_batches: int | None = None,
+                                      now: datetime | None = None) -> dict[str, int]:
+    """Delete sign-in codes, sessions, OAuth/SSO states and WebSocket tickets that expired more than
+    a day ago, in batches. Some were only swept as a side effect of minting a new one, so an idle
+    system kept them (with the user and team ids in them) indefinitely. A table the schema does not
+    have is skipped."""
+    cutoff = _as_utc(now) - IDENTITY_GRACE
+    engine, _ = _engine_of(factory)
+    async with engine.connect() as conn:
+        present = await conn.run_sync(lambda c: set(inspect(c).get_table_names()))
+    out: dict[str, int] = {}
+    for table, key, col, as_text in IDENTITY_EXPIRY:
+        if table not in present:
+            out[table] = 0
+            continue
+        stmt = text(f"DELETE FROM {table} WHERE {key} IN "
+                    f"(SELECT {key} FROM {table} WHERE {col} < :cutoff LIMIT :batch)")
+        out[table] = await _loop_batches(
+            factory, stmt,
+            {"cutoff": cutoff.isoformat() if as_text else cutoff, "batch": batch_size},
+            batch_size=batch_size, max_batches=max_batches)
+    logger.info("identity expiry prune done: %s, cutoff=%s", out, cutoff.isoformat())
+    return out
 
 
 async def prune_org_retention_once(factory, *, batch_size: int,
@@ -569,6 +606,12 @@ async def run_sweep(factory, *, retention_days: int, batch_size: int,
         "notification_outbox_deleted": await prune_outbox_once(
             factory, retention_days=outbox_retention_days, batch_size=batch_size, now=now_utc
         ),
+        **{
+            f"{table}_expired_deleted": n
+            for table, n in (await prune_identity_expired_once(
+                factory, batch_size=batch_size, now=now_utc
+            )).items()
+        },
         "audit_log_deleted": await prune_table_once(
             factory, table=AUDIT_TABLE, ts_column="ts",
             retention_days=audit_retention_days, batch_size=batch_size, now=now_utc,
