@@ -108,6 +108,23 @@ class FakeGitHub:
         if "/pulls/" in path and method == "GET":
             n = int(path.rstrip("/").rsplit("/", 1)[-1])
             return Response(200, json=self.prs[n])
+        if path.split("?")[0].endswith("/issues") and method == "GET":
+            return Response(
+                200,
+                json=[
+                    {"number": 1, "title": "bug", "state": "open",
+                     "html_url": "https://github.com/org/repo/issues/1"},
+                    {"number": 2, "title": "pr", "state": "open",
+                     "html_url": "https://github.com/org/repo/pull/2", "pull_request": {}},
+                ],
+            )
+        if path.endswith("/issues") and method == "POST":
+            n = sum(1 for m, u, _ in self.requests if m == "POST" and u.endswith("/issues"))
+            return Response(
+                201,
+                json={"number": n, "title": body["title"], "state": "open",
+                      "html_url": f"https://github.com/org/repo/issues/{n}"},
+            )
         return Response(404, json={"message": "not found"})
 
     def transport(self) -> MockTransport:

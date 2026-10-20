@@ -1,19 +1,20 @@
 import time
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 import harness_contracts as contracts
 import httpx
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.security import HTTPBearer
 from harness_contracts import KeyVault, Principal, make_bearer_dep
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from .client import GITHUB_WEB, MergeGuardViolation
 from .config import Settings
+from .service import GitHubWritesDisabledError, WriteInProgressError
 from .state_store import consume_oauth_state, insert_oauth_state
 
 router = APIRouter(prefix=contracts.API_PREFIX)
@@ -57,6 +58,13 @@ def make_app(session_factory, settings: Settings):
         app.state.bus = LocalEventBus(session_factory)
     except Exception:  # noqa: BLE001 — no DB wired: emit nothing
         app.state.bus = None
+
+    @app.exception_handler(GitHubWritesDisabledError)
+    async def writes_disabled(request: Request, exc: GitHubWritesDisabledError):
+        return JSONResponse(
+            status_code=403,
+            content={"detail": {"error": {"code": "GITHUB_WRITES_DISABLED", "message": str(exc)}}},
+        )
 
     @app.get("/health")
     async def health():
@@ -391,6 +399,84 @@ async def open_draft_pr(project_id: str, body: DraftPRBody, service: ServiceDep)
     except StagingGateUnavailableError as exc:
         raise HTTPException(
             status_code=503, detail={"error": {"code": "STAGING_UNAVAILABLE", "message": str(exc)}}
+        ) from exc
+
+
+class WritesBody(BaseModel):
+    enabled: bool
+
+
+@router.get("/projects/{project_id}/github/writes")
+async def get_github_writes(project_id: str, service: ServiceDep) -> dict:
+    svc, principal = service
+    try:
+        return await svc.writesEnabled(project_id, team_id=principal.teamId)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.put("/projects/{project_id}/github/writes")
+async def set_github_writes(project_id: str, body: WritesBody, service: ServiceDep) -> dict:
+    svc, principal = service
+    if principal.role != contracts.Role.ADMIN:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": {
+                    "code": "FORBIDDEN",
+                    "message": "only a team admin can change GitHub write access",
+                }
+            },
+        )
+    try:
+        return await svc.setWritesEnabled(project_id, body.enabled, team_id=principal.teamId)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/projects/{project_id}/issues")
+async def list_issues(
+    project_id: str,
+    service: ServiceDep,
+    state: Literal["open", "closed", "all"] = "open",
+) -> dict:
+    svc, principal = service
+    try:
+        return await svc.listIssues(principal.userId, project_id, state, team_id=principal.teamId)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+class IssueBody(BaseModel):
+    title: str = Field(min_length=1, max_length=256)
+    bodyMd: str = Field(default="", max_length=65536)
+
+
+@router.post("/projects/{project_id}/issues", status_code=201)
+async def create_issue(
+    project_id: str,
+    body: IssueBody,
+    service: ServiceDep,
+    idempotency_key: Annotated[
+        str, Header(alias="Idempotency-Key", min_length=8, max_length=200)
+    ],
+) -> dict:
+    svc, principal = service
+    try:
+        return await svc.createIssue(
+            principal.userId,
+            project_id,
+            body.title,
+            body.bodyMd,
+            idempotency_key,
+            team_id=principal.teamId,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except WriteInProgressError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"error": {"code": "IDEMPOTENCY_IN_PROGRESS", "message": str(exc)}},
         ) from exc
 
 

@@ -53,8 +53,8 @@ async def seed(db):
         )
         await s.execute(
             text(
-                "INSERT INTO projects (id, team_id, name, repo_full_name)"
-                " VALUES ('p1','t1','demo','org/repo')"
+                "INSERT INTO projects (id, team_id, name, repo_full_name, github_writes_enabled)"
+                " VALUES ('p1','t1','demo','org/repo', 1)"
             )
         )
         await s.commit()

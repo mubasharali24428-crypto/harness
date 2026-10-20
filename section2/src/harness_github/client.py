@@ -155,6 +155,29 @@ class GitHubClient:
             "state": pr["state"],
         }
 
+    async def list_issues(self, repo: str, state: str) -> list[dict]:
+        resp = await self._request("GET", f"/repos/{repo}/issues?state={state}&per_page=50")
+        resp.raise_for_status()
+        # GitHub's issues endpoint also returns pull requests; they are not issues here.
+        return [
+            {"number": i["number"], "title": i["title"], "state": i["state"], "url": i["html_url"]}
+            for i in resp.json()
+            if "pull_request" not in i
+        ]
+
+    async def create_issue(self, repo: str, title: str, body_md: str) -> dict:
+        resp = await self._request(
+            "POST", f"/repos/{repo}/issues", {"title": title, "body": body_md}
+        )
+        resp.raise_for_status()
+        issue = resp.json()
+        return {
+            "number": issue["number"],
+            "title": issue["title"],
+            "state": issue["state"],
+            "url": issue["html_url"],
+        }
+
     async def get_pr(self, repo: str, number: int) -> dict:
         resp = await self._request("GET", f"/repos/{repo}/pulls/{number}")
         resp.raise_for_status()

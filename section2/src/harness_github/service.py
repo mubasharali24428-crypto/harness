@@ -1,3 +1,5 @@
+import json
+
 import httpx
 from harness_contracts import KeyVault
 from sqlalchemy import text
@@ -5,7 +7,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .client import GitHubClient
 from .pr_open import record_pr_opened
-from .store import connect_repo, get_repo_full_name, get_user_token
+from .store import (
+    connect_repo,
+    get_repo_full_name,
+    get_user_token,
+    read_write_key,
+    release_write_key,
+    reserve_write_key,
+    set_writes_enabled,
+    store_write_result,
+    writes_enabled,
+)
 
 
 class StagedChangesPendingError(RuntimeError):
@@ -13,6 +25,14 @@ class StagedChangesPendingError(RuntimeError):
 
 
 class StagingGateUnavailableError(RuntimeError):
+    pass
+
+
+class GitHubWritesDisabledError(RuntimeError):
+    pass
+
+
+class WriteInProgressError(RuntimeError):
     pass
 
 
@@ -41,6 +61,20 @@ class GitHubService:
         await connect_repo(self._db, project_id, team_id, repo_full_name)
         return {"projectId": project_id, "repoFullName": repo_full_name}
 
+    async def writesEnabled(self, project_id: str, *, team_id: str) -> dict:
+        enabled = await writes_enabled(self._db, project_id, team_id)
+        return {"projectId": project_id, "githubWritesEnabled": enabled}
+
+    async def setWritesEnabled(self, project_id: str, enabled: bool, *, team_id: str) -> dict:
+        await set_writes_enabled(self._db, project_id, team_id, enabled)
+        return {"projectId": project_id, "githubWritesEnabled": enabled}
+
+    async def _require_writes(self, project_id: str, team_id: str) -> None:
+        if not await writes_enabled(self._db, project_id, team_id):
+            raise GitHubWritesDisabledError(
+                "GitHub writes are off for this project; a team admin must turn them on"
+            )
+
     async def readRepoTree(
         self, user_id: str, project_id: str, ref: str, *, team_id: str
     ) -> list[dict]:
@@ -58,6 +92,7 @@ class GitHubService:
     async def createBranch(
         self, user_id: str, project_id: str, base_ref: str, new_branch: str, *, team_id: str
     ) -> dict:
+        await self._require_writes(project_id, team_id)
         client, _ = await self._client_for(user_id)
         repo = await get_repo_full_name(self._db, project_id, team_id)
         sha = await client.create_branch(repo, base_ref, new_branch)
@@ -73,6 +108,7 @@ class GitHubService:
         *,
         team_id: str,
     ) -> dict:
+        await self._require_writes(project_id, team_id)
         client, _ = await self._client_for(user_id)
         repo = await get_repo_full_name(self._db, project_id, team_id)
         parent_sha = await client.get_ref_sha(repo, branch)
@@ -96,6 +132,7 @@ class GitHubService:
         *,
         team_id: str,
     ) -> dict:
+        await self._require_writes(project_id, team_id)
         from .pr_open import run_id_from_branch
 
         repo = await get_repo_full_name(self._db, project_id, team_id)
@@ -138,6 +175,40 @@ class GitHubService:
         if emitted is not None:
             return {**pr, "prId": emitted["prId"]}
         return pr
+
+    async def listIssues(self, user_id: str, project_id: str, state: str, *, team_id: str) -> dict:
+        client, _ = await self._client_for(user_id)
+        repo = await get_repo_full_name(self._db, project_id, team_id)
+        return {"projectId": project_id, "items": await client.list_issues(repo, state)}
+
+    async def createIssue(
+        self,
+        user_id: str,
+        project_id: str,
+        title: str,
+        body_md: str,
+        idempotency_key: str,
+        *,
+        team_id: str,
+    ) -> dict:
+        await self._require_writes(project_id, team_id)
+        if not await reserve_write_key(self._db, project_id, idempotency_key, "create_issue"):
+            stored = await read_write_key(self._db, project_id, idempotency_key)
+            if stored is None:
+                raise WriteInProgressError(
+                    "an earlier request with this Idempotency-Key is still running"
+                )
+            return json.loads(stored)
+        try:
+            client, _ = await self._client_for(user_id)
+            repo = await get_repo_full_name(self._db, project_id, team_id)
+            issue = await client.create_issue(repo, title, body_md)
+        except BaseException:
+            # Free the key so the caller can retry; nothing was created on GitHub.
+            await release_write_key(self._db, project_id, idempotency_key)
+            raise
+        await store_write_result(self._db, project_id, idempotency_key, json.dumps(issue))
+        return issue
 
     async def getPRStatus(
         self, user_id: str, project_id: str, pr_number: int, *, team_id: str
