@@ -1,6 +1,6 @@
 # Harness Multiplayer AI — project state and resume guide
 
-Updated 2026-10-20 (Session 11 start; sessions 8-10 summarised in §2). Read this first in a new session, then `docs/briefs/path-to-9-plan.md`,
+Updated 2026-10-20 (Session 11, end of day; sessions 8-10 summarised in §2). Read this first in a new session, then `docs/briefs/path-to-9-plan.md`,
 `docs/briefs/capability-matrix.md` and `docs/briefs/path-to-9-checkpoint.md`. The repository is the source of truth:
 re-verify any number below before relying on it. Nothing here is a claim of readiness for real users (see "Not cleared").
 
@@ -242,15 +242,35 @@ section1 pytest 859 passed/27 skipped; section4 pytest 979 passed/32 skipped; ru
 `run_smoke.py --otp` passed (after one failure fixed by lane U). **Not run:** `make gate`, `make e2e*` beyond the smoke leg, `pip-audit`,
 `--real`, Linux Landlock, section5 suite, a multi-process race, browser tests of the new UI handlers.
 
-## 5. Open work, in order
+## 5. Open work
 
-1. ~~Part 38 enforcement carry-over~~ done (`evidence/s3/part38-enforcement.md`). Remaining limits are in `docs/permissions.md`.
-2. ~~Sessions 4 and 5~~ done. Session 6 integrated; next Session 7 (49, 51, 57) per
-   `path-to-9-plan.md`. Part 44 closed locally by `00a1412` (see `evidence/s6/part44-version-approval.md`).
-3. Backend gaps from earlier: no UI to file/amend a proposal; ~~approvals API lacks a decision timestamp~~ (done, §3g-7); part 12 item 009 and
-   responsive layout untested; audit chain has no external anchor; browser socket connection not asserted in e2e.
-4. Workspace gaps: none open (quota race closed in §3g-5; purge job, archive-stop and resume gate in §3g).
-5. Dev SQLite has no `teams.org_id` (migration 0038 adds it on Postgres); `require_team_stepup` tolerates that.
+Where it stands (matrix, 61 parts): 34 verified, 11 implemented, 14 partial, 2 blocked (03, 61). Broad rollout is NO-GO (§7). Nothing is pushed.
+Every Session 11 change has now run on a real PostgreSQL 18 (§3g-8); no PG-only gap is known in it.
+
+**A. Doable here, nothing blocks it** (roughly by value):
+1. UI to file or amend a proposal (Parts 12/24). The matrix calls it "not a directive": staged approvals come from the engine path.
+2. Part 38 limits (`docs/permissions.md`): the collaboration WebSocket and `/orgs/*` are not engine-gated; the gate trusts project/workspace ids
+   from the URL path; no caching of the ~6 policy reads per org-linked request.
+3. Part 14 limits: the project-stream envelope has no schema version; `STALE_CLIENT_STATE` has no emitter.
+4. Part 49: no issue-tracker or chat adapter, no sandboxed extensions (large); GitHub's default scope still permits public-repo writes.
+5. Parts 48/50: index sync and export purge run in every replica (not leader-elected); artifacts live on local disk.
+6. Part 57: in-flight engine spend is an estimate. Parts 31/58: backups expired outside the scripts are not covered; no identity-table expiry sweep.
+7. Part 11/29: the audit chain has no external anchor.
+8. Parts 28/55: no Alertmanager route or delivery destination (a config can be written, not exercised without compose); Part 54: no fresh load run.
+Not a gap: a paused workspace only blocks new starts, by design (`workspace_gate.py` docstring).
+
+**B. Blocked by another lane's uncommitted files** (leave them to their owner):
+- T13b, the OTP attempt counter and redeem race (`section1/.../auth.py` carries uncommitted SMTP edits; recipe in `threat-model.md`).
+- Part 52 shell allow-list (§3g-6): needs a runtime pre-tool hook or the image boundary in `worker.Dockerfile`.
+- `section2` and the ~100 other dirty files in §6.
+
+**C. Needs the outside world:** a real pilot cohort (03, 61); live SSO (37); failure drills and a WAL-G restore (53, 59); counsel review (58); a
+pentest; a screen-reader and axe run (12, 56); Docker for compose-based checks (`make e2e*`, `make pg-probe-*`, the four `docker exec` tests, the
+terminal-panel and responsive-layout legs of Part 12).
+
+Done and struck from the old list: Part 38 enforcement, Sessions 4-6, approvals decision time (§3g-7), workspace gaps (§3g, §3g-5), PG verification
+of Session 11 (§3g-8), erasure screen (§3g-8).
+Also: dev SQLite has no `teams.org_id` (migration 0038 adds it on Postgres); `require_team_stepup` tolerates that.
 
 ## 6. Facts that bite
 
