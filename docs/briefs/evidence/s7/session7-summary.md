@@ -33,19 +33,20 @@ tests; it was corrected to the repository's `test_billing.py` and `test_stripe_a
 
 ## Matrix decisions and limits
 
-- **49 partial.** Outbound webhook delivery is implemented and locally tested. GitHub's `repo`
-  scope is broad; there is no issue-tracker or chat adapter, third-party extension sandbox, common
+- **49 partial.** Outbound webhook delivery is implemented and locally tested. GitHub defaults to
+  `public_repo read:user`, which still grants public-repository write access; there is no issue-tracker or chat adapter, third-party extension sandbox, common
   provider health API, or automated compatibility checker. Live provider connections were not
   tested.
 - **51 partial.** The governance page exposes member/role/policy/emergency/history APIs, policy
-  simulation, and an audited organization execution stop. Policy updates do not use dual approval;
-  retention/residency/deletion configuration is still absent. Active runs stop cooperatively as
+  simulation, and an audited organization execution stop. High-risk changes can require a second
+  step-up protected admin; owners can shorten event/audit retention. Tenant-specific physical
+  residency remains unsupported. Active runs stop cooperatively as
   workers observe the organization setting.
-- **57 partial (cap 8).** Local run-start tier/spend gates, configurable team monthly/concurrency
-  limits, warning threshold, agent-pool reservations and Stripe event deduplication are present.
-  Daily run count is not atomically reserved; tool-call/in-flight spend caps and alert delivery are
-  absent. Live Stripe/OIDC, refunds and reconciliation remain externally unverified. The pilot
-  should not be described as live-billing ready.
+- **57 partial.** Local run-start tier/spend gates, configurable team monthly/concurrency
+  limits, warning threshold, agent-pool reservations, atomic daily run reservations and durable
+  per-run tool-call enforcement are present. In-flight engine spend remains estimate-based and
+  alert delivery is absent. Stripe is intentionally out of scope (owner direction); no score cap depends on Stripe.
+  Refunds and reconciliation are not part of the current pilot.
 - Part 44 remains partial as recorded in Session 6.
 
 No full Section 1/2/4/7 suite or PostgreSQL migration/smoke was run during Session 7. The prior
@@ -71,8 +72,8 @@ adds the control and override fields. Identity OpenAPI and generated SDKs were r
 | `npx tsc --noEmit` (TypeScript SDK) | passed |
 | `git diff --check` | passed |
 
-Parts 49, 51 and 57 remain partial. Part 49 still needs narrower GitHub authorization and provider
-adapters/extension governance. Part 51 still lacks dual approval and retention/residency controls.
-Part 57 remains capped at 8 until live Stripe/OIDC evidence; daily-run count reservation, in-flight
-spend/tool-call caps and alert delivery remain incomplete. PostgreSQL migration execution and live
-provider behavior were not verified in this pass.
+Parts 49, 51 and 57 remain partial. Part 49 still needs truly read-only GitHub authorization,
+provider adapters and extension governance. Part 51 still lacks tenant-specific residency. Part 57
+has atomic daily run reservations and durable tool-call enforcement; in-flight engine cost remains
+estimate-based and warning delivery is not wired. Stripe is intentionally out of scope. PostgreSQL
+migration execution was not verified in this pass.

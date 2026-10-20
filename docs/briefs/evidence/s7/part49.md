@@ -5,7 +5,7 @@
 | # | Result | Evidence / remaining limit |
 |---|---|---|
 | 001 | Partial | Versioned team-admin outbound webhook API in Section 1; no general scoped credential API for every provider. |
-| 002 | Partial | GitHub requests `repo read:user`, which is not least privilege for read-only use; no issue tracker adapter. |
+| 002 | Partial | GitHub OAuth defaults to `public_repo read:user`; private-repository access is an explicit deployment opt-in. Classic OAuth still grants write access to public repositories; no issue tracker adapter exists. |
 | 003 | Partial | Outbound webhook destinations require explicit per-team setup; no chat provider integration. |
 | 004 | Implemented locally | HMAC timestamped signatures, timestamp replay window on consumer side documented, SSRF checks, bounded retry worker; invariant tests cover signature and retry identity. |
 | 005 | Partial | Stable delivery id/idempotency key for outbound deliveries; provider-specific external side-effect idempotency is not implemented uniformly. |
@@ -22,9 +22,10 @@
   retry and stable delivery key.
 - Existing Stripe adapter verifies raw-body signature timestamp and deduplicates event id
   transactionally (`section1/src/harness_identity/stripe_adapter.py`).
-- GitHub scope is verified from `section2/src/harness_github/app.py`; OIDC scope is
+- GitHub scope mode and fallback are verified from `section2/src/harness_github/app.py`; OIDC scope is
   `openid profile email` in `section1/src/harness_identity/sso.py`.
 - No live provider test or external endpoint delivery was run. Part remains partial because the
-  provider scope and extension/chat requirements are not complete.
+  full least-privilege read-only GitHub access, issue tracker/chat adapters, and extension governance
+  are not complete.
 
 Operational setup and consumer verification instructions are in `docs/integrations.md`.

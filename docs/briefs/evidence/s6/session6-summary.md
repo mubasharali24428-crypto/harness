@@ -2,8 +2,8 @@
 
 ## Scope and matrix
 
-- Part 44 remains **partial**. The lane PL evidence records the unresolved gap: no route approves a
-  native plan version, and the engine executes the legacy in-memory plan. It is not counted as 9/10.
+- Part 44 was **partial** at Session 6 close (no route approved a native plan version). It was closed locally
+  afterwards by `00a1412`: see `part44-version-approval.md`.
 - Parts 48 and 50 are **verified** against their documented scope and explicit limits. Matrix rows
   cite lane evidence and docs.
 - Section 7 now exposes the Session 6 workbench on run details. Native controls use labeled form
@@ -37,9 +37,8 @@ and `lane-se.md`. No real-browser keyboard or axe test was run.
 
 ## Open limits
 
-- Native plan versions still cannot be approved or sent to the engine; see `docs/plans.md` and
-  `evidence/s6/lane-pl.md`.
-- `toolCalls` and in-flight model/cost usage are not enforced; the run-limit sweep is not scheduled.
+- (Superseded by `part44-version-approval.md`: native versions are approvable and run by the engine; the limit sweep is
+  scheduled; the tool-call cap counts reported calls.) In-flight model/cost usage is still invisible until a call completes.
 - Artifact bytes and export files use local disk stores. Retention and search-index workers have no
   deploy schedule.
 - Git state is caller-recorded, merge approval is not a GitHub branch-protection check, and the

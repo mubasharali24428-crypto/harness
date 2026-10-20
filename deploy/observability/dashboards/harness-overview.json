@@ -1,0 +1,82 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Backend targets scraped successfully. A missing target is not healthy.",
+      "fieldConfig": {"defaults": {"min": 0, "max": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []},
+      "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+      "targets": [{"expr": "min(up{job=\"harness-backends\"})", "legendFormat": "minimum backend up", "refId": "A"}],
+      "title": "Backend scrape health",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Rolling 5-minute HTTP 5xx ratio by backend. This is a proxy for availability, not the complete SLO denominator.",
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 6, "y": 0},
+      "id": 2,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (instance) (rate(http_requests_total{job=\"harness-backends\",status=~\"5..\"}[5m])) / clamp_min(sum by (instance) (rate(http_requests_total{job=\"harness-backends\"}[5m])), 1e-9)", "legendFormat": "{{instance}}", "refId": "A"}],
+      "title": "HTTP 5xx ratio",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Request latency p95 by backend. Includes all instrumented routes; inspect route-level metrics before comparing with the control-plane objective.",
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+      "id": 3,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le, instance) (rate(http_request_duration_seconds_bucket{job=\"harness-backends\"}[5m])))", "legendFormat": "{{instance}}", "refId": "A"}],
+      "title": "HTTP request latency p95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Queue depth and oldest queued run age show backlog and stuck work.",
+      "fieldConfig": {"defaults": {"min": 0}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 4,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "harness_queue_depth", "legendFormat": "queue depth", "refId": "A"}, {"expr": "harness_oldest_queued_run_age_seconds", "legendFormat": "oldest queue age (s)", "refId": "B"}],
+      "title": "Run backlog",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Event bus lag and stale worker claims. The event lag gauge is meaningful during active work; see the alert expression for its idle guard.",
+      "fieldConfig": {"defaults": {"min": 0}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 13},
+      "id": 5,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "harness_event_bus_lag_seconds", "legendFormat": "event lag (s)", "refId": "A"}, {"expr": "harness_stale_running_claims", "legendFormat": "stale claims", "refId": "B"}],
+      "title": "Event and worker health",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Closed-label counters for approval denials, cancellation outcomes, isolation violations and delivery failures.",
+      "fieldConfig": {"defaults": {"min": 0}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "id": 6,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (reason) (increase(harness_approval_denied_total[15m]))", "legendFormat": "approval denied: {{reason}}", "refId": "A"}, {"expr": "sum by (outcome) (increase(harness_run_cancel_total[15m]))", "legendFormat": "cancel: {{outcome}}", "refId": "B"}, {"expr": "sum by (kind) (increase(harness_isolation_violation_total[15m]))", "legendFormat": "isolation: {{kind}}", "refId": "C"}, {"expr": "sum by (outcome) (increase(harness_event_delivery_total[15m]))", "legendFormat": "delivery: {{outcome}}", "refId": "D"}],
+      "title": "Approvals, cancellations and safety events (15m)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["harness", "operations"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "title": "Harness Operations Overview",
+  "uid": "harness-ops-overview",
+  "version": 1
+}

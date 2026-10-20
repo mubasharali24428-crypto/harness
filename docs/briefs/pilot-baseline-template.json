@@ -1,0 +1,9 @@
+{
+  "teamId": "REPLACE_WITH_TEAM_ID",
+  "capturedFrom": "YYYY-MM-DD",
+  "capturedTo": "YYYY-MM-DD",
+  "method": "How these were measured, e.g. 'engineers logged start/finish of the last 10 comparable tasks done without the harness'",
+  "tasks": [
+    {"id": "task-1", "minutes": 0, "accepted": true}
+  ]
+}

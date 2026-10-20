@@ -66,6 +66,16 @@ the signals the platform itself emits; see §4 d/e.
 
 ## 3. The alert rules (a-e original; f added by ops acceptance, part 28)
 
+### Request latency objective
+
+`HarnessRequestLatencySloBurn` watches the route-level p95 of
+`http_request_duration_seconds` per backend and path. It warns when the p95
+exceeds 250 ms for 10 minutes. This is a sustained breach signal for the
+proposed target in [slo-and-capacity.md](slo-and-capacity.md), not a complete
+availability SLI; low-volume routes and provider-execution time need separate
+interpretation. The alert evaluates in Prometheus only until a delivery route
+is configured.
+
 ### a) Queue depth (runs stuck waiting)
 
 ```promql
@@ -189,6 +199,7 @@ harness_stale_running_claims > 0
 | HarnessQueueDepthCritical (page) | >200 for 30m | same, plus tell the pilot team and stop admitting runs |
 | HarnessEventBusLag | >300s for 5m | db reachable? orchestrator crash-loop? notify worker stuck? |
 | HarnessDbPoolSaturated | ≥12 checked out, 5m | leak hunt via pg_stat_activity; restart worst offender |
+| HarnessRequestLatencySloBurn | route p95 >250ms for 10m | compare route volume, DB pool and queue metrics; separate provider wait from API latency |
 | HarnessBackupStale (inert) | >90000s since last success | run `walg` base manually; inspect walg_logs volume |
 | HarnessWalArchiveFailing (inert, page) | any increase in 15m | storage target writable? wal-g creds? disk full? |
 | HarnessRunQueueStalled | oldest queued >300s for 2m | orchestrator logs for worker loop; per-team cap; executor saturation |

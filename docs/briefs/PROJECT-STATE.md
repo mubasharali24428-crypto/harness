@@ -12,9 +12,10 @@ The "master prompt" is the 61-part *Harness Multiplayer AI — Full Product Mast
 (`docs/master-prompts/harness-multiplayer-master-build-prompt.md`). Goal of the current programme: bring every part to 9/10
 over ten sessions (`path-to-9-plan.md`). 9/10 means: every directive implemented or explicitly out of scope, automated invariant
 tests, an evidence file, docs matching behaviour, and a `verified` matrix row. 10/10 needs external evidence; externally gated
-parts are capped at 8: 03, 37/57, 53, 52/58, 61.
+parts remain capped at 8: 03, 37, 53, 52/58, 61. Part 57's previous Stripe-based cap is removed because Stripe is out of scope
+(owner direction in the 2026-10-19 Codex session: "THERE WILL BE NO STRIPE FOR NOW"; live OIDC evidence still caps part 37).
 
-Layout: section1 identity/auth/audit/eventbus/orgs/policy/workspaces/integrations (migrations 0001–0051) · section3/6/8/10
+Layout: section1 identity/auth/audit/eventbus/orgs/policy/workspaces/integrations (migrations 0001–0056) · section3/6/8/10
 auxiliary · section4 orchestrator · section5 sandbox · section7 Next.js UI + Playwright · `deploy/` compose stack, runners,
 observability, `deploy/pilot` disposable smoke stack · `docs/` · `scripts/` (spec_drift, sdk-gen) · `clients/` generated SDKs.
 
@@ -27,9 +28,10 @@ observability, `deploy/pilot` disposable smoke stack · `docs/` · `scripts/` (s
 | 3 | Orgs, permissions, workspaces (37, 38, 39) | Done, committed, incl. the part 38 enforcement carry-over |
 | 4 | Sessions, presence, control leases, agent registry (40, 41, 42, 45) | Done, committed (lanes S, P, C, A, U) |
 | 5 | Discussion, notifications, real-time delivery, collab UI (43, 46, 47, 56-collab) | Done, committed (lanes D, N, R, X) |
-| 6 | Plans/artifacts/search (44, 48, 50) | Integrated locally; 48 and 50 verified; 44 partial pending native version approval/execution |
-| 7 | Integrations/admin/billing (49, 51, 57) | Done locally; partial outcomes and cap 8 for 57; see Session 7 evidence |
-| 8–10 | Security/compliance, scale, final acceptance | Next: Session 8 (52, 58, 31 enforcement) |
+| 6 | Plans/artifacts/search (44, 48, 50) | Integrated locally; 44, 48 and 50 verified (44 closed by `00a1412`: version approval, scheduled limit sweep; tool-call cap counts reported calls only) |
+| 7 | Integrations/admin/billing (49, 51, 57) | Done locally; parts remain partial for provider breadth, residency, in-flight spend and alerts; Stripe out of scope (owner direction) |
+| 8 | Security/compliance and privacy enforcement (52, 58, 31) | Started locally; directive reports and data map updated; main enforcement gap remains |
+| 9–10 | Reliability/scale, final acceptance | Next: Session 9 (53–55) after Session 8 exit gate |
 
 ## 3. Session 3 result
 
@@ -63,11 +65,11 @@ execution records, artifacts/version-control metadata, search/export/deletion. R
 the Session 6 workbench. Evidence is in `docs/briefs/evidence/s6/`; docs are `plans.md`,
 `execution.md`, `artifacts.md`, and `search-and-export.md`.
 
-No route approves a native plan version, and the engine continues to execute the legacy in-memory
-plan. Tool-call counts are not enforced and the running-limit sweep is not scheduled. Artifact/export
-storage and search indexing also lack deploy schedulers.
+Native plan versions are now approvable (`POST .../plan/versions/{n}/approve`); approval adopts the version as the run's legacy plan, so
+the engine runs exactly the approved content. The running-limit sweep is scheduled (`run_limit_sweeper`, `HARNESS_LIMIT_SWEEP_SECONDS`).
+The tool-call cap counts only calls reported through the agent tool-call route. Artifact/export storage and search indexing still lack
+deploy schedulers. Evidence: `evidence/s6/part44-version-approval.md`.
 
-## 3e. Session 7 result
 ## 3f. Session 8 status
 
 Session 8 reviewed parts 31, 52 and 58. Reports under `docs/briefs/evidence/s8/` map the directives
@@ -80,25 +82,27 @@ partial; 52/58 require external evidence, and account-wide deletion and tenant-s
 remain absent. No legal/compliance claim is made. See
 `docs/briefs/evidence/s8/session8-summary.md`.
 
+## 3e. Session 7 result
 
-
-Part 49 remains partial: team-scoped versioned outbound webhooks now have encrypted one-time
-secrets, HMAC timestamped signatures, idempotency keys, bounded retries, host allowlisting and
-rotation. GitHub still uses broad `repo` scope; issue tracker/chat adapters and extension sandbox
-are absent. Part 51 remains partial: Section 7 now exposes organization membership/role, policy
-preview/save, emergency access, history and team integration controls; dual policy approval,
-org-wide execution disablement and retention/residency configuration remain absent. Part 57 is
-partial and capped at 8 for live Stripe/OIDC evidence. Local tier and spend gates exist, but daily
-run cap checks are not atomic and tool-call/in-flight spend caps and billing alerts are absent.
-Details: `docs/briefs/evidence/s7/` and `docs/{integrations,billing-and-quotas}.md`.
+Part 49 remains partial: team-scoped versioned outbound webhooks have encrypted one-time secrets,
+HMAC timestamped signatures, idempotency keys, bounded retries, host allowlisting and rotation.
+GitHub defaults to `public_repo read:user`, but classic OAuth still permits writes to public repos;
+issue-tracker/chat adapters and extension sandbox are absent. Part 51 remains partial: dual approval
+for high-risk policy changes is owner-configurable, and owners can set shorter event/audit retention
+windows applied by the worker. Physical residency remains deployment-wide. Part 57 remains partial:
+daily run reservations are atomic per run/team and tool-call limits read durable tool records;
+in-flight spend is estimate-based and alert delivery is not wired. Stripe is intentionally out of
+scope and does not cap the score. Details: `docs/briefs/evidence/s7/` and
+`docs/{integrations,billing-and-quotas}.md`.
 
 ## 4. Verification record (Session 7, 2026-10-19)
 
-Session 7 targeted checks: Section 1 webhook/policy/billing/Stripe tests 58 passed; Section 4 budget
+Session 7 original targeted checks: Section 1 webhook/policy/billing/Stripe tests 58 passed; Section 4 budget
 and tier tests 45 passed; Section 7 billing API UI test 7 passed; Section 7 typecheck and TypeScript
-SDK typecheck passed; touched Section 1 Ruff passed. Contracts Ruff reports two findings in
-untouched `contracts/src/harness_contracts/__init__.py` and `ratelimit.py`. No PostgreSQL migration,
-full section suites, browser E2E or live provider check ran. See
+SDK typecheck passed. Completion pass: Section 1 org/policy/retention tests 80 passed, 2 skipped;
+Section 2 GitHub OAuth tests 11 passed; Section 7 typecheck passed. The two Section 4 execution fixture
+failures noted then were fixed in `6b6adfb` (full Section 4 now 1464 passed, 38 skipped). PostgreSQL
+migrations and live provider flows were not run. See
 `docs/briefs/evidence/s7/session7-summary.md`.
 
 Session 6 verification record (2026-10-19):
@@ -132,7 +136,7 @@ section1 pytest 859 passed/27 skipped; section4 pytest 979 passed/32 skipped; ru
 
 1. ~~Part 38 enforcement carry-over~~ done (`evidence/s3/part38-enforcement.md`). Remaining limits are in `docs/permissions.md`.
 2. ~~Sessions 4 and 5~~ done. Session 6 integrated; next Session 7 (49, 51, 57) per
-   `path-to-9-plan.md`. Keep part 44 partial until native version approval and engine execution are connected.
+   `path-to-9-plan.md`. Part 44 closed locally by `00a1412` (see `evidence/s6/part44-version-approval.md`).
 3. Backend gaps from earlier: no UI to file/amend a proposal; approvals API lacks a decision timestamp; part 12 item 009 and
    responsive layout untested; audit chain has no external anchor; browser socket connection not asserted in e2e.
 4. Workspace gaps: no purge job after `purge_after`, running run not stopped on archive, `resume_agent` not gated, quota check race.
