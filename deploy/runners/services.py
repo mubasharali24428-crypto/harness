@@ -367,6 +367,23 @@ def app_orchestrator():
     # Approval/cancel/isolation/event-delivery counters ride the scraped /metrics
     # (simple_app registers it first; a later install_metrics_endpoint is shadowed).
     app = simple_app(router, "harness-orchestrator", orchestrator_domain_metrics.render)
+    # Abuse guard: run start plus the collaboration mutation routes get per-IP budgets
+    # (delivery.MUTATION_ROUTE_LIMITS). Added before RequestContextMiddleware so a 429 still
+    # carries a request id. A store failure fails OPEN.
+    from harness_contracts.ratelimit import DEFAULT_PROTECTED_ROUTES
+
+    from harness_orchestrator.delivery import MUTATION_ROUTE_LIMITS
+    from harness_orchestrator.ratelimit_hooks import (
+        ORCHESTRATOR_ROUTE_LIMITS,
+        install_orchestrator_rate_limit,
+    )
+
+    install_orchestrator_rate_limit(
+        app,
+        session_factory=factory,
+        routes=(*DEFAULT_PROTECTED_ROUTES, *MUTATION_ROUTE_LIMITS),
+        route_limits={**ORCHESTRATOR_ROUTE_LIMITS, **MUTATION_ROUTE_LIMITS},
+    )
     app.add_middleware(RequestContextMiddleware)  # X-Request-ID + access log + metrics
     # M20-T3: /ready gates on db + migrations (orchestrator, port 8004).
     _install_probes(app, 8004)
@@ -385,8 +402,9 @@ def app_orchestrator():
     import asyncio
 
     from harness_orchestrator.execution import run_limit_sweeper
+    from harness_orchestrator.schedule import maintenance_jobs, run_periodically
 
-    limit_sweeper: dict = {}
+    background: list = []
 
     @app.on_event("startup")
     async def _start_run_queue_worker():
@@ -395,13 +413,17 @@ def app_orchestrator():
         # worker's sweep (0 turns it off). Start and claim checks already refuse new work.
         every = float(os.environ.get("HARNESS_LIMIT_SWEEP_SECONDS", "30"))
         if every > 0:
-            limit_sweeper["task"] = asyncio.create_task(run_limit_sweeper(service, every))
+            background.append(asyncio.create_task(run_limit_sweeper(service, every)))
+        # Search-index sync and the export, discussion and artifact retention purges
+        # (HARNESS_*_SECONDS, 0 turns one off; see harness_orchestrator.schedule).
+        for label, job, interval in maintenance_jobs(factory):
+            background.append(asyncio.create_task(run_periodically(label, job, interval)))
 
     @app.on_event("shutdown")
     async def _stop_run_queue_worker():
         worker.stop()
-        if limit_sweeper.get("task") is not None:
-            limit_sweeper["task"].cancel()
+        for task in background:
+            task.cancel()
         # M17-B5: release the dedicated engine executor's queued work.
         service.shutdown()
 

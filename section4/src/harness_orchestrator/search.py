@@ -761,8 +761,8 @@ async def sync_index(
     re-reading is harmless. A missing source table is skipped, not an error. A failing source is
     reported in ``errors`` and the others still run. Returns
     ``{teamId: {source: {indexed, removed, watermark, more} | {skipped: true}}, "errors": [...]}``.
-    Nothing schedules this function (see docs): call it from a worker loop, a cron, or rely on
-    the on-query refresh in ``GET search``."""
+    ``schedule.maintenance_jobs`` runs it on an interval from the deployed orchestrator; the
+    on-query refresh in ``GET search`` also calls it."""
     out: dict[str, Any] = {"errors": []}
     async with factory_() as db:
         teams = (

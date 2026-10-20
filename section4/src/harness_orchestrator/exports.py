@@ -963,7 +963,7 @@ async def download(f: Any, p: Principal, job_id: str) -> tuple[bytes, Any]:
 
 async def purge_expired_exports(f: Any, *, team_id: str | None = None) -> int:
     """Delete the files of expired and deleted jobs and mark expired jobs ``expired``. A function:
-    nothing schedules it (wire it into a worker loop or cron). Also finishes file removal that a
+    ``schedule.maintenance_jobs`` runs it on an interval. Also finishes file removal that a
     crash left behind after a deletion request. Returns the number of files removed."""
     removed = 0
     async with f() as db:

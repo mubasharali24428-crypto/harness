@@ -1046,8 +1046,8 @@ async def purge_expired(factory: Any, *, team_id: str | None = None, batch: int 
     """Retention: blank the text of comments (and their revisions) older than the team's
     ``retentionDays`` and stamp ``purged_at``. The row, author, timestamps, moderation fields
     and audit rows stay. Reads already treat past-retention comments as purged, so a late run
-    of this job changes nothing visible. Call it from a worker loop or a cron; it is not
-    scheduled by this module. Returns the number of comments purged."""
+    of this job changes nothing visible. ``schedule.maintenance_jobs`` runs it on an interval
+    from the deployed orchestrator. Returns the number of comments purged."""
     total = 0
     async with factory() as db:
         teams = (await db.execute(

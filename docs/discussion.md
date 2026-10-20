@@ -167,7 +167,7 @@ reader of the scope sees. Text past retention is never exported. Each export wri
 It is enforced **at read**: a comment past retention is shown as `purged: true` with no text in lists, history, export and
 search, even if no job ran. `discussion.purge_expired(factory, team_id=None)` is the physical job: it blanks `comments.body`
 and every revision body, stamps `purged_at`, keeps the row, author, timestamps and audit, and writes one `comment.purged`
-audit row per scope with a count. It is a function: **nothing schedules it** (wire it into a worker loop or cron).
+audit row per scope with a count. The orchestrator runs it every `HARNESS_DISCUSSION_PURGE_SECONDS` (default 3600, `0` = off).
 Tombstones of audit-sensitive scopes are purged by the same rule: retention is the ceiling, audit rows (ids only) remain.
 
 ## 12. Settings (directive 007, 010)
@@ -207,6 +207,6 @@ Codes: `ROLE_DENIED` 403, `NOT_AUTHOR` 403, `NOT_PARTICIPANT` 403, `NOT_FOUND` 4
   counters per thread; no thread-level permissions; session scope has no live event.
 * Mentions are by user id; resolving `@name` is the client's job. A person removed from a private session keeps the
   comments they were mentioned in but loses access to the session.
-* The purge job is not scheduled; search is an unindexed scan; a comment promoted to guidance cannot be un-sent.
+* Search is an unindexed scan; a comment promoted to guidance cannot be un-sent.
 * Audit-sensitivity `auto` looks only at high-impact approvals; handoffs and control changes do not mark a scope.
 * Org policy applies through the gate only for org-linked teams.

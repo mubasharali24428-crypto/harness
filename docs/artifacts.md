@@ -88,7 +88,7 @@ the first 64 KiB, control and bidi characters replaced. The string is data: clie
 `reason` `NOT_TEXT` or `TOO_LARGE` and are download-only. **There is no inline image or PDF preview** (a deliberate ceiling: an inline renderer is an attack surface).
 
 **Retention.** `retention_until` is set at upload. After it, reads answer `410 ARTIFACT_EXPIRED` and the list shows `state: expired` immediately (computed at read time). The bytes are
-removed by `artifacts.purge_expired(factory)`, which the lead must schedule (the repo has no scheduler for it yet; section 14). It tombstones the rows and audits `artifact.deleted` with `reason: retention`.
+removed by `artifacts.purge_expired(factory)`, which the orchestrator runs every `HARNESS_ARTIFACT_PURGE_SECONDS` (default 3600, `0` = off). It tombstones the rows and audits `artifact.deleted` with `reason: retention`.
 Delete by request: the uploader or an `administer` holder (`403 NOT_ARTIFACT_OWNER` otherwise); idempotent.
 
 **Idempotency and races.** `requestId` makes a retried upload one artifact (`200` with `replayed: true`; the same id with other bytes or another uploader is `409 REQUEST_ID_REUSED`).
@@ -213,7 +213,7 @@ Rows are appended in the same transaction as the change, `actor_kind human`, det
 - Changed files come only from the done-signal diff: a run that never signals done has no changes; `before_sha` / `after_sha` are not filled; renames outside git headers look like add + delete.
 - Reading `GET changes` writes (derived rows and one audit row, atomically): a viewer's read can record changes. Acceptable because the rows are a pure function of the stored diff.
 - Soft quota under concurrency (section 2). Orphan blobs can remain when an upload loses a race after writing bytes; there is no blob garbage collector beyond delete and `purge_expired`. A delete racing an upload of the same bytes in the same team can leave the new row without bytes (answers `ARTIFACT_CONTENT_MISSING`).
-- `purge_expired` has no scheduler; the lead wires one (or runs it from the retention job).
+- `purge_expired` runs on an interval in every replica; it is idempotent but not leader-elected.
 - No malware scanning, no archive inspection, no secret scanning, no inline image/PDF preview (sections 2 and 10).
 - Postgres-only behaviour is untested here (sqlite only): partial unique indexes, `TIMESTAMPTZ`, `begin_nested` savepoints around optional-table reads, and the unique-violation paths (`IntegrityError` handling) need the lead's live-PG run.
 - The UI (lane X) and the OpenAPI / SDK files are not part of this lane.

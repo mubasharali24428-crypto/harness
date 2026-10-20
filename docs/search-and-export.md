@@ -72,10 +72,9 @@ Codes: `BAD_QUERY`, `BAD_CURSOR`, `BAD_FILTER` 422; `SEARCH_UNAVAILABLE` 503 (no
   removes documents whose source row was hard-deleted (the incremental sync cannot see vanished rows) and writes one
   `search.reindexed` audit row (team id and counts only). Use it after raising comment retention, after restoring data, or if the
   index is suspected stale. There is no HTTP route for it (not in the lane's path list); wire it to a CLI or admin task.
-* **Who calls the sync.** Nothing schedules `sync_index`. As built, `GET search` refreshes a team's index first when its last sync
+* **Who calls the sync.** The orchestrator process runs `sync_index` every `HARNESS_SEARCH_SYNC_SECONDS` (default 60, `0` = off; `schedule.py`), and `GET search` also refreshes a team's index first when its last sync
   is older than `HARNESS_SEARCH_AUTO_SYNC_SECONDS` (default 30, `0` = off), covering at most 4 batches of 500 events. A refresh
-  failure is logged and never fails the query. A deployment that wants a bounded delay for quiet teams should also run
-  `sync_index` from a worker loop or cron.
+  failure is logged and never fails the query. The scheduled job bounds the delay for quiet teams.
 * **Expectations.** Discovery is **eventually consistent**: a new or edited item appears after the next sync, so within
   `HARNESS_SEARCH_AUTO_SYNC_SECONDS` of the next query by anyone in the team (default 30 s), or never if refresh is off and
   nobody syncs. Removal and access are **immediately consistent**: hiding, deleting or purging a comment, deleting a session,
@@ -142,7 +141,7 @@ either, nothing is truncated: the job is `refused`, no file is written, the resp
 **Store and expiry.** Files live in `HARNESS_EXPORT_DIR` (default `<tmp>/harness-exports`, mode 0600 in a 0700 directory), named
 `<jobId>.<format>` (the reference is built server-side and validated against a strict pattern before any file access). They
 expire after `HARNESS_EXPORT_TTL_SECONDS` (default 86400). `purge_expired_exports(factory)` deletes expired files and finishes
-removals interrupted by a crash; **nothing schedules it**. The store is process-local disk like `diffstore.py`: with several
+removals interrupted by a crash; the orchestrator runs it every `HARNESS_EXPORT_PURGE_SECONDS` (default 3600, `0` = off). The store is process-local disk like `diffstore.py`: with several
 orchestrator replicas the export store must be a shared volume (see gaps).
 
 **Download.** `GET exports/{id}` and `GET exports/{id}/download` need the export permission and are for the requester and team
@@ -227,4 +226,4 @@ Wiring (lead): `app.include_router(search.router)`, `app.include_router(exports.
 * `export` honours the legacy role gate here; the section1 step-up re-authentication (`require_team_stepup`) that guards
   `GET /api/v1/audit/export` is not applied by section4 (it cannot import section1). Org policy applies through the middleware.
 * Raising comment retention after an index pass does not resurrect already de-indexed comments until `reindex`.
-* Nothing schedules the index sync, the export purge or the discussion purge.
+* The index sync, export purge, discussion purge and artifact purge run on intervals in every orchestrator replica (`schedule.py`); they are idempotent, so replicas repeat work but do not corrupt it. They are not leader-elected, and a job that keeps failing is only logged.

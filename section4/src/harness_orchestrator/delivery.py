@@ -11,7 +11,8 @@ sides must agree on are written down in docs/realtime.md and repeated here as co
   gap detection). The browser client is a port of it; the tests here are its specification.
 
 Nothing in this module opens a route. Wiring (lead): ``api.collab_history`` returns
-``await delivery.history_page(...)``; ``ratelimit_hooks`` adds ``MUTATION_ROUTE_LIMITS``.
+``await delivery.history_page(...)``; ``deploy/runners/services.py`` installs
+``MUTATION_ROUTE_LIMITS`` via ``ratelimit_hooks``.
 """
 
 from __future__ import annotations
@@ -185,7 +186,8 @@ def require_current_version(expected: int | None, current: int, what: str, **ext
 
 #: Per-IP, per-minute budgets for the collaboration mutation routes (route TEMPLATES, the key the
 #: shared limiter uses). Generous on purpose: this is an abuse guard behind NAT, not a UX limit.
-#: The lead merges them: ``routes=(*DEFAULT_PROTECTED_ROUTES, *MUTATION_ROUTE_LIMITS)`` and
+#: ``app_orchestrator`` (deploy/runners/services.py) merges them:
+#: ``routes=(*DEFAULT_PROTECTED_ROUTES, *MUTATION_ROUTE_LIMITS)`` and
 #: ``route_limits={**ORCHESTRATOR_ROUTE_LIMITS, **MUTATION_ROUTE_LIMITS}``.
 #: The limiter keys on the path, not the method, so a template that is also polled with GET must
 #: not be listed: ``POST /runs/{runId}/approvals`` shares its path with the 3-second list poll and

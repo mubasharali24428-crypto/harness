@@ -129,7 +129,7 @@ both resume from their cursor with nothing lost. (`s1/eventbus.py` `ConnectionGu
 
 **HTTP mutation rate limits.** The shared fixed-window limiter (Postgres `rate_buckets`, per IP and route template, fails open) answers
 `429 {"error":{"code":"RATE_LIMITED","message":"too many attempts; slow down"}}` with `Retry-After`. `s4/delivery.py` `MUTATION_ROUTE_LIMITS`
-lists the budgets for the collaboration mutations (redirect 120/min; handoff, handoff decision, approval amend/decision/claim/complete/apply and leader 60/min each).
+lists the budgets for the collaboration mutations, installed on the deployed orchestrator together with the run-start budget (redirect 120/min; handoff, handoff decision, approval amend/decision/claim/complete/apply and leader 60/min each).
 `POST /runs/{runId}/approvals` is deliberately absent: the limiter keys on the path, not the method, and that path is the 3-second list poll
 (`test_limits_cover_real_mutation_routes_and_never_a_polled_path` fails if a polled path is added). WebSocket upgrades bypass the HTTP limiter, which is why the socket has its own limits.
 
