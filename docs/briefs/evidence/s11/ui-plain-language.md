@@ -17,7 +17,7 @@ visible gaps: the shared-run panel printed the server's engineer-style refusal m
   the panel calls `plainError` at both sites.
 * `tests/unit/stateLabel.test.ts` (3): reads `AgentState` from `state_machine.py`; every state has a label; waiting states say who must act;
   stopped/cancelled/unknown handled.
-* Full section7: `tsc --noEmit` clean; vitest 69 files, 824 tests passed.
+* Full section7: `tsc --noEmit` clean; vitest 70 files, 824 tests passed (re-run 2026-10-20 on a clean `npm ci`).
 
 ## Honest limits
 

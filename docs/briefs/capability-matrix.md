@@ -1,6 +1,6 @@
 # Capability matrix — single source of truth (Master prompt part 36.010)
 
-Version 1 · 2026-10-18 · Session 1. Source: master prompt `docs/master-prompts/harness-multiplayer-master-build-prompt.md` (61 parts).
+Version 2 · 2026-10-20 · Session 11 (first written 2026-10-18, Session 1). Source: master prompt `docs/master-prompts/harness-multiplayer-master-build-prompt.md` (61 parts).
 State: `verified` = every directive implemented or out-of-scope AND an invariant test/evidence file exists from a run in the cited session
 (the 9/10 bar in `path-to-9-plan.md`) · `implemented` = built, not yet fully evidenced · `partial` · `missing` · `blocked` = needs external evidence.
 States were assigned from code + this session's fresh runs (`evidence/s1/verification.md`); where a row says "not verified" nothing was run for it.
@@ -8,8 +8,8 @@ Row granularity is one row per part (directive groups are listed in the master p
 
 | # | Requirement | Owner | State | Acceptance test / evidence |
 |---|---|---|---|---|
-| 01 | Role & outcome: shared-run pilot | all | partial | roadmap phase 1; residual gaps S2 |
-| 02 | Product direction | docs | partial | `docs/product-boundary.md`; not verified against every directive |
+| 01 | Role & outcome: shared-run pilot | all | verified | `evidence/s11/process-parts.md` (directives 001-010 mapped to artifacts; matrix, realtime and contract docs behind 006-009). Limits: master prompt text not in the repo, directive wording is the owner's gloss; pilot smoke not run on this tree |
+| 02 | Product direction | docs | verified | `evidence/s11/process-parts.md` (001-010), `docs/product-boundary.md`, `docs/runbooks/pilot.md`. Limit: reasoning exposure checked on search, export and agent reports only, not the project engine event stream |
 | 03 | Pilot success metrics (≥5 tasks/side) | s4 `pilot_metrics.py` | blocked | Baseline file validation + comparison tests: `docs/briefs/evidence/s10/verification.md`; `docs/briefs/pilot-baseline-guide.md`; no real pilot data exists (≥5 comparable tasks per side required). |
 | 04 | Inherited baseline | all | verified | `evidence/s1/verification.md` (all suites fresh) |
 | 05 | Known-gap checklist | all | verified | docs/briefs/evidence/s2/part05-gap-checklist.md (9 pass, 1 partial: live presence, closed in Session 4 by part 41) |
@@ -22,11 +22,11 @@ Row granularity is one row per part (directive groups are listed in the master p
 | 12 | Shared experience (UI) | s7 | implemented | `collab.test.tsx` (vitest 540 passed); `multiplayer.e2e.ts` legs pass (`evidence/s2/lane-c.md`). Plain-language errors and states added (`evidence/s11/ui-plain-language.md`). Gaps: item 009 (terminal panel is a separate component, not asserted in the run page) and responsive layout (AppShell test only) untested in a real browser; no screen-reader check |
 | 13 | Architecture review | docs | verified | `docs/architecture-map.md` |
 | 14 | Contract design | contracts, scripts, docs | verified | `docs/collaboration-contract.md` (roles, redirect, handoff, approval states and transitions, error index) executed by `test_collab_contract.py` (46); `scripts/spec_drift.py` clean; `evidence/s11/part14.md`. Limits: project-stream envelope has no schema version; `STALE_CLIENT_STATE` has no emitter; race-only codes not provoked (no live PG) |
-| 15 | Implementation method | docs | implemented | `docs/briefs/stable-prompt-prefix.md` |
-| 16 | Agent operating model | docs | implemented | `stable-prompt-prefix.md` (method) |
-| 17 | Suggested agent lanes | docs | implemented | Session 1 used lanes A–D (`path-to-9-session1-prompt.md`) |
-| 18 | Context budget | docs | implemented | `stable-prompt-prefix.md` |
-| 19 | Prompt cache / token efficiency | docs | implemented | `stable-prompt-prefix.md` (stable prefix first) |
+| 15 | Implementation method | docs | verified | `evidence/s11/process-parts.md` (001-010); doc-law tests `test_collab_contract.py`, `test_threat_closeouts.py`, `test_program_docs.py`. Limit: 006 (reviewable commits) is practice |
+| 16 | Agent operating model | docs | verified | `evidence/s11/process-parts.md` (lane contracts in the Session 3-6 prompts, lane reports, integration commits). Practice, not testable; Sessions 7-10 were single-agent |
+| 17 | Suggested agent lanes | docs | verified | `evidence/s11/process-parts.md` (lanes A-D in Sessions 1-2, lane contracts Sessions 3-6, `evidence/s2/lane-a.md` to `lane-d.md`). Practice, not testable |
+| 18 | Context budget | docs | verified | `evidence/s11/process-parts.md`; `PROJECT-STATE.md` held to 130 lines by `test_program_docs.py`, history in `evidence/s11/state-history.md`. 18.005-18.009 are practice |
+| 19 | Prompt cache / token efficiency | docs | verified | `evidence/s11/process-parts.md`; `stable-prompt-prefix.md` (stable prefix first; 19.010: no cache controls used, grep-backed). 19.005-19.009 are practice; no cache hit rate was measured |
 | 20 | Session plan overview | docs | verified | `path-to-9-plan.md` (carried from earlier ranking) |
 | 21 | Session 1 discovery | docs | verified | `multiplayer-readiness.md` (carried) |
 | 22 | Backend safety | s4 | verified | lifecycle + workspace lifecycle tests (test_workspace_lifecycle_s2.py); docs/briefs/evidence/s2/lane-a.md |
@@ -41,8 +41,8 @@ Row granularity is one row per part (directive groups are listed in the master p
 | 31 | Data & privacy | s1/s4/s5/docs | partial | Data map refreshed; Section 4 refuses plans with forbidden paths; audited holds protect run purge and event/audit retention. SDK shell lacks Section 5 command allow-list; account-wide deletion remains absent. `evidence/s8/part31.md` |
 | 32 | Release strategy | deploy | implemented | `docs/runbooks/pilot.md`, `test_pilot_flag_rollback.py` (8 passed), `alerts.yml`. `HARNESS_PILOT_TEAMS` is an allowlist (empty = all teams open). Pilot-counter alerts wait on lane A metrics; staged rollout S10 |
 | 33 | Checkpoint template | docs | verified | `docs/briefs/checkpoint-template.md` |
-| 34 | Final deliverables | docs | implemented | `stable-prompt-prefix.md` |
-| 35 | Final response format | docs | implemented | `stable-prompt-prefix.md` |
+| 34 | Final deliverables | docs | verified | `docs/briefs/final-deliverables.md` (index, acceptance results labelled pass/fail/not verified, risk register, pilot setup, metric plan, NO-GO decision); `evidence/s11/process-parts.md` |
+| 35 | Final response format | docs | verified | `docs/briefs/final-deliverables.md` section 11 (response template); `stable-prompt-prefix.md` carries the same six items; `evidence/s11/process-parts.md` |
 | 36 | Product boundary & maturity | docs | verified | `docs/product-boundary.md`, this file |
 | 37 | Organizations & identity | s1 | verified (cap 8) | orgs, roles, invites, guests, service identities, revocation: test_orgs.py (22) + live-PG test_session3_pg.py; SSO login now records session assurance; step-up and emergency access via part 38; live SSO/Stripe unproven (external). docs/organizations.md, evidence/s3/lane-o.md |
 | 38 | Permissions & policy model | contracts `policy_engine.py`/`policy_enforce.py`, s1 `policy.py` | verified | engine, custom roles, preview, decision log, step-up, emergency access (test_policy_engine.py, test_policy_api.py); shared gate classifies every identity and orchestrator route and enforces org policy for org-linked teams (test_policy_gate.py, test_policy_gate_orchestrator.py, live PG test_session3_pg.py). Limits: additive to legacy checks, WebSocket and `/orgs/*` not engine-gated. docs/permissions.md, evidence/s3/lane-p.md, evidence/s3/part38-enforcement.md |
@@ -70,5 +70,5 @@ Row granularity is one row per part (directive groups are listed in the master p
 | 60 | Full product roadmap | docs | verified | `docs/roadmap.md` and Session 10 directive map; planning artifact only, priorities await real pilot data/interviews. |
 | 61 | Full product acceptance | all | blocked | Cross-domain NO-GO report: `docs/briefs/evidence/s10/readiness-report.md`; ledger = this file; critical partial/blocked rows and external gates remain. |
 
-Counts (Session 2 interim, lane A pending): verified 9 · implemented 15 · partial 29 · missing 2 · blocked 6. Session 2 changed rows 09, 12, 24, 28, 32 only; rows 01, 02, 05–08, 10, 11, 22, 23, 27 wait on lane A and integration.
-plus the fresh run; 09 re-run fresh. Nothing else is claimed verified.
+Counts (2026-10-20): verified 43 · implemented 4 · partial 12 · missing 0 · blocked 2.
+Rows 37, 52, 53, 58 carry an external cap of 8 and rows 03 and 61 are blocked on outside parties; none of them is plain `verified`. Part 57's cap was removed (no Stripe, owner direction).

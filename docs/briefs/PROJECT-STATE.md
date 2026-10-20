@@ -1,173 +1,98 @@
-# Harness Multiplayer AI — project state and resume guide
+# Harness Multiplayer AI: project state and resume guide
 
-Updated 2026-10-19 at the end of Session 7. Read this first in a new session, then `docs/briefs/path-to-9-plan.md`,
-`docs/briefs/capability-matrix.md` and `docs/briefs/path-to-9-checkpoint.md`. The repository is the source of truth:
-re-verify any number below before relying on it. Nothing here is a claim of readiness for real users (see "Not cleared").
-
-Repo `/Users/user/untitled folder 2/harness`, git branch `master`, **nothing pushed**. `git log --oneline` shows the commits.
+Updated 2026-10-20 (Session 11, cloud pass). Read this first in a new session, then `docs/briefs/path-to-9-plan.md`,
+`docs/briefs/capability-matrix.md` and `docs/briefs/path-to-9-checkpoint.md`. The repository is the source of truth: re-verify any
+number before relying on it. Nothing here claims readiness for real users (see "Not cleared"). Per-session results and the old
+verification records are in `docs/briefs/evidence/s11/state-history.md`.
 
 ## 1. What the project is
 
-The "master prompt" is the 61-part *Harness Multiplayer AI — Full Product Master Build Prompt*
-(`docs/master-prompts/harness-multiplayer-master-build-prompt.md`). Goal of the current programme: bring every part to 9/10
-over ten sessions (`path-to-9-plan.md`). 9/10 means: every directive implemented or explicitly out of scope, automated invariant
-tests, an evidence file, docs matching behaviour, and a `verified` matrix row. 10/10 needs external evidence; externally gated
-parts remain capped at 8: 03, 37, 53, 52/58, 61. Part 57's previous Stripe-based cap is removed because Stripe is out of scope
-(owner direction in the 2026-10-19 Codex session: "THERE WILL BE NO STRIPE FOR NOW"; live OIDC evidence still caps part 37).
+The "master prompt" is the 61-part *Harness Multiplayer AI: Full Product Master Build Prompt*
+(`docs/master-prompts/harness-multiplayer-master-build-prompt.md`; that file was never committed and is not in the repository).
+The programme brings every part to 9/10: each directive implemented or explicitly out of scope, invariant tests, an evidence file under
+`docs/briefs/evidence/`, docs that match behaviour including limits, and a `verified` matrix row. Parts that need an outside party stay
+capped at 8: 03, 37, 52, 53, 58, 61. Part 57's cap was removed because Stripe is out of scope (owner direction, 2026-10-19).
 
-Layout: section1 identity/auth/audit/eventbus/orgs/policy/workspaces/integrations (migrations 0001–0056) · section3/6/8/10
-auxiliary · section4 orchestrator · section5 sandbox · section7 Next.js UI + Playwright · `deploy/` compose stack, runners,
-observability, `deploy/pilot` disposable smoke stack · `docs/` · `scripts/` (spec_drift, sdk-gen) · `clients/` generated SDKs.
+Layout: section1 identity, auth, audit, event bus, orgs, policy, workspaces, integrations (migrations 0001 to 0056) · section3, 6, 8, 10
+auxiliary · section4 orchestrator · section5 sandbox · section7 Next.js UI and Playwright · `deploy/` compose stack, runners,
+observability, `deploy/pilot` smoke stack · `docs/` · `scripts/` (spec_drift, sdk-gen) · `clients/` generated SDKs.
 
 ## 2. Sessions
 
+Sessions 1 to 10 are built. Codex built Sessions 6 to 10; Claude re-ran their suites, fixed the regressions it found (`6b6adfb`) and
+closed part 44 (`00a1412`). Session 11 is the cloud pass (below).
+
 | Session | Objective | State |
 |---|---|---|
-| 1 | Truth ledger, baseline | Done, committed |
-| 2 | Pilot residuals + sandbox fixes | Done, committed (parts 05–08, 10, 11, 22, 23, 27 verified) |
-| 3 | Orgs, permissions, workspaces (37, 38, 39) | Done, committed, incl. the part 38 enforcement carry-over |
-| 4 | Sessions, presence, control leases, agent registry (40, 41, 42, 45) | Done, committed (lanes S, P, C, A, U) |
-| 5 | Discussion, notifications, real-time delivery, collab UI (43, 46, 47, 56-collab) | Done, committed (lanes D, N, R, X) |
-| 6 | Plans/artifacts/search (44, 48, 50) | Integrated locally; 44, 48 and 50 verified (44 closed by `00a1412`: version approval, scheduled limit sweep; tool-call cap counts reported calls only) |
-| 7 | Integrations/admin/billing (49, 51, 57) | Done locally; parts remain partial for provider breadth, residency, in-flight spend and alerts; Stripe out of scope (owner direction) |
-| 8 | Security/compliance and privacy enforcement (52, 58, 31) | Started locally; directive reports and data map updated; main enforcement gap remains |
-| 9–10 | Reliability/scale, final acceptance | Next: Session 9 (53–55) after Session 8 exit gate |
+| 1 | Truth ledger, baseline | done |
+| 2 | Pilot residuals, sandbox fixes | done (parts 05 to 08, 10, 11, 22, 23, 27 verified) |
+| 3 | Orgs, permissions, workspaces (37 to 39) | done |
+| 4 | Sessions, presence, control leases, agent registry (40 to 42, 45) | done |
+| 5 | Discussion, notifications, real-time delivery, collab UI (43, 46, 47) | done |
+| 6 | Plans, artifacts, search and export (44, 48, 50) | done; 44 closed by `00a1412` |
+| 7 | Integrations, admin, billing controls (49, 51, 57) | done; partial for provider breadth, residency, in-flight spend |
+| 8 | Security, compliance, data lifecycle (31, 52, 58) | done; partial, 52 and 58 externally capped |
+| 9 | Reliability, scale, observability (53 to 55) | done; partial, 53 capped |
+| 10 | Release, accessibility, readiness (56, 59 to 61) | done; NO-GO report |
+| 11 | Cloud pass: parts 12, 14, 24, 29, process parts, PostgreSQL diagnosis | done; see `evidence/s11/` (`cloud-report.md`) |
 
-## 3. Session 3 result
+Branches: `master` is the older v1.0.0-candidate (2026-08-26) and holds none of the programme. The programme's commits are on
+`cloud/path-to-9-finish` (owner's last commit `bd48c41`) and on `claude/path-to-9-finish-ax6hie` (Session 11 work). Nothing is merged.
 
-| Part | Matrix state | Why |
-|---|---|---|
-| 37 orgs & identity | verified (cap 8) | `orgs.py`, migration 0038, 22 org tests, live-PG test; SSO login records assurance; live SSO/Stripe external; no MFA factor |
-| 38 permissions & policy | verified | pure engine now in `contracts/policy_engine.py`; `contracts/policy_enforce.py` classifies every identity and orchestrator route and enforces org policy (additive to legacy checks) for org-linked teams; step-up on role change and export. Limits: WebSocket and `/orgs/*` not engine-gated |
-| 39 workspaces | verified | `workspaces.py`, migration 0040, section4 `workspace_gate.py` (run start + queue claim refuse non-active workspaces); gaps in `evidence/s3/lane-w.md` |
+## 3. Where the matrix stands
 
-Evidence: `docs/briefs/evidence/s3/` (`lane-o.md`, `lane-p.md`, `lane-w.md`, `session3-summary.md`). Docs: `organizations.md`,
-`permissions.md`, `workspaces.md`.
+Counts (2026-10-20): verified 43 · implemented 4 · partial 12 · missing 0 · blocked 2.
+Implemented: 12, 25, 26, 32. Partial: 28, 31, 49, 51 to 56 (52, 53 capped), 57, 58 (capped), 59. Blocked: 03, 61.
+Readiness: **NO-GO** for broad rollout (`docs/briefs/final-deliverables.md`, section 10).
 
-## 3b. Session 4 result
+## 4. Open work, in order
 
-Parts 40, 41, 42, 45 verified (matrix rows list tests and gaps). Evidence `docs/briefs/evidence/s4/` (`session4-summary.md` has the
-command table); docs `sessions.md`, `presence.md`, `control.md`, `agents.md`. Behaviour change: a non-holder's guidance is queued until the
-lease holder accepts it (`control/decide`); the UI has the accept step.
+1. **Owner: make the pushed history runnable.** Committed `engine.py` needs `container_runtime.py`, `confine.py` container mode, a test
+   fixture entry and a stand-in worker case that exist only on the owner's machine. Details and the exact list:
+   `docs/briefs/evidence/s11/clean-checkout-gaps.md`. Until then a clean checkout cannot import section 4.
+2. T13b: OTP redeem race in `section1/src/harness_identity/auth.py` `verify_otp`. Fix is a guarded
+   `UPDATE ... WHERE consumed_at IS NULL` and `attempts = attempts + 1 ... RETURNING`. Not done: the owner has uncommitted SMTP edits in that file.
+3. Rows that need Docker: 25, 26, 28, 32, 53, 59 (compose stack, pilot smoke, restore drill). Section 1 has 4 tests that need `docker exec`.
+4. Rows that need a real browser or screen reader: 12, 56. A real-browser responsive and keyboard check has not been run.
+5. Externally gated: 03 (real pilot cohort and baseline), 37 (live identity provider), 52 and 58 (pen test, counsel), 53 (real restore), 61.
+6. Backend gaps from earlier sessions are listed per part in the matrix rows; the largest: no UI to file or amend a proposal; approvals
+   carry no decision timestamp; audit chain has no external anchor; running runs are not stopped on workspace archive.
 
-## 3c. Session 5 result
-
-Parts 43, 46, 47 verified; 56 stays partial (collaboration UI done, rest is Session 10). Evidence `docs/briefs/evidence/s5/` (`session5-summary.md`
-has the command table); docs `discussion.md`, `notifications.md`, `realtime.md`, `accessibility.md`. Migrations 0045 (discussion), 0046
-(notifications); no 0047. Collab events carry `prevSeq`; `collab-history` returns pages with `nextCursor/hasMore/headSeq`. Notification bell polls
-`/api/v1/notifications/unread-count` every 60 s. Needs `tzdata` in slim images and `HARNESS_APP_URL` for mail links.
-
-## 3d. Session 6 result
-
-Parts 48 and 50 are verified; part 44 remains partial. Migrations 0047–0050 add versioned plans,
-execution records, artifacts/version-control metadata, search/export/deletion. Routers are mounted in
-`deploy/runners/services.py`; OpenAPI and SDKs were regenerated. Section 7 run details now include
-the Session 6 workbench. Evidence is in `docs/briefs/evidence/s6/`; docs are `plans.md`,
-`execution.md`, `artifacts.md`, and `search-and-export.md`.
-
-Native plan versions are now approvable (`POST .../plan/versions/{n}/approve`); approval adopts the version as the run's legacy plan, so
-the engine runs exactly the approved content. The running-limit sweep is scheduled (`run_limit_sweeper`, `HARNESS_LIMIT_SWEEP_SECONDS`).
-The tool-call cap counts only calls reported through the agent tool-call route. Artifact/export storage and search indexing still lack
-deploy schedulers. Evidence: `evidence/s6/part44-version-approval.md`.
-
-## 3f. Session 8 status
-
-Session 8 reviewed parts 31, 52 and 58. Reports under `docs/briefs/evidence/s8/` map the directives
-and record verification. Section 4 pins the SDK `sdk-minimal` profile, applies a mandatory per-run
-`workspace-write` overlay, and refuses plans with non-empty `forbiddenPaths` before SDK invocation.
-Its shell still lacks Section 5's command allow-list. Migration 0056 adds team-admin run holds with
-audited create/read/release routes; Section 4 run purge, Section 1 event/audit pruning, and PostgreSQL
-event-partition retirement honor them. User deletion and backup expiry do not. Parts 31/52/58 remain
-partial; 52/58 require external evidence, and account-wide deletion and tenant-specific residency
-remain absent. No legal/compliance claim is made. See
-`docs/briefs/evidence/s8/session8-summary.md`.
-
-## 3e. Session 7 result
-
-Part 49 remains partial: team-scoped versioned outbound webhooks have encrypted one-time secrets,
-HMAC timestamped signatures, idempotency keys, bounded retries, host allowlisting and rotation.
-GitHub defaults to `public_repo read:user`, but classic OAuth still permits writes to public repos;
-issue-tracker/chat adapters and extension sandbox are absent. Part 51 remains partial: dual approval
-for high-risk policy changes is owner-configurable, and owners can set shorter event/audit retention
-windows applied by the worker. Physical residency remains deployment-wide. Part 57 remains partial:
-daily run reservations are atomic per run/team and tool-call limits read durable tool records;
-in-flight spend is estimate-based and alert delivery is not wired. Stripe is intentionally out of
-scope and does not cap the score. Details: `docs/briefs/evidence/s7/` and
-`docs/{integrations,billing-and-quotas}.md`.
-
-## 4. Verification record (Session 7, 2026-10-19)
-
-Session 7 original targeted checks: Section 1 webhook/policy/billing/Stripe tests 58 passed; Section 4 budget
-and tier tests 45 passed; Section 7 billing API UI test 7 passed; Section 7 typecheck and TypeScript
-SDK typecheck passed. Completion pass: Section 1 org/policy/retention tests 80 passed, 2 skipped;
-Section 2 GitHub OAuth tests 11 passed; Section 7 typecheck passed. The two Section 4 execution fixture
-failures noted then were fixed in `6b6adfb` (full Section 4 now 1464 passed, 38 skipped). PostgreSQL
-migrations and live provider flows were not run. See
-`docs/briefs/evidence/s7/session7-summary.md`.
-
-Session 6 verification record (2026-10-19):
-
-Session 6 lane tests: PL 53, EX 66, AR 93, SE 74 passed; integrated policy/spec checks 8 passed;
-Section 7 typecheck passed and full Vitest passed 817 tests across 68 files, including the new
-workbench test.
-
-Section 1 full suite: 923 passed, 29 skipped, 21 setup errors because SMTP/OIDC tests could not bind
-localhost sockets in this sandbox. Section 4 full suite was interrupted after 1353 passed, 37 skipped
-and 3 observed failures: one 1.011 s cost-rollup threshold miss and two macOS Seatbelt
-`sandbox_apply` failures; it stalled at 93% for 159 s. Session 6 live-PG probe and
-`make pg-probe-migrate` and `make pg-probe-s1` could not run: Docker socket absent and port 5499
-refused connections. OTP smoke was attempted once but the script found port 8101 occupied and
-declined to stop it. Section 4 full Ruff passed; Section 1 full Ruff reports three findings in the
-unrelated untracked `scripts/verify_audit_chain.py`. See
-`docs/briefs/evidence/s6/session6-summary.md` for the command record and gaps.
-
-Session 5 record (superseded): section1 944 passed/29 skipped; section4 1143 passed/37 skipped;
-Postgres migration probe through 0046 and live-PG checks passed; Section 7 typecheck and 816 Vitest
-tests passed; OTP smoke passed.
-
-(Session 4 record, superseded: section1 859, section4 979, vitest 572, migrations 0001→0044.)
-
-section1 pytest 859 passed/27 skipped; section4 pytest 979 passed/32 skipped; ruff clean s1/s4; `make pg-probe-migrate` PASS 0001→0044;
-`make pg-probe-s1` 885 passed/1 skipped; section4 live-PG session 4 + collab chaos tests pass; section7 tsc clean, vitest 572 passed;
-`run_smoke.py --otp` passed (after one failure fixed by lane U). **Not run:** `make gate`, `make e2e*` beyond the smoke leg, `pip-audit`,
-`--real`, Linux Landlock, section5 suite, a multi-process race, browser tests of the new UI handlers.
-
-## 5. Open work, in order
-
-1. ~~Part 38 enforcement carry-over~~ done (`evidence/s3/part38-enforcement.md`). Remaining limits are in `docs/permissions.md`.
-2. ~~Sessions 4 and 5~~ done. Session 6 integrated; next Session 7 (49, 51, 57) per
-   `path-to-9-plan.md`. Part 44 closed locally by `00a1412` (see `evidence/s6/part44-version-approval.md`).
-3. Backend gaps from earlier: no UI to file/amend a proposal; approvals API lacks a decision timestamp; part 12 item 009 and
-   responsive layout untested; audit chain has no external anchor; browser socket connection not asserted in e2e.
-4. Workspace gaps: no purge job after `purge_after`, running run not stopped on archive, `resume_agent` not gated, quota check race.
-5. Dev SQLite has no `teams.org_id` (migration 0038 adds it on Postgres); `require_team_stepup` tolerates that.
-
-## 6. Facts that bite
+## 5. Facts that bite
 
 - `HARNESS_PILOT_TEAMS` is an **allowlist**: unset or empty opens collaboration to every team.
-- Prometheus scrapes the **root `/metrics`**; sandbox `confinement=off` has no OS boundary; no Alertmanager.
-- `ruff check --fix` deletes imported pytest fixtures. Never use it.
-- **Sqlite tests with spawned engine tasks must await the tasks before `engine.dispose()`**, or teardown stalls 10 s to forever
-  (found in `test_workspace_gate.py`; it hung two full-suite runs).
-- With the collab push socket up, the UI safety poll is 20 s, so the peer-offline alert can take that long (e2e waits 30 s).
-- `run_smoke.py` needs ~2 minutes between runs (port 8101 TIME_WAIT: wait until a bind succeeds) and overwrites `docs/briefs/evidence/p1/*`.
-- FastAPI 0.141 nests included routers (`_IncludedRouter`): `app.routes`/`route.path` walks are vacuous; walk `app.openapi()["paths"]` instead.
-- Regenerating `section5/openapi.json` drops hand-written 400/409 docs from commit 5414a14: restore it with `git checkout`.
-- Tooling: macOS zsh. No `timeout` command; `sleep N && cmd` is blocked (use bounded for-loops); BSD `sed -i` needs `''`;
-  the repo path has a space (quote it); zsh does not expand `--include=*.py`.
-- The working tree also holds ~100 uncommitted files from unrelated earlier work (section2, `docs/agent-program/`, section4
-  `confine.py`/`logging_utils.py`/`signals.py`/`__init__.py` edits, `container_runtime.py`, `model_relay.py`, `pilot_metrics.py`,
-  `section5/tests/unit/test_checkpoints.py`, `section7/e2e/real.e2e.ts`). Commit by explicit path only.
+- Prometheus scrapes the **root `/metrics`**; sandbox `confinement=off` has no OS boundary; there is no Alertmanager.
+- `ruff check --fix` deletes imported pytest fixtures. Never use it broadly (`--select I001 --fix` on one new file is fine).
+- SQLite tests with spawned engine tasks must await the tasks before `engine.dispose()`, or teardown stalls (it hung two full-suite runs).
+- SQLite hides PostgreSQL typing errors: an untyped empty `IN` list failed only on PostgreSQL (`evidence/s11/live-pg-search-export.md`).
+  Run the live-PG modules (`HARNESS_TEST_PG`) after touching raw SQL.
+- `execution.retry()` returns `(body, created)`; a repeated `requestId` is `created == False` (HTTP 200).
+- With the collab push socket up the UI safety poll is 20 s, so the peer-offline alert can take that long (e2e waits 30 s).
+- `run_smoke.py` needs about 2 minutes between runs (port 8101 TIME_WAIT) and overwrites `docs/briefs/evidence/p1/*`.
+- FastAPI 0.141 nests included routers: walk `app.openapi()["paths"]`, not `app.routes`.
+- Regenerating `section5/openapi.json` drops hand-written 400/409 docs: restore it with `git checkout -- section5/openapi.json`.
+- Dev SQLite has no `teams.org_id` (migration 0038 adds it on PostgreSQL); `require_team_stepup` tolerates that.
+- Migrations are 55 files numbered 0001 to 0056 (there is no 0014); `deploy/runners/migrate_selftest.py` checks disk against the ledger.
+- Owner's machine is macOS zsh (no `timeout`, BSD `sed -i ''`, repo path has a space). The cloud box is Linux, root, no Docker daemon,
+  PostgreSQL installable (run your own on another port, never 5432 of a shared machine).
+- The owner's machine holds uncommitted work (section2, `docs/agent-program/`, section4 `confine.py` and `container_runtime.py`
+  changes, `model_relay.py`, `pilot_metrics.py`, section1 `auth.py` SMTP edits, `docs/briefs/codex-*`, `smtp-*`, `multiplayer-*`).
+  Commit by explicit path only; never `git add -A`.
 
-## 7. Not cleared
+## 6. Not cleared
 
-Pilot is **not cleared for real users**: no measured baseline (part 03), no Alertmanager, operator-present rules are manual, live SSO
-and Stripe unproven, no pentest, PITR unproven, counsel review absent.
+The pilot is **not cleared for real users**: no measured baseline (part 03), no Alertmanager, operator-present rules are manual, live
+SSO unproven, no pen test, point-in-time recovery unproven, no counsel review, the pushed history is not runnable on a clean checkout,
+and no pilot smoke or real-browser run exists for the current tree.
 
-## 8. How to resume
+## 7. How to resume
 
 ```
-cd "/Users/user/untitled folder 2/harness"
+git fetch origin && git log --oneline -8          # confirm the branch tip
 git status --short | head -40
-make pg-probe-s1 && make pg-probe-migrate  # expect 43 migrations
+cd section4 && ./.venv/bin/python -m pytest tests -q   # needs the owner's uncommitted files; see clean-checkout-gaps.md
+cd .. && make pg-probe-s1 && make pg-probe-migrate     # expect 55 migrations (0001 to 0056)
 ```
+
+Per-part work: read the matrix row, audit directive by directive, add the missing invariant test, write
+`docs/briefs/evidence/s11/<part>.md`, flip the row only with that evidence, and run `section4/tests/unit/test_program_docs.py`.
