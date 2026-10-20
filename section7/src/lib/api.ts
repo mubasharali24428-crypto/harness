@@ -117,7 +117,7 @@ export function friendlyErrorMessage(code: string): string | null {
   return FRIENDLY_ERROR_MESSAGES[code] ?? null;
 }
 
-async function apiFetch<T>(url: string, token: string | null, init?: RequestInit): Promise<T> {
+export async function apiFetch<T>(url: string, token: string | null, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
     headers: {

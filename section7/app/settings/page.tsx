@@ -80,6 +80,7 @@ function SettingsInner() {
           <li><a href="/settings/keys" style={{ color: "#93c5fd" }}>API keys (BYO providers)</a></li>
           <li><a href="/settings/integrations" style={{ color: "#93c5fd" }}>Integrations &amp; webhooks</a></li>
           <li><a href="/settings/billing" style={{ color: "#93c5fd" }}>Billing &amp; plan</a></li>
+          <li><a href="/settings/account" style={{ color: "#93c5fd" }}>Your account (erase)</a></li>
           <li><a href="/onboarding" style={{ color: "#93c5fd" }}>Onboarding checklist</a></li>
         </ul>
       </section>
