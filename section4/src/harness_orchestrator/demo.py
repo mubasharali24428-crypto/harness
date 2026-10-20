@@ -308,7 +308,10 @@ async def _seed_run_rows(db, service: OrchestratorService, spec: dict[str, Any],
     )
 
     # Ordered event trail — the same rows the S1 bus persists for live runs,
-    # each honestly marked as replay.
+    # each honestly marked as replay. The recorded spacing is kept but the trail
+    # ends now: recorded dates fall behind the retention horizon, and PostgreSQL
+    # refuses a row once the partition that held its month is retired.
+    shift = db_now() - datetime.fromisoformat(run["events"][-1]["ts"])
     for evt in run["events"]:
         payload = dict(evt["payload"])
         payload["demo"] = REPLAY_MARKER
@@ -322,7 +325,7 @@ async def _seed_run_rows(db, service: OrchestratorService, spec: dict[str, Any],
                 "r": run_id,
                 "t": evt["type"],
                 "payload": json.dumps(payload),
-                "ts": datetime.fromisoformat(evt["ts"]),
+                "ts": datetime.fromisoformat(evt["ts"]) + shift,
             },
         )
     return float(cost_dec)

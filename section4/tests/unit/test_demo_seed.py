@@ -354,3 +354,32 @@ def test_recorded_review_matches_the_real_heuristic_verdict():
     assert findings.passed is recorded["passed"]
     assert findings.summary == recorded["summary"]
     assert findings.issues == recorded["issues"]
+
+
+def test_seeded_trail_ends_now_and_keeps_the_recorded_spacing(monkeypatch, db):
+    """Recorded dates fall behind the retention horizon: once the sidecar retires the
+    partition holding them, PostgreSQL refuses the insert (`no partition ... found for row`)."""
+    from datetime import UTC, datetime
+
+    from harness_orchestrator.demo_replay import load_fixture
+
+    client = _client(monkeypatch, db, principal=_principal(Role.ADMIN))
+    run_id = client.post("/api/v1/orchestrator/demo/seed").json()["runId"]
+
+    async def _ts():
+        async with db() as session:
+            rows = await session.execute(
+                text("SELECT ts FROM agent_events WHERE run_id = :r ORDER BY seq"), {"r": run_id}
+            )
+            return [r[0] for r in rows]
+
+    def _aware(v):
+        v = datetime.fromisoformat(v) if isinstance(v, str) else v
+        return v if v.tzinfo else v.replace(tzinfo=UTC)
+
+    seeded = [_aware(v) for v in asyncio.run(_ts())]
+    recorded = [datetime.fromisoformat(e["ts"]) for e in load_fixture()["run"]["events"]]
+    assert abs((datetime.now(UTC) - seeded[-1]).total_seconds()) < 300, seeded[-1]
+    assert [b - a for a, b in zip(seeded, seeded[1:], strict=False)] == [
+        b - a for a, b in zip(recorded, recorded[1:], strict=False)
+    ]
