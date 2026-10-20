@@ -193,6 +193,23 @@ describe("CSS breakpoint contract in app/globals.css", () => {
     expect(mq).toMatch(/\.sidebar\s*{[^}]*max-width:\s*82vw/s); // tap-out stays reachable at 320px
   });
 
+  it("stacks the top bar above the content ≤900px (the shell is a flex row on desktop)", () => {
+    expect(GLOBALS_CSS).toMatch(/\.shell\s*{[^}]*display:\s*flex/s);
+    const mq = GLOBALS_CSS.slice(GLOBALS_CSS.indexOf("@media (max-width: 900px)"));
+    expect(mq).toMatch(/\.shell\s*{\s*flex-direction:\s*column;/);
+  });
+
+  it("lets the run page's working-area columns shrink so a wide child cannot stretch the page", () => {
+    expect(GLOBALS_CSS).toMatch(/\.working-grid\s*{[^}]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/s);
+    expect(GLOBALS_CSS).toMatch(/\.working-col\s*{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
+    const mq = GLOBALS_CSS.slice(GLOBALS_CSS.indexOf("@media (max-width: 900px)"));
+    expect(mq).toMatch(/\.working-grid\s*{\s*grid-template-columns:\s*minmax\(0,\s*1fr\);/);
+    // The component must use the classes, not an inline fixed two-column grid (inline styles beat the media query).
+    const working = readFileSync(join(HERE, "WorkingArea.tsx"), "utf8");
+    expect(working).toContain('className="working-grid"');
+    expect(working).not.toMatch(/gridTemplateColumns/);
+  });
+
   it("stacks content grids to a single column ≤900px", () => {
     const mq = GLOBALS_CSS.slice(GLOBALS_CSS.indexOf("@media (max-width: 900px)"));
     expect(mq).toMatch(/\.grid\s*{\s*grid-template-columns:\s*1fr;/);

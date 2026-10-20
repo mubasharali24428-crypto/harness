@@ -1,11 +1,10 @@
 // Parts 12.010 / 24.010: a run's state is shown in plain language, for every state the orchestrator can report.
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { stateLabel } from "../../app/runs/runsApi";
+import { RUN_STATUSES, stateLabel } from "../../app/runs/runsApi";
 
-const machine = readFileSync(resolve(process.cwd(), "../section4/src/harness_orchestrator/state_machine.py"), "utf8");
-const agentStates = [...machine.split("class AgentState(StrEnum):")[1].split("\n\n")[0].matchAll(/= "([a-z_]+)"/g)].map((m) => m[1]);
+// RUN_STATUSES is section 7's own mirror of the orchestrator's AgentState (also mirrored in contracts RunState); a test
+// here must not read section 4's source (the M13 isolation law, `make guard-isolation`).
+const agentStates: readonly string[] = RUN_STATUSES;
 
 describe("stateLabel", () => {
   it("has a plain sentence for every AgentState the orchestrator defines", () => {

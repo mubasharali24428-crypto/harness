@@ -13,6 +13,7 @@ own manual edits and the most recent done-signal submission instead.`;
 export function DiffPanel({ diffText }: { diffText: string }) {
   const containerRef = useEditorView(diffText || EMPTY_STATE, {
     readOnly: true,
+    label: "Diff of your latest edit",
     extensions: [diffHighlight],
   });
 

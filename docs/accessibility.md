@@ -1,8 +1,8 @@
 # Accessibility of the collaboration UI (master prompt part 56, collaboration scope)
 
 As built in session 5, lane X (`section7/`). This page describes what the code does and what has and has not been checked.
-It is not a conformance claim: **no screen reader, real browser keyboard test or automated axe run was performed** (see
-"Not covered"). Part 56 outside the collaboration UI (the older pages) is out of scope here.
+It is not a conformance claim: **no screen reader was used**. A Chromium keyboard, reflow and axe run covered `/login` and the run page
+with synthetic data (`docs/briefs/evidence/s11/browser-check.md`); the other pages and the rest of "Not covered" were not checked. Part 56 outside the collaboration UI (the older pages) is out of scope here.
 
 Scope: the shared run panel (`app/projects/[projectId]/runs/[runId]/`), the discussion panel (part 43), the notification bell,
 inbox and settings (part 47), and the real-time connection indicator (part 46).
@@ -140,13 +140,14 @@ Files: `realtimeCore.test.ts`, `collabStream.test.ts`, `keyboard.test.tsx`, `dis
 
 ## 10. Not covered (honest list)
 
-* **No real browser run.** Tab order, focus rings, `:focus-visible` behaviour, real key events, scroll behaviour, `matchMedia`,
-  `Intl` data of a real device and the Next.js build of the new routes were not exercised. The element-tree tests prove handler wiring,
-  names, roles and the order of focus calls, not that a browser moves focus there.
+* **Real browser: two pages only.** `section7/scripts/browser-check.mjs` drove `/login` and the run page in Chromium at 320, 375, 768 and
+  1280 px against fixtures: no page overflow, every Tab stop named and visibly focused, a skip link that works, a direction sent and
+  "Jump to latest" reached by keyboard only. Not exercised: the other pages, `matchMedia` on a real device, `Intl` data of a real device, other
+  browsers, touch. The element-tree tests prove handler wiring, names, roles and the order of focus calls.
 * **No screen reader testing** (VoiceOver, NVDA, JAWS, TalkBack). Live-region behaviour differs between them; the throttling is a
   design choice, not a measured result.
-* **No axe / Lighthouse run.** No colour-contrast check of the new elements (they use the existing CSS variables and `Pill` / `Notice` /
-  `Button` components; contrast was not measured). No zoom / reflow check at 200-400%.
+* **Axe ran on two pages; Lighthouse did not.** Axe 4.10.2 found 7 run-page text elements below 4.5:1 (secondary text in `#6b7280` on the dark
+  panels, 3.3 to 3.9:1) and 3 to 4 targets under 24 px; both are open. No zoom check at 200-400%.
 * **No full i18n:** strings are English literals; only dates, times, numbers and relative times follow the locale. No RTL review.
 * The bell sits in the sidebar, which collapses into a drawer at 900 px and below: on small screens it is reachable only after opening
   the navigation.

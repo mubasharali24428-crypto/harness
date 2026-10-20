@@ -27,7 +27,7 @@ export function HistoryLog({ events, initialShown = PAGE, locale }: { events: Co
   const [shown, setShown] = useState(initialShown);
   const [atEnd, setAtEnd] = useState(true);
   const [unseen, setUnseen] = useState(0);
-  const box = useRef<HTMLOListElement | null>(null);
+  const box = useRef<HTMLDivElement | null>(null);
   const seen = useRef(events.length);
   const { rows, hidden } = windowEvents(events, shown);
 
@@ -48,7 +48,8 @@ export function HistoryLog({ events, initialShown = PAGE, locale }: { events: Co
     setShown(PAGE);
     setUnseen(0);
     el.scrollTo?.({ top: el.scrollHeight, behavior: scrollBehavior() });
-    (el.lastElementChild as HTMLElement | null)?.focus?.({ preventScroll: true });
+    // The <li>s sit in an <ol> inside the log, so the newest entry is the list's last child.
+    (el.querySelector("ol")?.lastElementChild as HTMLElement | null)?.focus?.({ preventScroll: true });
   };
   const fmt = { locale };
   return (
@@ -60,18 +61,21 @@ export function HistoryLog({ events, initialShown = PAGE, locale }: { events: Co
           </Button>
         </p>
       )}
-      <ol
+      {/* role="log" replaces a list's own role, so the scroller is a div and the list sits inside it. */}
+      <div
         ref={box} role="log" aria-label="Collaboration history" tabIndex={0}
         onScroll={(e) => { const t = e.currentTarget; const end = nearBottom(t.scrollTop, t.clientHeight, t.scrollHeight); setAtEnd(end); if (end) setUnseen(0); }}
-        style={{ margin: 0, paddingLeft: 28, maxHeight: 220, overflow: "auto" }}
+        style={{ maxHeight: 220, overflow: "auto" }}
       >
-        {rows.map((e) => (
-          <li key={e.seq} tabIndex={-1}>
-            <time dateTime={e.ts} title={formatDateTime(e.ts, fmt)} style={muted}>{formatTime(e.ts, fmt)}</time> {describeEvent(e)}
-          </li>
-        ))}
-        {events.length === 0 && <li style={muted}>Nothing yet.</li>}
-      </ol>
+        <ol style={{ margin: 0, paddingLeft: 28 }}>
+          {rows.map((e) => (
+            <li key={e.seq} tabIndex={-1}>
+              <time dateTime={e.ts} title={formatDateTime(e.ts, fmt)} style={muted}>{formatTime(e.ts, fmt)}</time> {describeEvent(e)}
+            </li>
+          ))}
+          {events.length === 0 && <li style={muted}>Nothing yet.</li>}
+        </ol>
+      </div>
       {(!atEnd || unseen > 0) && (
         <p style={{ margin: "4px 0 0" }}>
           <Button size="sm" onClick={jump}>

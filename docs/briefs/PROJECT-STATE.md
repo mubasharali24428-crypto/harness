@@ -41,7 +41,7 @@ Branches: `master` is the older v1.0.0-candidate (2026-08-26) and holds none of 
 
 ## 3. Where the matrix stands
 
-Counts (2026-10-20): verified 43 · implemented 4 · partial 12 · missing 0 · blocked 2.
+Counts (2026-10-20): verified 44 · implemented 3 · partial 12 · missing 0 · blocked 2.
 Implemented: 12, 25, 26, 32. Partial: 28, 31, 49, 51 to 56 (52, 53 capped), 57, 58 (capped), 59. Blocked: 03, 61.
 Readiness: **NO-GO** for broad rollout (`docs/briefs/final-deliverables.md`, section 10).
 
@@ -53,7 +53,8 @@ Readiness: **NO-GO** for broad rollout (`docs/briefs/final-deliverables.md`, sec
 2. T13b: OTP redeem race in `section1/src/harness_identity/auth.py` `verify_otp`. Fix is a guarded
    `UPDATE ... WHERE consumed_at IS NULL` and `attempts = attempts + 1 ... RETURNING`. Not done: the owner has uncommitted SMTP edits in that file.
 3. Rows that need Docker: 25, 26, 28, 32, 53, 59 (compose stack, pilot smoke, restore drill). Four section 1 tests (live-PG FK and index probes, opt-in via `HARNESS_TEST_PG`) call `docker exec`.
-4. Rows that need a real browser or screen reader: 12, 56. A real-browser responsive and keyboard check has not been run.
+4. Row 56 needs a screen reader. A Chromium keyboard, reflow and axe check of `/login` and the run page (synthetic data) passed with 0 hard failures
+   (`docs/briefs/evidence/s11/browser-check.md`); run-page text contrast (7 elements) and small targets are open findings for the owner.
 5. Externally gated: 03 (real pilot cohort and baseline), 37 (live identity provider), 52 and 58 (pen test, counsel), 53 (real restore), 61.
 6. Backend gaps from earlier sessions are listed per part in the matrix rows; the largest: no UI to file or amend a proposal; approvals
    carry no decision timestamp; audit chain has no external anchor; running runs are not stopped on workspace archive.
@@ -83,7 +84,7 @@ Readiness: **NO-GO** for broad rollout (`docs/briefs/final-deliverables.md`, sec
 
 The pilot is **not cleared for real users**: no measured baseline (part 03), no Alertmanager, operator-present rules are manual, live
 SSO unproven, no pen test, point-in-time recovery unproven, no counsel review, the pushed history is not runnable on a clean checkout,
-and no pilot smoke or real-browser run exists for the current tree.
+and no pilot smoke exists for the current tree; the browser check used synthetic data and no screen reader.
 
 ## 7. How to resume
 

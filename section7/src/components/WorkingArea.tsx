@@ -80,14 +80,14 @@ export function WorkingArea({ projectId, runId, stagedPending = false }: { proje
       <h1 style={{ fontSize: 18, marginBottom: 16 }}>
         Working Area <span style={{ color: "#6b7280", fontWeight: 400 }}>· run {runId}</span>
       </h1>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        <div style={{ display: "grid", gap: 16, alignContent: "start" }}>
+      <div className="working-grid">
+        <div className="working-col">
           <StatusPanel status={status} derived={derived} connectionState={connectionState} />
           <PlanPanel plan={plan} />
           <DiffPanel diffText={diffText} />
           <TerminalPanel results={[]} lines={derived.terminalLines} />
         </div>
-        <div style={{ display: "grid", gap: 16, alignContent: "start" }}>
+        <div className="working-col">
           <Controls
             stagedPending={stagedPending}
             runId={runId}

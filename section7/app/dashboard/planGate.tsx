@@ -217,7 +217,7 @@ export function PlanGateCard({
       note={note}
       actions={wire}
     />
-    {activeRunId && getProjectId() && <a href={`/projects/${encodeURIComponent(getProjectId()!)}/runs/${encodeURIComponent(activeRunId)}`}>
+    {activeRunId && getProjectId() && <a href={`/projects/${encodeURIComponent(getProjectId()!)}/runs/${encodeURIComponent(activeRunId)}`} style={{ color: "var(--accent)" }}>
       Open shared run
     </a>}
     </>

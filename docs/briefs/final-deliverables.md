@@ -4,13 +4,13 @@ Written 2026-10-20 (Session 11, cloud pass). This is an index. The matrix `capab
 is built; this file points at it and at the evidence, and states the readiness decision. Nothing here is a claim beyond the evidence it
 cites. Results are labelled **pass**, **fail** or **not verified**; "not verified" means nothing was run.
 
-Counts (2026-10-20): verified 43 · implemented 4 · partial 12 · missing 0 · blocked 2.
+Counts (2026-10-20): verified 44 · implemented 3 · partial 12 · missing 0 · blocked 2.
 
 ## 1. Executive summary
 
 The programme took 61 master-prompt parts toward a shared-run pilot product: several people watch, steer, approve and hand off one AI
 coding run, with deny-by-default isolation, digest-bound approvals and an audit trail. Ten build sessions plus one cloud verification
-session produced 43 verified rows, 4 implemented, 12 partial and 2 blocked. Rows 37, 52, 53, 58 and 61 and part 03 are capped at 8 or
+session produced 44 verified rows, 3 implemented, 12 partial and 2 blocked. Rows 37, 52, 53, 58 and 61 and part 03 are capped at 8 or
 blocked because they need an outside party (identity-provider and pen-test evidence, a real backup restore, counsel, a measured pilot).
 
 **Readiness decision: NO-GO for broad rollout or full-product acceptance** (section 10). An operator-present rehearsal for named teams is
@@ -30,7 +30,7 @@ See `capability-matrix.md` (61 rows, one per part, each with its evidence). Grou
 |---|---|---|
 | Product, method, process | 01, 02, 15 to 19, 34, 35 | verified (`evidence/s11/process-parts.md`; practice rows state that in their limits) |
 | Shared-run core: safety, approval, redirect, isolation, lifecycle, events | 04 to 11, 13, 14, 20 to 23, 27, 29, 30, 33, 36 | verified |
-| Shared experience and end-to-end | 12, 25, 26 | implemented (12: no real-browser or screen-reader pass); 24 verified |
+| Shared experience and end-to-end | 12, 24, 25, 26 | 12 and 24 verified (12: Chromium check on synthetic data, no screen reader); 25, 26 implemented |
 | Identity, organisations, policy, workspaces, sessions | 37 to 40 | verified (37 capped at 8: live identity-provider evidence) |
 | Presence, control, discussion, plans, agents, delivery, notifications, files, search | 41 to 48, 50 | verified, each with listed gaps |
 | Integrations, governance, billing | 49, 51, 57 | partial (provider breadth, residency, in-flight spend; Stripe is out of scope by owner direction) |
@@ -66,7 +66,7 @@ Docs that state behaviour and limits: `docs/collaboration-contract.md`, `docs/au
 | 8 | Security and compliance review, sandbox profile pinning, run holds (31, 52, 58): partial |
 | 9 | SLOs, capacity runbook, dashboard (53 to 55): partial |
 | 10 | Client and compatibility runbooks, readiness report: NO-GO (56, 59 to 61) |
-| 11 | Cloud pass: contract page and threat close-outs (14, 29), plain-language UI (12, 24), process parts, PostgreSQL diagnosis and fix, matrix to 43 verified |
+| 11 | Cloud pass: contract page and threat close-outs (14, 29), plain-language UI (12, 24), process parts, PostgreSQL diagnosis and fix, matrix to 44 verified (12 after the browser check) |
 
 Sessions 6 to 10 were built by Codex and verified by Claude (`path-to-9-checkpoint.md`).
 
@@ -85,7 +85,8 @@ Sessions 6 to 10 were built by Codex and verified by Claude (`path-to-9-checkpoi
 | Full suites and gates for this session | see `evidence/s11/cloud-report.md` | `evidence/s11/cloud-report.md` |
 | Pilot smoke on this tree | **not verified** (no Docker daemon; history not importable) | `evidence/s11/process-parts.md` |
 | Pilot baseline, at least 5 comparable tasks per side (part 03) | **not verified**: no real cohort | `pilot-baseline-guide.md` |
-| Real-browser keyboard and reflow, screen reader, contrast (parts 12, 56) | **not verified** | `evidence/s10/verification.md` |
+| Real-browser keyboard and reflow (parts 12, 56) | **pass** on `/login` and the run page, synthetic data (0 hard failures) | `evidence/s11/browser-check.md` |
+| Screen reader, run-page contrast, other pages (part 56) | **not verified** / contrast **fail** (7 elements at 3.3 to 3.9:1) | `evidence/s11/browser-check.md` |
 | Independent penetration test, Linux Landlock, `pip-audit` | **not verified** (not run) | `threat-model.md` |
 | Real backup and point-in-time restore (part 53) | **not verified** | `evidence/s9/verification.md` |
 | Full product acceptance (part 61) | **fail**: critical rows partial or blocked | `evidence/s10/readiness-report.md` |
@@ -105,7 +106,7 @@ Sessions 6 to 10 were built by Codex and verified by Claude (`path-to-9-checkpoi
 | Live identity-provider (SSO) flows unproven | Medium | program owner | open; part 37 capped at 8 |
 | No counsel review, no pen test, no residency per tenant | High for real customers | program owner | open; parts 52, 58 capped at 8 |
 | No measured baseline: no claim about speed or quality is supportable | n/a | program owner | open; part 03 blocked |
-| UI untested in a real browser or with a screen reader; English only | Medium | program owner | open (parts 12, 56) |
+| UI never used with a screen reader; run-page contrast below 4.5:1 on secondary text; two pages walked in a browser; English only | Medium | program owner | open (part 56) |
 
 ## 7. Pilot setup
 
@@ -139,14 +140,14 @@ Operating rules are in `docs/runbooks/pilot.md` (flag `HARNESS_PILOT_TEAMS`, ope
 1. Commit the files the pushed history needs, or revert the engine wiring (`evidence/s11/clean-checkout-gaps.md`, "What the owner needs to do").
 2. Decide T13b: apply the guarded `UPDATE` once `auth.py` is clean.
 3. Run the section 1 tests that need Docker (4 failures locally), the compose stack and the pilot smoke on a Docker host.
-4. Real-browser keyboard, reflow and screen-reader pass of the collaboration UI (rows 12, 56).
+4. Screen-reader pass of the collaboration UI and a fix for the secondary-text colour (row 56); add `section7/scripts/browser-check.mjs` to CI if wanted.
 5. Obtain a supervised cohort and the baseline (part 03); run the release and rollback rehearsal on a scratch PostgreSQL stack (part 59).
 6. Provider and external gates: identity provider, object-store restore, counsel, pen test.
 
 ## 10. Readiness decision
 
 **NO-GO** for broad rollout, for new tenants, and for any claim of full-product readiness. Reasons: the pushed history is not runnable on
-a clean checkout; parts 03 and 61 are blocked; parts 37, 52, 53 and 58 need outside evidence; no pilot smoke, real-browser, restore or
+a clean checkout; parts 03 and 61 are blocked; parts 37, 52, 53 and 58 need outside evidence; no pilot smoke, restore or
 penetration result exists for the current tree. **Conditional GO for an operator-present, allow-listed rehearsal** with named teams
 only after every pre-flight check in section 7 has been run and recorded. Reassess only from recorded results, not from this document.
 
