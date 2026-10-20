@@ -43,6 +43,27 @@ test was not run with a crash branch added.)
 
 Both matrix rows still cite at least one file that exists, so `test_program_docs.py` passes; the dangling names remain for the owner.
 
+## 6. Section 1: a stale fake in the slim-bus test
+
+`section1/tests/test_slim_bus.py::test_listener_wakes_and_fetches_envelope_table_side` fails every time (`TimeoutError`) on the committed
+tree. `eventbus._listen` attaches two listeners on one connection: `_on_notify` on `agent_events` and `_on_collab_notify` on
+`COLLAB_CHANNEL` (added in `cad3973`, 2026-10-18). The test's `_FakeNotifyConn.add_listener` keeps only one callback
+(`self.callback = cb`), so the second registration replaces the first and the slim `agent_events` signal reaches the collab handler,
+which ignores it (no `runId`). The test was last committed in `3805ca7` (2026-08-25), before the second listener existed. This is a
+test-side fake that predates the code, not a delivery bug that was shown; the fake was not edited (reserved slim-bus test file) and the
+test was not re-run with a corrected fake. **Owner action:** make the fake keep one callback per channel.
+
+Three section 1 test modules import `harness_orchestrator` (`test_alert_rules_load.py`, `test_request_size_limits.py`,
+`test_runs_index_tuning.py`), so the section 1 numbers below were also produced with the `container_runtime` stub installed in the
+section 1 venv. Without it those modules fail to import for the item 1 reason.
+
+## 7. Section 1 tests that need Docker
+
+Four tests run only when `HARNESS_TEST_PG` is set and call `docker exec` into the compose database container (`harness-db-1`):
+`test_fk_deletion_story.py::TestLivePostgresDeletionStory` (3) and `test_runs_index_tuning.py::TestLivePostgresRunsIndexPlan` (1). They
+are skipped by default. They were **not run** here (no Docker daemon). A section 1 run with `HARNESS_TEST_PG` set was started and
+stopped at about 74% by the operator, so it produced no result and is not counted anywhere below.
+
 ## How the results below were produced (verification-only stand-ins, not in the repo)
 
 * `container_runtime`: a stub module registered through a `.pth` file inside the section4 venv's `site-packages` (gitignored). It raises if
@@ -51,10 +72,14 @@ Both matrix rows still cite at least one file that exists, so `test_program_docs
   `confine.wrap_command` accept and ignore the four extra keywords. These only separate "failure caused by the missing owner files" from
   "failure caused by something else".
 
-| Run (section4, whole suite, real PG 16.15 enabled) | Result |
+| Run | Result |
 |---|---|
-| committed tree + stub only | **17 failed**, 1409 passed, 4 skipped: the 15 below, `test_lifecycle_recovery`, and one timing flake in `test_limit_sweeper` (passed on re-runs; budget raised) |
-| committed tree + stub + both shims | only `test_lifecycle_recovery` still fails (item 4), plus 13 of my new `test_program_docs.py` tests that ran before their documents existed |
+| section 4, SQLite (gate run), committed tree + stub only | **16 failed**, 1414 passed, 22 skipped |
+| section 4, SQLite (gate run), stub + both shims | **1 failed** (`test_lifecycle_recovery`, item 4), 1429 passed, 22 skipped |
+| section 4, real PG 16.15 enabled, committed tree + stub only | **17 failed**, 1409 passed, 4 skipped: the 15 below, `test_lifecycle_recovery`, and one timing flake in `test_limit_sweeper` (passed on re-runs; budget raised) |
+| section 4, real PG enabled, stub + both shims | only `test_lifecycle_recovery` still fails (item 4), plus 13 of my new `test_program_docs.py` tests that ran before their documents existed |
+| section 1, SQLite (gate run), stub installed, no `HARNESS_TEST_PG` | **1 failed** (`test_slim_bus`, item 6), 941 passed, 29 skipped |
+| section 1, `HARNESS_TEST_PG` set | not completed (stopped by the operator at about 74%); no result |
 
 The 15 that pass once items 2 and 3 are shimmed: `test_collab_contract` 2, `test_collab_rules_s2` 1, `test_control` 4,
 `test_isolation_and_staging` 3, `test_staging_e2e` 4, `test_workspace_lifecycle_s2` 1. Which of the two gaps each one needs was not
@@ -66,3 +91,4 @@ separated test by test. With the stub only, 1424 tests are collectable; the owne
    revert the `engine.py` wiring. Until then the pushed history is not importable.
 2. Commit the `test_collab_backend.py` fixture edit and the `standin_worker.py` crash case.
 3. Commit or drop the two citations in item 5.
+4. Fix the slim-bus test fake (item 6): keep one callback per channel.

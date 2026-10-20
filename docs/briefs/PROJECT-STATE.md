@@ -49,10 +49,10 @@ Readiness: **NO-GO** for broad rollout (`docs/briefs/final-deliverables.md`, sec
 
 1. **Owner: make the pushed history runnable.** Committed `engine.py` needs `container_runtime.py`, `confine.py` container mode, a test
    fixture entry and a stand-in worker case that exist only on the owner's machine. Details and the exact list:
-   `docs/briefs/evidence/s11/clean-checkout-gaps.md`. Until then a clean checkout cannot import section 4.
+   `docs/briefs/evidence/s11/clean-checkout-gaps.md`. Until then a clean checkout cannot import section 4. Also a stale fake in `section1/tests/test_slim_bus.py` fails one test.
 2. T13b: OTP redeem race in `section1/src/harness_identity/auth.py` `verify_otp`. Fix is a guarded
    `UPDATE ... WHERE consumed_at IS NULL` and `attempts = attempts + 1 ... RETURNING`. Not done: the owner has uncommitted SMTP edits in that file.
-3. Rows that need Docker: 25, 26, 28, 32, 53, 59 (compose stack, pilot smoke, restore drill). Section 1 has 4 tests that need `docker exec`.
+3. Rows that need Docker: 25, 26, 28, 32, 53, 59 (compose stack, pilot smoke, restore drill). Four section 1 tests (live-PG FK and index probes, opt-in via `HARNESS_TEST_PG`) call `docker exec`.
 4. Rows that need a real browser or screen reader: 12, 56. A real-browser responsive and keyboard check has not been run.
 5. Externally gated: 03 (real pilot cohort and baseline), 37 (live identity provider), 52 and 58 (pen test, counsel), 53 (real restore), 61.
 6. Backend gaps from earlier sessions are listed per part in the matrix rows; the largest: no UI to file or amend a proposal; approvals
