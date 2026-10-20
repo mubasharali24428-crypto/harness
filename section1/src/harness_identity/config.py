@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from: str = "harness@noreply.local"
     smtp_starttls: bool = True
+    # Local dev only: allow sending without a verified STARTTLS (default: refuse).
+    smtp_allow_insecure: bool = False
 
     # M17-B4 (MAC2-F8) proxy-header policy: X-Forwarded-For is honored ONLY
     # when the direct peer is inside one of these CIDRs; otherwise the peer

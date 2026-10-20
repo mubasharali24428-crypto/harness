@@ -51,7 +51,8 @@ class _FakeSMTP:
     def __exit__(self, *exc):
         return False
 
-    def starttls(self):
+    def starttls(self, context=None):
+        assert context is not None  # a verifying context is always passed
         _FakeSMTP.startedtls += 1
 
     def login(self, user, password):
@@ -90,7 +91,7 @@ def test_smtp_delivery_failure_never_raises_into_request():
 
     notify = smtp_notifier(
         host="smtp.example.test", port=587, username=None, password=None,
-        from_addr="h@rness.dev", use_tls=False,
+        from_addr="h@rness.dev", use_tls=False, allow_insecure=True,
     )
     # Enumeration-safety contract: delivery problems are logged, never raised.
     import asyncio

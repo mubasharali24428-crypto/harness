@@ -105,12 +105,16 @@ class _FakeNotifyConn:
 
     def __init__(self) -> None:
         self.callback = None
+        self.other_callbacks: dict = {}
 
     def feed(self, raw: str) -> None:
         self.callback(None, 0, "agent_events", raw)
 
     def add_listener(self, channel, cb):
-        self.callback = cb
+        if channel == "agent_events":  # the bus also listens on collab_events (push)
+            self.callback = cb
+        else:
+            self.other_callbacks[channel] = cb
         return None  # old asyncpg sync shape
 
 

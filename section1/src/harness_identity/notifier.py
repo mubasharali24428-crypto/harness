@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import smtplib
+import ssl
 import sys
 from collections import OrderedDict
 from collections.abc import Callable
@@ -53,6 +54,29 @@ def dev_log_notifier(email: str, code: str) -> None:
     print(f"HARNESS-OTP login code for {email}: {code}", file=sys.stderr, flush=True)
 
 
+class TLSRequiredError(smtplib.SMTPException):
+    """Refused to send a code or credentials over an unencrypted connection."""
+
+
+def _secure(server: smtplib.SMTP, host: str, use_tls: bool, allow_insecure: bool) -> None:
+    """Upgrade to TLS (certificate and hostname verified) before AUTH or DATA.
+
+    A refused STARTTLS or ``use_tls=False`` aborts the send unless the explicit local-dev
+    opt-out (HARNESS_SMTP_ALLOW_INSECURE) is set. A certificate failure (ssl.SSLError) is
+    never downgraded: it propagates in every mode.
+    """
+    if use_tls:
+        try:
+            server.starttls(context=ssl.create_default_context())
+            return
+        except smtplib.SMTPException:
+            if not allow_insecure:
+                raise TLSRequiredError(f"STARTTLS failed with {host}; refusing to send") from None
+    elif not allow_insecure:
+        raise TLSRequiredError("SMTP TLS is disabled; HARNESS_SMTP_ALLOW_INSECURE is for local dev")
+    logger.warning("SMTP to %s is NOT encrypted (HARNESS_SMTP_ALLOW_INSECURE is set)", host)
+
+
 def smtp_notifier(
     host: str,
     port: int,
@@ -61,6 +85,7 @@ def smtp_notifier(
     from_addr: str,
     use_tls: bool,
     subject: str = "Your Harness login code",
+    allow_insecure: bool = False,
 ) -> Notifier:
     """Builds the SMTP notify callable. Credentials come from settings/env only —
     never logged, never returned in errors."""
@@ -80,11 +105,7 @@ def smtp_notifier(
         def _smtp() -> None:
             # Runs in a thread; sync smtplib is fine here.
             with smtplib.SMTP(host, port, timeout=10) as server:
-                if use_tls:
-                    try:
-                        server.starttls()
-                    except smtplib.SMTPException:
-                        logger.warning("STARTTLS refused by %s; continuing plaintext", host)
+                _secure(server, host, use_tls, allow_insecure)
                 if username and password:
                     server.login(username, password)
                 server.send_message(msg)
@@ -108,7 +129,9 @@ def smtp_notifier(
 def _log_smtp_failure(task) -> None:
     exc = task.exception() if not task.cancelled() else None
     if exc is not None:
-        logger.error("OTP email delivery failed: %s: %s", type(exc).__name__, exc)
+        # Type and SMTP status only: relays can echo the code, user or password in the text.
+        code = getattr(exc, "smtp_code", None)
+        logger.error("OTP email delivery failed: %s (smtp %s)", type(exc).__name__, code)
 
 
 def make_notifier(settings):
@@ -124,6 +147,7 @@ def make_notifier(settings):
         password=getattr(settings, "smtp_password", "") or None,
         from_addr=getattr(settings, "smtp_from", "") or FROM_ADDR_DEFAULT,
         use_tls=bool(getattr(settings, "smtp_starttls", True)),
+        allow_insecure=bool(getattr(settings, "smtp_allow_insecure", False)),
     )
 
 
@@ -319,6 +343,7 @@ class NotifierDelivery:
         self.password = getattr(settings, "smtp_password", "") or None
         self.from_addr = getattr(settings, "smtp_from", "") or FROM_ADDR_DEFAULT
         self.use_tls = bool(getattr(settings, "smtp_starttls", True))
+        self.allow_insecure = bool(getattr(settings, "smtp_allow_insecure", False))
 
     @property
     def dev_mode(self) -> bool:
@@ -332,11 +357,7 @@ class NotifierDelivery:
         msg.set_content(plain)
         msg.add_alternative(html_body, subtype="html")
         with smtplib.SMTP(self.host, self.port, timeout=10) as server:
-            if self.use_tls:
-                try:
-                    server.starttls()
-                except smtplib.SMTPException:
-                    logger.warning("STARTTLS refused by %s; continuing plaintext", self.host)
+            _secure(server, self.host, self.use_tls, self.allow_insecure)
             if self.username and self.password:
                 server.login(self.username, self.password)
             server.send_message(msg)

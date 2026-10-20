@@ -335,7 +335,7 @@ async def test_real_smtp_path_sends_multipart_message():
         def __exit__(self, *exc):
             return False
 
-        def starttls(self):
+        def starttls(self, context=None):
             pass
 
         def send_message(self, msg):

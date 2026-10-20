@@ -480,6 +480,9 @@ async def test_audit_rows_emitted_for_both_transitions(
     assert detail.get("targetUserId") == eng["userId"]
     assert detail.get("fromRole") == "engineer"
     assert detail.get("toRole") == "viewer"
+    # part 11.003: before/after values for consequential changes
+    assert detail.get("before") == {"role": "engineer"}
+    assert detail.get("after") == {"role": "viewer"}
     assert row.actor_member_id == admin["memberId"]  # resolved FK, not NULL
 
     removed = await _audit_rows(roster_factory, "member.removed")
@@ -490,6 +493,8 @@ async def test_audit_rows_emitted_for_both_transitions(
     detail = dict(row.detail)
     assert detail.get("removedUserId") == eng["userId"]
     assert detail.get("role") == "viewer"  # role at removal time
+    assert detail.get("before") == {"role": "viewer", "member": True}
+    assert detail.get("after") == {"role": None, "member": False}
     assert row.actor_member_id == admin["memberId"]
 
     # rejected attempts wrote NO audit rows (guards fired before any write)

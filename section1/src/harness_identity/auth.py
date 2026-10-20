@@ -34,9 +34,7 @@ async def login_or_register(
     hardcode a minimum team size.
     """
     email = email.lower().strip()
-    user = (
-        await session.execute(select(User).where(User.email == email))
-    ).scalar_one_or_none()
+    user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
     if user is None:
         user = User(email=email, name=email.split("@")[0])
         session.add(user)
@@ -54,6 +52,17 @@ async def login_or_register(
         if member is None:
             raise HTTPException(status_code=403, detail="not a member of that team")
     else:
+        memberships = (
+            (await session.execute(select(TeamMember).where(TeamMember.user_id == user.id)))
+            .scalars()
+            .all()
+        )
+        if len(memberships) == 1:
+            member = memberships[0]
+            team_id = member.team_id
+        elif len(memberships) > 1:
+            raise HTTPException(status_code=409, detail="Select an existing team to sign in")
+    if member is None:
         team = Team(name=team_name or f"{user.name or user.email}'s team")
         session.add(team)
         await session.flush()
@@ -145,16 +154,12 @@ async def issue_otp(
     email = email.lower().strip()
     code = "".join(secrets.choice("0123456789") for _ in range(OTP_CODE_LENGTH))
 
-    old = (
-        await session.execute(select(LoginOtp).where(LoginOtp.email == email))
-    ).scalars().all()
+    old = (await session.execute(select(LoginOtp).where(LoginOtp.email == email))).scalars().all()
     for row in old:
         await session.delete(row)
 
     expires = datetime.now(UTC) + timedelta(minutes=settings.otp_ttl_minutes)
-    session.add(
-        LoginOtp(email=email, code_hash=_hash_code(code), expires_at=expires, attempts=0)
-    )
+    session.add(LoginOtp(email=email, code_hash=_hash_code(code), expires_at=expires, attempts=0))
     await session.commit()
     notify(email, code)
 
