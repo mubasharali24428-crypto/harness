@@ -37,6 +37,10 @@ Run on the final tree, each from its own directory:
 | `cd section5 && .venv/bin/python -m pytest -q` | 233 passed, 1 skipped (`landlock is linux-only`; new: `test_confine_argv.py` 3) |
 | `cd section1 && HARNESS_TEST_PG=1 .venv/bin/python -m pytest -q tests/test_session5_pg.py tests/test_account_erasure.py tests/test_billing.py tests/test_workspaces_support.py tests/test_csp_rollout.py` | 42 passed; the live-PG test applies every migration through 0058 |
 | `HARNESS_TEST_PG=1 HARNESS_DATABASE_URL=postgresql+asyncpg://harness:harness@localhost:5499/harness section1/.venv/bin/python deploy/runners/migrate_selftest.py` | PASS: 57 migrations (0001 to 0058) apply clean on PostgreSQL; re-run idempotent |
+| `section1/.venv/bin/python scripts/spec_drift.py` | pass. Before the routes were recorded it failed with `github.openapi.json missing` for all four. They are now in `scripts/sdk-gen/specs/github.openapi.json`, and `scripts/sdk-gen/generate.py` (Python and `--target ts`) regenerated `clients/python/harness_sdk/github.py` and `clients/ts/src/github.ts` |
+| `cd section4 && ../section1/.venv/bin/python -m pytest -q tests/unit/test_spec_drift.py` | 5 passed |
+| `cd clients/python && ../../section1/.venv/bin/python -m pytest -q tests/test_sdk.py` | 27 passed |
+| `cd clients/ts && ../../section7/node_modules/.bin/tsc --noEmit -p tsconfig.json --typeRoots ../../section7/node_modules/@types` | exit 0 |
 
 What the new tests prove:
 
@@ -53,5 +57,5 @@ What the new tests prove:
 - Stdio servers are used for tool discovery only. Tool calls over stdio are not implemented.
 - Idempotency keys are kept per project with no expiry and no cleanup job.
 - The token still carries write scope. Turning writes on for a project lets the agent use that scope on that project's repository.
-- The new section2 routes are not in `section5/openapi.json`; `spec_drift.py` was not run.
+- `spec_drift.py --write` run from a pydantic 2.14 venv also rewrites the identity, orchestrator, section4 and section5 specs. Those changes are noise (Decimal `pattern` lines, and section5's hand-kept 400/409 responses), so they were restored, and only `github.openapi.json` was kept.
 - Migration numbers 0057 and 0058 were free on session A's worktree when checked (its last is 0056). If A adds migrations before merging, they must start at 0059, because `migrate_selftest.py` fails on duplicate version prefixes.

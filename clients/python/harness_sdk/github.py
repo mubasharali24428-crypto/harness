@@ -40,6 +40,11 @@ class HTTPValidationError(typing.TypedDict, total=False):
     """HTTPValidationError."""
     detail: list[ValidationError]
 
+class IssueBody(typing.TypedDict, total=False):
+    """IssueBody. Required keys: title."""
+    bodyMd: str
+    title: str  # required
+
 class ValidationError(typing.TypedDict, total=False):
     """ValidationError. Required keys: loc, msg, type."""
     ctx: dict[str, typing.Any]
@@ -47,6 +52,10 @@ class ValidationError(typing.TypedDict, total=False):
     loc: list[str | int]  # required
     msg: str  # required
     type: str  # required
+
+class WritesBody(typing.TypedDict, total=False):
+    """WritesBody. Required keys: enabled."""
+    enabled: bool  # required
 
 class GithubClient:
     """Client for the harness-github service (default http://localhost:8002)."""
@@ -133,6 +142,39 @@ class GithubClient:
         _params: dict[str, typing.Any] = {"ref": ref, "path": path}
         return self._http.request(self.base_url, "GET", _path, params=_params)
 
+    def get_github_writes(self, project_id: str) -> dict[str, typing.Any]:
+        """Get Github Writes
+
+        GET /api/v1/projects/{project_id}/github/writes
+        """
+        _path = f"/api/v1/projects/{project_id}/github/writes"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def set_github_writes(self, project_id: str, body: WritesBody) -> dict[str, typing.Any]:
+        """Set Github Writes
+
+        PUT /api/v1/projects/{project_id}/github/writes
+        """
+        _path = f"/api/v1/projects/{project_id}/github/writes"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
+
+    def list_issues(self, project_id: str, state: typing.Literal['open', 'closed', 'all'] | None = None) -> dict[str, typing.Any]:
+        """List Issues
+
+        GET /api/v1/projects/{project_id}/issues
+        """
+        _path = f"/api/v1/projects/{project_id}/issues"
+        _params: dict[str, typing.Any] = {"state": state}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
+
+    def create_issue(self, project_id: str, body: IssueBody) -> dict[str, typing.Any]:
+        """Create Issue
+
+        POST /api/v1/projects/{project_id}/issues
+        """
+        _path = f"/api/v1/projects/{project_id}/issues"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
     def open_draft_pr(self, project_id: str, body: DraftPRBody) -> dict[str, typing.Any]:
         """Open Draft Pr
 
@@ -199,4 +241,4 @@ class GithubClient:
         return self._http.request(self.base_url, "GET", _path)
 
 
-__all__ = ["GithubClient", "CommitBody", "ConnectBody", "DraftPRBody", "HTTPValidationError", "ValidationError"]
+__all__ = ["GithubClient", "CommitBody", "ConnectBody", "DraftPRBody", "HTTPValidationError", "IssueBody", "ValidationError", "WritesBody"]

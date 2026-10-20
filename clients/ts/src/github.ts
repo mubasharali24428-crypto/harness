@@ -33,6 +33,12 @@ export interface HTTPValidationError {
   detail?: ValidationError[];  // optional
 }
 
+/** IssueBody. Required keys: title. */
+export interface IssueBody {
+  bodyMd?: string;  // optional
+  title: string;
+}
+
 /** ValidationError. Required keys: loc, msg, type. */
 export interface ValidationError {
   ctx?: { [key: string]: unknown };  // optional
@@ -40,6 +46,11 @@ export interface ValidationError {
   loc: (string | number)[];
   msg: string;
   type: string;
+}
+
+/** WritesBody. Required keys: enabled. */
+export interface WritesBody {
+  enabled: boolean;
 }
 
 import { HarnessHttp } from "./runtime.js";
@@ -118,6 +129,35 @@ export class GithubClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
   }
 
+  /** Get Github Writes
+   *  GET /api/v1/projects/{project_id}/github/writes */
+  get_github_writes(project_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/github/writes`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Set Github Writes
+   *  PUT /api/v1/projects/{project_id}/github/writes */
+  set_github_writes(project_id: string, body: WritesBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/github/writes`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
+  /** List Issues
+   *  GET /api/v1/projects/{project_id}/issues */
+  list_issues(project_id: string, state?: "open" | "closed" | "all"): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/issues`;
+    const params: Record<string, unknown> = {"state": state};
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** Create Issue
+   *  POST /api/v1/projects/{project_id}/issues */
+  create_issue(project_id: string, body: IssueBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/issues`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
   /** Open Draft Pr
    *  POST /api/v1/projects/{project_id}/pulls/draft */
   open_draft_pr(project_id: string, body: DraftPRBody): Promise<Record<string, unknown>> {
@@ -182,5 +222,7 @@ export class GithubClient {
  * export interface/type ConnectBody
  * export interface/type DraftPRBody
  * export interface/type HTTPValidationError
+ * export interface/type IssueBody
  * export interface/type ValidationError
+ * export interface/type WritesBody
  */

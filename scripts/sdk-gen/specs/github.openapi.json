@@ -87,6 +87,27 @@
     "title": "HTTPValidationError",
     "type": "object"
    },
+   "IssueBody": {
+    "properties": {
+     "bodyMd": {
+      "default": "",
+      "maxLength": 65536,
+      "title": "Bodymd",
+      "type": "string"
+     },
+     "title": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "required": [
+     "title"
+    ],
+    "title": "IssueBody",
+    "type": "object"
+   },
    "ValidationError": {
     "properties": {
      "ctx": {
@@ -125,6 +146,19 @@
      "type"
     ],
     "title": "ValidationError",
+    "type": "object"
+   },
+   "WritesBody": {
+    "properties": {
+     "enabled": {
+      "title": "Enabled",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "enabled"
+    ],
+    "title": "WritesBody",
     "type": "object"
    }
   }
@@ -470,6 +504,212 @@
      }
     },
     "summary": "Read File"
+   }
+  },
+  "/api/v1/projects/{project_id}/github/writes": {
+   "get": {
+    "operationId": "get_github_writes_api_v1_projects__project_id__github_writes_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Github Writes Api V1 Projects  Project Id  Github Writes Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Github Writes"
+   },
+   "put": {
+    "operationId": "set_github_writes_api_v1_projects__project_id__github_writes_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/WritesBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Set Github Writes Api V1 Projects  Project Id  Github Writes Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Set Github Writes"
+   }
+  },
+  "/api/v1/projects/{project_id}/issues": {
+   "get": {
+    "operationId": "list_issues_api_v1_projects__project_id__issues_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "query",
+      "name": "state",
+      "required": false,
+      "schema": {
+       "default": "open",
+       "enum": [
+        "open",
+        "closed",
+        "all"
+       ],
+       "title": "State",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Issues Api V1 Projects  Project Id  Issues Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Issues"
+   },
+   "post": {
+    "operationId": "create_issue_api_v1_projects__project_id__issues_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "Idempotency-Key",
+      "required": true,
+      "schema": {
+       "maxLength": 200,
+       "minLength": 8,
+       "title": "Idempotency-Key",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/IssueBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Issue Api V1 Projects  Project Id  Issues Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Issue"
    }
   },
   "/api/v1/projects/{project_id}/pulls/draft": {
