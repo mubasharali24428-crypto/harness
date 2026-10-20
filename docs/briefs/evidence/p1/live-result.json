@@ -1,0 +1,17 @@
+{
+  "status": "passed",
+  "freshDatabase": true,
+  "realPostgres": 18,
+  "apiPort": 8104,
+  "separateBrowserContexts": 2,
+  "consoleOrNetworkErrors": 0,
+  "deletedFileApplied": true,
+  "secondRunFileUntouched": true,
+  "legs": [
+    "changed proposal re-requires approval",
+    "cross-run isolation",
+    "refresh and reconnect survival"
+  ],
+  "worker": "deterministic Docker stand-in",
+  "workspaces": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/harness-p1-proof-i8glaqnf/runs"
+}

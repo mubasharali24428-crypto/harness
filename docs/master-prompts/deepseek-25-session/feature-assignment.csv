@@ -1,0 +1,151 @@
+feature_id,agent,session,original_capability,review_assessment
+F001,A4,A4-S3,Native VS Code extension,NOT FOUND
+F002,A4,A4-S3,JetBrains extension,NOT FOUND
+F003,A4,A4-S3,Neovim integration,NOT FOUND
+F004,A4,A4-S1,Browser-based IDE,PARTIAL
+F005,A4,A4-S4,Mobile task inbox,PARTIAL
+F006,A4,A4-S3,Desktop app,NOT FOUND
+F007,A4,A4-S1,Inline diff review,PARTIAL
+F008,A4,A4-S1,Inline code actions,NOT FOUND
+F009,A4,A4-S1,Composer-style multi-file editing,PARTIAL
+F010,A4,A4-S1,Agent chat anchored to code lines,PARTIAL
+F011,A2,A2-S1,Incremental semantic codebase index,PARTIAL
+F012,A2,A2-S1,Git-history-aware retrieval,NOT FOUND
+F013,A2,A2-S1,Cross-repository search,NOT FOUND
+F014,A2,A2-S1,Dependency graph visualization,NOT FOUND
+F015,A2,A2-S1,Symbol and call-graph navigation,PARTIAL
+F016,A2,A2-S1,Automatic context ranking,PARTIAL
+F017,A2,A2-S2,Context-quality diagnostics,PARTIAL
+F018,A2,A2-S2,Persistent project memory,PARTIAL
+F019,A2,A2-S2,Hierarchical instruction files,PARTIAL
+F020,A2,A2-S2,Automatic documentation ingestion,PARTIAL
+F021,A2,A2-S2,Explicit Ask/Plan/Agent modes,PARTIAL
+F022,A1,A1-S5,Plan approval gate,IMPLEMENTED
+F023,A2,A2-S3,Long-running background agents,PARTIAL
+F024,A2,A2-S5,Parallel agent jobs,IMPLEMENTED
+F025,A2,A2-S3,Agent handoff between local and cloud environments,NOT FOUND
+F026,A2,A2-S3,Follow-up messages to active runs,PARTIAL
+F027,A2,A2-S3,"Pause, resume, and cancel controls",PARTIAL
+F028,A2,A2-S3,Automatic retry policy,PARTIAL
+F029,A2,A2-S3,Failure recovery strategies,PARTIAL
+F030,A2,A2-S4,Task decomposition planner,PARTIAL
+F031,A4,A4-S2,Automatic branch creation per task,PARTIAL
+F032,A4,A4-S2,Git worktree isolation per agent,NOT FOUND
+F033,A4,A4-S2,Automatic commit drafting,PARTIAL
+F034,A4,A4-S2,Pull-request creation from a completed run,PARTIAL
+F035,A4,A4-S2,Pull-request description generation,PARTIAL
+F036,A4,A4-S2,Review-request routing,NOT FOUND
+F037,A4,A4-S3,GitHub issue-to-agent assignment,PARTIAL
+F038,A4,A4-S3,GitLab issue and merge-request integration,NOT FOUND
+F039,A4,A4-S4,Bitbucket and Azure DevOps integration,NOT FOUND
+F040,A4,A4-S1,Automatic merge checks,PARTIAL
+F041,A3,A3-S5,Automatic test discovery,PARTIAL
+F042,A3,A3-S5,Test-generation workflow,PARTIAL
+F043,A3,A3-S5,Test repair loop,PARTIAL
+F044,A3,A3-S4,Failure reproduction harness,PARTIAL
+F045,A3,A3-S4,Automatic bug reproduction from an issue or stack trace,NOT FOUND
+F046,A3,A3-S2,Browser end-to-end testing through Playwright or equivalent,PARTIAL
+F047,A3,A3-S2,Visual regression testing,PARTIAL
+F048,A3,A3-S5,API contract testing,IMPLEMENTED
+F049,A3,A3-S5,Mutation-testing or test-strength analysis,NOT FOUND
+F050,A3,A3-S5,Verification scorecard,PARTIAL
+F051,A3,A3-S1,Browser control,NOT FOUND
+F052,A3,A3-S1,Desktop mouse and keyboard control,NOT FOUND
+F053,A3,A3-S1,Remote desktop takeover,NOT FOUND
+F054,A3,A3-S1,Visual screen understanding,NOT FOUND
+F055,A3,A3-S1,Browser session persistence,NOT FOUND
+F056,A3,A3-S1,Human-in-the-loop browser approval,NOT FOUND
+F057,A3,A3-S2,Browser network and console diagnostics,NOT FOUND
+F058,A3,A3-S2,Local application preview with agent interaction,NOT FOUND
+F059,A3,A3-S2,Mobile browser or PWA testing,NOT FOUND
+F060,A3,A3-S2,Computer-use action replay,NOT FOUND
+F061,A5,A5-S1,First-class MCP server registry,NOT FOUND
+F062,A5,A5-S1,MCP permission scopes,PARTIAL
+F063,A5,A5-S1,MCP server health checks,PARTIAL
+F064,A5,A5-S1,Custom tool builder,PARTIAL
+F065,A5,A5-S1,Reusable skills or playbooks,NOT FOUND
+F066,A5,A5-S1,Plugin marketplace,NOT FOUND
+F067,A5,A5-S2,Namespaced slash commands or task commands,NOT FOUND
+F068,A5,A5-S2,Event hooks,PARTIAL
+F069,A5,A5-S2,Tool allowlists and denylists,PARTIAL
+F070,A5,A5-S2,Extension SDK,PARTIAL
+F071,A2,A2-S4,Specialized subagents,PARTIAL
+F072,A2,A2-S4,Agent-to-agent delegation,NOT FOUND
+F073,A2,A2-S4,Shared task board,PARTIAL
+F074,A2,A2-S4,Agent team or swarm mode,NOT FOUND
+F075,A2,A2-S4,Independent context windows per subagent,NOT FOUND
+F076,A2,A2-S5,Per-subagent model selection,NOT FOUND
+F077,A2,A2-S5,Per-subagent tool permissions,NOT FOUND
+F078,A2,A2-S5,Subagent result synthesis,NOT FOUND
+F079,A2,A2-S5,Human assignment and escalation queue,PARTIAL
+F080,A2,A2-S5,"Agent workload, queue, and concurrency controls",IMPLEMENTED
+F081,A1,A1-S2,Personal BYO-key profiles,NOT FOUND
+F082,A1,A1-S2,Consent-based key sharing,NOT FOUND
+F083,A1,A1-S3,Per-task model routing,PARTIAL
+F084,A1,A1-S3,Automatic fallback across providers,INTENTIONALLY EXCLUDED
+F085,A1,A1-S3,Model quality and cost comparison for the same task,PARTIAL
+F086,A1,A1-S3,Prompt or context caching controls,NOT FOUND
+F087,A1,A1-S2,Token-budget prediction before execution,PARTIAL
+F088,A1,A1-S2,Spend anomaly detection,NOT FOUND
+F089,A1,A1-S3,Organization model allowlist with approval workflow,PARTIAL
+F090,A1,A1-S3,Local-model discovery and health monitoring,PARTIAL
+F091,A1,A1-S1,Secret scanning before prompt or tool transmission,PARTIAL
+F092,A1,A1-S1,Prompt-injection detection and quarantine,PARTIAL
+F093,A1,A1-S1,Sensitive-file policy,PARTIAL
+F094,A1,A1-S1,Data-loss prevention rules,PARTIAL
+F095,A1,A1-S1,Fine-grained tool capability tokens,NOT FOUND
+F096,A1,A1-S1,Per-run network egress policy,PARTIAL
+F097,A1,A1-S4,Signed agent or plugin packages,NOT FOUND
+F098,A1,A1-S4,Security event correlation,PARTIAL
+F099,A1,A1-S4,Automated dependency vulnerability remediation,NOT FOUND
+F100,A1,A1-S4,Policy simulation mode,PARTIAL
+F101,A3,A3-S3,One-click ephemeral development environments,PARTIAL
+F102,A3,A3-S3,Prebuilt repository environments,PARTIAL
+F103,A3,A3-S3,Multiple sandbox backends,PARTIAL
+F104,A3,A3-S3,Environment snapshots and restore points,PARTIAL
+F105,A3,A3-S3,Resource quotas,PARTIAL
+F106,A3,A3-S3,Internet access modes,PARTIAL
+F107,A3,A3-S4,Dependency-install approval workflow,PARTIAL
+F108,A3,A3-S4,Multi-host worker pool,PARTIAL
+F109,A3,A3-S4,Offline or air-gapped deployment mode,PARTIAL
+F110,A3,A3-S4,Disaster-recovery drill and restore verification,PARTIAL
+F111,A2,A2-S2,Run replay,PARTIAL
+F112,A5,A5-S4,OpenTelemetry export,PARTIAL
+F113,A5,A5-S4,Agent quality dashboard,PARTIAL
+F114,A5,A5-S4,Developer productivity dashboard,NOT FOUND
+F115,A5,A5-S4,Cost-per-task and cost-per-accepted-change metrics,PARTIAL
+F116,A5,A5-S4,Time-to-first-useful-change metric,NOT FOUND
+F117,A5,A5-S4,Searchable organization-wide run archive,PARTIAL
+F118,A5,A5-S5,Exportable audit evidence package,PARTIAL
+F119,A5,A5-S5,"Alerts for stalled, risky, expensive, or policy-violating runs",PARTIAL
+F120,A5,A5-S5,Usage APIs and webhooks,PARTIAL
+F121,A5,A5-S3,Slack task intake and status updates,NOT FOUND
+F122,A5,A5-S3,Microsoft Teams task intake and status updates,NOT FOUND
+F123,A5,A5-S3,Linear issue integration,NOT FOUND
+F124,A5,A5-S3,Jira issue integration,NOT FOUND
+F125,A5,A5-S2,Notion or internal-wiki context integration,NOT FOUND
+F126,A5,A5-S3,Sentry error-to-agent workflow,NOT FOUND
+F127,A5,A5-S3,Datadog or Grafana incident-to-agent workflow,NOT FOUND
+F128,A5,A5-S5,CI provider integrations,PARTIAL
+F129,A5,A5-S5,"Chat notifications with approve, reject, and inspect actions",NOT FOUND
+F130,A5,A5-S5,Calendar or scheduled maintenance-task integration,PARTIAL
+F131,A4,A4-S4,Five-minute guided onboarding,PARTIAL
+F132,A4,A4-S4,Repository readiness check,PARTIAL
+F133,A4,A4-S4,Interactive tutorial project,PARTIAL
+F134,A4,A4-S4,Task templates,PARTIAL
+F135,A4,A4-S5,Saved prompt and workflow library,NOT FOUND
+F136,A4,A4-S5,User-configurable keyboard shortcuts and command palette,PARTIAL
+F137,A4,A4-S5,Accessibility support,PARTIAL
+F138,A4,A4-S5,Internationalization and timezone-aware scheduling,NOT FOUND
+F139,A4,A4-S5,Public status page and incident communication workflow,PARTIAL
+F140,A4,A4-S5,In-product feedback capture linked to the exact run and change,PARTIAL
+F141,A1,A1-S5,Self-serve workspace creation,PARTIAL
+F142,A1,A1-S5,Trial-to-paid conversion flow,PARTIAL
+F143,A1,A1-S2,Usage-based billing,PARTIAL
+F144,A1,A1-S2,Budget alerts and automatic spend ceilings,PARTIAL
+F145,A1,A1-S4,SSO and SCIM provisioning,PARTIAL
+F146,A1,A1-S5,Organization-level admin console,PARTIAL
+F147,A1,A1-S4,Custom retention and deletion policies,PARTIAL
+F148,A1,A1-S5,Data residency controls,PARTIAL
+F149,A1,A1-S5,Compliance evidence center,PARTIAL
+F150,A5,A5-S2,Customer-facing API documentation and SDK distribution,PARTIAL

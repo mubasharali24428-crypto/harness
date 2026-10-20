@@ -31,8 +31,10 @@ comment for the decision point) · [`TERMS.md`](TERMS.md) ·
 - Extending the platform (engine `backend_runner` injection, reviewer
   thresholds, project rules): **[docs/extensions.md](docs/extensions.md)**.
 - Operations runbooks: **[docs/runbooks/](docs/runbooks/)**
-  (`ops.md`, `backup-and-pitr.md`, `degraded-mode.md`) and maintenance
-  schedules (**[docs/runbooks/maintenance.md](docs/runbooks/maintenance.md)**).
+  (`ops.md` incl. health probes / stalled runs / log correlation,
+  `rollback.md`, `backup-and-pitr.md`, `degraded-mode.md`, `alerting.md`) and
+  maintenance schedules
+  (**[docs/runbooks/maintenance.md](docs/runbooks/maintenance.md)**).
 - CI/local gates (`make gate`): **[docs/ci-gates.md](docs/ci-gates.md)**;
   DB connection budget: **[docs/pool-math.md](docs/pool-math.md)**.
 - Layout of the ten sections + contracts package: see the tree in **[AGENTS.md](AGENTS.md)**.
@@ -90,7 +92,9 @@ backup sidecar (`walg`), events-retention sweep, scheduled VACUUM
 
 Python ≥3.11 venvs live inside each section; the unified gates are Makefile
 targets shared byte-for-byte with CI (M13-H3b). A fresh clone has no venvs —
-`make bootstrap` creates all of them (plus frontend deps) exactly as CI does:
+`make bootstrap` creates all of them (plus frontend deps) exactly as CI does
+(needs Python 3.11+ on PATH and Node/npm; `make gate` also needs the `docker`
+CLI for `compose config`, but no running daemon):
 
 ```sh
 make bootstrap              # one-time: 8 section venvs + section7 node_modules
@@ -107,7 +111,12 @@ Schema changes are new numbered migrations in `section1/migrations/`
 (0001 is the frozen baseline — never edit an applied migration; pick the
 next free number, checking `ls section1/migrations/` first). You normally
 never apply migrations by hand: the compose `migrate` one-shot service runs
-the whole ledger on every stack boot.
+the whole ledger on every stack boot. Migrations are forward-only (no down
+scripts): "rolling back" the schema means restoring a backup, see
+[`docs/runbooks/rollback.md`](docs/runbooks/rollback.md). To prove the whole
+chain on a throwaway Postgres: `HARNESS_TEST_PG=1 make pg-probe-migrate`
+(needs a Postgres reachable per `PG_URL` in the Makefile, default
+`localhost:5499`).
 
 ## Terminology
 

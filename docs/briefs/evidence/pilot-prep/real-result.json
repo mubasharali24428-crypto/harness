@@ -1,0 +1,8 @@
+{
+  "status": "passed",
+  "freshDatabase": true,
+  "signIn": "OTP form, HARNESS_REQUIRE_OWNERSHIP=true, code read from identity log (dev notifier)",
+  "worker": "real engine in container, free OpenRouter model",
+  "model": "liquid/lfm-2.5-2.6b:free",
+  "fileCreatedByModel": "engine_ok.txt == 'engine ok'"
+}

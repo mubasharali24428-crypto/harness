@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="12.927" timestamp="2026-10-18T01:28:27.489003-07:00" hostname="users-MacBook-Pro-4.local"><testcase classname="tests.unit.test_engine" name="test_live_run_against_openrouter" time="12.739" /></testsuite></testsuites>

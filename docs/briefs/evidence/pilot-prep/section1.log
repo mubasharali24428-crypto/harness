@@ -1,0 +1,169 @@
+........................................................................ [ 10%]
+........................................................................ [ 21%]
+........................................................................ [ 32%]
+........................................................................ [ 43%]
+........................................................................ [ 54%]
+........................................................................ [ 65%]
+........................................................................ [ 76%]
+.........................................x.............................. [ 87%]
+........................................................................ [ 98%]
+.......                                                                  [100%]
+=============================== warnings summary ===============================
+section1/tests/test_auth_verification.py:47
+  /Users/user/untitled folder 2/harness/section1/tests/test_auth_verification.py:47: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient
+
+tests/test_csp_rollout.py: 32 warnings
+tests/test_events_retention.py: 14 warnings
+tests/test_partitioned_retention.py: 11 warnings
+tests/test_runs_index_tuning.py: 3 warnings
+  /Users/user/untitled folder 2/harness/section1/.venv/lib/python3.13/site-packages/aiosqlite/core.py:63: DeprecationWarning: The default datetime adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    result = function()
+
+tests/test_deploy_observability.py::test_orchestrator_domain_gauges_render
+tests/test_deploy_observability.py::test_orchestrator_domain_poll_works_over_deployed_async_factory
+  /Users/user/untitled folder 2/harness/deploy/runners/observability.py:555: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+tests/test_deploy_observability.py::test_orchestrator_domain_gauges_render
+tests/test_deploy_observability.py::test_orchestrator_domain_gauges_render
+tests/test_deploy_observability.py::test_orchestrator_domain_poll_works_over_deployed_async_factory
+tests/test_deploy_observability.py::test_orchestrator_domain_poll_works_over_deployed_async_factory
+  /Users/user/untitled folder 2/harness/section1/.venv/lib/python3.13/site-packages/fastapi/applications.py:4681: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+tests/test_deploy_observability.py::test_orchestrator_domain_gauges_render
+tests/test_deploy_observability.py::test_orchestrator_domain_poll_works_over_deployed_async_factory
+  /Users/user/untitled folder 2/harness/deploy/runners/observability.py:564: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+tests/test_notification_rules.py::test_user_setting_roundtrip_false_and_true
+  /Users/user/untitled folder 2/harness/section1/.venv/lib/python3.13/site-packages/_pytest/threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-187 (_connection_worker_thread)
+  
+  Traceback (most recent call last):
+    File "/Users/user/untitled folder 2/harness/section1/.venv/lib/python3.13/site-packages/aiosqlite/core.py", line 66, in _connection_worker_thread
+      future.get_loop().call_soon_threadsafe(set_result, future, result)
+      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/user/1/lib/python3.13/asyncio/base_events.py", line 878, in call_soon_threadsafe
+      self._check_closed()
+      ~~~~~~~~~~~~~~~~~~^^
+    File "/Users/user/1/lib/python3.13/asyncio/base_events.py", line 556, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  During handling of the above exception, another exception occurred:
+  
+  Traceback (most recent call last):
+    File "/Users/user/1/lib/python3.13/threading.py", line 1044, in _bootstrap_inner
+      self.run()
+      ~~~~~~~~^^
+    File "/Users/user/1/lib/python3.13/threading.py", line 995, in run
+      self._target(*self._args, **self._kwargs)
+      ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/user/untitled folder 2/harness/section1/.venv/lib/python3.13/site-packages/aiosqlite/core.py", line 75, in _connection_worker_thread
+      future.get_loop().call_soon_threadsafe(set_exception, future, e)
+      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/user/1/lib/python3.13/asyncio/base_events.py", line 878, in call_soon_threadsafe
+      self._check_closed()
+      ~~~~~~~~~~~~~~~~~~^^
+    File "/Users/user/1/lib/python3.13/asyncio/base_events.py", line 556, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+tests/test_notification_rules.py::test_user_setting_roundtrip_false_and_true
+  /Users/user/untitled folder 2/harness/section1/.venv/lib/python3.13/site-packages/_pytest/threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-186 (_connection_worker_thread)
+  
+  Traceback (most recent call last):
+    File "/Users/user/untitled folder 2/harness/section1/.venv/lib/python3.13/site-packages/aiosqlite/core.py", line 66, in _connection_worker_thread
+      future.get_loop().call_soon_threadsafe(set_result, future, result)
+      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/user/1/lib/python3.13/asyncio/base_events.py", line 878, in call_soon_threadsafe
+      self._check_closed()
+      ~~~~~~~~~~~~~~~~~~^^
+    File "/Users/user/1/lib/python3.13/asyncio/base_events.py", line 556, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  During handling of the above exception, another exception occurred:
+  
+  Traceback (most recent call last):
+    File "/Users/user/1/lib/python3.13/threading.py", line 1044, in _bootstrap_inner
+      self.run()
+      ~~~~~~~~^^
+    File "/Users/user/1/lib/python3.13/threading.py", line 995, in run
+      self._target(*self._args, **self._kwargs)
+      ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/user/untitled folder 2/harness/section1/.venv/lib/python3.13/site-packages/aiosqlite/core.py", line 75, in _connection_worker_thread
+      future.get_loop().call_soon_threadsafe(set_exception, future, e)
+      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/user/1/lib/python3.13/asyncio/base_events.py", line 878, in call_soon_threadsafe
+      self._check_closed()
+      ~~~~~~~~~~~~~~~~~~^^
+    File "/Users/user/1/lib/python3.13/asyncio/base_events.py", line 556, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+tests/test_ownership.py::test_legacy_login_blocked_when_flag_on
+  /Users/user/untitled folder 2/harness/section1/.venv/lib/python3.13/site-packages/_pytest/threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-210 (_connection_worker_thread)
+  
+  Traceback (most recent call last):
+    File "/Users/user/untitled folder 2/harness/section1/.venv/lib/python3.13/site-packages/aiosqlite/core.py", line 66, in _connection_worker_thread
+      future.get_loop().call_soon_threadsafe(set_result, future, result)
+      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/user/1/lib/python3.13/asyncio/base_events.py", line 878, in call_soon_threadsafe
+      self._check_closed()
+      ~~~~~~~~~~~~~~~~~~^^
+    File "/Users/user/1/lib/python3.13/asyncio/base_events.py", line 556, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  During handling of the above exception, another exception occurred:
+  
+  Traceback (most recent call last):
+    File "/Users/user/1/lib/python3.13/threading.py", line 1044, in _bootstrap_inner
+      self.run()
+      ~~~~~~~~^^
+    File "/Users/user/1/lib/python3.13/threading.py", line 995, in run
+      self._target(*self._args, **self._kwargs)
+      ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/user/untitled folder 2/harness/section1/.venv/lib/python3.13/site-packages/aiosqlite/core.py", line 75, in _connection_worker_thread
+      future.get_loop().call_soon_threadsafe(set_exception, future, e)
+      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/user/1/lib/python3.13/asyncio/base_events.py", line 878, in call_soon_threadsafe
+      self._check_closed()
+      ~~~~~~~~~~~~~~~~~~^^
+    File "/Users/user/1/lib/python3.13/asyncio/base_events.py", line 556, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+XFAIL section1/tests/test_smtp_otp_transport.py::test_relay_error_echo_does_not_leak_secrets - notifier._log_smtp_failure logs raw relay errors, including echoed secrets
+654 passed, 1 xfailed, 72 warnings in 57.84s

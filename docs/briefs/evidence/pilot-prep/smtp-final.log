@@ -1,0 +1,4 @@
+...x.                                                                    [100%]
+=========================== short test summary info ============================
+XFAIL section1/tests/test_smtp_otp_transport.py::test_relay_error_echo_does_not_leak_secrets - notifier._log_smtp_failure logs raw relay errors, including echoed secrets
+4 passed, 1 xfailed in 2.06s

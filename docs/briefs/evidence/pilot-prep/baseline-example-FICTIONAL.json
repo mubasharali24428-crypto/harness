@@ -1,0 +1,13 @@
+{
+  "teamId": "FICTIONAL-team",
+  "capturedFrom": "2026-10-01",
+  "capturedTo": "2026-10-05",
+  "method": "FICTIONAL training example, not pilot evidence. Five preselected small maintenance tasks without the harness; elapsed minutes from task assignment to review decision, including review waits and rework; same acceptance checklist for all tasks.",
+  "tasks": [
+    {"id": "FICTIONAL-validation-message", "minutes": 40, "accepted": true},
+    {"id": "FICTIONAL-empty-state", "minutes": 55, "accepted": true},
+    {"id": "FICTIONAL-filter-default", "minutes": 45, "accepted": true},
+    {"id": "FICTIONAL-timeout-message", "minutes": 70, "accepted": false},
+    {"id": "FICTIONAL-link-label", "minutes": 50, "accepted": true}
+  ]
+}

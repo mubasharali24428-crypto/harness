@@ -1,0 +1,30 @@
+{
+ "approvals": {
+  "byState": {
+   "approved": 1,
+   "completed": 1
+  },
+  "decisionLatencySeconds": {
+   "max": 13.460578,
+   "median": 7.2967065,
+   "n": 2
+  }
+ },
+ "cancelConfirmed": 2,
+ "elapsedSeconds": {
+  "max": 23.100623,
+  "median": 15.051442,
+  "n": 2
+ },
+ "note": "Counts and timings only. No baseline of the team's current workflow has been measured, so these numbers support no speed-up or ROI claim.",
+ "redirects": {
+  "redirect.guidance": 2
+ },
+ "runs": {
+  "accepted": 0,
+  "created": 2,
+  "finished": 2,
+  "stopped": 2
+ },
+ "teamId": "p1-team"
+}

@@ -92,3 +92,17 @@ Live stack run on scratch PG: 30/31 checks passed; the failure (repeat `stop` ->
 test). Re-verified live: stop1 `stopping`, stop2 200, stop3 `stopped`. section4 559 passed/7 skipped.
 **Decision: not safe for real users** - blockers B1-B4 in `docs/briefs/multiplayer-readiness.md`.
 Unused session capacity: none planned; further work is a new tranche starting with B1.
+
+## P0-P3 status (2026-10-18)
+P0 containers, P1 shared UI, P2 hardening, P3 contracts/retention/metrics/release are implemented with evidence under `evidence/p0..p3`.
+Final deliverables: [P1](p1-shared-ui-evidence.md), [P2](p2-hardening-evidence.md), [P3](p3-contracts-data-release-evidence.md), [release plan](multiplayer-pilot-release-plan.md), [readiness](multiplayer-readiness.md), [roadmap](multiplayer-pilot-roadmap.md).
+Capability matrix (source of truth, start):
+
+| Capability | State | Evidence |
+|---|---|---|
+| Per-run container isolation + confirmed cancel | Done | P0 |
+| Leader/handoff/approval/redirect + shared UI | Done | P1 |
+| Staging gate, symlink containment, self-approval block, guidance cursor | Done | P2 |
+| Spec drift check, retention, metrics, per-team API flag | Done | P3 |
+| Supervised pilot with real teams | **Not done** | pilot gate |
+| Presence/WS push, per-tool approval hook, UI-side flag | Not done | known limits |

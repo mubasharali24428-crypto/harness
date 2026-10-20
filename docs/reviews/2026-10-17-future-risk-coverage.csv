@@ -1,0 +1,51 @@
+voice_risk_number,future_risk,assessment,remaining_validation
+1,The core workflow remains too complex for a first-time team.,PARTIAL,Guided surfaces exist; run an unassisted first-run usability study.
+2,A new team cannot reach its first useful run in five minutes.,PARTIAL,Time-to-first-useful-change not measured with real developers.
+3,"The CLI is missing or too awkward, so developers avoid the product.",OPEN / UNVALIDATED,SDK/MCP are not a polished task CLI.
+4,There is no strong IDE/editor integration where developers already work.,OPEN / UNVALIDATED,No native IDE extensions found.
+5,Repository indexing and context selection miss important files or decisions.,PARTIAL,Retrieved context does not reach execution as an explicit bundle.
+6,Long sessions lose context or produce inconsistent handoffs.,PARTIAL,Events persist; cross-session decision/context quality unmeasured.
+7,"Resume, retry, rollback, and checkpoint behavior is confusing or unreliable.",PARTIAL,State tests pass; SDK threads cannot be killed and checkpoints lack full restore.
+8,Review and pull-request workflows feel bolted on rather than native.,PARTIAL,PR APIs exist; live end-to-end repo/provider journey remains.
+9,Agents lack safe branch/worktree isolation for concurrent work.,PARTIAL,Compose shares DSH_WORKSPACE; no per-run worktree in live wrapper.
+10,"The product handles coding runs but not adjacent planning, testing, documentation, or incident workflows.",PARTIAL,Meetings/review exist; generalized planning/testing/incident agent workflows remain.
+11,"Prompt injection arrives through repository files, issues, pull requests, documents, or tool output.",CONTROLS PRESENT,Untrusted boundary framing reduces risk; no universal prompt-injection solution.
+12,"Agents expose API keys, tokens, secrets, or proprietary source code.",CONTROLS PRESENT,Vault/redaction controls reduce exposure; synthetic concurrent-wrapper credential race newly reproduced.
+13,A sandbox escape or unsafe network path turns an agent run into host compromise.,PARTIAL,S5 confinement tested; live SDK-to-S5 enforcement not demonstrated.
+14,"Malicious MCP servers, skills, plugins, or dependencies enter through the agent supply chain.",OPEN / UNVALIDATED,No external MCP/package trust registry; future exposure needs scope/signatures.
+15,"Permissions are too broad, so a “read-only” workflow can still change files or call external systems.",CONTROLS PRESENT,Bearer roles/path policies present; prove every SDK tool routes through enforced capability boundary.
+16,A compromised or malicious model provider returns instructions that bypass the intended workflow.,PARTIAL,Approval gates present; live tool boundary remains unverified.
+17,"A cross-tenant authorization bug exposes another team’s runs, events, files, or costs.",CONTROLS PRESENT,Authz/isolation tests pass; no guarantee against future regressions.
+18,"Personal-key sharing creates unclear consent, ownership, billing, or revocation behavior.",OPEN / UNVALIDATED,Team keys are not owner-consented personal-key sharing.
+19,"OAuth, webhooks, email login, or session handling fails under real production attacks.",PARTIAL,Mock IdP/OAuth tests; real IdP/provider drills pending.
+20,"The product cannot produce sufficient security evidence for a customer’s review, procurement, or insurance requirements.",OPEN / UNVALIDATED,No customer procurement/evidence package validated.
+21,"Provider outages, rate limits, or model quotas stop customer runs.",CONTROLS PRESENT,Timeout/circuit breaker/provider failures tested; provider outage behavior still ongoing risk.
+22,"Model updates silently change behavior and invalidate plans, tests, or review results.",PARTIAL,SDK pin/contracts exist; model quality/version benchmark missing.
+23,Long-running runs fail after consuming tokens without a usable resume point.,PARTIAL,Session IDs/queue exist; kill/restart mid-tool recovery not established.
+24,"Queue, concurrency, or cancellation bugs cause starvation, duplicate work, or runaway spend.",CONTROLS PRESENT,Queue/heartbeat/replay tests pass; non-killable threads remain residual.
+25,"Multi-replica deployment breaks sessions, WebSockets, OAuth state, rate limits, or event ordering.",PARTIAL,PG delivery/claims tested; S5 registry and live workspace isolation limit horizontal operation.
+26,"Event logs, indexes, artifacts, or databases grow until storage and query costs become serious.",CONTROLS PRESENT,Retention/partition/migrations exist; disk artifact policy/scale still require operations.
+27,Backups exist but a real restore has never been proven under pressure.,PARTIAL,Local drill exists; real object-store restore drill pending.
+28,Missing or noisy traces make customer incidents impossible to diagnose.,CONTROLS PRESENT,Structured logs/request IDs/metrics present; distributed tracing incomplete.
+29,"Different model, prompt, contract, or dependency versions make results irreproducible.",CONTROLS PRESENT,"Frozen contracts, SDK pin, specs and mirror drift checks present."
+30,"A vulnerable dependency, container, image, or build tool creates an emergency release.",CONTROLS PRESENT,Secret/dependency scanning configured; vulnerability remediation remains ongoing.
+31,Buyers cannot see a measurable return on investment beyond “the agent feels useful.”,OPEN / UNVALIDATED,No measured accepted-change productivity ROI from real pilot.
+32,"Developers distrust the system and bypass it with direct Claude, Cursor, Codex, or local-agent usage.",OPEN / UNVALIDATED,Need adoption and bypass-rate evidence from users.
+33,Engineering managers do not want another dashboard or approval ceremony.,OPEN / UNVALIDATED,Need measured approval overhead and pilot feedback.
+34,The team uses the Harness only for demos and not for recurring production work.,OPEN / UNVALIDATED,No longitudinal recurring-use evidence.
+35,"GitHub, GitLab, IDEs, and agent providers change APIs faster than integrations can keep up.",OPEN / UNVALIDATED,No customer integration compatibility matrix.
+36,"GitHub, Anthropic, OpenAI, Google, or Microsoft bundle similar governance into tools customers already pay for.",OPEN / UNVALIDATED,Competitive risk cannot close through code changes.
+37,The category is too crowded and the phrase “AI engineering harness” is not understood by buyers.,OPEN / UNVALIDATED,Positioning needs buyer validation.
+38,Enterprise security and procurement reviews take longer than the product’s sales runway.,OPEN / UNVALIDATED,Sales/procurement cycle unmeasured.
+39,"Self-hosted installation, upgrades, backups, and provider setup are too difficult for ordinary teams.",PARTIAL,Bootstrap/runbooks exist; independent install/upgrade trial pending.
+40,"Documentation, examples, support, and community are too thin to create independent adoption.",OPEN / UNVALIDATED,Runbooks exist; customer support intake/SLA/community not validated.
+41,Model and infrastructure costs exceed subscription revenue when teams run many agents.,PARTIAL,Budgets/ledger exist; real unit economics not measured.
+42,"Pricing is guessed, underpriced, or too complicated to explain.",OPEN / UNVALIDATED,Pricing is a hypothesis without paid-customer validation.
+43,"Every customer requires custom deployment and support, turning SaaS into unprofitable consulting.",OPEN / UNVALIDATED,Repeatable delivery/support margin unmeasured.
+44,Teams value governance but are not willing to pay for it separately from their existing agent tools.,OPEN / UNVALIDATED,No willingness-to-pay evidence.
+45,Shared credentials make it impossible to attribute spend and protect the key owner from surprise bills.,OPEN / UNVALIDATED,No personal/shared-key payer consent model.
+46,"A customer blames the Harness for an agent-generated defect, data loss, outage, or security incident.",OPEN / UNVALIDATED,Terms/privacy and incident/liability process need decisions/counsel.
+47,"Data residency, privacy, retention, or sector compliance requirements block otherwise interested customers.",OPEN / UNVALIDATED,Residency/retention/compliance agreements not validated.
+48,"Provider terms, model access rules, or third-party API policies restrict the BYO-key or multi-provider model.",OPEN / UNVALIDATED,Provider-policy review remains an operator/legal task.
+49,Usage falls after the initial novelty period because the team has no recurring trigger to return.,OPEN / UNVALIDATED,Retention/recurring workflow evidence needs live pilot.
+50,"The best features are copied or absorbed by larger platforms before the Harness establishes distribution, workflow data, or customer trust.",OPEN / UNVALIDATED,"Distribution and customer trust are market risks, not fixable checklist bugs."

@@ -1,0 +1,51 @@
+voice_future_risk_id,primary_agent,original_risk,review_assessment
+VR001,A4,The core workflow remains too complex for a first-time team.,PARTIAL
+VR002,A4,A new team cannot reach its first useful run in five minutes.,PARTIAL
+VR003,A4,"The CLI is missing or too awkward, so developers avoid the product.",OPEN / UNVALIDATED
+VR004,A4,There is no strong IDE/editor integration where developers already work.,OPEN / UNVALIDATED
+VR005,A2,Repository indexing and context selection miss important files or decisions.,PARTIAL
+VR006,A2,Long sessions lose context or produce inconsistent handoffs.,PARTIAL
+VR007,A3,"Resume, retry, rollback, and checkpoint behavior is confusing or unreliable.",PARTIAL
+VR008,A4,Review and pull-request workflows feel bolted on rather than native.,PARTIAL
+VR009,A2,Agents lack safe branch/worktree isolation for concurrent work.,PARTIAL
+VR010,A4,"The product handles coding runs but not adjacent planning, testing, documentation, or incident workflows.",PARTIAL
+VR011,A1,"Prompt injection arrives through repository files, issues, pull requests, documents, or tool output.",CONTROLS PRESENT
+VR012,A1,"Agents expose API keys, tokens, secrets, or proprietary source code.",CONTROLS PRESENT
+VR013,A3,A sandbox escape or unsafe network path turns an agent run into host compromise.,PARTIAL
+VR014,A5,"Malicious MCP servers, skills, plugins, or dependencies enter through the agent supply chain.",OPEN / UNVALIDATED
+VR015,A1,"Permissions are too broad, so a “read-only” workflow can still change files or call external systems.",CONTROLS PRESENT
+VR016,A2,A compromised or malicious model provider returns instructions that bypass the intended workflow.,PARTIAL
+VR017,A1,"A cross-tenant authorization bug exposes another team’s runs, events, files, or costs.",CONTROLS PRESENT
+VR018,A1,"Personal-key sharing creates unclear consent, ownership, billing, or revocation behavior.",OPEN / UNVALIDATED
+VR019,A1,"OAuth, webhooks, email login, or session handling fails under real production attacks.",PARTIAL
+VR020,A5,"The product cannot produce sufficient security evidence for a customer’s review, procurement, or insurance requirements.",OPEN / UNVALIDATED
+VR021,A2,"Provider outages, rate limits, or model quotas stop customer runs.",CONTROLS PRESENT
+VR022,A2,"Model updates silently change behavior and invalidate plans, tests, or review results.",PARTIAL
+VR023,A2,Long-running runs fail after consuming tokens without a usable resume point.,PARTIAL
+VR024,A2,"Queue, concurrency, or cancellation bugs cause starvation, duplicate work, or runaway spend.",CONTROLS PRESENT
+VR025,A2,"Multi-replica deployment breaks sessions, WebSockets, OAuth state, rate limits, or event ordering.",PARTIAL
+VR026,A3,"Event logs, indexes, artifacts, or databases grow until storage and query costs become serious.",CONTROLS PRESENT
+VR027,A3,Backups exist but a real restore has never been proven under pressure.,PARTIAL
+VR028,A3,Missing or noisy traces make customer incidents impossible to diagnose.,CONTROLS PRESENT
+VR029,A2,"Different model, prompt, contract, or dependency versions make results irreproducible.",CONTROLS PRESENT
+VR030,A3,"A vulnerable dependency, container, image, or build tool creates an emergency release.",CONTROLS PRESENT
+VR031,A5,Buyers cannot see a measurable return on investment beyond “the agent feels useful.”,OPEN / UNVALIDATED
+VR032,A4,"Developers distrust the system and bypass it with direct Claude, Cursor, Codex, or local-agent usage.",OPEN / UNVALIDATED
+VR033,A4,Engineering managers do not want another dashboard or approval ceremony.,OPEN / UNVALIDATED
+VR034,A4,The team uses the Harness only for demos and not for recurring production work.,OPEN / UNVALIDATED
+VR035,A3,"GitHub, GitLab, IDEs, and agent providers change APIs faster than integrations can keep up.",OPEN / UNVALIDATED
+VR036,A5,"GitHub, Anthropic, OpenAI, Google, or Microsoft bundle similar governance into tools customers already pay for.",OPEN / UNVALIDATED
+VR037,A5,The category is too crowded and the phrase “AI engineering harness” is not understood by buyers.,OPEN / UNVALIDATED
+VR038,A5,Enterprise security and procurement reviews take longer than the product’s sales runway.,OPEN / UNVALIDATED
+VR039,A3,"Self-hosted installation, upgrades, backups, and provider setup are too difficult for ordinary teams.",PARTIAL
+VR040,A5,"Documentation, examples, support, and community are too thin to create independent adoption.",OPEN / UNVALIDATED
+VR041,A1,Model and infrastructure costs exceed subscription revenue when teams run many agents.,PARTIAL
+VR042,A5,"Pricing is guessed, underpriced, or too complicated to explain.",OPEN / UNVALIDATED
+VR043,A3,"Every customer requires custom deployment and support, turning SaaS into unprofitable consulting.",OPEN / UNVALIDATED
+VR044,A5,Teams value governance but are not willing to pay for it separately from their existing agent tools.,OPEN / UNVALIDATED
+VR045,A1,Shared credentials make it impossible to attribute spend and protect the key owner from surprise bills.,OPEN / UNVALIDATED
+VR046,A3,"A customer blames the Harness for an agent-generated defect, data loss, outage, or security incident.",OPEN / UNVALIDATED
+VR047,A1,"Data residency, privacy, retention, or sector compliance requirements block otherwise interested customers.",OPEN / UNVALIDATED
+VR048,A1,"Provider terms, model access rules, or third-party API policies restrict the BYO-key or multi-provider model.",OPEN / UNVALIDATED
+VR049,A4,Usage falls after the initial novelty period because the team has no recurring trigger to return.,OPEN / UNVALIDATED
+VR050,A5,"The best features are copied or absorbed by larger platforms before the Harness establishes distribution, workflow data, or customer trust.",OPEN / UNVALIDATED

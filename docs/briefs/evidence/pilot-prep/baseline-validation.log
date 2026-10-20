@@ -1,0 +1,3 @@
+VALID: template fields/types, dates, unique task IDs, 5 finite nonnegative durations, boolean acceptance
+FICTIONAL pilotN=4: {"baselineAcceptRate": 0.8, "baselineMedianMinutes": 50.0, "baselineN": 5, "claimable": false, "pilotAcceptRate": 0.75, "pilotMedianMinutes": 40.0, "pilotN": 4, "verdict": "insufficient data (need at least 5 tasks on each side); no claim"}
+FICTIONAL pilotN=5: {"baselineAcceptRate": 0.8, "baselineMedianMinutes": 50.0, "baselineN": 5, "claimable": true, "medianTimeChangePct": -20.0, "pilotAcceptRate": 0.8, "pilotMedianMinutes": 40.0, "pilotN": 5, "verdict": "descriptive only: different tasks, not a controlled comparison"}

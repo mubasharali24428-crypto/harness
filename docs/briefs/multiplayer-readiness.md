@@ -1,5 +1,38 @@
 # Multiplayer pilot - readiness decision (Session 4, 2026-10-17)
 
+## P0 update — 2026-10-18
+
+**P0 complete:** the pinned real runtime now runs within the Docker boundary.
+All **18 live container checks pass**, including real shell creation of
+`hello.txt = task0 ok`, concurrent cross-run read/write denial, model-only egress,
+and stop confirmation. Section 4 regression suite: **592 passed, 25 skipped**;
+lint clean. Build/run instructions and retained machine-readable evidence:
+[P0 container isolation](p0-container-isolation.md).
+
+Set `HARNESS_ENGINE_CONFINEMENT=container` with isolation enabled on the Docker
+host. The real-runtime gate remains closed for unsupported modes; explicit
+`off` remains an operator opt-out. The historical “container plan not built”
+and “real runtime unproven” statements below are superseded by this update.
+The existing running stack has not been switched automatically. **Pilot remains
+blocked on P1–P3**, including shared UI proof, security/chaos, pending-approval
+completion gates, and release/data rules.
+
+## P1 update — 2026-10-18
+
+**P1 complete:** clean-DB, two-user browser proof passed with zero errors and an applied
+withheld deletion; Section 4 ran 620 passed / 0 skipped with all opt-ins (the 25 former
+skips are each accounted for). Details and limits (synthetic sign-in, stand-in worker):
+[P1 evidence](p1-shared-ui-evidence.md). **Pilot remains blocked on P2–P3.**
+
+## P2 update — 2026-10-18
+
+Hardening done with tests first: a staging symlink escape (host file deletion) fixed, guidance
+framing hardened, leader self-approval blocked (configurable), cancel-requested/confirmed audit
+events, guidance cursor persisted, Postgres race/restart tests. Section 4: 628 passed, 0 skipped.
+See [P2 evidence](p2-hardening-evidence.md). **Pilot remains blocked on P3.**
+
+## Earlier readiness evidence
+
 **Decision: NOT yet safe to begin with real users** (mechanisms exist but were not exercised against the real runtime). Safe for a supervised internal demo on
 synthetic data with an operator present (single-project team, or `projectId` sent). B1-B4 are implemented; the real DeepSeek runtime integration (see above) is the remaining gate.
 
@@ -93,3 +126,6 @@ No traction or ROI claims are made.
 2. Wire Section 5 sandbox (or container) as the engine workspace; add concurrent two-run file test; run with the real SDK.
 3. Add per-action claim enforcement at the file-op seam; durable cancel-requested/confirmed events.
 4. WS push + presence; contracts/TS/OpenAPI regeneration; PG concurrency tests for approvals.
+
+## P3 update (2026-10-18)
+Contracts drift check, retention job, pilot metrics and release plan are in place; see [P3 evidence](p3-contracts-data-release-evidence.md) and the [release plan](multiplayer-pilot-release-plan.md). Section 4 643 passed / 0 skipped with all opt-ins; Section 1 650 passed on PG. **Still not cleared for unsupervised use:** the 2-week supervised pilot has not happened, there is no metrics baseline, and baseline tooling exists but no baseline numbers do. Per-team flag `HARNESS_PILOT_TEAMS` gates the API and the UI shows a plain notice for other teams.
