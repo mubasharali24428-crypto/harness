@@ -13,3 +13,14 @@ import os
 os.environ.setdefault("HARNESS_AUTHZ_TEST_MODE", "1")
 # In-process fake SDKs by default; the isolation tests opt in explicitly.
 os.environ.setdefault("HARNESS_ENGINE_ISOLATED", "0")
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _fresh_denial_budget():
+    """The T18 denial-audit budget is process-global; no test may inherit another's refusals."""
+    from harness_orchestrator import collab
+
+    collab._denial_window.clear()

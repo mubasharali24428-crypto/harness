@@ -10,7 +10,7 @@ Two records with two jobs. Every statement below was checked against the code an
 | Tables | `agent_events` (project stream), `run_collab_events` (collaboration) | `audit_log` |
 | Written by | engine/bus (`s1/eventbus.py`), collaboration code (`s4/collab.py` `_event`) | `s1/audit.py` `write_audit` (ORM, action allowlist), `s1/audit_emit.py` helpers, raw SQL in `s4/collab.py` `_audit` and `s4/authz.py` |
 | Tamper protection | none (ordinary rows) | hash chain + update refusal (migration 0036) |
-| Contains denials | no | yes (`authz.denied`, `approval.self_denied`) |
+| Contains denials | no | yes (`authz.denied`, `approval.self_denied`); one row per refusal, up to 120 per user per minute per process, then one `DENIAL_AUDIT_CAP` marker row and the rest dropped |
 | Payload rule | no diffs or free-text summaries in approval events | before/after values, no secret-shaped keys |
 | Retention | 30 days by default, sweeps are opt-in | 365 days by default, sweep is opt-in |
 
@@ -140,7 +140,7 @@ config, which carry ids only (before/after is "where safe" in the directive; the
 ## 6. Rule for simultaneous instructions
 
 1. Ordinary guidance from several people is never merged or dropped: each is its own row, ordered by `seq`; the agent
-   receives all of them, numbered, in `seq` order when the engine next starts a leg (`guidance_since`). Same `requestId` = one row.
+   receives all of them, numbered, in `seq` order when the engine next starts a leg (`guidance_since`). Same `requestId` from the same user = one row (the key is per actor, so another participant's id never suppresses yours).
 2. Scope and permission changes are leader-only and need a non-empty reason (422 `REASON_REQUIRED`); a non-leader gets
    403 `NOT_LEADER` and an `authz.denied` row.
 3. A scope or permission change voids every pending/approved high-impact approval. Racing a decision, the approval ends

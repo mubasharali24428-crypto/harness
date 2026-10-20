@@ -989,7 +989,10 @@ async def collab_claim_leader(runId: str, actor: CollabWriter) -> dict:
 async def collab_redirect(runId: str, req: RedirectRequest, actor: CollabWriter) -> dict:
     _pilot_gate(actor)
     return await _collab(
-        lambda f: collab.redirect(f, actor, runId, req.kind, req.content, req.reason, req.requestId)
+        lambda f: collab.redirect(
+            f, actor, runId, req.kind, req.content, req.reason,
+            collab.actor_request_id(actor, req.requestId),
+        )
     )
 
 

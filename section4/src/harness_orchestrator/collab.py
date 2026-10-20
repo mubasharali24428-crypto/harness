@@ -35,6 +35,7 @@ import json
 import logging
 import os
 import re
+import time
 import uuid
 from datetime import timedelta
 from typing import Any
@@ -99,6 +100,16 @@ def proposal_digest(action: str, paths: list[str], diff: str, content: str = "")
         parts["c"] = content
     body = json.dumps(parts, separators=(",", ":"))
     return hashlib.sha256(body.encode()).hexdigest()
+
+
+def actor_request_id(p: Principal, request_id: str | None) -> str | None:
+    """Dedupe key for a CLIENT-supplied ``requestId`` (T11b): scoped to the actor so another
+    participant's id, guessed or colliding, can never turn your guidance into ``duplicate``.
+    sha-256 hex fits the 64-char column; falsy (None or "") is no key at all. Server-built keys
+    (``promote:<commentId>``) are deliberately NOT scoped: they dedupe across actors."""
+    if not request_id:
+        return None
+    return hashlib.sha256(f"{p.userId}\0{request_id}".encode()).hexdigest()
 
 
 def validate_paths(paths: list[str]) -> list[str]:
@@ -346,22 +357,50 @@ async def expire_lease_if_due(db: Any, run_id: str) -> Any:
     return row
 
 
+#: T18: one principal probing unknown run ids (or any refusal) cannot grow the append-only audit log
+#: without bound. Per process and per principal; past the cap one ``DENIAL_AUDIT_CAP`` marker row
+#: is written for the window and the rest are dropped (the response is unchanged).
+DENIAL_AUDIT_CAP = 120
+DENIAL_AUDIT_WINDOW = 60.0
+_denial_window: dict[str, list[float]] = {}  # userId -> [window start, refusals so far]
+
+
+def _denial_verdict(user_id: str, now: float | None = None) -> str:
+    """'write' (normal row), 'marker' (first refusal past the cap) or 'drop'."""
+    now = time.monotonic() if now is None else now
+    if len(_denial_window) > 10_000:  # ponytail: sweep expired windows; per-process, not shared
+        for uid in [u for u, w in _denial_window.items() if now - w[0] >= DENIAL_AUDIT_WINDOW]:
+            del _denial_window[uid]
+    w = _denial_window.get(user_id)
+    if w is None or now - w[0] >= DENIAL_AUDIT_WINDOW:
+        w = _denial_window[user_id] = [now, 0]
+    w[1] += 1
+    if w[1] <= DENIAL_AUDIT_CAP:
+        return "write"
+    return "marker" if w[1] == DENIAL_AUDIT_CAP + 1 else "drop"
+
+
 async def audit_denial(
     factory: Any, p: Principal, run_id: str, attempt: str, code: str, status: int
 ) -> None:
     """Denial-audit policy: every refused collaboration request by an
     authenticated principal (foreign run, role, participant/leader/state/recipient
     refusals) leaves exactly one ``authz.denied`` row carrying the stable error
-    code. Own session + commit, because the refusing transaction is abandoned;
+    code, up to ``DENIAL_AUDIT_CAP`` per principal per minute (then one marker row, T18).
+    Own session + commit, because the refusing transaction is abandoned;
     failure to audit never changes the response."""
     if factory is None:
         return
+    verdict = _denial_verdict(p.userId)
+    if verdict == "drop":
+        return
+    detail = {"reason": code, "status": status, "attempt": attempt}
+    if verdict == "marker":
+        detail = {**detail, "reason": "DENIAL_AUDIT_CAP", "capPerMinute": DENIAL_AUDIT_CAP,
+                  "lastReason": code}
     try:
         async with factory() as db:
-            await _audit(
-                db, p, "authz.denied", run_id,
-                {"reason": code, "status": status, "attempt": attempt},
-            )
+            await _audit(db, p, "authz.denied", run_id, detail)
             await db.commit()
     except Exception:  # noqa: BLE001 - audit must never mask the denial
         logger.exception("denial audit failed run=%s code=%s", run_id, code)

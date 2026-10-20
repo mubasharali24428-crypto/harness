@@ -52,7 +52,7 @@ and an `announcement` sentence for assistive technology.
 
 | Instruction | Rule |
 |---|---|
-| Guidance from the holder, or when nobody holds a timed lease | recorded directly, ordered by `seq`, every row kept, same `requestId` = one row (unchanged rule of `collab.py`) |
+| Guidance from the holder, or when nobody holds a timed lease | recorded directly, ordered by `seq`, every row kept, same `requestId` from the same user = one row (the key is per actor) |
 | Guidance from a non-holder while a timed lease is live | **queued** (`control.instruction_queued`); response `{queued: true, instructionId, seq: null}`. Queue bound 50 open (409 `QUEUE_FULL`), life 1 h. Same `requestId` returns the same instruction |
 | Holder decision | `control/decide {instructionId, decision: accept}` writes it as an ordinary `redirect.guidance` event (carries `suggestedBy`) that the agent receives through `guidance_since`; `reject` (optional reason) is audited `control.instruction_rejected` |
 | Scope / permission changes | leader only, as before (403 `NOT_LEADER`); expired holder included |

@@ -202,7 +202,7 @@ Switching back: when `ready` arrives, stop the 3 s poll and keep only the 20 s s
 
 ### 5.4 Mutations and stale state (046.009)
 
-* Every mutation that can be retried carries a `requestId` (idempotent: same id = one event, `duplicate:true`).
+* Every mutation that can be retried carries a `requestId` (idempotent: same id from the same user = one event, `duplicate:true`; ids are per actor).
 * A mutation on an object that has a server version carries `expectedVersion`. The server refuses a version behind its own with 409 and re-read data.
   Treat **any** of these 409 codes as "my view is stale": `STALE_CLIENT_STATE` (generic, `s4/delivery.py`), `STALE_INTENT_VERSION` and `INTENT_CONFLICT`
   (intent edits, `s4/control.py`), `DIGEST_MISMATCH` (approvals: the approver echoes the digest they reviewed). Response data (`currentVersion`, `current`,
