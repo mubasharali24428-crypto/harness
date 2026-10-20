@@ -256,6 +256,16 @@ async def test_link_returns_the_run_path_then_404_after_access_is_lost(env):
     assert (await client.get(f"{N}/link/{nid2}", headers=H(eng2))).status_code == 404
 
 
+async def test_a_budget_alert_opens_the_billing_page(env):
+    client, factory, _, team, _ = env
+    eng = team["eng@a.io"]
+    for code in notifications.SUMMARY_CODES["budget"]:  # warning, hard stop and daily limit alike
+        nid = await seed_item(factory, eng, kind="budget", code=code, source_kind="team",
+                              source_id="t1")
+        got = (await client.get(f"{N}/link/{nid}", headers=H(eng))).json()["path"]
+        assert got == "/settings/billing", code
+
+
 async def test_link_for_session_workspace_and_deleted_scopes(env):
     client, factory, _, team, _ = env
     eng, eng2 = team["eng@a.io"], team["eng2@a.io"]

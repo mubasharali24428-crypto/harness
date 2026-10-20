@@ -469,8 +469,8 @@ async def open_link(nid: str, request: Request, p: Auth) -> dict:
         path = f"/sessions/{quote(row['session_id'])}"
     elif row["workspace_id"]:
         path = f"/workspaces/{quote(row['workspace_id'])}"
-    else:
-        path = "/notifications"
+    else:  # a team-level row: a spend alert is acted on in billing, anything else in the inbox
+        path = "/settings/billing" if row["kind"] == "budget" else "/notifications"
     if row["source_kind"] in ("approval", "comment", "handoff", "suggestion"):
         path += f"?focus={quote(row['source_kind'])}:{quote(row['source_id'])}"
     return {"notificationId": nid, "path": path}

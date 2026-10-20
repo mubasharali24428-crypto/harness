@@ -115,7 +115,7 @@ The first near-cap decision of a run (pre-spawn gate or reviewer call) now calls
 (the rule of `billing._billing_manager`). Dedupe key `budget-warning:<team>:<YYYY-MM>` gives one row per person per team per month;
 email stays opt-in. New notification kind in both sections and the UI (`notificationsApi.ts`, `notificationsModel.ts`); no migration.
 Tests `test_budget_warning_delivery.py` (5, incl. a mutation-checked "delivery failure never touches the run"), kind pins in
-`test_notify.py`, `test_notifications_inbox.py`, `test_notifications_prefs.py`, vitest 50. Open: the warning links to `/notifications`, not a billing page (outside-team managers: §3g-5).
+`test_notify.py`, `test_notifications_inbox.py`, `test_notifications_prefs.py`, vitest 50. Since §3g-8 a budget row opens `/settings/billing` (the person's own team's page; outside-team managers: §3g-5).
 
 ### 3g-4. Part 57: the hard stop is delivered
 
@@ -183,6 +183,8 @@ unchanged); regression `test_an_empty_id_list_is_typed_so_postgresql_can_compare
 (`discussion._q`, `execution._q`) are guarded against empty lists at every call site. `test_session6_live_pg.py` had never run live
 (Docker was down in Session 6) and was stale: it read `items` where search returns `results`, and read the retry's `created` flag as
 `replay`; both fixed, it now passes. No other PostgreSQL-specific defect turned up in the Session 11 work.
+**Budget alerts open billing:** `GET /notifications/link/{id}` returns `/settings/billing` for the `budget` kind (was `/notifications`);
+`test_a_budget_alert_opens_the_billing_page`, two mutants killed.
 Full suites against `:5499` with `HARNESS_TEST_PG` and `HARNESS_DATABASE_URL` set: see the numbers in the commit message. The same four
 `docker exec harness-db-1` tests still fail without the daemon (`test_runs_index_tuning` live plan, three in `test_fk_deletion_story`).
 **Erasure screen:** `/settings/account` (`section7/app/settings/account/`: `accountApi.ts` incl. `runErasure`, `erasureCard.tsx`, `page.tsx`;

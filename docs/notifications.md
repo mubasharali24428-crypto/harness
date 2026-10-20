@@ -122,7 +122,8 @@ the notification (must be the caller's own, same team) and re-checks the run (te
 `sessions` visibility rules: active member or team admin, not deleted) and the workspace (the `workspaces`
 rules: private needs membership). Losing any of them gives the same 404 envelope as an unknown id; the inbox
 row itself stays (history). Paths: run `/projects/{projectId}/runs/{runId}`, session `/sessions/{id}`,
-workspace `/workspaces/{id}`, else `/notifications`; for approval / comment / handoff / suggestion sources a
+workspace `/workspaces/{id}`, else `/settings/billing` for the `budget` kind (the page opens for the team the person
+is signed in to, so an org manager outside the capped team sees their own team's billing) and `/notifications` for anything else; for approval / comment / handoff / suggestion sources a
 `?focus={sourceKind}:{sourceId}` query is added. Clients must open notifications through this route, never
 build the path from ids themselves. The emailed link goes to `/notifications?open={id}`, which the client
 resolves through this route after login.
