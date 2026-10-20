@@ -171,3 +171,49 @@ def test_missing_patch_file_fails_closed(tmp_path, monkeypatch):
     )
     text_, status, *_ = e._run_live_events("g", "run-p")
     assert status == "error" and "not found" in text_ and seen == []
+
+
+def test_sdk_error_finish_preserves_provider_failure(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    class FailedHarness:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def run(self, *args, **kwargs):
+            return SimpleNamespace(
+                final_response="",
+                finish_reason="error",
+                events=[
+                    {
+                        "type": "turn/end",
+                        "data": {
+                            "reason": {
+                                "kind": "error",
+                                "error": {
+                                    "message": "Invalid Anthropic Messages API request",
+                                    "status": 400,
+                                },
+                            }
+                        },
+                    }
+                ],
+            )
+
+    monkeypatch.setitem(
+        sys.modules, "deepseek_harness", SimpleNamespace(DeepSeekHarness=FailedHarness)
+    )
+    wrapper = DeepSeekHarnessWrapper(
+        workspace_dir=str(tmp_path / "ws"),
+        session_root=str(tmp_path / "sessions"),
+        isolated=False,
+        live_mode="dry",
+    )
+    text, state, *_ = wrapper._run_live_events("synthetic goal", "r")
+    assert state == "error" and "Invalid Anthropic" in text

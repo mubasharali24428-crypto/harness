@@ -1,0 +1,136 @@
+"""Per-run private network and fixed-origin model relay. Docker socket stays on host."""
+
+from __future__ import annotations
+
+import os
+import subprocess
+import time
+import uuid
+from urllib.parse import urlsplit, urlunsplit
+
+IMAGE = "harness-engine-worker:p0"
+
+RELAY_READY = """
+import socket, time
+for _ in range(100):
+    try:
+        with socket.create_connection(('127.0.0.1', 8080), timeout=.2):
+            break
+    except OSError:
+        time.sleep(.05)
+else:
+    raise SystemExit('model relay did not become ready')
+"""
+
+
+def docker(*args: str, check: bool = True) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["docker", *args], check=check, capture_output=True, text=True, timeout=30
+    )
+
+
+class ContainerBoundary:
+    def __init__(self, endpoint: str):
+        url = urlsplit(endpoint or "https://api.deepseek.com")
+        if url.scheme not in {"http", "https"} or not url.hostname or url.username or url.password:
+            raise ValueError(
+                "container model endpoint must be an http(s) origin without credentials"
+            )
+        self.url = url
+        self.name = "harness-" + uuid.uuid4().hex
+        self.network = self.name + "-net"
+        self.relay = self.name + "-relay"
+        self.image = os.environ.get("HARNESS_ENGINE_IMAGE", IMAGE)
+
+    def start(self) -> str:
+        docker("network", "create", "--internal", self.network)
+        try:
+            host = self.url.hostname
+            if host in {"localhost", "127.0.0.1", "::1"}:
+                host = "host.docker.internal"
+            docker(
+                "create",
+                "--name",
+                self.relay,
+                "--network",
+                "bridge",
+                "--add-host",
+                "host.docker.internal:host-gateway",
+                "--read-only",
+                "--cap-drop=ALL",
+                "--security-opt",
+                "no-new-privileges",
+                "--pids-limit",
+                "32",
+                "--memory",
+                "128m",
+                "--cpus",
+                "0.25",
+                "--user",
+                "10001:10001",
+                "--entrypoint",
+                "python",
+                self.image,
+                "-m",
+                "harness_orchestrator.model_relay",
+                self.url.scheme,
+                host,
+                str(self.url.port or (443 if self.url.scheme == "https" else 80)),
+            )
+            docker("network", "connect", "--alias", "model", self.network, self.relay)
+            docker("start", self.relay)
+            docker("exec", self.relay, "python", "-c", RELAY_READY)
+
+        except Exception:
+            self.close()
+            raise
+        return urlunsplit(("http", "model:8080", self.url.path, self.url.query, ""))
+
+    def confirmed_gone(self) -> bool:
+        try:
+            result = docker(
+                "container",
+                "ls",
+                "--all",
+                "--quiet",
+                "--filter",
+                f"name=^/{self.name}$",
+                check=False,
+            )
+            return result.returncode == 0 and not result.stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            return False
+
+    def kill(self, proc: subprocess.Popen | None = None) -> bool:
+        try:
+            return self._kill(proc)
+        except (OSError, subprocess.SubprocessError):
+            return False
+
+    def _kill(self, proc: subprocess.Popen | None = None) -> bool:
+        # The CLI can exist before Docker creates the container. Keep killing until
+        # the launcher exits, then inspect; an early empty inspect is not confirmation.
+        deadline = time.monotonic() + 10
+        while True:
+            docker("rm", "--force", self.name, check=False)
+            result = docker(
+                "container",
+                "ls",
+                "--all",
+                "--quiet",
+                "--filter",
+                f"name=^/{self.name}$",
+                check=False,
+            )
+            if (proc is None or proc.poll() is not None) and result.returncode == 0:
+                return not result.stdout.strip()
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(0.05)
+
+    def close(self) -> None:
+        for args in (("rm", "--force", self.relay), ("network", "rm", self.network)):
+            try:
+                docker(*args, check=False)
+            except (OSError, subprocess.SubprocessError):
+                pass  # daemon loss must never turn an unconfirmed stop into success

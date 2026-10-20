@@ -259,3 +259,22 @@ def test_no_repo_returns_honest_envelope_error(tmp_path):
         assert res.status_code == 404
     finally:
         api_mod.configure_sandbox(SandboxService())
+
+
+def test_owned_project_without_snapshots_has_an_empty_list(tmp_path):
+    from harness_sandbox import api as api_mod
+    app = FastAPI()
+    app.include_router(router)
+    app.state.project_team_lookup = {"owned": "t1"}.get
+    app.dependency_overrides[get_principal] = lambda: type(
+        "P", (), {"userId": "u1", "teamId": "t1", "role": "admin"}
+    )()
+    api_mod.configure_sandbox(SandboxService(
+        checkpoints=CheckpointManager(root=tmp_path / "empty")))
+    try:
+        response = TestClient(app).get("/api/v1/sandbox/owned/checkpoints")
+        assert response.status_code == 200, response.text
+        assert response.json()["items"] == []
+        assert TestClient(app).get("/api/v1/sandbox/foreign/checkpoints").status_code == 404
+    finally:
+        api_mod.configure_sandbox(SandboxService())

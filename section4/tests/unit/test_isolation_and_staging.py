@@ -234,3 +234,29 @@ def test_real_runtime_fails_closed_unless_confinement_off(tmp_path, monkeypatch)
             monkeypatch.setenv("HARNESS_ENGINE_CONFINEMENT", mode)
         text, status, *_ = engine(tmp_path)._run_live_events("g", "run-real", "m")
         assert status == "error" and "unavailable" in text and "=off" in text
+
+
+def test_dir_replaced_by_symlink_cannot_make_staging_touch_outside_files(tmp_path):
+    """P2.1: the agent swaps a directory for a symlink to a host dir. Staging
+    runs in the orchestrator, so it must never write/unlink through that link."""
+    root = Path(os.path.realpath(tmp_path))
+    ws, sroot, victim = root / "ws", root / "staging", root / "victim"
+    (ws / "d").mkdir(parents=True)
+    (ws / "d" / "x.txt").write_text("keep me\n")
+    victim.mkdir()
+    (victim / "x.txt").write_text("host file\n")
+    staging.ensure_baseline("r1", str(ws), str(sroot))
+    shutil_rmtree(ws / "d")
+    os.symlink(victim, ws / "d")
+    try:
+        staging.stage("r1", str(ws), str(sroot))
+    except staging.StagingError:
+        pass  # failing closed is acceptable
+    assert (victim / "x.txt").read_text() == "host file\n"
+    assert sorted(p.name for p in victim.iterdir()) == ["x.txt"]
+
+
+def shutil_rmtree(path):
+    import shutil
+
+    shutil.rmtree(path)

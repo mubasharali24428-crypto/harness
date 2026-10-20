@@ -77,6 +77,9 @@ class JsonFormatter(logging.Formatter):
         ("status_code", "status"),
         ("duration_ms", "durMs"),
         ("user", "user"),
+        # Correlation ids: pass via logger.x(..., extra={"run_id": id}).
+        ("run_id", "runId"),
+        ("action_id", "actionId"),
     )
 
     def format(self, record: logging.LogRecord) -> str:
@@ -87,7 +90,9 @@ class JsonFormatter(logging.Formatter):
             "level": record.levelname,
             "logger": record.name,
             "msg": record.getMessage(),
-            "requestId": getattr(record, "request_id", None),
+            # Access-log lines pass request_id explicitly; every OTHER line
+            # logged while a request is in flight inherits it from the contextvar.
+            "requestId": getattr(record, "request_id", None) or get_request_id(),
         }
         for attr, key in self._EXTRA_KEYS:
             value = getattr(record, attr, None)

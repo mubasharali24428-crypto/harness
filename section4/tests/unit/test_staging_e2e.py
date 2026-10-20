@@ -163,3 +163,27 @@ def test_stop_kills_worker_confirms_and_reports_stopped(env, worker_env, tmp_pat
     assert quiet is True and took < 6
     time.sleep(0.3)
     assert not alive(child)
+
+
+def test_done_is_blocked_until_staged_deletion_is_applied(env, worker_env, tmp_path):
+    as_, _ = env
+    lead_run(as_)
+    svc, eng, ws = setup_service(tmp_path, {"gone.txt": "delete me\n"})
+    run_goal(svc, "delete:gone.txt")
+    a = next(
+        x
+        for x in as_("lead").get(f"{P}/r1/approvals").json()["approvals"]
+        if x["state"] == "pending"
+    )
+
+    def done():
+        return as_("lead").post(f"{P}/r1/done-signal", json={"diffText": "-delete me"})
+
+    assert done().status_code == 409
+    as_("lead").post(
+        f"{P}/r1/approvals/{a['id']}/decision", json={"approve": True, "digest": a["digest"]}
+    )
+    assert done().status_code == 409, "approval alone must not count as applying the change"
+    as_("lead").post(f"{P}/r1/approvals/{a['id']}/apply", json={"digest": a["digest"]})
+    assert not (ws / "gone.txt").exists()
+    assert done().status_code == 200

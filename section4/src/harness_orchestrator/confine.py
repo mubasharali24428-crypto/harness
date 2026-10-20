@@ -13,10 +13,11 @@ Mirrors section5's ``confinement.seatbelt_profile`` (sections may import only
 ``harness_contracts``, so the small profile is restated here) but additionally
 confines READS between runs, which section5's does not.
 
-Modes (``HARNESS_ENGINE_CONFINEMENT``): ``auto`` (default) = seatbelt when
-available, otherwise run UNCONFINED and say so in the result; ``seatbelt`` /
-``required`` = fail closed when unavailable; ``off`` = never confine.
-Linux landlock is NOT implemented here - on Linux ``auto`` degrades to ``none``.
+Modes (``HARNESS_ENGINE_CONFINEMENT``): ``container`` uses a per-run Docker
+boundary and private model relay; ``auto`` uses seatbelt when available,
+otherwise none; ``seatbelt`` / ``required`` fail closed when unavailable;
+``off`` explicitly accepts an unconfined worker. The real runtime accepts only
+container or explicit off (seatbelt breaks its PTY).
 """
 
 from __future__ import annotations
@@ -46,8 +47,10 @@ def seatbelt_available() -> bool:
 
 
 def resolve_mode(requested: str | None = None) -> str:
-    """Return ``seatbelt`` or ``none``; raise when a strict mode cannot be met."""
+    """Resolve the requested boundary; raise when a strict mode cannot be met."""
     mode = (requested or os.environ.get(CONFINEMENT_ENV, "auto")).strip().lower()
+    if mode == "container":
+        return "container"
     if mode == "off":
         return "none"
     if mode in ("seatbelt", "required"):
@@ -76,9 +79,7 @@ def scrubbed_env(extra: dict[str, str], tmp_dir: str) -> dict[str, str]:
     return env
 
 
-def seatbelt_profile(
-    roots: list[str], workspace: str, session_dir: str, tmp_dir: str
-) -> str:
+def seatbelt_profile(roots: list[str], workspace: str, session_dir: str, tmp_dir: str) -> str:
     """Last matching rule wins in SBPL: broad read, deny the runs root, re-allow own dirs."""
     own = (workspace, session_dir, tmp_dir)
     home = str(Path.home())
@@ -99,7 +100,7 @@ def seatbelt_profile(
         f"(allow file-read-metadata {deny_roots})\n"
         f"(allow file-read* {own_read})\n"
         f"(deny file-read* {cred})\n"
-        f"(allow file-write* {own_read} (literal \"/dev/null\") (literal \"/dev/tty\"))\n"
+        f'(allow file-write* {own_read} (literal "/dev/null") (literal "/dev/tty"))\n'
         "(allow pseudo-tty)\n"  # the agent's persistent shell runs on a pty
         "(allow file-ioctl)\n"
         '(allow file-read* file-write* (literal "/dev/ptmx") (regex #"^/dev/ttys[0-9]+$"))\n'
@@ -113,9 +114,70 @@ def seatbelt_profile(
 
 
 def wrap_command(
-    argv: list[str], *, mode: str, roots: list[str], workspace: str, session_dir: str, tmp_dir: str
+    argv: list[str],
+    *,
+    mode: str,
+    roots: list[str],
+    workspace: str,
+    session_dir: str,
+    tmp_dir: str,
+    container_name: str | None = None,
+    network: str | None = None,
+    image: str = "harness-engine-worker:p0",
+    env: dict[str, str] | None = None,
 ) -> list[str]:
-    """Prefix ``argv`` with sandbox-exec when ``mode == 'seatbelt'``."""
+    """Build the worker launch command for the selected boundary."""
+    if mode == "container":
+        if not container_name or not network:
+            raise ConfinementUnavailableError("container requires a private network and name")
+        for path in (workspace, session_dir):
+            if Path(path).is_symlink() or not Path(path).is_dir() or "," in path:
+                raise ValueError("container mounts must be real directories without commas")
+        result = [
+            "docker",
+            "run",
+            "--rm",
+            "--interactive",
+            "--name",
+            container_name,
+            "--network",
+            network,
+            "--dns",
+            "127.0.0.1",
+            "--read-only",
+            "--cap-drop=ALL",
+            "--security-opt",
+            "no-new-privileges",
+            "--pids-limit",
+            "128",
+            "--memory",
+            "1g",
+            "--cpus",
+            "1",
+            "--user",
+            f"{os.getuid() or 10001}:{os.getgid() or 10001}",
+            "--tmpfs",
+            "/tmp:rw,exec,nosuid,nodev,size=256m,mode=1777",
+            "--workdir",
+            workspace,
+        ]
+        for path in (workspace, session_dir):
+            result += ["--mount", f"type=bind,src={path},dst={path},readonly=false"]
+        # Values are inherited by Docker from its scrubbed client environment, never argv.
+        for key in sorted(env or {}):
+            if key not in {"PATH", "PYTHONPATH", "TMPDIR", "HOME"}:
+                result += ["--env", key]
+        result += [
+            "--env",
+            "HOME=/tmp",
+            "--env",
+            "TMPDIR=/tmp",
+            "--entrypoint",
+            "python",
+            image,
+            *argv[1:],
+        ]
+        return result
     if mode != "seatbelt":
         return argv
     profile = Path(tmp_dir) / "run.sb"

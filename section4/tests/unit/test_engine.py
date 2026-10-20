@@ -9,6 +9,7 @@ model that actually answered (raw-02 L1).
 """
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -51,8 +52,13 @@ def test_explicit_live_mode_runs_sdk_path(monkeypatch):
 
 
 def _openrouter_key() -> str | None:
-    """Read OPENROUTER_API_KEY from ~/.hermes/.env without ever printing it."""
-    path = os.path.expanduser("~/.hermes/.env")
+    """Read the private test credential from HARNESS_OPENROUTER_KEY_FILE (never printed).
+
+    No default path: a section must not reach into a sibling section (isolation law).
+    """
+    path = os.environ.get("HARNESS_OPENROUTER_KEY_FILE")
+    if not path:
+        return None
     if not os.path.exists(path):
         return None
     with open(path) as fh:
@@ -63,8 +69,8 @@ def _openrouter_key() -> str | None:
     return None
 
 
-def test_live_run_against_openrouter():
-    """Live agentic round-trip through OpenRouter (stealth/ox-alpha).
+def test_live_run_against_openrouter(monkeypatch):
+    """Live agentic round-trip through an explicitly selected free OpenRouter model.
 
     Proves the OpenAI-compatible engine path end-to-end INCLUDING a real
     filesystem side effect — replaces the old Ollama probe whose model
@@ -73,9 +79,26 @@ def test_live_run_against_openrouter():
     so CI stays green offline."""
     import tempfile
 
+    if os.environ.get("HARNESS_LIVE_OPENROUTER") != "1":
+        pytest.skip("opt-in OpenRouter: set HARNESS_LIVE_OPENROUTER=1 (strict, no outage skip)")
+    import json
+    import urllib.request
+
+    model = os.environ.get("HARNESS_TEST_OPENROUTER_MODEL", "cohere/north-mini-code:free")
+    # Tests may only select catalog-confirmed free models. No paid fallback.
+    with urllib.request.urlopen("https://openrouter.ai/api/v1/models", timeout=20) as response:
+        catalog = json.load(response)["data"]
+    selected = next((m for m in catalog if m["id"] == model), None)
+    assert selected is not None and model.endswith(":free"), "Select an available :free model"
+    assert all(float(selected["pricing"][k]) == 0 for k in ("prompt", "completion"))
     api_key = _openrouter_key()
     if not api_key:
-        pytest.skip("OPENROUTER_API_KEY not configured (~/.hermes/.env)")
+        pytest.fail(
+            "Section 3 OpenRouter test credential not configured; strict verification cannot run"
+        )
+    monkeypatch.setenv("HARNESS_ENGINE_CONFINEMENT", "container")
+    monkeypatch.delenv("HARNESS_ENGINE_WORKER_MODULE", raising=False)
+    monkeypatch.delenv("HARNESS_ENGINE_IMAGE", raising=False)
 
     # Fresh workspace AND session root per run: dsh resumes session history
     # from session_root, so reusing the old Ollama-era dir would continue a
@@ -88,30 +111,24 @@ def test_live_run_against_openrouter():
         session_root=session_root,
         api_key=api_key,
         base_url="https://openrouter.ai/api/v1",
-        model="stealth/ox-alpha",
+        model=model,
+        isolated=True,
         live_mode="live",  # exactly this model — there is no fallback anymore
     )
+    from pathlib import Path
+
+    patch = Path(w.run_session_dir("provider-proof")) / "openrouter.patch.yml"
+    patch.parent.mkdir(parents=True, exist_ok=True)
+    patch.write_text((Path(__file__).parents[1] / "fixtures/openrouter.patch.yml").read_text())
+    monkeypatch.setenv("DSH_MODEL", model)
+    monkeypatch.setenv("DSH_PATCH_FILES", str(patch))
     out = w.execute_goal(
-        "Create a file named engine_ok.txt containing exactly 'engine ok'."
+        "Create a file named engine_ok.txt containing exactly 'engine ok'.", "provider-proof"
     )
-    if out["status"] == "error" and "empty response" in out.get("finalResponse", ""):
-        # Upstream provider problem, not an engine-contract violation: the
-        # empty-response→error honesty path itself is pinned offline by
-        # test_empty_response_is_error_never_vacuous_success. Skip rather
-        # than fail the whole suite on a third-party outage.
-        pytest.skip(
-            "OpenRouter upstream unavailable to model stealth/ox-alpha: "
-            f"{out.get('finalResponse')!r}"
-        )
-    if out["status"] == "sdk_missing":
-        # deepseek-harness-sdk not installed in THIS interpreter: environment
-        # gap, not an engine-contract violation. Skip like other 3rd-party
-        # availability problems (documented honest limit).
-        pytest.skip("deepseek-harness-sdk not installed in this environment")
     assert out["status"] == "completed", out
     from pathlib import Path
 
-    created = Path(ws) / "engine_ok.txt"
+    created = Path(w.run_workspace("provider-proof")) / "engine_ok.txt"
     assert created.read_text().strip() == "engine ok"
 
 
@@ -267,3 +284,27 @@ def test_live_exception_text_never_carries_the_key(monkeypatch):
     assert "sk-engineecho-test" not in out["finalResponse"]
     assert "[redacted]" in out["finalResponse"]
     assert "boom" in out["finalResponse"]  # message stays diagnostic
+
+
+def test_provision_workspace_empty_then_seeded_and_resume_keeps_edits(tmp_path, monkeypatch):
+    seed = tmp_path / "seed"
+    (seed / ".git").mkdir(parents=True)
+    (seed / ".git" / "config").write_text("x")
+    (seed / "src").mkdir()
+    (seed / "src" / "a.py").write_text("one")
+    w = DeepSeekHarnessWrapper(workspace_dir=str(tmp_path / "ws"))
+
+    monkeypatch.delenv("HARNESS_WORKSPACE_SEED", raising=False)
+    empty = Path(w.provision_workspace("r-empty"))
+    assert empty.is_dir() and not any(empty.iterdir())
+
+    monkeypatch.setenv("HARNESS_WORKSPACE_SEED", str(seed))
+    ws = Path(w.provision_workspace("r-seeded"))
+    assert (ws / "src" / "a.py").read_text() == "one" and not (ws / ".git").exists()
+    (ws / "src" / "a.py").write_text("edited")
+    assert w.provision_workspace("r-seeded") == str(ws)  # resume does not re-seed
+    assert (ws / "src" / "a.py").read_text() == "edited"
+
+    monkeypatch.setenv("HARNESS_WORKSPACE_SEED", str(tmp_path / "missing"))
+    with pytest.raises(ValueError, match="not a directory"):
+        w.provision_workspace("r-bad")
