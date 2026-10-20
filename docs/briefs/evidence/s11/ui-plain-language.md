@@ -15,13 +15,14 @@ visible gaps: the shared-run panel printed the server's engineer-style refusal m
 
 * `plainErrors.test.ts` (4): reads the contract's error index; the table has exactly those codes; no text contains a code or underscore; ApiError mapping;
   the panel calls `plainError` at both sites.
-* `tests/unit/stateLabel.test.ts` (3): reads `AgentState` from `state_machine.py`; every state has a label; waiting states say who must act;
-  stopped/cancelled/unknown handled.
-* Full section7: `tsc --noEmit` clean; vitest 69 files, 824 tests passed.
+* `tests/unit/stateLabel.test.ts` (3): takes the states from section 7's own `RUN_STATUSES` mirror of `AgentState` (it must not read section 4's source:
+  the isolation law); every state has a label; waiting states say who must act; stopped/cancelled/unknown handled.
+* Full section7 after the later browser-check fixes: `tsc --noEmit` clean; vitest 72 files, 831 tests passed (see `browser-check.md`).
 
 ## Honest limits
 
-* No real-browser, screen-reader or visual check was made; these are unit tests over pure functions and a source-wiring check.
+* These tests are unit tests over pure functions and a source-wiring check. A later pass drove the run page in Chromium (`browser-check.md`) with
+  synthetic data; it did not read these sentences aloud. No screen reader was used and no visual check was made.
 * The runs index page (`app/runs/page.tsx`) still prints raw states; only the run header changed.
 * `done` cannot distinguish "finished" from "stopped" when the orchestrator reports a stop as `done`; the label says "Finished". The `stopped` label is used
   only when the state itself is `stopped`.

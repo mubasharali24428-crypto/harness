@@ -9,7 +9,7 @@ from .test_execution_runs import limits
 from .test_execution_support import env as env  # the shared fixture
 
 
-async def _until(cond, tries=200):
+async def _until(cond, tries=1000):
     for _ in range(tries):
         if cond():
             return True

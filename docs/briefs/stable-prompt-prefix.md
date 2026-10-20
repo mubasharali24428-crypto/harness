@@ -22,3 +22,11 @@ Done = capability-matrix rows updated with evidence paths, suites for touched se
 Final response: (1) readiness statement, (2) existed vs changed, (3) commands run and results, (4) parts now at 9 / still below 9,
 (5) open risks and whether they block the next session, (6) files changed + checkpoint link; one focused question only if needed.
 ---
+
+## Cache controls (part 19.010)
+
+No cache controls are used or recorded. Nothing in this repository sets a cache breakpoint, TTL or cache-control field for a model
+call, and the session tooling exposes no such setting to the prompt (checked by grep on 2026-10-20: the only `Cache-Control` strings in
+the code are `no-store` headers on export and artifact downloads, which are HTTP responses, not model calls). The only mechanism in use is the one above: the block between the
+rules stays byte-identical and first, and the session tail follows it. If a tool later exposes an explicit cache control, record it
+here with the setting and where it is applied; do not describe a cache hit rate that was not measured.

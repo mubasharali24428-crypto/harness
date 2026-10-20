@@ -1,0 +1,15 @@
+login                  320x640   overflow=no  stops=4  unnamed=0  noFocusChange=0  unjudged=0  trap=false  small<24px=0  axe 0 rule(s) violated
+login                  375x667   overflow=no  stops=4  unnamed=0  noFocusChange=0  unjudged=0  trap=false  small<24px=0  axe 0 rule(s) violated
+login                  768x1024  overflow=no  stops=4  unnamed=0  noFocusChange=0  unjudged=0  trap=false  small<24px=0  axe 0 rule(s) violated
+login                  1280x800  overflow=no  stops=4  unnamed=0  noFocusChange=0  unjudged=0  trap=false  small<24px=0  axe 0 rule(s) violated
+run (shared run page)  320x640   overflow=no  stops=53  unnamed=0  noFocusChange=0  unjudged=1  trap=false  terminal-panel=shown  small<24px=8  axe 3 rule(s) violated [color-contrast:7, scrollable-region-focusable:1, target-size:4]
+run (shared run page)  375x667   overflow=no  stops=53  unnamed=0  noFocusChange=0  unjudged=1  trap=false  terminal-panel=shown  small<24px=7  axe 3 rule(s) violated [color-contrast:7, scrollable-region-focusable:1, target-size:4]
+run (shared run page)  768x1024  overflow=no  stops=53  unnamed=0  noFocusChange=0  unjudged=1  trap=false  terminal-panel=shown  small<24px=7  axe 2 rule(s) violated [color-contrast:7, target-size:3]
+run (shared run page)  1280x800  overflow=no  stops=53  unnamed=0  noFocusChange=0  unjudged=1  trap=false  terminal-panel=shown  small<24px=7  axe 3 rule(s) violated [color-contrast:7, scrollable-region-focusable:1, target-size:3]
+  axe color-contrast (serious, 7 node(s)): Elements must meet minimum color contrast ratio thresholds; e.g. main > h1 > span | span[data-testid="run-state"] | .working-col:nth-child(1) > section:nth-child(1) > p
+  axe scrollable-region-focusable (serious, 1 node(s)): Scrollable region must have keyboard access; e.g. .cm-scroller
+  axe target-size (serious, 4 node(s)): All touch targets must be 24px large, or leave sufficient space; e.g. span:nth-child(1) > a[href="/"] | span:nth-child(2) > a[href$="runs"] | a[href$="tree"]
+  small targets (375 px): a "Command Center" 110x15; a "Runs" 31x15; a "Project p1" 78x15; a "Open shared run" 117x15; select "Choose a teammate…en" 156x19; select "Guidance (anyone)Cha" 194x19; input "" 13x13
+keyboard action: ok (typed with the keyboard, reached "Send direction" in 1 Tab(s), Enter pressed; POST /redirect seen: true)
+history log: ok (after Enter on "Jump to latest": focus is on li (the newest entry), in log: true)
+hard failures: 0

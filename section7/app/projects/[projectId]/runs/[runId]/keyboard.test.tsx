@@ -296,18 +296,20 @@ describe("long-history navigation", () => {
     expect(nearBottom(1970, 220, 2200)).toBe(true);
     const t = expand(React.createElement(HistoryLog, { events, locale: "en" }));
     expect(hasButton(t, "Jump to latest")).toBe(false);
-    const log = findAll(t, (n) => n.type === "ol")[0];
+    const log = findAll(t, (n) => n.props?.role === "log")[0];
     press(log, "onScroll", { currentTarget: { scrollTop: 0, clientHeight: 220, scrollHeight: 2200 } });
     const t2 = expand(React.createElement(HistoryLog, { events, locale: "en" }));
     expect(hasButton(t2, "Jump to latest")).toBe(true);
   });
   it("the log is a named, keyboard-focusable scroll region; the controls sit OUTSIDE the list", () => {
     const t = expand(React.createElement(HistoryLog, { events: events.slice(0, 5), locale: "en" }));
-    const log = findAll(t, (n) => n.type === "ol")[0];
+    const log = findAll(t, (n) => n.props?.role === "log")[0];
     expect(log.props.role).toBe("log");
     expect(log.props["aria-label"]).toBe("Collaboration history");
     expect(log.props.tabIndex).toBe(0);
     expect(findAll([log], (n) => n.type === "button")).toHaveLength(0);
+    // role=log replaces a list's role, so the <li>s must sit in an <ol> INSIDE the log (axe: listitem).
+    expect(findAll([log], (n) => n.type === "ol")).toHaveLength(1);
   });
   it("times are formatted for the viewer's locale, with the full date in the title", () => {
     const en = renderToStaticMarkup(React.createElement(HistoryLog, { events: [ev(1)], locale: "en-US" }));

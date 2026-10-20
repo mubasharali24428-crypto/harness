@@ -163,6 +163,7 @@ async def test_session6_postgres_races_artifacts_search_export_and_retry(pg):
     assert created and report["state"] == "completed" and report["format"] == "ndjson", report
 
     service = OrchestratorService(session_factory=pg, bus=Bus())
+    # retry() returns (body, created): a repeated request id replays the stored attempt (HTTP 200)
     retry, created = await execution.retry(
         pg, service, p, "r1", execution.RetryBody(requestId="retry-idempotent-1")
     )

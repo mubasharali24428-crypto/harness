@@ -1,3 +1,4 @@
+import * as React from "react";
 import { panelStyle, headingStyle } from "@/lib/styles";
 
 export interface StructuredExecResult {
@@ -54,6 +55,9 @@ export function TerminalPanel({
       )}
       {lines.length > 0 && (
         <pre
+          tabIndex={0}
+          role="region"
+          aria-label="Terminal output"
           style={{
             margin: 0,
             padding: "10px 12px",

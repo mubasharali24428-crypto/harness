@@ -65,7 +65,7 @@ export const diffHighlight: Extension = ViewPlugin.fromClass(
  *  outside only while the editor is unfocused, so it never clobbers active typing. */
 export function useEditorView(
   doc: string,
-  opts: { readOnly?: boolean; onChange?: (value: string) => void; extensions?: Extension[] } = {},
+  opts: { readOnly?: boolean; onChange?: (value: string) => void; extensions?: Extension[]; label?: string } = {},
 ) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -85,6 +85,8 @@ export function useEditorView(
           EditorView.updateListener.of((update: ViewUpdate) => {
             if (update.docChanged) onChangeRef.current?.(update.state.doc.toString());
           }),
+          // The editor body is role=textbox; without a name a screen reader announces an unlabeled field.
+          ...(opts.label ? [EditorView.contentAttributes.of({ "aria-label": opts.label })] : []),
           ...(opts.extensions ?? []),
         ],
       }),

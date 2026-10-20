@@ -116,6 +116,28 @@ h1 {
   margin: 0 0 16px;
 }
 
+/* Run page working area: two columns on desktop, one under 900px. minmax(0, 1fr) and
+   min-width: 0 let a column shrink below its widest child, so a wide child cannot
+   stretch the page sideways. */
+.working-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.working-grid > * {
+  min-width: 0;
+}
+
+/* Each column stacks its panels. A bare `display: grid` column gets an auto-sized track
+   that cannot shrink below its widest child; minmax(0, 1fr) can. */
+.working-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-content: start;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -386,6 +408,13 @@ ul {
     z-index: 30;
   }
 
+  /* .shell is a flex row on desktop. In drawer mode the top bar is a sibling of
+     .content, so without a column the bar takes a column beside the content and
+     squeezes it to ~60% of a 375px screen (found with a real browser). */
+  .shell {
+    flex-direction: column;
+  }
+
   /* Content spans the full viewport under the fixed top bar. */
   .content {
     margin-left: 0;
@@ -399,6 +428,10 @@ ul {
   /* --- Cards / grids stack to one column ------------------------------- */
   .grid {
     grid-template-columns: 1fr;
+  }
+
+  .working-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .card {

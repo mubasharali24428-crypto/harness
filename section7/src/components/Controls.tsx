@@ -33,7 +33,7 @@ export function Controls({
   const [takeover, setTakeover] = useState(false);
   const [editPath, setEditPath] = useState("");
   const [editContent, setEditContent] = useState("");
-  const editorRef = useEditorView(editContent, { onChange: setEditContent });
+  const editorRef = useEditorView(editContent, { onChange: setEditContent, label: "New file content" });
 
   async function run(action: string, fn: () => Promise<unknown>) {
     setBusy(action);
