@@ -8,6 +8,9 @@ export interface OrganizationDto {
   expiresAt: string | null;
   requireSso?: boolean;
   requireMfa?: boolean;
+  requireDualApproval?: boolean;
+  eventRetentionDays?: number | null;
+  auditRetentionDays?: number | null;
   allowedDomains?: string[];
   executionDisabled?: boolean;
 }
@@ -25,6 +28,16 @@ export interface PolicyDocumentDto {
   scopeId: string;
   version: number;
   doc: Record<string, unknown>;
+}
+
+export interface PolicyChangeRequestDto {
+  id: string;
+  level: string;
+  scopeId: string;
+  proposedDoc: Record<string, unknown>;
+  expectedVersion: number;
+  requestedBy: string;
+  requestedAt: string;
 }
 
 async function request<T>(path: string, token: string, init?: RequestInit): Promise<T> {
@@ -151,7 +164,7 @@ export function savePolicyDocument(
   orgId: string,
   draft: PolicyDocumentDto,
   token: string,
-): Promise<{ level: string; scopeId: string; version: number }> {
+): Promise<{ level: string; scopeId: string; version: number; pendingApproval?: boolean; requestId?: string }> {
   return request(
     `${policyPath(orgId)}/documents/${encodeURIComponent(draft.level)}/${encodeURIComponent(draft.scopeId)}`,
     token,
@@ -160,6 +173,30 @@ export function savePolicyDocument(
       body: JSON.stringify({ doc: draft.doc, expectedVersion: draft.version }),
     },
   );
+}
+
+export function listPolicyChangeRequests(orgId: string, token: string): Promise<{ requests: PolicyChangeRequestDto[] }> {
+  return request(`${policyPath(orgId)}/change-requests`, token);
+}
+
+export function decidePolicyChange(
+  orgId: string, requestId: string, decision: "approve" | "reject", token: string,
+): Promise<{ requestId: string; status: string }> {
+  return request(`${policyPath(orgId)}/change-requests/${encodeURIComponent(requestId)}/${decision}`, token, {
+    method: "POST",
+  });
+}
+
+export function patchOrganization(
+  orgId: string,
+  patch: {
+    requireDualApproval?: boolean;
+    eventRetentionDays?: number | null;
+    auditRetentionDays?: number | null;
+  },
+  token: string,
+): Promise<OrganizationDto> {
+  return request(orgPath(orgId), token, { method: "PATCH", body: JSON.stringify(patch) });
 }
 
 export function getOrganizationHistory(

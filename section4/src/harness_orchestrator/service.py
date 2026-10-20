@@ -16,7 +16,11 @@ from harness_contracts.timeutil import db_now
 from sqlalchemy import text
 
 from harness_orchestrator import collab, domain_metrics, staging
-from harness_orchestrator.budget import BudgetStatus, TierGateStatus, check_budget, check_tier
+from harness_orchestrator.budget import (
+    BudgetStatus,
+    check_budget,
+    reserve_daily_run,
+)
 from harness_orchestrator.context_resolver import (
     DEFAULT_MIN_SCORE,
     context_settings_from_env,
@@ -349,31 +353,29 @@ class OrchestratorService(Orchestrator):
         if not team_id:
             return False  # unbindable run: no cap applies
 
-        # ---- M22-M2: tier volume cap BEFORE any budget reservation --------
-        tier_status: TierGateStatus = await check_tier(factory, team_id)
-        if not tier_status.allowed:
-            if tier_status.degraded:
-                run_data["budget_degraded"] = True
-                reason = f"Tier gate degraded (fail-closed): {tier_status.reason}"
-            else:
-                run_data.pop("budget_degraded", None)
-                reason = f"Plan limit reached: {tier_status.reason}"
-            logger.warning("blocking run %s pre-call: %s", run_data.get("runId"), reason)
-            sm: AgentStateMachine = run_data["state_machine"]
-            sm.execution_failed(reason)
-            # Structured upgrade CTA (M22-M2): {tier, cap, capField, used,
-            # upgradeTo, cta} on the wire event — never a bare dead end.
-            run_data["upgrade"] = (
-                dict(tier_status.capHit["upgrade"]) if tier_status.capHit else None
-            )
-            return True
-
         status: BudgetStatus = await check_budget(
             factory,
             team_id,
             estimated_call_cost_usd=(float(plan.estimatedCostUsd) if plan is not None else None),
         )
         if status.allowed:
+            daily_status = await reserve_daily_run(
+                factory, team_id, str(run_data.get("runId") or "")
+            )
+            if not daily_status.allowed:
+                run_data["budget_degraded"] = bool(daily_status.degraded)
+                reason = (
+                    f"Daily run reservation degraded (fail-closed): {daily_status.reason}"
+                    if daily_status.degraded
+                    else f"Plan limit reached: {daily_status.reason}"
+                )
+                run_data["upgrade"] = (
+                    dict(daily_status.capHit["upgrade"])
+                    if daily_status.capHit and daily_status.capHit.get("upgrade")
+                    else None
+                )
+                run_data["state_machine"].execution_failed(reason)
+                return True
             run_data.pop("budget_degraded", None)
             # M23-B (session-2 area 9): allowed but near the cap — surface
             # the warning once per run (log + aggregate flag), never a block.
@@ -622,14 +624,24 @@ class OrchestratorService(Orchestrator):
 
     def _plan_from_row(self, row) -> AgentPlan | None:
         try:
+            def _json_list(value: Any) -> list:
+                # PostgreSQL drivers return JSON columns as Python lists, but
+                # SQLite scratch/live databases expose the same column as a
+                # JSON string. `list("[]")` produces two truthy characters,
+                # which can falsely trigger the forbidden-path fail-closed
+                # guard after a worker restart.
+                if isinstance(value, str):
+                    value = json.loads(value)
+                return value if isinstance(value, list) else []
+
             return AgentPlan(
                 goal=row["goal"],
-                filesLikelyToChange=list(row["files_likely_to_change"] or []),
-                steps=list(row["steps"] or []),
-                tests=list(row["tests"] or []),
-                risks=list(row["risks"] or []),
+                filesLikelyToChange=_json_list(row["files_likely_to_change"]),
+                steps=_json_list(row["steps"]),
+                tests=_json_list(row["tests"]),
+                risks=_json_list(row["risks"]),
                 estimatedCostUsd=float(row["estimated_cost_usd"] or 0),
-                forbiddenPaths=list(row["forbidden_paths"] or []),
+                forbiddenPaths=_json_list(row["forbidden_paths"]),
                 expectedResult=str(row["expected_result"] or ""),
             )
         except Exception:  # noqa: BLE001 — corrupt row must not kill rehydration

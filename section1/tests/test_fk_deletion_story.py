@@ -92,6 +92,13 @@ DELETION_MAP: dict[tuple[str, str], tuple[str, str]] = {
     ("model_configs", "team_id"): ("teams.id", "CASCADE"),
     ("auth_sessions", "team_id"): ("teams.id", "CASCADE"),
     ("team_invites", "team_id"): ("teams.id", "CASCADE"),
+    # outbound webhooks (migration 0051): owned by the team; deliveries die with their webhook,
+    # a delivery pins its audit row, and the creating user may not be deleted under a webhook
+    ("integration_webhooks", "team_id"): ("teams.id", "CASCADE"),
+    ("integration_webhooks", "created_by"): ("users.id", "RESTRICT"),
+    ("integration_webhook_deliveries", "webhook_id"): ("integration_webhooks.id", "CASCADE"),
+    ("integration_webhook_deliveries", "team_id"): ("teams.id", "CASCADE"),
+    ("integration_webhook_deliveries", "audit_seq"): ("audit_log.seq", "RESTRICT"),
     # owned children of projects
     ("meetings", "project_id"): ("projects.id", "CASCADE"),
     ("engineering_briefs", "meeting_id"): ("meetings.id", "CASCADE"),
@@ -229,10 +236,11 @@ def test_integrity_tables_never_cascade_or_null():
 def test_fk_inventory_size_is_pinned():
     """38 ORM FKs (+1 SQL-side: agent_runs.pr_id) today; any schema-surface
     change must touch this suite. (35 -> 36: M22-M3's stripe_webhook_events;
-    36 -> 38: M22-M4's team_sso_configs + sso_login_states. The out-of-models
+    36 -> 38: M22-M4's team_sso_configs + sso_login_states; 38 -> 43: Session 7's
+    integration_webhooks + integration_webhook_deliveries. The out-of-models
     mirrors live in stripe_adapter.py / sso.py and are imported HERE for their
     metadata side effect so enumeration is collection-order independent.)"""
-    assert len(_metadata_fks()) == 38
+    assert len(_metadata_fks()) == 43
 
 
 # --------------------------------------------------------------------------

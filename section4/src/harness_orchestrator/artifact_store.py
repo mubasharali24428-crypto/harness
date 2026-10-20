@@ -24,6 +24,7 @@ import hashlib
 import os
 import re
 import unicodedata
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -60,7 +61,7 @@ def put(ref: str, data: bytes) -> None:
     if path.is_file():
         return
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f"{path.name}.{os.getpid()}.{id(data)}.tmp")
+    tmp = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")  # unique per writer
     tmp.write_bytes(data)
     os.replace(tmp, path)  # atomic publish; racing writers write identical bytes
 

@@ -238,7 +238,10 @@ class OrgCreateBody(typing.TypedDict, total=False):
 class OrgPatchBody(typing.TypedDict, total=False):
     """OrgPatchBody."""
     allowedDomains: list[str] | None
+    auditRetentionDays: int | None
+    eventRetentionDays: int | None
     name: str | None
+    requireDualApproval: bool | None
     requireMfa: bool | None
     requireSso: bool | None
 
@@ -999,6 +1002,30 @@ class IdentityClient:
         _path = f"/api/v1/policy/orgs/{org_id}/assignments"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
+    def list_policy_change_requests(self, org_id: str) -> dict[str, typing.Any]:
+        """List Policy Change Requests
+
+        GET /api/v1/policy/orgs/{org_id}/change-requests
+        """
+        _path = f"/api/v1/policy/orgs/{org_id}/change-requests"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def approve_policy_change(self, org_id: str, request_id: str) -> dict[str, typing.Any]:
+        """Approve Policy Change
+
+        POST /api/v1/policy/orgs/{org_id}/change-requests/{request_id}/approve
+        """
+        _path = f"/api/v1/policy/orgs/{org_id}/change-requests/{request_id}/approve"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def reject_policy_change(self, org_id: str, request_id: str) -> dict[str, typing.Any]:
+        """Reject Policy Change
+
+        POST /api/v1/policy/orgs/{org_id}/change-requests/{request_id}/reject
+        """
+        _path = f"/api/v1/policy/orgs/{org_id}/change-requests/{request_id}/reject"
+        return self._http.request(self.base_url, "POST", _path)
+
     def check(self, org_id: str, body: CheckBody) -> dict[str, typing.Any]:
         """Check
 
@@ -1712,14 +1739,21 @@ class IdentityClient:
         _path = "/api/v1/ws-ticket"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
-    def health(self, deep: int | None = None) -> typing.Any:
+    def health(self) -> typing.Any:
         """Health
 
         GET /health
         """
         _path = "/health"
-        _params: dict[str, typing.Any] = {"deep": deep}
-        return self._http.request(self.base_url, "GET", _path, params=_params)
+        return self._http.request(self.base_url, "GET", _path)
+
+    def ready_ready_get(self) -> typing.Any:
+        """Ready
+
+        GET /ready
+        """
+        _path = "/ready"
+        return self._http.request(self.base_url, "GET", _path)
 
 
 __all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AssignBody", "BindingBody", "ChainNode", "CheckBody", "CreateProjectBody", "DefBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "ExecutionControlBody", "GlobalPrefsBody", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkRunBody", "LinkTeamBody", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "MuteBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "ReadAllBody", "RevertBody", "Rule", "RulesBody", "ScopePrefsBody", "SelectBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SnoozeBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "UnsubscribeBody", "ValidationError", "VerifyOtpRequest", "WebhookCreateBody", "WebhookCreated", "WebhookPatchBody", "WsTicketRequest", "WsTicketResponse", "_DigestBody", "_QuietBody", "harness_identity__agents__ReasonBody", "harness_identity__orgs__RoleBody", "harness_identity__policy__RoleBody", "harness_identity__sessions__CreateBody", "harness_identity__sessions__MemberBody", "harness_identity__sessions__PatchBody", "harness_identity__sessions__ReasonBody", "harness_identity__sessions__RoleBody", "harness_identity__workspaces__CreateBody", "harness_identity__workspaces__MemberBody", "harness_identity__workspaces__PatchBody", "harness_identity__workspaces__ReasonBody"]

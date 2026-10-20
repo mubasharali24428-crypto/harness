@@ -7,6 +7,7 @@ import { getToken, loadSession } from "@/lib/auth";
 import {
   OrganizationDto,
   OrganizationMemberDto,
+  PolicyChangeRequestDto,
   PolicyDocumentDto,
   decideEmergencyGrant,
   getOrganizationHistory,
@@ -18,11 +19,14 @@ import {
   listOrganizationMembers,
   listOrganizations,
   listPolicyDocuments,
+  listPolicyChangeRequests,
   previewPolicy,
   requestEmergencyGrant,
   requestStepupCode,
   setExecutionControl,
   savePolicyDocument,
+  decidePolicyChange,
+  patchOrganization,
   updateOrganizationMember,
   verifyStepupCode,
 } from "./governanceApi";
@@ -46,6 +50,7 @@ export default function GovernanceSettingsPage() {
   const mayAdminister = selectedOrg?.role === "owner" || selectedOrg?.role === "admin";
   const [members, setMembers] = useState<OrganizationMemberDto[]>([]);
   const [policy, setPolicy] = useState<PolicyDocumentDto | null>(null);
+  const [policyChanges, setPolicyChanges] = useState<PolicyChangeRequestDto[]>([]);
   const [policyText, setPolicyText] = useState("");
   const [previewChanges, setPreviewChanges] = useState<Array<Record<string, unknown>> | null>(null);
   const [targetUserId, setTargetUserId] = useState("");
@@ -58,6 +63,8 @@ export default function GovernanceSettingsPage() {
   const [emergencyReason, setEmergencyReason] = useState("");
   const [stepupCode, setStepupCode] = useState("");
   const [executionReason, setExecutionReason] = useState("");
+  const [eventRetentionDraft, setEventRetentionDraft] = useState("");
+  const [auditRetentionDraft, setAuditRetentionDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -78,7 +85,7 @@ export default function GovernanceSettingsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [org, execution, roster, documents, orgHistory, policyDecisions, emergency] = await Promise.all([
+      const [org, execution, roster, documents, orgHistory, policyDecisions, emergency, changes] = await Promise.all([
         getOrganization(orgId, token),
         getExecutionControl(orgId, token),
         listOrganizationMembers(orgId, token),
@@ -86,6 +93,7 @@ export default function GovernanceSettingsPage() {
         getOrganizationHistory(orgId, token),
         getPolicyDecisions(orgId, token),
         listEmergencyGrants(orgId, token),
+        listPolicyChangeRequests(orgId, token),
       ]);
       setOrganizations((current) => current.map((item) => item.id === org.id ? { ...item, ...org, executionDisabled: execution.disabled } : item));
       setMembers(roster.items);
@@ -93,6 +101,7 @@ export default function GovernanceSettingsPage() {
       setHistory(orgHistory.items);
       setDecisions(policyDecisions.decisions);
       setGrants(emergency.grants);
+      setPolicyChanges(changes.requests);
       const document = documents.documents.find((item) => item.level === "org" && item.scopeId === orgId);
       const nextPolicy = document ?? { level: "org", scopeId: orgId, version: 0, doc: DEFAULT_POLICY };
       setPolicy(nextPolicy);
@@ -110,6 +119,11 @@ export default function GovernanceSettingsPage() {
     setTargetUserId("");
     refreshOrg();
   }, [refreshOrg]);
+
+  useEffect(() => {
+    setEventRetentionDraft(selectedOrg?.eventRetentionDays?.toString() ?? "");
+    setAuditRetentionDraft(selectedOrg?.auditRetentionDays?.toString() ?? "");
+  }, [orgId, selectedOrg?.eventRetentionDays, selectedOrg?.auditRetentionDays]);
 
   const onInvite = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -173,10 +187,52 @@ export default function GovernanceSettingsPage() {
     if (!draft) return;
     setError(null);
     try {
-      await savePolicyDocument(orgId, draft, token);
+      const saved = await savePolicyDocument(orgId, draft, token);
       setPreviewChanges(null);
-      setNotice("Policy saved with a version check and audit record.");
+      setNotice(saved.pendingApproval
+        ? "High-risk policy change submitted. A different organization admin must approve it."
+        : "Policy saved with a version check and audit record.");
       await refreshOrg();
+    } catch (cause) {
+      setError(String((cause as Error)?.message ?? cause));
+    }
+  };
+
+  const onPolicyDecision = async (requestId: string, decision: "approve" | "reject") => {
+    if (!token || !orgId) return;
+    setError(null);
+    try {
+      await decidePolicyChange(orgId, requestId, decision, token);
+      setNotice(`Policy change ${decision}d.`);
+      await refreshOrg();
+    } catch (cause) {
+      setError(String((cause as Error)?.message ?? cause));
+    }
+  };
+
+  const onDualApprovalChange = async (enabled: boolean) => {
+    if (!token || !orgId) return;
+    setError(null);
+    try {
+      const updated = await patchOrganization(orgId, { requireDualApproval: enabled }, token);
+      setOrganizations((current) => current.map((item) => item.id === orgId ? { ...item, ...updated } : item));
+      setNotice(`Second-person approval ${enabled ? "required for high-risk policies" : "disabled"}.`);
+    } catch (cause) {
+      setError(String((cause as Error)?.message ?? cause));
+    }
+  };
+
+  const onSaveRetention = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!token || !orgId) return;
+    setError(null);
+    try {
+      const updated = await patchOrganization(orgId, {
+        eventRetentionDays: eventRetentionDraft ? Number(eventRetentionDraft) : null,
+        auditRetentionDays: auditRetentionDraft ? Number(auditRetentionDraft) : null,
+      }, token);
+      setOrganizations((current) => current.map((item) => item.id === orgId ? { ...item, ...updated } : item));
+      setNotice("Organization retention windows saved. Blank values inherit deployment defaults.");
     } catch (cause) {
       setError(String((cause as Error)?.message ?? cause));
     }
@@ -299,6 +355,21 @@ export default function GovernanceSettingsPage() {
           </section>
 
           <section className="card" style={{ maxWidth: 900, marginBottom: 16 }}>
+            <h2>Organization data retention</h2>
+            <p>Set shorter retention windows than the deployment defaults. Blank fields inherit the defaults.</p>
+            <form onSubmit={onSaveRetention} style={{ display: "grid", gap: 8, maxWidth: 520 }}>
+              <label>Agent event retention in days
+                <input type="number" min={1} max={3650} value={eventRetentionDraft} onChange={(event) => setEventRetentionDraft(event.target.value)} />
+              </label>
+              <label>Audit history retention in days
+                <input type="number" min={1} max={3650} value={auditRetentionDraft} onChange={(event) => setAuditRetentionDraft(event.target.value)} />
+              </label>
+              <button type="submit" className="btn" disabled={selectedOrg.role !== "owner"}>Save retention windows</button>
+            </form>
+            <p>Retention changes are audited. Data residency is fixed by the deployment region; this single-region pilot cannot move or guarantee tenant-specific regional placement.</p>
+          </section>
+
+          <section className="card" style={{ maxWidth: 900, marginBottom: 16 }}>
             <h2>Membership</h2>
             <form onSubmit={onInvite}>
               <label htmlFor="invite-email">Invite email</label>
@@ -332,7 +403,11 @@ export default function GovernanceSettingsPage() {
 
           <section className="card" style={{ maxWidth: 900, marginBottom: 16 }}>
             <h2>Organization policy</h2>
-            <p>Simulate a draft for one member before saving. Saving is immediate for owner/admin and requires step-up when configured.</p>
+            <p>Simulate a draft before saving. High-risk deny rules and lower-scope grants require a different admin's approval when dual approval is enabled.</p>
+            <label style={{ display: "block" }}>
+              <input type="checkbox" checked={Boolean(selectedOrg.requireDualApproval)} disabled={selectedOrg.role !== "owner"} onChange={(event) => onDualApprovalChange(event.target.checked)} />
+              Require a second organization admin for high-risk policy changes
+            </label>
             <label htmlFor="policy-target">Simulate for member</label>
             <select id="policy-target" value={targetUserId} onChange={(event) => { setTargetUserId(event.target.value); setPreviewChanges(null); }}>
               {members.map((member) => <option key={member.userId} value={member.userId}>{member.email}</option>)}
@@ -357,7 +432,15 @@ export default function GovernanceSettingsPage() {
                 ))}</ul>
               </div>
             )}
-            <p>Policy changes apply immediately after save. Regulated policy approval workflows and organization-wide retention settings are not enabled in this pilot.</p>
+            {policyChanges.length > 0 && <div>
+              <h3>Pending policy approvals</h3>
+              {policyChanges.map((change) => <article key={change.id} style={{ borderTop: "1px solid var(--border, #ccc)", padding: 8 }}>
+                <p>Requested by {members.find((member) => member.userId === change.requestedBy)?.email ?? change.requestedBy}; scope {change.level}:{change.scopeId}</p>
+                <pre style={{ whiteSpace: "pre-wrap", maxHeight: 180, overflow: "auto" }}>{JSON.stringify(change.proposedDoc, null, 2)}</pre>
+                <button type="button" className="btn" onClick={() => onPolicyDecision(change.id, "approve")}>Approve</button>{" "}
+                <button type="button" className="btn" onClick={() => onPolicyDecision(change.id, "reject")}>Reject</button>
+              </article>)}
+            </div>}
           </section>
 
           <section className="card" style={{ maxWidth: 900, marginBottom: 16 }}>

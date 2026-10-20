@@ -1169,6 +1169,32 @@
       ],
       "title": "Alloweddomains"
      },
+     "auditRetentionDays": {
+      "anyOf": [
+       {
+        "maximum": 3650.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Auditretentiondays"
+     },
+     "eventRetentionDays": {
+      "anyOf": [
+       {
+        "maximum": 3650.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Eventretentiondays"
+     },
      "name": {
       "anyOf": [
        {
@@ -1181,6 +1207,17 @@
        }
       ],
       "title": "Name"
+     },
+     "requireDualApproval": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Requiredualapproval"
      },
      "requireMfa": {
       "anyOf": [
@@ -5274,6 +5311,147 @@
      }
     },
     "summary": "Assign Role"
+   }
+  },
+  "/api/v1/policy/orgs/{org_id}/change-requests": {
+   "get": {
+    "operationId": "list_policy_change_requests_api_v1_policy_orgs__org_id__change_requests_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Policy Change Requests Api V1 Policy Orgs  Org Id  Change Requests Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Policy Change Requests"
+   }
+  },
+  "/api/v1/policy/orgs/{org_id}/change-requests/{request_id}/approve": {
+   "post": {
+    "operationId": "approve_policy_change_api_v1_policy_orgs__org_id__change_requests__request_id__approve_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "request_id",
+      "required": true,
+      "schema": {
+       "title": "Request Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Approve Policy Change Api V1 Policy Orgs  Org Id  Change Requests  Request Id  Approve Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Approve Policy Change"
+   }
+  },
+  "/api/v1/policy/orgs/{org_id}/change-requests/{request_id}/reject": {
+   "post": {
+    "operationId": "reject_policy_change_api_v1_policy_orgs__org_id__change_requests__request_id__reject_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "org_id",
+      "required": true,
+      "schema": {
+       "title": "Org Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "request_id",
+      "required": true,
+      "schema": {
+       "title": "Request Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Reject Policy Change Api V1 Policy Orgs  Org Id  Change Requests  Request Id  Reject Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Reject Policy Change"
    }
   },
   "/api/v1/policy/orgs/{org_id}/check": {
@@ -9602,18 +9780,6 @@
   "/health": {
    "get": {
     "operationId": "health_health_get",
-    "parameters": [
-     {
-      "in": "query",
-      "name": "deep",
-      "required": false,
-      "schema": {
-       "default": 0,
-       "title": "Deep",
-       "type": "integer"
-      }
-     }
-    ],
     "responses": {
      "200": {
       "content": {
@@ -9622,19 +9788,25 @@
        }
       },
       "description": "Successful Response"
-     },
-     "422": {
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      },
-      "description": "Validation Error"
      }
     },
     "summary": "Health"
+   }
+  },
+  "/ready": {
+   "get": {
+    "operationId": "ready_ready_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Ready"
    }
   }
  }

@@ -263,7 +263,10 @@ export interface OrgCreateBody {
 /** OrgPatchBody. */
 export interface OrgPatchBody {
   allowedDomains?: string[] | null;  // optional
+  auditRetentionDays?: number | null;  // optional
+  eventRetentionDays?: number | null;  // optional
   name?: string | null;  // optional
+  requireDualApproval?: boolean | null;  // optional
   requireMfa?: boolean | null;  // optional
   requireSso?: boolean | null;  // optional
 }
@@ -1010,6 +1013,27 @@ export class IdentityClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
   }
 
+  /** List Policy Change Requests
+   *  GET /api/v1/policy/orgs/{org_id}/change-requests */
+  list_policy_change_requests(org_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/policy/orgs/${encodeURIComponent(org_id)}/change-requests`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Approve Policy Change
+   *  POST /api/v1/policy/orgs/{org_id}/change-requests/{request_id}/approve */
+  approve_policy_change(org_id: string, request_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/policy/orgs/${encodeURIComponent(org_id)}/change-requests/${encodeURIComponent(request_id)}/approve`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Reject Policy Change
+   *  POST /api/v1/policy/orgs/{org_id}/change-requests/{request_id}/reject */
+  reject_policy_change(org_id: string, request_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/policy/orgs/${encodeURIComponent(org_id)}/change-requests/${encodeURIComponent(request_id)}/reject`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
   /** Check
    *  POST /api/v1/policy/orgs/{org_id}/check */
   check(org_id: string, body: CheckBody): Promise<Record<string, unknown>> {
@@ -1637,10 +1661,16 @@ export class IdentityClient {
 
   /** Health
    *  GET /health */
-  health(deep?: number): Promise<unknown> {
+  health(): Promise<unknown> {
     const _path = `/health`;
-    const params: Record<string, unknown> = {"deep": deep};
-    return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined, params);
+    return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Ready
+   *  GET /ready */
+  ready_ready_get(): Promise<unknown> {
+    const _path = `/ready`;
+    return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined);
   }
 }
 

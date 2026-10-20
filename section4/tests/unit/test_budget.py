@@ -40,6 +40,7 @@ MIGRATION_PATH = (
 
 # Mirrors the frozen schema (subset actually read by budget.py) with 0007 applied.
 DDL = """
+CREATE TABLE high_impact_approvals (id TEXT, run_id TEXT, requester_user_id TEXT, state TEXT);
 CREATE TABLE teams (
     id VARCHAR(36) PRIMARY KEY,
     name VARCHAR(200) NOT NULL,

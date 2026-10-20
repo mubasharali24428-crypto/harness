@@ -133,7 +133,7 @@ async def test_restart_after_dead_worker_reaps_blocks_and_resumes_exactly_once(r
     await replica_b.resume_agent(RUN)
     assert await replica_b.poll_once() == RUN
     await asyncio.wait_for(replica_b.runs[RUN]["task"], timeout=10)
-    assert engine_b.calls == 1  # exactly one execution after recovery
+    assert engine_b.calls == 1, await replica_b.get_engine_result(RUN)
     assert await get_queue_snapshot(factory) == []
 
 

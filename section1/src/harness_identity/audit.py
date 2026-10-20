@@ -49,6 +49,8 @@ APPEND_ONLY_ACTIONS = frozenset(
         "org.service_identity_created",
         "org.service_identity_revoked",
         "policy.saved",
+        "policy.change_requested",
+        "policy.change_decided",
         "policy.denied",
         "policy.custom_role_saved",
         "stepup.verified",

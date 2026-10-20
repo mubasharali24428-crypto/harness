@@ -128,7 +128,8 @@ def test_retention_also_clears_scratch_and_refuses_symlinked_dirs(retention_env,
     (Path(ws) / ".staged" / "old-stopped").rename(Path(ws) / "moved")
     (Path(ws) / ".staged" / "old-stopped").symlink_to(victim)
     asyncio.run(retention.purge(f, ws, sess, days=30, apply=True, now=NOW))
-    assert not (Path(ws) / ".run-tmp" / "old-done").exists()
+    assert not (Path(ws) / ".run-tmp" / "old-stopped").exists()
+    assert (Path(ws) / ".run-tmp" / "old-done").is_dir()  # held run: scratch preserved
     assert (victim / "keep.txt").exists()  # symlink target untouched
     assert (Path(ws) / "old-done").is_dir()  # outputs preserved by default
     assert q(f, "SELECT COUNT(*) AS n FROM audit_log")[0].n == 2  # audit never purged

@@ -307,6 +307,64 @@ async def prune_outbox_once(factory, *, retention_days: int, batch_size: int,
     return deleted
 
 
+async def prune_org_retention_once(factory, *, batch_size: int,
+                                   max_batches: int | None = None,
+                                   now: datetime | None = None) -> dict[str, int]:
+    """Apply shorter organization-specific event and audit retention windows."""
+    _, dialect = _engine_of(factory)
+    if dialect not in ("postgresql", "sqlite"):
+        return {"agent_events": 0, "audit_log": 0}
+    holds_available = await _retention_holds_available(factory)
+    try:
+        async with factory() as session:
+            rows = (await session.execute(text(
+                "SELECT id, event_retention_days, audit_retention_days "
+                "FROM organizations WHERE event_retention_days IS NOT NULL "
+                "OR audit_retention_days IS NOT NULL"
+            ))).all()
+    except Exception:
+        logger.debug("organization retention settings unavailable", exc_info=True)
+        return {"agent_events": 0, "audit_log": 0}
+    total = {"agent_events": 0, "audit_log": 0}
+    event_hold_guard = (
+        "AND NOT EXISTS (SELECT 1 FROM run_retention_holds h WHERE h.run_id=e.run_id) "
+        if holds_available else ""
+    )
+    audit_hold_guard = (
+        "AND NOT (a.target_type='agent_run' AND EXISTS ("
+        "SELECT 1 FROM run_retention_holds h WHERE h.run_id=a.target_id)) "
+        if holds_available else ""
+    )
+    event_sql = text(
+        "DELETE FROM agent_events WHERE seq IN (SELECT e.seq FROM agent_events e "
+        "JOIN agent_runs r ON r.id=e.run_id JOIN projects p ON p.id=r.project_id "
+        "JOIN teams t ON t.id=p.team_id WHERE t.org_id=:org AND e.ts<:cutoff "
+        f"{event_hold_guard}"
+        "ORDER BY e.seq LIMIT :batch)"
+    )
+    audit_sql = text(
+        "DELETE FROM audit_log WHERE seq IN (SELECT a.seq FROM audit_log a WHERE "
+        "a.ts<:cutoff AND ("
+        "(a.target_type='org' AND a.target_id=:org) OR a.actor_member_id IN ("
+        "SELECT m.id FROM team_members m JOIN teams t ON t.id=m.team_id WHERE t.org_id=:org)) "
+        f"{audit_hold_guard}"
+        "ORDER BY a.seq LIMIT :batch)"
+    )
+    for org_id, event_days, audit_days in rows:
+        for key, days, stmt in (
+            ("agent_events", event_days, event_sql),
+            ("audit_log", audit_days, audit_sql),
+        ):
+            if days is None:
+                continue
+            cutoff = cutoff_for(int(days), now)
+            total[key] += await _loop_batches(
+                factory, stmt, {"org": org_id, "cutoff": cutoff, "batch": batch_size},
+                batch_size=batch_size, max_batches=max_batches, hold_lock=holds_available,
+            )
+    return total
+
+
 # ---------------------------------------------------------------------------
 # M19-N3 — partition mechanics (Postgres only; no-ops on SQLite).
 # ---------------------------------------------------------------------------
@@ -459,7 +517,9 @@ async def drop_expired_partitions(factory, *, cutoff: datetime,
             continue
         if upper > cutoff or not _IDENT_RE.match(name):
             continue
-        # Preserve a partition containing held-run events.
+        # A held run can have events in this child. Keep the whole partition
+        # attached when that happens; the row-level boundary sweep still
+        # removes eligible unheld events while retaining the held rows.
         async with factory() as session:
             if holds_available:
                 await session.execute(text(
@@ -497,6 +557,12 @@ async def run_sweep(factory, *, retention_days: int, batch_size: int,
     summary = {
         "partitions_created": await ensure_forward_partitions(factory, now=now_utc),
         "partitions_dropped": await drop_expired_partitions(factory, cutoff=events_cutoff),
+        **{
+            f"org_{key}_deleted": value
+            for key, value in (await prune_org_retention_once(
+                factory, batch_size=batch_size, now=now_utc
+            )).items()
+        },
         "agent_events_deleted": await sweep_once(
             factory, retention_days=retention_days, batch_size=batch_size, now=now_utc
         ),

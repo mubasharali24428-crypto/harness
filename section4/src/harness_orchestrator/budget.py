@@ -85,6 +85,7 @@ __all__ = [
     "budget_warn_pct",
     "check_budget",
     "check_tier",
+    "reserve_daily_run",
     "env_budget_default",
     "estimate_next_call_cost_usd",
     "resolve_cap",
@@ -300,6 +301,90 @@ async def check_tier(
             message=message,
         ),
     )
+
+
+async def reserve_daily_run(factory, team_id: str, run_id: str) -> TierGateStatus:
+    """Atomically reserve this run against the team's DB-clock daily cap.
+
+    The unique run id makes retries idempotent. A team-scoped transaction lock
+    serializes PostgreSQL reservations; legacy runs created before this table
+    are counted once as unreserved rows during the cutover day.
+    """
+    from sqlalchemy import text
+
+    try:
+        async with factory() as db:
+            dialect = db.bind.dialect.name
+            if dialect == "postgresql":
+                await db.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtextextended(:team_id, 1))"),
+                    {"team_id": team_id},
+                )
+                day_start = "date_trunc('day', now())"
+            elif dialect == "sqlite":
+                await db.execute(text("BEGIN IMMEDIATE"))
+                day_start = "date('now')"
+            else:
+                raise RuntimeError(f"unsupported database dialect for daily cap: {dialect}")
+            existing = (
+                await db.execute(
+                    text("SELECT 1 FROM team_daily_run_reservations WHERE run_id=:r"),
+                    {"r": run_id},
+                )
+            ).first()
+            row = (
+                await db.execute(text(_TIER_CAPS_SQL), {"team_id": team_id})
+            ).first()
+            caps = tier_caps(
+                row.plan if row else "free",
+                runs_per_day_override=(
+                    int(row.runs_per_day_override)
+                    if row and row.runs_per_day_override is not None
+                    else None
+                ),
+            )
+            if existing:
+                await db.commit()
+                return TierGateStatus(allowed=True, tier=caps.tier)
+            used = int((await db.execute(text(
+                "SELECT COUNT(*) FROM team_daily_run_reservations "
+                f"WHERE team_id=:t AND reserved_at >= {day_start}"
+            ), {"t": team_id})).scalar_one())
+            hit = _decide_tier(caps, used)
+            if hit:
+                await db.rollback()
+                _, cap, current = hit
+                message = (
+                    f"Free plan limit reached: {current} of {cap} daily runs used."
+                    " Upgrade to Pro for unlimited runs."
+                    if caps.upgrade_to
+                    else f"Daily run limit reached: {current} of {cap} runs used."
+                )
+                return TierGateStatus(
+                    allowed=False,
+                    tier=caps.tier,
+                    reason=f"Daily run limit reached: {current} of {cap} runs used.",
+                    capHit=cap_hit_wire(
+                        tier=caps.tier, cap=cap, cap_field="runsPerDay",
+                        used=current, message=message,
+                    ),
+                )
+            await db.execute(text(
+                "INSERT INTO team_daily_run_reservations (team_id, run_id, reserved_at) "
+                "VALUES (:t,:r,CURRENT_TIMESTAMP)"
+            ), {"t": team_id, "r": run_id})
+            await db.commit()
+            return TierGateStatus(allowed=True, tier=caps.tier)
+    except Exception as exc:
+        missing_schema = ("no such table", "does not exist", "undefinedtable")
+        if any(token in str(exc).lower() for token in missing_schema):
+            logger.debug("daily reservation migration absent; using legacy tier check")
+            return await check_tier(factory, team_id)
+        logger.exception("daily run reservation failed for team %s", team_id)
+        return TierGateStatus(
+            allowed=False, degraded=True,
+            reason=f"{DEGRADED_REASON} (daily run reservation for team '{team_id}')",
+        )
 
 
 @dataclass(frozen=True)

@@ -24,7 +24,7 @@ import pytest
 from fastapi import FastAPI
 from harness_contracts import hash_token
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import harness_identity.audit_emit as audit_emit_module
@@ -75,6 +75,8 @@ async def factory():
     engine = create_async_engine("sqlite+aiosqlite://")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # billing reads teams.budget_usd (migration 0007), unmapped on the Team model
+        await conn.execute(text("ALTER TABLE teams ADD COLUMN budget_usd NUMERIC(12,6)"))
     yield async_sessionmaker(engine, expire_on_commit=False)
     await engine.dispose()
 

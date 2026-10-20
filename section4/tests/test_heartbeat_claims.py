@@ -174,7 +174,7 @@ def test_claim_query_contention_skip_locked_guard():
 
     captured = {}
 
-    async def fake_exec(sql, params):
+    async def fake_exec(sql, params=None):
         captured["sql"] = str(sql)
         return FakeResult()
 

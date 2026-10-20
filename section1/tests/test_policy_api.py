@@ -47,6 +47,8 @@ async def env(db):
             "CREATE TABLE IF NOT EXISTS organizations "
             "(id TEXT PRIMARY KEY, name TEXT, slug TEXT, status TEXT, created_at TEXT, "
             "require_sso BOOLEAN DEFAULT FALSE, require_mfa BOOLEAN DEFAULT FALSE, "
+            "require_dual_approval BOOLEAN DEFAULT FALSE, "
+            "event_retention_days INTEGER, audit_retention_days INTEGER, "
             "allowed_domains TEXT DEFAULT '[]', execution_disabled BOOLEAN NOT NULL DEFAULT FALSE)",
             "CREATE TABLE IF NOT EXISTS org_members (org_id TEXT, user_id TEXT, role TEXT, "
             "expires_at TEXT, created_at TEXT, removed_at TEXT)",
@@ -133,6 +135,31 @@ async def test_org_execution_stop_requires_stepup_and_is_audited(env):
         ).scalar_one()
         assert '"executionDisabled": false' in audit
         assert '"executionDisabled": true' in audit
+
+
+async def test_high_risk_policy_change_requires_a_second_admin(env):
+    c = env
+    await stepup(c, "alice")
+    configured = await c.patch(
+        f"/api/v1/orgs/{ORG}", json={"requireDualApproval": True}, headers=H(c, "alice")
+    )
+    assert configured.status_code == 200 and configured.json()["requireDualApproval"] is True
+    submitted = await c.put(
+        P(f"{ORG}/documents/org/{ORG}"), json=DENY_EXPORT, headers=H(c, "alice")
+    )
+    assert submitted.status_code == 200 and submitted.json()["pendingApproval"] is True
+    request_id = submitted.json()["requestId"]
+    self_approval = await c.post(
+        P(f"{ORG}/change-requests/{request_id}/approve"), headers=H(c, "alice")
+    )
+    assert self_approval.status_code == 409
+    await stepup(c, "bob")
+    approved = await c.post(
+        P(f"{ORG}/change-requests/{request_id}/approve"), headers=H(c, "bob")
+    )
+    assert approved.status_code == 200 and approved.json()["status"] == "approved"
+    docs = await c.get(P(f"{ORG}/documents"), headers=H(c, "alice"))
+    assert docs.json()["documents"][0]["version"] == 1
 
 
 def P(path):
@@ -521,10 +548,16 @@ async def test_authorize_function_logs_and_stored_policy_denies(env):
 
 def test_migration_matches_tables():
     sql = (Path(__file__).parent.parent / "migrations" / "0039_policy.sql").read_text()
+    approvals = (
+        Path(__file__).parent.parent / "migrations" / "0054_policy_approvals.sql"
+    ).read_text()
     for t in policy._md.tables.values():
-        assert f"CREATE TABLE IF NOT EXISTS {t.name} " in sql, t.name
+        source = approvals if t.name == "policy_change_requests" else sql
+        assert f"CREATE TABLE IF NOT EXISTS {t.name} " in source or (
+            t.name == "policy_change_requests" and f"CREATE TABLE {t.name} " in source
+        ), t.name
         for col in t.columns:
-            assert col.name in sql, (t.name, col.name)
+            assert col.name in source, (t.name, col.name)
 
 
 async def test_stepup_gates_legacy_role_change_and_export_for_org_teams(env):

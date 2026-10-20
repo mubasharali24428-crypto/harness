@@ -10,6 +10,7 @@ Lane P imports ``org_role``. The lead mounts ``router`` in app.py.
 """
 
 import json
+import os
 import re
 import secrets
 from datetime import UTC, datetime, timedelta
@@ -269,6 +270,8 @@ async def _org_public(db: AsyncSession, org_id: str) -> dict:
         await db.execute(
             text(
                 "SELECT id, name, slug, status, require_sso, require_mfa, allowed_domains,"
+                " require_dual_approval,"
+                " event_retention_days, audit_retention_days,"
                 " created_at FROM organizations WHERE id = :o"
             ),
             {"o": org_id},
@@ -282,7 +285,10 @@ async def _org_public(db: AsyncSession, org_id: str) -> dict:
         "requireSso": bool(r[4]),
         "requireMfa": bool(r[5]),
         "allowedDomains": _domains(r[6]),
-        "createdAt": _iso(r[7]),
+        "requireDualApproval": bool(r[7]),
+        "eventRetentionDays": int(r[8]) if r[8] is not None else None,
+        "auditRetentionDays": int(r[9]) if r[9] is not None else None,
+        "createdAt": _iso(r[10]),
     }
 
 
@@ -299,6 +305,9 @@ class OrgPatchBody(BaseModel):
     allowedDomains: list[str] | None = None
     requireSso: bool | None = None
     requireMfa: bool | None = None
+    requireDualApproval: bool | None = None
+    eventRetentionDays: int | None = Field(default=None, ge=1, le=3650)
+    auditRetentionDays: int | None = Field(default=None, ge=1, le=3650)
 
 
 class InviteBody(BaseModel):
@@ -586,13 +595,19 @@ async def patch_org(
 ) -> dict:
     """Name and domain policy: owner or admin. require_sso / require_mfa: owner only, and the
     owner may always change them (break-glass) even from a session that fails the flags."""
-    security = body.requireSso is not None or body.requireMfa is not None
+    security = (
+        body.requireSso is not None
+        or body.requireMfa is not None
+        or body.requireDualApproval is not None
+        or "eventRetentionDays" in body.model_fields_set
+        or "auditRetentionDays" in body.model_fields_set
+    )
     async with request.app.state.session_factory() as db:
         role = await _authz(
             db, request, principal, org_id, MANAGER_ROLES, enforce_assurance=not security
         )
         if security and role != "owner":
-            raise _fail(403, "FORBIDDEN", "only an owner can change SSO/MFA requirements")
+            raise _fail(403, "FORBIDDEN", "only an owner can change organization security controls")
         before = await _org_public(db, org_id)
         sets, params = [], {"o": org_id}
         if body.name is not None:
@@ -609,6 +624,21 @@ async def patch_org(
             if getattr(body, field) is not None:
                 sets.append(f"{col} = :{col}")
                 params[col] = getattr(body, field)
+        if body.requireDualApproval is not None:
+            sets.append("require_dual_approval = :dual")
+            params["dual"] = body.requireDualApproval
+        if "eventRetentionDays" in body.model_fields_set:
+            maximum = int(os.environ.get("RETENTION_DAYS", "30"))
+            if body.eventRetentionDays is not None and body.eventRetentionDays > maximum:
+                raise _fail(422, "RETENTION_LIMIT", f"event retention cannot exceed {maximum} days")
+            sets.append("event_retention_days = :event_retention")
+            params["event_retention"] = body.eventRetentionDays
+        if "auditRetentionDays" in body.model_fields_set:
+            maximum = int(os.environ.get("AUDIT_RETENTION_DAYS", "365"))
+            if body.auditRetentionDays is not None and body.auditRetentionDays > maximum:
+                raise _fail(422, "RETENTION_LIMIT", f"audit retention cannot exceed {maximum} days")
+            sets.append("audit_retention_days = :audit_retention")
+            params["audit_retention"] = body.auditRetentionDays
         if not sets:
             return before
         await db.execute(text(f"UPDATE organizations SET {', '.join(sets)} WHERE id = :o"), params)
@@ -616,6 +646,9 @@ async def patch_org(
             "name": params.get("name", before["name"]),
             "requireSso": params.get("require_sso", before["requireSso"]),
             "requireMfa": params.get("require_mfa", before["requireMfa"]),
+            "requireDualApproval": params.get("dual", before["requireDualApproval"]),
+            "eventRetentionDays": params.get("event_retention", before["eventRetentionDays"]),
+            "auditRetentionDays": params.get("audit_retention", before["auditRetentionDays"]),
         }
         if body.name is not None or security:
             await _audit(

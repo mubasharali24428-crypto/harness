@@ -42,6 +42,7 @@ from harness_orchestrator.state_machine import AgentState  # noqa: E402
 CLEAN_DIFF = "--- a/app.py\n+++ b/app.py\n@@\n print('hi')\n+print('bye')\n"
 
 DDL = """
+CREATE TABLE high_impact_approvals (id TEXT, run_id TEXT, requester_user_id TEXT, state TEXT);
 CREATE TABLE teams (
     id VARCHAR(36) PRIMARY KEY,
     name VARCHAR(200) NOT NULL,

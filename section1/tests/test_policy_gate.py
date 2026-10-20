@@ -27,7 +27,8 @@ async def env(db):
     async with db() as s:
         for ddl in (
             "CREATE TABLE IF NOT EXISTS organizations "
-            "(id TEXT PRIMARY KEY, name TEXT, slug TEXT, status TEXT, created_at TEXT)",
+            "(id TEXT PRIMARY KEY, name TEXT, slug TEXT, status TEXT, created_at TEXT, "
+            "require_dual_approval BOOLEAN DEFAULT FALSE)",
             "CREATE TABLE IF NOT EXISTS org_members (org_id TEXT, user_id TEXT, role TEXT, "
             "expires_at TEXT, created_at TEXT, removed_at TEXT)",
             "ALTER TABLE teams ADD COLUMN org_id VARCHAR(36)",

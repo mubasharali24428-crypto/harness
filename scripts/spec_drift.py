@@ -218,7 +218,10 @@ def main() -> int:
         if not matches(call, templates):
             bad.append(f"UI calls a route that does not exist: {call}")
     recorded = route_paths()
-    unmatched = {u for u in other_ui_calls() if not matches(u, recorded)}
+    # a base-URL helper (`/api/v1/policy/orgs/${id}` + a subpath added at the call site) is the
+    # parent of a recorded route; anything that is neither a route nor a route's parent is a gap
+    parents = {t.rsplit("/", 1)[0] for t in recorded}
+    unmatched = {u for u in other_ui_calls() if not matches(u, recorded | parents)}
     for u in sorted(unmatched - KNOWN_UNSPECCED):
         bad.append(f"UI calls a URL no recorded spec has (new gap): {u}")
     for u in sorted(KNOWN_UNSPECCED - unmatched):

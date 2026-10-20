@@ -232,17 +232,17 @@ def db_factory(tmp_path):
     run(engine.dispose())
 
 
-async def _set_plan(factory, plan: str, *, runs=None, chunks=None) -> None:
+async def _set_plan(factory, plan: str, *, runs=None, chunks=None, budget=0) -> None:
     """Upsert team-a's billing_plans row (mirror of PUT /billing/plan)."""
     async with factory() as db:
         await db.execute(text("DELETE FROM billing_plans WHERE team_id = 'team-a'"))
         await db.execute(
             text(
-                "INSERT INTO billing_plans (id, team_id, plan,"
+                "INSERT INTO billing_plans (id, team_id, plan, monthly_budget_usd,"
                 " runs_per_day_override, context_index_max_chunks_override)"
-                " VALUES ('bp-a', 'team-a', :plan, :r, :c)"
+                " VALUES ('bp-a', 'team-a', :plan, :b, :r, :c)"
             ),
-            {"plan": plan, "r": runs, "c": chunks},
+            {"plan": plan, "b": budget, "r": runs, "c": chunks},
         )
         await db.commit()
 
@@ -403,7 +403,9 @@ def test_run_start_gate_emits_cta_payload(db_factory, monkeypatch):
 
     monkeypatch.setenv("HARNESS_TEAM_BUDGET_USD", "1000000.0")  # budget can't be the blocker
     f = db_factory
-    run(_set_plan(f, "free"))
+    # the plan row's cap outranks the env default, and the budget gate now answers before the
+    # daily-run reservation, so the row must carry a real budget too
+    run(_set_plan(f, "free", budget=1_000_000))
     cap = DEFAULT_RUNS_PER_DAY["free"]
     for i in range(cap):
         run(_add_run(f, f"c-{i}"))

@@ -102,7 +102,7 @@ async def test_start_is_refused_when_the_cost_budget_is_used(env):
     await env.new_run("r1")
     await limits(env, maxCostMicrousd=400_000)
     await env.ledger("r1", "0.25", n=1)
-    await env.svc.start_execution("r1")  # 250000 < 400000
+    await env.start("r1")  # 250000 < 400000; start() waits for the event publishes
     await env.x("DELETE FROM run_claims")
     await env.ledger("r1", "0.15")  # now exactly 400000
     env.svc.runs["r1"]["state_machine"].state = AgentState.AWAITING_PLAN_APPROVAL
@@ -115,16 +115,27 @@ async def test_start_is_refused_when_the_cost_budget_is_used(env):
     ]
 
 
-async def test_tool_call_limit_is_recorded_but_never_enforced(env):
+async def test_tool_call_limit_is_enforced_from_durable_tool_records(env):
     await env.new_run("r1")
     await limits(env, maxToolCalls=1)
-    await env.start("r1")
-    await env.work("r1")
+    await env.x("""CREATE TABLE agent_tool_calls (
+        id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, run_id TEXT NOT NULL,
+        team_id TEXT NOT NULL, tool TEXT NOT NULL, summary TEXT NOT NULL,
+        outcome TEXT NOT NULL, cost_microusd INTEGER NOT NULL DEFAULT 0,
+        reported_by TEXT NOT NULL, created_at TEXT NOT NULL)""")
+    await env.x("""INSERT INTO agent_tool_calls
+        (id,assignment_id,run_id,team_id,tool,summary,outcome,reported_by,created_at)
+        VALUES ('c1','a1','r1','team-a','read_file','read','ok','lead','2026-01-01')""")
+    with pytest.raises(ExecutionBlockedError) as ei:
+        await env.start("r1")
     s = await status(env)
     tool = s["enforcement"]["toolCalls"]
-    assert tool["enforced"] is False and tool["limit"] == 1 and tool["used"] is None
-    assert tool["exceeded"] is False and s["usage"]["toolCalls"] is None and s["exceeded"] == []
-    assert env.engine.calls == ["r1"]
+    assert tool["enforced"] is True and tool["limit"] == 1 and tool["used"] == 1
+    assert tool["exceeded"] is True and s["usage"]["toolCalls"] == 1
+    assert ei.value.detail["exceeded"] == [
+        {"dimension": "toolCalls", "limit": 1, "used": 1}
+    ]
+    assert env.engine.calls == []
 
 
 async def test_queued_run_that_used_its_time_is_blocked_at_claim_and_never_runs(env):

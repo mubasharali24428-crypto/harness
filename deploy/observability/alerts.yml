@@ -41,6 +41,21 @@ groups:
 
   - name: harness-slo
     rules:
+      - alert: HarnessRequestLatencySloBurn
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le, instance, path) (
+              rate(http_request_duration_seconds_bucket{job="harness-backends"}[5m])
+            )
+          ) > 0.25
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Request p95 exceeds 250 ms on {{ $labels.instance }} {{ $labels.path }}"
+          description: "The route-level p95 latency target is exceeded for 10m; inspect request volume, DB pool and queue behavior."
+          runbook: docs/runbooks/slo-and-capacity.md#objectives
+
       - alert: HarnessQueueDepthHigh
         expr: harness_queue_depth > 50
         for: 10m

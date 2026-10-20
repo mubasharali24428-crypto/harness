@@ -145,6 +145,24 @@ _TEAMS_DDL = (
     " budget_usd REAL NULL)"
 )
 
+# Session 7 schema companions now read by the current orchestrator: daily
+# reservations are an idempotent run admission gate, and participants are the
+# recipient source for run-scoped notifications. Keep this scratch schema
+# aligned with the migrated service even when the test has no roster rows.
+_DAILY_RESERVATIONS_DDL = (
+    "CREATE TABLE team_daily_run_reservations ("
+    "team_id VARCHAR(36) NOT NULL, run_id VARCHAR(36) NOT NULL UNIQUE,"
+    " reserved_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+    " PRIMARY KEY (team_id, run_id))"
+)
+_RUN_PARTICIPANTS_DDL = (
+    "CREATE TABLE run_participants ("
+    "run_id VARCHAR(36) NOT NULL, team_id VARCHAR(36) NOT NULL,"
+    " user_id VARCHAR(36) NOT NULL, role VARCHAR(20) NOT NULL,"
+    " joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+    " PRIMARY KEY (run_id, user_id))"
+)
+
 # signal_done/reviewer companions (best-effort reads in prod schemas).
 _PROJECT_RULES_DDL = (
     "CREATE TABLE project_rules ("
@@ -168,6 +186,10 @@ _COST_LEDGER_DDL = (
 
 async def _create_schema(engine) -> None:
     async with engine.begin() as conn:
+        await conn.execute(text(
+            "CREATE TABLE high_impact_approvals (id TEXT, run_id TEXT, "
+            "requester_user_id TEXT, state TEXT)"
+        ))
         await conn.execute(text(_EVENTS_DDL))
         await conn.execute(text(_PLANS_DDL))
         await conn.execute(text(_RUN_CLAIMS_DDL))
@@ -175,6 +197,8 @@ async def _create_schema(engine) -> None:
         await conn.execute(text(_PROJECTS_DDL))
         await conn.execute(text(_AUDIT_DDL))
         await conn.execute(text(_TEAMS_DDL))
+        await conn.execute(text(_DAILY_RESERVATIONS_DDL))
+        await conn.execute(text(_RUN_PARTICIPANTS_DDL))
         await conn.execute(text(_PROJECT_RULES_DDL))
         await conn.execute(text(_COST_LEDGER_DDL))
 

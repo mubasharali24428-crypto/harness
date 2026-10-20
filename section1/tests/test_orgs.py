@@ -30,6 +30,16 @@ async def factory():
         sql = re.sub(r"--[^\n]*", "", MIGRATION.read_text())
         for stmt in filter(str.strip, sql.split(";")):
             await conn.execute(text(stmt))
+        await conn.execute(text(
+            "ALTER TABLE organizations ADD COLUMN require_dual_approval "
+            "BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
+        await conn.execute(
+            text("ALTER TABLE organizations ADD COLUMN event_retention_days INTEGER")
+        )
+        await conn.execute(
+            text("ALTER TABLE organizations ADD COLUMN audit_retention_days INTEGER")
+        )
     yield async_sessionmaker(engine, expire_on_commit=False)
     await engine.dispose()
 

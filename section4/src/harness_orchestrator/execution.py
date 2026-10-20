@@ -13,8 +13,9 @@ What is ENFORCED and what is only RECORDED (repeated in ``/execution-status``):
 * ``modelCalls`` counts ``cost_ledger`` rows of the run and ``costMicrousd`` sums them: the engine
   path writes one row when an engine run COMPLETES, so spend inside a run that is still running is
   invisible until then. ``seconds`` is rebuilt from ``agent_events`` timestamps.
-* ``toolCalls`` is RECORDED only: the engine reports no tool-call count, so it is never enforced
-  and the usage is ``null``.
+* ``toolCalls`` counts durable ``agent_tool_calls`` rows and is checked at run start, queue claim,
+  and by the running-limit sweep. The engine must persist a row for every tool call for this cap
+  to reflect actual activity.
 
 State changes use only the state machine's own vocabulary: abandon is ``stop_agent`` (DONE), a
 blocked claim is ``execution_failed`` (BLOCKED), a limit sweep is ``pause_agent`` (PAUSED), retry
@@ -91,9 +92,9 @@ ENFORCEMENT = {
         "source": "cost_ledger rows of the run; the engine writes one row per completed engine run",
     },
     "toolCalls": {
-        "enforced": False,
-        "at": [],
-        "source": "not reported by the engine: recorded limit only",
+        "enforced": True,
+        "at": ["run start", "queue claim", "running sweep"],
+        "source": "durable agent_tool_calls rows for the run",
     },
     "costMicrousd": {
         "enforced": True,
@@ -321,10 +322,24 @@ async def usage_of(db: Any, run_id: str, now: datetime) -> dict[str, Any]:
             {"r": run_id},
         )
     ).first()
+    tool_calls: int | None
+    try:
+        async with db.begin_nested():  # a savepoint: a missing table must not roll back the caller
+            tool_calls = int(
+                (
+                    await db.execute(
+                        text("SELECT COUNT(*) FROM agent_tool_calls WHERE run_id=:r"), {"r": run_id}
+                    )
+                ).scalar_one()
+            )
+    except Exception as exc:  # noqa: BLE001 — pre-0044 scratch schema
+        if not any(m in str(exc).lower() for m in _MISSING_TABLE):
+            raise
+        tool_calls = None
     return {
         "seconds": executing_seconds(ev, now, claim, claim_known),
         "modelCalls": int(led.n),
-        "toolCalls": None,
+        "toolCalls": tool_calls,
         "costMicrousd": _micro(led.c),
     }
 

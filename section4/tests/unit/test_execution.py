@@ -358,7 +358,7 @@ async def test_limits_default_put_versioning_noop_and_audit(env):
     await env.new_run("r1")
     got = (await env.get("view", f"{R}/execution-limits")).json()
     assert got["limits"]["isDefault"] and got["limits"]["version"] == 0
-    assert got["enforcement"]["toolCalls"]["enforced"] is False
+    assert got["enforcement"]["toolCalls"]["enforced"] is True
     assert got["enforcement"]["seconds"]["enforced"] is True
     put = await env.call(
         "lead",

@@ -43,6 +43,7 @@ _OBS = RUNNERS / "observability.py"
 _COMPOSE = DEPLOY / "docker-compose.yml"
 _PROM_CONFIG = DEPLOY / "observability" / "prometheus.yml"
 _ALERT_DOC = REPO_ROOT / "docs" / "runbooks" / "alerting.md"
+_DASHBOARD = DEPLOY / "observability" / "dashboards" / "harness-overview.json"
 
 ALL_SERVICE_FACTORIES = (
     "app_identity",
@@ -556,6 +557,32 @@ def test_prometheus_scrape_target_covers_every_backend():
     }
     assert set(targets) == expected, f"drift: {sorted(targets)}"
     assert jobs[0]["metrics_path"] == "/metrics"
+
+
+def test_operations_dashboard_is_importable_and_covers_key_signals():
+    dashboard = json.loads(_DASHBOARD.read_text())
+    assert dashboard["title"] == "Harness Operations Overview"
+    assert dashboard["uid"] == "harness-ops-overview"
+    panels = dashboard["panels"]
+    assert len(panels) >= 6
+    assert len({panel["id"] for panel in panels}) == len(panels)
+    expressions = " ".join(
+        target["expr"]
+        for panel in panels
+        for target in panel.get("targets", [])
+    )
+    for metric in (
+        "up{job=",
+        "http_requests_total",
+        "http_request_duration_seconds_bucket",
+        "harness_queue_depth",
+        "harness_event_bus_lag_seconds",
+        "harness_approval_denied_total",
+        "harness_run_cancel_total",
+        "harness_isolation_violation_total",
+        "harness_event_delivery_total",
+    ):
+        assert metric in expressions, f"dashboard does not cover {metric}"
 
 
 def test_env_knobs_pass_through_compose():

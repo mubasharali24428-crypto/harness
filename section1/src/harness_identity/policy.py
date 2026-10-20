@@ -104,6 +104,21 @@ policy_documents = Table(
     Column("updated_at", _TS, nullable=False),
     UniqueConstraint("org_id", "level", "scope_id", name="uq_policy_documents_scope"),
 )
+policy_change_requests = Table(
+    "policy_change_requests",
+    _md,
+    Column("id", String(36), primary_key=True),
+    Column("org_id", String(36), nullable=False),
+    Column("level", String(16), nullable=False),
+    Column("scope_id", String(64), nullable=False),
+    Column("proposed_doc", _J, nullable=False),
+    Column("expected_version", Integer, nullable=False),
+    Column("requested_by", String(36), nullable=False),
+    Column("requested_at", _TS, nullable=False),
+    Column("status", String(16), nullable=False),
+    Column("decided_by", String(36)),
+    Column("decided_at", _TS),
+)
 policy_custom_roles = Table(
     "policy_custom_roles",
     _md,
@@ -613,6 +628,38 @@ async def put_document(
         raise _err(409, "VERSION_CONFLICT", "document changed since it was read")
     data = body.doc.model_dump(mode="json")
     version = (cur.version if cur else 0) + 1
+    dual = bool((await db.execute(
+        text("SELECT require_dual_approval FROM organizations WHERE id=:o"), {"o": org_id}
+    )).scalar_one())
+    sensitive_permissions = {"approve", "administer", "billing", "export"}
+
+    def is_high_risk(doc: dict[str, Any] | None) -> bool:
+        if not doc:
+            return False
+        return bool(doc.get("allow_lower_grants")) or any(
+            rule.get("effect") == "deny"
+            or bool(sensitive_permissions.intersection(rule.get("permissions", [])))
+            for rule in doc.get("rules", [])
+        )
+
+    high_risk = is_high_risk(data) or is_high_risk(cur.doc if cur else None)
+    if dual and high_risk:
+        request_id = _uid()
+        await db.execute(
+            insert(policy_change_requests).values(
+                id=request_id, org_id=org_id, level=level, scope_id=scope_id,
+                proposed_doc=data, expected_version=(cur.version if cur else 0),
+                requested_by=principal.userId, requested_at=now, status="pending",
+            )
+        )
+        await db.commit()
+        await _emit(
+            db, "policy.change_requested", user_id=principal.userId,
+            team_id=principal.teamId, target_type="policy_change_request", target_id=request_id,
+            detail={"orgId": org_id, "level": level, "scopeId": scope_id},
+        )
+        return {"pendingApproval": True, "requestId": request_id,
+                "level": level, "scopeId": scope_id, "version": cur.version if cur else 0}
     if cur:
         await db.execute(
             update(t)
@@ -643,6 +690,83 @@ async def put_document(
         detail={"version": version, "rules": len(body.doc.rules)},
     )
     return {"level": level, "scopeId": scope_id, "version": version}
+
+
+@router.get("/policy/orgs/{org_id}/change-requests")
+async def list_policy_change_requests(
+    org_id: str, request: Request, db: Db, principal: Who
+) -> dict:
+    await _gate(request, db, principal, org_id, "administer")
+    rows = (await db.execute(
+        select(policy_change_requests).where(
+            policy_change_requests.c.org_id == org_id,
+            policy_change_requests.c.status == "pending",
+        ).order_by(policy_change_requests.c.requested_at)
+    )).all()
+    return {"requests": [
+        {"id": r.id, "level": r.level, "scopeId": r.scope_id,
+         "proposedDoc": r.proposed_doc, "expectedVersion": r.expected_version,
+         "requestedBy": r.requested_by, "requestedAt": r.requested_at.isoformat()}
+        for r in rows
+    ]}
+
+
+async def _decide_policy_change(
+    org_id: str, request_id: str, request: Request, db: AsyncSession,
+    principal: Principal, approve: bool,
+) -> dict:
+    now = await _gate(request, db, principal, org_id, "administer", action="policy.save")
+    await require_stepup(db, request, principal, org_id, "policy.save")
+    change = (await db.execute(select(policy_change_requests).where(
+        policy_change_requests.c.id == request_id,
+        policy_change_requests.c.org_id == org_id,
+    ))).first()
+    if change is None or change.status != "pending":
+        raise _err(404, "NOT_FOUND", "pending policy change not found")
+    if change.requested_by == principal.userId:
+        raise _err(409, "SECOND_APPROVER_REQUIRED", "the requester cannot approve their own change")
+    if approve:
+        current = (await db.execute(select(policy_documents).where(
+            policy_documents.c.org_id == org_id,
+            policy_documents.c.level == change.level,
+            policy_documents.c.scope_id == change.scope_id,
+        ))).first()
+        version = current.version if current else 0
+        if version != change.expected_version:
+            raise _err(409, "VERSION_CONFLICT", "policy changed after this request was submitted")
+        if current:
+            await db.execute(update(policy_documents).where(
+                policy_documents.c.id == current.id
+            ).values(doc=change.proposed_doc, version=version + 1,
+                     updated_by=principal.userId, updated_at=now))
+        else:
+            await db.execute(insert(policy_documents).values(
+                id=_uid(), org_id=org_id, level=change.level, scope_id=change.scope_id,
+                version=1, doc=change.proposed_doc, updated_by=principal.userId, updated_at=now,
+            ))
+    status = "approved" if approve else "rejected"
+    await db.execute(update(policy_change_requests).where(
+        policy_change_requests.c.id == request_id
+    ).values(status=status, decided_by=principal.userId, decided_at=now))
+    await db.commit()
+    await _emit(
+        db, "policy.change_decided", user_id=principal.userId,
+        team_id=principal.teamId, target_type="policy_change_request", target_id=request_id,
+        detail={"orgId": org_id, "status": status},
+    )
+    return {"requestId": request_id, "status": status}
+
+
+@router.post("/policy/orgs/{org_id}/change-requests/{request_id}/approve")
+async def approve_policy_change(org_id: str, request_id: str, request: Request,
+                               db: Db, principal: Who) -> dict:
+    return await _decide_policy_change(org_id, request_id, request, db, principal, True)
+
+
+@router.post("/policy/orgs/{org_id}/change-requests/{request_id}/reject")
+async def reject_policy_change(org_id: str, request_id: str, request: Request,
+                               db: Db, principal: Who) -> dict:
+    return await _decide_policy_change(org_id, request_id, request, db, principal, False)
 
 
 class RoleBody(BaseModel):
