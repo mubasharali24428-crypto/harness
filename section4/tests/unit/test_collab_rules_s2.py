@@ -11,6 +11,8 @@
 
 import asyncio
 import json
+import re
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from harness_contracts.roles import Principal, Role
@@ -215,7 +217,8 @@ def test_approvals_say_when_they_were_decided_and_amending_voids_that(env):
         f"{P}/r1/approvals/{a['id']}/decision", json={"approve": True, "digest": a["digest"]}
     )
     decided = listed()["decidedAt"]
-    assert decided and decided.startswith("20")  # an ISO timestamp, not a placeholder
+    # one shape on every database: ISO-8601, UTC offset, milliseconds (JS parses it as is)
+    assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}\+00:00", decided), decided
     as_("eng2").put(
         f"{P}/r1/approvals/{a['id']}",
         json={"action": "delete", "summary": "s", "diff": "-y", "paths": ["src/other.py"]},
@@ -226,6 +229,38 @@ def test_approvals_say_when_they_were_decided_and_amending_voids_that(env):
     events = as_("lead").get(f"{P}/r1/collab-history").json()["events"]
     amended = [e["payload"] for e in events if e["kind"] == "approval.amended"]
     assert amended == [{**amended[0], "approvalId": a["id"], "voidedApproval": True}]
+
+
+def test_listing_flags_a_proposal_changed_after_it_was_approved(env):
+    """Server-side, so a page that has not (or cannot) load the history still warns."""
+    as_, _ = env
+    lead_run(as_)
+    flag = lambda i: {a["id"]: a["amendedAfterApproval"] for a in  # noqa: E731
+                      as_("lead").get(f"{P}/r1/approvals").json()["approvals"]}[i]
+    decide = lambda a: as_("lead").post(  # noqa: E731
+        f"{P}/r1/approvals/{a['id']}/decision", json={"approve": True, "digest": a["digest"]})
+    edit = lambda a: as_("eng2").put(  # noqa: E731
+        f"{P}/r1/approvals/{a['id']}",
+        json={"action": "delete", "summary": "s", "diff": "-y", "paths": ["src/other.py"]}).json()
+    voided, never_approved, approved = new_approval(as_), new_approval(as_), new_approval(as_)
+    decide(voided)
+    decide(approved)
+    edit(voided)
+    edit(never_approved)  # amended while still pending: nothing was withdrawn
+    got = [flag(voided["id"]), flag(never_approved["id"]), flag(approved["id"])]
+    assert got == [True, False, False]
+    decide({**voided, "digest": edit(voided)["digest"]})  # decided again: the warning is over
+    assert flag(voided["id"]) is False
+
+
+def test_decision_time_is_utc_whatever_the_driver_hands_back():
+    away = timezone(timedelta(hours=5))  # a driver that answers in the session zone
+    assert collab._iso("2026-10-20 09:21:00.426348+00:00") == "2026-10-20T09:21:00.426+00:00"
+    assert collab._iso("2026-10-20 09:21:00") == "2026-10-20T09:21:00.000+00:00"  # naive means UTC
+    assert collab._iso(datetime(2026, 10, 20, 14, 21, tzinfo=away)) == (
+        "2026-10-20T09:21:00.000+00:00"
+    )
+    assert collab._iso(None) is None
 
 
 def test_leader_changes_record_before_and_after(env):

@@ -136,13 +136,6 @@ export function reopenedApprovals(prev: Approval[], next: Approval[]): string[] 
   }).map((a) => a.id);
 }
 
-/** Pending proposals whose earlier approval an amend voided, read from history so a reload still knows. */
-export function reopenedFromHistory(events: CollabEvent[], approvals: Approval[]): string[] {
-  const voided = new Set(events.filter((e) => e.kind === "approval.amended" && e.payload.voidedApproval === true)
-    .map((e) => e.payload.approvalId));
-  return approvals.filter((a) => a.state === "pending" && voided.has(a.id)).map((a) => a.id);
-}
-
 /** Append new history events once, in order (overlapping polls can return the same seq twice). */
 export function mergeEvents(prev: CollabEvent[], next: CollabEvent[]): CollabEvent[] {
   const seen = new Set(prev.map((e) => e.seq));

@@ -16,6 +16,7 @@ import { loadSession } from "@/lib/auth";
 import { ApiError, getPlan } from "@/lib/api";
 import { createRefetchCoalescer } from "@/lib/backoff";
 import { parkFocus } from "@/lib/focus";
+import { formatDateTime } from "@/lib/intl";
 import { AnnounceContext, useAnnouncer } from "@/components/LiveAnnouncer";
 import {
   type Approval, type CollabEvent, type RedirectKind, type Roster,
@@ -24,7 +25,7 @@ import {
 } from "./collabApi";
 import {
   type CollabView, approvalAnnouncements, approvalLabel, clipDiff, deriveCollabView, describeDecision,
-  fileStatuses, freshEventLines, isOpenApproval, mergeEvents, plainError, redirectProblem, reopenedApprovals, reopenedFromHistory,
+  fileStatuses, freshEventLines, isOpenApproval, mergeEvents, plainError, redirectProblem, reopenedApprovals,
 } from "./collabModel";
 import { type StreamView, useCollabStream } from "./useCollabStream";
 import { ConnectionStatus } from "./connectionStatus";
@@ -101,7 +102,7 @@ export function SharedRunView(p: SharedRunViewProps) {
   const open = p.approvals.filter(isOpenApproval);
   const decided = p.approvals.filter((a) => a.state !== "pending");
   const files = fileStatuses(p.approvals, view.leader);
-  const reopened = [...(p.reopened ?? []), ...reopenedFromHistory(p.events, p.approvals)];
+  const reopened = [...(p.reopened ?? []), ...p.approvals.filter((a) => a.amendedAfterApproval).map((a) => a.id)];
   const owner = view.leader ? `${view.leader}${view.isLeader ? " (you)" : ""}` : null;
 
   return (
@@ -185,7 +186,7 @@ export function SharedRunView(p: SharedRunViewProps) {
                   : <>Nobody can decide this yet: the run has no session leader.</>}
               </p>
             )}
-            <p style={{ ...muted, margin: "4px 0" }}>Requested by {a.requester}{a.decidedBy ? `, decided by ${a.decidedBy}` : ""}. Files: <span style={mono}>{a.paths.join(", ")}</span>. Proposal version <span style={mono} data-testid={`digest-${a.id}`}>{a.digest.slice(0, 8)}</span>.</p>
+            <p style={{ ...muted, margin: "4px 0" }}>Requested by {a.requester}{a.decidedBy ? `, decided by ${a.decidedBy}` : ""}{a.decidedAt && <> on <time dateTime={a.decidedAt} data-testid={`decided-${a.id}`}>{formatDateTime(a.decidedAt)}</time></>}. Files: <span style={mono}>{a.paths.join(", ")}</span>. Proposal version <span style={mono} data-testid={`digest-${a.id}`}>{a.digest.slice(0, 8)}</span>.</p>
             {a.diff ? <pre aria-label="Proposed change" tabIndex={0} style={{ ...mono, maxHeight: 160, overflow: "auto", background: "var(--panel-2)", padding: 8 }}>{clipDiff(a.diff)}</pre> : null}
             {a.requester === "system:staging" && (
               <p style={muted}>This change is withheld. Approval and application are separate steps.</p>

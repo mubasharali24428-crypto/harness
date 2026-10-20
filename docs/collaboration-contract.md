@@ -60,9 +60,12 @@ States: `pending`, `approved`, `rejected`, `expired`, `invalidated`, `executing`
 `completed`, `failed`. Every transition is a compare-and-swap `UPDATE`, so racing callers have exactly one winner, and writes one event and one audit row
 in the same transaction.
 
-An approval row carries `decidedBy` and `decidedAt` (null while pending). Amending a proposal (`PUT /approvals/{id}`, requester only) returns it to
+An approval row carries `decidedBy` and `decidedAt` (null while pending), the latter always ISO-8601 in UTC with milliseconds
+(`2026-10-20T09:21:00.426+00:00`), the same text on sqlite and PostgreSQL. Amending a proposal (`PUT /approvals/{id}`, requester only) returns it to
 `pending` with the new digest, clears both, and writes an `approval.amended` event whose payload has `voidedApproval: true` when an approval was
-voided. The shared-run panel reads that event from history, so "this proposal changed after it was approved" survives a reload.
+voided. `GET /approvals` adds `amendedAfterApproval`: true for a proposal that is pending because such an amend voided an approval. The server
+works it out from those events, so the shared-run panel's "changed after it was approved" notice survives a reload and does not depend on how much
+history the page has loaded. The panel also prints the decision time in the viewer's own locale and zone.
 
 | From | Action (who) | To | Refusal when the state is wrong |
 |---|---|---|---|

@@ -160,11 +160,14 @@ Only run on sqlite. The daily plan-limit stop is announced in §3g-5.
 
 The Session 2 note (`evidence/s2/lane-c.md`) said the approvals API had no decision timestamp or amend event. Both already existed in storage:
 `decided_at` was written and `approval.amended` events were emitted, but `collab._view` did not return the time. It now returns `decidedAt`
-(null while pending, null again after an amend voids the decision). `collabModel.reopenedFromHistory` rebuilds the "changed after it was
-approved" notice from `approval.amended` events with `voidedApproval: true` for proposals that are still pending, so it no longer depends on a
-poll that saw the approval first. Tests: `test_approvals_say_when_they_were_decided_and_amending_voids_that` (server; also pins the event
-payload), two vitest cases in `collab.test.tsx`; two mutants killed on each side. Open: the panel does not print the time yet, and it can
-only see amend events inside the history window it loaded.
+(null while pending, null again after an amend voids the decision). The first version (`fcd4731`) rebuilt the "changed after it was approved"
+notice in the browser from loaded history; the follow-up moved that to the server: `GET /approvals` returns `amendedAfterApproval` (pending, and an
+`approval.amended` event with `voidedApproval: true` exists), so a reload needs no history at all. `reopenedFromHistory` is gone. `decidedAt` is
+now ISO-8601 UTC with milliseconds (`collab._iso`), and the panel prints it with `lib/intl.formatDateTime`. Checked on a real PostgreSQL 18
+(`tests/unit/test_collab_approvals_live_pg.py`, `HARNESS_TEST_PG=<server dsn>`): before the change the value was
+`2026-10-20 09:26:18.631205+00:00` there too (same as sqlite; asyncpg answers in UTC whatever the database timezone), so it was usable but not
+strict ISO. On PostgreSQL the JSONB payload arrives as a dict; the `json.loads` branch is sqlite-only. Mutants: 6 server, 5 UI, all killed.
+`expiresAt` is still the old `str(datetime)` form (nothing displays it).
 
 ## 3e. Session 7 result
 
@@ -228,6 +231,10 @@ section1 pytest 859 passed/27 skipped; section4 pytest 979 passed/32 skipped; ru
 
 ## 6. Facts that bite
 
+- A throwaway local Postgres for `HARNESS_TEST_PG` tests: `LC_ALL=en_US.UTF-8` is required on macOS (else "postmaster became multithreaded"),
+  and under a long scratch path pass `-c unix_socket_directories=` (socket paths are limited to 103 bytes) and use TCP.
+  `initdb -D d -U harness -A trust`, `pg_ctl -D d -o "-p 55499 -c listen_addresses=127.0.0.1 -c unix_socket_directories=" start`,
+  then `HARNESS_TEST_PG=postgresql://harness@127.0.0.1:55499/harness pytest tests/unit/*_live_pg.py`.
 - `HARNESS_PILOT_TEAMS` is an **allowlist**: unset or empty opens collaboration to every team.
 - Prometheus scrapes the **root `/metrics`**; sandbox `confinement=off` has no OS boundary; no Alertmanager.
 - `ruff check --fix` deletes imported pytest fixtures. Never use it.

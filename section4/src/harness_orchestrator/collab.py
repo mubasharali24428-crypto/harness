@@ -37,11 +37,11 @@ import os
 import re
 import time
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from harness_contracts.roles import READ_ONLY, Principal, Role
-from harness_contracts.timeutil import db_now
+from harness_contracts.timeutil import as_utc, db_now
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, OperationalError
 
@@ -794,6 +794,14 @@ async def _invalidate(db: Any, p: Principal, run_id: str, why: str) -> int:
     return res.rowcount or 0
 
 
+def _iso(v: Any) -> str | None:
+    """ISO-8601 UTC, milliseconds: same text from sqlite (a string) and PostgreSQL (a datetime)."""
+    if v is None:
+        return None
+    d = v if isinstance(v, datetime) else datetime.fromisoformat(str(v))
+    return as_utc(d).isoformat(timespec="milliseconds")
+
+
 def _view(r: Any) -> dict[str, Any]:
     paths = r.paths if isinstance(r.paths, list) else json.loads(r.paths)
     return {
@@ -807,7 +815,7 @@ def _view(r: Any) -> dict[str, Any]:
         "state": r.state,
         "requester": r.requester_user_id,
         "decidedBy": r.decided_by,
-        "decidedAt": None if r.decided_at is None else str(r.decided_at),
+        "decidedAt": _iso(r.decided_at),
         "outcome": r.outcome,
         "expiresAt": str(r.expires_at),
     }
@@ -889,7 +897,25 @@ async def list_approvals(factory: Any, run_id: str) -> list[dict[str, Any]]:
                 {"r": run_id},
             )
         ).all()
-    return [_view(r) for r in rows]
+        voided: set[str] = set()
+        if any(r.state == "pending" for r in rows):
+            # ponytail: reads this run's amend events per list; add a column if runs reach thousands
+            events = (
+                await db.execute(
+                    text(
+                        "SELECT payload FROM run_collab_events"
+                        " WHERE run_id = :r AND kind = 'approval.amended'"
+                    ),
+                    {"r": run_id},
+                )
+            ).all()
+            loaded = [
+                e.payload if isinstance(e.payload, dict) else json.loads(e.payload) for e in events
+            ]
+            voided = {x["approvalId"] for x in loaded if x.get("voidedApproval")}
+    return [
+        {**_view(r), "amendedAfterApproval": r.state == "pending" and r.id in voided} for r in rows
+    ]
 
 
 async def amend_approval(

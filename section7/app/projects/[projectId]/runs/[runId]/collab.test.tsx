@@ -3,10 +3,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ApiError, parseApiError } from "@/lib/api";
+import { formatDateTime } from "@/lib/intl";
 import { decideApproval, sendRedirect, type Approval, type CollabEvent, type Roster } from "./collabApi";
 import {
   approvalLabel, clipDiff, deriveCollabView, describeDecision, describeEvent, fileStatuses, mergeEvents,
-  redirectProblem, reopenedApprovals, reopenedFromHistory,
+  redirectProblem, reopenedApprovals,
 } from "./collabModel";
 import { NotEnabled, PILOT_NOT_ENABLED, SharedRunView } from "./sharedRunPanel";
 
@@ -306,23 +307,39 @@ describe("changed proposal re-requires approval", () => {
 });
 
 describe("a reload still knows a proposal changed after approval", () => {
-  const amended = (voided: boolean, id = "a1"): CollabEvent => ({
-    seq: 7, actor: "eng2", kind: "approval.amended", ts: "2026-10-18T10:00:00Z",
-    payload: { approvalId: id, voidedApproval: voided },
-  });
-  const after = [approval({ state: "pending", digest: "e".repeat(64) })];
+  const pending = (over: Partial<Approval> = {}) => [approval({ state: "pending", ...over })];
 
-  it("reads it from history: still pending and an approval was voided", () => {
-    expect(reopenedFromHistory([amended(true)], after)).toEqual(["a1"]);
-    expect(reopenedFromHistory([amended(false)], after)).toEqual([]); // only a pending proposal was edited
-    expect(reopenedFromHistory([amended(true, "other")], after)).toEqual([]);
-    expect(reopenedFromHistory([amended(true)], [approval({ state: "approved" })])).toEqual([]); // decided again
-    expect(reopenedFromHistory([], after)).toEqual([]);
+  it("shows the notice from the server's flag, with no history loaded and no earlier poll", () => {
+    expect(renderWith("lead", pending({ amendedAfterApproval: true }), { events: [] })).toContain('data-testid="reopened-a1"');
+    expect(renderWith("lead", pending({ amendedAfterApproval: false }), { events: [] })).not.toContain("reopened-a1");
+    expect(renderWith("lead", pending(), { events: [] })).not.toContain("reopened-a1"); // an older server says nothing
   });
 
-  it("shows the notice with no memory of the earlier poll", () => {
-    expect(renderWith("lead", after, { events: [amended(true)] })).toContain('data-testid="reopened-a1"');
-    expect(renderWith("lead", after, { events: [amended(false)] })).not.toContain("reopened-a1");
+  it("stops warning once the proposal has been decided again", () => {
+    const decided = [approval({ state: "approved", amendedAfterApproval: true })];
+    expect(renderWith("lead", decided, { events: [] })).not.toContain("reopened-a1");
+  });
+});
+
+describe("a decided proposal says when it was decided", () => {
+  const iso = "2026-10-18T10:00:00.000+00:00";
+  const decided = (over: Partial<Approval> = {}) =>
+    [approval({ state: "approved", decidedBy: "lead", decidedAt: iso, ...over })];
+
+  it("prints the decision time next to who decided", () => {
+    const html = renderWith("lead", decided());
+    expect(html).toContain(`<time dateTime="${iso}" data-testid="decided-a1">`);
+    const shown = html.match(/<time[^>]*data-testid="decided-a1">([^<]*)</)?.[1] ?? "";
+    expect(shown).toBe(formatDateTime(iso)); // in the viewer's own locale and zone
+    expect(shown).toMatch(/2026/);
+    expect(text(html)).toContain("decided by lead on ");
+  });
+
+  it("prints no time while nothing has been decided, or when the server sent none", () => {
+    expect(renderWith("lead", [approval({ state: "pending" })])).not.toContain("decided-a1");
+    const html = renderWith("lead", decided({ decidedAt: null }));
+    expect(html).not.toContain("decided-a1");
+    expect(text(html)).toContain("decided by lead.");
   });
 });
 

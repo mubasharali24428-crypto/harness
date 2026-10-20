@@ -27,7 +27,8 @@ export interface Approval {
   state: ApprovalState;
   requester: string;
   decidedBy: string | null;
-  decidedAt: string | null;
+  decidedAt: string | null; // ISO-8601 UTC; null until decided, and again once an amend voids the decision
+  amendedAfterApproval?: boolean; // the approvals list only: pending because an amend voided an approval
   outcome: string | null;
   expiresAt: string;
 }
