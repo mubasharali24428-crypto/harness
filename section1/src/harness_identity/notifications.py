@@ -49,7 +49,7 @@ SUMMARY_CODES: dict[str, tuple[str, ...]] = {
     "blocked": ("run_blocked",),
     "control_request": ("control_requested", "control_granted", "control_declined"),
     "suggestion": ("suggestion_queued",),
-    "budget": ("budget_warning",),
+    "budget": ("budget_warning", "budget_exhausted"),
 }
 # summary_code -> (one item, n items). Fixed text: names no person, session, plan or comment.
 PREVIEWS: dict[str, tuple[str, str]] = {
@@ -67,6 +67,7 @@ PREVIEWS: dict[str, tuple[str, str]] = {
     "control_declined": ("Your control request was declined", "{n} control requests declined"),
     "suggestion_queued": ("A suggestion is waiting for you", "{n} suggestions are waiting"),
     "budget_warning": ("Team spend is nearing its monthly limit", "{n} spend warnings"),
+    "budget_exhausted": ("Team spend reached its monthly limit", "{n} spend limit alerts"),
 }
 INAPP_MODES = ("on", "off")
 EMAIL_MODES = ("off", "urgent", "immediate", "digest")

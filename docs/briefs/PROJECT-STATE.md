@@ -116,8 +116,19 @@ The first near-cap decision of a run (pre-spawn gate or reviewer call) now calls
 (the rule of `billing._billing_manager`). Dedupe key `budget-warning:<team>:<YYYY-MM>` gives one row per person per team per month;
 email stays opt-in. New notification kind in both sections and the UI (`notificationsApi.ts`, `notificationsModel.ts`); no migration.
 Tests `test_budget_warning_delivery.py` (5, incl. a mutation-checked "delivery failure never touches the run"), kind pins in
-`test_notify.py`, `test_notifications_inbox.py`, `test_notifications_prefs.py`, vitest 50. Open: the hard stop is not announced to billing
-managers; org billing managers outside the team are skipped by `emit`; the warning links to `/notifications`, not a billing page.
+`test_notify.py`, `test_notifications_inbox.py`, `test_notifications_prefs.py`, vitest 50. Open: org billing managers outside the
+team are skipped by `emit`; the warning links to `/notifications`, not a billing page.
+
+### 3g-4. Part 57: the hard stop is delivered
+
+When the monthly cap actually blocks a run, `OrchestratorService._budget_gate` and the reviewer-call seam in `signal_done` call
+`budget.deliver_budget_warning(factory, team_id, "budget_exhausted")` (only for `not allowed and not degraded`; a store-down denial is an
+outage and tells nobody). Same recipients and rule as the warning, summary code `budget_exhausted` under the existing `budget` kind
+(wording in `notify.py`/`notifications.py` SUMMARY_CODES, section1 PREVIEWS, `notificationsModel.ts`; no migration), dedupe key
+`budget-exhausted:<team>:<YYYY-MM>`. Found on the way: `emit` groups unread rows by `kind:source`, so a fresh unread warning would have
+absorbed the hard-stop alert as "2 spend warnings"; the `budget` kind now adds its summary code to the group key (`notify._emit`).
+Tests `test_budget_warning_delivery.py` (12; 7 new, four mutants killed: degraded at either seam, delivery failure swallow, group key).
+Only run on sqlite. Open: the daily plan-limit stop is not announced; account erasure for 31/58 and the part 52 shell allow-list are untouched.
 
 ## 3e. Session 7 result
 

@@ -22,7 +22,7 @@ by `notify.emit`; the API only reads them and changes the person's own handling 
 | `blocked` | `run_blocked` | the run's leader and participants on `blocked_awaiting_clarification` (`service._emit`) |
 | `control_request` | `control_requested`, `control_granted`, `control_declined` | **no call site yet** (control.py is not this lane's file) |
 | `suggestion` | `suggestion_queued` | **no call site yet** (queued guidance for the lease holder, control.py) |
-| `budget` | `budget_warning` | the team's billing managers when spend first crosses the warning threshold (`budget.deliver_budget_warning`, part 57; team-scoped, no run link, `source_kind='team'`) |
+| `budget` | `budget_warning`, `budget_exhausted` | the team's billing managers when spend first crosses the warning threshold, and when the monthly cap blocks a run, never for a degraded denial (`budget.deliver_budget_warning`, part 57; team-scoped, no run link, `source_kind='team'`) |
 
 An unknown `kind` is rejected; a `summary_code` that is not in the kind's list is replaced by the kind's
 default. Adding a kind needs a row here, codes in `SUMMARY_CODES` (both sections) and a `PREVIEWS` entry.
@@ -106,7 +106,8 @@ skipped (`no_recipient`).
   urgent flag` as the person's **unread** row updated within `HARNESS_NOTIFY_GROUP_SECONDS` (default 600)
   increments `count`, refreshes `updated_at` and `source_id` and sends no second email. A read, snoozed or
   dismissed row, an older one, another run, another kind or another urgency starts a new row. Two truly
-  simultaneous first events can create two rows (no lock): accepted, see gaps.
+  simultaneous first events can create two rows (no lock): accepted, see gaps. The `budget` kind adds its summary
+  code to the group key, so a fresh unread warning never absorbs the hard-stop alert (`budget_exhausted`).
 
 ## No sensitive content (006)
 Nothing but ids and the closed code is stored (`test_created_row_holds_ids_and_a_closed_code_only`,
@@ -195,6 +196,7 @@ and on SQLite in the tests. Rollback: drop the five tables (product data only).
 * No Prometheus metrics for notifications (domain_metrics is not this lane's file).
 * `control_request` and `suggestion` have no call site yet.
 * `budget` rows link to `/notifications` (no run, session or workspace) and name no amount: the preview is
-  "Team spend is nearing its monthly limit". A dedupe key per month means one row per person per team per month.
+  "Team spend is nearing its monthly limit" (warning) or "Team spend reached its monthly limit" (hard stop).
+  A dedupe key per month and code means one row per person per team per month for each.
 * Zones need tz data on the host (`zoneinfo`); add the `tzdata` package to slim images, otherwise saved zones
   fall back to UTC at emit time.

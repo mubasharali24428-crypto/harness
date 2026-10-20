@@ -702,12 +702,13 @@ async def check_budget(
     ), warn_pct=warning_pct)
 
 
-async def deliver_budget_warning(factory, team_id: str) -> None:
-    """Part 57.005: tell the team's billing managers that spend crossed the warning line.
+async def deliver_budget_warning(factory, team_id: str, code: str = "budget_warning") -> None:
+    """Part 57.005: tell the team's billing managers that spend crossed the warning line, or with
+    ``code="budget_exhausted"`` that the monthly cap blocked a run (never for a degraded denial).
 
     Billing managers follow section1 ``billing._billing_manager``: team admins, or for a team in an
     org the org's owners and billing admins. In-app, once per person per team per UTC month (the
-    dedupe key); email only if that person opted in. Never raises into the run.
+    dedupe key, one per code); email only if that person opted in. Never raises into the run.
     """
     from sqlalchemy import text
 
@@ -740,12 +741,12 @@ async def deliver_budget_warning(factory, team_id: str) -> None:
                     ),
                     {"t": team_id},
                 )
-            key = f"budget-warning:{team_id}:{db_now():%Y-%m}"
+            key = f"{code.replace('_', '-')}:{team_id}:{db_now():%Y-%m}"
             for user_id in sorted({r[0] for r in rows}):
                 await notify.emit(
                     db, team_id=team_id, user_id=user_id, kind="budget", source_kind="team",
-                    source_id=team_id, summary_code="budget_warning", dedupe_key=key,
+                    source_id=team_id, summary_code=code, dedupe_key=key,
                 )
             await db.commit()
     except Exception:  # noqa: BLE001 — a notification must never disturb a run
-        logger.warning("budget warning delivery failed for team %s", team_id, exc_info=True)
+        logger.warning("%s delivery failed for team %s", code, team_id, exc_info=True)

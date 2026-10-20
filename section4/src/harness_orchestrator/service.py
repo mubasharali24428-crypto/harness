@@ -391,6 +391,7 @@ class OrchestratorService(Orchestrator):
         else:
             run_data.pop("budget_degraded", None)
             reason = f"Budget cap reached: {status.reason}"
+            await deliver_budget_warning(factory, team_id, "budget_exhausted")
         logger.warning("blocking run %s pre-call: %s", run_data.get("runId"), reason)
         sm: AgentStateMachine = run_data["state_machine"]
         sm.execution_failed(reason)
@@ -2132,6 +2133,8 @@ class OrchestratorService(Orchestrator):
                     )
                     if status.degraded:
                         run_data["budget_degraded"] = True
+                    else:
+                        await deliver_budget_warning(factory, team_id, "budget_exhausted")
                     logger.warning(
                         "reviewer model call withheld for run %s: %s", run_id, budget_block
                     )

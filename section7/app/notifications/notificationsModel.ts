@@ -19,6 +19,7 @@ export const PREVIEWS: Record<string, [string, string]> = {
   control_declined: ["Your control request was declined", "{n} control requests declined"],
   suggestion_queued: ["A suggestion is waiting for you", "{n} suggestions are waiting"],
   budget_warning: ["Team spend is nearing its monthly limit", "{n} spend warnings"],
+  budget_exhausted: ["Team spend reached its monthly limit", "{n} spend limit alerts"],
 };
 const GENERIC: [string, string] = ["You have a notification", "{n} notifications"];
 

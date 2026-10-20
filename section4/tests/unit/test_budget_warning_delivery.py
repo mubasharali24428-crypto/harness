@@ -5,20 +5,28 @@ Before this, crossing the threshold only logged and flagged the run. Now a near-
 outside an org, org owners and billing admins for an org-linked team (the rule of
 section1 `billing._billing_manager`). One per person per team per UTC month.
 
-Runs the real gate (`OrchestratorService`) and the real migration 0046 on sqlite."""
+Runs the real gate (`OrchestratorService`) and the real migration 0046 on sqlite.
+
+Directive 005, hard stop: when the monthly cap actually blocks a run (pre-spawn gate or reviewer
+call) the same people get one `budget_exhausted` row per team per UTC month. A degraded denial
+(money store down) is an outage, not a cap, and tells nobody."""
 
 import asyncio
 from datetime import UTC, datetime
 
 import pytest
+from harness_contracts.events import EventType
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from harness_orchestrator import budget as budget_mod
 from harness_orchestrator import notify
 from harness_orchestrator.budget import ENV_BUDGET_WARN_PCT, ENV_TEAM_BUDGET_USD
+from harness_orchestrator.reviewer import ReviewerSubAgent
+from harness_orchestrator.service import OrchestratorService
 from tests.unit.test_budget import (
     DDL,
+    GOLDEN_CLEAN_DIFF,
     SEED,
     _add_spend,
     _approve,
@@ -150,3 +158,99 @@ def test_a_delivery_failure_never_touches_the_run(factory):
     run(_exec(factory, "DROP TABLE team_members"))  # the recipient lookup itself raises
     svc = _near_cap_run(factory, "broken")  # asserts the engine task still ran to completion
     assert svc.runs["broken"]["budget_warned"] is True
+
+
+# ------------------------------------------------------------ hard stop (cap reached)
+
+
+def _blocked_run(factory, run_id):
+    svc, events = _wire_service(factory, StubEngine())
+    _approve(svc, run_id)
+    assert _drive_to_spawn(svc, run_id, over_budget=True) is False
+    return [e[1]["reason"] for e in events if e[0] is EventType.ENGINE_FAILED]
+
+
+def _org_link(factory):
+    run(_exec(factory, *ORG_SCHEMA,
+              "INSERT INTO organizations (id) VALUES ('org-1')",
+              "UPDATE teams SET org_id = 'org-1' WHERE id = 'team-a'",
+              "INSERT INTO team_members (id, team_id, user_id, role)"
+              " VALUES ('m-own', 'team-a', 'owner1', 'engineer'),"
+              " ('m-bil', 'team-a', 'bill1', 'viewer')",
+              "INSERT INTO org_members (org_id, user_id, role, removed_at) VALUES"
+              " ('org-1', 'owner1', 'owner', NULL), ('org-1', 'bill1', 'billing_admin', NULL),"
+              " ('org-1', 'boss', 'member', NULL)"))
+
+
+def test_cap_hit_tells_the_team_admin_once_per_month(factory, monkeypatch):
+    monkeypatch.setenv(ENV_TEAM_BUDGET_USD, "1.0")  # $1.70 already spent: the cap bites
+    (reason,) = _blocked_run(factory, "x1")
+    assert reason.startswith("Budget cap reached")
+
+    (row,) = run(_budget_rows(factory))
+    assert (row.user_id, row.team_id, row.summary_code) == ("boss", "team-a", "budget_exhausted")
+    assert (row.source_kind, row.source_id, row.run_id, row.count) == ("team", "team-a", None, 1)
+
+    _blocked_run(factory, "x2")  # a second blocked run in the same month
+    assert len(run(_budget_rows(factory))) == 1
+
+
+def test_degraded_denial_is_an_outage_and_tells_nobody(factory, monkeypatch):
+    monkeypatch.setenv(ENV_TEAM_BUDGET_USD, "1.0")
+    run(_exec(factory, "DROP TABLE cost_ledger"))  # the spend lookup raises: fail-closed, degraded
+    (reason,) = _blocked_run(factory, "d1")
+    assert reason.startswith("Budget gate degraded")
+    assert run(_budget_rows(factory)) == []
+
+
+def test_org_linked_cap_hit_tells_org_billing_managers(factory, monkeypatch):
+    monkeypatch.setenv(ENV_TEAM_BUDGET_USD, "1.0")
+    _org_link(factory)
+    _blocked_run(factory, "o1")
+    rows = run(_budget_rows(factory))
+    assert [(r.user_id, r.summary_code) for r in rows] == [
+        ("bill1", "budget_exhausted"), ("owner1", "budget_exhausted")]
+
+
+class Router:
+    def call_model(self, *a, **k):
+        raise AssertionError("no model call over the cap")
+
+    def estimate_cost(self, role, input_tokens, output_tokens):
+        return 0.01
+
+
+def _review(factory, run_id):
+    svc = OrchestratorService(engine=StubEngine(), session_factory=factory,
+                              reviewer=ReviewerSubAgent(model_router=Router()))
+    run(svc.propose_plan(run_id, project_id="proj-a"))
+    run(svc.signal_done(run_id, diff_text=GOLDEN_CLEAN_DIFF))
+
+
+def test_reviewer_call_over_the_cap_tells_the_team_admin(factory, monkeypatch):
+    monkeypatch.setenv(ENV_TEAM_BUDGET_USD, "1.0")
+    _review(factory, "rv")
+    (row,) = run(_budget_rows(factory))
+    assert (row.user_id, row.summary_code) == ("boss", "budget_exhausted")
+
+
+def test_reviewer_call_with_the_store_down_tells_nobody(factory, monkeypatch):
+    monkeypatch.setenv(ENV_TEAM_BUDGET_USD, "1.0")
+    run(_exec(factory, "DROP TABLE cost_ledger"))
+    _review(factory, "rv")
+    assert run(_budget_rows(factory)) == []
+
+
+def test_cap_hit_after_an_unread_warning_still_gets_its_own_row(factory, monkeypatch):
+    _near_cap_run(factory, "w1")  # the 80% warning lands first, unread, inside the group window
+    monkeypatch.setenv(ENV_TEAM_BUDGET_USD, "1.0")
+    _blocked_run(factory, "x1")
+    codes = sorted(r.summary_code for r in run(_budget_rows(factory)))
+    assert codes == ["budget_exhausted", "budget_warning"]
+
+
+def test_a_delivery_failure_never_changes_the_blocked_runs_outcome(factory, monkeypatch):
+    monkeypatch.setenv(ENV_TEAM_BUDGET_USD, "1.0")
+    run(_exec(factory, "DROP TABLE team_members"))  # the recipient lookup itself raises
+    (reason,) = _blocked_run(factory, "b1")
+    assert reason.startswith("Budget cap reached")

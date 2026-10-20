@@ -29,7 +29,14 @@ or for a team in an org the org's owners and billing admins (the rule of `billin
 It is sent once per person per team per UTC month (dedupe key `budget-warning:<team>:<YYYY-MM>`), so
 raising the cap and crossing again in the same month does not warn twice. It is not urgent: email
 follows each person's own notification settings (off unless they opted in). An org billing manager
-who is not a member of the team is not told (`notify.emit` only writes to team members). The hard stop
-is not announced to billing managers: the blocked run fails and its participants are told as usual.
+who is not a member of the team is not told (`notify.emit` only writes to team members).
+
+When the monthly cap actually blocks a run (the pre-spawn gate or the reviewer model call), the same
+function sends the same people a `budget_exhausted` notification ("Team spend reached its monthly limit"),
+once per person per team per UTC month (dedupe key `budget-exhausted:<team>:<YYYY-MM>`). It is separate
+from the warning, so a person who got both sees two rows. A degraded denial (the money store was down)
+is an outage, not a cap, and tells nobody. The blocked run still fails with "Budget cap reached" and its
+participants are told as usual; a delivery failure never changes that outcome. The daily run cap
+(plan limit) is not announced.
 
 See `docs/briefs/evidence/s7/part57.md` for the directive map and exact local verification.

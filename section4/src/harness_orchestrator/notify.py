@@ -49,7 +49,7 @@ SUMMARY_CODES: dict[str, tuple[str, ...]] = {
     "blocked": ("run_blocked",),
     "control_request": ("control_requested", "control_granted", "control_declined"),
     "suggestion": ("suggestion_queued",),
-    "budget": ("budget_warning",),
+    "budget": ("budget_warning", "budget_exhausted"),
 }
 INAPP_MODES = ("on", "off")
 EMAIL_MODES = ("off", "urgent", "immediate", "digest")
@@ -279,6 +279,8 @@ async def _emit(db: Any, team_id: str, user_id: str, kind: str, source_kind: str
 
     group_key = f"{kind}:{source_kind}:{run_id or session_id or workspace_id or source_id}:" \
                 f"{'u' if urgent else 'n'}"
+    if kind == "budget":  # a fresh unread warning must not swallow the hard-stop alert
+        group_key += f":{code}"
     target = (await db.execute(
         text("SELECT id FROM notification_inbox WHERE team_id = :t AND user_id = :u"
              " AND group_key = :g AND state = 'unread' AND updated_at >= :since"
