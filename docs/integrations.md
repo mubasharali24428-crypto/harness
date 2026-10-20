@@ -29,15 +29,12 @@ validation and connection; deployments should also enforce network egress restri
 
 ## Other providers and extension boundary
 
-GitHub OAuth currently requests `repo read:user`; the repository credential is encrypted and
-team scoped, with connection status and revoke support. This is broader than read-only repository
-access and does not meet a least-privilege read-only integration target. OIDC requests only
+GitHub OAuth requests `public_repo read:user` by default and `repo read:user` when `github_scope_mode=private`. GitHub OAuth Apps cannot request read-only repository access, so the token keeps write scope on repositories it can reach. Writes are therefore off per project: branch, commit, draft PR and issue creation return 403 `GITHUB_WRITES_DISABLED` until a team admin enables them with `PUT /api/v1/projects/{projectId}/github/writes`. The repository credential is encrypted and team scoped, with connection status and revoke support. OIDC requests only
 `openid profile email`. Stripe inbound events use raw-body signature verification, timestamp
 tolerance and an event-id ledger in one transaction. Those inbound protections do not imply
 outbound webhook support.
 
-There is no issue-tracker adapter, chat/notification provider setup, third-party extension runtime,
-or sandboxed extension API. No arbitrary plugin code executes. Internal tool and repository
+Issues go through the GitHub connector: `GET /api/v1/projects/{projectId}/issues` lists open, closed or all issues (pull requests excluded), and `POST` creates one. Creation needs writes enabled and an `Idempotency-Key` header of 8 to 200 characters; a repeated key returns the first issue, and a key whose first request is still running returns 409 `IDEMPOTENCY_IN_PROGRESS`. Keys are kept per project with no expiry. There is no chat or notification provider setup. A stdio MCP server starts only through an OS confiner (Section 5 `confine_argv`: Seatbelt on macOS, Landlock on Linux); with no confiner the host refuses to start it. Stdio is used for tool discovery only, and tool calls over stdio are not implemented. Internal tool and repository
 operations continue through their existing permission checks and approval flows; external side
 effects need their own explicit team setup and idempotency handling. Compatibility policy: routes
 are versioned; additive fields and event types may be added within a version, while incompatible

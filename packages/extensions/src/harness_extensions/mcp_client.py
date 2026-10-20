@@ -19,6 +19,7 @@ import asyncio
 import logging
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
@@ -38,6 +39,14 @@ from .schema_guard import (
 from .url_policy import validate_server_url
 
 logger = logging.getLogger("harness.extensions")
+
+
+# Wraps an argv so the process runs under OS confinement (Section 5 confine_argv).
+Confiner = Callable[[list[str]], list[str]]
+
+
+class StdioRefusedError(RuntimeError):
+    """A stdio server was asked to start without a confiner."""
 
 
 class McpClientError(Exception):
@@ -196,14 +205,19 @@ class ExternalMcpClient:
     # stdio connector — for local workers only, never the registry service
     # ------------------------------------------------------------------
 
-    async def discover_stdio(self, command: str, args: list[str]) -> DiscoveryResult:
+    async def discover_stdio(
+        self, command: str, args: list[str], *, confine: Confiner | None
+    ) -> DiscoveryResult:
         """Same contract as :meth:`discover` for locally spawned servers.
 
-        The registry SERVICE never spawns processes (deny-by-default); this
-        entry point exists for desktop/local workers that already run under
-        Section 5 confinement.
+        The registry SERVICE never spawns processes (deny-by-default). A local worker
+        passes ``confine``, which wraps the argv in OS confinement; the server starts
+        only through that wrapper. With no confiner it is never started.
         """
-        params = StdioServerParameters(command=command, args=args)
+        if confine is None:
+            raise StdioRefusedError("stdio servers start only under OS confinement")
+        argv = confine([command, *args])
+        params = StdioServerParameters(command=argv[0], args=argv[1:])
         started = time.perf_counter()
         try:
             async with asyncio.timeout(self._settings.discover_timeout_s):

@@ -219,3 +219,55 @@ def apply_landlock_in_child(
     os.close(ruleset_fd)
     _ = allow_network  # ABI v1 has no network hooks; egress stays policy-layer
     return True
+
+
+# --------------------------------------------------------------------------
+# Confined argv for processes that have no sandbox of their own (extension
+# servers). The caller gets a wrapped argv or an error, never an unconfined run.
+# --------------------------------------------------------------------------
+
+
+class ConfinementUnavailableError(RuntimeError):
+    """No OS confinement can be applied on this host."""
+
+
+# Linux child bootstrap: load this module by path (no package import), apply
+# Landlock, then replace the process with the target. Landlock survives exec.
+_LANDLOCK_EXEC = (
+    "import importlib.util, os, sys\n"
+    "from pathlib import Path\n"
+    "spec = importlib.util.spec_from_file_location('confinement', sys.argv[1])\n"
+    "module = importlib.util.module_from_spec(spec)\n"
+    "spec.loader.exec_module(module)\n"
+    "module.apply_landlock_in_child(Path(sys.argv[2]), sys.argv[3] == '1', Path(sys.argv[4]))\n"
+    "os.execvp(sys.argv[5], sys.argv[5:])\n"
+)
+
+
+def confine_argv(
+    argv: list[str], *, workspace: Path, tmpdir: Path, allow_network: bool = False
+) -> list[str]:
+    """Wrap ``argv`` so the process writes only under ``workspace`` and ``tmpdir``.
+
+    macOS runs the command under a Seatbelt profile written into ``tmpdir``; Linux
+    applies Landlock in a bootstrap before exec. Raises ConfinementUnavailableError
+    when neither is usable: callers must refuse to launch, never run unconfined.
+    """
+    if seatbelt_available():
+        tmpdir.mkdir(parents=True, exist_ok=True)
+        profile = tmpdir / "confine.sb"
+        profile.write_text(seatbelt_profile(workspace, allow_network, None, tmpdir))
+        return [SEATBELT_BIN, "-f", str(profile), *argv]
+    if landlock_supported():
+        return [
+            sys.executable,
+            "-I",
+            "-c",
+            _LANDLOCK_EXEC,
+            str(Path(__file__).resolve()),
+            str(workspace),
+            "1" if allow_network else "0",
+            str(tmpdir),
+            *argv,
+        ]
+    raise ConfinementUnavailableError("no OS confinement is available on this host")
