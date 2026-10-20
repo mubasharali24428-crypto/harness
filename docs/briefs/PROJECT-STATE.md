@@ -227,6 +227,9 @@ section1 pytest 859 passed/27 skipped; section4 pytest 979 passed/32 skipped; ru
 - `run_smoke.py` needs ~2 minutes between runs (port 8101 TIME_WAIT: wait until a bind succeeds) and overwrites `docs/briefs/evidence/p1/*`.
 - FastAPI 0.141 nests included routers (`_IncludedRouter`): `app.routes`/`route.path` walks are vacuous; walk `app.openapi()["paths"]` instead.
 - Regenerating `section5/openapi.json` drops hand-written 400/409 docs from commit 5414a14: restore it with `git checkout`.
+- **A new HTTP route must be recorded in the specs and SDKs:** run `section4/.venv/bin/python scripts/spec_drift.py --write`, restore
+  `section5/openapi.json` (above), then `python3 scripts/sdk-gen/generate.py` and `--target ts`. Section4's `test_spec_drift.py` fails
+  otherwise (account erasure missed this in `b99715c`; fixed in `4a093e9`).
 - Tooling: macOS zsh. No `timeout` command; `sleep N && cmd` is blocked (use bounded for-loops); BSD `sed -i` needs `''`;
   the repo path has a space (quote it); zsh does not expand `--include=*.py`.
 - The working tree also holds ~100 uncommitted files from unrelated earlier work (section2, `docs/agent-program/`, section4
