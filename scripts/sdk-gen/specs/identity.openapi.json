@@ -421,6 +421,21 @@
     "title": "EmergencyBody",
     "type": "object"
    },
+   "ErasureBody": {
+    "additionalProperties": false,
+    "properties": {
+     "confirmEmail": {
+      "maxLength": 320,
+      "title": "Confirmemail",
+      "type": "string"
+     }
+    },
+    "required": [
+     "confirmEmail"
+    ],
+    "title": "ErasureBody",
+    "type": "object"
+   },
    "ErrorDetail": {
     "description": "One error entry of the FROZEN contract envelope (ERROR_BODY_EXAMPLE).",
     "properties": {
@@ -2756,6 +2771,46 @@
  },
  "openapi": "3.1.0",
  "paths": {
+  "/api/v1/account/erasure": {
+   "post": {
+    "operationId": "erase_account_api_v1_account_erasure_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ErasureBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Erase Account Api V1 Account Erasure Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Erase Account"
+   }
+  },
   "/api/v1/agents": {
    "get": {
     "operationId": "list_agents_api_v1_agents_get",

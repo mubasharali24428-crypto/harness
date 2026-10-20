@@ -97,6 +97,11 @@ export interface EmergencyBody {
   scopeId?: string | null;  // optional
 }
 
+/** ErasureBody. Required keys: confirmEmail. */
+export interface ErasureBody {
+  confirmEmail: string;
+}
+
 /** ErrorDetail. Required keys: code, message. */
 export interface ErrorDetail {
   code: string;
@@ -586,6 +591,13 @@ export class IdentityClient {
   /** @param http  shared transport; @param baseUrl resolved by Harness. */
   constructor(readonly http: HarnessHttp,
               public readonly baseUrl: string = "") {}
+
+  /** Erase Account
+   *  POST /api/v1/account/erasure */
+  erase_account(body: ErasureBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/account/erasure`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
 
   /** List Agents
    *  GET /api/v1/agents */
@@ -1688,6 +1700,7 @@ export class IdentityClient {
  * export interface/type DocBody
  * export interface/type Draft
  * export interface/type EmergencyBody
+ * export interface/type ErasureBody
  * export interface/type ErrorDetail
  * export interface/type ErrorEnvelope
  * export interface/type EventEnvelopeOut
