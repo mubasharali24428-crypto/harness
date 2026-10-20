@@ -201,6 +201,16 @@ two tables and ISO text in three, so the comparison is typed per table. Invites 
 sqlite) and `test_session11_pg.py::test_expired_identity_rows_are_pruned_on_the_real_schema` (PG 18); 7 mutants killed, one only by the PG test.
 Only runs where the sidecar is deployed and monitored, like the other retention windows.
 
+### 3g-10. T13b: the OTP race is closed
+
+`verify_otp` (`section1/.../auth.py`) read the attempt counter and the redeem state and then wrote. On PostgreSQL, 8 parallel redeems of one
+code minted **5 sessions** and 20 parallel wrong guesses were all compared against a limit of 5 (reproduced 3 times out of 3 with the pool
+warmed). It now claims a guess and consumes the code with conditional `UPDATE ... RETURNING` and mints only when a row changed. Tests:
+`test_session11_pg.py::test_parallel_*` (PG), `test_otp_atomic.py` (2, deterministic); 4 mutants killed (the two belt-and-braces ones only by
+the deterministic tests, because the claim's row lock already serializes the rest on PG). **The file also holds another lane's uncommitted
+edits** (`login_or_register`, `issue_otp`); only this function's hunk was committed (`git apply --cached`), the rest is still theirs to commit.
+If they rewrite the whole file from an older copy the fix would vanish silently, but the PG tests would fail.
+
 ## 3e. Session 7 result
 
 Part 49 remains partial: team-scoped versioned outbound webhooks have encrypted one-time secrets,
@@ -269,7 +279,6 @@ Every Session 11 change has now run on a real PostgreSQL 18 (§3g-8); no PG-only
 Not a gap: a paused workspace only blocks new starts, by design (`workspace_gate.py` docstring).
 
 **B. Blocked by another lane's uncommitted files** (leave them to their owner):
-- T13b, the OTP attempt counter and redeem race (`section1/.../auth.py` carries uncommitted SMTP edits; recipe in `threat-model.md`).
 - Part 52 shell allow-list (§3g-6): needs a runtime pre-tool hook or the image boundary in `worker.Dockerfile`.
 - `section2` and the ~100 other dirty files in §6.
 

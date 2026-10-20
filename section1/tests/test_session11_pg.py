@@ -14,10 +14,12 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from harness_identity import erasure
+from harness_identity import auth, erasure
 from harness_identity.app import make_app
 from harness_identity.config import Settings
 from tests.test_workspaces_support import bearer, seed_team
@@ -313,3 +315,55 @@ async def test_expired_identity_rows_are_pruned_on_the_real_schema(env):
             assert left == ["just", "live"], table
     finally:
         await conn.close()
+
+
+# ------------------------------------------------------------------------- OTP races (T13b)
+
+
+def _settings():
+    return Settings(
+        master_key=b"test-master-key-0123456789abcdef", cors_origins=[], require_ownership=False
+    )
+
+
+async def _issue(env, email):
+    sent: list[str] = []
+    await auth.issue_otp(env.factory, _settings(), lambda _e, c: sent.append(c), email)
+    return sent[0]
+
+
+async def _warm_pool(env, n):
+    """Hold n connections at once so n requests start together (a cold pool serializes them)."""
+    async def hold():
+        async with env.factory() as s:
+            await s.execute(text("SELECT pg_sleep(0.2)"))
+    await asyncio.gather(*(hold() for _ in range(n)))
+
+
+async def _verify(env, email, code):
+    """A session of its own, like a request: (token, principal) or the refusal's message."""
+    async with env.factory() as s:
+        try:
+            return await auth.verify_otp(s, _settings(), email, code)
+        except HTTPException as e:
+            return e.detail["error"]["message"]
+
+
+async def test_parallel_redeems_of_one_code_mint_exactly_one_session(env):
+    email = "race@a.io"
+    async with env.factory() as s:  # the account exists already: only the code is in question
+        await auth.login_or_register(s, email)
+    code = await _issue(env, email)
+    await _warm_pool(env, 8)
+    results = await asyncio.gather(*(_verify(env, email, code) for _ in range(8)))
+    assert sum(isinstance(r, tuple) for r in results) == 1, results
+
+
+async def test_parallel_wrong_guesses_cannot_get_past_the_attempt_limit(env):
+    email = "guess@a.io"
+    code = await _issue(env, email)
+    await _warm_pool(env, 15)
+    results = await asyncio.gather(*(_verify(env, email, "000000") for _ in range(20)))
+    assert results.count("wrong code") == 5, results  # only otp_max_attempts guesses were compared
+    assert set(results) <= {"wrong code", "too many attempts", "no active code"}, results
+    assert not isinstance(await _verify(env, email, code), tuple)  # the real code is dead too

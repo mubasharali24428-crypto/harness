@@ -1,7 +1,7 @@
 # Part 29: security review close-out
 
 Threat register: `docs/briefs/threat-model.md` (18 threats, owners in the last column). This pass closed or pinned every threat
-that can be closed locally and left one gap open on purpose (T13b).
+that can be closed locally. T13b, left open on purpose here, was closed later in Session 11.
 
 ## Directive map (master prompt part 29)
 
@@ -35,11 +35,7 @@ name the tests.
 
 ## Honest limits
 
-* **T13b is open.** `verify_otp` in `section1/src/harness_identity/auth.py` increments `attempts` and sets `consumed_at` as plain
-  read-modify-write. On PostgreSQL two parallel correct redeems of one code can both mint a session, and parallel wrong guesses can
-  undercount. The file carries uncommitted SMTP edits that belong to someone else's change, so it was not touched. The recipe (a
-  guarded `UPDATE ... WHERE consumed_at IS NULL` and mint only when `rowcount == 1`; `attempts = attempts + 1 ... RETURNING`) is in
-  the register. Bound today: 6 digits, 10 minutes, per-IP and per-route limiter on `verify-otp`.
+* **T13b was open and is now fixed** (see `threat-model.md`): the attempt counter and the redeem in `verify_otp` are conditional `UPDATE ... RETURNING`, tested on a real PostgreSQL with parallel requests.
 * The T18 budget is in memory and per process: N replicas allow N times the cap and a restart resets it. Refusals raised inside the
   collab layer (`deny_not_leader`) are not capped there; only a participant of an existing run reaches them and the mutation routes
   are IP-limited (`MUTATION_ROUTE_LIMITS`, installed on the deployed orchestrator in the scheduler commit).

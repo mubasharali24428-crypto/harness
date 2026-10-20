@@ -195,8 +195,26 @@ async def verify_otp(session: AsyncSession, settings, email: str, code: str):
             status_code=401,
             detail={"error": {"code": "EXPIRED", "message": "code expired"}},
         )
-    if row.attempts >= settings.otp_max_attempts:
-        row.consumed_at = now
+    # T13b: two parallel requests must not both pass a read-then-write check, so each step is one
+    # conditional UPDATE. A guess is claimed only while the code is unconsumed and under the limit
+    # (parallel guesses cannot exceed otp_max_attempts), and only the caller whose UPDATE actually
+    # consumes the code mints a session.
+    from sqlalchemy import update
+
+    def _where(*extra):
+        return update(LoginOtp).where(
+            LoginOtp.id == row.id, LoginOtp.consumed_at.is_(None), *extra
+        ).execution_options(synchronize_session=False)
+
+    claimed = (
+        await session.execute(
+            _where(LoginOtp.attempts < settings.otp_max_attempts)
+            .values(attempts=LoginOtp.attempts + 1)
+            .returning(LoginOtp.attempts)
+        )
+    ).scalar_one_or_none()
+    if claimed is None:
+        await session.execute(_where().values(consumed_at=now))
         await session.commit()
         raise _HTTPException(
             status_code=401,
@@ -204,16 +222,21 @@ async def verify_otp(session: AsyncSession, settings, email: str, code: str):
         )
 
     if row.code_hash != _hash_code(code):
-        row.attempts += 1
-        locked = row.attempts >= settings.otp_max_attempts
-        if locked:
-            row.consumed_at = now
+        if claimed >= settings.otp_max_attempts:
+            await session.execute(_where().values(consumed_at=now))
         await session.commit()
         raise _HTTPException(
             status_code=401,
             detail={"error": {"code": "INVALID_CODE", "message": "wrong code"}},
         )
 
-    row.consumed_at = now
+    redeemed = (
+        await session.execute(_where().values(consumed_at=now).returning(LoginOtp.id))
+    ).scalar_one_or_none()
     await session.commit()
+    if redeemed is None:  # a parallel request consumed it first
+        raise _HTTPException(
+            status_code=401,
+            detail={"error": {"code": "INVALID_CODE", "message": "no active code"}},
+        )
     return await login_or_register(session, email)
