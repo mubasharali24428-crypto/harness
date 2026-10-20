@@ -48,16 +48,30 @@ def server_dsn() -> str:
 
 
 @pytest.fixture
-async def pg():
+async def database():
+    """A throwaway database, dropped even when the fixture that fills it fails."""
     import asyncpg
 
     name = f"harness_bud_{uuid.uuid4().hex[:10]}"
-    base = server_dsn().rsplit("/", 1)[0]
     admin = await asyncpg.connect(server_dsn())
     try:
         await admin.execute(f'CREATE DATABASE "{name}"')
     finally:
         await admin.close()
+    yield name
+    admin = await asyncpg.connect(server_dsn())
+    try:
+        await admin.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+    finally:
+        await admin.close()
+
+
+@pytest.fixture
+async def pg(database):
+    import asyncpg
+
+    base = server_dsn().rsplit("/", 1)[0]
+    name = database
     conn = await asyncpg.connect(f"{base}/{name}")
     try:
         for path in sorted((ROOT / "section1/migrations").glob("*.sql")):
@@ -95,11 +109,6 @@ async def pg():
     engine = create_async_engine(f"{base}/{name}".replace("postgresql://", "postgresql+asyncpg://"))
     yield async_sessionmaker(engine, expire_on_commit=False)
     await engine.dispose()
-    admin = await asyncpg.connect(server_dsn())
-    try:
-        await admin.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
-    finally:
-        await admin.close()
 
 
 async def rows(factory):

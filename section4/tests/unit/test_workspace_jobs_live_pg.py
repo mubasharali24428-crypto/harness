@@ -50,16 +50,30 @@ def server_dsn() -> str:
 
 
 @pytest.fixture
-async def env():
+async def database():
+    """A throwaway database, dropped even when the fixture that fills it fails."""
     import asyncpg
 
     name = f"harness_wsj_{uuid.uuid4().hex[:10]}"
-    base = server_dsn().rsplit("/", 1)[0]
     admin = await asyncpg.connect(server_dsn())
     try:
         await admin.execute(f'CREATE DATABASE "{name}"')
     finally:
         await admin.close()
+    yield name
+    admin = await asyncpg.connect(server_dsn())
+    try:
+        await admin.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+    finally:
+        await admin.close()
+
+
+@pytest.fixture
+async def env(database):
+    import asyncpg
+
+    base = server_dsn().rsplit("/", 1)[0]
+    name = database
     conn = await asyncpg.connect(f"{base}/{name}")
     try:
         for path in sorted((ROOT / "section1/migrations").glob("*.sql")):
@@ -87,11 +101,6 @@ async def env():
     yield e
     svc.shutdown()
     await engine.dispose()
-    admin = await asyncpg.connect(server_dsn())
-    try:
-        await admin.execute(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
-    finally:
-        await admin.close()
 
 
 async def new_run(env, run_id, project_id):
