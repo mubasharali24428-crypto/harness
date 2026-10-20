@@ -138,7 +138,7 @@ def test_signature_and_closed_vocabulary_are_the_documented_contract():
         "handoff": ["handoff_offered", "handoff_accepted", "handoff_rejected"],
         "failure": ["run_failed", "review_failed"], "blocked": ["run_blocked"],
         "control_request": ["control_requested", "control_granted", "control_declined"],
-        "suggestion": ["suggestion_queued"], "budget": ["budget_warning", "budget_exhausted"]}
+        "suggestion": ["suggestion_queued"], "budget": ["budget_warning", "budget_exhausted", "plan_limit_reached"]}
 
 
 # precedence table, mirrored in section1 tests/test_notifications_prefs.py::test_resolve_table

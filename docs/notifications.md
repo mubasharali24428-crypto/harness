@@ -22,7 +22,7 @@ by `notify.emit`; the API only reads them and changes the person's own handling 
 | `blocked` | `run_blocked` | the run's leader and participants on `blocked_awaiting_clarification` (`service._emit`) |
 | `control_request` | `control_requested`, `control_granted`, `control_declined` | **no call site yet** (control.py is not this lane's file) |
 | `suggestion` | `suggestion_queued` | **no call site yet** (queued guidance for the lease holder, control.py) |
-| `budget` | `budget_warning`, `budget_exhausted` | the team's billing managers when spend first crosses the warning threshold, and when the monthly cap blocks a run, never for a degraded denial (`budget.deliver_budget_warning`, part 57; team-scoped, no run link, `source_kind='team'`) |
+| `budget` | `budget_warning`, `budget_exhausted`, `plan_limit_reached` | the team's billing managers when spend first crosses the warning threshold, when the monthly cap blocks a run, and when the daily run cap blocks one (once per day), never for a degraded denial; an org manager outside the team gets it in their first other org team (`budget.deliver_budget_warning`, part 57; team-scoped, no run link, `source_kind='team'`) |
 
 An unknown `kind` is rejected; a `summary_code` that is not in the kind's list is replaced by the kind's
 default. Adding a kind needs a row here, codes in `SUMMARY_CODES` (both sections) and a `PREVIEWS` entry.

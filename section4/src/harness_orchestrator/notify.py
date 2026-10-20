@@ -49,7 +49,7 @@ SUMMARY_CODES: dict[str, tuple[str, ...]] = {
     "blocked": ("run_blocked",),
     "control_request": ("control_requested", "control_granted", "control_declined"),
     "suggestion": ("suggestion_queued",),
-    "budget": ("budget_warning", "budget_exhausted"),
+    "budget": ("budget_warning", "budget_exhausted", "plan_limit_reached"),
 }
 INAPP_MODES = ("on", "off")
 EMAIL_MODES = ("off", "urgent", "immediate", "digest")

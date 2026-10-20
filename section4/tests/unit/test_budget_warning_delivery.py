@@ -254,3 +254,72 @@ def test_a_delivery_failure_never_changes_the_blocked_runs_outcome(factory, monk
     run(_exec(factory, "DROP TABLE team_members"))  # the recipient lookup itself raises
     (reason,) = _blocked_run(factory, "b1")
     assert reason.startswith("Budget cap reached")
+
+
+# ------------------------------------------- plan limit (daily run cap) and org managers
+
+
+PLAN_TABLES = (
+    "CREATE TABLE billing_plans (team_id TEXT PRIMARY KEY, plan TEXT NOT NULL,"
+    " runs_per_day_override INTEGER, context_index_max_chunks_override INTEGER)",
+    "CREATE TABLE team_daily_run_reservations (team_id TEXT NOT NULL, run_id TEXT PRIMARY KEY,"
+    " reserved_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)",
+    "INSERT INTO billing_plans VALUES ('team-a', 'free', 1, NULL)",
+    "INSERT INTO team_daily_run_reservations (team_id, run_id) VALUES ('team-a', 'earlier')",
+)
+
+
+@pytest.fixture
+def plan_full(factory, monkeypatch):
+    """team-a has used its one daily run; the money cap is far away."""
+    monkeypatch.setenv(ENV_TEAM_BUDGET_USD, "100.0")
+    run(_exec(factory, *PLAN_TABLES))
+    return factory
+
+
+def test_daily_plan_limit_tells_the_team_admin_once_per_day(plan_full, monkeypatch):
+    monkeypatch.setenv(notify.GROUP_SECONDS_ENV, "0")  # a day apart is never one burst
+    monkeypatch.setattr(budget_mod, "db_now", lambda: datetime(2999, 1, 5, 9, tzinfo=UTC))
+    (reason,) = _blocked_run(plan_full, "p1")
+    assert reason.startswith("Plan limit reached")
+
+    (row,) = run(_budget_rows(plan_full))
+    assert (row.user_id, row.team_id, row.summary_code) == ("boss", "team-a", "plan_limit_reached")
+    assert (row.source_kind, row.source_id, row.count) == ("team", "team-a", 1)
+
+    _blocked_run(plan_full, "p2")  # a second blocked run the same day
+    assert len(run(_budget_rows(plan_full))) == 1
+
+    monkeypatch.setattr(budget_mod, "db_now", lambda: datetime(2999, 1, 6, 9, tzinfo=UTC))
+    _blocked_run(plan_full, "p3")  # the next day, same month, is a new fact
+    assert len(run(_budget_rows(plan_full))) == 2
+
+
+def test_a_broken_daily_reservation_is_an_outage_and_tells_nobody(plan_full):
+    run(_exec(plan_full, "DROP TABLE team_daily_run_reservations",
+              "CREATE TABLE team_daily_run_reservations (team_id TEXT NOT NULL,"
+              " run_id TEXT PRIMARY KEY)"))  # no reserved_at: the count raises, fail-closed
+    (reason,) = _blocked_run(plan_full, "p1")
+    assert reason.startswith("Daily run reservation degraded")
+    assert run(_budget_rows(plan_full)) == []
+
+
+def test_org_billing_managers_outside_the_team_get_it_in_their_own_team(factory, monkeypatch):
+    monkeypatch.setenv(ENV_TEAM_BUDGET_USD, "1.0")
+    _org_link(factory)
+    run(_exec(factory,
+              "INSERT INTO teams (id, name, org_id) VALUES ('team-c', 'C', 'org-1'),"
+              " ('team-d', 'D', 'org-1')",
+              "INSERT INTO team_members (id, team_id, user_id, role) VALUES"
+              " ('m-o2c', 'team-d', 'owner2', 'engineer'), ('m-o2d', 'team-c', 'owner2', 'engineer')",
+              "INSERT INTO org_members (org_id, user_id, role, removed_at) VALUES"
+              " ('org-1', 'owner2', 'owner', NULL), ('org-1', 'homeless', 'owner', NULL)"))
+    _blocked_run(factory, "o1")
+    rows = run(_budget_rows(factory))
+    # owner2 sits in no team-a seat: the alert lands in their first org team (team-c), once
+    assert [(r.user_id, r.team_id, r.source_id) for r in rows] == [
+        ("bill1", "team-a", "team-a"), ("owner1", "team-a", "team-a"),
+        ("owner2", "team-c", "team-a")]  # homeless has no team at all: nowhere to show it
+
+    _blocked_run(factory, "o2")  # the monthly dedupe still holds for the outsider
+    assert len(run(_budget_rows(factory))) == 3

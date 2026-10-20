@@ -376,6 +376,8 @@ class OrchestratorService(Orchestrator):
                     else None
                 )
                 run_data["state_machine"].execution_failed(reason)
+                if not daily_status.degraded:
+                    await deliver_budget_warning(factory, team_id, "plan_limit_reached")
                 return True
             run_data.pop("budget_degraded", None)
             # M23-B (session-2 area 9): allowed but near the cap — surface

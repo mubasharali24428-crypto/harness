@@ -20,6 +20,7 @@ export const PREVIEWS: Record<string, [string, string]> = {
   suggestion_queued: ["A suggestion is waiting for you", "{n} suggestions are waiting"],
   budget_warning: ["Team spend is nearing its monthly limit", "{n} spend warnings"],
   budget_exhausted: ["Team spend reached its monthly limit", "{n} spend limit alerts"],
+  plan_limit_reached: ["Your team reached its daily run limit", "{n} daily run limit alerts"],
 };
 const GENERIC: [string, string] = ["You have a notification", "{n} notifications"];
 

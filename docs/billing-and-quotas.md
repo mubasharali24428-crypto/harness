@@ -29,14 +29,21 @@ or for a team in an org the org's owners and billing admins (the rule of `billin
 It is sent once per person per team per UTC month (dedupe key `budget-warning:<team>:<YYYY-MM>`), so
 raising the cap and crossing again in the same month does not warn twice. It is not urgent: email
 follows each person's own notification settings (off unless they opted in). An org billing manager
-who is not a member of the team is not told (`notify.emit` only writes to team members).
+who has no seat in the capped team gets the row in their first other team of the org (the inbox only
+shows the team a person is signed in to; `source_id` still names the capped team); one with no seat
+in any team of the org has nowhere to see it and is skipped.
 
 When the monthly cap actually blocks a run (the pre-spawn gate or the reviewer model call), the same
 function sends the same people a `budget_exhausted` notification ("Team spend reached its monthly limit"),
 once per person per team per UTC month (dedupe key `budget-exhausted:<team>:<YYYY-MM>`). It is separate
 from the warning, so a person who got both sees two rows. A degraded denial (the money store was down)
 is an outage, not a cap, and tells nobody. The blocked run still fails with "Budget cap reached" and its
-participants are told as usual; a delivery failure never changes that outcome. The daily run cap
-(plan limit) is not announced.
+participants are told as usual; a delivery failure never changes that outcome.
+
+When the daily run cap (plan limit) blocks a run, the same people get a `plan_limit_reached`
+notification ("Your team reached its daily run limit"), once per person per team per UTC **day** (dedupe key
+`plan-limit-reached:<team>:<YYYY-MM-DD>`), because the cap resets each day. A degraded reservation (the
+store was down) is an outage and tells nobody. Concurrent workspace creates are serialized per team, so the
+workspace quota (`HARNESS_MAX_WORKSPACES_PER_TEAM`) can no longer be overshot (see `docs/workspaces.md`).
 
 See `docs/briefs/evidence/s7/part57.md` for the directive map and exact local verification.

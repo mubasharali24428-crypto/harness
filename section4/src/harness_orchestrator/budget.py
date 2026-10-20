@@ -704,11 +704,15 @@ async def check_budget(
 
 async def deliver_budget_warning(factory, team_id: str, code: str = "budget_warning") -> None:
     """Part 57.005: tell the team's billing managers that spend crossed the warning line, or with
-    ``code="budget_exhausted"`` that the monthly cap blocked a run (never for a degraded denial).
+    ``code="budget_exhausted"`` that the monthly cap blocked a run, or with
+    ``code="plan_limit_reached"`` that the daily run cap did (never for a degraded denial).
 
     Billing managers follow section1 ``billing._billing_manager``: team admins, or for a team in an
-    org the org's owners and billing admins. In-app, once per person per team per UTC month (the
-    dedupe key, one per code); email only if that person opted in. Never raises into the run.
+    org the org's owners and billing admins. In-app, once per person per team per UTC month (per
+    UTC day for the daily cap; the dedupe key, one per code); email only if that person opted in.
+    An org manager with no seat in the capped team gets the row in their first other team of the
+    org (the inbox only shows the team a person is signed in to); one with no seat in the org's
+    teams has nowhere to see it. Never raises into the run.
     """
     from sqlalchemy import text
 
@@ -726,25 +730,29 @@ async def deliver_budget_warning(factory, team_id: str, code: str = "budget_warn
             if org_id:
                 rows = await db.execute(
                     text(
-                        "SELECT m.user_id FROM org_members m JOIN organizations o"
+                        "SELECT m.user_id, (SELECT x.team_id FROM team_members x JOIN teams tt"
+                        " ON tt.id = x.team_id WHERE x.user_id = m.user_id AND tt.org_id = :o"
+                        " ORDER BY CASE WHEN x.team_id = :t THEN 0 ELSE 1 END, x.team_id"
+                        " LIMIT 1) FROM org_members m JOIN organizations o"
                         " ON o.id = m.org_id WHERE m.org_id = :o"
                         " AND m.role IN ('owner', 'billing_admin')"
                         " AND m.removed_at IS NULL AND o.status = 'active'"
                     ),
-                    {"o": org_id},
+                    {"o": org_id, "t": team_id},
                 )
             else:
                 rows = await db.execute(
                     text(
-                        "SELECT user_id FROM team_members WHERE team_id = :t"
+                        "SELECT user_id, team_id FROM team_members WHERE team_id = :t"
                         " AND lower(role) = 'admin' AND user_id IS NOT NULL"
                     ),
                     {"t": team_id},
                 )
-            key = f"{code.replace('_', '-')}:{team_id}:{db_now():%Y-%m}"
-            for user_id in sorted({r[0] for r in rows}):
+            period = "%Y-%m-%d" if code == "plan_limit_reached" else "%Y-%m"
+            key = f"{code.replace('_', '-')}:{team_id}:{db_now().strftime(period)}"
+            for user_id, home_team in sorted({(r[0], r[1]) for r in rows if r[1]}):
                 await notify.emit(
-                    db, team_id=team_id, user_id=user_id, kind="budget", source_kind="team",
+                    db, team_id=home_team, user_id=user_id, kind="budget", source_kind="team",
                     source_id=team_id, summary_code=code, dedupe_key=key,
                 )
             await db.commit()
