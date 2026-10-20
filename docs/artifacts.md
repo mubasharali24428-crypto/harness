@@ -215,5 +215,5 @@ Rows are appended in the same transaction as the change, `actor_kind human`, det
 - Soft quota under concurrency (section 2). Orphan blobs can remain when an upload loses a race after writing bytes; there is no blob garbage collector beyond delete and `purge_expired`. A delete racing an upload of the same bytes in the same team can leave the new row without bytes (answers `ARTIFACT_CONTENT_MISSING`).
 - `purge_expired` runs on an interval in every replica; it is idempotent but not leader-elected.
 - No malware scanning, no archive inspection, no secret scanning, no inline image/PDF preview (sections 2 and 10).
-- Postgres-only behaviour is untested here (sqlite only): partial unique indexes, `TIMESTAMPTZ`, `begin_nested` savepoints around optional-table reads, and the unique-violation paths (`IntegrityError` handling) need the lead's live-PG run.
+- Postgres-only behaviour is mostly untested here (sqlite): since Session 11 `test_session6_live_pg.py` passes on PostgreSQL 18 for an upload and its request-id replay, but partial unique indexes, `begin_nested` savepoints around optional-table reads and the other unique-violation paths still have no PostgreSQL test of their own.
 - The UI (lane X) and the OpenAPI / SDK files are not part of this lane.

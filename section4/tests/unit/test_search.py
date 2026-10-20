@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy.dialects.postgresql import asyncpg
 
 from harness_orchestrator import exports, search
 
@@ -518,3 +519,17 @@ def test_session_export_files_are_deleted_with_the_authors_data(env):
     rid = env.as_("eng2").post(f"{P}/deletion-requests", json={}).json()["id"]
     assert env.as_("boss").post(f"{P}/deletion-requests/{rid}/approve", json={}).status_code == 200
     assert not Path(exports.store_dir(), f"{job['id']}.json").exists()
+
+
+def test_an_empty_id_list_is_typed_so_postgresql_can_compare_it():
+    """Untyped, an empty IN renders CAST(NULL AS INTEGER): PostgreSQL then refuses
+    `varchar = integer`, and a run-history export of a run with no sessions failed with
+    EXPORT_FAILED (found on a live PG). Non-empty lists must render exactly as before."""
+    def render(ids):
+        st = search._stmt("SELECT 1 FROM comments WHERE scope_id IN :ids", {"ids": ids})
+        return str(st.params(ids=ids).compile(
+            dialect=asyncpg.dialect(), compile_kwargs={"render_postcompile": True}))
+    assert "CAST(NULL AS VARCHAR)" in render([])
+    assert "CAST(NULL AS VARCHAR)" in render(set())
+    assert render(["a", "b"]).endswith("IN ($1, $2)")
+    assert render([1, 2]).endswith("IN ($1, $2)")

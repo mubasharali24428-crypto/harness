@@ -34,7 +34,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from harness_contracts.roles import Principal, Role
-from sqlalchemy import bindparam, text
+from sqlalchemy import String, bindparam, text
 from sqlalchemy.exc import DBAPIError
 
 from harness_orchestrator import api as _api
@@ -190,8 +190,11 @@ def _esc_like(s: str) -> str:
 
 def _stmt(sql: str, args: dict[str, Any]) -> Any:
     st = text(sql)
+    # An empty list renders as `SELECT CAST(NULL AS <type>) WHERE 1!=1`; untyped that is INTEGER,
+    # which PostgreSQL will not compare with a varchar id. Id lists are strings: say so (only when
+    # empty, so every non-empty statement stays exactly as it was).
     exp = [
-        bindparam(k, expanding=True)
+        bindparam(k, expanding=True, type_=None if v else String)
         for k, v in args.items()
         if isinstance(v, list | tuple | set | frozenset)
     ]

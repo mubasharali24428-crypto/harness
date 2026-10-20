@@ -97,7 +97,7 @@ HARNESS_TEST_PG_DSN=postgresql://harness:harness@localhost:5499/harness section1
   (`workspace.purged`). Code `section4/.../workspace_gate.py`, `schedule.py`, `deploy/runners/services.py`; tests
   `test_workspace_lifecycle_jobs.py` (4) with `test_workspace_gate.py`, `test_schedule.py`. Docs `docs/workspaces.md`.
   Section 4 full suite after the change: 1526 passed, 38 skipped, 0 failed. Ruff clean on touched files (`deploy/runners/services.py`
-  has 6 older findings). Not covered: paused workspaces do not stop running runs; the purge was not run on PG.
+  has 6 older findings). Not covered: paused workspaces do not stop running runs. (The purge and the archive-stop sweep have since run on PG: §3g-8.)
 
 ### 3g-2. Part 31/58: holds now cover content deletion and backup expiry
 
@@ -126,7 +126,7 @@ outage and tells nobody). Same recipients and rule as the warning, summary code 
 `budget-exhausted:<team>:<YYYY-MM>`. Found on the way: `emit` groups unread rows by `kind:source`, so a fresh unread warning would have
 absorbed the hard-stop alert as "2 spend warnings"; the `budget` kind now adds its summary code to the group key (`notify._emit`).
 Tests `test_budget_warning_delivery.py` (12; 7 new, four mutants killed: degraded at either seam, delivery failure swallow, group key).
-Only run on sqlite. The daily plan-limit stop is announced in §3g-5.
+Run on sqlite and, since §3g-8, on PostgreSQL. The daily plan-limit stop is announced in §3g-5.
 
 ### 3g-5. Part 57 follow-ups and the workspace quota race
 
@@ -139,7 +139,7 @@ Only run on sqlite. The daily plan-limit stop is announced in §3g-5.
   the capped team). A manager with no seat in any org team is skipped (nowhere to show it).
 - **Part 39 quota race closed:** `create_workspace` runs `UPDATE teams SET name = name WHERE id = :t` before the count, which
   serializes creates per team (row lock on PG, write lock on SQLite). Test `test_concurrent_creates_cannot_overshoot_the_quota`
-  (file-backed SQLite, 8 racing creates, quota 3; red before, 3/3 green after; `make_env` gained `db_path`). **Not run on PG.**
+  (file-backed SQLite, 8 racing creates, quota 3; red before, 3/3 green after; `make_env` gained `db_path`). Run on PG in §3g-8: without the lock 8 racing creates overshoot the quota there too.
 - Tests: `test_budget_warning_delivery.py` 15 (3 new, mutants killed: degraded daily, home-team fallback, daily key, team order),
   `test_notify.py` pin, vitest 50, section1 955 passed/29 skipped, section4 exit 0.
 
@@ -153,7 +153,7 @@ Only run on sqlite. The daily plan-limit stop is announced in §3g-5.
   `ERASURE_ON_HOLD` (a run under retention hold involves the person; asking again after release works), both before any change.
   `KEPT` names every table left alone with a reason, and a guard test fails for a new table with a personal column in no list.
   `test_account_erasure.py` 7; eight mutants killed (hold check, sole-admin check, unfiltered delete, inbox, addressed mail, seat id,
-  active flag, audit leaking the email). section1 962 passed/29 skipped. **Sqlite only, not run on PG;** there is no UI.
+  active flag, audit leaking the email). section1 962 passed/29 skipped. Also run on PostgreSQL 18 (§3g-8); the UI is `/settings/account`.
 - **Part 52 shell allow-list: still open, not closable here.** Session 11 live check (Part 52): no local closure. The runtime is a closed binary and the SDK config exposes only provider, model, profile, patches, env, cwd and dsh_home, so there is no pre-tool callback. It spawns `/bin/bash` by absolute path, so a PATH shim never sees the command (shim installed, run driven by a local Ollama model: the command ran unobserved). Seatbelt breaks its PTY, and the real runtime accepts only `container` or an explicit `off`. The remaining closure paths are a runtime pre-tool hook or the image-level boundary in `worker.Dockerfile` (container work in another lane).
 
 ### 3g-7. Approvals: decision timestamp, and "changed after approval" survives a reload
@@ -168,6 +168,27 @@ now ISO-8601 UTC with milliseconds (`collab._iso`), and the panel prints it with
 `2026-10-20 09:26:18.631205+00:00` there too (same as sqlite; asyncpg answers in UTC whatever the database timezone), so it was usable but not
 strict ISO. On PostgreSQL the JSONB payload arrives as a dict; the `json.loads` branch is sqlite-only. Mutants: 6 server, 5 UI, all killed.
 `expiresAt` is still the old `str(datetime)` form (nothing displays it).
+
+### 3g-8. Session 11 work on a real PostgreSQL, and the erasure screen
+
+Postgres on `:5499` is up even though Docker is not, so the sqlite-only work was run against it. New opt-in tests (`HARNESS_TEST_PG=<dsn>`,
+each builds a throwaway database from the whole migration chain): `section1/tests/test_session11_pg.py` (5: quota race through the real app,
+erasure on the real schema incl. the hold and sole-admin refusals, and a scan of every real table for personal columns plus a check that no
+RESTRICT foreign key points into a purge table), `section4/tests/unit/test_budget_delivery_live_pg.py` (9: all three alert codes, org
+routing, removed managers, day vs month keys), `test_workspace_jobs_live_pg.py` (4: gate, archive-stop sweep, purge on timestamptz/jsonb).
+Mutants: 8 + 6 + 6, all killed; taking out the quota lock makes 8 racing creates overshoot on PG, so the fix is needed there too.
+**Found and fixed:** `search._stmt` rendered an empty list as `CAST(NULL AS INTEGER)`; PostgreSQL then refused `varchar = integer`, so a
+run-history export of a run **with no sessions failed with `EXPORT_FAILED`**. Only the empty case is now typed `String` (non-empty SQL is
+unchanged); regression `test_an_empty_id_list_is_typed_so_postgresql_can_compare_it` needs no database. The other expanding helpers
+(`discussion._q`, `execution._q`) are guarded against empty lists at every call site. `test_session6_live_pg.py` had never run live
+(Docker was down in Session 6) and was stale: it read `items` where search returns `results`, and read the retry's `created` flag as
+`replay`; both fixed, it now passes. No other PostgreSQL-specific defect turned up in the Session 11 work.
+Full suites against `:5499` with `HARNESS_TEST_PG` and `HARNESS_DATABASE_URL` set: see the numbers in the commit message. The same four
+`docker exec harness-db-1` tests still fail without the daemon (`test_runs_index_tuning` live plan, three in `test_fk_deletion_story`).
+**Erasure screen:** `/settings/account` (`section7/app/settings/account/`: `accountApi.ts` incl. `runErasure`, `erasureCard.tsx`, `page.tsx`;
+linked from `/settings`). The person types their email; the card says up front what is deleted, what stays, and the two refusals; a refusal
+says nothing was changed, an unknown failure does not claim to know; the local session is cleared only when the server confirms. 15 tests,
+11 mutants killed. Not covered: no browser run (node-env static render only), and `apiFetch` in `src/lib/api.ts` is now exported for it.
 
 ## 3e. Session 7 result
 

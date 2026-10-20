@@ -146,12 +146,12 @@ async def test_session6_postgres_races_artifacts_search_export_and_retry(pg):
 
     await search.sync_index(pg, "t1")
     before = await search.search(pg, p, q="needle phrase")
-    assert any(hit["kind"] == "comment" for hit in before["items"]), before
+    assert any(hit["kind"] == "comment" for hit in before["results"]), before
     async with pg() as db:
         await db.execute(text("UPDATE comments SET state = 'hidden' WHERE id = 'c1'"))
         await db.commit()
     after = await search.search(pg, p, q="needle phrase")
-    assert not any(hit.get("sourceId") == "c1" for hit in after["items"]), after
+    assert not any(hit.get("sourceId") == "c1" for hit in after["results"]), after
 
     report, created = await exports.create_export(
         pg,
@@ -163,7 +163,7 @@ async def test_session6_postgres_races_artifacts_search_export_and_retry(pg):
     assert created and report["state"] == "completed" and report["format"] == "ndjson", report
 
     service = OrchestratorService(session_factory=pg, bus=Bus())
-    retry, replay = await execution.retry(
+    retry, created = await execution.retry(
         pg, service, p, "r1", execution.RetryBody(requestId="retry-idempotent-1")
     )
-    assert replay and retry["duplicate"] is True and retry["attempt"]["attemptNo"] == 1, retry
+    assert not created and retry["duplicate"] is True and retry["attempt"]["attemptNo"] == 1, retry

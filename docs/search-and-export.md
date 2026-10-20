@@ -216,8 +216,10 @@ Wiring (lead): `app.include_router(search.router)`, `app.include_router(exports.
 
 ## 7. Limits (honest)
 
-* Verified on SQLite only. The PostgreSQL parts (full text query, `ON CONFLICT`, `CAST(detail AS TEXT)`, audit chain columns in
-  audit exports, timestamptz comparisons) are written portably but have not run on a live database. No GIN index is created
+* Verified on SQLite. Since Session 11 one end-to-end run also passes on PostgreSQL 18 (`test_session6_live_pg.py`: index sync, search with
+  live re-authorisation, a run-history export, retry replay); it found and fixed an empty-list `IN` typed `INTEGER` that failed the export of a
+  run with no sessions. Anything off that path (full text ranking, `ON CONFLICT` variants, audit-export chain columns, other timestamptz
+  comparisons) is written portably but not covered by its own PostgreSQL test. No GIN index is created
   (the migration must load on SQLite); without one the full text query scans the team's documents. Suggested PG-only follow-up:
   `CREATE INDEX ... USING gin (to_tsvector('simple', title || ' ' || body))`.
 * No relevance ranking; newest first. LIKE mode is a sequential scan of the team's documents (bounded by the scan budget per

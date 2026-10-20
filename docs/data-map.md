@@ -54,7 +54,9 @@ compose profiles; unless operators enable and monitor them, expired data remains
   organization, and while a run under retention hold involves them. Authored text (comments, task specs, plan and
   review comments) and evidence tables keep only the opaque id (`KEPT` in `erasure.py` names each with a reason;
   a guard test fails for any new table with a personal column that is in no list). Authored text is removed by a
-  Part 50 deletion request, which honors holds. Not run on Postgres; no identity-table expiry sweep.
+  Part 50 deletion request, which honors holds. Run on PostgreSQL 18 against the full migration chain
+  (`section1/tests/test_session11_pg.py`, which also scans every real table for personal columns); the screen is
+  `/settings/account`. No identity-table expiry sweep.
 - Event/audit retention is only active when the opt-in retention sidecar is deployed and monitored.
 - Section 4 now pins the SDK `sdk-minimal` profile and adds a per-run `workspace-write` policy overlay
   after operator patches. Runs whose approved plan has non-empty `forbiddenPaths` are refused before
