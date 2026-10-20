@@ -34,7 +34,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from harness_contracts.roles import Principal, Role
-from sqlalchemy import bindparam, text
+from sqlalchemy import Integer, String, bindparam, text
 from sqlalchemy.exc import DBAPIError
 
 from harness_orchestrator import api as _api
@@ -188,10 +188,19 @@ def _esc_like(s: str) -> str:
     return s.replace("!", "!!").replace("%", "!%").replace("_", "!_")
 
 
+def _list_type(v: Any) -> Any:
+    """Element type for an expanding ``IN`` list. An untyped empty list renders as
+    ``IN (SELECT CAST(NULL AS INTEGER) ...)``, which PostgreSQL refuses to compare with a
+    text column (SQLite does not care). Non-empty all-int lists stay integer; everything
+    else, including an empty list, is text because every id column queried here is text."""
+    ints = bool(v) and all(isinstance(i, int) and not isinstance(i, bool) for i in v)
+    return Integer if ints else String
+
+
 def _stmt(sql: str, args: dict[str, Any]) -> Any:
     st = text(sql)
     exp = [
-        bindparam(k, expanding=True)
+        bindparam(k, expanding=True, type_=_list_type(v))
         for k, v in args.items()
         if isinstance(v, list | tuple | set | frozenset)
     ]

@@ -246,6 +246,9 @@ def test_get_run_includes_prid_from_db(monkeypatch, db):
         # M22-M2: structured tier-cap upgrade CTA ({tier, cap, capField, used,
         # upgradeTo, cta}); None here — no cap blocked this run.
         "upgrade",
+        # Parts 10/22: the durable lifecycle view and the run's workspace identity.
+        "workspace",
+        "lifecycle",
     }
 
 
