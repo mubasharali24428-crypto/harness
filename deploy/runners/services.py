@@ -382,13 +382,26 @@ def app_orchestrator():
         app, factory=factory, engine=factory.kw["bind"], bus=bus
     )  # queue depth, event-bus lag, DB pool saturation, runs started/completed
 
+    import asyncio
+
+    from harness_orchestrator.execution import run_limit_sweeper
+
+    limit_sweeper: dict = {}
+
     @app.on_event("startup")
     async def _start_run_queue_worker():
         worker.run_forever()
+        # Part 44.005: a RUNNING run that reaches its time/model/tool-call limit is paused by this
+        # worker's sweep (0 turns it off). Start and claim checks already refuse new work.
+        every = float(os.environ.get("HARNESS_LIMIT_SWEEP_SECONDS", "30"))
+        if every > 0:
+            limit_sweeper["task"] = asyncio.create_task(run_limit_sweeper(service, every))
 
     @app.on_event("shutdown")
     async def _stop_run_queue_worker():
         worker.stop()
+        if limit_sweeper.get("task") is not None:
+            limit_sweeper["task"].cancel()
         # M17-B5: release the dedicated engine executor's queued work.
         service.shutdown()
 

@@ -364,6 +364,7 @@ def test_everything_is_refused_once_the_plan_is_approved(env):
         "comment": False,
         "proposeEdit": False,
         "decideEdit": False,
+        "approve": False,
         "newVersion": False,
     }
 
@@ -387,18 +388,21 @@ def test_the_can_flags_follow_the_role_and_the_state(env):
         "comment": True,
         "proposeEdit": True,
         "decideEdit": True,
+        "approve": True,
         "newVersion": True,
     }
     assert can("view") == {
         "comment": True,
         "proposeEdit": True,
         "decideEdit": False,
+        "approve": False,
         "newVersion": False,
     }
     assert can("guest") == {
         "comment": False,
         "proposeEdit": False,
         "decideEdit": False,
+        "approve": False,
         "newVersion": False,
     }
     env.new_version(expected=1, content={**CONTENT, "goal": "g2"})

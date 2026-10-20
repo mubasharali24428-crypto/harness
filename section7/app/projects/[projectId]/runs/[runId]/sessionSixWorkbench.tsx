@@ -132,6 +132,7 @@ export function SessionSixWorkbench({ runId, token }: { runId: string; token: st
           const [comments, edits] = await Promise.all([call(`/runs/${pid}/plan/versions/${v.version}/comments`, token), call(`/runs/${pid}/plan/versions/${v.version}/edits`, token)]);
           setData((d) => ({ ...d, planReview: { version: v.version, comments, edits } }));
         })}>View comments and edits</button>
+        {v.can?.approve ? <>{" "}<Button disabled={busy} onClick={() => void act(`Plan version ${v.version} approved`, () => send(`/runs/${pid}/plan/versions/${v.version}/approve`, token, "POST", {}))}>Approve version {v.version}</Button></> : null}
       </li>)}</ul>
       <label>Plan content (JSON)<textarea value={planText} onChange={(e) => setPlanText(e.target.value)} style={{ ...field, fontFamily: "monospace" }} rows={8} /></label>
       <Button disabled={busy} onClick={() => void act("Plan version created", () => send(`/runs/${pid}/plan/versions`, token, "POST", { content: JSON.parse(planText), expectedVersion: Math.max(0, ...listOf(data.plans, "versions", "items").map((v) => Number(v.version))) }))}>Create proposed version</Button>

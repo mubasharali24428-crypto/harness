@@ -17,11 +17,14 @@ and evidence references are idempotent. Evidence is a reference and note, not a 
 
 `PUT /execution-limits` sets optional limits using `expectedVersion`; `GET /execution-status`
 reports usage, enforcement points, checkpoints, and a safe-resume assessment. Seconds, completed
-model-call ledger rows, and completed-run cost are checked at run start and queue claim. A periodic
-worker sweep can pause an already-running run that exceeds those limits. Tool-call limits are
-recorded only because the engine does not report tool-call counts. Spend during an in-flight engine
-call is not visible until that call completes. The sweep function exists, but the deployment has no
-scheduler wired to call it yet.
+model-call ledger rows, completed-run cost and durable `agent_tool_calls` rows are checked at run start
+and queue claim. A sweep (`run_limit_sweeper`, started by `deploy/runners/services.py` every
+`HARNESS_LIMIT_SWEEP_SECONDS`, default 30; 0 turns it off) pauses an already-running run that exceeds
+those limits: the pause releases the claim and the owning worker's fence loop stops the run, so any
+replica may sweep. The tool-call cap counts rows written by `POST /agents/{assignmentId}/tool-calls`
+(the agent tool-call report route); the engine does not report on its own, so a tool call nobody
+reports is not counted and the cap is only as complete as that reporting. Spend during an in-flight engine call is not visible until that call
+completes, so a run can overshoot a cost limit by one call.
 
 The safe-resume response uses durable agent events, checkpoint history, run claims, current
 execution state, approvals, and workspace/session gates. The engine resumes its existing session
@@ -39,12 +42,13 @@ resumable. Retry resumes the same engine session; it does not create a fresh iso
 
 ## Boundaries
 
-The engine can enforce limits only where its current lifecycle exposes a check. Tool calls and
-in-flight spend remain unmeasured. A worker sweep is not scheduled in deploy. Checkpoint content is
-owned by Section 5; this API reports references and safe-resume reasoning, it does not copy or
-restore checkpoint files. Native plan versions are not yet approvable or executable: the legacy
-plan approval route still controls the engine. See `docs/plans.md` and
-`docs/briefs/evidence/s6/lane-pl.md`; part 44 remains partial until that path is closed.
+The engine can enforce limits only where its current lifecycle exposes a check. In-flight spend
+stays unmeasured until a call completes, and the sweep is a polling loop (up to one interval late,
+and it does not run while the orchestrator is down; the claim and start checks still do).
+Checkpoint content is owned by Section 5; this API reports references and safe-resume reasoning, it
+does not copy or restore checkpoint files. A plan version is approved with
+`POST .../plan/versions/{n}/approve`, which binds the approved content to what the engine runs
+(`docs/plans.md` section 4a).
 
 Tests: `section4/tests/unit/test_execution.py` and `test_execution_runs.py`; opt-in PostgreSQL
 probe: `test_session6_live_pg.py` (not run in the current environment).

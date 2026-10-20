@@ -9,13 +9,13 @@ What is ENFORCED and what is only RECORDED (repeated in ``/execution-status``):
 * ``seconds``, ``modelCalls`` and ``costMicrousd`` are checked at run start (``start_execution``
   409), at queue claim (``_dispatch_claim``: the claim is finished and the run goes BLOCKED with
   the reason) and by :func:`sweep_running_limits`, which pauses a run that is already running (the
-  lead wires it into the worker loop; nothing calls it by itself).
+  :func:`run_limit_sweeper` runs it on an interval from ``deploy/runners/services.py``).
 * ``modelCalls`` counts ``cost_ledger`` rows of the run and ``costMicrousd`` sums them: the engine
   path writes one row when an engine run COMPLETES, so spend inside a run that is still running is
   invisible until then. ``seconds`` is rebuilt from ``agent_events`` timestamps.
 * ``toolCalls`` counts durable ``agent_tool_calls`` rows and is checked at run start, queue claim,
-  and by the running-limit sweep. The engine must persist a row for every tool call for this cap
-  to reflect actual activity.
+  and by the running-limit sweep. Rows come only from ``POST /agents/{id}/tool-calls`` (agent_tree);
+  the engine does not write them, so the cap is only as complete as that reporting.
 
 State changes use only the state machine's own vocabulary: abandon is ``stop_agent`` (DONE), a
 blocked claim is ``execution_failed`` (BLOCKED), a limit sweep is ``pause_agent`` (PAUSED), retry
@@ -506,8 +506,10 @@ async def sweep_running_limits(service: Any) -> list[str]:
 
     Returns the paused run ids.
 
-    Not scheduled by this module: call it from a worker loop. Pause keeps the run resumable once a
-    human raises the limit."""
+    Any replica may sweep: pausing releases the claim, which the owning worker's fence loop notices
+    and stops on, and a second sweep finds no running claim. :func:`run_limit_sweeper` schedules it
+    (deploy/runners/services.py starts it). Pause keeps the run resumable once a human raises the
+    limit."""
     factory = getattr(service, "session_factory", None)
     if factory is None:
         return []
@@ -543,6 +545,19 @@ async def sweep_running_limits(service: Any) -> list[str]:
             continue
         paused.append(r.run_id)
     return paused
+
+
+async def run_limit_sweeper(service: Any, interval: float) -> None:
+    """Run :func:`sweep_running_limits` every ``interval`` seconds until cancelled. A failing sweep
+    is logged and tried again; it never ends the loop."""
+    while True:
+        try:
+            await sweep_running_limits(service)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - the next tick retries
+            logger.exception("running-limit sweep failed")
+        await asyncio.sleep(interval)
 
 
 # ------------------------------------------------------------------------ limits API

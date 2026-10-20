@@ -1314,6 +1314,14 @@ class OrchestratorClient:
         _path = f"/api/v1/orchestrator/runs/{run_id}/plan/versions/{n}"
         return self._http.request(self.base_url, "GET", _path)
 
+    def plans_version_approve(self, run_id: str, n: str) -> dict[str, typing.Any]:
+        """Plans Version Approve
+
+        POST /api/v1/orchestrator/runs/{runId}/plan/versions/{n}/approve
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/plan/versions/{n}/approve"
+        return self._http.request(self.base_url, "POST", _path)
+
     def plans_comments_list(self, run_id: str, n: str, limit: int | None = None, after: str | None = None) -> dict[str, typing.Any]:
         """Plans Comments List
 

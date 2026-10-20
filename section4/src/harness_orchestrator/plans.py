@@ -17,12 +17,14 @@ and collaboration events carry ids and states only, never task, plan or comment 
 (``text()``): sections may import only ``harness_contracts``.
 """
 
+import asyncio
 import difflib
 import hashlib
 import json
 import logging
 import os
 import uuid
+from collections import defaultdict
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
@@ -35,6 +37,8 @@ from sqlalchemy.exc import IntegrityError
 
 from harness_orchestrator import api as _api
 from harness_orchestrator import collab
+from harness_orchestrator.service import PlanAlreadyDecidedError
+from harness_orchestrator.state_machine import InvalidStateTransitionError
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +71,9 @@ _TARGET = "agent_run"
 
 # (principal, run id, "METHOD route") of the request in flight, for denial audit.
 _ctx: ContextVar[tuple[Principal, str, str] | None] = ContextVar("_plans_ctx", default=None)
+# one adopt-and-approve at a time per run in this process; across replicas the legacy plan CAS
+# (agent_plans.version) and the unique plan_versions.source_plan_id index decide.
+_approve_locks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
 
 def configure_plans(service: Any) -> None:
@@ -575,6 +582,7 @@ def _version_view(
             "comment": locked is None and p.role != Role.GUEST,
             "proposeEdit": open_ and p.role != Role.GUEST,
             "decideEdit": open_ and p.role in CAN_APPROVE_PLANS,
+            "approve": open_ and p.role in CAN_APPROVE_PLANS,
             "newVersion": locked is None and p.role not in READ_ONLY,
         }
     return out
@@ -1385,6 +1393,79 @@ async def decide_edit(
     return _edit_view(row, await _latest(db, run_id), await _locked(db, run_id)), True
 
 
+def _svc() -> Any:
+    return _service if _service is not None else _api._service
+
+
+async def approve_version(db: Any, p: Principal, run_id: str, n: int) -> tuple[dict, bool]:
+    """Approve plan version ``n`` so the engine runs exactly its content (part 44.002/003).
+
+    A natively created or edited version has no legacy plan, so it is first adopted: registered
+    with the planner as the run's open plan (``adopt_plan_version``) and linked through
+    ``plan_versions.source_plan_id``. The decision itself is the ordinary CAS-first legacy approval,
+    so the engine, a restart and the legacy routes all see one plan. Idempotent for an approved
+    version; the stored digest of the approved content is the one that runs."""
+    svc = _svc()
+    async with _approve_locks[run_id]:
+        await _sync_legacy(db, p, run_id)
+        row = await _version(db, p, run_id, n)
+        if row.state == "approved":
+            await db.commit()
+            return _version_view(row, n, p, await _latest(db, run_id)), False
+        locked = await _locked(db, run_id)
+        if locked is not None:
+            raise PlansError(
+                409, "PLAN_LOCKED", "the plan is already approved", {"approvedVersion": locked}
+            )
+        latest = await _latest(db, run_id)
+        if row.state not in OPEN_STATES or n != latest:
+            raise PlansError(
+                409,
+                "STALE_VERSION",
+                "only the latest open version can be approved",
+                {"currentVersion": latest},
+            )
+        await db.commit()  # the service writes through its own connections: release ours first
+        plan_id = row.source_plan_id
+        if plan_id is None:
+            try:
+                plan_id = await svc.adopt_plan_version(run_id, _norm(_jl(row.content, {})))
+            except InvalidStateTransitionError as e:
+                raise PlansError(409, "INVALID_STATE", str(e)) from e
+            await db.execute(
+                text(
+                    "UPDATE plan_versions SET source_plan_id = :sp WHERE run_id = :r"
+                    " AND version = :v AND source_plan_id IS NULL"
+                ),
+                {"sp": plan_id, "r": run_id, "v": n},
+            )
+            await db.commit()
+        try:
+            await svc.approve_plan(run_id, plan_id, p.userId)
+        except PlanAlreadyDecidedError as e:
+            raise PlansError(409, "PLAN_ALREADY_DECIDED", str(e)) from e
+        except (InvalidStateTransitionError, KeyError) as e:
+            raise PlansError(409, "INVALID_STATE", str(e)) from e
+        await _sync_legacy(db, p, run_id)  # mirrors 'approved' and closes every other open version
+        await _emit(db, p, run_id, "plan.version_approved", {"version": n})
+        await _audit(
+            db,
+            p,
+            "plan.approved",
+            run_id,
+            {
+                "planId": plan_id,
+                "version": n,
+                "contentSha256": row.content_sha256,
+                "before": {"state": row.state},
+                "after": {"state": "approved"},
+            },
+        )
+        await db.commit()
+        done = await _version(db, p, run_id, n)
+        return _version_view(done, n, p, await _latest(db, run_id)), True
+
+
 # ---------------------------------------------------------------------- routes
 
 Read = Annotated[Principal, Depends(_guard("read"))]
@@ -1475,5 +1556,12 @@ async def edits_decide(
     runId: str, n: int, editId: str, req: DecideBody, actor: Approve, response: Response
 ) -> dict:
     out, created = await _call(lambda db: decide_edit(db, actor, runId, n, editId, req))
+    _reply(response, created)
+    return out
+
+
+@router.post(_V + "/{n}/approve", name="plans_version_approve")
+async def version_approve(runId: str, n: int, actor: Approve, response: Response) -> dict:
+    out, created = await _call(lambda db: approve_version(db, actor, runId, n))
     _reply(response, created)
     return out

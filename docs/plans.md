@@ -31,6 +31,7 @@ As built. Code: `section4/src/harness_orchestrator/plans.py` (router, `configure
 | `GET\|POST .../versions/{n}/comments` | read \| comment | keyset paged (`limit` 1..100, `after=<comment id>`, `nextCursor`) |
 | `GET\|POST .../versions/{n}/edits` | read \| comment | proposing an edit needs only `comment` (viewers may, guests may not) |
 | `POST .../versions/{n}/edits/{editId}/decide` | approve | `{decision: accept\|reject, note}` |
+| `POST .../versions/{n}/approve` | approve | approve the latest open version; see section 4a |
 
 Roles are checked before the run (no new existence oracle for low roles); a refused role leaves one `authz.denied` audit row.
 `approve` is admin or engineer. A foreign or unknown run, and every sub-resource of one, answers the same `404 NOT_FOUND`;
@@ -53,6 +54,23 @@ While any version is `approved` the plan is locked: a new version, a comment, an
 other open (`draft`/`proposed`) version becomes `superseded`, because only the approved content may run. The lock is checked inside the
 same transaction after syncing the legacy status, so a legacy approval that has just landed is honoured. The approval binds the digest:
 `approvedSha256` equals the content digest of the approved version, and that content cannot change.
+
+## 4a. Approving a version (what the engine runs)
+
+`POST .../plan/versions/{n}/approve` makes version `n` the plan the engine executes. Only the **latest open** version can be approved
+(`409 STALE_VERSION` with `currentVersion` otherwise; `409 PLAN_LOCKED` once any version is approved). A version mirrored from the legacy plan is
+approved through that legacy plan id. A natively created or edited version has no legacy plan, so it is first **adopted**
+(`OrchestratorService.adopt_plan_version`): registered with the planner as the run's open plan, mirrored to `agent_plans` as `proposed` (so a restart
+rehydrates the same plan from the event log and that row), announced with a new `plan_proposed` event, and linked through
+`plan_versions.source_plan_id`. The previous open legacy plan is marked `rejected` in the mirror, so approving it later fails. The decision itself is
+the ordinary CAS-first legacy approval (`agent_plans.version`), so the engine, the state machine and the legacy routes agree on one plan.
+Approving an already-approved version is a 200 replay with no second audit row. The audit row is `plan.approved` (plan id, version, content digest,
+before/after state; never plan text) plus a `plan.version_approved` collaboration event. The stored digest of the approved content is the one that
+runs: the engine's `AgentPlan` is built from exactly that content, and a plan declaring `forbiddenPaths` is refused by the engine's fail-closed guard
+(see `docs/sandbox-isolation.md`), which the approved content reaches unchanged.
+
+Adopt-and-approve is serialized per run inside one process; across replicas the legacy CAS and the unique `source_plan_id` index decide, and no
+cross-replica test exists (live PostgreSQL was not available when this was written).
 
 ## 5. Versions, concurrency, idempotency
 
@@ -85,11 +103,8 @@ Each also writes a durable collaboration event of the same kind (`run_collab_eve
 
 ## 8. Not covered, and limits
 
-* **There is no route that approves a plan version.** Approval stays the legacy `plan/approve` on a `planId`; a version that was created natively
-  (not mirrored) has no `agent_plans` row, so the legacy approve cannot name it and only the mirrored plan can be approved by the existing routes.
-  The engine executes the in-memory legacy plan, not a `plan_versions` row. Binding "approve version n" to what runs needs a lead decision (see lane
-  evidence).
+* Approval of a version is covered by section 4a. The `plan/approve` legacy route on a `planId` still works and is mirrored back onto the version.
 * The task statement is not locked by plan approval; it is versioned and audited instead.
-* The task statement and plan versions are not read by the planner or the engine yet.
+* The planner does not read the task statement or earlier versions when it proposes; a person edits a version, then approves it. The task statement is context for people, not an engine input.
 * Diffs are structural (field and list-item level, `difflib` opcodes), not word level.
 * JSON columns are text so one migration loads on PostgreSQL and SQLite; PostgreSQL behaviour is not exercised by these tests.

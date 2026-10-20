@@ -93,6 +93,7 @@ ORCHESTRATOR_RULES: tuple[tuple[str, str, str], ...] = (
     # are `approve`. Everything else on those resources is the steer fallback below.
     ("POST", r"/api/v1/orchestrator/runs/[^/]+/plan/versions/[^/]+/(comments|edits)", "comment"),
     ("POST", r"/api/v1/orchestrator/runs/[^/]+/plan/versions/[^/]+/edits/[^/]+/decide", "approve"),
+    ("POST", r"/api/v1/orchestrator/runs/[^/]+/plan/versions/[^/]+/approve", "approve"),
     ("POST", r"/api/v1/orchestrator/runs/[^/]+/(completion/(accept|reject)|merge-approval"
             r"|changes/[^/]+/review)", "approve"),
     # Session 6 export and deletion requests (part 50): exports need `export`; a deletion request

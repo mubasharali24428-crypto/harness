@@ -1297,6 +1297,13 @@ export class OrchestratorClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
   }
 
+  /** Plans Version Approve
+   *  POST /api/v1/orchestrator/runs/{runId}/plan/versions/{n}/approve */
+  plans_version_approve(run_id: string, n: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/plan/versions/${encodeURIComponent(n)}/approve`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
   /** Plans Comments List
    *  GET /api/v1/orchestrator/runs/{runId}/plan/versions/{n}/comments */
   plans_comments_list(run_id: string, n: string, limit?: number, after?: string | null): Promise<Record<string, unknown>> {

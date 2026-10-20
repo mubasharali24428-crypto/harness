@@ -764,6 +764,47 @@ class OrchestratorService(Orchestrator):
         sm.plan_proposed(plan_id)
         return plan_id
 
+    async def adopt_plan_version(self, run_id: str, content: dict[str, Any]) -> str:
+        """Make a reviewed plan VERSION (part 44.002/003) the run's open plan.
+
+        The engine only ever runs the planner's ``AgentPlan`` for ``run_data["plan_id"]``, so a
+        version that was created or edited natively becomes executable by being registered here:
+        a fresh legacy plan id, an ``agent_plans`` mirror row (so a restart rehydrates the SAME
+        plan) and a new PLAN_PROPOSED event. The previous open plan is rejected in the mirror so it
+        cannot be approved later. Deciding the returned id is the ordinary CAS-first
+        :meth:`approve_plan`. Refused once a plan is approved or the run is past planning.
+        """
+        run_data = await self._ensure_run(run_id)
+        sm: AgentStateMachine = run_data["state_machine"]
+        if sm.plan_approved or sm.state not in (
+            AgentState.IDLE,
+            AgentState.PLANNING,
+            AgentState.AWAITING_PLAN_APPROVAL,
+        ):
+            raise InvalidStateTransitionError(
+                f"Run '{run_id}' ({sm.state}) has its plan decided; the plan can no longer change."
+            )
+        plan = AgentPlan(
+            goal=content["goal"],
+            filesLikelyToChange=list(content.get("filesLikelyToChange") or []),
+            steps=list(content.get("steps") or []),
+            tests=list(content.get("tests") or []),
+            risks=list(content.get("risks") or []),
+            estimatedCostUsd=float(content.get("estimatedCostUsd") or 0),
+            forbiddenPaths=list(content.get("forbiddenPaths") or []),
+            expectedResult=str(content.get("expectedResult") or ""),
+        )
+        previous = run_data.get("plan_id")
+        plan_id = f"plan-{secrets.token_hex(4)}"
+        self.planner.plans[plan_id] = plan
+        self.planner.plan_approvals[plan_id] = False
+        run_data["plan_id"] = plan_id
+        await self._persist_plan(run_id, plan_id, plan, status="proposed")
+        if previous and previous != plan_id:
+            await self._persist_plan_status(run_id, previous, "rejected")
+        sm.plan_proposed(plan_id)
+        return plan_id
+
     async def _decide_plan(
         self,
         run_id: str,

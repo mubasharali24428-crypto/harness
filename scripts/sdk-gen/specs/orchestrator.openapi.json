@@ -8256,6 +8256,59 @@
     ]
    }
   },
+  "/api/v1/orchestrator/runs/{runId}/plan/versions/{n}/approve": {
+   "post": {
+    "operationId": "plans_version_approve_api_v1_orchestrator_runs__runId__plan_versions__n__approve_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "n",
+      "required": true,
+      "schema": {
+       "title": "N",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Plans Version Approve Api V1 Orchestrator Runs  Runid  Plan Versions  N  Approve Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Plans Version Approve",
+    "tags": [
+     "plans"
+    ]
+   }
+  },
   "/api/v1/orchestrator/runs/{runId}/plan/versions/{n}/comments": {
    "get": {
     "operationId": "plans_comments_list_api_v1_orchestrator_runs__runId__plan_versions__n__comments_get",
