@@ -4,7 +4,7 @@ Citations are `file:line` as of this commit. "NOT ENFORCED" means no code path r
 
 ## Event schema versioning
 
-- Source of truth: `contracts/src/harness_contracts/events.py`. `EventEnvelope` (:31) is `{type, payload, ts, seq, projectId, runId}`. `EventType` (:8) is a closed enum. There is **no per-event schema-version field**: versioning is per package, not per event.
+- Source of truth: `contracts/src/harness_contracts/events.py`. `EventEnvelope` (:31) is `{type, payload, ts, seq, projectId, runId}`. `EventType` (:8) is a closed enum. The project-stream envelope has **no per-event schema-version field**: versioning is per package. The collaboration stream does carry one: `run_collab_events.schema_version` (migration 0035), `COLLAB_SCHEMA_VERSION = 1` in `section1/.../eventbus.py`, `schemaVersion` on every frame and polling page (`docs/realtime.md` 5.5). Collaboration requests, states, legal transitions and error codes: `docs/collaboration-contract.md`.
 - Package version is `1.0.0rc2` in four places that must move in one commit: `contracts/pyproject.toml:3`, `contracts/src/harness_contracts/__init__.py:54`, the TS mirror header (`contracts/ts/types.d.ts`), and installed metadata. Enforced by `section1/tests/test_version_pin_conformance.py:153`. The TS mirror is regenerated and checked with `contracts/ts/generate.py --check`.
 - Additive change (new event type, new optional field): allowed without a major bump, but bump patch/minor and update the TS mirror. Precedent: `ENGINE_COMPLETED`/`ENGINE_FAILED` (`events.py:24-25`).
 - Breaking change: bump the version and update every consumer's mocks in the same commit; no deprecation shim in `contracts/` (`docs/api-versioning.md`, "Contracts versioning law"; `contracts/api-conventions.md`, "Versioning").
@@ -44,8 +44,8 @@ Default 10/min (`ratelimit.py:95-96`) on OTP request/verify, `auth/login`, SSO s
 
 ## NOT ENFORCED
 
-- Per-connection / per-project event publish rate: only the per-event byte cap exists; no events-per-second limit.
+- Event publish rate on the bus: only the per-event byte cap exists. The sockets are capped on the way out and in (500 live frames/s, 120 client messages/min, 20 sockets per user per process: `docs/realtime.md` section 4) and the collaboration mutation routes are IP-limited, but a publisher is not rate-limited.
 - Global HTTP request-body size cap (no middleware reads Content-Length to reject); only per-field caps above apply, so unmodelled endpoints are unbounded.
 - Max length of free-text fields outside the lists above (e.g. sandbox exec command text, section 3 model-call prompts, section 8 review comments): no cap found.
-- Per-event schema version: none exists in the envelope.
+- Per-event schema version on the project stream (`EventEnvelope`): none. Collaboration events have one (above).
 - Sandbox exec stdout/stderr size and per-file edit size: only the time budget is enforced.

@@ -21,7 +21,7 @@ Row granularity is one row per part (directive groups are listed in the master p
 | 11 | Events & audit | s1/s4 | verified | migration 0036 hash chain + test_audit_chain_pg.py, export/push tests, docs/audit-and-events.md; limits in its section 8; UI does not yet consume WS push |
 | 12 | Shared experience (UI) | s7 | implemented | `collab.test.tsx` (vitest 540 passed); `multiplayer.e2e.ts` legs pass (`evidence/s2/lane-c.md`). Gaps: item 009 terminal details and responsive layout untested; no screen-reader check; polling data path until lane A WS push is wired |
 | 13 | Architecture review | docs | verified | `docs/architecture-map.md` |
-| 14 | Contract design | contracts, scripts | partial | `scripts/spec_drift.py` (6 services), `docs/contracts-and-limits.md`; limits NOT ENFORCED listed there; no per-event schema version |
+| 14 | Contract design | contracts, scripts, docs | verified | `docs/collaboration-contract.md` (roles, redirect, handoff, approval states and transitions, error index) executed by `test_collab_contract.py` (46); `scripts/spec_drift.py` clean; `evidence/s11/part14.md`. Limits: project-stream envelope has no schema version; `STALE_CLIENT_STATE` has no emitter; race-only codes not provoked (no live PG) |
 | 15 | Implementation method | docs | implemented | `docs/briefs/stable-prompt-prefix.md` |
 | 16 | Agent operating model | docs | implemented | `stable-prompt-prefix.md` (method) |
 | 17 | Suggested agent lanes | docs | implemented | Session 1 used lanes A–D (`path-to-9-session1-prompt.md`) |
