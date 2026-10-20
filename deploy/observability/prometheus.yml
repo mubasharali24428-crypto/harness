@@ -21,6 +21,13 @@ global:
 rule_files:
   - /etc/prometheus/alerts.yml
 
+# Parts 28/55: firing rules go to Alertmanager, which emails them (alertmanager.yml).
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
 scrape_configs:
   - job_name: harness-backends
     # One target per backend = the ONE scrape target covering all services.

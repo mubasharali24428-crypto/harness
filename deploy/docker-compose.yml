@@ -905,6 +905,54 @@ services:
       db:
         condition: service_healthy
 
+  # Parts 28/55: delivers every Prometheus alert by email, reusing the stack's
+  # HARNESS_SMTP_* settings; HARNESS_ALERT_EMAIL_TO is required (refuses to start
+  # without it). Same profile as prometheus:
+  #   docker compose -f deploy/docker-compose.yml --profile observability up -d prometheus alertmanager
+  # deploy/observability/alertmanager.yml is a template rendered at start; see
+  # docs/runbooks/alerting.md section 7.
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    profiles:
+      - observability
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_JOB_CPU_LIMIT:-0.25}"
+          memory: ${HARNESS_JOB_MEM_LIMIT:-256m}
+          pids: ${HARNESS_JOB_PIDS_LIMIT:-64}
+    logging: *logging-caps
+    environment:
+      HARNESS_SMTP_HOST: ${HARNESS_SMTP_HOST:-}
+      HARNESS_SMTP_PORT: ${HARNESS_SMTP_PORT:-587}
+      HARNESS_SMTP_USERNAME: ${HARNESS_SMTP_USERNAME:-}
+      HARNESS_SMTP_PASSWORD: ${HARNESS_SMTP_PASSWORD:-}
+      HARNESS_SMTP_FROM: ${HARNESS_SMTP_FROM:-harness@noreply.local}
+      HARNESS_SMTP_STARTTLS: ${HARNESS_SMTP_STARTTLS:-true}
+      HARNESS_ALERT_EMAIL_TO: ${HARNESS_ALERT_EMAIL_TO:-}
+    entrypoint: ["/bin/sh", "-c"]
+    # ponytail: sed substitution, so a value must not contain `|`, `&` or `\`
+    # (host, port, addresses never do; the password goes to a file instead).
+    command:
+      - |
+        [ -n "$$HARNESS_ALERT_EMAIL_TO" ] || { echo "alertmanager: set HARNESS_ALERT_EMAIL_TO" >&2; exit 1; }
+        umask 077
+        printf '%s' "$$HARNESS_SMTP_PASSWORD" > /tmp/smtp_password
+        sed -e "s|\$${HARNESS_SMTP_HOST}|$$HARNESS_SMTP_HOST|" \
+            -e "s|\$${HARNESS_SMTP_PORT}|$$HARNESS_SMTP_PORT|" \
+            -e "s|\$${HARNESS_SMTP_USERNAME}|$$HARNESS_SMTP_USERNAME|" \
+            -e "s|\$${HARNESS_SMTP_FROM}|$$HARNESS_SMTP_FROM|" \
+            -e "s|\$${HARNESS_SMTP_STARTTLS}|$$HARNESS_SMTP_STARTTLS|" \
+            -e "s|\$${HARNESS_ALERT_EMAIL_TO}|$$HARNESS_ALERT_EMAIL_TO|" \
+            /etc/alertmanager-src/alertmanager.yml > /tmp/alertmanager.yml
+        exec /bin/alertmanager --config.file=/tmp/alertmanager.yml --storage.path=/alertmanager
+    volumes:
+      - ./observability:/etc/alertmanager-src:ro
+      - alertmanager_data:/alertmanager
+    ports:
+      - "127.0.0.1:9093:9093"
+    restart: unless-stopped
+
   db-loadtest:
     image: postgres:18-alpine
     profiles:
@@ -1073,6 +1121,7 @@ volumes:
   walg_logs:
   # M20-T2: Prometheus TSDB (15d retention, see the `prometheus` service).
   prometheus_data:
+  alertmanager_data:
   # M15-W5-D2: db-maintenance run logs (mounted at
   # /var/log/harness-maintenance) survive --rm/restarts.
   maintenance_logs:

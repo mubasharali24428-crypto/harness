@@ -729,3 +729,29 @@ def test_services_wire_domain_counters_into_the_scraped_metrics():
     src = (Path(__file__).resolve().parents[2] / "deploy" / "runners" / "services.py").read_text()
     assert "identity_domain_metrics.render() + realtime_metrics.render()" in src
     assert 'simple_app(router, "harness-orchestrator", orchestrator_domain_metrics.render)' in src
+
+
+def test_alerts_are_routed_to_alertmanager_and_delivered_by_email():
+    """Parts 28/55: a firing rule must reach a person, not only Prometheus's /alerts page."""
+    prom = yaml.safe_load(_PROM_CONFIG.read_text())
+    targets = prom["alerting"]["alertmanagers"][0]["static_configs"][0]["targets"]
+    assert targets == ["alertmanager:9093"]
+
+    svc = yaml.safe_load(_COMPOSE.read_text())["services"].get("alertmanager")
+    assert svc, "compose has no alertmanager service"
+    assert "observability" in svc.get("profiles", [])
+    env = svc["environment"]
+    for key in ("HARNESS_SMTP_HOST", "HARNESS_SMTP_FROM", "HARNESS_ALERT_EMAIL_TO"):
+        assert key in env, key
+
+    am = yaml.safe_load((DEPLOY / "observability" / "alertmanager.yml").read_text())
+    receivers = {r["name"]: r for r in am["receivers"]}
+    email = receivers[am["route"]["receiver"]]["email_configs"][0]
+    assert email["to"] == "${HARNESS_ALERT_EMAIL_TO}"
+    # Every severity alerts.yml uses is delivered (none silently routed to a null receiver).
+    rules = yaml.safe_load((DEPLOY / "observability" / "alerts.yml").read_text())
+    severities = {r["labels"]["severity"] for g in rules["groups"] for r in g["rules"]}
+    routed = {m.split('"')[1] for r in am["route"].get("routes", []) for m in r["matchers"]}
+    assert severities <= routed, severities - routed
+    for child in am["route"]["routes"]:
+        assert child.get("receiver", am["route"]["receiver"]) == am["route"]["receiver"]

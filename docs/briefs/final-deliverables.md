@@ -100,7 +100,7 @@ Sessions 6 to 10 were built by Codex and verified by Claude (`path-to-9-checkpoi
 | Sandbox with `confinement=off` has no OS boundary; Linux Landlock path never run | High for any shared host | operator | open; pilot runbook requires container isolation on |
 | SDK shell bypasses the Section 5 command allow-list (parts 31, 52) | Medium | program owner | open; plans with forbidden paths are refused before the SDK runs |
 | `HARNESS_PILOT_TEAMS` empty or unset opens collaboration to every team | High if misconfigured | operator | documented; pilot environments must use a non-empty list |
-| No Alertmanager, no alert delivery destination; backup and WAL alerts inert | Medium | operator | open (`docs/runbooks/alerting.md`) |
+| Alerts reach one email address only (no pager, no Alertmanager HA); backup and WAL alerts inert | Medium | operator | email delivery done and proved live (`evidence/s11/alert-delivery.md`); rest open |
 | Backup restore, point-in-time recovery never exercised on a real object store | High | operator | open; part 53 stays capped at 8 |
 | In-flight model spend is estimate-based; warning thresholds are not delivered | Medium | program owner | open (part 57) |
 | Live identity-provider (SSO) flows unproven | Medium | program owner | open; part 37 capped at 8 |
@@ -117,7 +117,7 @@ Operating rules are in `docs/runbooks/pilot.md` (flag `HARNESS_PILOT_TEAMS`, ope
 2. Compose stack up on a Docker host and `deploy/pilot/run_smoke.py --otp` green on that exact commit.
 3. `HARNESS_PILOT_TEAMS` non-empty and listing only the rehearsal teams; the rollback value `__rolled_back__` understood.
 4. Container isolation on; confinement is not `off`; a Stop is confirmed (`run.cancel_confirmed`) in a dry run.
-5. Alert rules loaded and the operator watching the audit log by hand (no Alertmanager).
+5. Alert rules loaded, `HARNESS_ALERT_EMAIL_TO` set, and a test alert received (`docs/runbooks/alerting.md` section 7).
 6. Decision recorded on T13b before any email-OTP exposure beyond the rehearsal team.
 7. A scratch-database run of `deploy/runners/migrate_selftest.py` on the target PostgreSQL version (passed on 16.15 here).
 8. Named operator and backup (`docs/runbooks/pilot.md` section 3); incident record and feedback questions printed.

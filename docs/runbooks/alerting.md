@@ -5,8 +5,8 @@
 > by every backend at `GET /metrics` and scraped by the `prometheus` compose
 > service (profile `observability`). **alerts.yml is the source of truth for
 > thresholds**; the PromQL blocks in section 3 mirror the original rules a-f
-> and are kept for the explanation and the structural test. Rules without an
-> emitter or without Alertmanager do not page anyone (section 5).
+> and are kept for the explanation and the structural test. Firing rules are
+> emailed by Alertmanager (section 7); rules without an emitter never fire (section 5).
 
 ## 1. Loading the rules
 
@@ -215,12 +215,9 @@ harness_stale_running_claims > 0
   `harness_pg_wal_archive_failed_count_total` appear only in this doc, in
   `alerts.yml` and in tests). Rules d/e load but cannot fire until an
   exporter/textfile producer exists; they are annotated INERT.
-- No postgres_exporter / Grafana / Alertmanager containers (lane scope: no
-  new heavy deps; Prometheus itself is the single added image).
-- No notification routing: rules fire in Prometheus only (visible at
-  `/alerts`); wire Alertmanager (+ PagerDuty/SMTP receiver) before trusting
-  `severity: page` to wake anyone. Until then the operator-present rule in
-  [pilot.md](pilot.md) is the only real-time detection.
+- No postgres_exporter / Grafana containers (lane scope: no new heavy deps).
+- Delivery is one email address (section 7): no pager or chat channel, no
+  Alertmanager high availability.
 - The legacy `/api/v1/orchestrator/metrics` route keeps serving the
   orchestrator-only Wave 8 collector; both endpoints coexist by design.
 
@@ -249,3 +246,25 @@ Also in `alerts.yml`: `HarnessServiceDown` (page; `up == 0` for 2m) and
 `HarnessHigh5xxRate` (warning; 5xx ratio >5% for 10m on one instance, from
 `http_requests_total`). The per-service split is the `instance` label
 (`orchestrator:8004`); there is one scrape job, `harness-backends`.
+
+## 7. Delivery: Alertmanager emails every alert
+
+`alertmanager` (profile `observability`) receives every firing rule from Prometheus and emails it, reusing the stack's
+`HARNESS_SMTP_*` settings. Set the recipient and start both:
+
+```sh
+# .env: HARNESS_ALERT_EMAIL_TO=oncall@example.com (plus HARNESS_SMTP_HOST/PORT/USERNAME/PASSWORD/FROM/STARTTLS)
+docker compose --env-file .env -f deploy/docker-compose.yml --profile observability up -d prometheus alertmanager
+```
+
+- Routing (`deploy/observability/alertmanager.yml`): `page` mails after 10 s and repeats hourly; `warning` repeats every 12 h;
+  resolved alerts mail too. Grouped by `alertname` and `instance`.
+- The file is a template: the entrypoint substitutes the `${VAR}` placeholders and puts the password in `/tmp/smtp_password`
+  (0600). It refuses to start without `HARNESS_ALERT_EMAIL_TO`. Check the rendered file with
+  `docker compose ... exec alertmanager amtool check-config /tmp/alertmanager.yml`.
+- `HARNESS_SMTP_STARTTLS=true` (default) makes Alertmanager require TLS; set it to `false` only for a local catcher.
+- Prove delivery after any change: post a test alert
+  (`curl -XPOST localhost:9093/api/v2/alerts -H 'Content-Type: application/json' -d '[{"labels":{"alertname":"DeliveryCheck","severity":"warning"}}]'`)
+  and confirm the mail arrives. The last full run is `docs/briefs/evidence/s11/alert-delivery.md`.
+- Silence during maintenance: `docker compose ... exec alertmanager amtool silence add alertname=HarnessServiceDown --duration 30m --alertmanager.url=http://localhost:9093`.
+

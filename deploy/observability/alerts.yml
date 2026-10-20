@@ -10,9 +10,9 @@
 # The harness-pilot group reads the four closed-label counters defined in
 # section4 harness_orchestrator/domain_metrics.py (event delivery: also section1
 # harness_identity/domain_metrics.py). Every series is rendered at 0 from the
-# first scrape, so "no data" now means the service is not scraped. Notification
-# routing (Alertmanager) is NOT configured: these fire inside Prometheus only
-# (see alerting.md section 5).
+# first scrape, so "no data" now means the service is not scraped. Firing rules
+# go to Alertmanager, which emails HARNESS_ALERT_EMAIL_TO (alertmanager.yml,
+# alerting.md section 7).
 
 groups:
   - name: harness-availability

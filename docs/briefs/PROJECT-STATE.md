@@ -53,7 +53,7 @@ Readiness: **NO-GO** for broad rollout (`docs/briefs/final-deliverables.md`, sec
 1. **Docker.** Rows 25, 26, 28, 32, 53, 59 need the compose stack (pilot smoke, `make e2e*`, `make pg-probe-*`, restore drill), and four
    section 1 tests (`test_runs_index_tuning` live plan, three in `test_fk_deletion_story`) call `docker exec harness-db-1`. The daemon
    is down; PostgreSQL answers on `localhost:5499` (harness/harness), so everything else runs against it (§5).
-2. Parts 28/55: no Alertmanager route or delivery destination; Part 54: no fresh load run, WebSocket capacity or multi-replica check.
+2. Part 54: no fresh load run, WebSocket capacity or multi-replica check. (Parts 28/55 alert delivery: done, `evidence/s11/alert-delivery.md`.)
 3. Part 52 shell allow-list: the SDK has no pre-tool hook and spawns `/bin/bash` by absolute path, so it needs a runtime hook or the
    image boundary (`section4/worker.Dockerfile`, now committed).
 4. Part 38 limits (`docs/permissions.md`): the collaboration WebSocket and `/orgs/*` are not engine-gated; the gate trusts project and
@@ -85,7 +85,7 @@ Not a gap: a paused workspace only blocks new starts, by design (`workspace_gate
 - The A5 packages (`packages/*`, `integrations/connectors/*`) have no venv in the repo: install them with their `dev` extras in a
   fresh venv (extensions needs `mcp<2`) and run `pytest tests` from each package directory with `PYTHONPATH=src`.
 - `HARNESS_PILOT_TEAMS` is an **allowlist**: unset or empty opens collaboration to every team.
-- Prometheus scrapes the **root `/metrics`**; sandbox `confinement=off` has no OS boundary; there is no Alertmanager.
+- Prometheus scrapes the **root `/metrics`**; sandbox `confinement=off` has no OS boundary; Alertmanager emails `HARNESS_ALERT_EMAIL_TO` (`docs/runbooks/alerting.md` §7).
 - `ruff check --fix` deletes imported pytest fixtures. Never use it broadly (`--select I001 --fix` on one new file is fine).
 - SQLite tests with spawned engine tasks must await the tasks before `engine.dispose()`, or teardown stalls.
 - SQLite hides PostgreSQL typing errors: an untyped empty `IN` list failed only on PostgreSQL (`evidence/s11/live-pg-search-export.md`).
@@ -105,7 +105,7 @@ Not a gap: a paused workspace only blocks new starts, by design (`workspace_gate
 
 ## 6. Not cleared
 
-The pilot is **not cleared for real users**: no measured baseline (part 03), no Alertmanager, operator-present rules are manual, live
+The pilot is **not cleared for real users**: no measured baseline (part 03), alerts reach one email address only, operator-present rules are manual, live
 SSO unproven, no pen test, point-in-time recovery unproven, no counsel review, and no pilot smoke has run on the current tree; the
 browser check used synthetic data and no screen reader.
 
