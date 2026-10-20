@@ -11,3 +11,4 @@ task0
 .git
 **/.env
 **/.env.*
+**/build
