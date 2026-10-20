@@ -1,4 +1,3 @@
-
 import pytest
 from httpx import ASGITransport, AsyncClient, MockTransport, Response
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -22,6 +21,14 @@ async def db():
     engine = create_async_engine("sqlite+aiosqlite://")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        from sqlalchemy import text
+
+        await conn.execute(
+            text(
+                "CREATE TABLE high_impact_approvals (id TEXT, run_id TEXT, "
+                "requester_user_id TEXT, state TEXT)"
+            )
+        )
     factory = async_sessionmaker(engine, expire_on_commit=False)
     yield factory
     await engine.dispose()

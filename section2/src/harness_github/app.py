@@ -23,6 +23,11 @@ OAUTH_STATE_TTL = 600
 START_TICKET_TTL = 60
 
 
+def _requested_oauth_scopes(settings: Settings) -> tuple[str, ...]:
+    repo_scope = "repo" if settings.github_scope_mode == "private" else "public_repo"
+    return (repo_scope, "read:user")
+
+
 def make_app(session_factory, settings: Settings):
     app = FastAPI(title="harness-github", version="0.1.0")
     app.add_middleware(
@@ -160,7 +165,7 @@ async def oauth_start(request: Request, ticket: str = ""):
         f"{GITHUB_WEB}/login/oauth/authorize"
         f"?client_id={settings.github_client_id}"
         f"&redirect_uri={quote(settings.github_redirect_uri, safe='')}"
-        "&scope=repo%20read:user"
+        f"&scope={quote(' '.join(_requested_oauth_scopes(settings)), safe=':')}"
         f"&state={state}"
     )
     return RedirectResponse(url, status_code=302)
@@ -204,9 +209,9 @@ async def oauth_callback(code: str, state: str, request: Request):
         access_token = payload.get("access_token")
         if not access_token:
             raise RuntimeError("no access_token in exchange response")
-        granted_scopes = [
-            s for s in str(payload.get("scope", "")).split(" ") if s
-        ] or ["repo", "read:user"]
+        granted_scopes = [s for s in str(payload.get("scope", "")).split(" ") if s] or list(
+            _requested_oauth_scopes(settings)
+        )
         from .client import GitHubClient
 
         user = await GitHubClient(access_token, request.app.state.transport).get_user()
@@ -247,14 +252,18 @@ async def connection_status(request: Request) -> dict:
     principal = await _start_principal(request)
     async with request.app.state.session_factory() as db:
         row = (
-            await db.execute(
-                text(
-                    "SELECT github_login, scopes FROM github_connections "
-                    "WHERE user_id = :u ORDER BY created_at DESC LIMIT 1"
-                ),
-                {"u": principal.userId},
+            (
+                await db.execute(
+                    text(
+                        "SELECT github_login, scopes FROM github_connections "
+                        "WHERE user_id = :u ORDER BY created_at DESC LIMIT 1"
+                    ),
+                    {"u": principal.userId},
+                )
             )
-        ).mappings().first()
+            .mappings()
+            .first()
+        )
     if row is None:
         return {"connected": False, "login": None, "scopes": []}
     import json as _json
@@ -299,9 +308,7 @@ async def connect_repo(project_id: str, body: ConnectBody, service: ServiceDep) 
 async def read_tree(project_id: str, ref: str, service: ServiceDep) -> dict:
     svc, principal = service
     try:
-        items = await svc.readRepoTree(
-            principal.userId, project_id, ref, team_id=principal.teamId
-        )
+        items = await svc.readRepoTree(principal.userId, project_id, ref, team_id=principal.teamId)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"items": items}
@@ -311,9 +318,7 @@ async def read_tree(project_id: str, ref: str, service: ServiceDep) -> dict:
 async def read_file(project_id: str, ref: str, path: str, service: ServiceDep) -> dict:
     svc, principal = service
     try:
-        return await svc.readFile(
-            principal.userId, project_id, ref, path, team_id=principal.teamId
-        )
+        return await svc.readFile(principal.userId, project_id, ref, path, team_id=principal.teamId)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -362,6 +367,8 @@ class DraftPRBody(BaseModel):
 
 @router.post("/projects/{project_id}/pulls/draft")
 async def open_draft_pr(project_id: str, body: DraftPRBody, service: ServiceDep) -> dict:
+    from .service import StagedChangesPendingError, StagingGateUnavailableError
+
     svc, principal = service
     try:
         return await svc.openDraftPR(
@@ -375,6 +382,16 @@ async def open_draft_pr(project_id: str, body: DraftPRBody, service: ServiceDep)
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    except StagedChangesPendingError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"error": {"code": "STAGED_APPROVAL_PENDING", "message": str(exc)}},
+        ) from exc
+    except StagingGateUnavailableError as exc:
+        raise HTTPException(
+            status_code=503, detail={"error": {"code": "STAGING_UNAVAILABLE", "message": str(exc)}}
+        ) from exc
 
 
 @router.get("/projects/{project_id}/runs/{run_id}/pr")

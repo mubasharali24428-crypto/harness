@@ -29,7 +29,7 @@ def auth() -> dict:
 
 
 async def _seed(db):
-    from conftest import seed_user_and_project
+    from tests.conftest import seed_user_and_project
 
     await seed_user_and_project(db)
 
@@ -69,7 +69,7 @@ async def test_start_redirects_to_github_with_bound_state(db, client):
     loc = r.headers["location"]
     assert loc.startswith("https://github.com/login/oauth/authorize")
     assert "client_id=cid" in loc
-    assert "scope=repo%20read:user" in loc
+    assert "scope=public_repo%20read:user" in loc
     assert "redirect_uri=" in loc
     state = await _extract_state(loc)
     from harness_github.state_store import consume_oauth_state

@@ -1,10 +1,19 @@
 import httpx
 from harness_contracts import KeyVault
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .client import GitHubClient
 from .pr_open import record_pr_opened
 from .store import connect_repo, get_repo_full_name, get_user_token
+
+
+class StagedChangesPendingError(RuntimeError):
+    pass
+
+
+class StagingGateUnavailableError(RuntimeError):
+    pass
 
 
 class GitHubService:
@@ -87,8 +96,29 @@ class GitHubService:
         *,
         team_id: str,
     ) -> dict:
-        client, _ = await self._client_for(user_id)
+        from .pr_open import run_id_from_branch
+
         repo = await get_repo_full_name(self._db, project_id, team_id)
+        run_id = run_id_from_branch(branch)
+        if run_id is not None:
+            try:
+                pending = (
+                    await self._db.execute(
+                        text(
+                            "SELECT a.id FROM high_impact_approvals a "
+                            "JOIN agent_runs r ON r.id = a.run_id "
+                            "WHERE r.id = :r AND r.project_id = :p "
+                            "AND a.requester_user_id = 'system:staging' "
+                            "AND a.state IN ('pending','approved','executing') LIMIT 1"
+                        ),
+                        {"r": run_id, "p": project_id},
+                    )
+                ).first()
+            except Exception as exc:
+                raise StagingGateUnavailableError("Staged-change gate is unavailable") from exc
+            if pending:
+                raise StagedChangesPendingError("Apply staged changes before opening a PR")
+        client, _ = await self._client_for(user_id)
         pr = await client.open_draft_pr(repo, branch, base_branch, title, body_md)
         if not pr["draft"]:
             raise RuntimeError("GitHub returned a non-draft PR; refusing to accept")
@@ -102,9 +132,7 @@ class GitHubService:
 
             run_id = run_id_from_branch(branch)
             if run_id is not None:
-                emitted = await record_pr_opened(
-                    self._db, self._bus, project_id, run_id, pr
-                )
+                emitted = await record_pr_opened(self._db, self._bus, project_id, run_id, pr)
         except Exception:  # noqa: BLE001 — producer must never fail the open
             pass
         if emitted is not None:
