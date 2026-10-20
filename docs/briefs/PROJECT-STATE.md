@@ -100,6 +100,15 @@ HARNESS_TEST_PG_DSN=postgresql://harness:harness@localhost:5499/harness section1
   Section 4 full suite after the change: 1526 passed, 38 skipped, 0 failed. Ruff clean on touched files (`deploy/runners/services.py`
   has 6 older findings). Not covered: paused workspaces do not stop running runs; the purge was not run on PG.
 
+### 3g-2. Part 31/58: holds now cover content deletion and backup expiry
+
+`exports._execute` (authored-content deletion) leaves comments in held scopes, their reactions/mentions and the history exports of
+held scopes untouched and reports `commentsHeld`/`exportFilesHeld`; a new RETAINED policy entry says why. `deploy/runners/backup.sh`
+and `deploy/backup/backup.sh` skip expiry while `run_retention_holds` has rows or cannot be read (fail closed; `backup.sh retention`
+exits non-zero). Tests `test_deletion_holds.py` (2), `test_backup_holds.py` (9, fake psql/wal-g/docker); the shared search test env now
+applies migration 0056. Open: account erasure; backups expired by bucket lifecycle rules or `rsync --delete` mirrors are outside the
+scripts; no live PG or real WAL-G run of the guards.
+
 ## 3e. Session 7 result
 
 Part 49 remains partial: team-scoped versioned outbound webhooks have encrypted one-time secrets,

@@ -389,3 +389,12 @@ scheduling had no catch-up and hid failures — host cron owns scheduling now).
 **Next credentialed operator:** set the S3 env, rerun the DRILL section
 verbatim against `WALG_S3_PREFIX`, move rows from UNEXECUTED here, then
 tighten the RPO row at the top.
+
+## Retention holds and backup expiry
+
+A team admin can place a retention hold on a run (`run_retention_holds`, migration 0056). Held data may sit in any
+backup, so **no backup is expired while any hold exists**: `deploy/runners/backup.sh` (`WALG_RETENTION_KEEP`) and
+`deploy/backup/backup.sh` (`BACKUP_KEEP`) check the table before they delete and skip expiry when a hold is active.
+They fail closed: if `psql` cannot read the table the prune is skipped, and `backup.sh retention` exits non-zero. A base
+backup itself still succeeds when its prune is skipped. A database without the table (before 0056) has no holds. Backups
+that other tooling expires (bucket lifecycle rules, `rsync --delete` mirrors) are not covered and need the same check.

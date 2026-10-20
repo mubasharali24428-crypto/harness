@@ -95,6 +95,23 @@ db_exec_in pg_restore --list <"$TMP_OUT" >/dev/null || {
 mv "$TMP_OUT" "$OUT"
 log "snapshot written: $OUT ($(du -h "$OUT" | cut -f1))"
 
+# Run retention holds (migration 0056) mean held data may sit in any snapshot, so none is expired
+# until the holds are released. Fails closed: holds that cannot be read count as holds.
+holds_forbid_pruning() {
+    present=$(db_exec psql -U "$PGUSER" -d "$PGDATABASE" -Atqc "select to_regclass('run_retention_holds') is not null" 2>/dev/null) ||
+        { log "WARN: cannot read run retention holds; not pruning"; return 0; }
+    [ "$present" = "t" ] || return 1 # no hold table (pre-0056 schema): no holds exist
+    held=$(db_exec psql -U "$PGUSER" -d "$PGDATABASE" -Atqc "select count(*) from run_retention_holds" 2>/dev/null) ||
+        { log "WARN: cannot count run retention holds; not pruning"; return 0; }
+    case "$held" in '' | *[!0-9]*) log "WARN: unreadable hold count '$held'; not pruning"; return 0 ;; esac
+    if [ "$held" -gt 0 ]; then log "retention: $held run retention hold(s) active"; return 0; fi
+    return 1
+}
+if [ "$BACKUP_KEEP" -gt 0 ] && holds_forbid_pruning; then
+    log "retention: SKIPPED, no snapshot is expired while run retention holds are active"
+    BACKUP_KEEP=0
+fi
+
 # Retention: UTC timestamps sort lexicographically, so reverse-sorted names =
 # newest first. Keep the newest BACKUP_KEEP, delete the rest.
 if [ "$BACKUP_KEEP" -gt 0 ]; then

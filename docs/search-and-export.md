@@ -176,6 +176,12 @@ their export files and every unexpired history export whose scope holds data the
 Afterwards the indexer does not re-index events or approvals they caused up to the execution time, and exports show them as a
 deleted user.
 
+**Run retention holds.** Comments in a scope under a hold (a run with a `run_retention_holds` row, or a session that
+contains such a run) are not tombstoned, renamed or blanked; reactions and mentions on them stay; history exports of that scope
+stay. Everything else in the request still executes. `result.deleted` reports `commentsHeld` and `exportFilesHeld`. After the
+hold is released the person files a new request. Hold create/release and the deletion serialize on PostgreSQL through the same
+advisory lock.
+
 **Retained, with the reason** (`policy.retained`, also stored in the executed result): `audit_log` (append-only, hash chained,
 ids and counts only); `run_collab_events` (run history including guidance an agent received is evidence of why it acted; kept
 until the run's retention job, search no longer finds them); `high_impact_approvals` (a digest-bound decision); the comment

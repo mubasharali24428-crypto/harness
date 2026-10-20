@@ -27,7 +27,8 @@ from . import test_discussion_support as base
 from .test_discussion_support import SESSIONS, T0, USERS, P, err  # noqa: F401 - re-exported
 
 MIGRATIONS = Path(__file__).resolve().parents[3] / "section1" / "migrations"
-FILES = ("0041_sessions.sql", "0043_control.sql", "0045_discussion.sql", "0050_search_export.sql")
+FILES = ("0041_sessions.sql", "0043_control.sql", "0045_discussion.sql", "0050_search_export.sql",
+         "0056_run_retention_holds.sql")
 
 _REPLACED = ("CREATE TABLE agent_runs", "CREATE TABLE agent_plans")
 DDL = tuple(d for d in base.DDL if not d.startswith(_REPLACED)) + (

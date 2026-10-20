@@ -85,6 +85,13 @@ RETAINED = [
         " a consequential action; kept (search no longer finds your requests)",
     },
     {
+        "store": "content under a run retention hold",
+        "why": "a team admin placed a hold on the run for an investigation: comments on that run"
+        " (or a session containing it) and history exports of it are left as they are until the"
+        " hold is released, then a new deletion request removes them; the counts say how many"
+        " were held",
+    },
+    {
         "store": "comments (tombstone row)",
         "why": "keeps thread structure, the opaque author user id"
         " and timestamps; the text and display name are gone",
@@ -1108,17 +1115,37 @@ def _chunks(items: list[str], n: int = 400) -> list[list[str]]:
     return [items[i : i + n] for i in range(0, len(items), n)]
 
 
+def _held(kind: str, sid: str) -> str:
+    """SQL condition: the run (or a run of the session) in this scope has a retention hold."""
+    return (
+        f"(({kind} = 'run' AND {sid} IN (SELECT run_id FROM run_retention_holds)) OR"
+        f" ({kind} = 'session' AND {sid} IN (SELECT sr.session_id FROM session_runs sr"
+        " JOIN run_retention_holds h ON h.run_id = sr.run_id)))"
+    )
+
+
 async def _execute(db: Any, team: str, subject: str, decider: str) -> tuple[dict, list[str]]:
     """The documented deletion, in the caller's transaction. Returns (counts, export files to
-    remove after the commit)."""
+    remove after the commit).
+
+    Content in a scope under a run retention hold (a run's discussion, or a session that holds a
+    held run) is evidence and is left untouched; the counts report how much was held back."""
     t = search.now()
     u = {"t": team, "u": subject}
-    mine = await search.rows(
+    if db.bind.dialect.name == "postgresql":  # same lock hold create/release take first
+        await db.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended('run-retention-holds', 0))")
+        )
+    every = await search.rows(
         db,
-        "SELECT id, scope_kind, scope_id, state FROM comments WHERE team_id = :t AND"
-        " author_user_id = :u",
+        "SELECT id, scope_kind, scope_id, state,"
+        f" CASE WHEN {_held('scope_kind', 'scope_id')} THEN 1 ELSE 0 END AS held"
+        " FROM comments WHERE team_id = :t AND author_user_id = :u",
         u,
     )
+    held_comments = sum(1 for r in every if r.held)
+    mine = [r for r in every if not r.held]
+    not_held = f"NOT {_held('c.scope_kind', 'c.scope_id')}"
     ids = [r.id for r in mine]
     live = [r.id for r in mine if r.state != "deleted"]
     for chunk in _chunks(live):
@@ -1130,13 +1157,15 @@ async def _execute(db: Any, team: str, subject: str, decider: str) -> tuple[dict
             ),
             {"now": t, "u": subject, "t": team, "ids": chunk},
         )
-    await db.execute(
-        text(
-            "UPDATE comments SET author_name_snapshot = 'deleted user'"
-            " WHERE team_id = :t AND author_user_id = :u"
-        ),
-        u,
-    )
+    for chunk in _chunks(ids):
+        await db.execute(
+            search._stmt(
+                "UPDATE comments SET author_name_snapshot = 'deleted user'"
+                " WHERE team_id = :t AND author_user_id = :u AND id IN :ids",
+                {"ids": chunk},
+            ),
+            {**u, "ids": chunk},
+        )
     cfg = await discussion.settings(db, team)
     sys_p = search.system_principal(team)
     scopes: dict[tuple[str, str], list[str]] = {}
@@ -1160,7 +1189,7 @@ async def _execute(db: Any, team: str, subject: str, decider: str) -> tuple[dict
         await db.execute(
             text(
                 "DELETE FROM comment_reactions WHERE user_id = :u AND comment_id IN"
-                " (SELECT id FROM comments WHERE team_id = :t)"
+                f" (SELECT c.id FROM comments c WHERE c.team_id = :t AND {not_held})"
             ),
             u,
         )
@@ -1169,7 +1198,7 @@ async def _execute(db: Any, team: str, subject: str, decider: str) -> tuple[dict
         await db.execute(
             text(
                 "DELETE FROM comment_mentions WHERE mentioned_user_id = :u AND comment_id IN"
-                " (SELECT id FROM comments WHERE team_id = :t)"
+                f" (SELECT c.id FROM comments c WHERE c.team_id = :t AND {not_held})"
             ),
             u,
         )
@@ -1227,13 +1256,18 @@ async def _execute(db: Any, team: str, subject: str, decider: str) -> tuple[dict
             {"l": json.dumps(left), "i": d.id},
         )
     files: list[str] = []
+    held_exports = 0
     for j in await search.rows(
         db,
-        "SELECT id, kind, scope_kind, scope_id, requested_by, storage_ref FROM export_jobs"
-        " WHERE team_id = :t AND state = 'completed' AND kind <> 'audit_evidence'",
+        "SELECT id, kind, scope_kind, scope_id, requested_by, storage_ref,"
+        f" CASE WHEN {_held('scope_kind', 'scope_id')} THEN 1 ELSE 0 END AS held"
+        " FROM export_jobs WHERE team_id = :t AND state = 'completed' AND kind <> 'audit_evidence'",
         {"t": team},
     ):
         if j.requested_by == subject or await _touches(db, team, subject, j):
+            if j.held:
+                held_exports += 1
+                continue
             await db.execute(
                 text("UPDATE export_jobs SET state = 'deleted' WHERE id = :i"), {"i": j.id}
             )
@@ -1247,6 +1281,8 @@ async def _execute(db: Any, team: str, subject: str, decider: str) -> tuple[dict
         "mentions": mentions,
         "searchDocuments": docs,
         "exportFiles": len(files),
+        "commentsHeld": held_comments,
+        "exportFilesHeld": held_exports,
     }
     return counts, files
 

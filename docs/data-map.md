@@ -41,7 +41,8 @@ compose profiles; unless operators enable and monitor them, expired data remains
 
 - Migration 0056 adds run holds managed by team admins through Section 4's audited API. Section 4
   run purge, Section 1 event/audit pruning and PostgreSQL partition retirement honor active holds.
-  User deletion requests and backup expiry remain separate workflows and do not honor run holds.
+  Authored-content deletion leaves held content untouched (Session 11), and both backup scripts skip
+  expiry while a hold exists or cannot be read. Account erasure is still absent.
 - No tenant-specific physical residency routing. Workspace `dataResidency` is a declared workspace
   field; it does not route databases, event partitions, exports, provider calls, or backups.
 - No account deletion workflow or identity-table expiry sweep. Part 50 deletion is an authored-content

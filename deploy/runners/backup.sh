@@ -122,8 +122,25 @@ run_walg() {
     wal-g $WALG_EXTRA_ARGS "$@"
 }
 
+# Run retention holds (migration 0056) mean held data may sit in any backup, so expiry waits for
+# the release. Fails closed: holds that cannot be read count as holds. 0 = prune forbidden.
+holds_forbid_pruning() {
+    HOLDS=$(psql -Atqc "select to_regclass('run_retention_holds') is not null" 2>/dev/null) ||
+        { tlog "WARN: cannot read run retention holds (psql failed); not pruning"; return 0; }
+    [ "$HOLDS" = "t" ] || return 1 # no hold table (pre-0056 schema): no holds exist
+    HOLDS=$(psql -Atqc "select count(*) from run_retention_holds" 2>/dev/null) ||
+        { tlog "WARN: cannot count run retention holds; not pruning"; return 0; }
+    case "$HOLDS" in '' | *[!0-9]*) tlog "WARN: unreadable hold count '$HOLDS'; not pruning"; return 0 ;; esac
+    if [ "$HOLDS" -gt 0 ]; then tlog "retention: $HOLDS run retention hold(s) active"; return 0; fi
+    return 1
+}
+
+PRUNE_SKIPPED=0
 prune() {
-    if [ "$WALG_RETENTION_KEEP" -gt 0 ]; then
+    if [ "$WALG_RETENTION_KEEP" -gt 0 ] && holds_forbid_pruning; then
+        PRUNE_SKIPPED=1
+        tlog "retention: SKIPPED, no backup is expired while run retention holds are active"
+    elif [ "$WALG_RETENTION_KEEP" -gt 0 ]; then
         tlog "retention: deleting all but newest $WALG_RETENTION_KEEP backup(s)"
         # --confirm is REQUIRED by wal-g >=3.0.x or `delete` stays a DRY RUN
         # (observed live: "Dry run: objects would be deleted … Run with
@@ -231,6 +248,7 @@ run_mode_once() {
             [ "$WALG_RETENTION_KEEP" -gt 0 ] ||
                 die "refusing to prune: WALG_RETENTION_KEEP=0 (set it to a positive integer)"
             prune
+            [ "$PRUNE_SKIPPED" = 0 ] || die "refusing to prune: run retention holds are active or unreadable"
             ;;
 
         -h | --help | help)
