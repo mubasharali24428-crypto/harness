@@ -301,3 +301,11 @@ def test_resolve_once_mode(flag_once, flag_loop, env_mode, expected):
         er.resolve_once_mode(flag_once=flag_once, flag_loop=flag_loop, env_mode=env_mode)
         is expected
     )
+
+
+def test_retention_sidecar_runs_on_a_plain_compose_up():
+    """It is the only thing that creates agent_events partitions between deploys."""
+    import yaml
+
+    compose = yaml.safe_load((_RUNNER.parents[1] / "docker-compose.yml").read_text())
+    assert not compose["services"]["events-retention"].get("profiles")

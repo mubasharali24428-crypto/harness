@@ -294,11 +294,15 @@ Every Session 11 change has now run on a real PostgreSQL 18 (§3g-8); no PG-only
 6. Part 57: in-flight engine spend is an estimate. Parts 31/58: backups expired outside the scripts are not covered.
 7. Part 11/29: the audit chain has no external anchor.
 8. Parts 28/55: no Alertmanager route or delivery destination (a config can be written, not exercised without compose); Part 54: no fresh load run.
-9. **Time-critical (found by §3g-11):** a fresh database has `agent_events` partitions only through 2026-10, and only the opt-in `events-retention`
-   compose profile creates more. Without it every event write fails from **2026-11-01 00:00Z** with `no partition of relation "agent_events"
-   found for row` (reproduced). Writers are in sections 1, 2 and 4, so there is no single place to heal on error. Options: run the sidecar by
-   default; have `deploy/runners/migrate.py` call `ensure_forward_partitions` after migrating (covers a deploy, not an idle stack); or a recurring
-   job in an always-on service. Needs an ops decision, so it is not fixed here.
+9. **Fixed (Session 11, found by §3g-11):** a fresh database had `agent_events` partitions only through 2026-10, and only the opt-in
+   `events-retention` compose profile created more, so every event write would fail from 2026-11-01 00:00Z (`no partition of relation
+   "agent_events" found for row`). The user chose two of the three options: `deploy/runners/migrate.py::migrate` now calls
+   `ensure_forward_partitions` after applying migrations (this month plus 2 ahead, on every deploy), and the `events-retention` sidecar lost its
+   profile, so a plain `up` runs it and it keeps creating partitions every 6 h between deploys. Side effect: its pruning (events and outbox
+   after 30 days, audit after 365, all honoring retention holds) is now on by default too. Tests: `test_session11_pg.py::
+   test_migrate_creates_the_event_partitions_for_the_months_ahead` (PG) and `test_events_retention.py::
+   test_retention_sidecar_runs_on_a_plain_compose_up`; both red before the fix, and each fails again with its half of the fix removed.
+   **Not covered:** a stack that neither redeploys nor runs compose (for example the migrate runner used alone) for over 2 months still runs out.
 Not a gap: a paused workspace only blocks new starts, by design (`workspace_gate.py` docstring).
 
 **B. Blocked by another lane's uncommitted files** (leave them to their owner):

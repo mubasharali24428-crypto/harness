@@ -453,11 +453,15 @@ async def test_pg_fresh_install_partitions_end_to_end():
         assert summary["partitions_dropped"] == 0
 
         # Coverage-aware forward roll: legacy covers THIS month, 09/10 exist
-        # from 0028, so asking four months ahead must create exactly the two
-        # uncovered ones (and skip the covered windows without overlap errors
-        # — the bug the first probe run caught live).
-        created = await er.ensure_forward_partitions(factory, ahead_months=4, now=_FROZEN_NOW)
-        assert created >= 1
+        # from 0028 and migrate() rolled on to the real month + 2, so reaching
+        # one month past that must create exactly that one (and skip the
+        # covered windows without overlap errors — the bug the first probe
+        # run caught live).
+        real = datetime.now(UTC)
+        ahead = ((real.year - _FROZEN_NOW.year) * 12 + real.month - _FROZEN_NOW.month
+                 + er.DEFAULT_PARTITION_AHEAD_MONTHS + 1)
+        created = await er.ensure_forward_partitions(factory, ahead_months=ahead, now=_FROZEN_NOW)
+        assert created == 1
     finally:
         await engine.dispose()
         async with admin_engine.begin() as conn:

@@ -367,3 +367,23 @@ async def test_parallel_wrong_guesses_cannot_get_past_the_attempt_limit(env):
     assert results.count("wrong code") == 5, results  # only otp_max_attempts guesses were compared
     assert set(results) <= {"wrong code", "too many attempts", "no active code"}, results
     assert not isinstance(await _verify(env, email, code), tuple)  # the real code is dead too
+
+
+# ------------------------------------------------------------------ forward partitions
+
+
+async def test_migrate_creates_the_event_partitions_for_the_months_ahead(database):
+    """0028 seeds partitions only through 2026-10; every deploy must roll them forward."""
+    dsn = f"{_server_dsn().rsplit('/', 1)[0]}/{database}"
+    engine = create_async_engine(dsn.replace("postgresql://", "postgresql+asyncpg://"))
+    try:
+        await migrate_mod.migrate(engine)
+        parts = await retention.list_event_partitions(async_sessionmaker(engine))
+    finally:
+        await engine.dispose()
+    month = retention.month_start(datetime.now(UTC))
+    for _ in range(retention.DEFAULT_PARTITION_AHEAD_MONTHS):
+        month = retention.next_month(month)
+        end = retention.next_month(month)
+        assert any((lo is None or lo <= month) and (hi is None or hi >= end)
+                   for _, lo, hi in parts), f"no agent_events partition for {month:%Y-%m}: {parts}"

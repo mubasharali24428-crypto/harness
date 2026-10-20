@@ -11,6 +11,10 @@ import sys
 from pathlib import Path
 
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # events_retention, when loaded by path
+from events_retention import ensure_forward_partitions
 
 HARNESS_ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS_DIR = HARNESS_ROOT / "section1" / "migrations"
@@ -164,6 +168,11 @@ async def migrate(engine) -> list[str]:
                 text("INSERT INTO schema_migrations (version) VALUES (:v)"), {"v": version}
             )
             applied.append(path.name)
+            done.add(version)
+    # 0028 seeds agent_events partitions only through 2026-10 and inserts fail past the last one;
+    # every deploy rolls them forward (the events-retention sidecar does it between deploys).
+    if "0028" in done:  # a chain cut short before 0028 has no partitioned table yet
+        await ensure_forward_partitions(async_sessionmaker(engine))
     return applied
 
 

@@ -20,8 +20,8 @@ their first pruning paths:
     (AUDIT_RETENTION_DAYS default 365 vs 30 for events/outbox) using the same
     batched shape; 0028's (ts, seq) index keeps every batch an index walk.
 
-Wired as the profiled 'events-retention' compose sidecar (mirrors the Mission
-10 walg pattern): `--profile events-retention up -d events-retention` runs the
+Wired as the 'events-retention' compose sidecar, on by default since Session 11
+(between deploys it is what keeps agent_events partitions ahead): `up` runs the
 loop; `run --rm events-retention python /opt/harness/deploy/runners/
 events_retention.py --once` runs a single sweep (host cron friendly).
 
