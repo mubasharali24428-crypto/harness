@@ -1,0 +1,13 @@
+{
+  "name": "teams_bad_bearer",
+  "provider": "teams",
+  "response": {
+    "status": 401,
+    "body": {
+      "error": {
+        "code": "SIGNATURE_INVALID",
+        "message": "signature mismatch"
+      }
+    }
+  }
+}

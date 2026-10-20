@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "SIGNATURE_INVALID",
+    "message": "signature mismatch"
+  }
+}

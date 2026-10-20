@@ -1,0 +1,51 @@
+[
+  {
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "path": "/"
+  },
+  {
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "path": "/api/v1/telemetry/archive/runs/{runId}"
+  },
+  {
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "path": "/api/v1/telemetry/archive/search"
+  },
+  {
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "path": "/api/v1/telemetry/cost"
+  },
+  {
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "path": "/api/v1/telemetry/productivity"
+  },
+  {
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "path": "/api/v1/telemetry/quality"
+  },
+  {
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "path": "/healthz"
+  }
+]

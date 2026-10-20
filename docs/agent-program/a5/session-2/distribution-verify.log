@@ -1,0 +1,87 @@
++ /Users/user/untitled folder 2/harness/packages/extensions/.venv/bin/python -m pip wheel /Users/user/untitled folder 2/harness/contracts -w /var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/a5-dist-rhoy056s/dist --no-deps
++ /Users/user/untitled folder 2/harness/packages/extensions/.venv/bin/python -m pip wheel /Users/user/untitled folder 2/harness/packages/extensions -w /var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/a5-dist-rhoy056s/dist --no-deps
++ /Users/user/untitled folder 2/harness/packages/extensions/.venv/bin/python -m pip wheel /Users/user/untitled folder 2/harness/integrations/connectors/wiki -w /var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/a5-dist-rhoy056s/dist --no-deps
+built wheels: ['harness_contracts-1.0.0rc2-py3-none-any.whl', 'harness_extensions-1.0.0rc1-py3-none-any.whl', 'harness_wiki_connector-0.1.0-py3-none-any.whl']
++ /Users/user/untitled folder 2/harness/packages/extensions/.venv/bin/python -m venv /var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/a5-dist-rhoy056s/fresh-venv
++ /var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/a5-dist-rhoy056s/fresh-venv/bin/python -m pip install -q /var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/a5-dist-rhoy056s/dist/harness_contracts-1.0.0rc2-py3-none-any.whl /var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/a5-dist-rhoy056s/dist/harness_extensions-1.0.0rc1-py3-none-any.whl /var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/a5-dist-rhoy056s/dist/harness_wiki_connector-0.1.0-py3-none-any.whl
++ /var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/a5-dist-rhoy056s/fresh-venv/bin/python -c 
+import asyncio, json, pathlib, tempfile
+
+import httpx
+from fastapi import HTTPException
+from harness_contracts.roles import Principal, Role
+
+import harness_extensions
+from harness_extensions.api import make_app
+from harness_extensions.client import ExtensionsClient
+from harness_extensions.config import Settings
+from harness_wiki_connector import slugify
+
+
+async def who(request):
+    token = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    if token != "smoke":
+        raise HTTPException(status_code=401, detail="no")
+    return Principal(userId="u1", teamId="team-smoke", role=Role.ENGINEER)
+
+
+async def main():
+    tmp = tempfile.TemporaryDirectory()
+    settings = Settings(db_path=str(pathlib.Path(tmp.name) / "db.sqlite"), allow_private_hosts=True)
+    app = make_app(settings, get_principal_dep=who)
+
+    paths = set(app.openapi()["paths"])
+    assert "/api/v1/extensions/commands" in paths, "commands route missing from wheel openapi"
+    assert "/api/v1/extensions/hooks" in paths, "hooks route missing from wheel openapi"
+    assert "/api/v1/extensions/policy" in paths, "policy route missing from wheel openapi"
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://x") as http:
+        client = ExtensionsClient("http://x", token="smoke", client=http)
+        cmd = await client.create_command(name="hi", template="Hello {{who}}.", arguments=["who"])
+        out = await client.invoke_command(cmd["commandId"], {"who": "wheel"})
+        assert out["renderedText"] == "Hello wheel.", out
+        catalog = await client.list_catalog()
+        assert any(e["pluginId"] == "incident-response" for e in catalog), "catalog data missing"
+
+    assert slugify("Wheel Smoke!") == "wheel-smoke"
+    print(json.dumps({
+        "harness_extensions": harness_extensions.__file__,
+        "commands_paths": sorted(p for p in paths if "commands" in p),
+        "rendered": out["renderedText"],
+        "catalog_entries": len(catalog),
+    }))
+
+
+asyncio.run(main())
+print("SMOKE_OK")
+
+{"harness_extensions": "/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/a5-dist-rhoy056s/fresh-venv/lib/python3.13/site-packages/harness_extensions/__init__.py", "commands_paths": ["/api/v1/extensions/commands", "/api/v1/extensions/commands/{command_id}/invoke"], "rendered": "Hello wheel.", "catalog_entries": 3}
+SMOKE_OK
++ /var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/a5-dist-rhoy056s/fresh-venv/bin/python -c import json
+from importlib.metadata import PackageNotFoundError, version
+names = ['harness-contracts','harness-extensions','harness-wiki-connector','fastapi','httpx','mcp']
+out = {}
+for n in names:
+    try:
+        out[n] = version(n)
+    except PackageNotFoundError:
+        out[n] = None
+print(json.dumps(out))
+
+EVIDENCE: {
+  "wheels": [
+    "harness_contracts-1.0.0rc2-py3-none-any.whl",
+    "harness_extensions-1.0.0rc1-py3-none-any.whl",
+    "harness_wiki_connector-0.1.0-py3-none-any.whl"
+  ],
+  "fresh_venv_installs": {
+    "harness-contracts": "1.0.0rc2",
+    "harness-extensions": "1.0.0rc1",
+    "harness-wiki-connector": "0.1.0",
+    "fastapi": "0.143.3",
+    "httpx": "0.28.1",
+    "mcp": "1.30.0"
+  }
+}
+DISTRIBUTION_VERIFIED

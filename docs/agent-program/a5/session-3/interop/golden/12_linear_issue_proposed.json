@@ -1,0 +1,17 @@
+{
+  "name": "linear_issue_proposed",
+  "provider": "linear",
+  "response": {
+    "status": 202,
+    "body": {
+      "status": "plan_proposed",
+      "planId": "<plan-id>",
+      "teamId": "team-a",
+      "awaitingApproval": true
+    }
+  },
+  "gate": {
+    "plans": 5,
+    "lastGoal": "[connector intake | provider=linear | external_id=ENG-123 | untrusted context, requires human plan approval]\nCheckout latency spikes\nsource: https://linear.app/acme/issue/ENG-123\n\np95 went from 200ms to 3s after deploy 42"
+  }
+}

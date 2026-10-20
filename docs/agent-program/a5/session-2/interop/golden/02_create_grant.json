@@ -1,0 +1,29 @@
+{
+  "name": "create_grant",
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/extensions/grants",
+    "identity": "engineer@team-a",
+    "body": {
+      "serverId": "<uuid>",
+      "toolName": "echo"
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "grantId": "<uuid>",
+      "teamId": "team-a",
+      "serverId": "<uuid>",
+      "toolName": "echo",
+      "projectId": null,
+      "runId": null,
+      "expiresAt": null,
+      "createdBy": "u-eng-a",
+      "createdAt": "<timestamp>",
+      "status": "active",
+      "revokedAt": null,
+      "revokedBy": null
+    }
+  }
+}

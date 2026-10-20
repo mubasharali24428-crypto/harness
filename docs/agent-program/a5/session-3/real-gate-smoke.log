@@ -1,0 +1,8 @@
+real plan gate listening on http://127.0.0.1:50243
+1. intake -> plan plan-6fec5900 awaiting human approval (202)
+2. duplicate delivery -> 200 duplicate, no second plan
+3. human approve -> run run-68e35d45bf80; idempotent re-approve same run
+4. approved plan goal carries the untrusted-content banner
+5. run state after approve: {'runId': 'run-68e35d45bf80', 'state': 'awaiting_plan_approval', 'planId': 'plan-6fec5900', 'planApproved': True, 'isHumanEditing': False, 'executing': False, 'engineMode': 'dry', 'prId': None} (approved, NOT executing)
+6. connector exposes no approve/start/execute routes (404)
+SMOKE PASS — real plan gate integration verified

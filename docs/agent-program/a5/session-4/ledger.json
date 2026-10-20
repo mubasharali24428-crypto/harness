@@ -1,0 +1,174 @@
+{
+ "session": "A5-S4",
+ "agent": "A5",
+ "date": "2026-10-17",
+ "baselineCommit": "31bf4077e9b567b1f50ecb99818d501baab3115a",
+ "artifact": "packages/telemetry + docs/agent-program/a5/session-4 + scripts/agent-program/a5/capture_golden_s4.py",
+ "features": [
+  {
+   "id": "F112",
+   "capability": "OpenTelemetry export",
+   "assessmentBefore": "PARTIAL",
+   "state": "VERIFIED IMPLEMENTED",
+   "evidence": [
+    "packages/telemetry \u2014 harness_telemetry.otel: frozen EventType stream \u2192 SpanSpec tree harness.run/plan/execution/review/change with DETERMINISTIC trace/span ids derived from runId (md5), so traces are reproducible and testable without an SDK",
+    "export_records replays spans through the REAL OTel SDK (TracerProvider + SimpleSpanProcessor, explicit OK/ERROR status) to any exporter",
+    "tests/test_otel.py: InMemorySpanExporter asserts the span tree (8 roots / 8 plans / 7 executions / 6 review verdicts / 3 change spans = 32); a REAL local HTTP collector receives the OTLP/HTTP protobuf POSTs and the wire body contains harness spans",
+    "W3C traceparent both directions: traceparent_for_run emits the header; parse_traceparent enforces strict version/id validation (rejects all-zero and ff-version); round-trip asserted",
+    "goldens: interop/golden/spans/run-{a1..b2}.json (8 runs) + traceparents.json"
+   ],
+   "limits": "Push-only export; endpoint/TLS/auth are collector-side deployment concerns, no live production collector exercised here. Span set covers the frozen vocabulary only."
+  },
+  {
+   "id": "F113",
+   "capability": "Agent quality dashboard",
+   "assessmentBefore": "PARTIAL",
+   "state": "VERIFIED IMPLEMENTED",
+   "evidence": [
+    "metrics.quality_metrics + GET /api/v1/telemetry/quality + dashboard Quality tab; every figure carries its DEFINITIONS text verbatim",
+    "fixture corpus deliberately includes failure (run-a2 engine_failed), rework (run-a2 two attempts + review_failed; run-a3/run-b2 review_failed), abandonment (run-a4), blocked (run-a5), in-flight (run-a6)",
+    "exact denominators asserted in tests/test_metrics.py: tasks 8, started 7, accepted 3, rejected 2, rework 3, reworkRate 3/7, abandonmentRate 1/8",
+    "dashboard auth semantics tested: member pinned to own team, ?team=other \u2192 403 TEAM_FORBIDDEN, admin org-wide, unwired principal dep \u2192 503 AUTH_NOT_CONFIGURED",
+    "goldens: quality_org.json, quality_team_b.json, member_scoped_quality.json, member_cross_team_forbidden.json, unauthenticated.json"
+   ],
+   "limits": "Quality is event-derived acceptance/rework/blocked/abandonment; review issue text is displayed but not semantically scored. UI is a minimal HTML page, not a product-grade frontend."
+  },
+  {
+   "id": "F114",
+   "capability": "Developer productivity dashboard",
+   "assessmentBefore": "NOT FOUND",
+   "state": "VERIFIED IMPLEMENTED",
+   "evidence": [
+    "metrics.productivity_metrics + GET /api/v1/telemetry/productivity + dashboard tab: TTFUC percentiles, approval latency, approval\u2192execution latency, sample counts per metric",
+    "fixtures: TTFUC values [35, 75, 85] min over 3 accepted runs \u2192 p50 75 / p90 85 (nearest-rank, documented); approval latency p50 2 / p90 30 including a slow-approval run (run-b1)",
+    "golden: productivity_org.json; sample counts published so thin data is visible (S4 acceptance: transparent denominators)"
+   ],
+   "limits": "Measures the harness timeline (plan/approve/execute/review/PR) only; human context work outside runs is invisible. Deliberately NO per-developer score \u2014 metrics are per-run/team."
+  },
+  {
+   "id": "F115",
+   "capability": "Cost-per-task and cost-per-accepted-change metrics",
+   "assessmentBefore": "PARTIAL",
+   "state": "VERIFIED IMPLEMENTED",
+   "evidence": [
+    "metrics.cost_metrics over cost-ledger rows (Decimal, ROUND_HALF_UP, 4dp): costPerTask 3.0875 (24.70/8), costPerClaimedCompletion 4.2750 (17.10/4), costPerAcceptedChange 4.3667 (13.10/3) \u2014 claimed and accepted denominators are distinct published numbers",
+    "run-a3 regression guard: engine claimed completion, review rejected \u2192 its $4.00 counts in claimed, NOT accepted denominators",
+    "GET /api/v1/telemetry/cost + dashboard tab render all three with definitions",
+    "goldens: cost_org.json; asserted in tests/test_metrics.py::test_cost_per_task_claimed_and_accepted_are_distinct_numbers"
+   ],
+   "limits": "Depends on provider cost-ledger completeness (missing rows understate cost, never overstate). Infra/storage/human-review costs are out of scope."
+  },
+  {
+   "id": "F116",
+   "capability": "Time-to-first-useful-change metric",
+   "assessmentBefore": "NOT FOUND",
+   "state": "VERIFIED IMPLEMENTED",
+   "evidence": [
+    "TTFUC := pr_opened.ts \u2212 plan_proposed.ts for ACCEPTED runs only \u2014 anchored to the measured accepted change (PR + independent review pass), never to done_signal_received or the engine_completed claim",
+    "exposed as productivity endpoint {p50, p90, values} + harness.time_to_first_useful_change_minutes attribute on each harness.run span (OTel parity)",
+    "fixture proof: blocked/abandoned/rejected/active runs are excluded from the sample (3 accepted of 8 tasks); nearest-rank percentile documented in metrics.py"
+   ],
+   "limits": "Same clock source assumed for plan/pr timestamps (all events carry ts from one store); cross-service clock skew not normalized."
+  },
+  {
+   "id": "F117",
+   "capability": "Searchable organization-wide run archive",
+   "assessmentBefore": "PARTIAL",
+   "state": "VERIFIED IMPLEMENTED",
+   "evidence": [
+    "archive.Archive \u2014 SQLite runs+events built from the frozen stream; idempotent upsert ingest (re-ingest keeps 8 runs / 42 events), search by q/team/outcome/from/to with limit/offset and total count",
+    "PII/token scrubbing at INGEST: tests query the raw DB and prove neither goal text nor event payloads ever contain alice@example.com or ghp_/xoxb- tokens \u2014 scrubbed copies only",
+    "ownership fail-closed: visible_teams=None is admin org-wide, a set is team-scoped, empty set sees nothing; unattributed projects are org-visible only; dashboard member cross-team \u2192 403",
+    "retention is an explicit per-ingest stamp (retentionUntil, default 90 days) + purge_expired removes runs and cascades to their events (tested: 8 runs + 0 orphan events)",
+    "goldens: archive_search_org.json, archive_search_login_team_b.json (goal shows [EMAIL]/[REDACTED]), run_detail_run-a1.json, run_detail_run-b2_scrubbed.json"
+   ],
+   "limits": "Single-node SQLite; q is a LIKE scan (pilot scale, not a search cluster). No archive UI beyond the table view; export API not included."
+  }
+ ],
+ "risks": [
+  {
+   "id": "VR014",
+   "risk": "Malicious MCP servers, skills, plugins, or dependencies enter through the agent supply chain",
+   "state": "PARTIAL CONTROL",
+   "controls": [
+    "S1\u2013S3 controls carried (digest-verified catalog, schema guards, capability tokens, connector signature schemes)",
+    "S4 adds openai/otel dependency surface: lower-bound pins only (opentelemetry-sdk>=1.25, -exporter-otlp-proto-http>=1.25) \u2014 no lock file yet",
+    "telemetry ingest scrubs secrets before persistence (raw-DB proof in tests), archive auth fails closed, team scoping enforced at API layer"
+   ],
+   "remaining": "Dependency locking/scanning for the telemetry stack and collector deployment hardening ship with Section 10 assembly."
+  },
+  {
+   "id": "VR020",
+   "risk": "Product cannot produce sufficient security evidence for procurement review",
+   "state": "PARTIAL CONTROL",
+   "controls": [
+    "S1\u2013S3 evidence carried (OpenAPI snapshots, 57 goldens, 133 tests, real-gate smoke log, 4-wheel distribution verify)",
+    "S4: trace propagation with deterministic ids + real OTLP collector proof (interop with existing observability stacks), 21 new S4 goldens, 164 total tests, 5-wheel distribution verify with fresh-venv telemetry smoke",
+    "S4 archive: explicit retention policy, scrubbed-at-ingest persistence, 403/503 fail-closed access semantics \u2014 the kind of artifact procurement asks for"
+   ],
+   "remaining": "No SOC2-style audit trail, external attestation, or pen-test; telemetry dashboards are pilot-grade."
+  },
+  {
+   "id": "VR031",
+   "risk": "Buyers cannot see measurable ROI beyond agent feels useful",
+   "state": "PARTIAL CONTROL",
+   "controls": [
+    "S4 ships the measurable accepted-change workflow end-to-end: accepted = pr_opened AND independent review pass; claimed completions tracked separately (run-a3 guard), transparent denominators for quality/rework/abandonment/TTFUC/cost, and pilot measurement instruments (docs/agent-program/a5/session-4/pilot-measurement.md) with opt-in/privacy checklist",
+    "metrics are computed from the already-frozen event stream \u2014 no invented telemetry, no ROI claims without a pilot"
+   ],
+   "remaining": "No pilot has run: no real ROI/productivity numbers exist yet. S5 must deploy the instruments and report measured results with honest sample sizes."
+  },
+  {
+   "id": "VR040",
+   "risk": "Documentation/support too thin for independent adoption",
+   "state": "PARTIAL CONTROL",
+   "controls": [
+    "S3 controls carried (per-session reports, connector READMEs)",
+    "S4 adds packages/telemetry/README.md \u2014 usage, auth wiring, privacy/retention semantics, explicit known limits; pilot-measurement.md doubles as the operator-facing measurement contract"
+   ],
+   "remaining": "No end-user support/onboarding flow or troubleshooting playbook beyond package READMEs."
+  },
+  {
+   "id": "VR036",
+   "risk": "Larger platforms bundle similar governance into existing paid tools",
+   "state": "EXTERNAL VALIDATION REQUIRED",
+   "controls": [],
+   "remaining": "Market risk; addressed by positioning evidence, not code."
+  },
+  {
+   "id": "VR037",
+   "risk": "Category too crowded; positioning unclear to buyers",
+   "state": "EXTERNAL VALIDATION REQUIRED",
+   "controls": [],
+   "remaining": "Buyer validation work in A5-S5."
+  },
+  {
+   "id": "VR038",
+   "risk": "Enterprise security/procurement reviews outlast sales runway",
+   "state": "EXTERNAL VALIDATION REQUIRED",
+   "controls": [],
+   "remaining": "Procurement-cycle evidence in A5-S5."
+  },
+  {
+   "id": "VR042",
+   "risk": "Pricing guessed, underpriced, or too complicated",
+   "state": "EXTERNAL VALIDATION REQUIRED",
+   "controls": [],
+   "remaining": "Pricing validation in A5-S5."
+  },
+  {
+   "id": "VR044",
+   "risk": "Teams value governance but will not pay for it separately",
+   "state": "EXTERNAL VALIDATION REQUIRED",
+   "controls": [],
+   "remaining": "Willingness-to-pay evidence in A5-S5."
+  },
+  {
+   "id": "VR050",
+   "risk": "Best features copied by larger platforms before distribution is established",
+   "state": "EXTERNAL VALIDATION REQUIRED",
+   "controls": [],
+   "remaining": "Distribution/market risk; not closable through code."
+  }
+ ]
+}

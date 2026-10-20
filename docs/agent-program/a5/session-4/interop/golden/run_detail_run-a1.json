@@ -1,0 +1,83 @@
+{
+  "costUsd": "3.20",
+  "eventCount": 7,
+  "events": [
+    {
+      "payload": {
+        "goal": "Add median word length to textstats",
+        "runId": "run-a1"
+      },
+      "seq": 1,
+      "ts": "2026-10-13T09:00:00+00:00",
+      "type": "plan_proposed"
+    },
+    {
+      "payload": {
+        "runId": "run-a1"
+      },
+      "seq": 2,
+      "ts": "2026-10-13T09:05:00+00:00",
+      "type": "plan_approved"
+    },
+    {
+      "payload": {
+        "runId": "run-a1"
+      },
+      "seq": 3,
+      "ts": "2026-10-13T09:06:00+00:00",
+      "type": "execution_started"
+    },
+    {
+      "payload": {
+        "runId": "run-a1",
+        "summary": "Implemented median_word_length; pytest green, ruff clean."
+      },
+      "seq": 4,
+      "ts": "2026-10-13T09:30:00+00:00",
+      "type": "engine_completed"
+    },
+    {
+      "payload": {
+        "runId": "run-a1"
+      },
+      "seq": 5,
+      "ts": "2026-10-13T09:31:00+00:00",
+      "type": "done_signal_received"
+    },
+    {
+      "payload": {
+        "findings": {
+          "briefAligned": true,
+          "conflictsDetected": false,
+          "issues": [],
+          "passed": true,
+          "syntaxOk": true
+        },
+        "runId": "run-a1"
+      },
+      "seq": 6,
+      "ts": "2026-10-13T09:33:00+00:00",
+      "type": "review_passed"
+    },
+    {
+      "payload": {
+        "prId": "pr-101",
+        "runId": "run-a1",
+        "url": "https://github.com/org/repo/pull/101"
+      },
+      "seq": 7,
+      "ts": "2026-10-13T09:35:00+00:00",
+      "type": "pr_opened"
+    }
+  ],
+  "goal": "Add median word length to textstats",
+  "ingestedAt": "2026-10-17T12:00:00+00:00",
+  "outcome": "accepted",
+  "planProposedAt": "2026-10-13T09:00:00+00:00",
+  "prId": "pr-101",
+  "prOpenedAt": "2026-10-13T09:35:00+00:00",
+  "projectId": "proj-a",
+  "retentionUntil": "2027-01-15T12:00:00+00:00",
+  "runId": "run-a1",
+  "teamId": "team-a"
+}

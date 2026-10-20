@@ -1,0 +1,23 @@
+{
+  "name": "add_skill_version",
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/extensions/skills/<uuid>/versions",
+    "identity": "engineer@team-a",
+    "body": {
+      "content": "1. freeze\n2. verify\n3. ship\n4. postmortem notes"
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "skillId": "<uuid>",
+      "version": 2,
+      "content": "1. freeze\n2. verify\n3. ship\n4. postmortem notes",
+      "digest": "<sha256>",
+      "createdBy": "u-eng-a",
+      "createdAt": "<timestamp>",
+      "sourceRef": null
+    }
+  }
+}

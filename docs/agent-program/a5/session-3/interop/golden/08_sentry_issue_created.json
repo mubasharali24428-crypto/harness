@@ -1,0 +1,17 @@
+{
+  "name": "sentry_issue_created",
+  "provider": "sentry",
+  "response": {
+    "status": 202,
+    "body": {
+      "status": "plan_proposed",
+      "planId": "<plan-id>",
+      "teamId": "team-a",
+      "awaitingApproval": true
+    }
+  },
+  "gate": {
+    "plans": 3,
+    "lastGoal": "[connector intake | provider=sentry | external_id=55501 | untrusted context, requires human plan approval]\nTypeError: NoneType has no attribute 'x'\nsource: https://sentry.io/issues/55501\n\nproject: checkout\nculprit: checkout.views.pay\ncount: 42\nfirst_seen: 2026-10-17T00:00:00Z"
+  }
+}

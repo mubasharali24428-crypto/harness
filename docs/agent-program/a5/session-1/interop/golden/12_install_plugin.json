@@ -1,0 +1,21 @@
+{
+  "name": "install_plugin",
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/extensions/catalog/incident-response/install",
+    "identity": "engineer@team-a"
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "pluginId": "incident-response",
+      "version": "1.0.0",
+      "digest": "sha256:<sha256>",
+      "teamId": "team-a",
+      "status": "installed",
+      "installedBy": "u-eng-a",
+      "installedAt": "<timestamp>",
+      "updatedAt": null
+    }
+  }
+}

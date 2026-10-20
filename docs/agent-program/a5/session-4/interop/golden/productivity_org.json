@@ -1,0 +1,28 @@
+{
+  "approvalLatencyMinutes": {
+    "p50": 2.0,
+    "p90": 30.0
+  },
+  "approvalToExecutionMinutes": {
+    "p50": 1.0,
+    "p90": 1.0
+  },
+  "definitions": {
+    "approval_latency": "plan_approved.ts - plan_proposed.ts for approved runs",
+    "time_to_first_useful_change": "pr_opened.ts - plan_proposed.ts for accepted runs only"
+  },
+  "samples": {
+    "acceptedRuns": 3,
+    "approvedRuns": 7,
+    "executedRuns": 7
+  },
+  "timeToFirstUsefulChangeMinutes": {
+    "p50": 75.0,
+    "p90": 85.0,
+    "values": [
+      35.0,
+      75.0,
+      85.0
+    ]
+  }
+}

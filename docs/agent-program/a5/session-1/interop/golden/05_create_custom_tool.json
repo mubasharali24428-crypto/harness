@@ -1,0 +1,34 @@
+{
+  "name": "create_custom_tool",
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/extensions/custom-tools",
+    "identity": "engineer@team-a",
+    "body": {
+      "name": "echo-narrow",
+      "serverId": "<uuid>",
+      "sourceTool": "echo",
+      "allowedArguments": [
+        "text"
+      ]
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "customToolId": "<uuid>",
+      "teamId": "team-a",
+      "name": "echo-narrow",
+      "description": null,
+      "serverId": "<uuid>",
+      "sourceTool": "echo",
+      "allowedArguments": [
+        "text"
+      ],
+      "defaultArguments": {},
+      "status": "active",
+      "createdBy": "u-eng-a",
+      "createdAt": "<timestamp>"
+    }
+  }
+}

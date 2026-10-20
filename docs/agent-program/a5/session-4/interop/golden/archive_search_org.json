@@ -1,0 +1,101 @@
+{
+  "runs": [
+    {
+      "costUsd": "0.60",
+      "eventCount": 3,
+      "goal": "Add retry to uploader",
+      "outcome": "active",
+      "planProposedAt": "2026-10-17T09:00:00+00:00",
+      "prId": null,
+      "prOpenedAt": null,
+      "projectId": "proj-a",
+      "runId": "run-a6",
+      "teamId": "team-a"
+    },
+    {
+      "costUsd": "5.10",
+      "eventCount": 4,
+      "goal": "Fix login for [EMAIL]; [REDACTED]",
+      "outcome": "rejected",
+      "planProposedAt": "2026-10-16T09:00:00+00:00",
+      "prId": null,
+      "prOpenedAt": null,
+      "projectId": "proj-b",
+      "runId": "run-b2",
+      "teamId": "team-b"
+    },
+    {
+      "costUsd": "2.40",
+      "eventCount": 7,
+      "goal": "Cache user lookups",
+      "outcome": "accepted",
+      "planProposedAt": "2026-10-15T10:00:00+00:00",
+      "prId": "pr-201",
+      "prOpenedAt": "2026-10-15T11:15:00+00:00",
+      "projectId": "proj-b",
+      "runId": "run-b1",
+      "teamId": "team-b"
+    },
+    {
+      "costUsd": "1.80",
+      "eventCount": 4,
+      "goal": "Migrate auth flow",
+      "outcome": "blocked",
+      "planProposedAt": "2026-10-15T08:00:00+00:00",
+      "prId": null,
+      "prOpenedAt": null,
+      "projectId": "proj-a",
+      "runId": "run-a5",
+      "teamId": "team-a"
+    },
+    {
+      "costUsd": "0.10",
+      "eventCount": 1,
+      "goal": "Refactor metrics module",
+      "outcome": "abandoned",
+      "planProposedAt": "2026-10-14T11:00:00+00:00",
+      "prId": null,
+      "prOpenedAt": null,
+      "projectId": "proj-a",
+      "runId": "run-a4",
+      "teamId": "team-a"
+    },
+    {
+      "costUsd": "4.00",
+      "eventCount": 6,
+      "goal": "Bump docs dependency",
+      "outcome": "rejected",
+      "planProposedAt": "2026-10-14T09:00:00+00:00",
+      "prId": null,
+      "prOpenedAt": null,
+      "projectId": "proj-a",
+      "runId": "run-a3",
+      "teamId": "team-a"
+    },
+    {
+      "costUsd": "7.50",
+      "eventCount": 10,
+      "goal": "Fix flaky checkout test",
+      "outcome": "accepted",
+      "planProposedAt": "2026-10-13T10:00:00+00:00",
+      "prId": "pr-102",
+      "prOpenedAt": "2026-10-13T11:25:00+00:00",
+      "projectId": "proj-a",
+      "runId": "run-a2",
+      "teamId": "team-a"
+    },
+    {
+      "costUsd": "3.20",
+      "eventCount": 7,
+      "goal": "Add median word length to textstats",
+      "outcome": "accepted",
+      "planProposedAt": "2026-10-13T09:00:00+00:00",
+      "prId": "pr-101",
+      "prOpenedAt": "2026-10-13T09:35:00+00:00",
+      "projectId": "proj-a",
+      "runId": "run-a1",
+      "teamId": "team-a"
+    }
+  ],
+  "total": 8
+}

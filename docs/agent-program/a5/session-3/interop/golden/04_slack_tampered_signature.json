@@ -1,0 +1,13 @@
+{
+  "name": "slack_tampered_signature",
+  "provider": "slack",
+  "response": {
+    "status": 401,
+    "body": {
+      "error": {
+        "code": "SIGNATURE_INVALID",
+        "message": "signature mismatch"
+      }
+    }
+  }
+}

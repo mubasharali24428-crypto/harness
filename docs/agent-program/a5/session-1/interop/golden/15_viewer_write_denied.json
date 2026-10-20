@@ -1,0 +1,21 @@
+{
+  "name": "viewer_write_denied",
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/extensions/skills",
+    "identity": "viewer@team-a",
+    "body": {
+      "name": "nope",
+      "content": "x"
+    }
+  },
+  "response": {
+    "status": 403,
+    "body": {
+      "error": {
+        "code": "ROLE_DENIED",
+        "message": "role may not modify extensions"
+      }
+    }
+  }
+}

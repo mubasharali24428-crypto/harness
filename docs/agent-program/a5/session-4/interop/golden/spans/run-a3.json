@@ -1,0 +1,57 @@
+[
+  {
+    "attributes": {
+      "harness.attempts": 1,
+      "harness.cost_usd": "4.00",
+      "harness.outcome": "rejected",
+      "harness.project_id": "proj-a",
+      "harness.run_id": "run-a3",
+      "harness.team_id": "team-a"
+    },
+    "end_unix_ns": 1791971100000000000,
+    "error": true,
+    "name": "harness.run",
+    "parent_span_id": null,
+    "span_id": "4f1d522f22013cf5",
+    "start_unix_ns": 1791968400000000000,
+    "trace_id": "b47fa559de35bf25149307e6e1fea1ce"
+  },
+  {
+    "attributes": {
+      "harness.plan.approved": true
+    },
+    "end_unix_ns": 1791968460000000000,
+    "error": false,
+    "name": "harness.plan",
+    "parent_span_id": "4f1d522f22013cf5",
+    "span_id": "e8bd400e10a79c2d",
+    "start_unix_ns": 1791968400000000000,
+    "trace_id": "b47fa559de35bf25149307e6e1fea1ce"
+  },
+  {
+    "attributes": {
+      "harness.attempts": 1,
+      "harness.engine_failures": 0
+    },
+    "end_unix_ns": 1791970800000000000,
+    "error": false,
+    "name": "harness.execution",
+    "parent_span_id": "4f1d522f22013cf5",
+    "span_id": "5ec01ced5c476c8c",
+    "start_unix_ns": 1791968520000000000,
+    "trace_id": "b47fa559de35bf25149307e6e1fea1ce"
+  },
+  {
+    "attributes": {
+      "harness.review.passed": false,
+      "harness.review.verdict_index": 0
+    },
+    "end_unix_ns": 1791971100000000000,
+    "error": true,
+    "name": "harness.review",
+    "parent_span_id": "4f1d522f22013cf5",
+    "span_id": "ce8cbd89a1129abd",
+    "start_unix_ns": 1791971100000000000,
+    "trace_id": "b47fa559de35bf25149307e6e1fea1ce"
+  }
+]

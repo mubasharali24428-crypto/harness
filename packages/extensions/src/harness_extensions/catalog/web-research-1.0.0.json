@@ -1,0 +1,19 @@
+{
+  "pluginId": "web-research",
+  "version": "1.0.0",
+  "skills": [
+    {
+      "name": "source-citation",
+      "content": "# Source citation discipline\n\n- Every factual claim that matters gets a source link with a retrieval date.\n- Prefer primary sources (specs, repo code, official docs) over summaries.\n- Quote exactly when the wording matters; paraphrase otherwise.\n- If two sources disagree, report both and say which you trust and why.\n- Never present a search snippet as a source; open the document.\n"
+    }
+  ],
+  "serverTemplates": [
+    {
+      "name": "web-search-mcp",
+      "transport": "http",
+      "urlTemplate": "https://your-search-mcp.example.com/mcp",
+      "recommendedTools": ["search", "fetch"],
+      "note": "Informational suggestion only: registration and grants stay explicit operator actions."
+    }
+  ]
+}

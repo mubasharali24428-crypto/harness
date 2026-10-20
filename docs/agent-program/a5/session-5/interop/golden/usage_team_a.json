@@ -1,0 +1,29 @@
+{
+  "abandonmentRate": 0.1667,
+  "acceptedChanges": 2,
+  "claimedCompletions": 3,
+  "costPerAcceptedChange": "5.3500",
+  "costPerClaimedCompletion": "4.9000",
+  "costPerTask": "2.8667",
+  "definitions": {
+    "abandonment_rate": "runs abandoned (planned, never started, older than 24h; or stalled >24h without verdict/PR/block) / planned",
+    "acceptance_rate_of_started": "accepted / started",
+    "accepted": "runs with a pr_opened event AND last review verdict passed=True",
+    "claimed_but_not_accepted": "runs that claimed completion but never produced an accepted change (no PR opened, or last review verdict failed)",
+    "claimed_completions": "runs with an engine_completed event (model-claimed, NOT acceptance)",
+    "cost_per_accepted_change": "sum of costs of accepted runs / accepted runs",
+    "cost_per_claimed_completion": "sum of costs of engine_completed runs / claimed completions",
+    "cost_per_task": "sum of all run costs / planned runs",
+    "planned": "runs with a plan_proposed event",
+    "rework_rate": "runs with >1 execution_started OR any review_failed / divided by started",
+    "started": "runs with at least one execution_started event"
+  },
+  "reworkRate": 0.4,
+  "scope": {
+    "from": null,
+    "team": "team-a",
+    "to": null
+  },
+  "tasks": 6,
+  "totalCostUsd": "17.2000"
+}

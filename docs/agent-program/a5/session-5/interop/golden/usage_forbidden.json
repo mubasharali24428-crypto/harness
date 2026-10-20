@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "TEAM_FORBIDDEN",
+    "message": "cannot view another team"
+  }
+}

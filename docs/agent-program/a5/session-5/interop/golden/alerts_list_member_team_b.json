@@ -1,0 +1,20 @@
+{
+  "alerts": [
+    {
+      "alertId": "alr-f1459986d051",
+      "count": 2,
+      "dedupeKey": "expensive_run:run-b2",
+      "firstSeen": "2026-10-17T12:00:00+00:00",
+      "lastNotifiedAt": "2026-10-17T12:00:00+00:00",
+      "lastSeen": "2026-10-17T12:00:00+00:00",
+      "message": "run run-b2 cost $5.10 (> $5.00)",
+      "rule": "expensive_run",
+      "severity": "low",
+      "status": "active",
+      "subject": {
+        "runId": "run-b2",
+        "teamId": "team-b"
+      }
+    }
+  ]
+}

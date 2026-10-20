@@ -1,0 +1,32 @@
+{
+  "name": "call_custom_tool",
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/extensions/custom-tools/<uuid>/call",
+    "identity": "engineer@team-a",
+    "body": {
+      "arguments": {
+        "text": "wrapped"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "schemaVersion": "hap/1",
+      "observationId": "<uuid>",
+      "serverId": "<uuid>",
+      "toolName": "echo-narrow",
+      "status": "succeeded",
+      "blocks": [
+        {
+          "type": "text",
+          "text": "echo:wrapped"
+        }
+      ],
+      "isError": false,
+      "truncated": false,
+      "durationMs": "<ms>"
+    }
+  }
+}

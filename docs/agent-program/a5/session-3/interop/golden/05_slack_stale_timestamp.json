@@ -1,0 +1,13 @@
+{
+  "name": "slack_stale_timestamp",
+  "provider": "slack",
+  "response": {
+    "status": 401,
+    "body": {
+      "error": {
+        "code": "SIGNATURE_STALE",
+        "message": "timestamp outside 300s window"
+      }
+    }
+  }
+}

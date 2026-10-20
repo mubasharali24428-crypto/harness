@@ -1,0 +1,9 @@
+{
+  "approveCalls": [
+    "plan-1"
+  ],
+  "planGoals": {
+    "plan-1": "[ci intake | provider=github | repo=acme/app | branch=main | commit=aaaaaaaaaaaa | untrusted context, requires human pla",
+    "plan-2": "[ci intake | provider=gitlab | repo=acme/app | branch=main | commit=bbbbbbbbbbbb | untrusted context, requires human pla"
+  }
+}

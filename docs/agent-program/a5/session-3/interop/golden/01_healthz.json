@@ -1,0 +1,18 @@
+{
+  "name": "healthz",
+  "provider": null,
+  "response": {
+    "status": 200,
+    "body": {
+      "status": "ok",
+      "providers": [
+        "alerts",
+        "jira",
+        "linear",
+        "sentry",
+        "slack",
+        "teams"
+      ]
+    }
+  }
+}

@@ -1,0 +1,183 @@
+{
+ "session": "A5-S3",
+ "agent": "A5",
+ "date": "2026-10-17",
+ "baselineCommit": "31bf4077e9b567b1f50ecb99818d501baab3115a",
+ "artifact": "integrations/connectors/workflows + scripts/agent-program/a5",
+ "features": [
+  {
+   "id": "F121",
+   "capability": "Slack task intake and status updates",
+   "assessmentBefore": "NOT FOUND",
+   "state": "VERIFIED IMPLEMENTED",
+   "evidence": [
+    "integrations/connectors/workflows \u2014 harness-workflow-connectors package: POST /webhooks/slack with the REAL Slack v0 scheme (hmac-sha256 over v0:{ts}:{body}, 300s freshness window, X-Slack-Signature/X-Slack-Request-Timestamp)",
+    "message event \u2192 tenant mapping (Slack team_id) \u2192 idempotent claim (event_id) \u2192 plan gate propose \u2192 202 {planId, waiting for human}",
+    "outbound SlackNotifier.post_status (chat.postMessage, bot token) exercised against a real fake HTTP server",
+    "tests/test_slack_teams.py (9 Slack tests) \u2014 propose, duplicate 200, concurrent-duplicates single plan (asyncio.gather x5), tampered signature 401, stale timestamp 401, tenant spoof 403, per-tenant 429, upstream 502 then provider-retry 202, real-fake status post incl. bad-token refusal",
+    "goldens 02\u201307, 19\u201324 in docs/agent-program/a5/session-3/interop/golden"
+   ],
+   "limits": "No live Slack workspace hit (no credentials in this environment): transport contract validated against real-shape fake servers only. Slash-command surface not included (message events only)."
+  },
+  {
+   "id": "F122",
+   "capability": "Microsoft Teams task intake and status updates",
+   "assessmentBefore": "NOT FOUND",
+   "state": "VERIFIED IMPLEMENTED",
+   "evidence": [
+    "POST /webhooks/teams with bearer-HMAC signature scheme + channelData.tenant.id mapping; idempotency on message id",
+    "outbound TeamsNotifier.post_status (MessageCard) against a real fake webhook receiver",
+    "tests/test_slack_teams.py (3 Teams tests) \u2014 propose + duplicate, bad bearer 401, real-fake status card",
+    "goldens 14/15 + gate-goal evidence in 14_teams_message_proposed.json"
+   ],
+   "limits": "Real Teams does not sign bot-framework webhooks; the bearer-HMAC scheme is a documented adapter simplification (secret webhook URL or fronting proxy), swap point is the SignatureScheme row in teams.py."
+  },
+  {
+   "id": "F123",
+   "capability": "Linear issue integration",
+   "assessmentBefore": "NOT FOUND",
+   "state": "VERIFIED IMPLEMENTED",
+   "evidence": [
+    "POST /webhooks/linear with the real Linear-Signature hex scheme; Issue/create events only (update/remove \u2192 400 EVENT_IGNORED); Linear-Delivery idempotency",
+    "outbound LinearNotifier.post_comment (GraphQL commentCreate, api key) against a real fake GraphQL server",
+    "tests/test_jira_linear.py (4 Linear tests) \u2014 propose+dedupe, signature required, non-create ignored, real-fake comment",
+    "golden 12_linear_issue_proposed.json (goal carries identifier + description + source URL)"
+   ],
+   "limits": "Live linear.app not hit; GraphQL fake validates request shape only."
+  },
+  {
+   "id": "F124",
+   "capability": "Jira issue integration",
+   "assessmentBefore": "NOT FOUND",
+   "state": "VERIFIED IMPLEMENTED",
+   "evidence": [
+    "POST /webhooks/jira \u2014 X-Jira-Secret HMAC over raw body, jira:issue_created only, ADF description flattened to text",
+    "content-hash delivery id fallback (Jira webhooks carry no delivery id) makes exact replays idempotent",
+    "outbound JiraNotifier.post_comment (REST v3 ADF comment, email+api_token basic auth) against a real fake Jira server incl. auth check",
+    "tests/test_jira_linear.py (3 Jira tests) + goldens 13_..."
+   ],
+   "limits": "Real Jira webhooks are unsigned too \u2014 X-Jira-Secret is a documented adapter simplification (Atlassian Connect JWT is the future real scheme)."
+  },
+  {
+   "id": "F126",
+   "capability": "Sentry error-to-agent workflow",
+   "assessmentBefore": "NOT FOUND",
+   "state": "VERIFIED IMPLEMENTED",
+   "evidence": [
+    "POST /webhooks/sentry with the REAL Sentry-Hook-Signature (hmac-sha256 hex) + Sentry-Hook-Resource enforcement (issue only); Request-ID idempotency",
+    "action=created only (\u2192 plan proposal); resolved/ignored \u2192 400 EVENT_IGNORED; error text with embedded token redacted before the goal",
+    "tests/test_incidents.py (5 Sentry tests incl. redaction) + goldens 08/09"
+   ],
+   "limits": "sentry.io not hit live; payload shape mirrors the documented webhook contract."
+  },
+  {
+   "id": "F127",
+   "capability": "Datadog or Grafana incident-to-agent workflow",
+   "assessmentBefore": "NOT FOUND",
+   "state": "PARTIAL",
+   "evidence": [
+    "POST /webhooks/alerts \u2014 Alertmanager-shaped receiver (X-Alert-Secret HMAC): firing-only (resolved \u2192 400), org_id label \u2192 tenant, fingerprint+startsAt episode idempotency",
+    "tests/test_incidents.py (4 alert tests incl. source=datadog acceptance) + goldens 10/11",
+    "Grafana Alerting natively delivers the Alertmanager format \u2014 that half is contract-complete"
+   ],
+   "limits": "PARTIAL by honesty rule: Datadog's DEFAULT webhook payload shape (alert_title/alert_type/aggregation_key) is NOT parsed; Datadog requires configuring a custom payload template matching the implemented contract, which is documented in README but not itself validated against a live Datadog account. Grafana=complete, Datadog=via-templated-payload."
+  }
+ ],
+ "risks": [
+  {
+   "id": "VR014",
+   "risk": "Malicious MCP servers, skills, plugins, or dependencies enter through the agent supply chain",
+   "state": "PARTIAL CONTROL",
+   "controls": [
+    "digest-verified catalog (tampered payload dropped at load; mismatch refused at install)",
+    "schema guard: depth/nodes/bytes/cycle bounds + object-root requirement",
+    "description size cap (payload-bomb descriptions rejected at discovery)",
+    "url policy: deny-by-default private/loopback/link-local \u2014 also enforced for HOOK targets (creation + dispatch re-check)",
+    "deny-by-default grants, terminal admin-only revoke, cross-tenant no-oracle (404)",
+    "custom-tool wrappers narrow arguments; revoked servers fail closed (SERVER_DISABLED)",
+    "team policy deny-wins enforced at calls, grant creation, and wrapper+source tools",
+    "shared service never imports extension code (SDK local-hook boundary)",
+    "S3: every connector intake is signature-verified on the raw body before parsing (real Slack/Sentry schemes; documented adapter schemes for Teams/Jira/alerts)",
+    "S3: tenant mapping fail-closed (403 TENANT_UNKNOWN, no existence oracle); per-tenant rate limit",
+    "S3: secret patterns redacted from incident text before it reaches a goal or any log line",
+    "S3: connectors can only PROPOSE plans (single-method gate client; no approve/run route exists on the service)"
+   ],
+   "remaining": "No publisher signing/provenance beyond bundled digests; no external audit of curated payloads; comment-intake text (Jira/Linear bodies) could still embed injection strings \u2014 mitigated only by the human-approval gate on plans (untrusted-banner) this session; live SDK-to-S5 confinement chain remains for S5 evidence."
+  },
+  {
+   "id": "VR020",
+   "risk": "Product cannot produce sufficient security evidence for procurement review",
+   "state": "PARTIAL CONTROL",
+   "controls": [
+    "OpenAPI snapshots regenerated per session + 57 normalized golden fixtures across S1\u2013S3 captured from REAL runs (15 + 18 + 24)",
+    "133 passing tests (90 service+SDK+integration, 8 wiki connector, 35 workflow connectors) including hostile-input and no-oracle suites",
+    "S3 attack evidence: signature tampering, stale replay, tenant spoofing, duplicate/concurrent delivery, per-tenant rate limit, secret-bearing payloads, upstream outage + retry",
+    "real-orchestrator smoke: signed webhook \u2192 REAL Section 4 plan gate \u2192 approve \u2192 status executing=false (no auto-execution) \u2014 docs/agent-program/a5/session-3/real-gate-smoke.log",
+    "honest NOT-implemented boundaries recorded per feature (Datadog default payload, Notion, live-vendor validation, index publication)",
+    "fresh-venv wheel-install verification of 4 wheels incl. the new connector (distribution-verify.log)"
+   ],
+   "remaining": "Full evidence package (release SBOM, deployment topology, incident runbooks) lands in A5-S5."
+  },
+  {
+   "id": "VR040",
+   "risk": "Documentation/support too thin for independent adoption",
+   "state": "PARTIAL CONTROL",
+   "controls": [
+    "self-contained per-session reports under docs/agent-program/a5/",
+    "integrations/connectors/wiki/README.md + integrations/connectors/workflows/README.md \u2014 service contract tables, per-provider signature honesty table, deploy env vars, known limits",
+    "SDK/client docstrings with runnable examples + golden fixtures as conformance examples",
+    "reproducible capture/smoke scripts under scripts/agent-program/a5/"
+   ],
+   "remaining": "Full user-guide set (skill authoring cookbook, admin runbook) lands in A5-S4/S5; API reference polish in S4."
+  },
+  {
+   "id": "VR031",
+   "risk": "Buyers cannot see measurable ROI beyond agent feels useful",
+   "state": "OPEN",
+   "controls": [],
+   "remaining": "Pilot evidence and measured accepted-change workflow land in A5-S5."
+  },
+  {
+   "id": "VR036",
+   "risk": "Larger platforms bundle similar governance into existing paid tools",
+   "state": "EXTERNAL VALIDATION REQUIRED",
+   "controls": [],
+   "remaining": "Market risk; addressed by positioning evidence, not code."
+  },
+  {
+   "id": "VR037",
+   "risk": "Category too crowded; positioning unclear to buyers",
+   "state": "EXTERNAL VALIDATION REQUIRED",
+   "controls": [],
+   "remaining": "Buyer validation work in A5-S5."
+  },
+  {
+   "id": "VR038",
+   "risk": "Enterprise security/procurement reviews outlast sales runway",
+   "state": "EXTERNAL VALIDATION REQUIRED",
+   "controls": [],
+   "remaining": "Procurement-cycle evidence in A5-S5."
+  },
+  {
+   "id": "VR042",
+   "risk": "Pricing guessed, underpriced, or too complicated",
+   "state": "EXTERNAL VALIDATION REQUIRED",
+   "controls": [],
+   "remaining": "Pricing validation in A5-S5."
+  },
+  {
+   "id": "VR044",
+   "risk": "Teams value governance but will not pay for it separately",
+   "state": "EXTERNAL VALIDATION REQUIRED",
+   "controls": [],
+   "remaining": "Willingness-to-pay evidence in A5-S5."
+  },
+  {
+   "id": "VR050",
+   "risk": "Best features copied by larger platforms before distribution is established",
+   "state": "EXTERNAL VALIDATION REQUIRED",
+   "controls": [],
+   "remaining": "Distribution/market risk; not closable through code."
+  }
+ ]
+}

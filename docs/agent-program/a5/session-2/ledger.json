@@ -1,0 +1,181 @@
+{
+ "session": "A5-S2",
+ "agent": "A5",
+ "date": "2026-10-17",
+ "baselineCommit": "31bf4077e9b567b1f50ecb99818d501baab3115a",
+ "artifact": "packages/extensions + integrations/connectors/wiki",
+ "features": [
+  {
+   "id": "F067",
+   "capability": "Namespaced slash commands or task commands",
+   "assessmentBefore": "NOT FOUND",
+   "state": "VERIFIED IMPLEMENTED",
+   "evidence": [
+    "packages/extensions/src/harness_extensions/commands.py \u2014 namespaced keys (team/<slug>; model reserves plugin:<id>/<slug>), strict argument validation (missing AND unknown rejected), {{placeholder}} rendering + sha256 digest",
+    "api.py POST/GET /commands, POST /commands/{id}/invoke (write-gated, cross-tenant no-oracle 404)",
+    "tests/test_commands.py (7 tests: create/invoke, strict args, undeclared placeholder, name rules/conflict 409, cross-tenant 404, viewer 403, removed->gone)",
+    "interop/golden/03_create_command.json, 04_invoke_command.json, 05_invoke_command_missing_argument_error.json (400), 15_list_commands.json",
+    "tests/test_sdk_client.py \u2014 command create+invoke through the SDK client"
+   ],
+   "limits": "The chat-surface '/' parser is a client-UI concern outside A5; the registry provides the namespaced, collision-free command store. User-created commands live in the 'team' namespace; plugin namespaces are reserved for catalog content."
+  },
+  {
+   "id": "F068",
+   "capability": "Event hooks",
+   "assessmentBefore": "PARTIAL",
+   "state": "VERIFIED IMPLEMENTED",
+   "evidence": [
+    "packages/extensions/src/harness_extensions/hooks.py + api.py /hooks endpoints (create/list/disable/dispatch/deliveries)",
+    "Events tool_call.succeeded / tool_call.failed + '*' fired INLINE from the call path; one bounded attempt (5s), no retries; every attempt recorded delivered/failed/refused",
+    "tests/test_hooks.py \u2014 REAL local webhook sink: inline delivery on a tool call, manual dispatch, 5xx -> failed with status detail, deny-listed target refused at creation, no-grant mcp_tool target refused, disable stops firing, cross-tenant isolation",
+    "interop/golden/06..11 \u2014 hook create, call-triggered delivery, delivered+failed delivery records",
+    "Hostile/test dir: tests/webhook_sink.py runs a real uvicorn receiver (no mocked HTTP)"
+   ],
+   "limits": "No retry/backoff queue (deliberate: no broker exists yet); targets validated by URL policy at creation and re-checked at dispatch."
+  },
+  {
+   "id": "F069",
+   "capability": "Tool allowlists and denylists",
+   "assessmentBefore": "PARTIAL",
+   "state": "VERIFIED IMPLEMENTED",
+   "evidence": [
+    "packages/extensions/src/harness_extensions/policy.py + api.py /policy endpoints (create/list/delete)",
+    "Deny wins; allowlist mode activates when any allow rule exists; exact + trailing-wildcard patterns",
+    "Enforced at: direct calls (403 TOOL_DENIED_BY_POLICY), grant creation (409), custom-tool wrappers by BOTH wrapper name and source tool",
+    "tests/test_policy_lists.py (6 tests incl. wildcard, allowlist mode, wrapper/source enforcement, pattern invalid 400, duplicate 409)",
+    "interop/golden/12_create_policy_deny.json, 13_call_denied_by_policy.json (403), 14_grant_denied_by_policy.json (409)"
+   ],
+   "limits": "Team-wide policy only (no per-project policy rules yet); patterns are name-prefix wildcards, not regex, by design."
+  },
+  {
+   "id": "F070",
+   "capability": "Extension SDK",
+   "assessmentBefore": "PARTIAL",
+   "state": "VERIFIED IMPLEMENTED",
+   "evidence": [
+    "sdk.py \u2014 ExtensionApp authoring: @command/@hook decorators, import-time validation (names, placeholders, event types), in-process render()/dispatch() dry runs",
+    "client.py \u2014 full typed rx REST client: servers/grants/calls/custom-tools/skills/commands/hooks/policy/catalog; ExtensionsApiError(status, code, message) from the frozen envelope; context-manager lifecycle",
+    "tests/test_sdk_client.py (4 tests) \u2014 declarations/dry runs, bad declarations rejected, client journeys against the real ASGI service with a live MCP fixture server, typed error assertions",
+    "Distribution smoke (fresh venv wheel install) imports harness_extensions.client and invokes a command end-to-end \u2014 see distribution-verify.log",
+    "SDK boundary: the shared service never imports extension code; local hooks run only in host processes"
+   ],
+   "limits": "Python SDK only (a TS client remains future work); no SDK versioning policy document yet."
+  },
+  {
+   "id": "F125",
+   "capability": "Notion or internal-wiki context integration",
+   "assessmentBefore": "NOT FOUND",
+   "state": "PARTIAL",
+   "evidence": [
+    "integrations/connectors/wiki \u2014 new harness-wiki-connector package: LocalMarkdownWiki + HttpWikiConnector (JSON API, bearer token, injected URL guard) + sync_wiki_to_skills (idempotent; content change -> NEW skill version, history preserved)",
+    "tests (8, connector package) \u2014 real files, real local wiki HTTP server, typed errors, url-guard refusal before any request",
+    "tests/test_wiki_sync.py (2, integration) \u2014 real service + real client + real connector + real wiki server: create -> unchanged -> version bump read back through the API with v1 intact",
+    "integrations/connectors/wiki/README.md \u2014 API contract + how to add a Notion adapter"
+   ],
+   "limits": "Notion adapter itself NOT implemented (OAuth + live account unverifiable here) \u2014 documented adapter point instead. Sync is pull-only (no webhook/push ingestion)."
+  },
+  {
+   "id": "F150",
+   "capability": "Customer-facing API documentation and SDK distribution",
+   "assessmentBefore": "PARTIAL",
+   "state": "PARTIAL",
+   "evidence": [
+    "interop/openapi.json regenerated per session (27 paths, full current surface)",
+    "18 normalized golden fixtures for S2 journeys incl. error paths (400/403/409) and delivery transitions",
+    "scripts/verify_distribution.py \u2014 builds 3 wheels, installs into a FRESH venv (no repo on sys.path), runs a smoke journey: app boots, commands routes in OpenAPI, command render OK via client, catalog data present, wiki connector importable; exit 0 + DISTRIBUTION_VERIFIED",
+    "distribution-verify.log \u2014 full evidence incl. importlib.metadata versions of all 3 packages + deps"
+   ],
+   "limits": "No publication to a package index (no index authority in this environment): wheel-install verification is the strongest available proof. No TS SDK docs yet."
+  }
+ ],
+ "risks": [
+  {
+   "id": "VR014",
+   "risk": "Malicious MCP servers, skills, plugins, or dependencies enter through the agent supply chain",
+   "state": "PARTIAL CONTROL",
+   "controls": [
+    "digest-verified catalog (tampered payload dropped at load; mismatch refused at install)",
+    "schema guard: depth/nodes/bytes/cycle bounds + object-root requirement",
+    "description size cap (payload-bomb descriptions rejected at discovery)",
+    "url policy: deny-by-default private/loopback/link-local \u2014 now also enforced for HOOK targets (creation + dispatch re-check)",
+    "deny-by-default grants, terminal admin-only revoke, cross-tenant no-oracle (404)",
+    "custom-tool wrappers narrow arguments; revoked servers fail closed (SERVER_DISABLED)",
+    "S2: team policy deny-wins enforced at calls, grant creation, and wrapper+source tools",
+    "S2: shared service never imports extension code (SDK local-hook boundary)"
+   ],
+   "remaining": "No publisher signing/provenance beyond bundled digests; no external audit of curated payloads; live SDK-to-S5 confinement chain remains for S5 evidence."
+  },
+  {
+   "id": "VR020",
+   "risk": "Product cannot produce sufficient security evidence for procurement review",
+   "state": "PARTIAL CONTROL",
+   "controls": [
+    "OpenAPI snapshots regenerated per session (27 paths) + 33 normalized golden fixtures across S1+S2 captured from REAL runs",
+    "98 passing tests (90 service+SDK+integration, 8 connector) including hostile-input and no-oracle suites",
+    "honest NOT-implemented boundaries recorded per feature (Notion, retry queue, index publication)",
+    "fresh-venv wheel-install verification with machine-readable evidence (distribution-verify.log)"
+   ],
+   "remaining": "Full evidence package (release SBOM, deployment topology, incident runbooks) lands in A5-S5."
+  },
+  {
+   "id": "VR040",
+   "risk": "Documentation/support too thin for independent adoption",
+   "state": "PARTIAL CONTROL",
+   "controls": [
+    "self-contained per-session reports under docs/agent-program/a5/",
+    "integrations/connectors/wiki/README.md \u2014 API contract, usage, connector-extension guide",
+    "SDK/client docstrings with runnable examples + golden fixtures as conformance examples"
+   ],
+   "remaining": "Full user-guide set (skill authoring, hooks cookbook, admin runbook) lands in A5-S3/S4; API reference polish in S4."
+  },
+  {
+   "id": "VR031",
+   "risk": "Buyers cannot see measurable ROI beyond agent feels useful",
+   "state": "OPEN",
+   "controls": [],
+   "remaining": "Pilot evidence and measured accepted-change workflow land in A5-S5."
+  },
+  {
+   "id": "VR036",
+   "risk": "Larger platforms bundle similar governance into existing paid tools",
+   "state": "EXTERNAL VALIDATION REQUIRED",
+   "controls": [],
+   "remaining": "Market risk; addressed by positioning evidence, not code."
+  },
+  {
+   "id": "VR037",
+   "risk": "Category too crowded; positioning unclear to buyers",
+   "state": "EXTERNAL VALIDATION REQUIRED",
+   "controls": [],
+   "remaining": "Buyer validation work in A5-S5."
+  },
+  {
+   "id": "VR038",
+   "risk": "Enterprise security/procurement reviews outlast sales runway",
+   "state": "EXTERNAL VALIDATION REQUIRED",
+   "controls": [],
+   "remaining": "Procurement-cycle evidence in A5-S5."
+  },
+  {
+   "id": "VR042",
+   "risk": "Pricing guessed, underpriced, or too complicated",
+   "state": "EXTERNAL VALIDATION REQUIRED",
+   "controls": [],
+   "remaining": "Pricing validation in A5-S5."
+  },
+  {
+   "id": "VR044",
+   "risk": "Teams value governance but will not pay for it separately",
+   "state": "EXTERNAL VALIDATION REQUIRED",
+   "controls": [],
+   "remaining": "Willingness-to-pay evidence in A5-S5."
+  },
+  {
+   "id": "VR050",
+   "risk": "Best features copied by larger platforms before distribution is established",
+   "state": "EXTERNAL VALIDATION REQUIRED",
+   "controls": [],
+   "remaining": "Distribution/market risk; not closable through code."
+  }
+ ]
+}

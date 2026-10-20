@@ -1,0 +1,74 @@
+{
+  "history": [
+    {
+      "attempt": 1,
+      "deliveryId": "dlv-auto-1",
+      "error": null,
+      "eventType": "alert.opened",
+      "lastAttemptAt": "2026-10-17T12:00:00+00:00",
+      "responseCode": 200,
+      "status": "delivered"
+    },
+    {
+      "attempt": 1,
+      "deliveryId": "dlv-auto-2",
+      "error": null,
+      "eventType": "alert.opened",
+      "lastAttemptAt": "2026-10-17T12:00:00+00:00",
+      "responseCode": 200,
+      "status": "delivered"
+    },
+    {
+      "attempt": 1,
+      "deliveryId": "dlv-auto-3",
+      "error": null,
+      "eventType": "alert.opened",
+      "lastAttemptAt": "2026-10-17T12:00:00+00:00",
+      "responseCode": 200,
+      "status": "delivered"
+    },
+    {
+      "attempt": 1,
+      "deliveryId": "dlv-auto-4",
+      "error": null,
+      "eventType": "alert.opened",
+      "lastAttemptAt": "2026-10-17T12:00:00+00:00",
+      "responseCode": 200,
+      "status": "delivered"
+    }
+  ],
+  "receiverCalls": [
+    {
+      "bodySha256": "588485fed0ce3462b573316b9fe1048e4287ab95b6e59c80c289b8692180c184",
+      "deliveryId": "dlv-auto-1",
+      "signature": "sha256=fc81c128cd262c76a7ef928f1a140e2c8ad9c9d7bb109eb162ee46329c180884",
+      "signatureCanonicalized": true,
+      "timestamp": "1792238400",
+      "url": "https://receiver.test/hook"
+    },
+    {
+      "bodySha256": "8a5d326f566dd8b2021f3171a498b46499d194e42c789456048ae4188c9b2320",
+      "deliveryId": "dlv-auto-2",
+      "signature": "sha256=8a5816d78c0f6dfc946c61e5f15cb02bf525f681e9bafbe01159dbc6a3420196",
+      "signatureCanonicalized": true,
+      "timestamp": "1792238400",
+      "url": "https://receiver.test/hook"
+    },
+    {
+      "bodySha256": "5d1016c0de8a3e44b4f6043dc5b26b2a3af65c7aee543ad49428b800f82325f1",
+      "deliveryId": "dlv-auto-3",
+      "signature": "sha256=1cbb0c1da248caf809c7fa25b6df18faf453c4b16de8e6c50988a178086223ba",
+      "signatureCanonicalized": true,
+      "timestamp": "1792238400",
+      "url": "https://receiver.test/hook"
+    },
+    {
+      "bodySha256": "3890d7232306e7abbfab1b24b418bd4e0f71b7215700b8faad167c5c59b75852",
+      "deliveryId": "dlv-auto-4",
+      "signature": "sha256=9c98f16ac2b013c34adb5188edb9c8448b67d07225733b93b57d8779db25d63a",
+      "signatureCanonicalized": true,
+      "timestamp": "1792238400",
+      "url": "https://receiver.test/hook"
+    }
+  ]
+}

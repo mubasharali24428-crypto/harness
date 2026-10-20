@@ -1,0 +1,10 @@
+{
+  "actor": "u-alice",
+  "duplicate": false,
+  "outcome": {
+    "decision": "rejected",
+    "note": "rejection recorded; no orchestrator reject route verified \u2014 the run remains awaiting plan approval",
+    "planId": "plan-9",
+    "recorded": true
+  }
+}

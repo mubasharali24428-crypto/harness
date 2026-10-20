@@ -1,0 +1,32 @@
+{
+  "name": "register_server",
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/extensions/servers",
+    "identity": "engineer@team-a",
+    "body": {
+      "name": "fixture-echo",
+      "url": "http://127.0.0.1:<port>/mcp"
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "serverId": "<uuid>",
+      "teamId": "team-a",
+      "projectId": null,
+      "name": "fixture-echo",
+      "transport": "http",
+      "url": "http://127.0.0.1:<port>/mcp",
+      "status": "enabled",
+      "createdBy": "u-eng-a",
+      "createdAt": "<timestamp>",
+      "health": "healthy",
+      "healthCheckedAt": "<timestamp>",
+      "healthLatencyMs": "<ms>",
+      "healthError": null,
+      "toolCount": 4,
+      "rejectedToolCount": 0
+    }
+  }
+}

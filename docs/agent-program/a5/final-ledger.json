@@ -1,0 +1,320 @@
+{
+  "program": "A5 \u2014 MCP, integrations and operations",
+  "agent": "A5",
+  "date": "2026-10-17",
+  "baselineCommit": "31bf4077e9b567b1f50ecb99818d501baab3115a",
+  "sessions": [
+    "A5-S1",
+    "A5-S2",
+    "A5-S3",
+    "A5-S4",
+    "A5-S5"
+  ],
+  "featureCounts": {
+    "total": 30,
+    "verifiedImplemented": 26,
+    "partial": 4
+  },
+  "features": [
+    {
+      "id": "F061",
+      "capability": "First-class MCP server registry",
+      "session": "A5-S1",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/extensions",
+      "lt": "Streamable HTTP transport only for the registry service; stdio discovery is local-worker-only by design."
+    },
+    {
+      "id": "F062",
+      "capability": "MCP permission scopes",
+      "session": "A5-S1",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/extensions",
+      "lt": "Run/project binding is enforced only when a project-owner lookup is provided; absent lookup = PROJECT_CHECK_UNAVAILABLE (fail closed)."
+    },
+    {
+      "id": "F063",
+      "capability": "MCP server health checks",
+      "session": "A5-S1",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/extensions",
+      "lt": "Health = initialize+tools/list latency probe; no background prober (on-demand only)."
+    },
+    {
+      "id": "F064",
+      "capability": "Custom tool builder",
+      "session": "A5-S1",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/extensions",
+      "lt": "Wrappers only (no schema authoring from scratch); the source tool's own grant is still required at call time."
+    },
+    {
+      "id": "F065",
+      "capability": "Reusable skills or playbooks",
+      "session": "A5-S1",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/extensions",
+      "lt": "Plain-text content; no execution of skill content (they are prompts/runbooks by design)."
+    },
+    {
+      "id": "F066",
+      "capability": "Plugin marketplace",
+      "session": "A5-S1",
+      "state": "PARTIAL",
+      "artifact": "packages/extensions",
+      "lt": "Curated bundled catalog only: no third-party publishing, submissions, payments, or remote registry protocol. Uninstall/update/revoke are implemented and tested."
+    },
+    {
+      "id": "F067",
+      "capability": "Namespaced slash commands or task commands",
+      "session": "A5-S2",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/extensions",
+      "lt": "The chat-surface '/' parser is a client-UI concern outside A5; the registry provides the namespaced, collision-free command store. User-created commands live in the 'team' namespace; plugin namespaces are reserved for catalog content."
+    },
+    {
+      "id": "F068",
+      "capability": "Event hooks",
+      "session": "A5-S2",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/extensions",
+      "lt": "No retry/backoff queue (deliberate: no broker exists yet); targets validated by URL policy at creation and re-checked at dispatch."
+    },
+    {
+      "id": "F069",
+      "capability": "Tool allowlists and denylists",
+      "session": "A5-S2",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/extensions",
+      "lt": "Team-wide policy only (no per-project policy rules yet); patterns are name-prefix wildcards, not regex, by design."
+    },
+    {
+      "id": "F070",
+      "capability": "Extension SDK",
+      "session": "A5-S2",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/extensions",
+      "lt": "Python SDK only (a TS client remains future work); no SDK versioning policy document yet."
+    },
+    {
+      "id": "F125",
+      "capability": "Notion or internal-wiki context integration",
+      "session": "A5-S2",
+      "state": "PARTIAL",
+      "artifact": "packages/extensions",
+      "lt": "Notion adapter itself NOT implemented (OAuth + live account unverifiable here) \u2014 documented adapter point instead. Sync is pull-only (no webhook/push ingestion)."
+    },
+    {
+      "id": "F150",
+      "capability": "Customer-facing API documentation and SDK distribution",
+      "session": "A5-S2",
+      "state": "PARTIAL",
+      "artifact": "packages/extensions",
+      "lt": "No publication to a package index (no index authority in this environment): wheel-install verification is the strongest available proof. No TS SDK docs yet."
+    },
+    {
+      "id": "F121",
+      "capability": "Slack task intake and status updates",
+      "session": "A5-S3",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "integrations/connectors/workflows",
+      "lt": "No live Slack workspace hit (no credentials in this environment): transport contract validated against real-shape fake servers only. Slash-command surface not included (message events only)."
+    },
+    {
+      "id": "F122",
+      "capability": "Microsoft Teams task intake and status updates",
+      "session": "A5-S3",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "integrations/connectors/workflows",
+      "lt": "Real Teams does not sign bot-framework webhooks; the bearer-HMAC scheme is a documented adapter simplification (secret webhook URL or fronting proxy), swap point is the SignatureScheme row in teams.py."
+    },
+    {
+      "id": "F123",
+      "capability": "Linear issue integration",
+      "session": "A5-S3",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "integrations/connectors/workflows",
+      "lt": "Live linear.app not hit; GraphQL fake validates request shape only."
+    },
+    {
+      "id": "F124",
+      "capability": "Jira issue integration",
+      "session": "A5-S3",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "integrations/connectors/workflows",
+      "lt": "Real Jira webhooks are unsigned too \u2014 X-Jira-Secret is a documented adapter simplification (Atlassian Connect JWT is the future real scheme)."
+    },
+    {
+      "id": "F126",
+      "capability": "Sentry error-to-agent workflow",
+      "session": "A5-S3",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "integrations/connectors/workflows",
+      "lt": "sentry.io not hit live; payload shape mirrors the documented webhook contract."
+    },
+    {
+      "id": "F127",
+      "capability": "Datadog or Grafana incident-to-agent workflow",
+      "session": "A5-S3",
+      "state": "PARTIAL",
+      "artifact": "integrations/connectors/workflows",
+      "lt": "PARTIAL by honesty rule: Datadog's DEFAULT webhook payload shape (alert_title/alert_type/aggregation_key) is NOT parsed; Datadog requires configuring a custom payload template matching the implemented contract, which is documented in README but not itself validated against a live Datadog account. Grafana=complete, Datadog=via-templated-payload."
+    },
+    {
+      "id": "F112",
+      "capability": "OpenTelemetry export",
+      "session": "A5-S4",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/telemetry",
+      "lt": "Push-only export; endpoint/TLS/auth are collector-side deployment concerns, no live production collector exercised here. Span set covers the frozen vocabulary only."
+    },
+    {
+      "id": "F113",
+      "capability": "Agent quality dashboard",
+      "session": "A5-S4",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/telemetry",
+      "lt": "Quality is event-derived acceptance/rework/blocked/abandonment; review issue text is displayed but not semantically scored. UI is a minimal HTML page, not a product-grade frontend."
+    },
+    {
+      "id": "F114",
+      "capability": "Developer productivity dashboard",
+      "session": "A5-S4",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/telemetry",
+      "lt": "Measures the harness timeline (plan/approve/execute/review/PR) only; human context work outside runs is invisible. Deliberately NO per-developer score \u2014 metrics are per-run/team."
+    },
+    {
+      "id": "F115",
+      "capability": "Cost-per-task and cost-per-accepted-change metrics",
+      "session": "A5-S4",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/telemetry",
+      "lt": "Depends on provider cost-ledger completeness (missing rows understate cost, never overstate). Infra/storage/human-review costs are out of scope."
+    },
+    {
+      "id": "F116",
+      "capability": "Time-to-first-useful-change metric",
+      "session": "A5-S4",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/telemetry",
+      "lt": "Same clock source assumed for plan/pr timestamps (all events carry ts from one store); cross-service clock skew not normalized."
+    },
+    {
+      "id": "F117",
+      "capability": "Searchable organization-wide run archive",
+      "session": "A5-S4",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/telemetry",
+      "lt": "Single-node SQLite; q is a LIKE scan (pilot scale, not a search cluster). No archive UI beyond the table view; export API not included."
+    },
+    {
+      "id": "F118",
+      "capability": "Exportable audit evidence package",
+      "session": "A5-S5",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/ops",
+      "lt": "Event-derived coverage: evidence is only as complete as the telemetry archive it exports. Zip is generated on demand in-process; very large exports are not streamed."
+    },
+    {
+      "id": "F119",
+      "capability": "Alerts for stalled, risky, expensive, or policy-violating runs",
+      "session": "A5-S5",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/ops",
+      "lt": "No muting/acknowledge API; resolution is state-driven (condition clears). Thresholds are deployment constants, not per-team config."
+    },
+    {
+      "id": "F120",
+      "capability": "Usage APIs and webhooks",
+      "session": "A5-S5",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/ops",
+      "lt": "Cost numbers inherit provider cost-ledger coverage (missing rows understate). No CSV/PDF export, no per-day time series yet."
+    },
+    {
+      "id": "F128",
+      "capability": "CI provider integrations",
+      "session": "A5-S5",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/ops",
+      "lt": "Webhook parsing covers push/pipeline failure events, not every provider event type. No provider-side app installation flow (config is env-driven)."
+    },
+    {
+      "id": "F129",
+      "capability": "Chat notifications with approve, reject, and inspect actions",
+      "session": "A5-S5",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/ops",
+      "lt": "Slack app installation/config is operator-owned; no Slack Block Kit UI shipped (payloads only). Reject is a recorded note until a reject route exists."
+    },
+    {
+      "id": "F130",
+      "capability": "Calendar or scheduled maintenance-task integration",
+      "session": "A5-S5",
+      "state": "VERIFIED IMPLEMENTED",
+      "artifact": "packages/ops",
+      "lt": "No calendar (CalDAV/Google) two-way sync \u2014 this is schedule-as-data with an operator cron sweep documented in runbook.md. No per-schedule retry backoff beyond claim release."
+    }
+  ],
+  "risks": {
+    "VR014": {
+      "state": "PARTIAL CONTROL",
+      "remaining": "Dependency locking/scanning for the ops + telemetry stacks and collector deployment hardening still ship with Section 10 assembly.",
+      "lastUpdatedIn": "A5-S5"
+    },
+    "VR020": {
+      "state": "PARTIAL CONTROL",
+      "remaining": "No SOC2-style attestation or pen-test. S5 adds runbook + incident procedures and audit-shaped evidence exports, but pilot-grade posture is unchanged.",
+      "lastUpdatedIn": "A5-S5"
+    },
+    "VR040": {
+      "state": "PARTIAL CONTROL",
+      "remaining": "docs/agent-program/a5/session-5/runbook.md now covers deploy/upgrade/rollback/incident/support for the ops surface; end-user onboarding flow remains minimal (READMEs + runbook).",
+      "lastUpdatedIn": "A5-S5"
+    },
+    "VR031": {
+      "state": "PARTIAL CONTROL",
+      "remaining": "Instruments are now deployable end-to-end (telemetry metrics + ops usage APIs + webhook deliveries + pilot-measurement.md), but no pilot has run: there are no measured ROI/productivity numbers and none are claimed. Pass condition: >= 1 real pilot with pre-registered metrics and honest sample sizes (release-blockers.md #3).",
+      "lastUpdatedIn": "A5-S5"
+    },
+    "VR036": {
+      "state": "EXTERNAL VALIDATION REQUIRED",
+      "remaining": "Market risk; S5 contributes the evidence machinery (usage/evidence exports) but no external validation was performed or implied.",
+      "lastUpdatedIn": "A5-S5"
+    },
+    "VR037": {
+      "state": "EXTERNAL VALIDATION REQUIRED",
+      "remaining": "Buyer validation not performed; no customer acceptance invented anywhere in S5 artifacts.",
+      "lastUpdatedIn": "A5-S5"
+    },
+    "VR038": {
+      "state": "EXTERNAL VALIDATION REQUIRED",
+      "remaining": "Procurement-cycle evidence not gathered; release-blockers.md is the input a future procurement conversation would start from.",
+      "lastUpdatedIn": "A5-S5"
+    },
+    "VR042": {
+      "state": "EXTERNAL VALIDATION REQUIRED",
+      "remaining": "Pricing not validated; cost-per-accepted-change APIs exist to ground future pricing, nothing more.",
+      "lastUpdatedIn": "A5-S5"
+    },
+    "VR044": {
+      "state": "EXTERNAL VALIDATION REQUIRED",
+      "remaining": "Willingness-to-pay evidence not gathered; explicitly out of autonomous scope.",
+      "lastUpdatedIn": "A5-S5"
+    },
+    "VR050": {
+      "state": "EXTERNAL VALIDATION REQUIRED",
+      "remaining": "Distribution/market risk; not closable through code.",
+      "lastUpdatedIn": "A5-S5"
+    }
+  },
+  "releaseLimits": [
+    "No deployment, no auto-merge, no unsolicited outreach, no invented customer acceptance (program-wide).",
+    "Combined-lane assembly (orchestrator + ops + auth + telemetry in one environment) has not run.",
+    "VR031: no pilot \u2192 no measured ROI/productivity numbers exist or are claimed.",
+    "VR036/037/038/042/044/050: market/buyer/procurement/pricing/WTP/distribution validation not performed.",
+    "Live provider endpoints (Slack app, real CI providers, real customer webhook receivers) never contacted; local HTTP transports only.",
+    "Packages are pilot-grade: SQLite storage, no queue/HA, no pen-test/SOC2; SQLite backup + restore drills required before production use."
+  ]
+}

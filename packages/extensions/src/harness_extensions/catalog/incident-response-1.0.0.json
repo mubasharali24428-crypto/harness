@@ -1,0 +1,15 @@
+{
+  "pluginId": "incident-response",
+  "version": "1.0.0",
+  "skills": [
+    {
+      "name": "triage",
+      "content": "# Incident triage playbook\n\n1. Establish impact: who is affected, since when, what is degrading.\n2. Check the newest deploys and config changes since impact started.\n3. Reproduce or find the smallest observable symptom.\n4. Decide: mitigation-first or root-cause-first. Mitigation wins when users are down.\n5. Write down the timeline as you go; timestamps are the postmortem.\n\nNever mark an incident resolved without an observation that shows the user-visible symptom is gone."
+    },
+    {
+      "name": "postmortem",
+      "content": "# Blameless postmortem template\n\n- Summary (2 sentences, user impact first)\n- Timeline (detection -> mitigation -> resolution, UTC timestamps)\n- Root cause(s) and contributing factors\n- What detected it (or why detection lagged)\n- What made it worse\n- Action items with owners and dates; each maps to a verifiable change\n\nRule: no action item without an owner and a date; no \"be more careful\" items."
+    }
+  ],
+  "serverTemplates": []
+}

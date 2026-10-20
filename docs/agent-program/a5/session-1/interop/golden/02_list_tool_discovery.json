@@ -1,0 +1,74 @@
+{
+  "name": "list_tool_discovery",
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/extensions/servers/<uuid>/tools",
+    "identity": "engineer@team-a"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "name": "big",
+          "description": "Returns a huge text block.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "bytes": {
+                "type": "integer"
+              }
+            }
+          },
+          "callable": true,
+          "rejectionReason": null,
+          "discoveredAt": "<timestamp>"
+        },
+        {
+          "name": "crash",
+          "description": "Always raises.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {}
+          },
+          "callable": true,
+          "rejectionReason": null,
+          "discoveredAt": "<timestamp>"
+        },
+        {
+          "name": "echo",
+          "description": "Echo text back.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text"
+            ]
+          },
+          "callable": true,
+          "rejectionReason": null,
+          "discoveredAt": "<timestamp>"
+        },
+        {
+          "name": "slow",
+          "description": "Sleeps, then answers.",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "seconds": {
+                "type": "number"
+              }
+            }
+          },
+          "callable": true,
+          "rejectionReason": null,
+          "discoveredAt": "<timestamp>"
+        }
+      ]
+    }
+  }
+}

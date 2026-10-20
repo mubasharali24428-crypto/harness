@@ -1,0 +1,68 @@
+{
+  "alerts": [
+    {
+      "alertId": "alr-4423170ff132",
+      "count": 2,
+      "dedupeKey": "claimed_but_rejected:run-a3",
+      "firstSeen": "2026-10-17T12:00:00+00:00",
+      "lastNotifiedAt": "2026-10-17T12:00:00+00:00",
+      "lastSeen": "2026-10-17T12:00:00+00:00",
+      "message": "run run-a3: engine claimed completion but independent review rejected the change (risky: claim/reality gap)",
+      "rule": "claimed_but_rejected",
+      "severity": "high",
+      "status": "active",
+      "subject": {
+        "runId": "run-a3",
+        "teamId": "team-a"
+      }
+    },
+    {
+      "alertId": "alr-4ed1c63ce251",
+      "count": 2,
+      "dedupeKey": "blocked_run:run-a5",
+      "firstSeen": "2026-10-17T12:00:00+00:00",
+      "lastNotifiedAt": "2026-10-17T12:00:00+00:00",
+      "lastSeen": "2026-10-17T12:00:00+00:00",
+      "message": "run run-a5 blocked awaiting clarification for 51.5h",
+      "rule": "blocked_run",
+      "severity": "medium",
+      "status": "active",
+      "subject": {
+        "runId": "run-a5",
+        "teamId": "team-a"
+      }
+    },
+    {
+      "alertId": "alr-f1459986d051",
+      "count": 2,
+      "dedupeKey": "expensive_run:run-b2",
+      "firstSeen": "2026-10-17T12:00:00+00:00",
+      "lastNotifiedAt": "2026-10-17T12:00:00+00:00",
+      "lastSeen": "2026-10-17T12:00:00+00:00",
+      "message": "run run-b2 cost $5.10 (> $5.00)",
+      "rule": "expensive_run",
+      "severity": "low",
+      "status": "active",
+      "subject": {
+        "runId": "run-b2",
+        "teamId": "team-b"
+      }
+    },
+    {
+      "alertId": "alr-fafd029c390a",
+      "count": 2,
+      "dedupeKey": "expensive_run:run-a2",
+      "firstSeen": "2026-10-17T12:00:00+00:00",
+      "lastNotifiedAt": "2026-10-17T12:00:00+00:00",
+      "lastSeen": "2026-10-17T12:00:00+00:00",
+      "message": "run run-a2 cost $7.50 (> $5.00)",
+      "rule": "expensive_run",
+      "severity": "low",
+      "status": "active",
+      "subject": {
+        "runId": "run-a2",
+        "teamId": "team-a"
+      }
+    }
+  ]
+}

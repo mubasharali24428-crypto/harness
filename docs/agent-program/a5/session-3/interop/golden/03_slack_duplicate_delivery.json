@@ -1,0 +1,14 @@
+{
+  "name": "slack_duplicate_delivery",
+  "provider": "slack",
+  "response": {
+    "status": 200,
+    "body": {
+      "status": "duplicate"
+    }
+  },
+  "gate": {
+    "plans": 1,
+    "lastGoal": "[connector intake | provider=slack | external_id=1729001.000100 | untrusted context, requires human plan approval]\ndeploy is broken on prod\n\ndeploy is broken on prod"
+  }
+}

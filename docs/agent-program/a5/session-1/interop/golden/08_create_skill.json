@@ -1,0 +1,37 @@
+{
+  "name": "create_skill",
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/extensions/skills",
+    "identity": "engineer@team-a",
+    "body": {
+      "name": "release-checklist",
+      "content": "1. freeze\n2. verify\n3. ship"
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "skill": {
+        "skillId": "<uuid>",
+        "teamId": "team-a",
+        "name": "release-checklist",
+        "source": "user",
+        "status": "active",
+        "latestVersion": 1,
+        "createdBy": "u-eng-a",
+        "createdAt": "<timestamp>",
+        "updatedAt": "<timestamp>"
+      },
+      "version": {
+        "skillId": "<uuid>",
+        "version": 1,
+        "content": "1. freeze\n2. verify\n3. ship",
+        "digest": "<sha256>",
+        "createdBy": "u-eng-a",
+        "createdAt": "<timestamp>",
+        "sourceRef": null
+      }
+    }
+  }
+}

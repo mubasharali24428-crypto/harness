@@ -1,0 +1,39 @@
+{
+  "schedules": [
+    {
+      "enabled": true,
+      "lastRunAt": "2026-10-17T12:00:00+00:00",
+      "misfirePolicy": "skip",
+      "name": "sch-20261017120000-0",
+      "runs": [],
+      "scheduleId": "sch-20261017120000-0",
+      "spec": {
+        "kind": "daily",
+        "time": "02:30"
+      },
+      "teamId": "team-a",
+      "tz": "America/New_York"
+    },
+    {
+      "enabled": true,
+      "lastRunAt": "2026-10-17T06:30:00+00:00",
+      "misfirePolicy": "skip",
+      "name": "Old nightly",
+      "runs": [
+        {
+          "catchup": false,
+          "occurrence": "2026-10-17T06:30:00+00:00",
+          "planId": "plan-3",
+          "triggeredAt": "2026-10-17T12:00:00+00:00"
+        }
+      ],
+      "scheduleId": "sch-golden-old",
+      "spec": {
+        "kind": "daily",
+        "time": "02:30"
+      },
+      "teamId": "team-a",
+      "tz": "America/New_York"
+    }
+  ]
+}

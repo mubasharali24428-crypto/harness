@@ -1,0 +1,23 @@
+{
+  "name": "create_policy_deny",
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/extensions/policy",
+    "identity": "engineer@team-a",
+    "body": {
+      "mode": "deny",
+      "pattern": "echo"
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "policyId": "<uuid>",
+      "teamId": "team-a",
+      "mode": "deny",
+      "pattern": "echo",
+      "createdBy": "u-eng-a",
+      "createdAt": "<timestamp>"
+    }
+  }
+}

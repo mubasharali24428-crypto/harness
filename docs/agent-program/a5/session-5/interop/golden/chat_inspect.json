@@ -1,0 +1,9 @@
+{
+  "actor": "u-bob",
+  "duplicate": false,
+  "outcome": {
+    "decision": "inspected",
+    "planId": "plan-1",
+    "runId": "run-1"
+  }
+}

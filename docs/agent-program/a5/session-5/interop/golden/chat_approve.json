@@ -1,0 +1,9 @@
+{
+  "actor": "u-alice",
+  "duplicate": false,
+  "outcome": {
+    "decision": "approved",
+    "planId": "plan-1",
+    "runId": "run-1"
+  }
+}

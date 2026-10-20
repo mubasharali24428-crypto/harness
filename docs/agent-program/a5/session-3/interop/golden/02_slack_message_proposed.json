@@ -1,0 +1,17 @@
+{
+  "name": "slack_message_proposed",
+  "provider": "slack",
+  "response": {
+    "status": 202,
+    "body": {
+      "status": "plan_proposed",
+      "planId": "<plan-id>",
+      "teamId": "team-a",
+      "awaitingApproval": true
+    }
+  },
+  "gate": {
+    "plans": 1,
+    "lastGoal": "[connector intake | provider=slack | external_id=1729001.000100 | untrusted context, requires human plan approval]\ndeploy is broken on prod\n\ndeploy is broken on prod"
+  }
+}

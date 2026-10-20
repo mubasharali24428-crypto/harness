@@ -1,0 +1,24 @@
+{
+  "name": "call_denied_by_policy",
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/extensions/calls",
+    "identity": "engineer@team-a",
+    "body": {
+      "serverId": "<uuid>",
+      "toolName": "echo",
+      "arguments": {
+        "text": "hi"
+      }
+    }
+  },
+  "response": {
+    "status": 403,
+    "body": {
+      "error": {
+        "code": "TOOL_DENIED_BY_POLICY",
+        "message": "tool 'echo' is blocked by team policy: denied_by_policy (matched 'echo')"
+      }
+    }
+  }
+}

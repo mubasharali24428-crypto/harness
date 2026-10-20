@@ -1,0 +1,15 @@
+{
+  "pluginId": "repo-hygiene",
+  "version": "1.0.0",
+  "skills": [
+    {
+      "name": "pr-review-checklist",
+      "content": "# PR review checklist\n\n- Does the diff match the stated goal, and nothing more?\n- Are failure paths tested (denial, timeout, malformed input)?\n- Are secrets, tokens or customer data present anywhere in diff/logs?\n- Do new endpoints follow the frozen error envelope and auth rules?\n- Is every new dependency pinned and justified?\n- Can this be rolled back by reverting one commit?\n\nVerdict language: blocker / non-blocking suggestion / question. Never \"LGTM\" alone."
+    },
+    {
+      "name": "dependency-audit",
+      "content": "# Dependency audit playbook\n\n1. List additions since the last audit with their direct/transitive scope.\n2. For each: maintenance status, license, CVE history, install scripts.\n3. Prefer pinned versions; no floating tags in production paths.\n4. Record accepted risks explicitly with an owner.\n\nIf a dependency cannot be verified, it does not ship enabled."
+    }
+  ],
+  "serverTemplates": []
+}

@@ -1,0 +1,22 @@
+{
+  "name": "call_unknown_tool_error",
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/extensions/calls",
+    "identity": "engineer@team-a",
+    "body": {
+      "serverId": "<uuid>",
+      "toolName": "nope",
+      "arguments": {}
+    }
+  },
+  "response": {
+    "status": 404,
+    "body": {
+      "error": {
+        "code": "TOOL_NOT_FOUND",
+        "message": "server does not advertise tool 'nope'"
+      }
+    }
+  }
+}

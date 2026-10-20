@@ -1,0 +1,42 @@
+{
+  "name": "catalog_list",
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/extensions/catalog",
+    "identity": "engineer@team-a"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "pluginId": "incident-response",
+          "name": "Incident Response Playbook Pack",
+          "version": "1.0.0",
+          "description": "Triage and blameless-postmortem playbooks for on-call work.",
+          "digest": "sha256:<sha256>",
+          "skillCount": 2,
+          "permissionsNote": "Text playbooks only; installs no tools and receives no network access."
+        },
+        {
+          "pluginId": "repo-hygiene",
+          "name": "Repository Hygiene Pack",
+          "version": "1.0.0",
+          "description": "PR review checklist and dependency audit playbooks.",
+          "digest": "sha256:<sha256>",
+          "skillCount": 2,
+          "permissionsNote": "Text playbooks only; installs no tools and receives no network access."
+        },
+        {
+          "pluginId": "web-research",
+          "name": "Web Research Pack",
+          "version": "1.0.0",
+          "description": "Citation discipline playbook plus an informational search-server template.",
+          "digest": "sha256:<sha256>",
+          "skillCount": 1,
+          "permissionsNote": "Playbook only; the bundled server template is informational (no auto-registration)."
+        }
+      ]
+    }
+  }
+}

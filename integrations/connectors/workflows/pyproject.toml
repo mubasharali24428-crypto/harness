@@ -1,0 +1,32 @@
+[project]
+name = "harness-workflow-connectors"
+version = "0.1.0"
+description = "Team-channel and incident-to-agent connectors for Harness: signed inbound webhooks (Slack, Teams, Linear, Jira, Sentry, Grafana/Datadog), tenant mapping, idempotent intake and approved-plan creation. Incident text is untrusted context and never authorizes execution."
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+    "starlette>=0.37",
+    "uvicorn>=0.30",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["src", "tests"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100

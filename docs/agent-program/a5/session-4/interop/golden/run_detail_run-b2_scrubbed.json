@@ -1,0 +1,55 @@
+{
+  "costUsd": "5.10",
+  "eventCount": 4,
+  "events": [
+    {
+      "payload": {
+        "goal": "Fix login for [EMAIL]; [REDACTED]",
+        "runId": "run-b2"
+      },
+      "seq": 1,
+      "ts": "2026-10-16T09:00:00+00:00",
+      "type": "plan_proposed"
+    },
+    {
+      "payload": {
+        "runId": "run-b2"
+      },
+      "seq": 2,
+      "ts": "2026-10-16T09:05:00+00:00",
+      "type": "plan_approved"
+    },
+    {
+      "payload": {
+        "runId": "run-b2"
+      },
+      "seq": 3,
+      "ts": "2026-10-16T09:06:00+00:00",
+      "type": "execution_started"
+    },
+    {
+      "payload": {
+        "findings": {
+          "issues": [
+            "regression in session cookie"
+          ],
+          "passed": false
+        },
+        "runId": "run-b2"
+      },
+      "seq": 4,
+      "ts": "2026-10-16T09:40:00+00:00",
+      "type": "review_failed"
+    }
+  ],
+  "goal": "Fix login for [EMAIL]; [REDACTED]",
+  "ingestedAt": "2026-10-17T12:00:00+00:00",
+  "outcome": "rejected",
+  "planProposedAt": "2026-10-16T09:00:00+00:00",
+  "prId": null,
+  "prOpenedAt": null,
+  "projectId": "proj-b",
+  "retentionUntil": "2027-01-15T12:00:00+00:00",
+  "runId": "run-b2",
+  "teamId": "team-b"
+}

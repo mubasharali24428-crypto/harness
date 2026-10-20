@@ -1,0 +1,31 @@
+[
+  {
+    "attributes": {
+      "harness.attempts": 0,
+      "harness.cost_usd": "0.10",
+      "harness.outcome": "abandoned",
+      "harness.project_id": "proj-a",
+      "harness.run_id": "run-a4",
+      "harness.team_id": "team-a"
+    },
+    "end_unix_ns": 1791975600000000000,
+    "error": true,
+    "name": "harness.run",
+    "parent_span_id": null,
+    "span_id": "a147be629d735fc0",
+    "start_unix_ns": 1791975600000000000,
+    "trace_id": "45228c8a245cf006a8df9f5f308d7914"
+  },
+  {
+    "attributes": {
+      "harness.plan.approved": false
+    },
+    "end_unix_ns": 1791975600000000000,
+    "error": true,
+    "name": "harness.plan",
+    "parent_span_id": "a147be629d735fc0",
+    "span_id": "2b960e3a8d74f9c9",
+    "start_unix_ns": 1791975600000000000,
+    "trace_id": "45228c8a245cf006a8df9f5f308d7914"
+  }
+]

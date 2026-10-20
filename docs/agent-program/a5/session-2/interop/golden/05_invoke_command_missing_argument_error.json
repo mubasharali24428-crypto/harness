@@ -1,0 +1,22 @@
+{
+  "name": "invoke_command_missing_argument_error",
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/extensions/commands/<uuid>/invoke",
+    "identity": "engineer@team-a",
+    "body": {
+      "arguments": {
+        "yesterday": "shipped S1"
+      }
+    }
+  },
+  "response": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "COMMAND_ARGS_MISSING",
+        "message": "missing argument(s): today"
+      }
+    }
+  }
+}

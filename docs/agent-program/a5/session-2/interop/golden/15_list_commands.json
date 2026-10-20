@@ -1,0 +1,32 @@
+{
+  "name": "list_commands",
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/extensions/commands",
+    "identity": "engineer@team-a"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "commandId": "<uuid>",
+          "teamId": "team-a",
+          "namespace": "team",
+          "name": "team/standup",
+          "description": "Standup helper",
+          "template": "Yesterday: {{yesterday}}\nToday: {{today}}",
+          "arguments": [
+            "today",
+            "yesterday"
+          ],
+          "source": "user",
+          "status": "active",
+          "createdBy": "u-eng-a",
+          "createdAt": "<timestamp>",
+          "updatedAt": "<timestamp>"
+        }
+      ]
+    }
+  }
+}

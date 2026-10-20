@@ -1,0 +1,15 @@
+[
+  {
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "path": "/healthz"
+  },
+  {
+    "methods": [
+      "POST"
+    ],
+    "path": "/webhooks/{provider}"
+  }
+]

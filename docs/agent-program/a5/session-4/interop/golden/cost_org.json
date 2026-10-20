@@ -1,0 +1,15 @@
+{
+  "acceptedChanges": 3,
+  "claimedCompletions": 4,
+  "costPerAcceptedChange": "4.3667",
+  "costPerClaimedCompletion": "4.2750",
+  "costPerTask": "3.0875",
+  "currency": "USD",
+  "definitions": {
+    "cost_per_accepted_change": "sum of costs of accepted runs / accepted runs",
+    "cost_per_claimed_completion": "sum of costs of engine_completed runs / claimed completions",
+    "cost_per_task": "sum of all run costs / planned runs"
+  },
+  "plannedTasks": 8,
+  "totalCost": "24.7000"
+}

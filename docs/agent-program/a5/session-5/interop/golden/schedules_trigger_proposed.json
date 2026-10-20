@@ -1,0 +1,11 @@
+{
+  "results": [
+    {
+      "catchup": false,
+      "occurrence": "2026-10-17T06:30:00+00:00",
+      "planId": "plan-3",
+      "scheduleId": "sch-golden-old",
+      "status": "proposed"
+    }
+  ]
+}

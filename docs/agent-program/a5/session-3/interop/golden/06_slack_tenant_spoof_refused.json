@@ -1,0 +1,13 @@
+{
+  "name": "slack_tenant_spoof_refused",
+  "provider": "slack",
+  "response": {
+    "status": 403,
+    "body": {
+      "error": {
+        "code": "TENANT_UNKNOWN",
+        "message": "tenant not configured"
+      }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "jira_issue_proposed",
+  "provider": "jira",
+  "response": {
+    "status": 202,
+    "body": {
+      "status": "plan_proposed",
+      "planId": "<plan-id>",
+      "teamId": "team-a",
+      "awaitingApproval": true
+    }
+  },
+  "gate": {
+    "plans": 6,
+    "lastGoal": "[connector intake | provider=jira | external_id=OPS-7 | untrusted context, requires human plan approval]\nNightly build red\nsource: https://acme.atlassian.net/browse/OPS-7\n\ncompiler crashed on main"
+  }
+}

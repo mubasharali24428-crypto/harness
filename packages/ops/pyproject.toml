@@ -1,0 +1,38 @@
+[project]
+name = "harness-ops"
+version = "0.1.0"
+description = "Operational acceptance for Harness: redacted audit evidence exports (F118), actionable stall/risk/spend alerts with dedupe (F119), usage APIs and signed retrying webhooks (F120), customer CI provider adapters (F128), chat approve/reject/inspect actions with signed, expiring bindings (F129), and DST-correct scheduled maintenance that always requires a human-approved plan (F130)."
+requires-python = ">=3.11"
+dependencies = [
+    "starlette>=0.37",
+    "httpx>=0.27",
+    "tzdata>=2024.1",
+    "harness-telemetry>=0.1.0",
+    "harness-workflow-connectors>=0.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+    "uvicorn>=0.30",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["src", "tests"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

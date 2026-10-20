@@ -1,0 +1,28 @@
+{
+  "name": "list_hooks",
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/extensions/hooks",
+    "identity": "engineer@team-a"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "hookId": "<uuid>",
+          "teamId": "team-a",
+          "name": "ops-webhook",
+          "eventType": "tool_call.succeeded",
+          "target": {
+            "kind": "webhook",
+            "url": "http://127.0.0.1:<port>/hook"
+          },
+          "status": "active",
+          "createdBy": "u-eng-a",
+          "createdAt": "<timestamp>"
+        }
+      ]
+    }
+  }
+}

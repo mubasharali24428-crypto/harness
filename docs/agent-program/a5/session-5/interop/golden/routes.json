@@ -1,0 +1,76 @@
+[
+  {
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "path": "/api/v1/ops/alerts"
+  },
+  {
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/ops/alerts/evaluate"
+  },
+  {
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/ops/chat/slack/actions"
+  },
+  {
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/ops/ci/{provider}"
+  },
+  {
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "path": "/api/v1/ops/evidence/export"
+  },
+  {
+    "methods": [
+      "GET",
+      "HEAD",
+      "POST"
+    ],
+    "path": "/api/v1/ops/schedules"
+  },
+  {
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/ops/schedules/{scheduleId}/trigger"
+  },
+  {
+    "methods": [
+      "POST"
+    ],
+    "path": "/api/v1/ops/schedules/{scheduleId}/{action}"
+  },
+  {
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "path": "/api/v1/ops/usage"
+  },
+  {
+    "methods": [
+      "GET",
+      "HEAD",
+      "POST"
+    ],
+    "path": "/api/v1/ops/usage/webhooks"
+  },
+  {
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "path": "/healthz"
+  }
+]

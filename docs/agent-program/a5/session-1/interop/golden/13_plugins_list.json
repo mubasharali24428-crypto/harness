@@ -1,0 +1,25 @@
+{
+  "name": "plugins_list",
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/extensions/plugins",
+    "identity": "engineer@team-a"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "pluginId": "incident-response",
+          "version": "1.0.0",
+          "digest": "sha256:<sha256>",
+          "teamId": "team-a",
+          "status": "installed",
+          "installedBy": "u-eng-a",
+          "installedAt": "<timestamp>",
+          "updatedAt": null
+        }
+      ]
+    }
+  }
+}

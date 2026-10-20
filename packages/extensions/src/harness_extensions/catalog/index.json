@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "ext-catalog/1",
+  "curatedBy": "harness-maintainers",
+  "entries": [
+    {
+      "pluginId": "incident-response",
+      "name": "Incident Response Playbook Pack",
+      "version": "1.0.0",
+      "description": "Triage and blameless-postmortem playbooks for on-call work.",
+      "payload": "incident-response-1.0.0.json",
+      "digest": "sha256:19f995bbb07944ba19982a6f04dcbb13c80d83760df866306e16e65b038336f3",
+      "permissionsNote": "Text playbooks only; installs no tools and receives no network access."
+    },
+    {
+      "pluginId": "repo-hygiene",
+      "name": "Repository Hygiene Pack",
+      "version": "1.0.0",
+      "description": "PR review checklist and dependency audit playbooks.",
+      "payload": "repo-hygiene-1.0.0.json",
+      "digest": "sha256:c98fd95512181b6627f143872313a431693d4cec8abf8982fc379259a843d4a8",
+      "permissionsNote": "Text playbooks only; installs no tools and receives no network access."
+    },
+    {
+      "pluginId": "web-research",
+      "name": "Web Research Pack",
+      "version": "1.0.0",
+      "description": "Citation discipline playbook plus an informational search-server template.",
+      "payload": "web-research-1.0.0.json",
+      "digest": "sha256:a02c713791e8c40c25d79bb939e7109c210ef9b9d7856af3eec59f9b2c41f273",
+      "permissionsNote": "Playbook only; the bundled server template is informational (no auto-registration)."
+    }
+  ]
+}

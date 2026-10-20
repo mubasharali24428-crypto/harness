@@ -1,0 +1,17 @@
+{
+  "runs": [
+    {
+      "costUsd": "5.10",
+      "eventCount": 4,
+      "goal": "Fix login for [EMAIL]; [REDACTED]",
+      "outcome": "rejected",
+      "planProposedAt": "2026-10-16T09:00:00+00:00",
+      "prId": null,
+      "prOpenedAt": null,
+      "projectId": "proj-b",
+      "runId": "run-b2",
+      "teamId": "team-b"
+    }
+  ],
+  "total": 1
+}

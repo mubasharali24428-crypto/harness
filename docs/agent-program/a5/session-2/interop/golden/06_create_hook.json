@@ -1,0 +1,32 @@
+{
+  "name": "create_hook",
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/extensions/hooks",
+    "identity": "engineer@team-a",
+    "body": {
+      "name": "ops-webhook",
+      "eventType": "tool_call.succeeded",
+      "target": {
+        "kind": "webhook",
+        "url": "http://127.0.0.1:<port>/hook"
+      }
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "hookId": "<uuid>",
+      "teamId": "team-a",
+      "name": "ops-webhook",
+      "eventType": "tool_call.succeeded",
+      "target": {
+        "kind": "webhook",
+        "url": "http://127.0.0.1:<port>/hook"
+      },
+      "status": "active",
+      "createdBy": "u-eng-a",
+      "createdAt": "<timestamp>"
+    }
+  }
+}

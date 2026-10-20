@@ -1,0 +1,17 @@
+{
+  "name": "alert_firing_proposed",
+  "provider": "alerts",
+  "response": {
+    "status": 202,
+    "body": {
+      "status": "plan_proposed",
+      "planId": "<plan-id>",
+      "teamId": "team-a",
+      "awaitingApproval": true
+    }
+  },
+  "gate": {
+    "plans": 4,
+    "lastGoal": "[connector intake | provider=alerts | external_id=fp-abc | untrusted context, requires human plan approval]\n5xx rate above 5% for 10m\nsource: https://grafana.local/alert/1\n\nalertname: API5xxHigh\nseverity: critical\nerror rate 12% since deploy 42\nsource: grafana\nfingerprint: fp-abc"
+  }
+}

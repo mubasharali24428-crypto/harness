@@ -1,0 +1,7 @@
+{
+  "awaitingApproval": true,
+  "planId": "plan-2",
+  "provider": "gitlab",
+  "repo": "acme/app",
+  "status": "plan_proposed"
+}

@@ -1,0 +1,25 @@
+{
+  "name": "hook_deliveries_after_call",
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/extensions/hooks/<uuid>/deliveries",
+    "identity": "engineer@team-a"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "deliveryId": "<uuid>",
+          "hookId": "<uuid>",
+          "teamId": "team-a",
+          "eventType": "tool_call.succeeded",
+          "status": "delivered",
+          "detail": null,
+          "durationMs": "<ms>",
+          "createdAt": "<timestamp>"
+        }
+      ]
+    }
+  }
+}

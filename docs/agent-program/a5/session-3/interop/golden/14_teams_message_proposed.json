@@ -1,0 +1,17 @@
+{
+  "name": "teams_message_proposed",
+  "provider": "teams",
+  "response": {
+    "status": 202,
+    "body": {
+      "status": "plan_proposed",
+      "planId": "<plan-id>",
+      "teamId": "team-a",
+      "awaitingApproval": true
+    }
+  },
+  "gate": {
+    "plans": 7,
+    "lastGoal": "[connector intake | provider=teams | external_id=m1 | untrusted context, requires human plan approval]\nplease triage the flaky test\n\nplease triage the flaky test"
+  }
+}

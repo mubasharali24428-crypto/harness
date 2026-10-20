@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "ROLE_FORBIDDEN",
+    "message": "roles ['viewer'] may not approve"
+  }
+}

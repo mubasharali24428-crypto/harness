@@ -1,0 +1,21 @@
+{
+  "name": "grant_denied_by_policy",
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/extensions/grants",
+    "identity": "engineer@team-a",
+    "body": {
+      "serverId": "<uuid>",
+      "toolName": "echo"
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "error": {
+        "code": "TOOL_DENIED_BY_POLICY",
+        "message": "tool 'echo' is blocked by team policy: denied_by_policy"
+      }
+    }
+  }
+}

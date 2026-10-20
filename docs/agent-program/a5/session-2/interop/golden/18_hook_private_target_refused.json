@@ -1,0 +1,25 @@
+{
+  "name": "hook_private_target_refused",
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/extensions/hooks",
+    "identity": "engineer@team-a",
+    "body": {
+      "name": "refused",
+      "eventType": "tool_call.succeeded",
+      "target": {
+        "kind": "webhook",
+        "url": "http://10.0.0.1/wiki"
+      }
+    }
+  },
+  "response": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "HOOK_TARGET_REFUSED",
+        "message": "url refused by policy: URL_PRIVATE_DENIED: '10.0.0.1' resolves to non-public address 10.0.0.1; set HARNESS_EXTENSIONS_ALLOW_PRIVATE_HOSTS=1 to opt in"
+      }
+    }
+  }
+}

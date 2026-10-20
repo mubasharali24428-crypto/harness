@@ -1,0 +1,90 @@
+# A5-S5 verification log — 2026-10-17
+
+Baseline: 31bf4077e9b567b1f50ecb99818d501baab3115a (dirty working tree preserved; nothing committed)
+Environment: Python 3.13.13, packages/extensions/.venv, pytest + ruff from that venv.
+
+## 1. Test suite — packages/ops
+
+$ cd packages/ops && ../../packages/extensions/.venv/bin/python -m pytest tests -q
+.....                                                                    [100%]
+77 passed in 8.61s
+
+Per-file collection: alerts 6, app 9, chat 12, ci 11, evidence 11, schedule 16, usage 12 (= 77).
+Tests run against REAL HTTP transports: in-process ASGI against the real
+orchestrator approve route and a real local webhook receiver; no provider
+mocks except the documented orchestrator double (auto-vivifies unknown plans
+in handler tests only).
+
+## 2. Lint
+
+$ ./packages/extensions/.venv/bin/ruff check packages/ops scripts/agent-program/a5/capture_golden_s5.py scripts/agent-program/a5/integration_check.py
+All checks passed!
+
+## 3. Golden capture — determinism
+
+$ ./packages/extensions/.venv/bin/python scripts/agent-program/a5/capture_golden_s5.py   # run 1
+$ cp -r docs/agent-program/a5/session-5/interop/golden /tmp/golden-s5-ref
+$ ./packages/extensions/.venv/bin/python scripts/agent-program/a5/capture_golden_s5.py   # run 2
+$ diff -r /tmp/golden-s5-ref docs/agent-program/a5/session-5/interop/golden
+(no output — byte-identical, 32 files)
+
+Determinism note: the only random input is uuid4 delivery ids for
+auto-dispatched alert webhooks; golden request bodies canonicalize them to
+`<auto-deliveryId>` and re-sign with the fixed golden secret
+(`signatureCanonicalized: true`), so the recorded bodySha256/signature are
+reproducible. Explicit `dlv-golden-1` deliveries are recorded raw. Raw-wire
+signature verification is exercised by tests (test_usage.py) and the manual
+delivery golden.
+
+Golden inventory (32 files) — docs/agent-program/a5/session-5/interop/golden/:
+  usage_org.json, usage_team_a.json, usage_forbidden.json, usage_unauthenticated.json,
+  routes.json,
+  alerts_evaluate_round1.json, alerts_evaluate_round2.json, alerts_list_org.json,
+  alerts_list_member_team_a.json, alerts_list_member_team_b.json, webhook_delivery.json,
+  evidence_export_org.zip, evidence_verify.json, evidence_team_a_counts.json,
+  ci_github_proposed.json, ci_github_duplicate.json, ci_github_signature_invalid.json,
+  ci_gitlab_proposed.json, ci_gitlab_token_invalid.json,
+  chat_approve.json, chat_replay_duplicate.json, chat_reject.json, chat_inspect.json,
+  chat_expired.json, chat_role_forbidden.json, orchestrator_state.json,
+  schedules_create.json, schedules_trigger_empty.json, schedules_trigger_proposed.json,
+  schedules_list.json, schedule_dst_grid.json, webhook_delivery_manual.json
+
+Key golden values (cross-checked against tests):
+  - evaluate round1: opened 4, delivered 4 | round2 (no change): suppressed 4, delivered 0
+  - evidence verify: runs 8, changes 3, incidents 4, otherOutcomes 1, timelineEvents 42, verified true
+  - chat approve: run-1; replay: duplicate true + original outcome; expired: TOKEN_EXPIRED
+  - DST grid: 2026-03-08 02:30 EST -> 03:30 EDT (07:30Z both days); 2026-11-01 takes the FIRST 01:30
+  - schedules trigger: sch-golden-old occurrence 06:30Z -> plan-3 proposed
+
+## 4. Distribution — six wheels, fresh venv
+
+$ ./packages/extensions/.venv/bin/python packages/extensions/scripts/verify_distribution.py
+built wheels: ['harness_contracts-1.0.0rc2-py3-none-any.whl', 'harness_extensions-1.0.0rc1-py3-none-any.whl',
+'harness_ops-0.1.0-py3-none-any.whl', 'harness_telemetry-0.1.0-py3-none-any.whl',
+'harness_wiki_connector-0.1.0-py3-none-any.whl', 'harness_workflow_connectors-0.1.0-py3-none-any.whl']
+fresh_venv_installs: {contracts 1.0.0rc2, extensions 1.0.0rc1, wiki-connector 0.1.0,
+workflow-connectors 0.1.0, telemetry 0.1.0, ops 0.1.0, fastapi 0.143.3, httpx 0.28.1, mcp 1.30.0}
+SMOKE_OK / DISTRIBUTION_VERIFIED
+(full output: interop/distribution-verify.log)
+
+The fresh venv has no repo on sys.path and no editable installs; the ops smoke
+exercises usage_snapshot (24.7000), evidence build+verify (runs 8), a DST
+occurrence and a schedule-run claim from the wheel.
+
+## 5. Integration check (lane inspection)
+
+$ PYTHONPATH=packages/ops/src ./packages/extensions/.venv/bin/python scripts/agent-program/a5/integration_check.py
+INTEGRATION_CHECK=OK (absent lanes, informational only: none)
+
+Probes all true: contracts.roles, telemetry.fixtures, connectors.plan_gate,
+ops.routes (>= 11), orchestrator.approve_route (real source inspected),
+distribution.verified (log says DISTRIBUTION_VERIFIED). Session lanes S1–S5
+all present with golden counts 15/18/24/21/32.
+
+## 6. Working tree hygiene
+
+- No commits made. Pre-existing dirty state preserved (.gitignore, AGENTS.md
+  modified; docs/, packages/, integrations/, scripts/agent-program/ untracked).
+- Wheel builds run in a temp dir; in-place build/ artifacts under own
+  namespaces removed by verify_distribution.py.
+- contracts/build/ untouched (tracked stale artifacts restored/left as-is).

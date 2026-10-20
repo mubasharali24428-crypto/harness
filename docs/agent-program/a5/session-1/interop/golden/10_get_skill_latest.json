@@ -1,0 +1,33 @@
+{
+  "name": "get_skill_latest",
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/extensions/skills/<uuid>",
+    "identity": "engineer@team-a"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "skill": {
+        "skillId": "<uuid>",
+        "teamId": "team-a",
+        "name": "release-checklist",
+        "source": "user",
+        "status": "active",
+        "latestVersion": 2,
+        "createdBy": "u-eng-a",
+        "createdAt": "<timestamp>",
+        "updatedAt": "<timestamp>"
+      },
+      "version": {
+        "skillId": "<uuid>",
+        "version": 2,
+        "content": "1. freeze\n2. verify\n3. ship\n4. postmortem notes",
+        "digest": "<sha256>",
+        "createdBy": "u-eng-a",
+        "createdAt": "<timestamp>",
+        "sourceRef": null
+      }
+    }
+  }
+}

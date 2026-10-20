@@ -1,0 +1,141 @@
+{
+  "session": "A5-S5",
+  "agent": "A5",
+  "date": "2026-10-17",
+  "baselineCommit": "31bf4077e9b567b1f50ecb99818d501baab3115a",
+  "artifact": "packages/ops + docs/agent-program/a5/session-5 + scripts/agent-program/a5/{capture_golden_s5.py,integration_check.py}",
+  "features": [
+    {
+      "id": "F118",
+      "capability": "Exportable audit evidence package",
+      "assessmentBefore": "PARTIAL",
+      "state": "VERIFIED IMPLEMENTED",
+      "evidence": [
+        "packages/ops — harness_ops.evidence: deterministic redacted zip (runs + accepted changes + incidents + other outcomes + full timeline, per-run retentionUntil), scrub_text redaction ([EMAIL]/[REDACTED])",
+        "verify_evidence_zip recomputes manifest; explicit failure codes EVIDENCE_TAMPERED/EVIDENCE_INCOMPLETE/EVIDENCE_CORRUPT covered by tests/test_evidence.py (11 tests)",
+        "org export counts asserted: runs 8, changes 3, incidents 4, otherOutcomes 1, timelineEvents 42, accountedFor=true; member scope team-a: 6/2/3/1/31",
+        "GET /api/v1/ops/evidence/export behind principal; cross-team 403 TEAM_FORBIDDEN",
+        "goldens: interop/golden/evidence_export_org.zip + evidence_verify.json (packageId + zipSha256) + evidence_team_a_counts.json"
+      ],
+      "limits": "Event-derived coverage: evidence is only as complete as the telemetry archive it exports. Zip is generated on demand in-process; very large exports are not streamed."
+    },
+    {
+      "id": "F119",
+      "capability": "Alerts for stalled, risky, expensive, or policy-violating runs",
+      "assessmentBefore": "PARTIAL",
+      "state": "VERIFIED IMPLEMENTED",
+      "evidence": [
+        "harness_ops.alerts: rules stalled_run (12h default; below the 24h abandonment window by design), blocked_run, expensive_run (> $5.00), claimed_but_rejected (claim/reality gap); dedupeKey per rule+runId; opened → reminder → resolved lifecycle",
+        "idempotent evaluation asserted: round 1 opens 4 alerts and delivers 4 webhooks; unchanged round 2 → suppressed=4, delivered=0 (tests/test_alerts.py, 6 tests)",
+        "member alert list is team-scoped (team-b sees only expensive_run:run-b2; org view admin-only); POST /api/v1/ops/alerts/evaluate",
+        "goldens: alerts_evaluate_round1.json, alerts_evaluate_round2.json, alerts_list_org.json, alerts_list_member_team_a.json, alerts_list_member_team_b.json, webhook_delivery.json"
+      ],
+      "limits": "No muting/acknowledge API; resolution is state-driven (condition clears). Thresholds are deployment constants, not per-team config."
+    },
+    {
+      "id": "F120",
+      "capability": "Usage APIs and webhooks",
+      "assessmentBefore": "PARTIAL",
+      "state": "VERIFIED IMPLEMENTED",
+      "evidence": [
+        "harness_ops.usage: GET /api/v1/ops/usage with frozen definitions verbatim + totals (tasks 8, acceptedChanges 3, claimedCompletions 4, totalCostUsd 24.7000, costPerTask 3.0875, costPerClaimedCompletion 4.2750, costPerAcceptedChange 4.3667, reworkRate 0.4286, abandonmentRate 0.125); ?team= and ?since= windows (Oct 14+ → 14.0000 / tasks 6)",
+        "signed outbound webhooks: HMAC sha256 over timestamp.body (X-Harness-Signature/Timestamp/Delivery), bounded retry ≤3 attempts backoff (0,2,5)s on 5xx/429/network, deliveryId idempotency; history keeps one row per delivery (tests/test_usage.py, 12 tests)",
+        "GET /api/v1/ops/usage/webhooks lists registrations with delivery history; cross-team 403; unauthenticated 401",
+        "goldens: usage_org.json, usage_team_a.json, usage_forbidden.json, usage_unauthenticated.json, webhook_delivery_manual.json (real local HTTP receiver, dedupe on replay)"
+      ],
+      "limits": "Cost numbers inherit provider cost-ledger coverage (missing rows understate). No CSV/PDF export, no per-day time series yet."
+    },
+    {
+      "id": "F128",
+      "capability": "CI provider integrations",
+      "assessmentBefore": "PARTIAL",
+      "state": "VERIFIED IMPLEMENTED",
+      "evidence": [
+        "harness_ops.ci: GitHub (X-Hub-Signature-256), GitLab (X-Gitlab-Token constant-time), CircleCI (HMAC) adapters; normalized failure → PROPOSED plan (awaitingApproval=true, never started)",
+        "replay-safe by provider delivery id (status: duplicate), per-provider rate limit 429 RATE_LIMITED, unconfigured/unknown provider 404 PROVIDER_UNKNOWN (tests/test_ci.py, 11 tests)",
+        "signed-plan linkage reuses the S2 ProposePlanGate against the real orchestrator route contract",
+        "goldens: ci_github_proposed.json, ci_github_duplicate.json, ci_github_signature_invalid.json, ci_gitlab_proposed.json, ci_gitlab_token_invalid.json"
+      ],
+      "limits": "Webhook parsing covers push/pipeline failure events, not every provider event type. No provider-side app installation flow (config is env-driven)."
+    },
+    {
+      "id": "F129",
+      "capability": "Chat notifications with approve, reject, and inspect actions",
+      "assessmentBefore": "NOT FOUND",
+      "state": "VERIFIED IMPLEMENTED",
+      "evidence": [
+        "harness_ops.chat: Slack interactivity endpoint — v0 scheme signature check, one-shot approval token (TTL 900s, bound actor+plan+action), role gate, replay returns original outcome (duplicate=true, no second approve)",
+        "approve calls the REAL orchestrator approve route (runId in outcome; orchestrator_state.json shows plan-1 approved → run-1); expired → TOKEN_EXPIRED; viewer → ROLE_FORBIDDEN",
+        "S5 has no verified orchestrator reject route: reject records recorded=true and states that the run remains awaiting approval (no invented endpoint)",
+        "goldens: chat_approve.json, chat_replay_duplicate.json, chat_reject.json, chat_inspect.json, chat_expired.json, chat_role_forbidden.json, orchestrator_state.json (tests/test_chat.py, 12 tests)"
+      ],
+      "limits": "Slack app installation/config is operator-owned; no Slack Block Kit UI shipped (payloads only). Reject is a recorded note until a reject route exists."
+    },
+    {
+      "id": "F130",
+      "capability": "Calendar or scheduled maintenance-task integration",
+      "assessmentBefore": "PARTIAL",
+      "state": "VERIFIED IMPLEMENTED",
+      "evidence": [
+        "harness_ops.schedule: hourly/daily/weekly specs over IANA zones with DST fold=0 semantics asserted in goldens across both 2026 transitions (spring: 02:30 EST → 03:30 EDT same UTC instant; fall: FIRST 01:30 occurrence)",
+        "misfire policy skip (0 catch-up) vs run_once (exactly 1 catch-up occurrence, catchup=true), downtime covered in tests/test_schedule.py (16 tests)",
+        "propose-only: every due occurrence goes through the plan gate (no approve/start/execute code path exists); failed proposal releases the claim for the next sweep",
+        "claiming is INSERT OR IGNORE + 5-minute stale-claim takeover → concurrent sweeps cannot double-propose; per-schedule last_run_at advances only on attach (schedules list golden shows runs ledger)",
+        "goldens: schedules_create.json, schedules_trigger_empty.json, schedules_trigger_proposed.json (plan-3 proposed), schedules_list.json, schedule_dst_grid.json"
+      ],
+      "limits": "No calendar (CalDAV/Google) two-way sync — this is schedule-as-data with an operator cron sweep documented in runbook.md. No per-schedule retry backoff beyond claim release."
+    }
+  ],
+  "risks": [
+    {
+      "id": "VR014",
+      "state": "PARTIAL CONTROL",
+      "remaining": "Dependency locking/scanning for the ops + telemetry stacks and collector deployment hardening still ship with Section 10 assembly."
+    },
+    {
+      "id": "VR020",
+      "state": "PARTIAL CONTROL",
+      "remaining": "No SOC2-style attestation or pen-test. S5 adds runbook + incident procedures and audit-shaped evidence exports, but pilot-grade posture is unchanged."
+    },
+    {
+      "id": "VR031",
+      "state": "PARTIAL CONTROL",
+      "remaining": "Instruments are now deployable end-to-end (telemetry metrics + ops usage APIs + webhook deliveries + pilot-measurement.md), but no pilot has run: there are no measured ROI/productivity numbers and none are claimed. Pass condition: >= 1 real pilot with pre-registered metrics and honest sample sizes (release-blockers.md #3)."
+    },
+    {
+      "id": "VR040",
+      "state": "PARTIAL CONTROL",
+      "remaining": "docs/agent-program/a5/session-5/runbook.md now covers deploy/upgrade/rollback/incident/support for the ops surface; end-user onboarding flow remains minimal (READMEs + runbook)."
+    },
+    {
+      "id": "VR036",
+      "state": "EXTERNAL VALIDATION REQUIRED",
+      "remaining": "Market risk; S5 contributes the evidence machinery (usage/evidence exports) but no external validation was performed or implied."
+    },
+    {
+      "id": "VR037",
+      "state": "EXTERNAL VALIDATION REQUIRED",
+      "remaining": "Buyer validation not performed; no customer acceptance invented anywhere in S5 artifacts."
+    },
+    {
+      "id": "VR038",
+      "state": "EXTERNAL VALIDATION REQUIRED",
+      "remaining": "Procurement-cycle evidence not gathered; release-blockers.md is the input a future procurement conversation would start from."
+    },
+    {
+      "id": "VR042",
+      "state": "EXTERNAL VALIDATION REQUIRED",
+      "remaining": "Pricing not validated; cost-per-accepted-change APIs exist to ground future pricing, nothing more."
+    },
+    {
+      "id": "VR044",
+      "state": "EXTERNAL VALIDATION REQUIRED",
+      "remaining": "Willingness-to-pay evidence not gathered; explicitly out of autonomous scope."
+    },
+    {
+      "id": "VR050",
+      "state": "EXTERNAL VALIDATION REQUIRED",
+      "remaining": "Distribution/market risk; not closable through code."
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+[
+  {
+    "attributes": {
+      "harness.attempts": 1,
+      "harness.cost_usd": "2.40",
+      "harness.outcome": "accepted",
+      "harness.pr_id": "pr-201",
+      "harness.project_id": "proj-b",
+      "harness.run_id": "run-b1",
+      "harness.team_id": "team-b",
+      "harness.time_to_first_useful_change_minutes": 75.0
+    },
+    "end_unix_ns": 1792062900000000000,
+    "error": false,
+    "name": "harness.run",
+    "parent_span_id": null,
+    "span_id": "0a9a71673227179b",
+    "start_unix_ns": 1792058400000000000,
+    "trace_id": "82ae0f24d3698974b4a8b9de28817e72"
+  },
+  {
+    "attributes": {
+      "harness.plan.approved": true
+    },
+    "end_unix_ns": 1792060200000000000,
+    "error": false,
+    "name": "harness.plan",
+    "parent_span_id": "0a9a71673227179b",
+    "span_id": "5b24726a7923cccd",
+    "start_unix_ns": 1792058400000000000,
+    "trace_id": "82ae0f24d3698974b4a8b9de28817e72"
+  },
+  {
+    "attributes": {
+      "harness.attempts": 1,
+      "harness.engine_failures": 0
+    },
+    "end_unix_ns": 1792062660000000000,
+    "error": false,
+    "name": "harness.execution",
+    "parent_span_id": "0a9a71673227179b",
+    "span_id": "6e3e3949fa327d42",
+    "start_unix_ns": 1792060260000000000,
+    "trace_id": "82ae0f24d3698974b4a8b9de28817e72"
+  },
+  {
+    "attributes": {
+      "harness.review.passed": true,
+      "harness.review.verdict_index": 0
+    },
+    "end_unix_ns": 1792062720000000000,
+    "error": false,
+    "name": "harness.review",
+    "parent_span_id": "0a9a71673227179b",
+    "span_id": "0bcfe9e44e719715",
+    "start_unix_ns": 1792062720000000000,
+    "trace_id": "82ae0f24d3698974b4a8b9de28817e72"
+  },
+  {
+    "attributes": {
+      "harness.accepted": true,
+      "harness.pr_id": "pr-201"
+    },
+    "end_unix_ns": 1792062900000000000,
+    "error": false,
+    "name": "harness.change",
+    "parent_span_id": "0a9a71673227179b",
+    "span_id": "70aeceedd611429f",
+    "start_unix_ns": 1792062900000000000,
+    "trace_id": "82ae0f24d3698974b4a8b9de28817e72"
+  }
+]

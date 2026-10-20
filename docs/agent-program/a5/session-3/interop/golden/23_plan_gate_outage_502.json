@@ -1,0 +1,17 @@
+{
+  "name": "plan_gate_outage_502",
+  "provider": "slack",
+  "response": {
+    "status": 502,
+    "body": {
+      "error": {
+        "code": "PLAN_GATE_REJECTED",
+        "message": "plan gate returned HTTP 500: {\"detail\":\"gate down\"}"
+      }
+    }
+  },
+  "gate": {
+    "plans": 0,
+    "lastGoal": null
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "dispatch_manual_event",
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/extensions/hooks/dispatch",
+    "identity": "engineer@team-a",
+    "body": {
+      "eventType": "tool_call.succeeded",
+      "payload": {
+        "note": "manual"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "deliveries": [
+        {
+          "deliveryId": "<uuid>",
+          "hookId": "<uuid>",
+          "teamId": "team-a",
+          "eventType": "tool_call.succeeded",
+          "status": "delivered",
+          "detail": null,
+          "durationMs": "<ms>",
+          "createdAt": "<timestamp>"
+        }
+      ]
+    }
+  }
+}

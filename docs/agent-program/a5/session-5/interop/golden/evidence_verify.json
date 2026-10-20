@@ -1,0 +1,13 @@
+{
+  "counts": {
+    "accountedFor": true,
+    "changes": 3,
+    "incidents": 4,
+    "otherOutcomes": 1,
+    "runs": 8,
+    "timelineEvents": 42
+  },
+  "packageId": "34731379d37d1a9c",
+  "verified": true,
+  "zipSha256": "e106524309a01eebc94f26814aab21280b506159ac224fb4fb91564f3bf7ae5e"
+}

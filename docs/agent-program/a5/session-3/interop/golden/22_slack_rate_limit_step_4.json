@@ -1,0 +1,17 @@
+{
+  "name": "slack_rate_limit_step_4",
+  "provider": "slack",
+  "response": {
+    "status": 429,
+    "body": {
+      "error": {
+        "code": "RATE_LIMITED",
+        "message": "more than 3 deliveries/minute"
+      }
+    }
+  },
+  "gate": {
+    "plans": 3,
+    "lastGoal": "[connector intake | provider=slack | external_id=1729001.000100 | untrusted context, requires human plan approval]\nflood 2\n\nflood 2"
+  }
+}

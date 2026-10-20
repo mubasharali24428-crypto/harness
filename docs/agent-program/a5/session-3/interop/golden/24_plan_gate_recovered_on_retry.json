@@ -1,0 +1,17 @@
+{
+  "name": "plan_gate_recovered_on_retry",
+  "provider": "slack",
+  "response": {
+    "status": 202,
+    "body": {
+      "status": "plan_proposed",
+      "planId": "<plan-id>",
+      "teamId": "team-a",
+      "awaitingApproval": true
+    }
+  },
+  "gate": {
+    "plans": 1,
+    "lastGoal": "[connector intake | provider=slack | external_id=1729001.000100 | untrusted context, requires human plan approval]\noutage test\n\noutage test"
+  }
+}

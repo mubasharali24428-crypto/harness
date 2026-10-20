@@ -1,0 +1,25 @@
+{
+  "abandonmentRate": 0.0,
+  "acceptanceRateOfPlanned": 0.5,
+  "acceptanceRateOfStarted": 0.5,
+  "accepted": 1,
+  "claimedButNotAccepted": 0,
+  "claimedCompletions": 1,
+  "definitions": {
+    "abandonment_rate": "runs abandoned (planned, never started, older than 24h; or stalled >24h without verdict/PR/block) / planned",
+    "acceptance_rate_of_started": "accepted / started",
+    "accepted": "runs with a pr_opened event AND last review verdict passed=True",
+    "claimed_but_not_accepted": "runs that claimed completion but never produced an accepted change (no PR opened, or last review verdict failed)",
+    "claimed_completions": "runs with an engine_completed event (model-claimed, NOT acceptance)",
+    "planned": "runs with a plan_proposed event",
+    "rework_rate": "runs with >1 execution_started OR any review_failed / divided by started",
+    "started": "runs with at least one execution_started event"
+  },
+  "engineFailedRuns": 0,
+  "planned": 2,
+  "rejected": 1,
+  "reworkRate": 0.5,
+  "reworked": 1,
+  "started": 2,
+  "tasks": 2
+}

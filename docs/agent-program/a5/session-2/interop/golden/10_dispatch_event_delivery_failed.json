@@ -1,0 +1,31 @@
+{
+  "name": "dispatch_event_delivery_failed",
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/extensions/hooks/dispatch",
+    "identity": "engineer@team-a",
+    "body": {
+      "eventType": "tool_call.succeeded",
+      "payload": {
+        "note": "boom"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "deliveries": [
+        {
+          "deliveryId": "<uuid>",
+          "hookId": "<uuid>",
+          "teamId": "team-a",
+          "eventType": "tool_call.succeeded",
+          "status": "failed",
+          "detail": "http 500",
+          "durationMs": "<ms>",
+          "createdAt": "<timestamp>"
+        }
+      ]
+    }
+  }
+}

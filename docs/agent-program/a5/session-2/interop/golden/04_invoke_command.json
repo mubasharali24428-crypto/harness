@@ -1,0 +1,25 @@
+{
+  "name": "invoke_command",
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/extensions/commands/<uuid>/invoke",
+    "identity": "engineer@team-a",
+    "body": {
+      "arguments": {
+        "yesterday": "shipped S1",
+        "today": "ship S2"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "commandId": "<uuid>",
+      "name": "team/standup",
+      "renderedText": "Yesterday: shipped S1\nToday: ship S2",
+      "renderedDigest": "<sha256>",
+      "invokedBy": "u-eng-a",
+      "invokedAt": "<timestamp>"
+    }
+  }
+}

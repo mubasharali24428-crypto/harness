@@ -1,0 +1,23 @@
+{
+  "name": "list_policy",
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/extensions/policy",
+    "identity": "engineer@team-a"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "policyId": "<uuid>",
+          "teamId": "team-a",
+          "mode": "deny",
+          "pattern": "echo",
+          "createdBy": "u-eng-a",
+          "createdAt": "<timestamp>"
+        }
+      ]
+    }
+  }
+}
