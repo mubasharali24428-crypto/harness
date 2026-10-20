@@ -28,3 +28,8 @@ Honest gaps:
 - The gate fails open when the workspaces schema/column is missing (pre-0040 stores).
 - Router not registered in app.py (lead wires `from .workspaces import router`).
 - No models.py ORM for workspace tables, so `Base.metadata.create_all` does not create them.
+
+Update 2026-10-19 (Session 11): three of the gaps above are closed. `resume_agent` is gated, a running run is
+stopped on archive/delete by a sweeper, and a purge job scrubs workspaces past `purge_after`. Tests:
+`section4/tests/unit/test_workspace_lifecycle_jobs.py` (4 passed) plus `test_workspace_gate.py` and
+`test_schedule.py`. Still open: quota count-then-insert race, org-level admins, fail-open on pre-0040 stores.

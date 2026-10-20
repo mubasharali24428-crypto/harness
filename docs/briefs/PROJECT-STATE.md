@@ -1,6 +1,6 @@
 # Harness Multiplayer AI — project state and resume guide
 
-Updated 2026-10-19 at the end of Session 7. Read this first in a new session, then `docs/briefs/path-to-9-plan.md`,
+Updated 2026-10-20 (Session 11 start; sessions 8-10 summarised in §2). Read this first in a new session, then `docs/briefs/path-to-9-plan.md`,
 `docs/briefs/capability-matrix.md` and `docs/briefs/path-to-9-checkpoint.md`. The repository is the source of truth:
 re-verify any number below before relying on it. Nothing here is a claim of readiness for real users (see "Not cleared").
 
@@ -30,8 +30,10 @@ observability, `deploy/pilot` disposable smoke stack · `docs/` · `scripts/` (s
 | 5 | Discussion, notifications, real-time delivery, collab UI (43, 46, 47, 56-collab) | Done, committed (lanes D, N, R, X) |
 | 6 | Plans/artifacts/search (44, 48, 50) | Integrated locally; 44, 48 and 50 verified (44 closed by `00a1412`: version approval, scheduled limit sweep; tool-call cap counts reported calls only) |
 | 7 | Integrations/admin/billing (49, 51, 57) | Done locally; parts remain partial for provider breadth, residency, in-flight spend and alerts; Stripe out of scope (owner direction) |
-| 8 | Security/compliance and privacy enforcement (52, 58, 31) | Started locally; directive reports and data map updated; main enforcement gap remains |
-| 9–10 | Reliability/scale, final acceptance | Next: Session 9 (53–55) after Session 8 exit gate |
+| 8 | Security/compliance and privacy enforcement (52, 58, 31) | Done locally, parts stay partial: SDK shell lacks the Section 5 allow-list; user deletion and backup expiry ignore retention holds; account erasure and tenant residency absent (§3f) |
+| 9 | Reliability/scale/observability (53-55) | Done locally, parts stay partial: SLOs, capacity runbook, Grafana dashboard; no Alertmanager delivery, no fresh load run (`evidence/s9/`) |
+| 10 | Client/rollout/roadmap/readiness (56, 59-61, 03 tooling) | Done locally: broad rollout is **NO-GO**; 03 and 61 blocked on a real pilot cohort and external evidence (`evidence/s10/readiness-report.md`) |
+| 11 | Local gap closure + live-PG evidence | In progress, see §3g |
 
 ## 3. Session 3 result
 
@@ -81,6 +83,22 @@ event-partition retirement honor them. User deletion and backup expiry do not. P
 partial; 52/58 require external evidence, and account-wide deletion and tenant-specific residency
 remain absent. No legal/compliance claim is made. See
 `docs/briefs/evidence/s8/session8-summary.md`.
+
+## 3g. Session 11 (2026-10-20)
+
+Postgres answers on `localhost:5499` (harness/harness) but **Docker is down**, so `make pg-up` and every `docker exec` test fail.
+Run the migration probe directly: `HARNESS_TEST_PG=1 HARNESS_DATABASE_URL=postgresql+asyncpg://harness:harness@localhost:5499/harness
+HARNESS_TEST_PG_DSN=postgresql://harness:harness@localhost:5499/harness section1/.venv/bin/python deploy/runners/migrate_selftest.py`.
+- **Live PG evidence (first since Session 5):** migrations 0001→0056 apply clean and re-run as a no-op. Section 1 full suite with
+  `HARNESS_TEST_PG=1`: 978 passed, 1 skipped, 1 failed + 3 errors; all four are `docker exec harness-db-1` tests
+  (`test_runs_index_tuning` live plan, three in `test_fk_deletion_story`) that cannot run without the daemon.
+- **Workspace gaps closed (part 39):** `resume_agent` is gated like a start (409 `WORKSPACE_NOT_ACTIVE`; terminal resume stays a no-op);
+  a sweeper (`HARNESS_WORKSPACE_SWEEP_SECONDS`, 30) stops runs still running in archived/deleted workspaces (`workspace.run_stopped`);
+  the `workspace-purge` job (`HARNESS_WORKSPACE_PURGE_SECONDS`, 3600) scrubs deleted workspaces past `purge_after` to a tombstone
+  (`workspace.purged`). Code `section4/.../workspace_gate.py`, `schedule.py`, `deploy/runners/services.py`; tests
+  `test_workspace_lifecycle_jobs.py` (4) with `test_workspace_gate.py`, `test_schedule.py`. Docs `docs/workspaces.md`.
+  Section 4 full suite after the change: 1526 passed, 38 skipped, 0 failed. Ruff clean on touched files (`deploy/runners/services.py`
+  has 6 older findings). Not covered: paused workspaces do not stop running runs; the purge was not run on PG.
 
 ## 3e. Session 7 result
 
@@ -139,7 +157,7 @@ section1 pytest 859 passed/27 skipped; section4 pytest 979 passed/32 skipped; ru
    `path-to-9-plan.md`. Part 44 closed locally by `00a1412` (see `evidence/s6/part44-version-approval.md`).
 3. Backend gaps from earlier: no UI to file/amend a proposal; approvals API lacks a decision timestamp; part 12 item 009 and
    responsive layout untested; audit chain has no external anchor; browser socket connection not asserted in e2e.
-4. Workspace gaps: no purge job after `purge_after`, running run not stopped on archive, `resume_agent` not gated, quota check race.
+4. Workspace gaps: quota check race (the purge job, archive-stop and resume gate are done, §3g).
 5. Dev SQLite has no `teams.org_id` (migration 0038 adds it on Postgres); `require_team_stepup` tolerates that.
 
 ## 6. Facts that bite
@@ -169,5 +187,6 @@ and Stripe unproven, no pentest, PITR unproven, counsel review absent.
 ```
 cd "/Users/user/untitled folder 2/harness"
 git status --short | head -40
-make pg-probe-s1 && make pg-probe-migrate  # expect 43 migrations
+# Docker up: make pg-probe-s1 && make pg-probe-migrate  (expect 56 migrations)
+# Docker down but PG on :5499: use the env + migrate_selftest.py command in §3g
 ```

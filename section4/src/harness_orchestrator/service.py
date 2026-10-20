@@ -1315,6 +1315,8 @@ class OrchestratorService(Orchestrator):
         plan_id = run_data.get("plan_id")
         if not plan_id or not await self._plan_is_approved(plan_id):
             raise PlanNotApprovedError(f"Cannot resume run '{run_id}': Plan is not approved.")
+        if sm.state not in TERMINAL_STATES:  # a terminal resume is a no-op, never a 409
+            await enforce_run_start(self, run_id, run_data.get("projectId"))  # part 39.008
         head = await self._durable_lifecycle_head(run_id)
         suspended_heads = {
             EventType.PAUSED.value,

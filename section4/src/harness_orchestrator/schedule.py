@@ -26,6 +26,7 @@ JOBS: dict[str, tuple[str, float]] = {
     "export-purge": ("HARNESS_EXPORT_PURGE_SECONDS", 3600.0),
     "discussion-purge": ("HARNESS_DISCUSSION_PURGE_SECONDS", 3600.0),
     "artifact-purge": ("HARNESS_ARTIFACT_PURGE_SECONDS", 3600.0),
+    "workspace-purge": ("HARNESS_WORKSPACE_PURGE_SECONDS", 3600.0),
 }
 
 
@@ -47,7 +48,7 @@ def maintenance_jobs(
     factory: Any, env: Mapping[str, str] | None = None
 ) -> list[tuple[str, Callable[[], Awaitable[Any]], float]]:
     """The enabled jobs as ``(label, callable, interval seconds)``."""
-    from . import artifacts, discussion, exports, search
+    from . import artifacts, discussion, exports, search, workspace_gate
 
     env = os.environ if env is None else env
     calls: dict[str, Callable[[], Awaitable[Any]]] = {
@@ -55,6 +56,7 @@ def maintenance_jobs(
         "export-purge": lambda: exports.purge_expired_exports(factory),
         "discussion-purge": lambda: discussion.purge_expired(factory),
         "artifact-purge": lambda: artifacts.purge_expired(factory),
+        "workspace-purge": lambda: workspace_gate.purge_expired_workspaces(factory),
     }
     out = []
     for label, (var, default) in JOBS.items():

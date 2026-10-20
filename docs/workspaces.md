@@ -78,16 +78,23 @@ Paused/archived workspaces reject settings, member, binding, link and metadata e
 
 **Soft delete / retention:** delete keeps the row, sets `deleted_at` and `purge_after`
 (= +30 days, `RETENTION_DAYS`), hides it from everyone but team admins, and frees the name.
-**Not enforced:** no job purges rows after `purge_after`. A deleted workspace keeps its project
-links, so those projects stay blocked until unlinked.
+**Purge:** the orchestrator job `workspace-purge` (`HARNESS_WORKSPACE_PURGE_SECONDS`, default 3600,
+0 turns it off) scrubs a `deleted` workspace once `purge_after` has passed: members, bindings and
+settings history are deleted; name (`[purged]`), tags, settings and reason are cleared. The row stays
+as a tombstone, so its linked projects stay blocked until unlinked. Audited as `workspace.purged`.
+Workspace templates are team-owned and are not touched.
 
 **Run gate:** `workspace_gate.py` reads the project's workspace state from the store on every call.
 Non-active -> HTTP 409 `WORKSPACE_NOT_ACTIVE` plus a `workspace.run_refused` audit row. It runs in
 `OrchestratorService.start_execution` (covers `/runs/{id}/start` and the plan-gate start) and in
 `_dispatch_claim` (covers single and batched queue claims), so a run queued before the archive is
 dropped at claim. If the workspaces schema is absent (pre-0040 stores) the gate allows and logs.
-**Not enforced:** `resume_agent` of an already-running run is not a new run and is not gated; a run
-already executing when the workspace is archived is not stopped.
+A `resume` that would respawn a non-terminal run is a new start and gets the same 409; resuming a
+finished run stays a silent no-op.
+**Running runs:** the orchestrator sweeper (`HARNESS_WORKSPACE_SWEEP_SECONDS`, default 30, 0 off) stops
+runs that still hold a `running` claim in an `archived` or `deleted` workspace (terminal stop, audited
+`workspace.run_stopped`). A `paused` workspace only blocks new starts and resumes; its running runs are
+not stopped. A run can keep executing for up to one sweep interval after the archive.
 
 ## Search (009)
 `GET /api/v1/workspaces?q=&state=&template=&tag=&limit=&cursor=`: always scoped to the caller's

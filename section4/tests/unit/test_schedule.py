@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from harness_orchestrator import artifacts, discussion, exports, schedule, search
+from harness_orchestrator import artifacts, discussion, exports, schedule, search, workspace_gate
 
 SERVICES = Path(__file__).resolve().parents[3] / "deploy" / "runners" / "services.py"
 
@@ -46,6 +46,7 @@ def test_every_maintenance_function_is_scheduled_by_default():
         "export-purge": 3600.0,
         "discussion-purge": 3600.0,
         "artifact-purge": 3600.0,
+        "workspace-purge": 3600.0,
     }
 
 
@@ -53,7 +54,7 @@ def test_zero_or_negative_turns_one_job_off_and_the_rest_keep_running():
     env = {"HARNESS_EXPORT_PURGE_SECONDS": "0", "HARNESS_SEARCH_SYNC_SECONDS": "-1",
            "HARNESS_ARTIFACT_PURGE_SECONDS": "7"}
     jobs = {label: every for label, _, every in schedule.maintenance_jobs(object(), env=env)}
-    assert jobs == {"discussion-purge": 3600.0, "artifact-purge": 7.0}
+    assert jobs == {"discussion-purge": 3600.0, "artifact-purge": 7.0, "workspace-purge": 3600.0}
 
 
 def test_a_garbage_interval_fails_at_startup_not_silently():
@@ -71,13 +72,15 @@ async def test_each_job_calls_its_function_with_the_session_factory(monkeypatch)
         return fake
 
     for mod, name in ((search, "sync_index"), (exports, "purge_expired_exports"),
-                      (discussion, "purge_expired"), (artifacts, "purge_expired")):
+                      (discussion, "purge_expired"), (artifacts, "purge_expired"),
+                      (workspace_gate, "purge_expired_workspaces")):
         monkeypatch.setattr(mod, name, recorder(f"{mod.__name__.rsplit('.', 1)[-1]}.{name}"))
     factory = object()
     for _, call, _ in schedule.maintenance_jobs(factory, env={}):
         await call()
     assert seen == [("search.sync_index", factory), ("exports.purge_expired_exports", factory),
-                    ("discussion.purge_expired", factory), ("artifacts.purge_expired", factory)]
+                    ("discussion.purge_expired", factory), ("artifacts.purge_expired", factory),
+                    ("workspace_gate.purge_expired_workspaces", factory)]
 
 
 def _orchestrator_builder() -> ast.FunctionDef:

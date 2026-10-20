@@ -403,6 +403,7 @@ def app_orchestrator():
 
     from harness_orchestrator.execution import run_limit_sweeper
     from harness_orchestrator.schedule import maintenance_jobs, run_periodically
+    from harness_orchestrator.workspace_gate import workspace_run_sweeper
 
     background: list = []
 
@@ -414,6 +415,10 @@ def app_orchestrator():
         every = float(os.environ.get("HARNESS_LIMIT_SWEEP_SECONDS", "30"))
         if every > 0:
             background.append(asyncio.create_task(run_limit_sweeper(service, every)))
+        # Part 39.008: a run still executing when its workspace is archived/deleted is stopped.
+        ws_every = float(os.environ.get("HARNESS_WORKSPACE_SWEEP_SECONDS", "30"))
+        if ws_every > 0:
+            background.append(asyncio.create_task(workspace_run_sweeper(service, ws_every)))
         # Search-index sync and the export, discussion and artifact retention purges
         # (HARNESS_*_SECONDS, 0 turns one off; see harness_orchestrator.schedule).
         for label, job, interval in maintenance_jobs(factory):
