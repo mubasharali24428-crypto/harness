@@ -84,7 +84,7 @@ async def test_defaults_are_quiet_email_off_and_documented_kinds(env):
     assert body["digest"] == {"period": "daily", "hour": 8, "lastSentAt": None}
     assert body["timezone"] == "UTC" and body["mutes"] == []
     assert body["kinds"] == ["approval", "mention", "handoff", "failure", "blocked",
-                             "control_request", "suggestion"]
+                             "control_request", "suggestion", "budget"]
     # built-in defaults: the inbox is on for every kind, EMAIL IS OFF for every kind (opt-in)
     assert {v["inapp"] for v in body["effective"].values()} == {"on"}
     assert {v["email"] for v in body["effective"].values()} == {"off"}

@@ -37,7 +37,10 @@ from .timeutil import as_utc, now_utc
 router = APIRouter(prefix="/api/v1/notifications")
 
 # Closed vocabularies (mirrored by section4 notify.py, pinned by tests on both sides).
-KINDS = ("approval", "mention", "handoff", "failure", "blocked", "control_request", "suggestion")
+KINDS = (
+    "approval", "mention", "handoff", "failure", "blocked", "control_request", "suggestion",
+    "budget",
+)
 SUMMARY_CODES: dict[str, tuple[str, ...]] = {
     "approval": ("approval_requested", "approval_decided"),
     "mention": ("mentioned",),
@@ -46,6 +49,7 @@ SUMMARY_CODES: dict[str, tuple[str, ...]] = {
     "blocked": ("run_blocked",),
     "control_request": ("control_requested", "control_granted", "control_declined"),
     "suggestion": ("suggestion_queued",),
+    "budget": ("budget_warning",),
 }
 # summary_code -> (one item, n items). Fixed text: names no person, session, plan or comment.
 PREVIEWS: dict[str, tuple[str, str]] = {
@@ -62,6 +66,7 @@ PREVIEWS: dict[str, tuple[str, str]] = {
     "control_granted": ("Your control request was granted", "{n} control grants"),
     "control_declined": ("Your control request was declined", "{n} control requests declined"),
     "suggestion_queued": ("A suggestion is waiting for you", "{n} suggestions are waiting"),
+    "budget_warning": ("Team spend is nearing its monthly limit", "{n} spend warnings"),
 }
 INAPP_MODES = ("on", "off")
 EMAIL_MODES = ("off", "urgent", "immediate", "digest")

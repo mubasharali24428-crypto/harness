@@ -21,7 +21,15 @@ does not reserve exact in-flight model spend. Billing settings are separate from
 
 Stripe inbound events validate the raw-body signature timestamp and use the event id as a
 transactional idempotency claim when synchronizing tier state. Live subscription lifecycle,
-refunds, disputes and reconciliation remain unverified. The warning threshold is configurable, but
-notification delivery is not implemented.
+refunds, disputes and reconciliation remain unverified.
+
+When a run's spend projection first crosses the warning threshold, `budget.deliver_budget_warning`
+puts a `budget` / `budget_warning` notification in the inbox of each billing manager: team admins,
+or for a team in an org the org's owners and billing admins (the rule of `billing._billing_manager`).
+It is sent once per person per team per UTC month (dedupe key `budget-warning:<team>:<YYYY-MM>`), so
+raising the cap and crossing again in the same month does not warn twice. It is not urgent: email
+follows each person's own notification settings (off unless they opted in). An org billing manager
+who is not a member of the team is not told (`notify.emit` only writes to team members). The hard stop
+is not announced to billing managers: the blocked run fails and its participants are told as usual.
 
 See `docs/briefs/evidence/s7/part57.md` for the directive map and exact local verification.

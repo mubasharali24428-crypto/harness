@@ -35,7 +35,10 @@ from sqlalchemy import text
 logger = logging.getLogger(__name__)
 
 # The closed set of kinds. Adding one needs a docs/notifications.md row and a summary code below.
-KINDS = ("approval", "mention", "handoff", "failure", "blocked", "control_request", "suggestion")
+KINDS = (
+    "approval", "mention", "handoff", "failure", "blocked", "control_request", "suggestion",
+    "budget",
+)
 # kind -> allowed summary codes, the first is the default. The code is the ONLY description of
 # what happened that is stored; the preview text is derived from it at read time.
 SUMMARY_CODES: dict[str, tuple[str, ...]] = {
@@ -46,6 +49,7 @@ SUMMARY_CODES: dict[str, tuple[str, ...]] = {
     "blocked": ("run_blocked",),
     "control_request": ("control_requested", "control_granted", "control_declined"),
     "suggestion": ("suggestion_queued",),
+    "budget": ("budget_warning",),
 }
 INAPP_MODES = ("on", "off")
 EMAIL_MODES = ("off", "urgent", "immediate", "digest")

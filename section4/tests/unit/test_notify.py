@@ -132,13 +132,13 @@ def test_signature_and_closed_vocabulary_are_the_documented_contract():
                       "session_id", "workspace_id", "urgent", "dedupe_key", "summary_code"]
     # nothing in the signature can carry free text except the closed code and ids
     assert notify.KINDS == ("approval", "mention", "handoff", "failure", "blocked",
-                            "control_request", "suggestion")
+                            "control_request", "suggestion", "budget")
     assert {k: list(v) for k, v in notify.SUMMARY_CODES.items()} == {
         "approval": ["approval_requested", "approval_decided"], "mention": ["mentioned"],
         "handoff": ["handoff_offered", "handoff_accepted", "handoff_rejected"],
         "failure": ["run_failed", "review_failed"], "blocked": ["run_blocked"],
         "control_request": ["control_requested", "control_granted", "control_declined"],
-        "suggestion": ["suggestion_queued"]}
+        "suggestion": ["suggestion_queued"], "budget": ["budget_warning"]}
 
 
 # precedence table, mirrored in section1 tests/test_notifications_prefs.py::test_resolve_table

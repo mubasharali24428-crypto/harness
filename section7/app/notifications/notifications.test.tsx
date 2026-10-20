@@ -98,7 +98,7 @@ describe("API client", () => {
 });
 
 describe("preview text from the closed summary code", () => {
-  const SERVER = ["approval_requested", "approval_decided", "mentioned", "handoff_offered", "handoff_accepted", "handoff_rejected", "run_failed", "review_failed", "run_blocked", "control_requested", "control_granted", "control_declined", "suggestion_queued"];
+  const SERVER = ["approval_requested", "approval_decided", "mentioned", "handoff_offered", "handoff_accepted", "handoff_rejected", "run_failed", "review_failed", "run_blocked", "control_requested", "control_granted", "control_declined", "suggestion_queued", "budget_warning"];
   it("covers exactly the codes the server defines (section1 notifications.py PREVIEWS)", () => {
     expect(Object.keys(PREVIEWS).sort()).toEqual([...SERVER].sort());
     // Parity with the server's own table, when the repo layout lets this test see it (it always does in the monorepo).
@@ -123,6 +123,7 @@ describe("preview text from the closed summary code", () => {
   });
   it("labels", () => {
     expect(kindLabel("control_request")).toBe("Control requests");
+    expect(kindLabel("budget")).toBe("Spend warnings");
     expect(kindLabel("whatever")).toBe("Other");
   });
 });

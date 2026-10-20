@@ -22,6 +22,7 @@ by `notify.emit`; the API only reads them and changes the person's own handling 
 | `blocked` | `run_blocked` | the run's leader and participants on `blocked_awaiting_clarification` (`service._emit`) |
 | `control_request` | `control_requested`, `control_granted`, `control_declined` | **no call site yet** (control.py is not this lane's file) |
 | `suggestion` | `suggestion_queued` | **no call site yet** (queued guidance for the lease holder, control.py) |
+| `budget` | `budget_warning` | the team's billing managers when spend first crosses the warning threshold (`budget.deliver_budget_warning`, part 57; team-scoped, no run link, `source_kind='team'`) |
 
 An unknown `kind` is rejected; a `summary_code` that is not in the kind's list is replaced by the kind's
 default. Adding a kind needs a row here, codes in `SUMMARY_CODES` (both sections) and a `PREVIEWS` entry.
@@ -193,5 +194,7 @@ and on SQLite in the tests. Rollback: drop the five tables (product data only).
 * No per-route rate limit beyond the global middleware; the unsubscribe token is 256 bits.
 * No Prometheus metrics for notifications (domain_metrics is not this lane's file).
 * `control_request` and `suggestion` have no call site yet.
+* `budget` rows link to `/notifications` (no run, session or workspace) and name no amount: the preview is
+  "Team spend is nearing its monthly limit". A dedupe key per month means one row per person per team per month.
 * Zones need tz data on the host (`zoneinfo`); add the `tzdata` package to slim images, otherwise saved zones
   fall back to UTC at emit time.

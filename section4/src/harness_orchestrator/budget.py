@@ -64,6 +64,9 @@ from harness_contracts import (
     tier_caps,
     to_cap_decimal,
 )
+from harness_contracts.timeutil import db_now
+
+from harness_orchestrator import notify
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +88,7 @@ __all__ = [
     "budget_warn_pct",
     "check_budget",
     "check_tier",
+    "deliver_budget_warning",
     "reserve_daily_run",
     "env_budget_default",
     "estimate_next_call_cost_usd",
@@ -696,3 +700,52 @@ async def check_budget(
         if estimated_call_cost_usd is not None
         else estimate_next_call_cost_usd(model_router=model_router, role=reviewer_role)
     ), warn_pct=warning_pct)
+
+
+async def deliver_budget_warning(factory, team_id: str) -> None:
+    """Part 57.005: tell the team's billing managers that spend crossed the warning line.
+
+    Billing managers follow section1 ``billing._billing_manager``: team admins, or for a team in an
+    org the org's owners and billing admins. In-app, once per person per team per UTC month (the
+    dedupe key); email only if that person opted in. Never raises into the run.
+    """
+    from sqlalchemy import text
+
+    try:
+        async with factory() as db:
+            try:
+                async with db.begin_nested():
+                    org_id = (
+                        await db.execute(
+                            text("SELECT org_id FROM teams WHERE id = :t"), {"t": team_id}
+                        )
+                    ).scalar_one_or_none()
+            except Exception:  # noqa: BLE001 — pre-0038 store: no org linkage, team admins decide
+                org_id = None
+            if org_id:
+                rows = await db.execute(
+                    text(
+                        "SELECT m.user_id FROM org_members m JOIN organizations o"
+                        " ON o.id = m.org_id WHERE m.org_id = :o"
+                        " AND m.role IN ('owner', 'billing_admin')"
+                        " AND m.removed_at IS NULL AND o.status = 'active'"
+                    ),
+                    {"o": org_id},
+                )
+            else:
+                rows = await db.execute(
+                    text(
+                        "SELECT user_id FROM team_members WHERE team_id = :t"
+                        " AND lower(role) = 'admin' AND user_id IS NOT NULL"
+                    ),
+                    {"t": team_id},
+                )
+            key = f"budget-warning:{team_id}:{db_now():%Y-%m}"
+            for user_id in sorted({r[0] for r in rows}):
+                await notify.emit(
+                    db, team_id=team_id, user_id=user_id, kind="budget", source_kind="team",
+                    source_id=team_id, summary_code="budget_warning", dedupe_key=key,
+                )
+            await db.commit()
+    except Exception:  # noqa: BLE001 — a notification must never disturb a run
+        logger.warning("budget warning delivery failed for team %s", team_id, exc_info=True)

@@ -19,6 +19,7 @@ from harness_orchestrator import collab, domain_metrics, staging
 from harness_orchestrator.budget import (
     BudgetStatus,
     check_budget,
+    deliver_budget_warning,
     reserve_daily_run,
 )
 from harness_orchestrator.context_resolver import (
@@ -379,7 +380,8 @@ class OrchestratorService(Orchestrator):
             run_data.pop("budget_degraded", None)
             # M23-B (session-2 area 9): allowed but near the cap — surface
             # the warning once per run (log + aggregate flag), never a block.
-            self._note_budget_warning(run_data, status)
+            if self._note_budget_warning(run_data, status):
+                await deliver_budget_warning(factory, team_id)
             return False
         if status.degraded:
             # Operator-visible degradation: the money store was down, the
@@ -394,15 +396,16 @@ class OrchestratorService(Orchestrator):
         sm.execution_failed(reason)
         return True
 
-    def _note_budget_warning(self, run_data: dict[str, Any], status: BudgetStatus) -> None:
-        """M23-B: log + flag the FIRST near-cap decision of this run.
+    def _note_budget_warning(self, run_data: dict[str, Any], status: BudgetStatus) -> bool:
+        """M23-B: log + flag the FIRST near-cap decision of this run; True when it was this one,
+        so the caller delivers it (part 57.005: ``deliver_budget_warning``, once per month).
 
         Dedupe is per run (in-process, like the other run_data flags): the
         warning is an operator alert, not a ledger — repeating it on every
         model call would be noise, and the aggregate API keeps the fact.
         """
         if not status.warned or run_data.get("budget_warned"):
-            return
+            return False
         run_data["budget_warned"] = True
         logger.warning(
             "budget warning for run %s: projected spend crossed $%.4f (%.0f%% of the $%.2f cap)",
@@ -411,6 +414,7 @@ class OrchestratorService(Orchestrator):
             (100.0 * (status.warnAtUsd or 0.0) / status.capUsd) if status.capUsd else 0.0,
             status.capUsd or 0.0,
         )
+        return True
 
     async def _team_for_run(self, run_data: dict[str, Any]) -> str | None:
         """Resolve the owning team id for a run (agent_runs → projects → teams).
@@ -2134,7 +2138,8 @@ class OrchestratorService(Orchestrator):
                 else:
                     # M23-B: the reviewer call is spend too — same warning
                     # seam as the pre-spawn gate, same once-per-run dedupe.
-                    self._note_budget_warning(run_data, status)
+                    if self._note_budget_warning(run_data, status):
+                        await deliver_budget_warning(factory, team_id)
 
         findings = self.reviewer.evaluate_changes(
             brief_summary=run_data["goal"],

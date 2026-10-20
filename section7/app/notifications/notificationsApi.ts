@@ -5,7 +5,7 @@ import { ApiError, IDENTITY_BASE, parseApiError } from "@/lib/api";
 import { call, post } from "../projects/[projectId]/runs/[runId]/collabApi";
 import { mutationError } from "../projects/[projectId]/runs/[runId]/realtimeCore";
 
-export const KINDS = ["approval", "mention", "handoff", "failure", "blocked", "control_request", "suggestion"] as const;
+export const KINDS = ["approval", "mention", "handoff", "failure", "blocked", "control_request", "suggestion", "budget"] as const;
 export type Kind = (typeof KINDS)[number];
 export type ItemState = "unread" | "read" | "snoozed" | "dismissed";
 export type EmailMode = "off" | "urgent" | "immediate" | "digest";

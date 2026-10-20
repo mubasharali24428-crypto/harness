@@ -41,7 +41,7 @@ async def env(monkeypatch):
 
 def test_closed_vocabulary_is_pinned():
     assert notifications.KINDS == ("approval", "mention", "handoff", "failure", "blocked",
-                                   "control_request", "suggestion")
+                                   "control_request", "suggestion", "budget")
     codes = set(chain.from_iterable(notifications.SUMMARY_CODES.values()))
     assert codes == set(notifications.PREVIEWS)  # every code has fixed preview text
     assert set(notifications.SUMMARY_CODES) == set(notifications.KINDS)

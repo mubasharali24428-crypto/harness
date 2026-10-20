@@ -29,7 +29,7 @@ observability, `deploy/pilot` disposable smoke stack · `docs/` · `scripts/` (s
 | 4 | Sessions, presence, control leases, agent registry (40, 41, 42, 45) | Done, committed (lanes S, P, C, A, U) |
 | 5 | Discussion, notifications, real-time delivery, collab UI (43, 46, 47, 56-collab) | Done, committed (lanes D, N, R, X) |
 | 6 | Plans/artifacts/search (44, 48, 50) | Integrated locally; 44, 48 and 50 verified (44 closed by `00a1412`: version approval, scheduled limit sweep; tool-call cap counts reported calls only) |
-| 7 | Integrations/admin/billing (49, 51, 57) | Done locally; parts remain partial for provider breadth, residency, in-flight spend and alerts; Stripe out of scope (owner direction) |
+| 7 | Integrations/admin/billing (49, 51, 57) | Done locally; parts remain partial for provider breadth, residency and in-flight spend (the 57 warning alert is delivered in-app since Session 11, §3g-3); Stripe out of scope (owner direction) |
 | 8 | Security/compliance and privacy enforcement (52, 58, 31) | Done locally, parts stay partial: SDK shell lacks the Section 5 allow-list; user deletion and backup expiry ignore retention holds; account erasure and tenant residency absent (§3f) |
 | 9 | Reliability/scale/observability (53-55) | Done locally, parts stay partial: SLOs, capacity runbook, Grafana dashboard; no Alertmanager delivery, no fresh load run (`evidence/s9/`) |
 | 10 | Client/rollout/roadmap/readiness (56, 59-61, 03 tooling) | Done locally: broad rollout is **NO-GO**; 03 and 61 blocked on a real pilot cohort and external evidence (`evidence/s10/readiness-report.md`) |
@@ -109,6 +109,16 @@ exits non-zero). Tests `test_deletion_holds.py` (2), `test_backup_holds.py` (9, 
 applies migration 0056. Open: account erasure; backups expired by bucket lifecycle rules or `rsync --delete` mirrors are outside the
 scripts; no live PG or real WAL-G run of the guards.
 
+### 3g-3. Part 57: the warning threshold is delivered
+
+The first near-cap decision of a run (pre-spawn gate or reviewer call) now calls `budget.deliver_budget_warning`, which writes a
+`budget` / `budget_warning` inbox row for each billing manager: team admins, or for an org-linked team org owners and billing admins
+(the rule of `billing._billing_manager`). Dedupe key `budget-warning:<team>:<YYYY-MM>` gives one row per person per team per month;
+email stays opt-in. New notification kind in both sections and the UI (`notificationsApi.ts`, `notificationsModel.ts`); no migration.
+Tests `test_budget_warning_delivery.py` (5, incl. a mutation-checked "delivery failure never touches the run"), kind pins in
+`test_notify.py`, `test_notifications_inbox.py`, `test_notifications_prefs.py`, vitest 50. Open: the hard stop is not announced to billing
+managers; org billing managers outside the team are skipped by `emit`; the warning links to `/notifications`, not a billing page.
+
 ## 3e. Session 7 result
 
 Part 49 remains partial: team-scoped versioned outbound webhooks have encrypted one-time secrets,
@@ -118,7 +128,7 @@ issue-tracker/chat adapters and extension sandbox are absent. Part 51 remains pa
 for high-risk policy changes is owner-configurable, and owners can set shorter event/audit retention
 windows applied by the worker. Physical residency remains deployment-wide. Part 57 remains partial:
 daily run reservations are atomic per run/team and tool-call limits read durable tool records;
-in-flight spend is estimate-based and alert delivery is not wired. Stripe is intentionally out of
+in-flight spend is estimate-based; the warning is delivered in-app since Session 11 (§3g-3). Stripe is intentionally out of
 scope and does not cap the score. Details: `docs/briefs/evidence/s7/` and
 `docs/{integrations,billing-and-quotas}.md`.
 

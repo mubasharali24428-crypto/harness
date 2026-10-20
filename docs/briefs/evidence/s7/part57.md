@@ -14,7 +14,7 @@ not part of the completion criteria for this pass.
 | 002 | Partial | Team monthly spend and daily run counts are attributed; agent run pools track allocations/reservations/spend. Organization-wide aggregation is not established. |
 | 003 | Partial | Tier daily-run caps are now atomically reserved per run; billing admins can configure a team hard monthly cap and concurrent-run override. Tool-call limits are enforced from durable tool records. In-flight model spend remains estimated until engine completion. |
 | 004 | Partial | Run-start checks use estimated call cost and expose budget/cap status; no rich pre-run estimate for an entire agent plan. |
-| 005 | Partial | Hard spend and daily run limits are enforced; billing admins can configure the warning threshold. The threshold currently creates an operator-visible warning, while outbound alert delivery remains incomplete. |
+| 005 | Partial | Hard spend and daily run limits are enforced; billing admins can configure the warning threshold. Session 11: the first crossing now puts a `budget_warning` notification in each billing manager's inbox (team admins; for an org-linked team, org owners and billing admins), once per person per team per UTC month (`budget.deliver_budget_warning`, `test_budget_warning_delivery.py` 5 tests, docs `billing-and-quotas.md`). Not delivered: the hard stop, org billing managers who are not team members, any channel beyond the inbox and opt-in email. |
 | 006 | Implemented locally | Run-start tier/budget gate blocks before execution. Budget reservation uses atomic conditional updates; existing state/audit history is retained on rejection. |
 | 007 | Partial | Team, run and agent allocation are visible in existing billing/agent APIs; org-level consolidated attribution and alerts are absent. |
 | 008 | Partial | Billing endpoints require billing permissions; the billing UI is team scoped. No live account-role/provider separation test was run. |
@@ -34,4 +34,4 @@ fixed in `6b6adfb`; see `session7-summary.md`.
 The billing UI exposes team hard monthly cap, maximum concurrent runs, and warning threshold.
 Daily reservations are idempotent by run id and serialized by team in PostgreSQL. Stripe is
 intentionally out of scope; the capability matrix records the local billing result without an
-external-provider score cap. In-flight engine cost estimation and alert delivery remain open.
+external-provider score cap. In-flight engine cost estimation remains open; warning delivery is closed in-app (see directive 005).

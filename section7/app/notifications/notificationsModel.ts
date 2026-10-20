@@ -18,6 +18,7 @@ export const PREVIEWS: Record<string, [string, string]> = {
   control_granted: ["Your control request was granted", "{n} control grants"],
   control_declined: ["Your control request was declined", "{n} control requests declined"],
   suggestion_queued: ["A suggestion is waiting for you", "{n} suggestions are waiting"],
+  budget_warning: ["Team spend is nearing its monthly limit", "{n} spend warnings"],
 };
 const GENERIC: [string, string] = ["You have a notification", "{n} notifications"];
 
@@ -28,7 +29,7 @@ export function previewText(summaryCode: string, count: number, locale?: string)
 
 export const KIND_LABEL: Record<Kind, string> = {
   approval: "Approvals", mention: "Mentions", handoff: "Handoffs", failure: "Failures", blocked: "Blocked runs",
-  control_request: "Control requests", suggestion: "Suggestions",
+  control_request: "Control requests", suggestion: "Suggestions", budget: "Spend warnings",
 };
 export const kindLabel = (k: string) => (Object.hasOwn(KIND_LABEL, k) ? KIND_LABEL[k as Kind] : "Other");
 
