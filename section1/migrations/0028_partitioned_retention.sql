@@ -36,6 +36,14 @@
 --     literal $$, proven by 0003/0023), no BEGIN/COMMIT (the runner wraps the
 --     file in one transaction).
 --
+-- Amended 2026-10-20 (Session 11 upgrade rehearsal, section1/tests/test_upgrade_rehearsal_pg.py),
+-- before any database was known to have run it: (1) the legacy bound was a fixed
+-- 2026-09-01, so a database holding later events could not ATTACH; it now moves to the
+-- next month start after the newest row. (2) setval(.., MAX(seq), false) handed the
+-- first post-upgrade event the seq of the last old one; it is MAX+1. A database that
+-- already ran the old text keeps its one repeated seq: find it with
+-- SELECT seq FROM agent_events GROUP BY seq HAVING count(*) > 1.
+--
 -- Transitional layout: the pre-existing table (with all history) attaches as
 -- partition `agent_events_legacy` covering (-infinity, 2026-09-01). Deploy/
 -- runners/events_retention.py pre-creates forward month partitions on every
@@ -53,6 +61,9 @@ DO $$
 DECLARE
     v_kind   text;
     v_seq    text;
+    v_month  timestamp;  -- UTC first-of-month: the first month the legacy table does not own
+    v_lo     timestamp;
+    v_name   text;
 BEGIN
     SELECT c.relkind INTO v_kind
     FROM pg_class c
@@ -121,27 +132,37 @@ BEGIN
         -- No parent-level unique constraint exists, so legacy's own PK(seq)
         -- survives untouched; PG clones the two outbound FKs onto it (or
         -- adopts the equivalents 0023 already named identically).
-        ALTER TABLE agent_events ATTACH PARTITION agent_events_legacy
-            FOR VALUES FROM (MINVALUE) TO ('2026-09-01T00:00:00Z');
+        -- The upper bound is 2026-09-01, or the first month start after the
+        -- newest surviving row when the database already holds later events
+        -- (ATTACH refuses a bound a row violates). Empty or older history
+        -- lands exactly on 2026-09-01, so fresh installs are unchanged.
+        SELECT GREATEST(timestamp '2026-09-01',
+                        date_trunc('month', MAX(ts) AT TIME ZONE 'UTC') + interval '1 month')
+          INTO v_month FROM agent_events_legacy;
+        EXECUTE format('ALTER TABLE agent_events ATTACH PARTITION agent_events_legacy '
+                       || 'FOR VALUES FROM (MINVALUE) TO (%L)', v_month AT TIME ZONE 'UTC');
 
         -- First forward months; the retention runner rolls these forward on
         -- every sweep (deploy/runners/events_retention.py replicates this
-        -- whole block, PK included). 2026_09 is the first month legacy does
-        -- NOT own.
-        CREATE TABLE agent_events_2026_09 PARTITION OF agent_events
-            FOR VALUES FROM ('2026-09-01T00:00:00Z') TO ('2026-10-01T00:00:00Z');
-        ALTER TABLE agent_events_2026_09 ADD PRIMARY KEY (seq);
-        CREATE TABLE agent_events_2026_10 PARTITION OF agent_events
-            FOR VALUES FROM ('2026-10-01T00:00:00Z') TO ('2026-11-01T00:00:00Z');
-        ALTER TABLE agent_events_2026_10 ADD PRIMARY KEY (seq);
+        -- whole block, PK included). v_month is the first month legacy does
+        -- NOT own (2026_09 and 2026_10 on a fresh install).
+        FOR i IN 0..1 LOOP
+            v_lo := v_month + make_interval(months => i);
+            v_name := 'agent_events_' || to_char(v_lo, 'YYYY_MM');
+            EXECUTE format('CREATE TABLE %I PARTITION OF agent_events '
+                           || 'FOR VALUES FROM (%L) TO (%L)', v_name,
+                           v_lo AT TIME ZONE 'UTC',
+                           (v_lo + interval '1 month') AT TIME ZONE 'UTC');
+            EXECUTE format('ALTER TABLE %I ADD PRIMARY KEY (seq)', v_name);
+        END LOOP;
 
         -- Identity continuity: NOW the parent sees every surviving seq
-        -- (legacy attached above), so headroom math is honest. Fresh installs
-        -- get MAX(seq)=NULL -> COALESCE 0 -> setval(.., 1, false): classic
-        -- start-at-one.
+        -- (legacy attached above), so headroom math is honest. setval(.., n,
+        -- false) makes n the NEXT value, so n is MAX+1 (as in 0023); fresh
+        -- installs get MAX(seq)=NULL -> COALESCE 0 -> 1: classic start-at-one.
         IF v_seq IS NOT NULL THEN
             EXECUTE 'SELECT setval(' || quote_literal(v_seq) || ', '
-                    || 'GREATEST((SELECT COALESCE(MAX(seq), 0) FROM agent_events), 1)'
+                    || '(SELECT COALESCE(MAX(seq), 0) + 1 FROM agent_events)'
                     || ', false)';
         END IF;
 

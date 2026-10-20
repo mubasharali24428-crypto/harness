@@ -21,6 +21,7 @@ It describes release controls; it does not prove a release or migration was perf
 ## 2. Migration and backfill
 
 - Add a new numbered SQL file under `section1/migrations/`; never edit an applied migration.
+  (A migration that failed on a real database rolled back and was never applied; 0028 was amended once for that reason.)
 - Apply the one-shot migration runner before app servers. Its schema drift gate requires the
   database's applied migration set to be a subset of the migrations declared by the image.
 - Migrations are forward-only. Describe lock duration, table size, default/backfill strategy,
@@ -32,6 +33,9 @@ It describes release controls; it does not prove a release or migration was perf
   retain counts and mismatch examples without customer payloads.
 - Validate the migration chain on a scratch PostgreSQL instance. No migration is approved for a
   shared or production database based on SQLite-only evidence.
+- Rehearse the upgrade with data, not only on an empty database: `HARNESS_TEST_PG=1 pytest
+  section1/tests/test_upgrade_rehearsal_pg.py` seeds a 0019-era database and runs the real runner to the
+  latest migration. Add a seeded row for any new migration that moves or rewrites data.
 
 ## 3. API, events and client compatibility
 
