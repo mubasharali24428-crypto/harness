@@ -205,6 +205,29 @@ def test_amend_and_scope_invalidation_record_what_changed(env):
     assert scope["reason"] == "risk" and scope["after"] == {"invalidatedApprovals": 1}
 
 
+def test_approvals_say_when_they_were_decided_and_amending_voids_that(env):
+    as_, _ = env
+    lead_run(as_)
+    a = new_approval(as_)
+    listed = lambda: as_("lead").get(f"{P}/r1/approvals").json()["approvals"][0]  # noqa: E731
+    assert a["decidedAt"] is None and listed()["decidedAt"] is None
+    as_("lead").post(
+        f"{P}/r1/approvals/{a['id']}/decision", json={"approve": True, "digest": a["digest"]}
+    )
+    decided = listed()["decidedAt"]
+    assert decided and decided.startswith("20")  # an ISO timestamp, not a placeholder
+    as_("eng2").put(
+        f"{P}/r1/approvals/{a['id']}",
+        json={"action": "delete", "summary": "s", "diff": "-y", "paths": ["src/other.py"]},
+    )
+    again = listed()
+    assert again["state"] == "pending" and again["decidedAt"] is None  # the decision was voided
+    # a reloaded page learns "changed after approval" from history, not from its own memory
+    events = as_("lead").get(f"{P}/r1/collab-history").json()["events"]
+    amended = [e["payload"] for e in events if e["kind"] == "approval.amended"]
+    assert amended == [{**amended[0], "approvalId": a["id"], "voidedApproval": True}]
+
+
 def test_leader_changes_record_before_and_after(env):
     as_, f = env
     lead_run(as_)

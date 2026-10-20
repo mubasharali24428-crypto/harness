@@ -31,7 +31,7 @@ const roster: Roster = {
 };
 const approval = (over: Partial<Approval> = {}): Approval => ({
   id: "a1", runId: "r1", action: "delete", paths: ["src/old.py"], summary: "remove dead module", diff: "-import x",
-  digest: "d".repeat(64), state: "pending", requester: "eng2", decidedBy: null, outcome: null, expiresAt: "2026-10-18T00:00:00Z", ...over,
+  digest: "d".repeat(64), state: "pending", requester: "eng2", decidedBy: null, decidedAt: null, outcome: null, expiresAt: "2026-10-18T00:00:00Z", ...over,
 });
 function view(me: string, approvals: Approval[] = [approval()], r: Roster = roster) {
   const h = {

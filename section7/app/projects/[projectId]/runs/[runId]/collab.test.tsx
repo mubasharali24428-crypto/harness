@@ -6,7 +6,7 @@ import { ApiError, parseApiError } from "@/lib/api";
 import { decideApproval, sendRedirect, type Approval, type CollabEvent, type Roster } from "./collabApi";
 import {
   approvalLabel, clipDiff, deriveCollabView, describeDecision, describeEvent, fileStatuses, mergeEvents,
-  redirectProblem, reopenedApprovals,
+  redirectProblem, reopenedApprovals, reopenedFromHistory,
 } from "./collabModel";
 import { NotEnabled, PILOT_NOT_ENABLED, SharedRunView } from "./sharedRunPanel";
 
@@ -24,7 +24,7 @@ const roster: Roster = {
 const approval = (over: Partial<Approval> = {}): Approval => ({
   id: "a1", runId: "r1", action: "delete", paths: ["src/old.py"], summary: "remove dead module",
   diff: "-import x", digest: "d".repeat(64), state: "pending", requester: "eng2",
-  decidedBy: null, outcome: null, expiresAt: "2026-10-18T00:00:00Z", ...over,
+  decidedBy: null, decidedAt: null, outcome: null, expiresAt: "2026-10-18T00:00:00Z", ...over,
 });
 
 describe("deriveCollabView", () => {
@@ -302,6 +302,27 @@ describe("changed proposal re-requires approval", () => {
     expect(html).toContain("Approve this change");
     expect(html).toContain(">eeeeeeee<");
     expect(renderWith("lead", after)).not.toContain("reopened-a1");
+  });
+});
+
+describe("a reload still knows a proposal changed after approval", () => {
+  const amended = (voided: boolean, id = "a1"): CollabEvent => ({
+    seq: 7, actor: "eng2", kind: "approval.amended", ts: "2026-10-18T10:00:00Z",
+    payload: { approvalId: id, voidedApproval: voided },
+  });
+  const after = [approval({ state: "pending", digest: "e".repeat(64) })];
+
+  it("reads it from history: still pending and an approval was voided", () => {
+    expect(reopenedFromHistory([amended(true)], after)).toEqual(["a1"]);
+    expect(reopenedFromHistory([amended(false)], after)).toEqual([]); // only a pending proposal was edited
+    expect(reopenedFromHistory([amended(true, "other")], after)).toEqual([]);
+    expect(reopenedFromHistory([amended(true)], [approval({ state: "approved" })])).toEqual([]); // decided again
+    expect(reopenedFromHistory([], after)).toEqual([]);
+  });
+
+  it("shows the notice with no memory of the earlier poll", () => {
+    expect(renderWith("lead", after, { events: [amended(true)] })).toContain('data-testid="reopened-a1"');
+    expect(renderWith("lead", after, { events: [amended(false)] })).not.toContain("reopened-a1");
   });
 });
 

@@ -22,6 +22,6 @@
 - Part 24: 002-009 covered; 010 (errors/cancellation for non-engineers) only partly: server error messages are shown verbatim, no plain-language error mapping was added.
 
 ## Gaps and risks
-- Approvals API has no decision timestamp or amend event, so decisions are listed in request order and "changed after approval" is detected client-side (lost on reload; the pending state and new version id remain). Backend would need decided_at and a collab event on amend.
+- (Resolved in Session 11, `PROJECT-STATE.md` §3g-7: `decidedAt` is returned and the notice is rebuilt from `approval.amended` history.) Approvals API had no decision timestamp or amend event, so decisions are listed in request order and "changed after approval" is detected client-side (lost on reload; the pending state and new version id remain). Backend would need decided_at and a collab event on amend.
 - No UI for filing or amending a proposal (e2e uses HTTP for those two steps); approval cards for human proposals stay in "Pending decisions" as "Approved" because there is no apply path for them.
 - A11y not verified with a real screen reader or contrast tooling; Pill colours not audited; vitest is static-render (no DOM), keyboard proven only in the Playwright leg. Offline leg tolerates console/network errors only inside its window. Delivery of OTP email still not proven (log capture).

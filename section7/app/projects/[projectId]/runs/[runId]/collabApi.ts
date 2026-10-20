@@ -27,6 +27,7 @@ export interface Approval {
   state: ApprovalState;
   requester: string;
   decidedBy: string | null;
+  decidedAt: string | null;
   outcome: string | null;
   expiresAt: string;
 }

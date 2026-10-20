@@ -156,6 +156,16 @@ Only run on sqlite. The daily plan-limit stop is announced in §3g-5.
   active flag, audit leaking the email). section1 962 passed/29 skipped. **Sqlite only, not run on PG;** there is no UI.
 - **Part 52 shell allow-list: still open, not closable here.** Session 11 live check (Part 52): no local closure. The runtime is a closed binary and the SDK config exposes only provider, model, profile, patches, env, cwd and dsh_home, so there is no pre-tool callback. It spawns `/bin/bash` by absolute path, so a PATH shim never sees the command (shim installed, run driven by a local Ollama model: the command ran unobserved). Seatbelt breaks its PTY, and the real runtime accepts only `container` or an explicit `off`. The remaining closure paths are a runtime pre-tool hook or the image-level boundary in `worker.Dockerfile` (container work in another lane).
 
+### 3g-7. Approvals: decision timestamp, and "changed after approval" survives a reload
+
+The Session 2 note (`evidence/s2/lane-c.md`) said the approvals API had no decision timestamp or amend event. Both already existed in storage:
+`decided_at` was written and `approval.amended` events were emitted, but `collab._view` did not return the time. It now returns `decidedAt`
+(null while pending, null again after an amend voids the decision). `collabModel.reopenedFromHistory` rebuilds the "changed after it was
+approved" notice from `approval.amended` events with `voidedApproval: true` for proposals that are still pending, so it no longer depends on a
+poll that saw the approval first. Tests: `test_approvals_say_when_they_were_decided_and_amending_voids_that` (server; also pins the event
+payload), two vitest cases in `collab.test.tsx`; two mutants killed on each side. Open: the panel does not print the time yet, and it can
+only see amend events inside the history window it loaded.
+
 ## 3e. Session 7 result
 
 Part 49 remains partial: team-scoped versioned outbound webhooks have encrypted one-time secrets,
@@ -211,7 +221,7 @@ section1 pytest 859 passed/27 skipped; section4 pytest 979 passed/32 skipped; ru
 1. ~~Part 38 enforcement carry-over~~ done (`evidence/s3/part38-enforcement.md`). Remaining limits are in `docs/permissions.md`.
 2. ~~Sessions 4 and 5~~ done. Session 6 integrated; next Session 7 (49, 51, 57) per
    `path-to-9-plan.md`. Part 44 closed locally by `00a1412` (see `evidence/s6/part44-version-approval.md`).
-3. Backend gaps from earlier: no UI to file/amend a proposal; approvals API lacks a decision timestamp; part 12 item 009 and
+3. Backend gaps from earlier: no UI to file/amend a proposal; ~~approvals API lacks a decision timestamp~~ (done, §3g-7); part 12 item 009 and
    responsive layout untested; audit chain has no external anchor; browser socket connection not asserted in e2e.
 4. Workspace gaps: none open (quota race closed in §3g-5; purge job, archive-stop and resume gate in §3g).
 5. Dev SQLite has no `teams.org_id` (migration 0038 adds it on Postgres); `require_team_stepup` tolerates that.

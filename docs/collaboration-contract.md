@@ -60,6 +60,10 @@ States: `pending`, `approved`, `rejected`, `expired`, `invalidated`, `executing`
 `completed`, `failed`. Every transition is a compare-and-swap `UPDATE`, so racing callers have exactly one winner, and writes one event and one audit row
 in the same transaction.
 
+An approval row carries `decidedBy` and `decidedAt` (null while pending). Amending a proposal (`PUT /approvals/{id}`, requester only) returns it to
+`pending` with the new digest, clears both, and writes an `approval.amended` event whose payload has `voidedApproval: true` when an approval was
+voided. The shared-run panel reads that event from history, so "this proposal changed after it was approved" survives a reload.
+
 | From | Action (who) | To | Refusal when the state is wrong |
 |---|---|---|---|
 | (none) | request (participant) | `pending` | |

@@ -24,7 +24,7 @@ import {
 } from "./collabApi";
 import {
   type CollabView, approvalAnnouncements, approvalLabel, clipDiff, deriveCollabView, describeDecision,
-  fileStatuses, freshEventLines, isOpenApproval, mergeEvents, plainError, redirectProblem, reopenedApprovals,
+  fileStatuses, freshEventLines, isOpenApproval, mergeEvents, plainError, redirectProblem, reopenedApprovals, reopenedFromHistory,
 } from "./collabModel";
 import { type StreamView, useCollabStream } from "./useCollabStream";
 import { ConnectionStatus } from "./connectionStatus";
@@ -101,6 +101,7 @@ export function SharedRunView(p: SharedRunViewProps) {
   const open = p.approvals.filter(isOpenApproval);
   const decided = p.approvals.filter((a) => a.state !== "pending");
   const files = fileStatuses(p.approvals, view.leader);
+  const reopened = [...(p.reopened ?? []), ...reopenedFromHistory(p.events, p.approvals)];
   const owner = view.leader ? `${view.leader}${view.isLeader ? " (you)" : ""}` : null;
 
   return (
@@ -172,7 +173,7 @@ export function SharedRunView(p: SharedRunViewProps) {
               </Pill>
             </div>
             <p style={{ margin: "4px 0" }}>{a.summary}</p>
-            {p.reopened?.includes(a.id) && a.state === "pending" && (
+            {reopened.includes(a.id) && a.state === "pending" && (
               <Notice tone="warning" role="status" testId={`reopened-${a.id}`}>
                 This proposal changed after it was approved. The earlier approval no longer applies; it needs a new decision.
               </Notice>

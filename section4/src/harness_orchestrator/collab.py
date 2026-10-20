@@ -807,6 +807,7 @@ def _view(r: Any) -> dict[str, Any]:
         "state": r.state,
         "requester": r.requester_user_id,
         "decidedBy": r.decided_by,
+        "decidedAt": None if r.decided_at is None else str(r.decided_at),
         "outcome": r.outcome,
         "expiresAt": str(r.expires_at),
     }
