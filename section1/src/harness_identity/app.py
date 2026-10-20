@@ -273,6 +273,11 @@ def make_app(session_factory, settings: Settings):
 
     app.include_router(notifications_router)
 
+    # Parts 31/58: a person erases their own account.
+    from .erasure import router as erasure_router
+
+    app.include_router(erasure_router)
+
     # M15-W5-S1 merge wiring: browser CSP violation collector (unauthed,
     # size-capped, allow-listed logging — see csp_report.py).
     from .csp_report import router as csp_report_router

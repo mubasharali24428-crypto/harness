@@ -9,7 +9,7 @@
 | 003 | Implemented locally with limits | Session/API keys are hashed or vault-encrypted; audit scrubbing and notifier error handling avoid credential values. Production logging/provider boundaries were not independently inspected. |
 | 004 | Implemented locally | Run, comment, plan, artifact and guidance stores are treated as user content; visibility is scoped by auth guards and export filters. |
 | 005 | Partial | Audit/export and run-history endpoints have team/run guards; no single concise product-facing access policy lists every data class. |
-| 006 | Partial | Event/audit retention sidecar and Section 4 run-retention/deletion workflows exist. Team-admin hold create/read/release operations are audited, and run purge, event/audit pruning and PostgreSQL event-partition retirement preserve held-run evidence. User deletion and backup expiry do not honor holds; there is no account-wide purge. |
+| 006 | Partial | Event/audit retention sidecar and Section 4 run-retention/deletion workflows exist. Team-admin hold create/read/release operations are audited, and run purge, event/audit pruning and PostgreSQL event-partition retirement preserve held-run evidence. Content deletion and backup expiry honor holds (Session 11). Account erasure pseudonymises the account, refuses while a held run involves the person, and keeps ids in evidence (`test_account_erasure.py`, sqlite only). |
 | 007 | Implemented locally with limits | Section 4 exports authorize the requester, enforce size/expiry, redact secret-shaped values and audit operations; local export files depend on operator filesystem controls. |
 | 008 | Partial | Demo fixtures are synthetic by construction in the inspected runner; no global product guard prevents a user from supplying real data. |
 | 009 | Partial | `docs/data-map.md` describes telemetry fields; no complete participant-facing telemetry notice found. |
@@ -34,3 +34,5 @@ partial until a common hard execution adapter covers that path. The installed SD
 post-dispatch notifications and collected events, not a pre-tool authorization callback, so the
 existing wrapper cannot safely enforce commands by inspecting those notifications. No compliance, legal, production
 encryption, or provider disclosure claim is made.
+
+Session 11 live check (Part 52): no local closure. The runtime is a closed binary and the SDK config exposes only provider, model, profile, patches, env, cwd and dsh_home, so there is no pre-tool callback. It spawns `/bin/bash` by absolute path, so a PATH shim never sees the command (shim installed, run driven by a local Ollama model: the command ran unobserved). Seatbelt breaks its PTY, and the real runtime accepts only `container` or an explicit `off`. The remaining closure paths are a runtime pre-tool hook or the image-level boundary in `worker.Dockerfile` (container work in another lane).

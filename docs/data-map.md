@@ -9,7 +9,7 @@ compose profiles; unless operators enable and monitor them, expired data remains
 ## Database tables (Postgres, owner: section1 migrations)
 | Data class | Tables | Reader (code) | Retention / deletion rule | Notes |
 |---|---|---|---|---|
-| Identity & sessions | `users`, `auth_sessions`, `ws_tickets`, `login_otps`, `oauth_states`, `sso_login_states`, `key_derivation_params` | identity (section1) | OTP/ticket/state rows carry `expires_at`; no general scheduled purge of expired rows or account deletion flow | Dev OTP console output exists only in explicit dev transport; production SMTP errors log type/status, not message contents (`section1/src/harness_identity/notifier.py`) |
+| Identity & sessions | `users`, `auth_sessions`, `ws_tickets`, `login_otps`, `oauth_states`, `sso_login_states`, `key_derivation_params` | identity (section1) | OTP/ticket/state rows carry `expires_at`; no general scheduled purge of expired rows; `POST /api/v1/account/erasure` pseudonymises the account (see Gaps, below) | Dev OTP console output exists only in explicit dev transport; production SMTP errors log type/status, not message contents (`section1/src/harness_identity/notifier.py`) |
 | Teams & settings | `teams`, `team_members`, `team_invites`, `team_settings`, `user_settings`, `team_sso_configs`, `api_keys` | identity teams/settings/api_keys modules | FK deletion story in migration 0023; no scheduled purge | API keys encrypted (vault, `crypto.py`, `reencrypt_vault.py`) |
 | Projects & work | `projects`, `meetings`, `meeting_messages`, `engineering_briefs`, `agent_plans`, `project_rules`, `context_chunks` (pgvector) | identity / orchestrator | none scheduled | `context_chunks` holds repo-derived text |
 | Runs | `agent_runs`, `run_claims`, `run_participants`, `run_handoffs`, `pull_requests`, `review_comments`, `github_connections`, `model_configs`, `run_retention_holds` | orchestrator | run rows kept; `retention.py` purges staged material only for eligible, unheld runs | Team admins can create/read/release run holds through the audited Section 4 API; Section 1 event/audit pruning and PostgreSQL event-partition removal preserve held-run evidence. `github_connections` holds tokens (encrypted) |
@@ -42,11 +42,19 @@ compose profiles; unless operators enable and monitor them, expired data remains
 - Migration 0056 adds run holds managed by team admins through Section 4's audited API. Section 4
   run purge, Section 1 event/audit pruning and PostgreSQL partition retirement honor active holds.
   Authored-content deletion leaves held content untouched (Session 11), and both backup scripts skip
-  expiry while a hold exists or cannot be read. Account erasure is still absent.
+  expiry while a hold exists or cannot be read.
 - No tenant-specific physical residency routing. Workspace `dataResidency` is a declared workspace
   field; it does not route databases, event partitions, exports, provider calls, or backups.
-- No account deletion workflow or identity-table expiry sweep. Part 50 deletion is an authored-content
-  erasure workflow with documented retained records, not full account erasure.
+- Account erasure (`POST /api/v1/account/erasure`, `section1/.../erasure.py`, Session 11) is a person erasing
+  their own account. `users` is pseudonymised, never deleted (`audit_log` is RESTRICT-linked and held evidence
+  must keep its ids): the email becomes a placeholder, the account is deactivated, credentials, sessions, GitHub
+  links, settings, inbox/preferences/mutes, org and workspace seats, invites and queued mail addressed to the
+  email are deleted, and `team_members`/`session_members` display names become "Deleted user" with the seat's
+  `user_id` cleared. It refuses (409) while the person is the only admin of a team or only owner of an
+  organization, and while a run under retention hold involves them. Authored text (comments, task specs, plan and
+  review comments) and evidence tables keep only the opaque id (`KEPT` in `erasure.py` names each with a reason;
+  a guard test fails for any new table with a personal column that is in no list). Authored text is removed by a
+  Part 50 deletion request, which honors holds. Not run on Postgres; no identity-table expiry sweep.
 - Event/audit retention is only active when the opt-in retention sidecar is deployed and monitored.
 - Section 4 now pins the SDK `sdk-minimal` profile and adds a per-run `workspace-write` policy overlay
   after operator patches. Runs whose approved plan has non-empty `forbiddenPaths` are refused before

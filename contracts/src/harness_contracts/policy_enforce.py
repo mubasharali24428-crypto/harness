@@ -72,6 +72,8 @@ IDENTITY_RULES: tuple[tuple[str, str, str], ...] = (
     ("*", r"/api/v1/sessions(/.*)?", "steer"),
     # Session 5: a user's own inbox and preferences are self-service (viewers included).
     ("*", r"/api/v1/notifications(/.*)?", "read"),
+    # Parts 31/58: erasing your own account is self-service (viewers included).
+    ("POST", r"/api/v1/account/erasure", "read"),
 )
 
 ORCHESTRATOR_RULES: tuple[tuple[str, str, str], ...] = (

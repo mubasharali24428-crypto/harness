@@ -30,7 +30,7 @@ observability, `deploy/pilot` disposable smoke stack · `docs/` · `scripts/` (s
 | 5 | Discussion, notifications, real-time delivery, collab UI (43, 46, 47, 56-collab) | Done, committed (lanes D, N, R, X) |
 | 6 | Plans/artifacts/search (44, 48, 50) | Integrated locally; 44, 48 and 50 verified (44 closed by `00a1412`: version approval, scheduled limit sweep; tool-call cap counts reported calls only) |
 | 7 | Integrations/admin/billing (49, 51, 57) | Done locally; parts remain partial for provider breadth, residency and in-flight spend (the 57 warning alert is delivered in-app since Session 11, §3g-3); Stripe out of scope (owner direction) |
-| 8 | Security/compliance and privacy enforcement (52, 58, 31) | Done locally, parts stay partial: SDK shell lacks the Section 5 allow-list; user deletion and backup expiry ignore retention holds; account erasure and tenant residency absent (§3f) |
+| 8 | Security/compliance and privacy enforcement (52, 58, 31) | Done locally, parts stay partial: SDK shell lacks the Section 5 allow-list; tenant residency absent; account erasure exists (§3g-6); the shell gap is not closable locally (§3g-6) |
 | 9 | Reliability/scale/observability (53-55) | Done locally, parts stay partial: SLOs, capacity runbook, Grafana dashboard; no Alertmanager delivery, no fresh load run (`evidence/s9/`) |
 | 10 | Client/rollout/roadmap/readiness (56, 59-61, 03 tooling) | Done locally: broad rollout is **NO-GO**; 03 and 61 blocked on a real pilot cohort and external evidence (`evidence/s10/readiness-report.md`) |
 | 11 | Local gap closure + live-PG evidence | In progress, see §3g |
@@ -79,9 +79,8 @@ and record verification. Section 4 pins the SDK `sdk-minimal` profile, applies a
 `workspace-write` overlay, and refuses plans with non-empty `forbiddenPaths` before SDK invocation.
 Its shell still lacks Section 5's command allow-list. Migration 0056 adds team-admin run holds with
 audited create/read/release routes; Section 4 run purge, Section 1 event/audit pruning, and PostgreSQL
-event-partition retirement honor them. User deletion and backup expiry do not. Parts 31/52/58 remain
-partial; 52/58 require external evidence, and account-wide deletion and tenant-specific residency
-remain absent. No legal/compliance claim is made. See
+event-partition retirement honor them. Content deletion and backup expiry honor them since Session 11, and account erasure exists (§3g-6). Parts 31/52/58 remain
+partial; 52/58 require external evidence, and tenant-specific residency remains absent. No legal/compliance claim is made. See
 `docs/briefs/evidence/s8/session8-summary.md`.
 
 ## 3g. Session 11 (2026-10-20)
@@ -106,7 +105,7 @@ HARNESS_TEST_PG_DSN=postgresql://harness:harness@localhost:5499/harness section1
 held scopes untouched and reports `commentsHeld`/`exportFilesHeld`; a new RETAINED policy entry says why. `deploy/runners/backup.sh`
 and `deploy/backup/backup.sh` skip expiry while `run_retention_holds` has rows or cannot be read (fail closed; `backup.sh retention`
 exits non-zero). Tests `test_deletion_holds.py` (2), `test_backup_holds.py` (9, fake psql/wal-g/docker); the shared search test env now
-applies migration 0056. Open: account erasure; backups expired by bucket lifecycle rules or `rsync --delete` mirrors are outside the
+applies migration 0056. Open: backups expired by bucket lifecycle rules or `rsync --delete` mirrors are outside the
 scripts; no live PG or real WAL-G run of the guards.
 
 ### 3g-3. Part 57: the warning threshold is delivered
@@ -143,6 +142,19 @@ Only run on sqlite. The daily plan-limit stop is announced in §3g-5.
   (file-backed SQLite, 8 racing creates, quota 3; red before, 3/3 green after; `make_env` gained `db_path`). **Not run on PG.**
 - Tests: `test_budget_warning_delivery.py` 15 (3 new, mutants killed: degraded daily, home-team fallback, daily key, team order),
   `test_notify.py` pin, vitest 50, section1 955 passed/29 skipped, section4 exit 0.
+
+### 3g-6. Parts 31/58 account erasure; Part 52 shell finding
+
+- **Account erasure:** `POST /api/v1/account/erasure` (`section1/.../erasure.py`, route classified `read` in
+  `policy_enforce.IDENTITY_RULES`, audit actions `account.erased` / `account.erasure_deferred`). The person confirms their email;
+  `users` is **pseudonymised, not deleted** (`audit_log.actor_member_id` is RESTRICT to `team_members`). Credentials, sessions,
+  settings, inbox state, org/workspace seats and mail/invites addressed to the email are deleted; seat names become "Deleted user"
+  and the seat's `user_id` is cleared. Refuses with 409 `SOLE_ADMIN` (only admin of a team / only owner of an org) and 409
+  `ERASURE_ON_HOLD` (a run under retention hold involves the person; asking again after release works), both before any change.
+  `KEPT` names every table left alone with a reason, and a guard test fails for a new table with a personal column in no list.
+  `test_account_erasure.py` 7; eight mutants killed (hold check, sole-admin check, unfiltered delete, inbox, addressed mail, seat id,
+  active flag, audit leaking the email). section1 962 passed/29 skipped. **Sqlite only, not run on PG;** there is no UI.
+- **Part 52 shell allow-list: still open, not closable here.** Session 11 live check (Part 52): no local closure. The runtime is a closed binary and the SDK config exposes only provider, model, profile, patches, env, cwd and dsh_home, so there is no pre-tool callback. It spawns `/bin/bash` by absolute path, so a PATH shim never sees the command (shim installed, run driven by a local Ollama model: the command ran unobserved). Seatbelt breaks its PTY, and the real runtime accepts only `container` or an explicit `off`. The remaining closure paths are a runtime pre-tool hook or the image-level boundary in `worker.Dockerfile` (container work in another lane).
 
 ## 3e. Session 7 result
 

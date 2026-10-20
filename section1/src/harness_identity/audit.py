@@ -64,6 +64,8 @@ APPEND_ONLY_ACTIONS = frozenset(
         "integration.webhook_updated",
         "integration.webhook_secret_rotated",
         "integration.webhook_deleted",
+        "account.erased",
+        "account.erasure_deferred",
         "workspace.created",
         "workspace.updated",
         "workspace.settings_changed",
