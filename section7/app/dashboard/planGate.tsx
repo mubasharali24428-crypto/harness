@@ -39,7 +39,7 @@ const PHASE_PILL_COLOR: Record<PlanGatePhase, string> = {
   "no-plan": "#9aa4b2",
   "awaiting-approval": "#f59e0b",
   "ready-to-start": "#22c55e",
-  "in-flight": "#3b82f6",
+  "in-flight": "#60a5fa",
   done: "#9aa4b2",
 };
 
@@ -285,7 +285,7 @@ export function PlanGateView({
         </div>
       ) : (
         // The goal is shown by the shared-run panel (read from the server); never print a false "none recorded" here.
-        (plan?.goal ?? "").trim() !== "" ? <p style={{ color: "#6b7280", fontSize: 13, margin: "8px 0 0" }}>Goal: {plan!.goal}</p> : null
+        (plan?.goal ?? "").trim() !== "" ? <p style={{ color: "var(--muted)", fontSize: 13, margin: "8px 0 0" }}>Goal: {plan!.goal}</p> : null
       )}
 
       {phase === "awaiting-approval" && (
@@ -320,7 +320,7 @@ export function PlanGateView({
             {busyAction === "start" ? "Starting…" : "Start run"}
           </button>
           {actions.runId && (
-            <span style={{ color: "#6b7280", fontSize: 12 }} title="Server-minted run binding">
+            <span style={{ color: "var(--muted)", fontSize: 12 }} title="Server-minted run binding">
               run {actions.runId}
             </span>
           )}

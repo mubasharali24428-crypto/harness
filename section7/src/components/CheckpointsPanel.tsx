@@ -67,10 +67,10 @@ export function CheckpointsPanel({
       <h2 style={headingStyle}>Checkpoints</h2>
       {error && <p style={{ color: "#f87171", fontSize: 13 }}>{error}</p>}
       {!error && items === null && (
-        <p style={{ color: "#6b7280", fontSize: 13 }}>Loading snapshots…</p>
+        <p style={{ color: "var(--muted)", fontSize: 13 }}>Loading snapshots…</p>
       )}
       {items !== null && items.length === 0 && (
-        <p style={{ color: "#6b7280", fontSize: 13 }}>
+        <p style={{ color: "var(--muted)", fontSize: 13 }}>
           No snapshots yet. One pair is recorded per agent edit batch.
         </p>
       )}
@@ -97,7 +97,7 @@ export function CheckpointsPanel({
                   {openSha === cp.sha ? "hide diff" : "view diff"}
                 </button>
               </div>
-              <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
                 task {cp.taskId} · {new Date(cp.createdAt).toLocaleString()}
               </div>
               {openSha === cp.sha && (

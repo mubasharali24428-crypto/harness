@@ -36,7 +36,16 @@ export function BreadcrumbTrail({ items }: { items: Crumb[] }) {
             </span>
           )}
           {c.href !== undefined ? (
-            <a href={c.href} style={{ color: "var(--accent)", textDecoration: "underline" }}>
+            <a
+              href={c.href}
+              style={{
+                color: "var(--accent)",
+                textDecoration: "underline",
+                display: "inline-flex",
+                alignItems: "center",
+                minHeight: 24,
+              }}
+            >
               {c.label}
             </a>
           ) : (

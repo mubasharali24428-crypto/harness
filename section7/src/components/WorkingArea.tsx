@@ -78,7 +78,7 @@ export function WorkingArea({ projectId, runId, stagedPending = false }: { proje
   return (
     <main style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
       <h1 style={{ fontSize: 18, marginBottom: 16 }}>
-        Working Area <span style={{ color: "#6b7280", fontWeight: 400 }}>· run {runId}</span>
+        Working Area <span style={{ color: "var(--muted)", fontWeight: 400 }}>· run {runId}</span>
       </h1>
       <div className="working-grid">
         <div className="working-col">

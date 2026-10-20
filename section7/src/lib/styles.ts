@@ -33,7 +33,7 @@ export const secondaryButtonStyle: CSSProperties = {
 
 export const dangerButtonStyle: CSSProperties = {
   ...buttonStyle,
-  background: "#ef4444",
+  background: "#dc2626",
 };
 
 export const inputStyle: CSSProperties = {

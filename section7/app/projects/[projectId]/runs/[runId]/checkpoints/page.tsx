@@ -31,7 +31,7 @@ export default function CheckpointsPage({
     <main style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
       <h1 style={{ fontSize: 18, marginBottom: 16 }}>
         Checkpoints{" "}
-        <span style={{ color: "#6b7280", fontWeight: 400 }}>· run {runId}</span>
+        <span style={{ color: "var(--muted)", fontWeight: 400 }}>· run {runId}</span>
       </h1>
       {!token ? null : <CheckpointsPanel projectId={projectId} token={token} />}
     </main>

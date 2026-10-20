@@ -29,7 +29,7 @@ export function TerminalPanel({
     <section style={panelStyle}>
       <h2 style={headingStyle}>Terminal &amp; test results</h2>
       {results.length === 0 ? (
-        <p style={{ color: "#6b7280", fontSize: 13 }}>
+        <p style={{ color: "var(--muted)", fontSize: 13 }}>
           No live terminal feed yet — terminal_output events from the sandbox will
           stream here in real time once an agent run starts executing commands.
         </p>

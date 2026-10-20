@@ -6,7 +6,7 @@ export function PlanPanel({ plan }: { plan: AgentPlan | null }) {
     return (
       <section style={panelStyle}>
         <h2 style={headingStyle}>Plan</h2>
-        <p style={{ color: "#6b7280", fontSize: 13 }}>No plan proposed yet for this run.</p>
+        <p style={{ color: "var(--muted)", fontSize: 13 }}>No plan proposed yet for this run.</p>
       </section>
     );
   }
@@ -29,7 +29,7 @@ export function PlanPanel({ plan }: { plan: AgentPlan | null }) {
       <div style={{ display: "flex", gap: 24, marginTop: 12, fontSize: 13 }}>
         <span>Estimated cost: ${(plan.estimatedCostUsd ?? 0).toFixed(4)}</span>
         <span
-          style={{ color: "#6b7280" }}
+          style={{ color: "var(--muted)" }}
           title="No cost_ledger read endpoint exists yet - Section 3 isn't even a declared dependency of Section 7. Wired for it, no data source yet."
         >
           Actual cost: — (no live source yet)

@@ -95,7 +95,7 @@ export function InboxView(p: {
         })}
       </ul>
       {p.nextCursor && <p><Button size="sm" disabled={p.busy || p.loading} onClick={a.more}>Load more</Button></p>}
-      <p style={{ ...muted, fontSize: 12 }}>{unreadHere > 0 ? `${unreadHere} unread in this list. ` : ""}Preferences, quiet hours and muting are under <a href="/settings/notifications">Settings, Notifications</a>.</p>
+      <p style={{ ...muted, fontSize: 12 }}>{unreadHere > 0 ? `${unreadHere} unread in this list. ` : ""}Preferences, quiet hours and muting are under <a href="/settings/notifications" style={{ color: "var(--accent)" }}>Settings, Notifications</a>.</p>
     </section>
   );
 }

@@ -36,7 +36,7 @@ export function CommentsNudges({ authorName }: { authorName: string }) {
   return (
     <section style={panelStyle}>
       <h2 style={headingStyle}>Comments &amp; nudges</h2>
-      <p style={{ fontSize: 12, color: "#6b7280", marginTop: -6, marginBottom: 10 }}>
+      <p style={{ fontSize: 12, color: "var(--muted)", marginTop: -6, marginBottom: 10 }}>
         Local to this browser session — no backend endpoint exists yet to persist or
         deliver these to the agent.
       </p>
@@ -49,7 +49,7 @@ export function CommentsNudges({ authorName }: { authorName: string }) {
             {c.body}
           </div>
         ))}
-        {comments.length === 0 && <p style={{ color: "#6b7280", fontSize: 13 }}>No comments yet.</p>}
+        {comments.length === 0 && <p style={{ color: "var(--muted)", fontSize: 13 }}>No comments yet.</p>}
       </div>
       {/* M15-S3 (W4-VT2 carryover): placeholder-only naming fails WCAG
           4.1.2/3.3.2 — aria-label carries the accessible name; the panel

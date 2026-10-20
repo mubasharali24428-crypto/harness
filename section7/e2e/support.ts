@@ -54,6 +54,15 @@ export async function loginViaUi(page: Page, email: string): Promise<"bypass"> {
         "run it with E2E_IDENTITY_URL reachable for docker-log capture.",
     );
   }
+  // The race above resolves on its timeouts too, so a sign-in that never stored a
+  // session (for example a CORS rejection) must fail here, not in the caller.
+  const stored = await page.evaluate(() => window.localStorage.getItem("harness.session"));
+  if (!stored) {
+    throw new Error(
+      `Sign-in stored no session (still at ${new URL(page.url()).pathname}). ` +
+        "Check the identity service's HARNESS_CORS_ORIGINS includes the frontend origin.",
+    );
+  }
   return "bypass";
 }
 

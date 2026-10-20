@@ -48,7 +48,7 @@ function SettingsInner() {
 
       {/* M12-G10: project rules editor (.cursorrules equivalent) lives here */}
       <p style={{ marginBottom: 16 }}>
-        <a href="/settings/project">Project rules →</a>{" "}
+        <a href="/settings/project" style={{ color: "var(--accent)" }}>Project rules →</a>{" "}
         <span style={{ color: "var(--muted)", fontSize: 12 }}>
           conventions every agent plan must honor
         </span>
@@ -94,7 +94,7 @@ function SettingsInner() {
         </p>
 
         {conn === null ? (
-          <p style={{ color: "#6b7280", fontSize: 14 }}>Loading…</p>
+          <p style={{ color: "var(--muted)", fontSize: 14 }}>Loading…</p>
         ) : conn.connected ? (
           <div
             style={{
@@ -108,7 +108,7 @@ function SettingsInner() {
           >
             <span style={{ color: "#34d399", fontWeight: 700 }}>Connected</span>
             <span style={{ fontFamily: "ui-monospace, monospace" }}>@{conn.login}</span>
-            <span style={{ color: "#6b7280", fontSize: 13 }}>
+            <span style={{ color: "var(--muted)", fontSize: 13 }}>
               scopes: {conn.scopes.join(", ") || "—"}
             </span>
           </div>
@@ -136,7 +136,7 @@ function SettingsInner() {
 
 export default function SettingsPage() {
   return (
-    <Suspense fallback={<div style={{ padding: 24, color: "#6b7280" }}>Loading…</div>}>
+    <Suspense fallback={<div style={{ padding: 24, color: "var(--muted)" }}>Loading…</div>}>
       <SettingsInner />
     </Suspense>
   );

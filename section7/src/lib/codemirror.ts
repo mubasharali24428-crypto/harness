@@ -23,6 +23,12 @@ export const editorTheme = EditorView.theme(
   { dark: true },
 );
 
+/** The scroller is the region that scrolls, so it must be a keyboard stop (axe scrollable-region-focusable). */
+const keyboardScroller = ViewPlugin.define((view) => {
+  view.scrollDOM.tabIndex = 0;
+  return {};
+});
+
 /** Pure: classifies one unified-diff line for coloring. Exported for unit tests. */
 export function diffLineClass(text: string): string | null {
   if (text.startsWith("+++") || text.startsWith("---")) return "cm-diff-file";
@@ -81,6 +87,7 @@ export function useEditorView(
         extensions: [
           basicSetup,
           editorTheme,
+          keyboardScroller,
           EditorView.editable.of(!opts.readOnly),
           EditorView.updateListener.of((update: ViewUpdate) => {
             if (update.docChanged) onChangeRef.current?.(update.state.doc.toString());
