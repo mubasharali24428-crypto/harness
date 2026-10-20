@@ -1,5 +1,7 @@
 """Workspace creation, naming, membership, project linking, visibility, search, quota."""
 
+import asyncio
+
 import pytest
 from sqlalchemy import text
 
@@ -196,6 +198,20 @@ async def test_search_filters_scoping_and_paging(env):
     foreign_id = (await client.get(W, headers=bearer(other["admin@b.io"]))).json()["items"][0]["id"]
     r = await client.get(W, params={"cursor": foreign_id}, headers=bearer(eng))
     assert r.json()["items"] == []
+
+
+async def test_concurrent_creates_cannot_overshoot_the_quota(tmp_path):
+    async with make_env(max_per_team=3, db_path=tmp_path / "q.db") as (client, factory):
+        adm = (await seed_team(factory, ("admin@q.io", "admin")))["admin@q.io"]
+        rs = await asyncio.gather(*(
+            client.post(W, json={"name": f"Race{i}", "dataResidency": "eu"}, headers=bearer(adm))
+            for i in range(8)))
+        assert sorted(r.status_code for r in rs) == [201] * 3 + [409] * 5
+        assert {r.json()["detail"]["error"]["code"] for r in rs if r.status_code == 409} == {
+            "QUOTA_EXCEEDED"}
+        async with factory() as db:
+            kept = (await db.execute(text("SELECT COUNT(*) FROM workspaces"))).scalar()
+        assert kept == 3
 
 
 async def test_quota_enforced_and_deleted_frees_slot():

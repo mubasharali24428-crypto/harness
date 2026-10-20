@@ -27,8 +27,9 @@ def migration_statements() -> list[str]:
 
 
 @asynccontextmanager
-async def make_env(max_per_team: int | None = None):
-    engine = create_async_engine("sqlite+aiosqlite://")
+async def make_env(max_per_team: int | None = None, db_path: Path | None = None):
+    # a file database gives every request its own connection (the in-memory one is shared)
+    engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}" if db_path else "sqlite+aiosqlite://")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         for stmt in migration_statements():

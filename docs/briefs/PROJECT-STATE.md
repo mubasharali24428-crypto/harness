@@ -116,8 +116,7 @@ The first near-cap decision of a run (pre-spawn gate or reviewer call) now calls
 (the rule of `billing._billing_manager`). Dedupe key `budget-warning:<team>:<YYYY-MM>` gives one row per person per team per month;
 email stays opt-in. New notification kind in both sections and the UI (`notificationsApi.ts`, `notificationsModel.ts`); no migration.
 Tests `test_budget_warning_delivery.py` (5, incl. a mutation-checked "delivery failure never touches the run"), kind pins in
-`test_notify.py`, `test_notifications_inbox.py`, `test_notifications_prefs.py`, vitest 50. Open: org billing managers outside the
-team are skipped by `emit`; the warning links to `/notifications`, not a billing page.
+`test_notify.py`, `test_notifications_inbox.py`, `test_notifications_prefs.py`, vitest 50. Open: the warning links to `/notifications`, not a billing page (outside-team managers: §3g-5).
 
 ### 3g-4. Part 57: the hard stop is delivered
 
@@ -128,7 +127,22 @@ outage and tells nobody). Same recipients and rule as the warning, summary code 
 `budget-exhausted:<team>:<YYYY-MM>`. Found on the way: `emit` groups unread rows by `kind:source`, so a fresh unread warning would have
 absorbed the hard-stop alert as "2 spend warnings"; the `budget` kind now adds its summary code to the group key (`notify._emit`).
 Tests `test_budget_warning_delivery.py` (12; 7 new, four mutants killed: degraded at either seam, delivery failure swallow, group key).
-Only run on sqlite. Open: the daily plan-limit stop is not announced; account erasure for 31/58 and the part 52 shell allow-list are untouched.
+Only run on sqlite. The daily plan-limit stop is announced in §3g-5.
+
+### 3g-5. Part 57 follow-ups and the workspace quota race
+
+- **Daily plan-limit stop announced:** when `reserve_daily_run` denies a run (not degraded), `_budget_gate` calls
+  `deliver_budget_warning(factory, team_id, "plan_limit_reached")`: same recipients, new summary code under `budget`
+  (section4 `notify.py`, section1 `notifications.py` + PREVIEWS, `notificationsModel.ts`), dedupe key per UTC **day**
+  (`plan-limit-reached:<team>:<YYYY-MM-DD>`) because the cap resets daily. A degraded reservation tells nobody.
+- **Org billing managers outside the team:** the org recipient query now also returns each manager's home team: the
+  capped team if they sit in it, else their first (by id) other team of the org; `emit` writes there (`source_id` is still
+  the capped team). A manager with no seat in any org team is skipped (nowhere to show it).
+- **Part 39 quota race closed:** `create_workspace` runs `UPDATE teams SET name = name WHERE id = :t` before the count, which
+  serializes creates per team (row lock on PG, write lock on SQLite). Test `test_concurrent_creates_cannot_overshoot_the_quota`
+  (file-backed SQLite, 8 racing creates, quota 3; red before, 3/3 green after; `make_env` gained `db_path`). **Not run on PG.**
+- Tests: `test_budget_warning_delivery.py` 15 (3 new, mutants killed: degraded daily, home-team fallback, daily key, team order),
+  `test_notify.py` pin, vitest 50, section1 955 passed/29 skipped, section4 exit 0.
 
 ## 3e. Session 7 result
 
@@ -187,7 +201,7 @@ section1 pytest 859 passed/27 skipped; section4 pytest 979 passed/32 skipped; ru
    `path-to-9-plan.md`. Part 44 closed locally by `00a1412` (see `evidence/s6/part44-version-approval.md`).
 3. Backend gaps from earlier: no UI to file/amend a proposal; approvals API lacks a decision timestamp; part 12 item 009 and
    responsive layout untested; audit chain has no external anchor; browser socket connection not asserted in e2e.
-4. Workspace gaps: quota check race (the purge job, archive-stop and resume gate are done, §3g).
+4. Workspace gaps: none open (quota race closed in §3g-5; purge job, archive-stop and resume gate in §3g).
 5. Dev SQLite has no `teams.org_id` (migration 0038 adds it on Postgres); `require_team_stepup` tolerates that.
 
 ## 6. Facts that bite

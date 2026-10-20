@@ -105,8 +105,10 @@ another team yields an empty page. Org-visible workspaces of sibling teams are N
 
 ## Limits and quotas (010)
 - Workspaces per team: `HARNESS_MAX_WORKSPACES_PER_TEAM` (default 50) counting every non-deleted
-  workspace; exceeded -> 409 `QUOTA_EXCEEDED`. The count and insert are not one atomic statement, so
-  simultaneous creates can overshoot by the number of concurrent requests.
+  workspace; exceeded -> 409 `QUOTA_EXCEEDED`. Creates of one team are serialized by a no-op write on the team
+  row before the count (row lock on PostgreSQL, write lock on SQLite), so simultaneous creates cannot
+  overshoot (`test_concurrent_creates_cannot_overshoot_the_quota`: 8 racing creates, quota 3, exactly 3
+  succeed). Not run on PostgreSQL.
 - Tags: 20 per workspace, 32 chars each. Name 80 chars. Settings description 500 chars.
 - Page size 100; settings history 200.
 

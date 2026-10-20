@@ -446,6 +446,9 @@ async def create_workspace(body: CreateBody, request: Request, p: Auth) -> dict:
         org = await _team_org(db, p.teamId)
         if vis == "org" and org is None:
             raise _err(422, "VALIDATION_ERROR", "visibility 'org' needs a team in an organization")
+        # A no-op write takes the team's row lock (PostgreSQL) or the write lock (SQLite) until
+        # commit, so concurrent creates queue up and the count below sees the earlier inserts.
+        await db.execute(text("UPDATE teams SET name = name WHERE id = :t"), {"t": p.teamId})
         used = (await db.execute(
             text("SELECT COUNT(*) FROM workspaces WHERE team_id=:t AND state <> 'deleted'"),
             {"t": p.teamId})).scalar()
