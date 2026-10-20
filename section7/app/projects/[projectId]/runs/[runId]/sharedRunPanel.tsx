@@ -24,7 +24,7 @@ import {
 } from "./collabApi";
 import {
   type CollabView, approvalAnnouncements, approvalLabel, clipDiff, deriveCollabView, describeDecision,
-  fileStatuses, freshEventLines, isOpenApproval, mergeEvents, redirectProblem, reopenedApprovals,
+  fileStatuses, freshEventLines, isOpenApproval, mergeEvents, plainError, redirectProblem, reopenedApprovals,
 } from "./collabModel";
 import { type StreamView, useCollabStream } from "./useCollabStream";
 import { ConnectionStatus } from "./connectionStatus";
@@ -295,7 +295,7 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
       setError(null);
     } catch (e) {
       if (e instanceof ApiError && e.code === PILOT_NOT_ENABLED) setNotEnabled(true);
-      else setError(e instanceof ApiError ? e.message : String((e as Error)?.message ?? e));
+      else setError(plainError(e) ?? (e instanceof ApiError ? e.message : String((e as Error)?.message ?? e)));
     }
   }, [runId, token, onStagedPendingChange, announce]);
   meRef.current.me = me;
@@ -337,7 +337,7 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
     setBusy(true);
     try { await fn(); setError(null); } catch (e) {
       // Stale view: the refresh below re-reads, the message says so, nothing is resubmitted (5.4).
-      setError(mutationError(e, (x) => (x instanceof ApiError ? x.message : String((x as Error)?.message ?? x))));
+      setError(mutationError(e, (x) => plainError(x) ?? (x instanceof ApiError ? x.message : String((x as Error)?.message ?? x))));
       const wait = cooldownSeconds(e);
       if (wait !== null) { setCooling(true); setTimeout(() => setCooling(false), wait * 1000); }
     } finally { setBusy(false); await refresh(); }

@@ -54,7 +54,8 @@ describe("RunDetailAggregate — all fields present", () => {
 
   it("renders the state badge with the runs-index pill vocabulary", () => {
     expect(html).toContain('class="pill blue"');
-    expect(html).toContain(">pr_opened</span>");
+    expect(html).toContain(">Pull request opened</span>");
+    expect(html).toContain('title="pr_opened"'); // raw wire value stays reachable
   });
 
   it("renders the NUMERIC-exact cost line", () => {
@@ -91,20 +92,20 @@ describe("RunDetailAggregate — degradation per missing field", () => {
 
   it("prId+url both null → no PR card section", () => {
     const html = htmlFor(fullAgg({ prId: null, url: null }));
-    expect(html).not.toContain("Pull request");
+    expect(html).not.toContain('aria-label="Pull request"');
     expect(html).not.toContain("<a ");
   });
 
   it("url null but prId set → identity-only PR card, no fake link", () => {
     const html = htmlFor(fullAgg({ url: null }));
-    expect(html).toContain("Pull request");
+    expect(html).toContain('aria-label="Pull request"');
     expect(html).toContain("No URL yet");
     expect(html).not.toContain("<a href=");
   });
 
   it("url set but prId null → still renders the link card (drift-tolerant)", () => {
     const html = htmlFor(fullAgg({ prId: null }));
-    expect(html).toContain("Pull request");
+    expect(html).toContain('aria-label="Pull request"');
     expect(html).toContain('href="https://github.com/acme/repo/pull/42"');
   });
 
@@ -136,10 +137,10 @@ describe("RunDetailAggregate — degradation per missing field", () => {
       fullAgg({ costUsd: null, prId: null, url: null, steps: [] }),
     );
     expect(html).not.toContain("$");
-    expect(html).not.toContain("Pull request");
+    expect(html).not.toContain('aria-label="Pull request"');
     expect(html).toContain("No events recorded for this run yet.");
     // The state badge ALWAYS renders — that's the one field never optional.
-    expect(html).toContain(">pr_opened</span>");
+    expect(html).toContain(">Pull request opened</span>");
   });
 });
 

@@ -167,3 +167,41 @@ export function approvalAnnouncements(before: Approval[] | null, next: Approval[
 export function freshEventLines(events: CollabEvent[], me: string, nowMs: number, maxAgeMs = 60_000): string[] {
   return events.filter((e) => e.actor !== me && nowMs - Date.parse(e.ts) < maxAgeMs).map((e) => clip(describeEvent(e), 140));
 }
+
+/** Part 24.010: what to SAY for every refusal the collaboration API can return (the error index of
+ *  docs/collaboration-contract.md; `plainErrors.test.ts` fails when a documented code has no text here).
+ *  No codes, no jargon: a teammate who is not an engineer must know what happened and what to do next. */
+export const PLAIN_ERRORS: Record<string, string> = {
+  NOT_FOUND: "That run or request is not available to you.",
+  NOT_PARTICIPANT: "Join this run first, then try again.",
+  NOT_LEADER: "Only the person leading this run can do that.",
+  NOT_REQUESTER: "Only the person who asked for this change can edit it.",
+  ROLE_DENIED: "Your role on this team can read this run but not change it.",
+  SELF_APPROVAL: "Another leader has to approve your own request.",
+  LEADER_EXISTS: "This run already has a leader. Ask them to hand it over.",
+  LEADER_CHANGED: "The leader changed while you were doing that. Check who leads now and try again.",
+  HANDOFF_PENDING: "A handoff is already waiting for an answer.",
+  HANDOFF_DECIDED: "Someone else already answered this handoff.",
+  SESSION_FULL: "This run has reached its limit of people. Ask the leader to make room.",
+  NOT_PENDING: "This request was already decided.",
+  NOT_AMENDABLE: "This request can no longer be edited.",
+  NOT_APPROVED: "This change is not approved, or it was edited after it was approved. It needs a new decision.",
+  NOT_EXECUTING: "This change is not being applied right now.",
+  DIGEST_MISMATCH: "The proposal changed after you looked at it. Review it again before deciding.",
+  EXPIRED: "This request ran out of time. Ask for it again.",
+  BAD_KIND: "That kind of direction is not supported.",
+  BAD_CONTENT: "Write the direction first. It cannot be empty or very long.",
+  REASON_REQUIRED: "Say why. Changes to scope or permissions need a reason.",
+  BAD_REASON: "The reason is too long. Shorten it.",
+  SELF_HANDOFF: "You already lead this run. Pick a teammate to hand it to.",
+  BAD_RECIPIENT: "Pick a teammate who has joined this run as an engineer or admin.",
+  BAD_ACTION: "That kind of change is not supported.",
+  BAD_PROPOSAL: "Describe the change in a few words. The description or the diff is empty or too large.",
+  BAD_PATHS: "One of the file paths is not allowed. Use paths inside the project.",
+};
+
+/** The plain sentence for an API refusal, or null when the code is not one of ours. */
+export function plainError(e: unknown): string | null {
+  const code = e && typeof e === "object" && "code" in e ? String((e as { code: unknown }).code) : "";
+  return Object.prototype.hasOwnProperty.call(PLAIN_ERRORS, code) ? PLAIN_ERRORS[code] : null;
+}

@@ -220,6 +220,33 @@ export function statePillClass(state: string): string {
   return STATE_PILL_CLASS[state] ?? "pill";
 }
 
+/** Part 12.010 / 24.010: what a person who is not an engineer reads for a run state. Every AgentState value
+ *  (state_machine.py; `tests/unit/stateLabel.test.ts` fails when one is missing) plus the end states the UI also
+ *  recognises. The raw value stays reachable in the pill's title; an unknown value is shown humanized, never dropped. */
+const STATE_LABELS: Record<string, string> = {
+  idle: "Not started",
+  planning: "Making a plan",
+  awaiting_plan_approval: "Waiting for someone to approve the plan",
+  executing: "Working",
+  paused: "Paused",
+  awaiting_done_signal: "Waiting for the agent to report it is finished",
+  reviewing: "Being reviewed",
+  blocked: "Blocked: a person needs to answer or decide",
+  pr_opened: "Pull request opened",
+  done: "Finished",
+  completed: "Finished",
+  stopped: "Stopped by a person",
+  cancelled: "Cancelled",
+  failed: "Failed",
+};
+
+/** Pure: plain-language label for a raw run state. */
+export function stateLabel(state: string): string {
+  if (Object.prototype.hasOwnProperty.call(STATE_LABELS, state)) return STATE_LABELS[state];
+  const t = state.replace(/_/g, " ").trim().toLowerCase();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : "Unknown";
+}
+
 /** Human labels for the event-type vocabulary (contracts EventType). The raw
  *  wire type stays reachable in each row's title attribute; unknown types are
  *  humanized (underscores → spaces), never dropped. */

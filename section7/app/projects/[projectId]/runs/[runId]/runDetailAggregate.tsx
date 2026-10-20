@@ -12,6 +12,7 @@ import {
   type RunAggregateDto,
   formatCostUsdExact,
   statePillClass,
+  stateLabel,
   stepLabel,
   stepsNewestFirst,
 } from "../../../../runs/runsApi";
@@ -33,7 +34,7 @@ export function RunDetailAggregate({
     <section className="card" style={sectionStyle} aria-label="Run summary">
       <h1 style={{ marginTop: 0 }}>
         Run <span title={agg.runId}>{agg.runId}</span>{" "}
-        <span className={statePillClass(agg.state)}>{agg.state}</span>
+        <span className={statePillClass(agg.state)} title={agg.state}>{stateLabel(agg.state)}</span>
       </h1>
 
       {/* Cost line ONLY when the server sent a real number. Null means "no
