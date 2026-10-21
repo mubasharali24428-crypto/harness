@@ -7,6 +7,7 @@ import { getToken, loadSession } from "@/lib/auth";
 import {
   WebhookDeliveryDto,
   WebhookDto,
+  WebhookPayloadFormat,
   createWebhook,
   deleteWebhook,
   listWebhookDeliveries,
@@ -25,6 +26,7 @@ export default function IntegrationsSettingsPage() {
   const [eventTypes, setEventTypes] = useState<string[]>([]);
   const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
   const [endpointUrl, setEndpointUrl] = useState("");
+  const [payloadFormat, setPayloadFormat] = useState<WebhookPayloadFormat>("harness");
   const [deliveries, setDeliveries] = useState<Record<string, WebhookDeliveryDto[]>>({});
   const [oneTimeSecret, setOneTimeSecret] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -53,10 +55,17 @@ export default function IntegrationsSettingsPage() {
     setNotice(null);
     setOneTimeSecret(null);
     try {
-      const created = await createWebhook(teamId, endpointUrl.trim(), selectedEvents, token);
+      const created = await createWebhook(
+        teamId,
+        endpointUrl.trim(),
+        selectedEvents,
+        token,
+        payloadFormat,
+      );
       setOneTimeSecret(created.signingSecret);
       setEndpointUrl("");
       setSelectedEvents([]);
+      setPayloadFormat("harness");
       setNotice("Webhook created. Copy the signing secret now; it will not be shown again.");
       await refresh();
     } catch (cause) {
@@ -156,6 +165,15 @@ export default function IntegrationsSettingsPage() {
                 onChange={(event) => setEndpointUrl(event.target.value)}
                 autoComplete="url"
               />
+              <label htmlFor="webhook-format">Message format</label>
+              <select
+                id="webhook-format"
+                value={payloadFormat}
+                onChange={(event) => setPayloadFormat(event.target.value as WebhookPayloadFormat)}
+              >
+                <option value="harness">Signed JSON event (for your own service)</option>
+                <option value="slack">Chat message (Slack incoming webhook)</option>
+              </select>
               <fieldset>
                 <legend>Events to send</legend>
                 {eventTypes.map((eventType) => (
@@ -191,6 +209,9 @@ export default function IntegrationsSettingsPage() {
                   Status: <strong>{webhook.active ? "Active" : "Paused"}</strong>. Signing key hint: {webhook.secretHint}.
                 </p>
                 <p>Events: {webhook.eventTypes.join(", ")}</p>
+                <p>
+                  Format: {webhook.payloadFormat === "slack" ? "Chat message (Slack)" : "Signed JSON event"}
+                </p>
                 <button type="button" onClick={() => onToggle(webhook)}>
                   {webhook.active ? "Pause" : "Resume"}
                 </button>{" "}

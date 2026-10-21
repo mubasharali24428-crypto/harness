@@ -177,3 +177,50 @@ def test_webhook_migration_has_delivery_uniqueness_and_bounded_state():
     assert "CREATE TABLE integration_webhook_deliveries" in sql
     assert "uq_webhook_audit_event UNIQUE(webhook_id, audit_seq)" in sql
     assert "CHECK (state IN ('pending', 'sending', 'delivered', 'failed'))" in sql
+
+
+@pytest.mark.asyncio
+async def test_slack_format_is_an_explicit_choice_and_sends_one_id_only_line(client, monkeypatch):
+    """Part 49.003: a chat webhook only exists when a team admin asks for payloadFormat=slack; it
+    posts {"text": ...} built from the closed id payload, still signed, retried and host-gated."""
+    monkeypatch.setenv("HARNESS_WEBHOOK_ALLOWED_HOSTS", "hooks.example.test")
+    factory = client.app.state.session_factory
+    actor = await _seed(factory, "webhook-chat@example.test")
+    headers = {"Authorization": f"Bearer {actor['token']}"}
+    default = await client.post(
+        _url(actor["team_id"]), headers=headers,
+        json={"endpointUrl": "https://hooks.example.test/plain", "eventTypes": ["run.paused"]},
+    )
+    assert default.status_code == 201 and default.json()["payloadFormat"] == "harness"
+    chat = await client.post(
+        _url(actor["team_id"]), headers=headers,
+        json={"endpointUrl": "https://hooks.example.test/chat", "eventTypes": ["run.paused"],
+              "payloadFormat": "slack"},
+    )
+    assert chat.status_code == 201 and chat.json()["payloadFormat"] == "slack"
+    bogus = await client.post(
+        _url(actor["team_id"]), headers=headers,
+        json={"endpointUrl": "https://hooks.example.test/x", "eventTypes": ["run.paused"],
+              "payloadFormat": "teams"},
+    )
+    assert bogus.status_code == 422
+
+    async with factory() as db:
+        await _emit(db, "run.paused", user_id=actor["user_id"], team_id=actor["team_id"],
+                    target_type="run", target_id="run-9", detail={"prompt": "do-not-forward"})
+
+    sent: dict[str, tuple[bytes, dict[str, str]]] = {}
+
+    async def sender(url: str, body: bytes, outgoing_headers: dict[str, str]) -> int:
+        sent[url.rsplit("/", 1)[-1]] = (body, outgoing_headers)
+        return 200
+
+    now = datetime.now(UTC) + timedelta(seconds=1)
+    totals = await deliver_due(factory, vault=client.app.state.vault, now=now, sender=sender)
+    assert totals["delivered"] == 2
+    message = json.loads(sent["chat"][0])
+    assert list(message) == ["text"]
+    assert message["text"].startswith("Harness: run.paused on run run-9 (team ")
+    assert "do-not-forward" not in sent["chat"][0].decode()
+    assert sent["chat"][1]["X-Harness-Signature"].startswith("t=")  # still signed
+    assert json.loads(sent["plain"][0])["eventType"] == "run.paused"  # default unchanged

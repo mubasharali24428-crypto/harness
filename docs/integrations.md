@@ -23,6 +23,17 @@ must be idempotent. Response bodies and destination secrets are not stored in de
 The payload is a deliberately small identity-only projection of allowlisted audit events; it does
 not forward arbitrary audit detail.
 
+### Chat destinations (Part 49.003, session 12)
+
+A destination is a chat integration only when the administrator creates it with
+`"payloadFormat": "slack"` (the default is `"harness"`; migration 0060). The worker then posts
+`{"text": "Harness: <eventType> on <resource type> <resource id> (team <id>, <time>)"}`, built from
+the same id-only projection, to a Slack-compatible incoming-webhook URL. Everything above still
+applies: the host must be in `HARNESS_WEBHOOK_ALLOWED_HOSTS` (for Slack, `hooks.slack.com`), the
+request is signed (Slack ignores the header), retries and delivery history are the same, and only
+allowlisted event types are sent. The Section 7 Integrations page offers the choice as "Message format". Limits: one
+Slack-shaped format only; no chat app and no inbound commands.
+
 The `webhook-delivery` compose service runs the bounded worker. Operators must configure the host
 allowlist and outbound network policy. The DNS check reduces SSRF risk, but DNS can change between
 validation and connection; deployments should also enforce network egress restrictions.
@@ -34,7 +45,7 @@ GitHub OAuth requests `public_repo read:user` by default and `repo read:user` wh
 tolerance and an event-id ledger in one transaction. Those inbound protections do not imply
 outbound webhook support.
 
-Issues go through the GitHub connector: `GET /api/v1/projects/{projectId}/issues` lists open, closed or all issues (pull requests excluded), and `POST` creates one. Creation needs writes enabled and an `Idempotency-Key` header of 8 to 200 characters; a repeated key returns the first issue, and a key whose first request is still running returns 409 `IDEMPOTENCY_IN_PROGRESS`. Keys are kept per project with no expiry. There is no chat or notification provider setup. A stdio MCP server starts only through an OS confiner (Section 5 `confine_argv`: Seatbelt on macOS, Landlock on Linux); with no confiner the host refuses to start it. Stdio is used for tool discovery only, and tool calls over stdio are not implemented. Internal tool and repository
+Issues go through the GitHub connector: `GET /api/v1/projects/{projectId}/issues` lists open, closed or all issues (pull requests excluded), and `POST` creates one. Creation needs writes enabled and an `Idempotency-Key` header of 8 to 200 characters; a repeated key returns the first issue, and a key whose first request is still running returns 409 `IDEMPOTENCY_IN_PROGRESS`. Keys are kept per project with no expiry. Chat notifications use a webhook with `payloadFormat: "slack"` (above). A stdio MCP server starts only through an OS confiner (Section 5 `confine_argv`: Seatbelt on macOS, Landlock on Linux); with no confiner the host refuses to start it. Stdio is used for tool discovery only, and tool calls over stdio are not implemented. Internal tool and repository
 operations continue through their existing permission checks and approval flows; external side
 effects need their own explicit team setup and idempotency handling. Compatibility policy: routes
 are versioned; additive fields and event types may be added within a version, while incompatible

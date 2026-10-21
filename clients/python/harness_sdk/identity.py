@@ -408,6 +408,7 @@ class WebhookCreateBody(typing.TypedDict, total=False):
     """WebhookCreateBody. Required keys: endpointUrl, eventTypes."""
     endpointUrl: str  # required
     eventTypes: list[str]  # required
+    payloadFormat: typing.Literal['harness', 'slack']
 
 class WebhookCreated(typing.TypedDict, total=False):
     """WebhookCreated. Required keys: id, endpointUrl, eventTypes, secretHint, active, version, createdAt, signingSecret."""
@@ -416,6 +417,7 @@ class WebhookCreated(typing.TypedDict, total=False):
     endpointUrl: str  # required
     eventTypes: list[str]  # required
     id: str  # required
+    payloadFormat: str
     secretHint: str  # required
     signingSecret: str  # required
     version: int  # required

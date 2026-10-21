@@ -1,5 +1,8 @@
 import { ApiError, IDENTITY_BASE, parseApiError } from "@/lib/api";
 
+/** Part 49.003: "slack" posts a one-line chat message instead of the signed JSON envelope. */
+export type WebhookPayloadFormat = "harness" | "slack";
+
 export interface WebhookDto {
   id: string;
   endpointUrl: string;
@@ -8,6 +11,7 @@ export interface WebhookDto {
   active: boolean;
   version: number;
   createdAt: string;
+  payloadFormat?: WebhookPayloadFormat;
 }
 
 export interface WebhookDeliveryDto {
@@ -68,10 +72,11 @@ export function createWebhook(
   endpointUrl: string,
   eventTypes: string[],
   token: string,
+  payloadFormat: WebhookPayloadFormat = "harness",
 ): Promise<WebhookCreatedDto> {
   return request(base(teamId), token, {
     method: "POST",
-    body: JSON.stringify({ endpointUrl, eventTypes }),
+    body: JSON.stringify({ endpointUrl, eventTypes, payloadFormat }),
   });
 }
 

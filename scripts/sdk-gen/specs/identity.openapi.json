@@ -2141,6 +2141,15 @@
       "minItems": 1,
       "title": "Eventtypes",
       "type": "array"
+     },
+     "payloadFormat": {
+      "default": "harness",
+      "enum": [
+       "harness",
+       "slack"
+      ],
+      "title": "Payloadformat",
+      "type": "string"
      }
     },
     "required": [
@@ -2173,6 +2182,11 @@
      },
      "id": {
       "title": "Id",
+      "type": "string"
+     },
+     "payloadFormat": {
+      "default": "harness",
+      "title": "Payloadformat",
       "type": "string"
      },
      "secretHint": {

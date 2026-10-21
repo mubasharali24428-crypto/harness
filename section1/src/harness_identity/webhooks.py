@@ -16,7 +16,7 @@ import os
 import secrets
 import socket
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 
 import httpx
@@ -88,6 +88,10 @@ class IntegrationWebhook(Base):
     secret_hint: Mapped[str] = mapped_column(String(8), nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # Part 49.003 (migration 0060): 'harness' signed JSON envelope, or 'slack' one-line chat message.
+    payload_format: Mapped[str] = mapped_column(
+        String(12), nullable=False, default="harness", server_default="harness"
+    )
     created_by: Mapped[str] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
@@ -122,6 +126,8 @@ class WebhookDelivery(Base):
 class WebhookCreateBody(BaseModel):
     endpointUrl: str = Field(min_length=12, max_length=2048)
     eventTypes: list[str] = Field(min_length=1, max_length=40)
+    # Part 49.003: a chat integration is an explicit choice by a team admin, per webhook.
+    payloadFormat: Literal["harness", "slack"] = "harness"
 
 
 class WebhookPatchBody(BaseModel):
@@ -137,6 +143,7 @@ class WebhookItem(BaseModel):
     active: bool
     version: int
     createdAt: str
+    payloadFormat: str = "harness"
 
 
 class WebhookCreated(WebhookItem):
@@ -230,7 +237,18 @@ def _public(row: IntegrationWebhook) -> dict[str, Any]:
         "active": row.active,
         "version": row.version,
         "createdAt": row.created_at.isoformat(),
+        "payloadFormat": row.payload_format or "harness",
     }
+
+
+def _chat_text(payload: dict[str, Any]) -> str:
+    """Part 49.003: the one-line chat message for a 'slack' webhook. Built only from the closed
+    id payload (_audit_id_payload), so it carries no more than the signed envelope does."""
+    resource = payload.get("resource") or {}
+    return (
+        f"Harness: {payload['eventType']} on {resource.get('type')} {resource.get('id')}"
+        f" (team {payload['teamId']}, {payload['occurredAt']})"
+    )
 
 
 def _audit_id_payload(row: Any, team_id: str) -> dict[str, Any]:
@@ -353,6 +371,7 @@ async def create_webhook(
         secret_hint=KeyVault.hint(secret),
         active=True,
         version=1,
+        payload_format=body.payloadFormat,
         created_by=principal.userId,
         created_at=now,
         updated_at=now,
@@ -370,7 +389,8 @@ async def create_webhook(
             team_id=team_id,
             target_type="integration_webhook",
             target_id=row.id,
-            detail={"version": row.version, "eventCount": len(row.event_types)},
+            detail={"version": row.version, "eventCount": len(row.event_types),
+                    "payloadFormat": row.payload_format},
         )
     return {**_public(row), "signingSecret": secret}
 
@@ -568,7 +588,7 @@ async def deliver_due(
             .scalars()
             .all()
         )
-        claimed: list[tuple[str, str, str, dict[str, Any], int]] = []
+        claimed: list[tuple[str, str, str, dict[str, Any], int, str]] = []
         for row in rows:
             attempt_no = row.attempts + 1
             result = await db.execute(
@@ -590,6 +610,7 @@ async def deliver_due(
                             hook.secret_encrypted,
                             row.payload,
                             attempt_no,
+                            hook.payload_format or "harness",
                         )
                     )
                 else:
@@ -601,8 +622,9 @@ async def deliver_due(
                     )
         await db.commit()
 
-    for delivery_id, url, encrypted, payload, attempt in claimed:
-        body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    for delivery_id, url, encrypted, payload, attempt, payload_format in claimed:
+        message = {"text": _chat_text(payload)} if payload_format == "slack" else payload
+        body = json.dumps(message, sort_keys=True, separators=(",", ":")).encode()
         timestamp = int(at.timestamp())
         status_code: int | None = None
         error: str | None = None

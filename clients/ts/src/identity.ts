@@ -462,6 +462,7 @@ export interface VerifyOtpRequest {
 export interface WebhookCreateBody {
   endpointUrl: string;
   eventTypes: string[];
+  payloadFormat?: "harness" | "slack";  // optional
 }
 
 /** WebhookCreated. Required keys: active, createdAt, endpointUrl, eventTypes, id, secretHint, signingSecret, version. */
@@ -471,6 +472,7 @@ export interface WebhookCreated {
   endpointUrl: string;
   eventTypes: string[];
   id: string;
+  payloadFormat?: string;  // optional
   secretHint: string;
   signingSecret: string;
   version: number;
