@@ -1153,6 +1153,26 @@ def _collab_not_installed(exc: Exception) -> bool:
     return any(m in str(exc).lower() for m in _NO_TABLE_MARKERS)
 
 
+async def intent_scope_paths(factory: Any, run_id: str) -> list[str]:
+    """The current run intent's ``scopePaths`` (control.py), enforced by the engine's shell gate.
+
+    [] when no intent is recorded, or the intent schema is not installed."""
+    try:
+        async with factory() as db:
+            row = (
+                await db.execute(
+                    text("SELECT scope_paths FROM run_intent_versions WHERE run_id = :r"
+                         " ORDER BY version DESC LIMIT 1"),
+                    {"r": run_id},
+                )
+            ).first()
+    except Exception as exc:  # noqa: BLE001 - only a missing table is tolerated
+        if _collab_not_installed(exc):
+            return []
+        raise
+    return list(json.loads(row.scope_paths)) if row else []
+
+
 async def unapplied_staged_approval(factory: Any, run_id: str) -> str | None:
     """Fail closed until every open staged decision has actually been applied."""
     try:

@@ -144,4 +144,62 @@ async def record_run_cost(service: Any, run_data: dict[str, Any], plan: Any) -> 
         )
 
 
-__all__ = ["estimate_tokens", "fold_usage", "record_run_cost", "resolve_engine_model"]
+async def record_engine_tool_calls(
+    service: Any, run_data: dict[str, Any], calls: list[dict[str, Any]] | None
+) -> None:
+    """Write the engine run's own tool calls (``result["toolCalls"]``) to ``agent_tool_calls``.
+
+    Part 44: the run's ``toolCalls`` usage counts these rows, so the engine's calls now count
+    toward ``maxToolCalls`` alongside agent-reported ones. ``assignment_id`` is the run id (the
+    engine is the run's root actor, not an agent assignment), ``reported_by`` is ``engine``, and
+    the call id dedupes a replayed result. Fire-and-forget like :func:`record_run_cost`.
+    """
+    factory = getattr(service, "run_queue_factory", None) or getattr(
+        service, "session_factory", None
+    )
+    if not calls or factory is None:
+        return
+    try:
+        from uuid import uuid4
+
+        from sqlalchemy import text
+
+        from harness_orchestrator.agent_tree import _SECRETISH
+        from harness_orchestrator.collab import db_now
+
+        run_id = str(run_data["runId"])
+        team_id = await service._team_for_run(run_data)
+        if not team_id:
+            logger.warning("engine tool calls not recorded for run %s: team unresolvable", run_id)
+            return
+        async with factory() as db:
+            for call in calls:
+                target = _SECRETISH.sub("[redacted]", str(call.get("target") or ""))[:200] or None
+                await db.execute(
+                    text(
+                        "INSERT INTO agent_tool_calls (id, assignment_id, run_id, team_id, tool,"
+                        " target, summary, outcome, cost_microusd, reported_by, request_id,"
+                        " created_at) VALUES (:id, :r, :r, :t, :tool, :tg, :s, :o, 0, 'engine',"
+                        " :q, :n) ON CONFLICT DO NOTHING"
+                    ),
+                    {
+                        "id": str(uuid4()), "r": run_id, "t": team_id,
+                        "tool": str(call.get("tool") or "unknown")[:80], "tg": target,
+                        "s": f"engine {call.get('tool')} call", "o": call.get("outcome") or "error",
+                        "q": str(call.get("callId"))[:64], "n": db_now(),
+                    },
+                )
+            await db.commit()
+    except Exception:  # noqa: BLE001 — recording must never break the run path
+        logger.warning(
+            "engine tool-call recording failed for run %s", run_data.get("runId"), exc_info=True
+        )
+
+
+__all__ = [
+    "estimate_tokens",
+    "fold_usage",
+    "record_engine_tool_calls",
+    "record_run_cost",
+    "resolve_engine_model",
+]

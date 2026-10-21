@@ -98,7 +98,7 @@ Sessions 6 to 10 were built by Codex and verified by Claude (`path-to-9-checkpoi
 | Pushed history cannot run section 4 (uncommitted `container_runtime.py`, `confine.py` container mode, fixture and stand-in edits) | High | program owner | **open**; nothing reproducible from a commit until fixed |
 | T13b OTP parallel redeem or guess (`section1/src/harness_identity/auth.py` `verify_otp`) | Low | program owner | **open, accepted**; fix is a guarded `UPDATE ... WHERE consumed_at IS NULL` and `attempts = attempts + 1 ... RETURNING`; blocked behind the owner's uncommitted SMTP edits |
 | Sandbox with `confinement=off` has no OS boundary; Linux Landlock path never run | High for any shared host | operator | open; pilot runbook requires container isolation on |
-| SDK shell bypasses the Section 5 command allow-list (parts 31, 52) | Medium | program owner | open; plans with forbidden paths are refused before the SDK runs |
+| SDK shell bypasses the Section 5 command allow-list (parts 31, 52) | Medium | program owner | mitigated 2026-10-21: the engine's bash tool goes through Section 5's shell gate, live in the worker image (`evidence/s12/part52.md`); path checks are argument-level and no pen test has run |
 | `HARNESS_PILOT_TEAMS` empty or unset opens collaboration to every team | High if misconfigured | operator | documented; pilot environments must use a non-empty list |
 | Alerts reach one email address only (no pager, no Alertmanager HA); backup and WAL alerts inert | Medium | operator | email delivery done and proved live (`evidence/s11/alert-delivery.md`); rest open |
 | Backup restore, point-in-time recovery not exercised on a cloud object store (self-hosted S3 drilled 2026-10-21) | High | operator | open; part 53 stays capped at 8 |

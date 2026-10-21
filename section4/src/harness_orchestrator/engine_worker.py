@@ -22,6 +22,7 @@ def main() -> int:
         live_mode="dry",  # construction only; the call below is explicit
         isolated=False,  # we ARE the isolated process
     )
+    wrapper.set_shell_policy(req["session_id"], req.get("shell_policy") or {})
     text, status, used, events = wrapper._run_live_events(
         req["goal"], req["session_id"], model=req["model"]
     )

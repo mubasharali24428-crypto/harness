@@ -66,8 +66,9 @@ rehydrates the same plan from the event log and that row), announced with a new 
 the ordinary CAS-first legacy approval (`agent_plans.version`), so the engine, the state machine and the legacy routes agree on one plan.
 Approving an already-approved version is a 200 replay with no second audit row. The audit row is `plan.approved` (plan id, version, content digest,
 before/after state; never plan text) plus a `plan.version_approved` collaboration event. The stored digest of the approved content is the one that
-runs: the engine's `AgentPlan` is built from exactly that content, and a plan declaring `forbiddenPaths` is refused by the engine's fail-closed guard
-(see `docs/sandbox-isolation.md`), which the approved content reaches unchanged.
+runs: the engine's `AgentPlan` is built from exactly that content, which reaches the engine unchanged. A plan declaring `forbiddenPaths` runs on
+the DeepSeek engine, whose bash tool checks every command against them through Section 5's shell gate (`docs/sandbox-isolation.md`, argument
+level); an engine without that gate still refuses the plan before any tool runs.
 
 Adopt-and-approve is serialized per run inside one process; across replicas the legacy CAS and the unique `source_plan_id` index decide, and no
 cross-replica test exists (live PostgreSQL was not available when this was written).

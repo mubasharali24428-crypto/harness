@@ -14,8 +14,9 @@ What is ENFORCED and what is only RECORDED (repeated in ``/execution-status``):
   path writes one row when an engine run COMPLETES, so spend inside a run that is still running is
   invisible until then. ``seconds`` is rebuilt from ``agent_events`` timestamps.
 * ``toolCalls`` counts durable ``agent_tool_calls`` rows and is checked at run start, queue claim,
-  and by the running-limit sweep. Rows come only from ``POST /agents/{id}/tool-calls`` (agent_tree);
-  the engine does not write them, so the cap is only as complete as that reporting.
+  and by the running-limit sweep. Rows come from ``POST /agents/{id}/tool-calls`` (agent_tree) and
+  from the engine (``run_metering.record_engine_tool_calls``); the engine's shell plugin also denies
+  calls past :func:`remaining_tool_calls` inside a live run.
 
 State changes use only the state machine's own vocabulary: abandon is ``stop_agent`` (DONE), a
 blocked claim is ``execution_failed`` (BLOCKED), a limit sweep is ``pause_agent`` (PAUSED), retry
@@ -429,6 +430,22 @@ async def execution_block(
         raise
     dims = exceeded(limits, usage)
     return {"code": CODE_LIMIT, "dims": dims, "usage": usage} if dims else None
+
+
+async def remaining_tool_calls(factory: Any, run_id: str) -> int | None:
+    """Tool calls the run may still make under ``maxToolCalls`` (the engine's shell plugin
+    enforces it inside the run); None = no limit set, or a pre-0048 schema."""
+    try:
+        async with factory() as db:
+            limits = await _limits_row(db, run_id)
+            if limits is None or limits.max_tool_calls is None:
+                return None
+            used = (await usage_of(db, run_id, _now()))["toolCalls"] or 0
+    except Exception as exc:  # noqa: BLE001 - only "schema not there" is tolerated
+        if any(m in str(exc).lower() for m in _MISSING_TABLE):
+            return None
+        raise
+    return max(0, int(limits.max_tool_calls) - used)
 
 
 async def _audit_system(factory: Any, run_id: str, action: str, detail: dict[str, Any]) -> None:

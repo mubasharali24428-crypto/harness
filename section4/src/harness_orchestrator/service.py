@@ -41,7 +41,7 @@ from harness_orchestrator.planner import PlanNotApprovedError, PlanService
 from harness_orchestrator.redact import scrub_secrets
 from harness_orchestrator.reviewer import ReviewerSubAgent, ReviewFindings
 from harness_orchestrator.rules_loader import build_rules_block, load_project_rules
-from harness_orchestrator.run_metering import record_run_cost
+from harness_orchestrator.run_metering import record_engine_tool_calls, record_run_cost
 from harness_orchestrator.run_queue import (
     claim_next_run,
     enqueue_run,
@@ -1107,14 +1107,15 @@ class OrchestratorService(Orchestrator):
 
             heartbeat_task = asyncio.create_task(_organization_watch())
         try:
-            if getattr(plan, "forbiddenPaths", None):
-                # The live SDK shell is not mediated by Section 5's path
-                # policy. Never treat plan metadata or prompt text as a hard
-                # constraint: until the shared executor is wired, refuse any
-                # plan that declares forbidden paths before invoking tools.
+            set_shell_policy = getattr(self.engine, "set_shell_policy", None)
+            if getattr(plan, "forbiddenPaths", None) and set_shell_policy is None:
+                # An engine whose shell is not mediated by Section 5's path
+                # policy cannot honour forbidden paths: never treat plan
+                # metadata or prompt text as a hard constraint, refuse first.
+                # DeepSeekHarnessWrapper routes bash through the shell gate.
                 reason = (
                     "execution refused: this runtime cannot enforce plan forbidden paths; "
-                    "use the Section 5 mediated executor"
+                    "use an engine whose shell goes through the Section 5 gate"
                 )
                 run_data["engine_result"] = {
                     "sessionId": run_id,
@@ -1147,6 +1148,21 @@ class OrchestratorService(Orchestrator):
                 extra = ""
             try:
                 await self._ensure_baseline(run_data)
+                if set_shell_policy is not None:
+                    # Part 52/44/42: the engine's bash tool enforces the plan's forbidden
+                    # paths, the intent's scope paths and the run's remaining tool calls.
+                    from harness_orchestrator.execution import remaining_tool_calls
+
+                    factory = self.session_factory
+                    set_shell_policy(run_id, {
+                        "forbiddenPaths": list(getattr(plan, "forbiddenPaths", None) or []),
+                        "scopePaths": (
+                            await collab.intent_scope_paths(factory, run_id) if factory else []
+                        ),
+                        "maxToolCalls": (
+                            await remaining_tool_calls(factory, run_id) if factory else None
+                        ),
+                    })
                 # M17-B5 (PBC1 F2): the dedicated bounded executor + hard
                 # deadline replaces asyncio.to_thread's invisible ~16–36 slot
                 # pool. A hung provider now fails THIS run at the deadline
@@ -1214,6 +1230,8 @@ class OrchestratorService(Orchestrator):
                 # (no-op unless still EXECUTING — pause/stop already told their story).
                 sm.execution_failed(failed_msg)
                 return
+            # Part 44: the calls happened whatever happens to the result, so they count first.
+            await record_engine_tool_calls(self, run_data, result.get("toolCalls"))
             if run_data.get("cancel_requested"):
                 return  # zombie result from a cancelled live call — discard
             staging_error = await self._stage_outputs(run_data)

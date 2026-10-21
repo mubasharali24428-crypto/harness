@@ -21,9 +21,13 @@ model-call ledger rows, completed-run cost and durable `agent_tool_calls` rows a
 and queue claim. A sweep (`run_limit_sweeper`, started by `deploy/runners/services.py` every
 `HARNESS_LIMIT_SWEEP_SECONDS`, default 30; 0 turns it off) pauses an already-running run that exceeds
 those limits: the pause releases the claim and the owning worker's fence loop stops the run, so any
-replica may sweep. The tool-call cap counts rows written by `POST /agents/{assignmentId}/tool-calls`
-(the agent tool-call report route); the engine does not report on its own, so a tool call nobody
-reports is not counted and the cap is only as complete as that reporting. Spend during an in-flight engine call is not visible until that call
+replica may sweep. The tool-call cap counts `agent_tool_calls` rows from two writers: the agent
+tool-call report route (`POST /agents/{assignmentId}/tool-calls`) and the engine itself. When an
+engine call returns, `run_metering.record_engine_tool_calls` writes one row per runtime tool call
+(`reported_by = 'engine'`, `assignment_id` = the run id, the call id dedupes a replay). Inside a live
+run the engine's shell plugin also enforces the cap: it is handed the remaining budget
+(`execution.remaining_tool_calls`) and denies every call past it. A run whose engine call times out
+or crashes returns no event list, so its calls are not recorded. Spend during an in-flight engine call is not visible until that call
 completes, so a run can overshoot a cost limit by one call.
 
 The safe-resume response uses durable agent events, checkpoint history, run claims, current

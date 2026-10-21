@@ -67,8 +67,9 @@ Nothing is silently merged and nothing is silently dropped: suggestions that exp
 version (0 = never set: empty goal, no paths, no permissions). `PUT intent` body: `expectedVersion` (required) plus any of
 `goal` (<= 4000 chars), `scopePaths` (relative, no `..`, <= 100; empty = none recorded), `permissions` (<= 50 lowercase
 tokens like `fs.delete`), optional `requestId`. Omitted fields are unchanged; a value equal to the current one is a no-op
-(`unchanged: true`). The intent is a **recorded approved state** that humans and approvals are checked against; the engine
-does not enforce it (section 9).
+(`unchanged: true`). The intent is a **recorded approved state** that humans and approvals are checked against. The engine
+enforces its `scopePaths`: at each engine start the current scope is handed to the engine's bash tool, and Section 5's shell gate
+refuses a command naming a workspace path outside every scope path (section 9 for the limits).
 
 | Case | Result |
 |---|---|
@@ -117,7 +118,9 @@ Reads need the run's team; writes need a non-read-only role; the pilot gate (`HA
 
 ## 9. Limits (honest)
 
-* The engine does not enforce the intent; it is the recorded approved state plus the injected scope guidance.
+* Intent enforcement in the engine covers `scopePaths` only, at argument level: a path built inside a program (`python -c`)
+  or passed as `--flag=path` is not checked (OS confinement still keeps writes inside the workspace). The scope is read at
+  engine start, so an edit during a run applies from the next start. `goal` and `permissions` are not enforced by the engine.
 * Expiry is evaluated at use, not by a timer; `decide_approval`'s final UPDATE checks leadership (role) not lease expiry,
   so a lease that lapses in the milliseconds between the leader check and that UPDATE is caught on the next call.
 * Disconnect detection depends on lane P writing `presence_records` for lease holders regardless of their

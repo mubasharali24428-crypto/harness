@@ -1,0 +1,1 @@
+["echo hello", "id -u", "python3 -c \"open('src/made.txt','w').write('ok')\"", "cat src/made.txt", "python3 -c \"open('/etc/x','w').write('x')\"", "python3 -c \"open('/tmp/x','w').write('x')\"", "git --version", "curl https://example.com", "cat .env", "ls docs", "echo after-cap"]

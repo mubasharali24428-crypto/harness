@@ -10,6 +10,10 @@ COPY contracts/src /build/contracts/src
 COPY section4/src /build/section4/src
 RUN pip install --no-deps --no-build-isolation /build/contracts '/build/section4[live]' \
     && rm -rf /build
+# Section 5's shell gate for the engine's bash tool (stdlib only; loads its siblings by path).
+COPY section5/src/harness_sandbox/shell_gate.py section5/src/harness_sandbox/policy.py \
+     section5/src/harness_sandbox/confinement.py /opt/harness-shell/
+ENV HARNESS_SHELL_GATE=/opt/harness-shell/shell_gate.py
 USER 10001:10001
 WORKDIR /tmp
 ENTRYPOINT ["python", "-m", "harness_orchestrator.engine_worker"]

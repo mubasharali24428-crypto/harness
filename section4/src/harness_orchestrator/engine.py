@@ -51,15 +51,36 @@ logger = logging.getLogger(__name__)
 DEFAULT_DSH_PROFILE = "sdk-minimal"
 REAL_WORKER_MODULE = "harness_orchestrator.engine_worker"
 _SESSION_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
+_SHELL_PLUGIN = Path(__file__).with_name("dsh_plugins") / "harness-shell.js"
+# Section 5's gate script; the worker image sets HARNESS_SHELL_GATE (section4/worker.Dockerfile).
+_REPO_SHELL_GATE = (
+    Path(__file__).resolve().parents[3] / "section5" / "src" / "harness_sandbox" / "shell_gate.py"
+)
 
 
-def _execution_policy_patch(session_dir: str, workspace_dir: str) -> str:
+def _execution_policy_patch(
+    session_dir: str, workspace_dir: str, shell_policy: dict[str, Any] | None = None
+) -> str:
     """Write the mandatory final SDK overlay that confines writes to this run.
 
     sdk-minimal's shipped sandbox-policy defaults to danger-full-access. This
     per-run patch is appended after operator transport patches so none can
     loosen the runtime policy for the selected SDK profile.
+
+    It also swaps the runtime's PTY bash tool for ``dsh_plugins/harness-shell.js``, which sends
+    every command through Section 5's shell gate with this run's ``shell_policy``
+    (``forbiddenPaths``, intent ``scopePaths``, ``maxToolCalls``). A missing gate fails the run.
     """
+    gate = os.environ.get("HARNESS_SHELL_GATE") or str(_REPO_SHELL_GATE)
+    if not os.path.isfile(gate):  # fail closed: never fall back to an unmediated shell
+        raise FileNotFoundError(f"Section 5 shell gate not found: {gate}")
+    policy = shell_policy or {}
+    shell = {
+        "gate": [sys.executable, "-I", gate],
+        "maxToolCalls": policy.get("maxToolCalls"),
+        "forbiddenPaths": list(policy.get("forbiddenPaths") or []),
+        "scopePaths": list(policy.get("scopePaths") or []),
+    }
     patch = Path(session_dir) / "harness-execution-policy.yml"
     patch.write_text(
         "- id: sandbox-policy\n"
@@ -67,7 +88,13 @@ def _execution_policy_patch(session_dir: str, workspace_dir: str) -> str:
         "  disabled: false\n"
         "  config:\n"
         "    mode: workspace-write\n"
-        f"    workspaceRoot: {json.dumps(os.path.realpath(workspace_dir))}\n",
+        f"    workspaceRoot: {json.dumps(os.path.realpath(workspace_dir))}\n"
+        "- id: persistent-bash\n"
+        "  disabled: true\n"
+        "- insert:\n"
+        "    - id: harness-shell\n"
+        f"      name: {json.dumps(str(_SHELL_PLUGIN))}\n"
+        f"      config: {json.dumps(shell)}\n",
         encoding="utf-8",
     )
     return str(patch)
@@ -98,6 +125,7 @@ class DeepSeekHarnessWrapper:
         self._procs: dict[str, subprocess.Popen] = {}
         self._containers: dict[str, ContainerBoundary] = {}
         self._cancel_requested: set[str] = set()
+        self._shell_policies: dict[str, dict[str, Any]] = {}
         self._proc_lock = threading.Lock()
         self.workspace = workspace_dir or os.environ.get(
             "DSH_WORKSPACE", "/tmp/harness-dsh-workspace"
@@ -132,6 +160,10 @@ class DeepSeekHarnessWrapper:
                 model=self.model or None,
                 base_url=self.base_url or None,
             )
+
+    def set_shell_policy(self, session_id: str, policy: dict[str, Any]) -> None:
+        """The next run of ``session_id`` enforces ``policy`` in its bash tool (shell gate)."""
+        self._shell_policies[session_id] = policy
 
     def run_workspace(self, session_id: str) -> str:
         """Per-run working directory: ``<workspace root>/<session_id>``.
@@ -314,6 +346,7 @@ class DeepSeekHarnessWrapper:
                     "model": model,
                     "workspace_root": os.path.realpath(self.workspace),
                     "session_root": os.path.realpath(self.session_root),
+                    "shell_policy": self._shell_policies.get(session_id),
                 }
             )
             with self._proc_lock:
@@ -409,6 +442,7 @@ class DeepSeekHarnessWrapper:
     def execute_goal(self, goal: str, session_id: str = "session-001") -> dict[str, Any]:
         used_model: str | None = None
         usage: dict[str, int] | None = None
+        tool_calls: list[dict[str, Any]] = []
         if self.backend_runner:
             result_text = self.backend_runner(goal)
             status = "completed"
@@ -423,6 +457,7 @@ class DeepSeekHarnessWrapper:
                 # chunks; folded onto the result so the orchestrator's
                 # completion hook can meter ACTUAL usage, not estimates.
                 usage = self._fold_usage(events)
+                tool_calls = self._fold_tool_calls(events)
             except Exception as exc:  # noqa: BLE001 — honest error, never escape
                 result_text = scrub_secrets(
                     f"DeepSeek Harness run failed on {self.model}: {exc}",
@@ -445,6 +480,7 @@ class DeepSeekHarnessWrapper:
             )
             status = "not_configured"
 
+        self._shell_policies.pop(session_id, None)
         return {
             "sessionId": session_id,
             "engine": self._engine_name(used_model),
@@ -453,7 +489,41 @@ class DeepSeekHarnessWrapper:
             # M14-W4 F1a: real token usage when the SDK surfaced it. Absent
             # (never None-valued) so stub/dry results keep their exact shape.
             **({"usage": usage} if usage is not None else {}),
+            # Part 44: the run's own tool calls, recorded toward its tool-call limit.
+            **({"toolCalls": tool_calls} if tool_calls else {}),
         }
+
+    @staticmethod
+    def _fold_tool_calls(events: list[Any]) -> list[dict[str, Any]]:
+        """One ``{callId, tool, target, outcome}`` per runtime ``tool/call`` event.
+
+        ``target`` is the bash command (else empty); ``outcome`` is ``ok`` or ``error`` from the
+        matching ``tool/result`` (a refused command is an error result), ``error`` when none came.
+        """
+        calls: dict[str, dict[str, Any]] = {}
+        for event in events or []:
+            if not isinstance(event, dict) or not isinstance(event.get("data"), dict):
+                continue
+            data = event["data"]
+            if event.get("type") == "tool/call" and data.get("callId"):
+                args = data.get("arguments")
+                if isinstance(args, str):
+                    try:
+                        args = json.loads(args)
+                    except ValueError:
+                        args = {}
+                command = args.get("command") if isinstance(args, dict) else None
+                calls[str(data["callId"])] = {
+                    "callId": str(data["callId"]),
+                    "tool": str(data.get("name") or "unknown"),
+                    "target": command if isinstance(command, str) else "",
+                    "outcome": "error",
+                }
+            elif event.get("type") == "tool/result" and isinstance(data.get("message"), dict):
+                call = calls.get(str(data["message"].get("toolCallId")))
+                if call is not None:
+                    call["outcome"] = "error" if data["message"].get("isError") else "ok"
+        return list(calls.values())
 
     def _engine_name(self, model_used: str | None = None) -> str:
         """Name the engine AND the model that actually answered.
@@ -496,7 +566,9 @@ class DeepSeekHarnessWrapper:
             # restricted profile instead of the default danger-full-access
             # composition, optional patch files; credentials go to the runtime
             # child via kwargs (no mutation of this process's environment).
-            policy_patch = _execution_policy_patch(self.run_session_dir(session_id), run_cwd)
+            policy_patch = _execution_policy_patch(
+                self.run_session_dir(session_id), run_cwd, self._shell_policies.get(session_id)
+            )
             kwargs: dict[str, Any] = dict(
                 provider="deepseek-official",
                 model=model,
