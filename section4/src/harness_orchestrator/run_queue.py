@@ -308,6 +308,27 @@ async def queue_available(factory) -> bool:
     return True
 
 
+async def requeue_claim(factory, run_id: str, worker_id: str) -> bool:
+    """Put THIS worker's running claim back in the queue (Part 54: a claim taken before the
+    starting replica's EXECUTION_STARTED was durable). True when the row was ours and moved."""
+    from sqlalchemy import text
+
+    now = _now_iso()
+    async with factory() as db:
+        moved = (
+            await db.execute(
+                text(
+                    "UPDATE run_claims SET state = 'queued', worker_id = 'enqueuer', "
+                    "claimed_at = :now, heartbeat_at = :now "
+                    "WHERE run_id = :r AND state = 'running' AND worker_id = :w"
+                ),
+                {"r": run_id, "w": worker_id, "now": now},
+            )
+        ).rowcount
+        await db.commit()
+    return bool(moved)
+
+
 async def finish_run(factory, run_id: str, worker_id: str | None = None) -> None:
     """Release a run's claim. With ``worker_id`` only THAT worker's claim is deleted:
     a worker that lost its claim (reaped, re-queued, re-claimed elsewhere) must not

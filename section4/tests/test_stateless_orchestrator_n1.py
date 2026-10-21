@@ -686,6 +686,43 @@ async def test_status_on_the_starting_replica_follows_the_replica_that_ran_it(re
     assert (await replica_b.get_status("follow-run"))["state"] == "awaiting_done_signal"
 
 
+async def test_a_claim_taken_before_the_start_is_durable_is_requeued_not_lost(replica_pair):
+    """Part 54 (session 12), found by the two-replica load run (21 of ~990 runs lost): the
+    starting replica inserts the claim (the election) before its EXECUTION_STARTED commits. A
+    worker on the other replica that claimed inside that gap replayed "approved, not started",
+    judged the claim bogus and deleted it, so the run never ran. It is now requeued and runs."""
+    replica_a, replica_b = replica_pair["replicas"]
+    plan_id = await replica_b.propose_plan("gap-run", goal="n1 gap", project_id="proj-race")
+    await replica_b.approve_plan("gap-run", plan_id, "user-b")
+    await _drain_publish_chains(replica_b)
+
+    class StubEngine:
+        def execute_goal(self, goal=None, session_id=None):
+            return {"sessionId": session_id, "engine": "stub", "status": "completed",
+                    "finalResponse": "ran after requeue"}
+
+    replica_a.engine = StubEngine()
+    release = asyncio.Event()
+    real_publish = replica_b.bus.publish
+
+    async def slow_publish(event_type, project_id, payload=None, run_id=None):
+        if getattr(event_type, "value", event_type) == "execution_started":
+            await release.wait()  # hold B's announcement back
+        await real_publish(event_type, project_id, payload, run_id)
+
+    replica_b.bus.publish = slow_publish
+    await replica_b.start_execution("gap-run")  # claim visible, announcement not yet durable
+    assert await replica_a.poll_once() is None  # claimed inside the gap: requeued, not deleted
+    rows = [r for r in await get_queue_snapshot(replica_pair["factory"]) if r["run_id"] == "gap-run"]
+    assert len(rows) == 1 and rows[0]["state"] == "queued"
+
+    release.set()
+    await _drain_publish_chains(replica_b)
+    assert await replica_a.poll_once() == "gap-run"
+    await asyncio.wait_for(replica_a.runs["gap-run"]["task"], timeout=5)
+    assert (await replica_a.get_engine_result("gap-run"))["status"] == "completed"
+
+
 # ---------------------------------------------------------------------------
 # S1-R05c — stop is durable: replay honors the stop tombstone
 # ---------------------------------------------------------------------------

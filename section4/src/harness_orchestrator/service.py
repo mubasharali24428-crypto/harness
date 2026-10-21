@@ -6,6 +6,7 @@ import os
 import secrets
 import socket
 import time
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -50,6 +51,7 @@ from harness_orchestrator.run_queue import (
     queue_available,
     reclaim_orphans,
     release_timed_out_claims,
+    requeue_claim,
     resolve_heartbeat_timeout_seconds,
 )
 from harness_orchestrator.session_gate import (
@@ -1763,6 +1765,33 @@ class OrchestratorService(Orchestrator):
             "finalResponse": summary,
         }
 
+    #: How long a claim may run ahead of its run's EXECUTION_STARTED before it is judged bogus.
+    ANNOUNCE_GRACE_SECONDS = 30.0
+
+    async def _announcement_in_flight(self, run_id: str, durable: AgentState | None) -> bool:
+        """True when a claimed run is approved but not yet announced and its newest event is
+        recent: the starter's EXECUTION_STARTED is probably still being written. A run that is
+        terminal, paused, blocked or quiet for ANNOUNCE_GRACE_SECONDS is not in flight."""
+        if durable not in (None, AgentState.IDLE, AgentState.AWAITING_PLAN_APPROVAL):
+            return False
+        factory = self.run_queue_factory or self.session_factory
+        try:
+            async with factory() as db:
+                newest = (
+                    await db.execute(
+                        text("SELECT max(ts) FROM agent_events WHERE run_id = :r"), {"r": run_id}
+                    )
+                ).scalar()
+        except Exception:  # noqa: BLE001 — unreadable store: fall back to the old verdict
+            return False
+        if newest is None:
+            return False
+        if isinstance(newest, str):
+            newest = datetime.fromisoformat(newest)
+        if newest.tzinfo is None:
+            newest = newest.replace(tzinfo=UTC)
+        return (datetime.now(UTC) - newest).total_seconds() < self.ANNOUNCE_GRACE_SECONDS
+
     async def _replayed_durable_state(self, run_id: str | None) -> AgentState | None:
         """Replay ONLY the event log (no memory) into a lifecycle state.
 
@@ -2040,9 +2069,16 @@ class OrchestratorService(Orchestrator):
             # replica may have legitimately announced + enqueued this
             # lifecycle while our copy still said "awaiting approval" — sync
             # from the event log before deciding the claim is bogus.
-            if await self._replayed_durable_state(run_id) is AgentState.EXECUTING:
+            durable = await self._replayed_durable_state(run_id)
+            if durable is AgentState.EXECUTING:
                 sm.state = AgentState.EXECUTING
                 sm.plan_approved = True
+            elif await self._announcement_in_flight(run_id, durable):
+                # Part 54: the starting replica inserts the claim (the exactly-once election)
+                # BEFORE its EXECUTION_STARTED commits, so a fast worker can claim inside that
+                # gap. Deleting the claim lost the run for good; give it back to the queue.
+                await requeue_claim(self.run_queue_factory, run_id, self.worker_id)
+                return False
             else:
                 await finish_run(self.run_queue_factory, run_id)
                 return False
