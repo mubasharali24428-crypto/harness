@@ -601,3 +601,44 @@ class TestLivePostgresFingerprintMigration:
         finally:
             await admin.execute(f'DROP DATABASE "{dbname}"')
             await admin.close()
+
+
+async def test_ticket_minted_and_redeemed_through_a_trusted_proxy(db):
+    """Part 54 (session 12): behind a proxy in trusted_proxy_cidrs that adds X-Forwarded-For (the
+    deploy Caddyfile), the mint binds the forwarded client IP; the upgrade must derive its IP the
+    same way. It used the raw peer (the proxy) and refused every such socket with 4403. A ticket
+    replayed with another client's XFF through the same proxy is still refused."""
+    app = _mk(db)
+    _seed_sync()
+    proxy, client_ip = "10.0.0.5", "203.0.113.20"
+    async with AsyncClient(
+        transport=ASGITransport(app=app, client=(proxy, 50000)), base_url="http://t"
+    ) as c:
+        minted = (await c.post(
+            "/api/v1/ws-ticket", json={"projectId": "proj-1"},
+            headers={"Authorization": "Bearer goodtok", "User-Agent": MINT_UA,
+                     "X-Forwarded-For": client_ip},
+        )).json()
+    assert minted["fingerprint"] == expected_fp(MINT_UA, client_ip)
+    ua_only = hashlib.sha256(MINT_UA.encode()).hexdigest()[:16]
+    async with MiniWs(
+        app, f"/api/v1/ws/proj-1?ticket={minted['ticket']}&fingerprint={ua_only}",
+        headers={"User-Agent": MINT_UA, "X-Forwarded-For": client_ip},
+        client_addr=(proxy, 51000),
+    ) as ws:
+        assert ws.accepted
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app, client=(proxy, 50001)), base_url="http://t"
+    ) as c:
+        second = (await c.post(
+            "/api/v1/ws-ticket", json={"projectId": "proj-1"},
+            headers={"Authorization": "Bearer goodtok", "User-Agent": MINT_UA,
+                     "X-Forwarded-For": client_ip},
+        )).json()
+    async with MiniWs(
+        app, f"/api/v1/ws/proj-1?ticket={second['ticket']}&fingerprint={ua_only}",
+        headers={"User-Agent": MINT_UA, "X-Forwarded-For": "198.51.100.66"},
+        client_addr=(proxy, 51001),
+    ) as ws:
+        _expect_reject(ws, 4403)

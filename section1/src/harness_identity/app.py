@@ -83,8 +83,10 @@ def _client_ip(request: Request) -> str:
     ``settings.trusted_proxy_cidrs`` (M17-B4 / MAC2-F8); otherwise the peer
     address is used verbatim and a client-supplied XFF is ignored — exactly
     so it can neither forge fingerprints at mint nor break them at upgrade.
-    Behind a reverse proxy the mint and upgrade peers are both the proxy, so
-    the binding still holds either way (it just binds to the proxy).
+    Behind a trusted proxy that adds XFF the mint binds the forwarded client
+    IP, so the upgrade must derive its IP with the same function
+    (``_ws_authenticate`` does; before session 12 it used the raw peer and
+    refused every ticketed socket behind such a proxy).
     """
     settings: Settings = request.app.state.settings
     return effective_client_ip(
@@ -951,7 +953,14 @@ async def _ws_authenticate(
     # ticket replayed from another host dies here regardless of headers.
     if ticket and redeemed is not None:
         ws_user_agent = websocket.headers.get("user-agent", "")
-        upgrade_ip = websocket.client.host if websocket.client else ""
+        # The mint bound the ticket to _client_ip (XFF honoured only from a trusted proxy); the
+        # upgrade must derive its IP the same way, or every socket behind a proxy that adds XFF
+        # (the deploy Caddyfile) is refused. Found by the Part 54 socket load probe (session 12).
+        upgrade_ip = effective_client_ip(
+            websocket.headers,
+            websocket.client.host if websocket.client else "",
+            websocket.app.state.settings.trusted_proxy_cidrs,
+        )
         upgrade_fp = compute_client_fingerprint(ws_user_agent, upgrade_ip)
         presented = websocket.headers.get("x-ws-fingerprint", "").strip()
         if not presented:
