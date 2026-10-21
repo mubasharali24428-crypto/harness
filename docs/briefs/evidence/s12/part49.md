@@ -59,3 +59,16 @@ What the new tests prove:
 - The token still carries write scope. Turning writes on for a project lets the agent use that scope on that project's repository.
 - `spec_drift.py --write` run from a pydantic 2.14 venv also rewrites the identity, orchestrator, section4 and section5 specs. Those changes are noise (Decimal `pattern` lines, and section5's hand-kept 400/409 responses), so they were restored, and only `github.openapi.json` was kept.
 - Migration numbers 0057 and 0058 were free on session A's worktree when checked (its last is 0056). If A adds migrations before merging, they must start at 0059, because `migrate_selftest.py` fails on duplicate version prefixes.
+
+## Follow-up on master (2026-10-20): chat notifications, 49.003
+
+- A team admin may create a webhook with `"payloadFormat": "slack"` (migration 0060, CHECK
+  `harness|slack`, default `harness`). The worker posts `{"text": "Harness: <eventType> on <type>
+  <id> (team <id>, <time>)"}` built only from the closed id payload; host allowlist, public-address
+  check, signing and bounded retries are unchanged. The Section 7 Integrations page offers it as
+  "Message format"; the identity spec and both SDKs record the field.
+- Tests: `section1/tests/test_webhooks.py::test_slack_format_is_an_explicit_choice_and_sends_one_id_only_line`
+  (default stays the JSON envelope, `teams` is refused with 422, the chat body is exactly one `text`
+  key and never carries audit detail, the request is still signed); `section7/tests/unit/integrationsApi.test.ts`
+  (2). Section 7: typecheck clean, 852 unit tests pass. `migrate_selftest`: 59 migrations apply clean.
+- Limits: one Slack-shaped format; no chat app or inbound commands.

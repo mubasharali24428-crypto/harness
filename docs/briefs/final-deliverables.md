@@ -4,13 +4,13 @@ Written 2026-10-20 (Session 11, cloud pass). This is an index. The matrix `capab
 is built; this file points at it and at the evidence, and states the readiness decision. Nothing here is a claim beyond the evidence it
 cites. Results are labelled **pass**, **fail** or **not verified**; "not verified" means nothing was run.
 
-Counts (2026-10-20): verified 44 · implemented 3 · partial 12 · missing 0 · blocked 2.
+Counts (2026-10-21): verified 49 · implemented 2 · partial 8 · missing 0 · blocked 2.
 
 ## 1. Executive summary
 
 The programme took 61 master-prompt parts toward a shared-run pilot product: several people watch, steer, approve and hand off one AI
 coding run, with deny-by-default isolation, digest-bound approvals and an audit trail. Ten build sessions plus one cloud verification
-session produced 44 verified rows, 3 implemented, 12 partial and 2 blocked. Rows 37, 52, 53, 58 and 61 and part 03 are capped at 8 or
+session produced 44 verified rows, 3 implemented, 12 partial and 2 blocked; Session 12 raised that to 49 verified, 2 implemented, 8 partial. Rows 37, 52, 53, 58 and 61 and part 03 are capped at 8 or
 blocked because they need an outside party (identity-provider and pen-test evidence, a real backup restore, counsel, a measured pilot).
 
 **Readiness decision: NO-GO for broad rollout or full-product acceptance** (section 10). An operator-present rehearsal for named teams is
@@ -30,12 +30,12 @@ See `capability-matrix.md` (61 rows, one per part, each with its evidence). Grou
 |---|---|---|
 | Product, method, process | 01, 02, 15 to 19, 34, 35 | verified (`evidence/s11/process-parts.md`; practice rows state that in their limits) |
 | Shared-run core: safety, approval, redirect, isolation, lifecycle, events | 04 to 11, 13, 14, 20 to 23, 27, 29, 30, 33, 36 | verified |
-| Shared experience and end-to-end | 12, 24, 25, 26 | 12 and 24 verified (12: Chromium check on synthetic data, no screen reader); 25, 26 implemented |
+| Shared experience and end-to-end | 12, 24, 25, 26 | 12, 24 and 25 verified (12: Chromium check on synthetic data, no screen reader; 25: stand-in engine); 26 implemented |
 | Identity, organisations, policy, workspaces, sessions | 37 to 40 | verified (37 capped at 8: live identity-provider evidence) |
 | Presence, control, discussion, plans, agents, delivery, notifications, files, search | 41 to 48, 50 | verified, each with listed gaps |
-| Integrations, governance, billing | 49, 51, 57 | partial (provider breadth, residency, in-flight spend; Stripe is out of scope by owner direction) |
-| Security, privacy, compliance, reliability, scale, observability | 28, 31, 52 to 55, 58 | partial (52, 53, 58 externally capped) |
-| Release, rollout, accessibility | 32, 56, 59 | 32 implemented; 56, 59 partial |
+| Integrations, governance, billing | 49, 51, 57 | 49 verified (Session 12); 51, 57 partial (residency, in-flight spend; Stripe is out of scope by owner direction) |
+| Security, privacy, compliance, reliability, scale, observability | 28, 31, 52 to 55, 58 | 28 and 54 verified (Session 12); 31, 52, 53, 55, 58 partial (52, 53, 58 externally capped) |
+| Release, rollout, accessibility | 32, 56, 59 | 32 implemented; 56 partial; 59 verified (Session 12 rollback rehearsal) |
 | Roadmap | 60 | verified (planning artifact) |
 | Pilot success and full acceptance | 03, 61 | blocked (no real pilot data; NO-GO report) |
 
@@ -75,7 +75,7 @@ Sessions 6 to 10 were built by Codex and verified by Claude (`path-to-9-checkpoi
 | Check | Result | Evidence |
 |---|---|---|
 | Core flow, two users (part 27) | **pass** in Session 2; not re-run on this tree | `evidence/s2/acceptance-core-flow.md` |
-| Operations: alerts, compose, backup (part 28) | **not verified** end to end: alert rules loaded in Session 2; compose-up and backup alerts unverified | `evidence/s2/lane-d.md` |
+| Operations: alerts, compose, backup (part 28) | **pass** (2026-10-21): compose journey 12/12, a real WAL archive failure paged by email, live WAL-G base backup recorded and read back by Prometheus | `evidence/s12/part28-55.md` |
 | Security review (part 29) | **pass with one open item**: T13b (OTP parallel redeem) is open | `evidence/s11/part29.md`, `threat-model.md` |
 | Collaboration contract executed by tests (part 14) | **pass** on the owner's tree; on a clean checkout 2 of the 46 tests fail for a missing fixture entry | `evidence/s11/part14.md`, `evidence/s11/clean-checkout-gaps.md` |
 | Section 7: typecheck and unit tests | **pass**: `tsc --noEmit` clean; vitest 70 files, 824 tests (2026-10-20) | `evidence/s11/ui-plain-language.md` |
@@ -83,7 +83,7 @@ Sessions 6 to 10 were built by Codex and verified by Claude (`path-to-9-checkpoi
 | Migrations on real PostgreSQL | **pass**: 55 migrations (0001 to 0056), re-run idempotent (PG 16.15) | `evidence/s11/live-pg-search-export.md` |
 | Section 4 suite on the pushed history, clean checkout | **fail**: package does not import; 102 collection errors | `evidence/s11/clean-checkout-gaps.md` |
 | Full suites and gates for this session | see `evidence/s11/cloud-report.md` | `evidence/s11/cloud-report.md` |
-| Pilot smoke on this tree | **not verified** (no Docker daemon; history not importable) | `evidence/s11/process-parts.md` |
+| Pilot smoke on this tree | **pass** (2026-10-21): `run_smoke.py --otp`, real OTP sign-in, two users in Chromium, stand-in engine | `evidence/p1/browser.junit.xml` |
 | Pilot baseline, at least 5 comparable tasks per side (part 03) | **not verified**: no real cohort | `pilot-baseline-guide.md` |
 | Real-browser keyboard and reflow (parts 12, 56) | **pass** on `/login` and the run page, synthetic data (0 hard failures) | `evidence/s11/browser-check.md` |
 | Screen reader, run-page contrast, other pages (part 56) | **not verified** / contrast **fail** (7 elements at 3.3 to 3.9:1) | `evidence/s11/browser-check.md` |

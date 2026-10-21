@@ -1,6 +1,6 @@
 # Harness Multiplayer AI: project state and resume guide
 
-Updated 2026-10-20 (Session 11: local gap closure merged with the cloud pass). Read this first in a new session, then
+Updated 2026-10-20 (Session 12: enforcement-state and scale-ops lanes merged locally, not pushed). Read this first in a new session, then
 `docs/briefs/path-to-9-plan.md`, `docs/briefs/capability-matrix.md` and `docs/briefs/path-to-9-checkpoint.md`. The repository is the
 source of truth: re-verify any number before relying on it. Nothing here claims readiness for real users (see "Not cleared").
 Per-session results, the old verification records and the local Session 11 detail (§3g) are in `docs/briefs/evidence/s11/state-history.md`.
@@ -13,7 +13,7 @@ The programme brings every part to 9/10: each directive implemented or explicitl
 `docs/briefs/evidence/`, docs that match behaviour including limits, and a `verified` matrix row. Parts that need an outside party stay
 capped at 8: 03, 37, 52, 53, 58, 61. Part 57's cap was removed because Stripe is out of scope (owner direction, 2026-10-19).
 
-Layout: section1 identity, auth, audit, event bus, orgs, policy, workspaces, integrations (migrations 0001 to 0056) · section3, 6, 8, 10
+Layout: section1 identity, auth, audit, event bus, orgs, policy, workspaces, integrations (migrations 0001 to 0060) · section3, 6, 8, 10
 auxiliary · section4 orchestrator · section5 sandbox · section7 Next.js UI and Playwright · `packages/` (A5 extensions, ops, telemetry) ·
 `integrations/connectors/` · `deploy/` compose stack, runners, observability, `deploy/pilot` smoke stack · `docs/` · `scripts/` · `clients/`.
 
@@ -37,40 +37,34 @@ closed part 44 (`00a1412`). Session 11 ran twice in parallel: locally (gap closu
 | 10 | Release, accessibility, readiness (56, 59 to 61) | done; NO-GO report |
 | 11 local | Workspace gaps (39), retention holds and account erasure (31/58), budget alerts (57), approvals decision time, OTP race (T13b), identity expiry sweep, upgrade rehearsal (59), partition roll-forward (A.9) | done; detail in `evidence/s11/state-history.md` §3g |
 | 11 cloud | Parts 12, 14, 24, 29, process parts, PostgreSQL IN-list diagnosis, browser check | done; `evidence/s11/cloud-report.md` |
+| 12 | Lane A (11, 14, 29, 38, 40, 42) and lane B (48 to 50, 56 axe); 25, 28, 54, 55, 59 evidence; 52 amd64 probe | done; `evidence/s12/` |
 
-Branches: `master` holds everything, including `origin/cloud/path-to-9-finish` and the cloud pass
+Branches: `master` holds everything (Session 12 commits are local only, not pushed), including `origin/cloud/path-to-9-finish` and the cloud pass
 (`origin/claude/path-to-9-finish-ax6hie`). The other lanes' uncommitted work (P0-P3 isolation, SMTP TLS, section 2 scope mode, A5
 packages, docs) was committed on 2026-10-20 after its suites passed. Not merged: `origin/codex/harness-a1` to `a5`.
 
 ## 3. Where the matrix stands
 
-Counts (2026-10-20): verified 44 · implemented 3 · partial 12 · missing 0 · blocked 2.
-Implemented: 25, 26, 32. Partial: 28, 31, 49, 51 to 56 (52, 53 capped), 57, 58 (capped), 59. Blocked: 03, 61.
+Counts (2026-10-21): verified 49 · implemented 2 · partial 8 · missing 0 · blocked 2.
+Implemented: 26, 32. Partial: 31, 51, 52 (capped), 53 (capped), 55, 56, 57, 58 (capped). Blocked: 03, 61.
 Readiness: **NO-GO** for broad rollout (`docs/briefs/final-deliverables.md`, section 10).
 
 ## 4. Open work, in order
 
-1. **Docker.** Rows 25, 26, 28, 32, 53, 59 need the compose stack (pilot smoke, `make e2e*`, `make pg-probe-*`, restore drill), and four
-   section 1 tests (`test_runs_index_tuning` live plan, three in `test_fk_deletion_story`) call `docker exec harness-db-1`. The daemon
-   is down; PostgreSQL answers on `localhost:5499` (harness/harness), so everything else runs against it (§5).
-2. Part 54: no fresh load run, WebSocket capacity or multi-replica check. (Parts 28/55 alert delivery: done, `evidence/s11/alert-delivery.md`.)
-3. Part 52 shell allow-list: the SDK has no pre-tool hook and spawns `/bin/bash` by absolute path, so it needs a runtime hook or the
-   image boundary (`section4/worker.Dockerfile`, now committed).
-4. Part 38 limits (`docs/permissions.md`): the collaboration WebSocket and `/orgs/*` are not engine-gated; the gate trusts project and
-   workspace ids from the URL path; the ~6 policy reads per org-linked request are not cached.
-5. Parts 48/50: index sync and export purge run in every replica (not leader-elected); artifacts live on local disk.
-6. Row 56: run-page text contrast 3.3 to 3.9:1 on `#6b7280` (4.5 needed), 3 to 4 targets under 24 px, no screen reader, other pages
-   not walked (`docs/briefs/evidence/s11/browser-check.md`). Row 12: terminal panel item 009 not asserted in the run page.
-7. Part 14 limits: the project-stream envelope has no schema version; `STALE_CLIENT_STATE` has no emitter.
-8. Part 49: no issue-tracker or chat adapter in section 1, no sandboxed extensions; GitHub's default `public_repo` scope still
-   permits public-repo writes (`github_scope_mode=private` asks for `repo`).
-9. Parts 40/42: no session purge scheduler, no lease sweeper, no owner transfer. Part 57: in-flight engine spend is an estimate.
-   Parts 31/58: backups expired outside the scripts are not covered. Part 11/29: the audit chain has no external anchor.
-10. **A.9 (fixed 2026-10-20):** `deploy/runners/migrate.py::migrate` calls `ensure_forward_partitions` after applying migrations, and
-    the `events-retention` sidecar runs on a plain `up` (its pruning is therefore on by default). Before this a fresh database had
-    `agent_events` partitions only through 2026-10 and every event write would fail from 2026-11-01. Not covered: a stack that neither
-    redeploys nor runs compose for over 2 months.
-11. Externally gated: 03 (real pilot cohort and baseline), 37 (live identity provider), 52 and 58 (pen test, counsel), 53 (real restore), 61.
+1. **Part 52 (vendor block).** The bash tool cannot run in the worker image on arm64 or amd64: runtime wheel 0.2.1rc2 ships no
+   `prebuilds/linux-*/pty.node` and no sandbox backend is usable under `workspace-write` (`evidence/s12/part52.md`). Needs a vendor
+   runtime build or an owner decision; no gate shipped. Shell command allow-list still absent.
+2. Row 26: `run_smoke.py --real` needs an OpenRouter key (not configured). Row 32: pilot-counter alerts and staged rollout.
+3. Row 55: dashboard not imported into Grafana and looked at (no Grafana image; pulling one not authorised).
+4. Row 56: no screen reader; contrast and target-size items in `evidence/s11/browser-check.md`; English only.
+5. Part 57: in-flight engine spend is an estimate. Part 51: residency is deployment-wide.
+6. Parts 31/58: backups expired outside the scripts (bucket lifecycle rules) are not covered by holds.
+7. Multi-replica: artifacts and exports live on each replica's local disk (needs a shared volume); socket fan-out across identity
+   replicas not load-tested (`evidence/s12/part54.md`). Part 28: one email address is the only alert channel; a stack that never
+   ran a backup has no backup series.
+8. Smaller limits: Section 7 does not read `currentOwnerUserId` (14); no owner-transfer UI, stop/fail not distinct (40); intent not
+   engine-enforced (42); GitHub OAuth token keeps write scope once a project opts in (49); the audit anchor file is only as safe as its storage (11).
+9. Externally gated: 03 (real pilot cohort and baseline), 37 (live identity provider), 52 and 58 (pen test, counsel), 53 (real restore), 61.
 
 Not a gap: a paused workspace only blocks new starts, by design (`workspace_gate.py` docstring).
 
@@ -86,6 +80,8 @@ Not a gap: a paused workspace only blocks new starts, by design (`workspace_gate
   fresh venv (extensions needs `mcp<2`) and run `pytest tests` from each package directory with `PYTHONPATH=src`.
 - `HARNESS_PILOT_TEAMS` is an **allowlist**: unset or empty opens collaboration to every team.
 - Prometheus scrapes the **root `/metrics`**; sandbox `confinement=off` has no OS boundary; Alertmanager emails `HARNESS_ALERT_EMAIL_TO` (`docs/runbooks/alerting.md` §7).
+- `--env-file .env` makes compose skip `deploy/.env`, so the root `.env` must also set `WALG_FILE_PREFIX` or the live `db` archives
+  nothing (`evidence/s12/part28-55.md` §4). Run the `walg` backup with `--no-deps` against `db`, or `walg-db` archives into the live prefix.
 - `ruff check --fix` deletes imported pytest fixtures. Never use it broadly (`--select I001 --fix` on one new file is fine).
 - SQLite tests with spawned engine tasks must await the tasks before `engine.dispose()`, or teardown stalls.
 - SQLite hides PostgreSQL typing errors: an untyped empty `IN` list failed only on PostgreSQL (`evidence/s11/live-pg-search-export.md`).
@@ -97,17 +93,20 @@ Not a gap: a paused workspace only blocks new starts, by design (`workspace_gate
 - `run_smoke.py` needs about 2 minutes between runs (port 8101 TIME_WAIT) and overwrites `docs/briefs/evidence/p1/*`.
 - FastAPI 0.141 nests included routers: walk `app.openapi()["paths"]`, not `app.routes`.
 - Dev SQLite has no `teams.org_id` (migration 0038 adds it on PostgreSQL); `require_team_stepup` tolerates that.
-- Migrations are 55 files numbered 0001 to 0056 (there is no 0014); `deploy/runners/migrate_selftest.py` checks disk against the ledger.
+- Migrations are 59 files numbered 0001 to 0060 (there is no 0014); `deploy/runners/migrate_selftest.py` checks disk against the ledger.
 - Owner's machine is macOS zsh (no `timeout`, BSD `sed -i ''`, repo path has a space, `--include=*.py` does not expand). The cloud
   box is Linux, root, no Docker daemon.
 - `AGENTS.md` may carry an auto-injected `<claude-mem-context>` block from a memory plugin: never commit it.
 - Commit by explicit path only; never `git add -A`.
+- Worktree `.venv` dirs are symlinks to master's venvs and import master's sources: set `PYTHONPATH=<wt>/contracts/src:<wt>/section1/src:<wt>/section4/src`.
+- Load probe: `PROBE_ORCH_REPLICAS=2 scripts/loadtest/run_probe.sh run <vus> 60 <label>`; the loadtest profile lifts the tier cap
+  (`PROBE_TIER_RUNS_PER_DAY`), else it measures the 20 runs/day free tier.
 
 ## 6. Not cleared
 
 The pilot is **not cleared for real users**: no measured baseline (part 03), alerts reach one email address only, operator-present rules are manual, live
-SSO unproven, no pen test, point-in-time recovery unproven, no counsel review, and no pilot smoke has run on the current tree; the
-browser check used synthetic data and no screen reader.
+SSO unproven, no pen test, point-in-time recovery unproven, no counsel review, the real-engine smoke (`--real`) has not run, and
+the browser checks used synthetic data and no screen reader.
 
 ## 7. How to resume
 
@@ -116,7 +115,7 @@ cd "/Users/user/untitled folder 2/harness"
 git fetch origin && git log --oneline -8 && git status --short | head -40
 cd section1 && .venv/bin/python -m pytest tests -q        # add the live-PG env from §5 for PostgreSQL
 cd ../section4 && .venv/bin/python -m pytest tests -q
-# Docker up: make pg-probe-s1 && make pg-probe-migrate      (expect 55 migrations, 0001 to 0056)
+# Docker up: make pg-probe-s1 && make pg-probe-migrate      (expect 59 migrations, 0001 to 0060)
 ```
 
 Per-part work: read the matrix row, audit directive by directive, add the missing invariant test, write
