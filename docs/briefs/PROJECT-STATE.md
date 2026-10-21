@@ -59,9 +59,11 @@ Readiness: **NO-GO** for broad rollout (`docs/briefs/final-deliverables.md`, sec
 4. Row 56: no screen reader; contrast and target-size items in `evidence/s11/browser-check.md`; English only.
 5. Part 57: in-flight engine spend is an estimate. Part 51: residency is deployment-wide.
 6. Parts 31/58: backups expired outside the scripts (bucket lifecycle rules) are not covered by holds.
-7. Multi-replica: artifacts and exports live on each replica's local disk (needs a shared volume); socket fan-out across identity
-   replicas not load-tested (`evidence/s12/part54.md`). Part 28: one email address is the only alert channel; a stack that never
-   ran a backup has no backup series.
+7. Multi-replica (closed 2026-10-21 on one host, `evidence/s12/part54.md`): artifacts, exports and diffs share one Docker volume
+   across orchestrator replicas, and 1000 sockets over two identity replicas delivered every envelope. Several hosts need NFS or an
+   object store; the store volume is not in the backup scripts. Part 28: one email address is the only alert channel; a stack that
+   never ran a backup has no backup series. Part 53: point-in-time restore is drilled from the live file archive
+   (`evidence/s12/part28-55.md` section 5), not yet from an object store (no MinIO image is published anymore).
 8. Smaller limits: Section 7 does not read `currentOwnerUserId` (14); no owner-transfer UI, stop/fail not distinct (40); intent not
    engine-enforced (42); GitHub OAuth token keeps write scope once a project opts in (49); the audit anchor file is only as safe as its storage (11).
 9. Externally gated: 03 (real pilot cohort and baseline), 37 (live identity provider), 52 and 58 (pen test, counsel), 53 (real restore), 61.
@@ -105,7 +107,7 @@ Not a gap: a paused workspace only blocks new starts, by design (`workspace_gate
 ## 6. Not cleared
 
 The pilot is **not cleared for real users**: no measured baseline (part 03), alerts reach one email address only, operator-present rules are manual, live
-SSO unproven, no pen test, point-in-time recovery unproven, no counsel review, the real-engine smoke (`--real`) has not run, and
+SSO unproven, no pen test, point-in-time recovery proven on file storage only (no object store), no counsel review, the real-engine smoke (`--real`) has not run, and
 the browser checks used synthetic data and no screen reader.
 
 ## 7. How to resume

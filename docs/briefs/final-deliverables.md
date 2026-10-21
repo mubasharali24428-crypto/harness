@@ -88,7 +88,7 @@ Sessions 6 to 10 were built by Codex and verified by Claude (`path-to-9-checkpoi
 | Real-browser keyboard and reflow (parts 12, 56) | **pass** on `/login` and the run page, synthetic data (0 hard failures) | `evidence/s11/browser-check.md` |
 | Screen reader, run-page contrast, other pages (part 56) | **not verified** / contrast **fail** (7 elements at 3.3 to 3.9:1) | `evidence/s11/browser-check.md` |
 | Independent penetration test, Linux Landlock, `pip-audit` | **not verified** (not run) | `threat-model.md` |
-| Real backup and point-in-time restore (part 53) | **not verified** | `evidence/s9/verification.md` |
+| Real backup and point-in-time restore (part 53) | **partial**: PITR from the live file archive drilled 2026-10-21; no object store | `evidence/s12/part28-55.md` section 5, `evidence/s9/verification.md` |
 | Full product acceptance (part 61) | **fail**: critical rows partial or blocked | `evidence/s10/readiness-report.md` |
 
 ## 6. Risk register
