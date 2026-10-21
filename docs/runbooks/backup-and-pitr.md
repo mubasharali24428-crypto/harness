@@ -170,7 +170,8 @@ release manifest (2026-08-23, v3.0.9):
   freshly-created restore container sees the archive (container `/tmp` would
   otherwise be per-container and ephemeral).
 - Real deployments: `WALG_S3_PREFIX=s3://bucket/path` (+ AWS keys/region, or
-  `AWS_ENDPOINT` for MinIO/R2). Secrets enter ONLY via `.env`/shell env —
+  `AWS_ENDPOINT` for MinIO/R2/SeaweedFS; self-hosted S3 also needs
+  `AWS_S3_FORCE_PATH_STYLE=true`). Secrets enter ONLY via `.env`/shell env —
   never literals in compose (hard rule). Minimal writer IAM policy:
   PutObject/GetObject/DeleteObject/ListBucket/GetBucketLocation on bucket +
   `bucket/*`.
@@ -279,6 +280,7 @@ immediate fresh base backup.
 | 2026-08-24 04:14 | `restore-walg.sh` run #2 (final form) | `04:00:22+00` | 1 s | ~2 s | **PASS** | canonical config emission; paused-server row check + promotion repeated |
 | 2026-08-24 05:09 | W3-VT2 verifier (independent re-execution) | `05:08:56+00` | ~1 s | ~2 s | **PASS** | own marker id=3 inserted→deleted→resurrected while paused; promoted (`pg_is_in_recovery()=f`) + post-promotion INSERT ok; base wall time 1 s (wrapper slot); bogus-PGHOST & missing-segment ⇒ exit 1; alpine ADD variant rebuilt ⇒ exit 127 confirmed |
 | 2026-10-21 07:49 | `restore-walg.sh` against the **live `db` archive** (`/tmp/harness-walg-live`, base 07:32) | `07:48:17+00` | 10 s | ~3 s (13 s script total) | **PASS** (2nd run) | run #1 aborted: live `db` runs `-c max_connections=120`, scratch server defaulted to 100 → "insufficient parameter settings"; script now passes 120. Stopped before the DELETE's commit (07:48:19.656); marker id=1 back, id=99 (after target) absent; users/teams/projects/events/backup_runs counts equal live; promoted in 1 s → timeline 2; scratch `archive_mode=off`, no timeline-2 WAL in the live prefix |
+| 2026-10-21 08:52 | `restore-walg.sh` from **S3** (SeaweedFS 4.48 on 127.0.0.1, `s3://walg/drill`, access keys enforced; `walg-db` archiving, base `…33` in 2 s) | `08:51:55+00` | 1 s | 1 s (4 s script total) | **PASS** (2nd run) | run #1: the DELETE and `pg_switch_wal()` were one `psql -c` transaction, so its commit sat in an unarchived segment → "recovery ended before configured recovery target was reached" (procedure error; switch WAL in its own statement). Stopped before txn 798 (the DELETE); 5000 rows with marker id=1 while paused (`walg-db` after the DELETE: 4999); promoted, INSERT ok. Found and fixed: no `AWS_S3_FORCE_PATH_STYLE` passthrough (wal-g hung), and the script mounted `/nonexistent` in S3 mode, which Docker Desktop refuses |
 
 Base-backup wall times (⏱ RTO input, wrapper-reported): 03:57:39 → ~1.1 s
 (first successful full), 03:58:36 → ~1 s (green post-check run). Dataset is
@@ -335,6 +337,8 @@ removing it is safe: `docker rm -f harness-backend-1`.
 | `sh: … walg-restore-command: not found` during recovery startup | helper written into a throwaway `--rm` container | restore_command is self-contained now (`wal-g wal-fetch "%f" "%p"` inline) |
 | `wal-g: not found` anywhere | stock postgres image in use | use `harness-db-walg` image (build per above) |
 | `Dry run: objects would be deleted … Run with --confirm` | wal-g ≥3.0 requires `--confirm` for deletes | already handled in `backup.sh prune()`; never remove that flag |
+| wal-g S3 call hangs with no error against a self-hosted endpoint | virtual-host addressing: wal-g dials `<bucket>.<host>` | `AWS_S3_FORCE_PATH_STYLE=true` (compose and restore-walg.sh pass it) |
+| `mounts denied: The path /nonexistent is not shared` from restore-walg.sh | pre-2026-10-21 script mounted a placeholder path in S3 mode | fixed: the file-prefix mount is added only when `WALG_FILE_PREFIX` is set |
 | `tls error: server refused TLS connection` noise in wal-g errors | libpq tries TLS first, falls back; harmless when a later line shows the real cause | ignore unless it is the ONLY error |
 
 ## Environment variable reference
@@ -346,6 +350,7 @@ Compose reads `.env` next to `deploy/`; every knob below is documented in
 |---|---|---|
 | `WALG_S3_PREFIX` / `WALG_FILE_PREFIX` | — / — | exactly ONE required; S3 vs local/file |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_DEFAULT_REGION` / `AWS_ENDPOINT` | empty | secrets via env only |
+| `AWS_S3_FORCE_PATH_STYLE` | empty | `true` for self-hosted S3 (MinIO, SeaweedFS): without it wal-g dials `<bucket>.<endpoint host>` and retries a name that does not resolve, silently |
 | `WALG_ARCHIVE_TIMEOUT` | `60s` | segment force-switch; bounds RPO on a quiet db |
 | `WALG_IMAGE_TAG` | `v3.0.9` | harness-db-walg tag (= Dockerfile `WALG_VERSION` minus `v`) |
 | `BACKUP_MODE` (legacy alias `WALG_MODE`) | `base` | `base\|wal\|list\|retention\|config` |
@@ -376,15 +381,16 @@ scheduling had no catch-up and hid failures — host cron owns scheduling now).
 | `list` / `config` modes | ✅ EXECUTED | inventory tables pasted in drill log; secrets masked (`<set,masked>`) |
 | `retention` prune | ✅ EXECUTED | dry-run discovered → `--confirm` added → `Objects deleted successfully: count=14`, inventory reduced to newest |
 | Failure honesty | ✅ EXECUTED | bogus `PGHOST` ⇒ exit 1; missing segment ⇒ exit 1; empty-storage post-check ⇒ die |
+| `restore-walg.sh --fetch-only` | ✅ EXECUTED (2026-10-21) | file:// live archive into a throwaway volume, fetch 10 s, exit 0 |
 | PITR restore → scratch, pause-at-target | ✅ EXECUTED ×3 | see drill evidence log; `recovery stopping before commit of transaction 768` reproduced identically |
 | Promotion + write-after-recovery | ✅ EXECUTED | `pg_is_in_recovery()=false`, new timeline 2, INSERT succeeded |
 | Run-log persistence | ✅ EXECUTED | `walg_logs` volume holds appended runs across `--rm` invocations |
 | Static gates | ✅ EXECUTED | `docker compose config -q` (default AND `--profile walg`) exit 0; `sh -n` clean; shellcheck clean on both scripts |
 | Live-stack safety | ✅ VERIFIED | `harness_db-1`/backends untouched & healthy throughout; PITR confined to `pgdata_walg`/`harness_pgdata_pitr` |
-| Real S3 round-trip | ❌ UNEXECUTED-needs-S3 | no credentials in build env; file:// backend proven instead |
+| S3 round-trip (self-hosted S3) | ✅ EXECUTED (2026-10-21) | SeaweedFS S3 gateway, `walg-db` archive + base backup + PITR restore through S3, see drill log. A cloud bucket (AWS/R2) is still untested |
 | Bucket versioning/lifecycle/IAM hardening | ❌ UNEXECUTED-needs-S3 | operator task on first real bucket |
 | Cutover onto LIVE `harness_pgdata` | ❌ UNEXECUTED by design | destructive; drill covers everything except the volume swap itself |
-| `restore-walg.sh --fetch-only`, `BACKUP_STRICT=1`, `WALG_LIST_JSON=1`, `WALG_EXTRA_ARGS`, non-arm64 image build | ❌ UNEXECUTED | implemented but not individually exercised this wave |
+| `BACKUP_STRICT=1`, `WALG_LIST_JSON=1`, `WALG_EXTRA_ARGS`, non-arm64 image build | ❌ UNEXECUTED | implemented but not individually exercised this wave |
 | amd64/linux CI build of the image | ❌ UNEXECUTED | built/verified on Apple Silicon only; multi-stage fetch is arch-generic |
 
 **Next credentialed operator:** set the S3 env, rerun the DRILL section

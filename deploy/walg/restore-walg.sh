@@ -35,7 +35,8 @@
 #     --fetch-only       stop after backup-fetch (no recovery wiring/start)
 #
 # Environment:
-#     WALG_S3_PREFIX / WALG_FILE_PREFIX + AWS_*    storage target (required)
+#     WALG_S3_PREFIX / WALG_FILE_PREFIX + AWS_*    storage target (required;
+#                           AWS_S3_FORCE_PATH_STYLE=true for self-hosted S3)
 #     PITR_IMAGE            image WITH wal-g       (harness-db-walg:v3.0.9;
 #                           build: docker build -f deploy/walg/Dockerfile.walg ...)
 #     PITR_CONTAINER        scratch container name (harness-pitr)
@@ -85,6 +86,8 @@ PITR_VOLUME=${PITR_VOLUME:-harness_pgdata_pitr}
 HBA_DIR=${HBA_DIR:-"$(CDPATH="" cd -- "$(dirname -- "$0")" && pwd)"}
 
 log "storage: ${WALG_S3_PREFIX:-}${WALG_FILE_PREFIX:-}"
+# The file-prefix bind mount below is added only for file:// storage: S3 runs have nothing to mount,
+# and Docker Desktop refuses a host path that does not exist (the old /nonexistent placeholder).
 log "inventorying base backups in storage (wal-g backup-list --detail)"
 
 # --- 0. inventory -------------------------------------------------------------
@@ -95,7 +98,8 @@ docker run --rm \
     -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-}" \
     -e AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-}" \
     -e AWS_ENDPOINT="${AWS_ENDPOINT:-}" \
-    -v "${WALG_FILE_PREFIX:-/nonexistent}:${WALG_FILE_PREFIX:-/nonexistent}" \
+    -e AWS_S3_FORCE_PATH_STYLE="${AWS_S3_FORCE_PATH_STYLE:-}" \
+    ${WALG_FILE_PREFIX:+-v "$WALG_FILE_PREFIX:$WALG_FILE_PREFIX"} \
     "$PITR_IMAGE" wal-g backup-list --detail
 
 # --- 1. fresh scratch volume ---------------------------------------------------
@@ -109,13 +113,14 @@ log "created empty volume $PITR_VOLUME"
 T0=$(date +%s)
 docker run --rm \
     -v "$PITR_VOLUME:/pgdata" \
-    -v "${WALG_FILE_PREFIX:-/nonexistent}:${WALG_FILE_PREFIX:-/nonexistent}" \
+    ${WALG_FILE_PREFIX:+-v "$WALG_FILE_PREFIX:$WALG_FILE_PREFIX"} \
     -e WALG_S3_PREFIX="${WALG_S3_PREFIX:-}" \
     -e WALG_FILE_PREFIX="${WALG_FILE_PREFIX:-}" \
     -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-}" \
     -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-}" \
     -e AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-}" \
     -e AWS_ENDPOINT="${AWS_ENDPOINT:-}" \
+    -e AWS_S3_FORCE_PATH_STYLE="${AWS_S3_FORCE_PATH_STYLE:-}" \
     "$PITR_IMAGE" \
     sh -c 'wal-g backup-fetch /pgdata LATEST'
 log "base backup fetched in $(($(date +%s) - T0))s  ← RTO EVIDENCE SLOT #1 (fetch)"
@@ -130,13 +135,14 @@ fi
 # directly. Dedupe any previously-appended lines so re-runs stay idempotent.
 docker run --rm -i \
     -v "$PITR_VOLUME:/pgdata" \
-    -v "${WALG_FILE_PREFIX:-/nonexistent}:${WALG_FILE_PREFIX:-/nonexistent}" \
+    ${WALG_FILE_PREFIX:+-v "$WALG_FILE_PREFIX:$WALG_FILE_PREFIX"} \
     -e WALG_S3_PREFIX="${WALG_S3_PREFIX:-}" \
     -e WALG_FILE_PREFIX="${WALG_FILE_PREFIX:-}" \
     -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-}" \
     -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-}" \
     -e AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-}" \
     -e AWS_ENDPOINT="${AWS_ENDPOINT:-}" \
+    -e AWS_S3_FORCE_PATH_STYLE="${AWS_S3_FORCE_PATH_STYLE:-}" \
     -e TARGET_TIME="$TARGET_TIME" \
     -e HBA_MOUNT_NEEDED="$(printf '%s' "${HBA_DIR:-}" | wc -c)" \
     "$PITR_IMAGE" \
@@ -168,7 +174,7 @@ docker rm -f "$PITR_CONTAINER" >/dev/null 2>&1 || true
 T1=$(date +%s)
 docker run -d --name "$PITR_CONTAINER" \
     -v "$PITR_VOLUME:/pgdata" \
-    -v "${WALG_FILE_PREFIX:-/nonexistent}:${WALG_FILE_PREFIX:-/nonexistent}" \
+    ${WALG_FILE_PREFIX:+-v "$WALG_FILE_PREFIX:$WALG_FILE_PREFIX"} \
     -v "$HBA_DIR:/etc/harness:ro" \
     -e WALG_S3_PREFIX="${WALG_S3_PREFIX:-}" \
     -e WALG_FILE_PREFIX="${WALG_FILE_PREFIX:-}" \
@@ -176,6 +182,7 @@ docker run -d --name "$PITR_CONTAINER" \
     -e AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-}" \
     -e AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-}" \
     -e AWS_ENDPOINT="${AWS_ENDPOINT:-}" \
+    -e AWS_S3_FORCE_PATH_STYLE="${AWS_S3_FORCE_PATH_STYLE:-}" \
     --user 999:999 \
     --entrypoint postgres \
     "$PITR_IMAGE" -D /pgdata -c max_connections=120 >/dev/null

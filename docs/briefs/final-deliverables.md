@@ -88,7 +88,7 @@ Sessions 6 to 10 were built by Codex and verified by Claude (`path-to-9-checkpoi
 | Real-browser keyboard and reflow (parts 12, 56) | **pass** on `/login` and the run page, synthetic data (0 hard failures) | `evidence/s11/browser-check.md` |
 | Screen reader, run-page contrast, other pages (part 56) | **not verified** / contrast **fail** (7 elements at 3.3 to 3.9:1) | `evidence/s11/browser-check.md` |
 | Independent penetration test, Linux Landlock, `pip-audit` | **not verified** (not run) | `threat-model.md` |
-| Real backup and point-in-time restore (part 53) | **partial**: PITR from the live file archive drilled 2026-10-21; no object store | `evidence/s12/part28-55.md` section 5, `evidence/s9/verification.md` |
+| Real backup and point-in-time restore (part 53) | **partial**: PITR drilled 2026-10-21 from the live file archive and through self-hosted S3; no cloud bucket | `evidence/s12/part28-55.md` sections 5-6, `evidence/s9/verification.md` |
 | Full product acceptance (part 61) | **fail**: critical rows partial or blocked | `evidence/s10/readiness-report.md` |
 
 ## 6. Risk register
@@ -101,7 +101,7 @@ Sessions 6 to 10 were built by Codex and verified by Claude (`path-to-9-checkpoi
 | SDK shell bypasses the Section 5 command allow-list (parts 31, 52) | Medium | program owner | open; plans with forbidden paths are refused before the SDK runs |
 | `HARNESS_PILOT_TEAMS` empty or unset opens collaboration to every team | High if misconfigured | operator | documented; pilot environments must use a non-empty list |
 | Alerts reach one email address only (no pager, no Alertmanager HA); backup and WAL alerts inert | Medium | operator | email delivery done and proved live (`evidence/s11/alert-delivery.md`); rest open |
-| Backup restore, point-in-time recovery never exercised on a real object store | High | operator | open; part 53 stays capped at 8 |
+| Backup restore, point-in-time recovery not exercised on a cloud object store (self-hosted S3 drilled 2026-10-21) | High | operator | open; part 53 stays capped at 8 |
 | In-flight model spend is estimate-based; warning thresholds are not delivered | Medium | program owner | open (part 57) |
 | Live identity-provider (SSO) flows unproven | Medium | program owner | open; part 37 capped at 8 |
 | No counsel review, no pen test, no residency per tenant | High for real customers | program owner | open; parts 52, 58 capped at 8 |

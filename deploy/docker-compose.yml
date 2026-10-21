@@ -150,6 +150,8 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
       AWS_ENDPOINT: ${AWS_ENDPOINT:-}
+      # path-style URLs (endpoint/bucket/key): MinIO, SeaweedFS and other self-hosted S3 need it
+      AWS_S3_FORCE_PATH_STYLE: ${AWS_S3_FORCE_PATH_STYLE:-}
       # OPS-09/OPS-08 adjacent: autovacuum knobs for the churn tables
       # (agent_events/rate_buckets/audit_log). All env-tunable, sane defaults
       # documented in .env.example under "Postgres server tuning".
@@ -562,6 +564,8 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
       AWS_ENDPOINT: ${AWS_ENDPOINT:-}
+      # path-style URLs (endpoint/bucket/key): MinIO, SeaweedFS and other self-hosted S3 need it
+      AWS_S3_FORCE_PATH_STYLE: ${AWS_S3_FORCE_PATH_STYLE:-}
       # Identity wal-g uses when archive_command dials back into THIS server.
       # Deliberately NO PGHOST: unset means libpq uses the default unix socket
       # (/var/run/postgresql), which the official image's stock pg_hba trusts
@@ -651,6 +655,8 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
       AWS_ENDPOINT: ${AWS_ENDPOINT:-}
+      # path-style URLs (endpoint/bucket/key): MinIO, SeaweedFS and other self-hosted S3 need it
+      AWS_S3_FORCE_PATH_STYLE: ${AWS_S3_FORCE_PATH_STYLE:-}
       WALG_COMPRESSION_METHOD: ${WALG_COMPRESSION_METHOD:-lz4}
       WALG_RETENTION_KEEP: ${WALG_RETENTION_KEEP:-0}
       WALG_LIST_JSON: ${WALG_LIST_JSON:-}
