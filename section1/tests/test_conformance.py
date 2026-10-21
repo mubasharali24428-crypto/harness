@@ -41,7 +41,8 @@ def test_all_fourteen_event_types_exist():
 def test_event_envelope_wire_shape():
     env = event_envelope(EventType.PLAN_PROPOSED, "proj-1", 42, {"planId": "p1"}, "run-1")
     raw = env.model_dump()
-    assert set(raw) == {"type", "payload", "ts", "seq", "projectId", "runId"}
+    assert set(raw) == {"type", "payload", "ts", "seq", "projectId", "runId", "schemaVersion"}
+    assert raw["schemaVersion"] == 1  # part 14 (session 12), docs/realtime.md 5.5
     assert raw["seq"] == 42 and isinstance(raw["seq"], int)
 
 

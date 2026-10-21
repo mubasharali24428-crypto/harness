@@ -210,10 +210,17 @@ Switching back: when `ready` arrives, stop the 3 s poll and keep only the 20 s s
   auto-resubmit. A version **ahead** of the server answers 422 `BAD_VERSION` (a client bug).
 * Where no server version exists (guidance, `redirect`, join, heartbeat) there is nothing to be stale against: guidance is append-only and idempotent by `requestId`.
 * 429 `RATE_LIMITED` on a mutation: disable the control until `Retry-After` has passed and say so; do not auto-retry.
+* **Emitter rule for `STALE_CLIENT_STATE` (session 12, part 14).** The generic code is for a mutation that names the state it read (an `expectedVersion`, or
+  an `expectedOwnerUserId` where the object has no version) and finds that state changed. It is answered 409 with the current value merged into the body
+  (`currentVersion` or `currentOwnerUserId`); the client re-reads and decides. An object that already has a specific stale code keeps it (the table above),
+  so no existing response changes. The first emitter is `POST /api/v1/sessions/{id}/owner` (ownership transfer, `identity` `sessions.py`): a stale expected
+  owner, and a lost transfer race, are both refused with `STALE_CLIENT_STATE` and `currentOwnerUserId`. The identity envelope now passes route keys beside
+  `error` through to the body and to the legacy `detail` mirror, so these values reach the client.
 
 ### 5.5 Schema versions (046.008)
 
-* Today `schemaVersion` is 1 on every frame (`run_collab_events.schema_version`, `s1/eventbus.py` `COLLAB_SCHEMA_VERSION`).
+* Today `schemaVersion` is 1 on every collaboration frame (`run_collab_events.schema_version`, `s1/eventbus.py` `COLLAB_SCHEMA_VERSION`) and on every
+  project-stream envelope (`EventEnvelope.schemaVersion` in `contracts/events.py`, added in session 12; no row column, the value is the writer's constant).
 * Client MUST send `schemaVersion=<highest it understands>` on the socket (and treat a missing field on any frame as 1).
 * **Compatible, no bump**: new `kind`, new optional payload key, new optional frame field, new `control` value. Clients ignore what they do not know.
 * **Breaking, bump**: removing or renaming a field or kind, changing a field's type or meaning, changing the ordering/chain rule. A bump needs a release in which
@@ -274,7 +281,8 @@ A non-numeric or non-positive value falls back to the default.
 * **`mark_guidance_delivered`** inserts a marker row without the advisory lock; it is a filtered kind and never part of the visible chain.
 * **Delivery lag** uses two clocks (orchestrator writes `ts`, identity reads it).
 * **Retention** (`s4/retention.py`) deletes whole finished runs; a cursor into a purged run shows as `cursorAhead`.
-* **Stale-client protection** exists only where the server has a version: intent edits, intent conflict resolution, approval digests, handoff state. The generic
-  409 `STALE_CLIENT_STATE` is defined and tested but no existing route emits it yet; the older codes stay for compatibility (see 5.4).
+* **Stale-client protection** exists only where the server has a version or an expected owner: intent edits, intent conflict resolution, approval digests,
+  handoff state, session ownership transfer. The generic 409 `STALE_CLIENT_STATE` has one emitter (session ownership transfer, 5.4); the older codes stay for
+  compatibility. Clients in section7 do not read `currentOwnerUserId` yet (session B).
 * **HTTP history**: `GET /runs/{runId}/collab-history` returns `delivery.history_page` (the socket's frame shape with `prevSeq`, `schemaVersion`, `nextCursor`, `hasMore`, `headSeq`).
 * The browser client implements the rules above (`realtimeCore.ts`, `collabStream.ts`; see `docs/accessibility.md` and `evidence/s5/lane-x.md`). Hooked containers (panel, stream hook) are covered by tsc only, not by a browser run.

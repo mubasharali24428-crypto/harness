@@ -37,6 +37,9 @@ class EventEnvelope(BaseModel):
     seq: int
     projectId: str
     runId: str | None = None
+    # Part 14 (session 12): the project stream carries a schema version like the collab frames
+    # (docs/realtime.md 5.5). Version 1 is the only one written today; clients ignore a missing field.
+    schemaVersion: int = 1
 
 
 def event_envelope(

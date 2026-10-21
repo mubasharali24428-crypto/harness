@@ -29,6 +29,8 @@ export interface EventEnvelope {
   seq: number;
   projectId: string;
   runId?: string;
+  /** Part 14: 1 today; treat a missing field as 1 (docs/realtime.md 5.5). */
+  schemaVersion?: number;
 }
 
 export interface EngineeringBrief {

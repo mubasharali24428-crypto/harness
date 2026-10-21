@@ -147,7 +147,9 @@ async def test_checkpoint1_full_flow(bus, router, sandbox):
     replayed = await bus.replay("proj-int", after_seq=0)
     assert [e.type.value for e in replayed] == names
     for env in replayed:
-        assert {"type", "payload", "ts", "seq", "projectId", "runId"} == set(env.model_dump())
+        assert {"type", "payload", "ts", "seq", "projectId", "runId", "schemaVersion"} == set(
+            env.model_dump()
+        )
 
     review_calls = [c for c in router.call_history if c["role"] == "reviewer"]
     assert len(review_calls) >= 1, "reviewer must call models through Section 3"
