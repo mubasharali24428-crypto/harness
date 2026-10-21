@@ -17,6 +17,7 @@ these three files and not the ``harness_sandbox`` package (whose ``__init__`` pu
 pydantic and docker).
 """
 
+import glob
 import importlib.util
 import json
 import os
@@ -63,12 +64,30 @@ def scope_violation(command: str, cwd: str, scope_paths: list[str]) -> str | Non
     return None
 
 
+def unprotected_forbidden(cwd: str, patterns: list[str]) -> str | None:
+    """First existing forbidden path that is still writable (not a read-only mount)."""
+    root = os.path.realpath(cwd)
+    for pattern in patterns:
+        for hit in glob.glob(os.path.join(root, pattern.strip("/")), recursive=True):
+            real = os.path.realpath(hit)
+            if (real == root or real.startswith(root + os.sep)) and not (
+                os.statvfs(real).f_flag & os.ST_RDONLY
+            ):
+                # ponytail: only the container's read-only bind mounts count; Landlock/Seatbelt
+                # here cannot deny a subtree under an allowed workspace.
+                return pattern
+    return None
+
+
 def run(req: dict) -> dict:
     command, cwd = req["command"], req["cwd"]
     try:
         policy.validate_command(command, req.get("forbiddenPaths") or [], cwd=cwd)
     except policy.SecurityPolicyViolationError as exc:
         return {"denied": str(exc)}
+    open_path = unprotected_forbidden(cwd, req.get("forbiddenPaths") or [])
+    if open_path:
+        return {"denied": f"forbidden path '{open_path}' is not read-only here; refusing to run"}
     reason = scope_violation(command, cwd, req.get("scopePaths") or [])
     if reason:
         return {"denied": reason}

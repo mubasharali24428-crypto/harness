@@ -86,3 +86,14 @@ def test_environment_is_sanitized(tmp_path, monkeypatch):
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-should-not-leak")
     res = gate(tmp_path, "python3 -c \"import os; print(os.environ.get('DEEPSEEK_API_KEY'))\"")
     assert res["output"].strip() == "None"
+
+
+def test_writable_forbidden_path_refuses_to_run(tmp_path):
+    (tmp_path / "keep.txt").write_text("x")
+    res = gate(tmp_path, "python3 -c pass", forbiddenPaths=["keep.txt"])
+    assert "not read-only" in res["denied"]
+
+
+def test_missing_forbidden_path_is_not_checked(tmp_path):
+    res = gate(tmp_path, "python3 -c pass", forbiddenPaths=["absent.txt"])
+    assert "not read-only" not in res.get("denied", "")

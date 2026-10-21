@@ -22,6 +22,7 @@ container or explicit off (seatbelt breaks its PTY).
 
 from __future__ import annotations
 
+import glob
 import os
 import sys
 from pathlib import Path
@@ -79,13 +80,73 @@ def scrubbed_env(extra: dict[str, str], tmp_dir: str) -> dict[str, str]:
     return env
 
 
-def seatbelt_profile(roots: list[str], workspace: str, session_dir: str, tmp_dir: str) -> str:
+MAX_FORBIDDEN_TARGETS = 64
+
+
+def forbidden_targets(workspace: str, patterns: list[str] | None) -> list[str]:
+    """Existing workspace paths the plan's ``forbiddenPaths`` name, as real paths (S-01).
+
+    The command policy only reads command strings, so ``python3 -c "open('pay'+'roll/x', 'w')"``
+    slips past it. These targets are made read-only by the boundary itself. Patterns are
+    workspace-relative (globs allowed); only paths that exist at launch can be bound, and a
+    link that resolves outside the workspace is skipped (the policy's symlink check owns it).
+    """
+    root = os.path.realpath(workspace)
+    found: dict[str, None] = {}
+    for pattern in patterns or []:
+        rel = pattern.strip().lstrip("/").rstrip("/")
+        if not rel or ".." in Path(rel).parts:
+            continue
+        for match in glob.glob(os.path.join(root, rel), recursive=True):
+            real = os.path.realpath(match)
+            if real != root and real.startswith(root + os.sep):
+                found[real] = None
+    if len(found) > MAX_FORBIDDEN_TARGETS:
+        raise ConfinementUnavailableError(
+            f"forbiddenPaths match {len(found)} paths (limit {MAX_FORBIDDEN_TARGETS}); "
+            "narrow the patterns rather than run with some of them unprotected"
+        )
+    return sorted(found)
+
+
+def forbidden_snapshot(workspace: str, patterns: list[str] | None) -> dict[str, str]:
+    """File -> sha256 for every file under a forbidden pattern (detective check for paths
+    the mounts cannot cover: created after launch, or no mount mode)."""
+    import hashlib
+
+    root = os.path.realpath(workspace)
+    snap: dict[str, str] = {}
+    for pattern in patterns or []:
+        for hit in glob.glob(os.path.join(root, pattern.strip("/")), recursive=True):
+            walk = (
+                [os.path.join(d, f) for d, _, fs in os.walk(hit) for f in fs]
+                if os.path.isdir(hit)
+                else [hit]
+            )
+            for path in walk[:5000]:
+                try:
+                    with open(path, "rb") as fh:
+                        snap[path] = hashlib.sha256(fh.read()).hexdigest()
+                except OSError:
+                    snap[path] = "?"
+    return snap
+
+
+def seatbelt_profile(
+    roots: list[str],
+    workspace: str,
+    session_dir: str,
+    tmp_dir: str,
+    forbidden: list[str] | None = None,
+) -> str:
     """Last matching rule wins in SBPL: broad read, deny the runs root, re-allow own dirs."""
     own = (workspace, session_dir, tmp_dir)
     home = str(Path.home())
     cred = " ".join(f'(subpath "{home}/{d}")' for d in _CRED_DIRS)
     own_read = " ".join(f'(subpath "{p}")' for p in own)
     deny_roots = " ".join(f'(subpath "{r}")' for r in roots)
+    frozen = " ".join(f'(subpath "{p}")' for p in forbidden or [])
+    frozen_rule = f"(deny file-write* {frozen})\n" if frozen else ""
     return (
         "(version 1)\n"
         "(deny default)\n"
@@ -104,6 +165,7 @@ def seatbelt_profile(roots: list[str], workspace: str, session_dir: str, tmp_dir
         "(allow pseudo-tty)\n"  # the agent's persistent shell runs on a pty
         "(allow file-ioctl)\n"
         '(allow file-read* file-write* (literal "/dev/ptmx") (regex #"^/dev/ttys[0-9]+$"))\n'
+        f"{frozen_rule}"
         "(allow mach-lookup)\n"
         "(allow sysctl-read)\n"
         "(allow ipc-posix-shm)\n"
@@ -125,8 +187,10 @@ def wrap_command(
     network: str | None = None,
     image: str = "harness-engine-worker:p0",
     env: dict[str, str] | None = None,
+    forbidden_paths: list[str] | None = None,
 ) -> list[str]:
     """Build the worker launch command for the selected boundary."""
+    forbidden = forbidden_targets(workspace, forbidden_paths) if mode != "none" else []
     if mode == "container":
         if not container_name or not network:
             raise ConfinementUnavailableError("container requires a private network and name")
@@ -163,6 +227,10 @@ def wrap_command(
         ]
         for path in (workspace, session_dir):
             result += ["--mount", f"type=bind,src={path},dst={path},readonly=false"]
+        for path in forbidden:  # S-01: nested read-only bind; later mounts win over the workspace
+            if "," in path:
+                raise ConfinementUnavailableError("forbidden paths must not contain commas")
+            result += ["--mount", f"type=bind,src={path},dst={path},readonly"]
         # Values are inherited by Docker from its scrubbed client environment, never argv.
         for key in sorted(env or {}):
             if key not in {"PATH", "PYTHONPATH", "TMPDIR", "HOME"}:
@@ -181,5 +249,5 @@ def wrap_command(
     if mode != "seatbelt":
         return argv
     profile = Path(tmp_dir) / "run.sb"
-    profile.write_text(seatbelt_profile(roots, workspace, session_dir, tmp_dir))
+    profile.write_text(seatbelt_profile(roots, workspace, session_dir, tmp_dir, forbidden))
     return [SEATBELT_BIN, "-f", str(profile), *argv]

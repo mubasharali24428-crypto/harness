@@ -327,6 +327,8 @@ class DeepSeekHarnessWrapper:
             if mode == "container":
                 boundary = ContainerBoundary(self.base_url)
                 env["DEEPSEEK_BASE_URL"] = boundary.start()
+            forbidden = (self._shell_policies.get(session_id) or {}).get("forbiddenPaths")
+            before = confine.forbidden_snapshot(workspace, forbidden)
             argv = confine.wrap_command(
                 [sys.executable, "-m", module],
                 mode=mode,
@@ -338,6 +340,7 @@ class DeepSeekHarnessWrapper:
                 network=boundary.network if boundary else None,
                 image=boundary.image if boundary else "",
                 env=env,
+                forbidden_paths=forbidden,
             )
             request = json.dumps(
                 {
@@ -376,6 +379,8 @@ class DeepSeekHarnessWrapper:
                         self._containers.pop(session_id, None)
             if session_id in self._cancel_requested:
                 return "Execution cancelled.", "cancelled", model, []
+            if confine.forbidden_snapshot(workspace, forbidden) != before:
+                return "Run changed a forbidden path.", "error", model, []
             lines = [ln for ln in (out or "").splitlines() if ln.strip()]
             if proc.returncode != 0 or not lines:
                 tail = scrub_secrets((err or "")[-500:], self.api_key)
