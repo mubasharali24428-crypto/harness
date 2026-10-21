@@ -92,6 +92,7 @@ APPEND_ONLY_ACTIONS = frozenset(
         "session.resumed",
         "session.deleted",
         "session.purged",
+        "session.owner_transferred",
         "session.run_refused",
         "presence.settings_changed",
         "participant.muted",

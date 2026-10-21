@@ -276,6 +276,12 @@ export interface OrgPatchBody {
   requireSso?: boolean | null;  // optional
 }
 
+/** OwnerTransferBody. Required keys: expectedOwnerUserId, toUserId. */
+export interface OwnerTransferBody {
+  expectedOwnerUserId: string;
+  toUserId: string;
+}
+
 /** PlanUpdateBody. */
 export interface PlanUpdateBody {
   budgetAlertPercent?: number | string | null;  // optional
@@ -1268,6 +1274,13 @@ export class IdentityClient {
     return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
   }
 
+  /** Transfer Owner
+   *  POST /api/v1/sessions/{sid}/owner */
+  transfer_owner(sid: string, body: OwnerTransferBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sessions/${encodeURIComponent(sid)}/owner`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
   /** Pause Session
    *  POST /api/v1/sessions/{sid}/pause */
   pause_session(sid: string, body?: harness_identity__sessions__ReasonBody): Promise<Record<string, unknown>> {
@@ -1726,6 +1739,7 @@ export class IdentityClient {
  * export interface/type OkResponse
  * export interface/type OrgCreateBody
  * export interface/type OrgPatchBody
+ * export interface/type OwnerTransferBody
  * export interface/type PlanUpdateBody
  * export interface/type PolicyDoc
  * export interface/type PreviewBody

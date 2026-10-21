@@ -357,6 +357,24 @@ async def expire_lease_if_due(db: Any, run_id: str) -> Any:
     return row
 
 
+async def sweep_expired_leases(factory: Any) -> int:
+    """Part 42 (session 12): release every lapsed control lease, not only the runs someone reads.
+    Each release is the read path's compare-and-swap, one transaction per run, so a lease renewed
+    in the meantime is left alone. Returns how many leases this sweep released."""
+    async with factory() as db:
+        due = await db.execute(
+            text("SELECT run_id FROM control_leases WHERE expires_at <= :now"), {"now": db_now()}
+        )
+        run_ids = [str(r[0]) for r in due.all()]
+    released = 0
+    for run_id in run_ids:
+        async with factory() as db:
+            if await expire_lease_if_due(db, run_id) is not None:
+                released += 1
+            await db.commit()
+    return released
+
+
 #: T18: one principal probing unknown run ids (or any refusal) cannot grow the append-only audit log
 #: without bound. Per process and per principal; past the cap one ``DENIAL_AUDIT_CAP`` marker row
 #: is written for the window and the rest are dropped (the response is unchanged).

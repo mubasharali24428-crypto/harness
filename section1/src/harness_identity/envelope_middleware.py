@@ -100,9 +100,15 @@ def install_error_envelope(app: FastAPI) -> None:
         inner = detail.get("error") if isinstance(detail, dict) else None
         if isinstance(inner, dict) and "code" in inner and "message" in inner:
             # Already contract-shaped (routes raise HTTPException(detail=error_body(...))):
-            # pass through unchanged, only adding the compat mirror.
+            # pass through unchanged, only adding the compat mirror. Keys a route adds beside
+            # `error` (docs/realtime.md 5.4: currentVersion, currentOwnerUserId) reach the client.
             code = str(inner["code"])
             message = str(inner["message"])
+            extra = {k: v for k, v in detail.items() if k != "error"}
+            content = _envelope(code, message)
+            content["detail"].update(extra)
+            content.update(extra)
+            return JSONResponse(status_code=exc.status_code, content=content)
         elif isinstance(detail, dict):
             code = "REQUEST_ERROR"
             message = json.dumps(detail)

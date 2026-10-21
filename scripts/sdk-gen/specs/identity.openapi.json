@@ -1260,6 +1260,28 @@
     "title": "OrgPatchBody",
     "type": "object"
    },
+   "OwnerTransferBody": {
+    "properties": {
+     "expectedOwnerUserId": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Expectedowneruserid",
+      "type": "string"
+     },
+     "toUserId": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Touserid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "toUserId",
+     "expectedOwnerUserId"
+    ],
+    "title": "OwnerTransferBody",
+    "type": "object"
+   },
    "PlanUpdateBody": {
     "properties": {
      "budgetAlertPercent": {
@@ -7148,6 +7170,58 @@
      }
     },
     "summary": "Put Member"
+   }
+  },
+  "/api/v1/sessions/{sid}/owner": {
+   "post": {
+    "description": "Part 40 (session 12): hand the session to another active member. The caller must manage\nthe session, and an org-linked team steps up first. The caller names the owner it saw: a\ndifferent current owner is refused with 409 STALE_CLIENT_STATE (the body names the current\nowner, and the client re-reads). The old owner keeps a participant seat. The owner change, the\nmember roles and the audit row commit together, and a failed audit write fails the transfer.",
+    "operationId": "transfer_owner_api_v1_sessions__sid__owner_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "sid",
+      "required": true,
+      "schema": {
+       "title": "Sid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/OwnerTransferBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Transfer Owner Api V1 Sessions  Sid  Owner Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Transfer Owner"
    }
   },
   "/api/v1/sessions/{sid}/pause": {

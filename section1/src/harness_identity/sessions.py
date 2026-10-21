@@ -21,8 +21,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
+from .audit import write_audit
 from .audit_emit import _emit as emit_audit
+from .audit_emit import _member_id
 from .auth import get_principal
+from .policy import require_team_stepup
 from .timeutil import now_utc
 
 router = APIRouter(prefix="/api/v1/sessions")
@@ -970,3 +973,66 @@ async def purge_session(sid: str, request: Request, p: Auth) -> dict:
         fresh = (await db.execute(text("SELECT * FROM collab_sessions WHERE id=:i"),
                                   {"i": sid})).mappings().first()
         return {**_out(fresh), "changed": True}
+
+
+class OwnerTransferBody(BaseModel):
+    toUserId: str = Field(min_length=1, max_length=64)
+    expectedOwnerUserId: str = Field(min_length=1, max_length=64)
+
+
+@router.post("/{sid}/owner")
+async def transfer_owner(sid: str, body: OwnerTransferBody, request: Request, p: Auth) -> dict:
+    """Part 40 (session 12): hand the session to another active member. The caller must manage
+    the session, and an org-linked team steps up first. The caller names the owner it saw: a
+    different current owner is refused with 409 STALE_CLIENT_STATE (the body names the current
+    owner, and the client re-reads). The old owner keeps a participant seat. The owner change, the
+    member roles and the audit row commit together, and a failed audit write fails the transfer."""
+    async with request.app.state.session_factory() as db:
+        row, _ = await _load(db, p, sid, need="manage")
+        _require_mutable(row)
+        # ownership is a role change, so the org's step-up list for role changes applies
+        await require_team_stepup(db, request, p, p.teamId, "role.change")
+        current = row["owner_user_id"]
+        if current != body.expectedOwnerUserId:
+            raise HTTPException(status_code=409, detail={
+                **error_body("STALE_CLIENT_STATE", "the session owner changed since you read it"),
+                "currentOwnerUserId": current,
+            })
+        if body.toUserId == current:
+            raise _err(422, "SELF_TRANSFER", "the session already belongs to that member")
+        member = (await db.execute(
+            text("SELECT status FROM session_members WHERE session_id=:s AND user_id=:u"),
+            {"s": sid, "u": body.toUserId})).first()
+        if member is None or member[0] != "active":
+            raise _err(422, "BAD_RECIPIENT", "the new owner must be an active session member")
+        now = now_utc()
+        moved = (await db.execute(
+            text("UPDATE collab_sessions SET owner_user_id=:to, version=version+1, updated_at=:n"
+                 " WHERE id=:i AND owner_user_id=:frm"),
+            {"to": body.toUserId, "n": now, "i": sid, "frm": current})).rowcount
+        if moved != 1:  # another transfer committed between our read and this write
+            raise HTTPException(status_code=409, detail={
+                **error_body("STALE_CLIENT_STATE", "the session owner changed since you read it"),
+                "currentOwnerUserId": (await _owner_of(db, sid)),
+            })
+        await db.execute(
+            text("UPDATE session_members SET role='participant'"
+                 " WHERE session_id=:s AND user_id=:f AND role='owner'"), {"s": sid, "f": current})
+        await db.execute(
+            text("UPDATE session_members SET role='owner' WHERE session_id=:s AND user_id=:t"),
+            {"s": sid, "t": body.toUserId})
+        await write_audit(db, "session.owner_transferred",
+                          actor_member_id=await _member_id(db, p.userId, p.teamId),
+                          actor_kind="human", target_type="session", target_id=sid,
+                          detail={"teamId": p.teamId, "before": {"ownerUserId": current},
+                                  "after": {"ownerUserId": body.toUserId}})
+        await db.commit()
+        fresh = (await db.execute(text("SELECT * FROM collab_sessions WHERE id=:i"),
+                                  {"i": sid})).mappings().first()
+        return {**_out(fresh), "changed": True}
+
+
+async def _owner_of(db, sid: str) -> str | None:
+    return (await db.execute(text("SELECT owner_user_id FROM collab_sessions WHERE id=:i"),
+                             {"i": sid})).scalar()
+

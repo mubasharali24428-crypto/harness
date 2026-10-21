@@ -6,8 +6,9 @@ is idempotent (upserts, or work guarded by "not yet purged"), so two replicas ru
 repeat effort but never corrupt state; that is why there is no leader election here. A failing run
 is logged and retried on the next tick; one job's failure never stops the others.
 
-Deliberately NOT scheduled: ``retention.purge`` (deletes workspaces by age and defaults to a dry
-run, an operator decision) and session ``purge`` (an explicit admin route).
+Part 40 and 42 (session 12) add the session purge (retention elapsed, audited as a system action)
+and the lease sweep (lapsed control leases released, audited). Deliberately NOT scheduled:
+``retention.purge`` (deletes workspaces by age and defaults to a dry run, an operator decision).
 """
 
 from __future__ import annotations
@@ -27,6 +28,8 @@ JOBS: dict[str, tuple[str, float]] = {
     "discussion-purge": ("HARNESS_DISCUSSION_PURGE_SECONDS", 3600.0),
     "artifact-purge": ("HARNESS_ARTIFACT_PURGE_SECONDS", 3600.0),
     "workspace-purge": ("HARNESS_WORKSPACE_PURGE_SECONDS", 3600.0),
+    "session-purge": ("HARNESS_SESSION_PURGE_SECONDS", 3600.0),
+    "lease-sweep": ("HARNESS_LEASE_SWEEP_SECONDS", 30.0),
 }
 
 
@@ -48,7 +51,7 @@ def maintenance_jobs(
     factory: Any, env: Mapping[str, str] | None = None
 ) -> list[tuple[str, Callable[[], Awaitable[Any]], float]]:
     """The enabled jobs as ``(label, callable, interval seconds)``."""
-    from . import artifacts, discussion, exports, search, workspace_gate
+    from . import artifacts, collab, discussion, exports, search, session_purge, workspace_gate
 
     env = os.environ if env is None else env
     calls: dict[str, Callable[[], Awaitable[Any]]] = {
@@ -57,6 +60,8 @@ def maintenance_jobs(
         "discussion-purge": lambda: discussion.purge_expired(factory),
         "artifact-purge": lambda: artifacts.purge_expired(factory),
         "workspace-purge": lambda: workspace_gate.purge_expired_workspaces(factory),
+        "session-purge": lambda: session_purge.purge_due(factory),
+        "lease-sweep": lambda: collab.sweep_expired_leases(factory),
     }
     out = []
     for label, (var, default) in JOBS.items():
