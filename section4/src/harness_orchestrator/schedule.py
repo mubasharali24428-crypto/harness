@@ -3,8 +3,9 @@
 Four maintenance functions existed with the note "nothing schedules this": the search-index sync,
 the export-file purge, the discussion-retention purge and the artifact-retention purge. Each one
 is idempotent (upserts, or work guarded by "not yet purged"), so two replicas running the same job
-repeat effort but never corrupt state; that is why there is no leader election here. A failing run
-is logged and retried on the next tick; one job's failure never stops the others.
+would repeat effort but never corrupt state. Parts 48/50 (session 12): on PostgreSQL each tick is
+still leader-elected (``leader_only``), so one replica runs it and the others skip that tick. A
+failing run is logged and retried on the next tick; one job's failure never stops the others.
 
 Part 40 and 42 (session 12) add the session purge (retention elapsed, audited as a system action)
 and the lease sweep (lapsed control leases released, audited). Deliberately NOT scheduled:
@@ -47,6 +48,27 @@ async def run_periodically(
         await asyncio.sleep(interval)
 
 
+async def leader_only(factory: Any, label: str, job: Callable[[], Awaitable[Any]]) -> Any:
+    """Run one tick of ``job`` in at most one replica at a time. On PostgreSQL the tick holds a
+    session advisory lock keyed by ``label`` on its own connection; a replica that cannot take it
+    skips the tick (returns None). The lock dies with the connection, so a crashed leader frees it.
+    Other databases (SQLite dev, single process) just run the job."""
+    from sqlalchemy import text
+
+    engine = getattr(factory, "kw", {}).get("bind")
+    if engine is None or engine.dialect.name != "postgresql":
+        return await job()
+    key = {"k": f"harness-job:{label}"}
+    async with engine.connect() as conn:
+        got = await conn.execute(text("SELECT pg_try_advisory_lock(hashtextextended(:k, 0))"), key)
+        if not got.scalar():
+            return None
+        try:
+            return await job()
+        finally:
+            await conn.execute(text("SELECT pg_advisory_unlock(hashtextextended(:k, 0))"), key)
+
+
 def maintenance_jobs(
     factory: Any, env: Mapping[str, str] | None = None
 ) -> list[tuple[str, Callable[[], Awaitable[Any]], float]]:
@@ -67,5 +89,6 @@ def maintenance_jobs(
     for label, (var, default) in JOBS.items():
         every = float(env.get(var, default))
         if every > 0:
-            out.append((label, calls[label], every))
+            call = calls[label]
+            out.append((label, lambda c=call, n=label: leader_only(factory, n, c), every))
     return out

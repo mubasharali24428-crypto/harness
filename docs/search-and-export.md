@@ -234,4 +234,4 @@ Wiring (lead): `app.include_router(search.router)`, `app.include_router(exports.
 * `export` honours the legacy role gate here; the section1 step-up re-authentication (`require_team_stepup`) that guards
   `GET /api/v1/audit/export` is not applied by section4 (it cannot import section1). Org policy applies through the middleware.
 * Raising comment retention after an index pass does not resurrect already de-indexed comments until `reindex`.
-* The index sync, export purge, discussion purge and artifact purge run on intervals in every orchestrator replica (`schedule.py`); they are idempotent, so replicas repeat work but do not corrupt it. They are not leader-elected, and a job that keeps failing is only logged.
+* The index sync, export purge, discussion purge and artifact purge run on intervals in every orchestrator replica (`schedule.py`); on PostgreSQL each tick is leader-elected by a session advisory lock (`schedule.leader_only`, `test_schedule_leader_live_pg.py`), so one replica runs it and the others skip that tick; the lock dies with the leader's connection. The jobs stay idempotent. A job that keeps failing is only logged.
