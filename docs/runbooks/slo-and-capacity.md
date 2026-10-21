@@ -32,6 +32,12 @@ failures, control-plane p95 from 34 to 98 ms, and engine wait p50 from 4.1 to 38
 plateaued near 1.7–1.9 journeys/s because one queue claim is made per worker poll. These values describe
 that setup only. They do not establish a production user/team cap or multi-replica capacity.
 
+Session 12 re-ran it on the current tree (`docs/briefs/evidence/s12/part54.md`): one replica 12.1
+journeys/s at 8 VUs and 17.6 at 32 (batch claims), two replicas on one queue 22.0 at 32 VUs with
+single-owner claims and no lost or duplicated terminal transitions; one identity replica held 1000
+concurrent ticketed sockets and delivered one event to all of them (p95 517 ms at 50 x 20). The
+"Horizontal worker scale" row below is therefore exercised once; the others remain to run.
+
 Use this scenario set before raising deployment limits:
 
 | Scenario | Offered workload | Observe | Pass condition |
@@ -58,8 +64,8 @@ completed run/team for every run. Keep synthetic and provider-backed cost result
   service revision and relevant state transitions. Retrieve details through the caller's existing
   team authorization. Do not attach prompts, artifacts, credentials, model output or raw request
   bodies unless a separately authorized evidence workflow requires them.
-- Keep database, API, worker and real-time delivery scaling independently observable. Current
-  multi-replica behavior and WebSocket connection capacity remain unverified.
+- Keep database, API, worker and real-time delivery scaling independently observable. Two-replica
+  queue behaviour and 1000-socket capacity were measured once in session 12 (dry engine, one host).
 
 ## Session 9 verification still required
 

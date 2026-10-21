@@ -15,6 +15,7 @@
 #   PROBE_RUN_CONCURRENCY         default 4   (per-team queue cap)
 #   PROBE_WORKER_POLL_SECONDS     default 0.5
 #   PROBE_PROJECT                 default harness-loadtest (compose -p)
+#   PROBE_ORCH_REPLICAS           default 1   (orchestrator replicas on one queue, max 4)
 #
 # M19-B1 (hit live): compose interpolates HARNESS_MASTER_KEY as
 # ${PROBE_MASTER_KEY:-} = EMPTY STRING, and pydantic-settings applies that
@@ -49,8 +50,11 @@ wait_healthy() {
 
 stack_up() {
   echo "[probe] booting isolated load-test stack (db+migrate+identity+orchestrator, dry engine)"
-  compose up -d --build db-loadtest migrate-loadtest identity-loadtest orchestrator-loadtest
+  compose up -d --build --scale "orchestrator-loadtest=${PROBE_ORCH_REPLICAS:-1}" \
+    db-loadtest migrate-loadtest identity-loadtest orchestrator-loadtest
   wait_healthy "$IDENTITY/health" identity 90 || return 1
+  # With a port range (PROBE_ORCH_REPLICAS) replica 1 is not guaranteed 18004: ask compose.
+  ORCH="http://$(compose port --index 1 orchestrator-loadtest 8004)"
   wait_healthy "$ORCH/health" orchestrator 90 || return 1
   echo "[probe] stack healthy: identity=$IDENTITY orchestrator=$ORCH"
 }

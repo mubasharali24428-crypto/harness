@@ -1075,14 +1075,19 @@ services:
       HARNESS_RUN_CONCURRENCY: ${PROBE_RUN_CONCURRENCY:-4}
       HARNESS_WORKER_POLL_SECONDS: ${PROBE_WORKER_POLL_SECONDS:-0.5}
       HARNESS_TEAM_BUDGET_USD: ${PROBE_TEAM_BUDGET_USD:-}
+      # Part 54 (session 12): one locust VU is one team, so the free tier's 20 runs/day (Part 57)
+      # would turn most journeys into plan-limit refusals; the probe measures the platform instead.
+      HARNESS_TIER_RUNS_PER_DAY: ${PROBE_TIER_RUNS_PER_DAY:-1000000}
       # Throwaway isolated DB + dev key opt-in (services.py F9 fail-fast).
       HARNESS_ALLOW_DEV_MASTER_KEY: "1"
       # Same pydantic-settings override gotcha as identity-loadtest above:
       # empty default ⇒ runner's own F9 dev fallback supplies the key under
       # the ALLOW_DEV opt-in — no baked-in secret default ships in compose.
       HARNESS_MASTER_KEY: ${PROBE_MASTER_KEY:-}
+    # Part 54 (session 12): a port range so `--scale orchestrator-loadtest=N` (run_probe.sh
+    # PROBE_ORCH_REPLICAS, up to 4) can run several replicas on the one queue; any replica serves the API.
     ports:
-      - "127.0.0.1:18004:8004"
+      - "127.0.0.1:18004-18007:8004"
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8004/health', timeout=3)\""]
       interval: 5s
