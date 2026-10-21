@@ -88,7 +88,7 @@ class IntegrationWebhook(Base):
     secret_hint: Mapped[str] = mapped_column(String(8), nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    # Part 49.003 (migration 0060): 'harness' signed JSON envelope, or 'slack' one-line chat message.
+    # Part 49.003 (migration 0060): 'harness' signed JSON envelope or 'slack' chat line.
     payload_format: Mapped[str] = mapped_column(
         String(12), nullable=False, default="harness", server_default="harness"
     )

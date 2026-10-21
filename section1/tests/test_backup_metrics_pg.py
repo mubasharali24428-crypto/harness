@@ -73,25 +73,30 @@ async def test_backup_and_wal_series_come_from_postgres(monkeypatch):
                 if stmt.strip():
                     await conn.execute(stmt)
         expected_failed = await conn.fetchval("SELECT failed_count FROM pg_stat_archiver")
-        engine = create_async_engine(f"{base}/{dbname}".replace("postgresql://", "postgresql+asyncpg://", 1))
+        url = f"{base}/{dbname}".replace("postgresql://", "postgresql+asyncpg://", 1)
+        engine = create_async_engine(url)
         obs = _obs()
         app = FastAPI()
         monkeypatch.setenv("HARNESS_METRICS_DB_POLL_SECONDS", "0")
-        obs.install_domain_metrics(app, factory=async_sessionmaker(engine), engine=engine, bus=None)
+        factory = async_sessionmaker(engine)
+        obs.install_domain_metrics(app, factory=factory, engine=engine, bus=None)
 
         await app.state.domain_metrics_poll()
         body = obs.METRICS.render()
         assert _sample(body, "harness_pg_wal_archive_failed_count_total") == expected_failed
-        assert _sample(body, "harness_backup_last_success_timestamp_seconds") is None  # no backup yet
+        # no backup recorded yet: the series is absent, not zero
+        assert _sample(body, "harness_backup_last_success_timestamp_seconds") is None
 
         await conn.execute("INSERT INTO backup_runs (kind) VALUES ('base')")
         newest = await conn.fetchval(
-            "SELECT extract(epoch FROM max(finished_at))::float8 FROM backup_runs WHERE kind = 'base'"
+            "SELECT extract(epoch FROM max(finished_at))::float8"
+            " FROM backup_runs WHERE kind = 'base'"
         )
         await conn.close()
         await app.state.domain_metrics_poll()
         body = obs.METRICS.render()
-        assert _sample(body, "harness_backup_last_success_timestamp_seconds") == pytest.approx(newest, abs=1)
+        seen = _sample(body, "harness_backup_last_success_timestamp_seconds")
+        assert seen == pytest.approx(newest, abs=1)
     finally:
         if engine is not None:
             await engine.dispose()
