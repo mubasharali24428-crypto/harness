@@ -5,15 +5,15 @@
    "completed": 1
   },
   "decisionLatencySeconds": {
-   "max": 13.460578,
-   "median": 7.2967065,
+   "max": 12.765533,
+   "median": 6.9490495,
    "n": 2
   }
  },
  "cancelConfirmed": 2,
  "elapsedSeconds": {
-  "max": 23.100623,
-  "median": 15.051442,
+  "max": 23.386095,
+  "median": 15.405962,
   "n": 2
  },
  "note": "Counts and timings only. No baseline of the team's current workflow has been measured, so these numbers support no speed-up or ROI claim.",

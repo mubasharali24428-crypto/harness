@@ -86,7 +86,8 @@ test("P1 shared pilot: create → join → redirect → handoff → approve/appl
     await peer.getByRole("button", { name: "Stop", exact: true }).click();
     await expect(peer.getByTestId("run-state")).toContainText(/done|stopped/i);
     // The top summary must refresh on its own (it used to stay stale after stop).
-    await expect(peer.getByLabel("Run summary")).toContainText(/done|stopped/i, { timeout: 15000 });
+    // Plain-language labels (runsApi.ts): done/completed read "Finished", stopped "Stopped by a person".
+    await expect(peer.getByLabel("Run summary")).toContainText(/finished|stopped/i, { timeout: 15000 });
 
     // ---- Session 2 legs, on a SECOND run so they can be checked against the first run's data ----
     const run1 = href!.split("/").pop()!;
