@@ -123,7 +123,7 @@ export function RunDetailAggregate({
           >
             {timeline.map((s) => (
               <li key={`${s.seq}-${s.type}`} title={formatTimestamp(s.ts)}>
-                <code>{stepLabel(s.type)}</code>{" "}
+                <code>{stepLabel(s.type, s.reason)}</code>{" "}
                 <span style={mutedStyle}>
                   · seq {Number.isFinite(s.seq) ? s.seq : "?"} ·{" "}
                   {formatTimestamp(s.ts)}

@@ -34,6 +34,8 @@ import { cooldownSeconds, mutationError } from "./realtimeCore";
 import { DiscussionSection } from "./discussionSection";
 import { AgentTreeSection } from "./agentTree";
 import { RunControlSection } from "./controlSection";
+import { RunIntentSection } from "./intentSection";
+import { RunOwnerSection } from "./ownerSection";
 import { PresenceSection } from "./presenceSection";
 
 const muted = { color: "var(--muted)" } as const;
@@ -377,6 +379,8 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
       >
         <PresenceSection runId={runId} token={token} tick={tick} onChanged={changed} />
         <RunControlSection runId={runId} token={token} tick={tick} isAdmin={session?.principal.role === "admin"} onChanged={changed} />
+        <RunIntentSection runId={runId} token={token} tick={tick} canEdit={canLead} onChanged={changed} />
+        <RunOwnerSection runId={runId} token={token} tick={tick} me={me} />
         <AgentTreeSection runId={runId} token={token} tick={tick} canSteer={canLead && view.joined} />
       </SharedRunView>
     </AnnounceContext.Provider>

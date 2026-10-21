@@ -1184,13 +1184,13 @@ class IdentityClient:
         _path = f"/api/v1/projects/{project_id}/rules"
         return self._http.request(self.base_url, "DELETE", _path)
 
-    def list_sessions(self, q: str | None = None, state: str | None = None, workspace_id: str | None = None, limit: int | None = None, cursor: str | None = None) -> dict[str, typing.Any]:
+    def list_sessions(self, q: str | None = None, state: str | None = None, workspace_id: str | None = None, run_id: str | None = None, limit: int | None = None, cursor: str | None = None) -> dict[str, typing.Any]:
         """List Sessions
 
         GET /api/v1/sessions
         """
         _path = "/api/v1/sessions"
-        _params: dict[str, typing.Any] = {"q": q, "state": state, "workspaceId": workspace_id, "limit": limit, "cursor": cursor}
+        _params: dict[str, typing.Any] = {"q": q, "state": state, "workspaceId": workspace_id, "runId": run_id, "limit": limit, "cursor": cursor}
         return self._http.request(self.base_url, "GET", _path, params=_params)
 
     def create_session(self, body: harness_identity__sessions__CreateBody) -> dict[str, typing.Any]:

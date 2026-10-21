@@ -6524,6 +6524,22 @@
      },
      {
       "in": "query",
+      "name": "runId",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Runid"
+      }
+     },
+     {
+      "in": "query",
       "name": "limit",
       "required": false,
       "schema": {

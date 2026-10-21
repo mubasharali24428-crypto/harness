@@ -1,7 +1,7 @@
 // Parts 41/42/45 client: presence + participation, control lease and suggestions, intent
 // conflicts, agent subtasks. Same plain fetch helper as collabApi.ts (bearer token only).
 // Routes and shapes: docs/presence.md, docs/control.md, docs/agents.md.
-import { ApiError } from "@/lib/api";
+import { ApiError, IDENTITY_BASE } from "@/lib/api";
 import { PLAN_GATE_BASE } from "../../../../dashboard/planGateApi";
 import { call, post, root } from "./collabApi";
 
@@ -22,6 +22,9 @@ const MESSAGES: Record<string, string> = {
   ROLE_DENIED: "Your role can only observe this run.",
   TOO_MANY_DEVICES: "You are online on too many devices for this run.",
   ILLEGAL_TRANSITION: "That agent has already finished or cannot change state.",
+  STALE_CLIENT_STATE: "The owner changed while you were looking. The page now shows the current owner.",
+  SELF_TRANSFER: "The session already belongs to that person.",
+  BAD_RECIPIENT: "The new owner must be an active member of the session.",
   AGENT_BUDGET_EXHAUSTED: "That agent has used up its budget, so it cannot resume.",
 };
 
@@ -102,3 +105,29 @@ export interface AgentItem {
 export const getAgents = (runId: string, t: string) => call<{ items: AgentItem[] }>(`${root(runId)}/agents`, t);
 export const agentAction = (runId: string, t: string, id: string, action: "pause" | "resume" | "cancel") =>
   post<unknown>(`${root(runId)}/agents/${encodeURIComponent(id)}/${action}`, t);
+
+// ---- run intent (part 42) ----
+export interface IntentView {
+  intent: { version: number; goal: string | null; scopePaths: string[] | null; permissions: string[] | null; updatedBy: string | null; updatedAt: string | null };
+  openConflicts: number;
+}
+export interface IntentPatch { goal?: string; scopePaths?: string[]; permissions?: string[] }
+export const getIntent = (runId: string, t: string) => call<IntentView>(`${root(runId)}/intent`, t);
+/** 202 means the change was queued for the person in control rather than applied. */
+export const putIntent = (runId: string, t: string, expectedVersion: number, patch: IntentPatch) =>
+  call<{ queued?: boolean }>(`${root(runId)}/intent`, t, { method: "PUT", body: JSON.stringify({ expectedVersion, ...patch, requestId: crypto.randomUUID() }) });
+
+// ---- session owner (part 40): Section 1 sessions API ----
+export interface SessionView { id: string; title: string; state: string; ownerUserId: string; yourRole?: string }
+export interface SessionMember { userId: string | null; kind: string; displayName: string | null; status: string; role: string }
+const sessionsUrl = (path: string) => `${IDENTITY_BASE}/api/v1/sessions${path}`;
+/** The session a run belongs to, or null when it belongs to none. */
+export async function getRunSession(runId: string, t: string): Promise<SessionView | null> {
+  const list = await call<{ items: { id: string }[] }>(sessionsUrl(`?runId=${encodeURIComponent(runId)}&limit=1`), t);
+  if (list.items.length === 0) return null;
+  return call<SessionView>(sessionsUrl(`/${encodeURIComponent(list.items[0].id)}`), t);
+}
+export const getSessionMembers = (sid: string, t: string) =>
+  call<{ items: SessionMember[] }>(sessionsUrl(`/${encodeURIComponent(sid)}/members?status=active`), t);
+export const transferOwner = (sid: string, t: string, toUserId: string, expectedOwnerUserId: string) =>
+  post<SessionView>(sessionsUrl(`/${encodeURIComponent(sid)}/owner`), t, { toUserId, expectedOwnerUserId });

@@ -694,8 +694,8 @@ def _esc(s: str) -> str:
 
 @router.get("")
 async def list_sessions(request: Request, p: Auth, q: str | None = None, state: str | None = None,
-                        workspaceId: str | None = None, limit: int = 25,
-                        cursor: str | None = None) -> dict:
+                        workspaceId: str | None = None, runId: str | None = None,
+                        limit: int = 25, cursor: str | None = None) -> dict:
     if state is not None and state not in STATES:
         raise _err(422, "VALIDATION_ERROR", f"state must be one of {list(STATES)}")
     limit = max(1, min(int(limit), 100))
@@ -713,6 +713,10 @@ async def list_sessions(request: Request, p: Auth, q: str | None = None, state: 
     if workspaceId:
         where.append("s.workspace_id = :ws")
         prm["ws"] = workspaceId
+    if runId:  # the session a run belongs to (the run page shows its owner)
+        where.append("EXISTS (SELECT 1 FROM session_runs sr WHERE sr.session_id = s.id"
+                     " AND sr.run_id = :run)")
+        prm["run"] = runId
     if q:
         where.append("LOWER(s.title) LIKE :q ESCAPE '!'")
         prm["q"] = f"%{_esc(q.strip().lower())}%"

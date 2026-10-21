@@ -2342,13 +2342,29 @@ class OrchestratorService(Orchestrator):
 
     _STEPS_SQL = text(
         """
-        SELECT seq, type, ts
+        SELECT seq, type, ts, payload
           FROM agent_events
          WHERE run_id = :run_id
          ORDER BY seq DESC
          LIMIT :cap
         """
     )
+
+    @staticmethod
+    def _step_wire(row: Any) -> dict[str, Any]:
+        """One history step. ``reason`` tells a stop (`paused` + user_requested_stop)
+        from a pause, and a failure's cause from a bare `engine_failed`."""
+        step: dict[str, Any] = {"seq": int(row["seq"]), "type": str(row["type"]), "ts": row["ts"]}
+        payload = row["payload"]
+        if isinstance(payload, str):  # sqlite JSON columns come back as str
+            try:
+                payload = json.loads(payload)
+            except Exception:  # noqa: BLE001
+                payload = None
+        reason = payload.get("reason") if isinstance(payload, dict) else None
+        if isinstance(reason, str) and reason:
+            step["reason"] = reason[:200]
+        return step
 
     @staticmethod
     def _cost_wire(cost_usd: Any) -> float | None:
@@ -2474,8 +2490,7 @@ class OrchestratorService(Orchestrator):
                 aggregate["costUsd"] = self._cost_wire(enrich_row["cost_usd"])
             # DESC+LIMIT grabs the last N cheaply; re-reverse to wire order.
             aggregate["steps"] = [
-                {"seq": int(row["seq"]), "type": str(row["type"]), "ts": row["ts"]}
-                for row in reversed(step_rows)
+                self._step_wire(row) for row in reversed(step_rows)
             ]
         except RunNotFoundError:
             raise

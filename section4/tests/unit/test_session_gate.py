@@ -330,3 +330,52 @@ async def test_unexpected_database_error_fails_closed():
 
     with pytest.raises(RuntimeError):
         await session_block(Broken(), "r1")
+
+
+# ---- A6: runs already executing follow the session's state --------------------------------
+
+
+async def _claim_running(factory, run_id):
+    async with factory() as db:
+        await db.execute(text(
+            "INSERT INTO run_claims (run_id, project_id, state, claimed_at, heartbeat_at,"
+            " worker_id) VALUES (:r, 'p', 'running', 't', 't', 'other-worker')"), {"r": run_id})
+        await db.commit()
+
+
+async def test_sweep_pauses_for_a_paused_session_and_stops_for_an_archived_one(env):
+    from harness_orchestrator.session_gate import sweep_inactive_session_runs
+    from harness_orchestrator.state_machine import AgentState
+
+    svc, f = env
+    layout = {"sp": ("paused", "r-pause"), "sa": ("archived", "r-arch"),
+              "sc": ("completed", "r-comp"), "sk": ("active", "r-ok")}
+    for sid, (state, rid) in layout.items():
+        await _session(f, sid, state, rid)
+        await _approve(svc, rid)
+        await _claim_running(f, rid)
+    svc.runs["r-pause"]["state_machine"].state = AgentState.EXECUTING  # a live claim means running
+    acted = await sweep_inactive_session_runs(svc)
+    assert sorted(acted) == ["r-arch", "r-comp", "r-pause"]
+    assert svc.runs["r-pause"]["state_machine"].state is AgentState.PAUSED  # resumable
+    assert svc.runs["r-arch"]["state_machine"].state is AgentState.DONE
+    assert svc.runs["r-comp"]["state_machine"].state is AgentState.DONE
+    assert svc.runs["r-ok"]["state_machine"].state is not AgentState.DONE
+    assert await sweep_inactive_session_runs(svc) == []  # claims released
+    async with f() as db:
+        rows = (await db.execute(text(
+            "SELECT action, target_id FROM audit_log WHERE action LIKE 'session.run_%ed'"
+            " AND action <> 'session.run_refused' ORDER BY action, target_id"))).all()
+    assert [(r.action, r.target_id) for r in rows] == [
+        ("session.run_paused", "sp"), ("session.run_stopped", "sa"), ("session.run_stopped", "sc")]
+
+
+def test_step_wire_tells_a_stop_from_a_pause_and_carries_a_failure_reason():
+    step = OrchestratorService._step_wire
+    row = lambda t, p: {"seq": 1, "type": t, "ts": "x", "payload": p}  # noqa: E731
+    stop = step(row("paused", '{"reason": "user_requested_stop"}'))
+    assert stop["reason"] == "user_requested_stop"
+    assert step(row("paused", {"reason": "user_requested"}))["reason"] == "user_requested"
+    assert step(row("engine_failed", '{"reason": "timeout: 600s"}'))["reason"] == "timeout: 600s"
+    assert "reason" not in step(row("resumed", "not json"))
+    assert "reason" not in step(row("resumed", {"runId": "r"}))

@@ -1178,9 +1178,9 @@ export class IdentityClient {
 
   /** List Sessions
    *  GET /api/v1/sessions */
-  list_sessions(q?: string | null, state?: string | null, workspace_id?: string | null, limit?: number, cursor?: string | null): Promise<Record<string, unknown>> {
+  list_sessions(q?: string | null, state?: string | null, workspace_id?: string | null, run_id?: string | null, limit?: number, cursor?: string | null): Promise<Record<string, unknown>> {
     const _path = `/api/v1/sessions`;
-    const params: Record<string, unknown> = {"q": q, "state": state, "workspaceId": workspace_id, "limit": limit, "cursor": cursor};
+    const params: Record<string, unknown> = {"q": q, "state": state, "workspaceId": workspace_id, "runId": run_id, "limit": limit, "cursor": cursor};
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
   }
 

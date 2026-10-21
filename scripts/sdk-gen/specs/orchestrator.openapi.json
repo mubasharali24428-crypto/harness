@@ -40,6 +40,17 @@
    "AggregateStepOut": {
     "description": "One ordered step of the W4-C2 aggregate (agent_events summary row).",
     "properties": {
+     "reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     },
      "seq": {
       "title": "Seq",
       "type": "integer"

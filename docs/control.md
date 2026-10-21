@@ -131,3 +131,11 @@ Reads need the run's team; writes need a non-read-only role; the pilot gate (`HA
   (they cascade with the run).
 * SQLite-tested only here; the SQL uses `DELETE ... RETURNING`, partial unique indexes and `to_regclass` (Postgres) and was not run on Postgres.
 * `docs/audit-and-events.md` section 6 rule 1 (guidance is never queued) now has this exception; that file was not edited by this lane.
+
+## Intent editor (A5, 2026-10-21)
+
+The run page shows the intent (version, goal, scope paths, permissions) as a form under the shared-run panel. It saves with
+`PUT intent` against the version it showed, so a change made by someone else in between is refused (`STALE_INTENT_VERSION`) or
+goes to the conflict view; a non-holder's change is queued (202) and the page says so. Roles that can lead may edit; others read
+only. Empty scope paths mean the whole workspace is open (the shell gate checks only when paths are listed). Tests:
+`section7/app/projects/[projectId]/runs/[runId]/ownerIntent.test.tsx`.

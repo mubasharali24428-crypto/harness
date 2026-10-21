@@ -16,6 +16,7 @@ export interface AbandonBody {
 
 /** AggregateStepOut. Required keys: seq, ts, type. */
 export interface AggregateStepOut {
+  reason?: string | null;  // optional
   seq: number;
   ts: string;
   type: string;

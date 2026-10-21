@@ -26,6 +26,7 @@ class AbandonBody(typing.TypedDict, total=False):
 
 class AggregateStepOut(typing.TypedDict, total=False):
     """AggregateStepOut. Required keys: seq, type, ts."""
+    reason: str | None
     seq: int  # required
     ts: str  # required
     type: str  # required

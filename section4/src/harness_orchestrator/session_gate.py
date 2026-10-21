@@ -13,9 +13,12 @@ Sections may import only ``harness_contracts``, so this speaks raw SQL to the fr
 
 Callers: ``OrchestratorService.start_execution`` (409 on start) and ``_dispatch_claim``
 (a run queued BEFORE the session was paused/archived cannot start after it). The state is
-re-read on every call (no cache). Runs already executing are not stopped by a state change.
+re-read on every call (no cache). Runs already executing are handled by
+:func:`sweep_inactive_session_runs`: a paused session pauses them (resumable), a completed,
+archived or deleted one stops them.
 """
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -91,6 +94,24 @@ async def _audit_refusal(factory: Any, run_id: str, sid: str, state: str, where:
         logger.exception("session.run_refused audit failed (run=%s)", run_id)
 
 
+async def _audit(factory: Any, action: str, sid: str, detail: dict[str, Any]) -> None:
+    from sqlalchemy import text
+
+    try:
+        async with factory() as db:
+            await db.execute(
+                text(
+                    "INSERT INTO audit_log (actor_member_id, actor_kind, action,"
+                    " target_type, target_id, detail, ts)"
+                    " VALUES (NULL, 'human', :action, 'session', :sid, :detail, :ts)"
+                ),
+                {"action": action, "sid": sid, "detail": json.dumps(detail), "ts": db_now()},
+            )
+            await db.commit()
+    except Exception:  # noqa: BLE001 — audit must never mask the action
+        logger.exception("%s audit failed (session=%s)", action, sid)
+
+
 async def check_session_run_start(service: Any, run_id: str, *,
                                   where: str = "start") -> tuple[str, str] | None:
     """Return the block (and audit it) when the run's session is not active."""
@@ -106,3 +127,62 @@ async def enforce_session_run_start(service: Any, run_id: str) -> None:
     block = await check_session_run_start(service, run_id, where="start")
     if block is not None:
         raise SessionNotActiveError(*block)
+
+
+STOP_AUDIT_ACTION = "session.run_stopped"
+PAUSE_AUDIT_ACTION = "session.run_paused"
+
+_RUNNING_IN_INACTIVE_SQL = (
+    "SELECT c.run_id AS run_id, s.id AS sid, s.state AS state FROM run_claims c"
+    " JOIN session_runs sr ON sr.run_id = c.run_id JOIN collab_sessions s ON s.id = sr.session_id"
+    " WHERE c.state = 'running' AND s.state <> 'active'"
+)
+
+
+async def sweep_inactive_session_runs(service: Any) -> list[str]:
+    """Pause (session paused) or stop (completed, archived, deleted) runs that are still
+    executing under a live claim in a non-active session. Returns the run ids acted on.
+
+    Both calls release the claim, so a second sweep finds nothing; a paused run resumes with
+    the session. Mirrors ``workspace_gate.sweep_inactive_workspace_runs``."""
+    factory = getattr(service, "session_factory", None)
+    if factory is None:
+        return []
+    from sqlalchemy import text
+
+    try:
+        async with factory() as db:
+            rows = (await db.execute(text(_RUNNING_IN_INACTIVE_SQL))).all()
+    except Exception:  # noqa: BLE001 — no session/run_claims schema: nothing to act on
+        logger.warning("session sweep: schema unavailable; skipping", exc_info=True)
+        return []
+    acted: list[str] = []
+    for r in rows:
+        pausing = str(r.state) == "paused"
+        try:
+            if pausing:
+                await service.pause_agent(r.run_id)
+                changed = True
+            else:
+                changed = await service.stop_agent(r.run_id, reason="session_inactive")
+        except Exception:  # noqa: BLE001 — one bad run must not stop the sweep
+            logger.exception("session sweep could not act on run %s", r.run_id)
+            continue
+        if changed:
+            acted.append(r.run_id)
+            await _audit(factory, PAUSE_AUDIT_ACTION if pausing else STOP_AUDIT_ACTION,
+                         str(r.sid), {"runId": r.run_id, "sessionId": str(r.sid),
+                                      "state": str(r.state)})
+    return acted
+
+
+async def session_run_sweeper(service: Any, interval: float) -> None:
+    """Run :func:`sweep_inactive_session_runs` every ``interval`` seconds until cancelled."""
+    while True:
+        try:
+            await sweep_inactive_session_runs(service)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 — the next tick retries
+            logger.exception("session run sweep failed")
+        await asyncio.sleep(interval)

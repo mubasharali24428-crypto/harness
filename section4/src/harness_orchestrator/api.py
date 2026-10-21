@@ -437,6 +437,7 @@ class AggregateStepOut(BaseModel):
     seq: int
     type: str
     ts: datetime
+    reason: str | None = None
 
 
 class BudgetDegradedOut(BaseModel):

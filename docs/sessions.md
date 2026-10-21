@@ -28,7 +28,7 @@ link returns 200; a run in another session is 409 `RUN_ALREADY_LINKED`.
 
 | Role | How it is set | Can do |
 |---|---|---|
-| `owner` | the creator; fixed (no transfer in this lane) | everything a manager can; cannot leave |
+| `owner` | the creator; `POST /{id}/owner` hands it to an active member (the run page has a panel for it) | everything a manager can; cannot leave |
 | leader | `PATCH {leaderUserId}`; must be an active owner or participant | pause, complete, link and unlink runs |
 | `participant` | add / `PUT members/{id}` | read, link runs (needs team role admin or engineer) |
 | `observer` | add / `PUT members/{id}` | read only |
@@ -67,9 +67,10 @@ keep them in step).
 Mapping to the directive's words: creation = `created`, queued = `queued`, planning = plan proposed,
 approval = `awaiting_plan_approval`/`approved`, executing/paused as named, completed = `done`,
 **failed = `blocked`** (a failed engine or review waits for a human, it is not terminal), and
-**stopped = `done`** (the state machine seals a stopped run as DONE and emits no distinguishing
-event, so a stop cannot be told apart from an accepted review). `done` is the only terminal phase;
-nothing resurrects it.
+**stopped = `done`**, and the history tells it apart: a stop is stored as a `paused` event with
+`reason: user_requested_stop` (a pause has `user_requested`), a failure as `engine_failed` with its
+reason. The run aggregate's `steps` carry that `reason`, and the run history reads "Stopped by user"
+and "Engine failed: <reason>". `done` is the only terminal phase; nothing resurrects it.
 
 Session states: `active`, `paused`, `completed`, `archived`, `deleted`.
 
@@ -89,8 +90,10 @@ Repeating a transition is a no-op (`changed:false`, no audit). Anything else is 
 and `deleted` sessions: linking a run is refused (409 `SESSION_NOT_ACTIVE`), starting a linked run
 is refused by the section4 gate (`start_execution`, 409 `SESSION_NOT_ACTIVE`, audited as
 `session.run_refused`), and a run that was already queued when the session stopped is dropped from
-the queue at claim time (single and batch claim). Runs already executing are **not** stopped; they
-finish normally. The gate re-reads the state on every call and does not cache. It tolerates only a
+the queue at claim time (single and batch claim). A run already executing follows the session: a
+sweep every 30 s (`HARNESS_SESSION_SWEEP_SECONDS`, 0 turns it off) pauses it when the session is
+paused (it resumes with the session) and stops it when the session is completed, archived or
+deleted, audited as `session.run_paused` / `session.run_stopped`. The gate re-reads the state on every call and does not cache. It tolerates only a
 missing session schema (pre-0041 stores); any other database error propagates and the run does not
 start. `resume_agent` is not gated. Unlinking a run (`DELETE /{id}/runs/{runId}`, owner/admin/leader,
 any session state) detaches it and lifts the gate for that run; it is audited.

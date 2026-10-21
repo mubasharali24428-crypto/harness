@@ -53,9 +53,10 @@ caught it; the Chromium check now pins it.
 
 ## Findings left open (not fixed, informational in the script)
 
-* **Colour contrast, run page: 7 elements, 3.3 to 3.9 against the 4.5 needed.** Cause: the literal `#6b7280` used for secondary text on the dark
+* **Closed 2026-10-21 (A7): colour contrast and target size.** The run page now shows axe 0 violations and 0 targets under 24 px at all four widths (rules at the end of `section7/app/globals.css`; the intent and owner panels are included). The `#6b7280` text the notes below describe is no longer in the source; axe reports no contrast failure. What stays open is below.
+* ~~**Colour contrast, run page: 7 elements, 3.3 to 3.9 against the 4.5 needed.** Cause: the literal `#6b7280` used for secondary text on the dark
   panels (`h1` suffix, run-state pill, panel hints), set inline in several components rather than through a token. Raising it is a visual
-  decision across the product, so it is left to the owner. The script prints the ratio per element.
+  decision across the product, so it is left to the owner. The script prints the ratio per element.~~
 * **Target size (WCAG 2.2, 24 px): 3 to 4 elements** (breadcrumb links 15 px high, two selects 19 px, one 13 px checkbox). The 44 px rule at 600 px in
   `globals.css` covers `.btn`, the text inputs and the team switcher, not these links, selects or the checkbox.
 * **`.cm-scroller`** is flagged by axe `scrollable-region-focusable` at three of the four widths. The editor's own content element takes focus

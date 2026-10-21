@@ -160,6 +160,8 @@ export interface RunStepDto {
   type: string;
   /** ISO timestamp when the server had one; null stays null — never faked. */
   ts: string | null;
+  /** Payload reason when the server sent one: tells a stop from a pause and says why a run failed. */
+  reason?: string;
 }
 
 /** W4-C2 run aggregate wire shape (camelCase per api-conventions.md). */
@@ -268,7 +270,9 @@ const STEP_LABELS: Record<string, string> = {
 };
 
 /** Pure: human label for a raw event type. */
-export function stepLabel(type: string): string {
+export function stepLabel(type: string, reason?: string): string {
+  if (type === "paused" && reason === "user_requested_stop") return "Stopped by user";
+  if (type === "engine_failed" && reason) return `Engine failed: ${reason}`;
   const known = STEP_LABELS[type];
   if (known) return known;
   return type.replace(/_/g, " ").trim() || "unknown event";
@@ -310,6 +314,7 @@ export async function getRunAggregate(
             : Number.NaN,
         type: typeof rec.type === "string" ? rec.type : "unknown",
         ts: asStringOrNull(rec.ts),
+        ...(typeof rec.reason === "string" && rec.reason ? { reason: rec.reason } : {}),
       });
       if (steps.length >= RUN_AGGREGATE_STEPS_MAX) break;
     }

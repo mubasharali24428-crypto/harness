@@ -1,6 +1,6 @@
 # Harness Multiplayer AI: project state and resume guide
 
-Updated 2026-10-21 (path-to-9 batch 2: shell gate B1, intent scope A3, engine tool calls A4). Read this first in a new session, then
+Updated 2026-10-21 (path-to-9 batch 3: owner and intent UI A5, stop/fail and session sweep A6, target size A7). Read this first in a new session, then
 `docs/briefs/path-to-9-plan.md`, `docs/briefs/capability-matrix.md` and `docs/briefs/path-to-9-checkpoint.md`. The repository is the
 source of truth: re-verify any number before relying on it. Nothing here claims readiness for real users (see "Not cleared").
 Per-session results, the old verification records and the local Session 11 detail (§3g) are in `docs/briefs/evidence/s11/state-history.md`.
@@ -39,7 +39,7 @@ closed part 44 (`00a1412`). Session 11 ran twice in parallel: locally (gap closu
 | 11 cloud | Parts 12, 14, 24, 29, process parts, PostgreSQL IN-list diagnosis, browser check | done; `evidence/s11/cloud-report.md` |
 | 12 | Lane A (11, 14, 29, 38, 40, 42) and lane B (48 to 50, 56 axe); 25, 28, 54, 55, 59 evidence; 52 amd64 probe | done; `evidence/s12/` |
 
-Branches: `master` holds everything (pushed through batch 1, `7705fe8`), including `origin/cloud/path-to-9-finish` and the cloud pass
+Branches: `master` holds everything (pushed through batch 2, `8977c4d`), including `origin/cloud/path-to-9-finish` and the cloud pass
 (`origin/claude/path-to-9-finish-ax6hie`). The other lanes' uncommitted work (P0-P3 isolation, SMTP TLS, section 2 scope mode, A5
 packages, docs) was committed on 2026-10-20 after its suites passed. Not merged: `origin/codex/harness-a1` to `a5`.
 
@@ -58,7 +58,7 @@ Readiness: **NO-GO** for broad rollout (`docs/briefs/final-deliverables.md`, sec
    pen test (cap 8), argument-level path checks, one program per call.
 2. Row 26: `run_smoke.py --real` needs an OpenRouter key (not configured). Row 32: pilot-counter alerts and staged rollout.
 3. Row 55: dashboard not imported into Grafana and looked at (no Grafana image; pulling one not authorised).
-4. Row 56: no screen reader; contrast and target-size items in `evidence/s11/browser-check.md`; English only.
+4. Row 56: no screen reader; only two pages walked by the browser check; English only (contrast and target size closed 2026-10-21).
 5. Part 57: in-flight engine spend is an estimate. Part 51: residency is deployment-wide.
 6. Parts 31/58: backups expired outside the scripts (bucket lifecycle rules) are not covered by holds.
 7. Multi-replica (closed 2026-10-21 on one host, `evidence/s12/part54.md`): artifacts, exports and diffs share one Docker volume
@@ -66,7 +66,7 @@ Readiness: **NO-GO** for broad rollout (`docs/briefs/final-deliverables.md`, sec
    object store; the store volume is not in the backup scripts. Part 28: one email address is the only alert channel; a stack that
    never ran a backup has no backup series. Part 53: point-in-time restore is drilled from the live file archive and
    through self-hosted S3 (SeaweedFS; `evidence/s12/part28-55.md` sections 5-6), not yet against a cloud bucket.
-8. Smaller limits: Section 7 does not read `currentOwnerUserId` (14); no owner-transfer UI, stop/fail not distinct (40); only intent
+8. Smaller limits: a session state change reaches running runs within 30 s, by sweep (40); only intent
    `scopePaths` are engine-enforced, at argument level (42); a timed-out engine call's tool calls are not recorded (44); GitHub OAuth token keeps write scope once a project opts in (49); the audit anchor file is only as safe as its storage (11).
 9. Externally gated: 03 (real pilot cohort and baseline), 37 (live identity provider), 52 and 58 (pen test, counsel), 53 (real restore), 61.
 

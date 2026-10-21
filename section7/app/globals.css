@@ -536,3 +536,29 @@ tr[tabindex="0"]:focus-visible {
     scroll-behavior: auto !important;
   }
 }
+
+/* --- WCAG 2.2 target size (2.5.8): every control at least 24 x 24 CSS px ---
+   Browser defaults give selects 19px and checkboxes 13px; summaries and
+   stand-alone links were 15px. Text links inside prose are exempt. */
+select,
+summary {
+  min-height: 24px;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  flex-shrink: 0;
+}
+
+input:not([type="checkbox"]):not([type="radio"]) {
+  min-height: 24px;
+}
+
+a[href] {
+  display: inline-block;
+  min-height: 24px;
+  line-height: 24px;
+}
