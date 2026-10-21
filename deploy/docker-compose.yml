@@ -331,6 +331,13 @@ services:
     environment:
       <<: *backend-env
       HARNESS_SERVICE: orchestrator
+      # Artifact, export and diff bytes live on one volume, so every orchestrator replica reads what
+      # another wrote (stores are content-addressed and publish with an atomic rename).
+      HARNESS_ARTIFACT_ROOT: /var/lib/harness-store/artifacts
+      HARNESS_EXPORT_DIR: /var/lib/harness-store/exports
+      HARNESS_DIFFSTORE_ROOT: /var/lib/harness-store/diffs
+    volumes:
+      - harness_store:/var/lib/harness-store
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -1084,6 +1091,12 @@ services:
       # empty default ⇒ runner's own F9 dev fallback supplies the key under
       # the ALLOW_DEV opt-in — no baked-in secret default ships in compose.
       HARNESS_MASTER_KEY: ${PROBE_MASTER_KEY:-}
+      # Same shared store as `orchestrator`, on its own volume: replicas see each other's files.
+      HARNESS_ARTIFACT_ROOT: /var/lib/harness-store/artifacts
+      HARNESS_EXPORT_DIR: /var/lib/harness-store/exports
+      HARNESS_DIFFSTORE_ROOT: /var/lib/harness-store/diffs
+    volumes:
+      - harness_store_loadtest:/var/lib/harness-store
     # Part 54 (session 12): a port range so `--scale orchestrator-loadtest=N` (run_probe.sh
     # PROBE_ORCH_REPLICAS, up to 4) can run several replicas on the one queue; any replica serves the API.
     ports:
@@ -1118,6 +1131,10 @@ volumes:
   # only under the harness-loadtest project; `... --profile loadtest down -v`
   # removes it with the stack.
   pgdata_loadtest:
+  # Artifact/export/diff bytes shared by orchestrator replicas (mounted at /var/lib/harness-store).
+  # Back it up with the database: the artifacts table points into it.
+  harness_store:
+  harness_store_loadtest:
   # H-018 (M13-W3-H2): the archiving database's own data volume — deliberately
   # SEPARATE from `pgdata` so PITR drills can never collide with live data.
   pgdata_walg:

@@ -206,7 +206,7 @@ Rows are appended in the same transaction as the change, `actor_kind human`, det
 
 ## 14. Honest gaps and ceilings
 
-- **The artifact store is process-local disk** (same as `diffstore`): bytes live under `HARNESS_ARTIFACT_ROOT` of one container, survive a restart of that process only if the directory is kept, are not shared between replicas and are not backed up. The `artifacts` table is durable and a missing blob answers `410 ARTIFACT_CONTENT_MISSING`. A multi-replica or durable deployment needs a shared volume or an object store behind `artifact_store.put/get/remove` (the three functions are the seam).
+- **The artifact store is process-local disk** (same as `diffstore`): bytes live under `HARNESS_ARTIFACT_ROOT` of one container, survive a restart of that process only if the directory is kept, are not shared between replicas and are not backed up. The `artifacts` table is durable and a missing blob answers `410 ARTIFACT_CONTENT_MISSING`. A multi-replica or durable deployment needs a shared volume or an object store behind `artifact_store.put/get/remove` (the three functions are the seam). The compose stack uses a shared volume: every orchestrator replica mounts `harness_store` at `/var/lib/harness-store` (artifacts, exports and diffs), proven across two replicas in `evidence/s12/part54.md`. That volume is not backed up yet.
 - No GitHub is contacted: base/head shas are caller-recorded; stale detection is only as fresh as the last `PUT git-state`. Nothing calls the endpoint automatically yet.
 - Merge approval is a Harness record, not a GitHub gate: section2 never merges and no branch-protection rule consumes the approval.
 - `git-permissions` is not enforced on section2's commit / branch / PR routes.

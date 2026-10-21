@@ -22,9 +22,11 @@ RUN pip install --no-cache-dir "deepseek-harness-sdk==0.1.1rc1" \
     && rm -rf /root/.cache
 
 # Non-root runtime: services never need privileges beyond /tmp workspaces.
+# /var/lib/harness-store is the mountpoint of the shared store volume (compose `harness_store`):
+# owning it here makes a fresh named volume writable by uid harness.
 RUN useradd --system --create-home --shell /usr/sbin/nologin harness \
-    && mkdir -p /tmp/harness-dsh /tmp/harness_sandboxes \
-    && chown -R harness:harness /tmp/harness-dsh /tmp/harness_sandboxes
+    && mkdir -p /tmp/harness-dsh /tmp/harness_sandboxes /var/lib/harness-store \
+    && chown -R harness:harness /tmp/harness-dsh /tmp/harness_sandboxes /var/lib/harness-store
 USER harness
 
 EXPOSE 8001 8002 8003 8004 8005 8006 8008

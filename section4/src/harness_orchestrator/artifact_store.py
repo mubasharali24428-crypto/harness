@@ -9,7 +9,9 @@ refuse a corrupted blob.
 
 Honest ceiling (same as ``diffstore``): the store is process-local disk (``HARNESS_ARTIFACT_ROOT``,
 default ``$TMPDIR/harness_artifacts``). It survives a restart of one process but is not shared
-between replicas and is not backed up; the artifacts table is durable, the bytes are not.
+between replicas and is not backed up; the artifacts table is durable, the bytes are not. The
+compose stack points the root at the ``harness_store`` volume, which every orchestrator replica
+mounts, so there replicas share it (still not backed up).
 
 Classifier: a verdict from magic bytes AND extension AND markup sniffing. Executables, archives,
 scripts and active content (HTML/SVG) are ``quarantined``; so is a file whose extension claims an

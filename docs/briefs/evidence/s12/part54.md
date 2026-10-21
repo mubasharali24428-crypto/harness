@@ -75,6 +75,33 @@ address, was refused with 429 after 60 tickets, as designed.
   between services. Numbers describe this setup only and set no production user or team cap.
 - One identity replica for sockets; socket fan-out across identity replicas (PG NOTIFY) was not
   load-tested here.
-- Artifact and export files are on each replica's local disk (`HARNESS_ARTIFACT_ROOT`,
-  `HARNESS_EXPORT_DIR`): a multi-replica deployment needs a shared volume for them.
+- Artifact and export files were on each replica's local disk (`HARNESS_ARTIFACT_ROOT`,
+  `HARNESS_EXPORT_DIR`). Closed 2026-10-21 with a shared volume (see "Shared store" below).
 - Cost per active run: zero by construction (dry engine); provider-backed cost is not measured.
+
+## Shared store across orchestrator replicas (2026-10-21)
+
+The artifact, export and diff stores were each replica's own `/tmp`. Now every orchestrator replica in
+`deploy/docker-compose.yml` mounts one named volume at `/var/lib/harness-store`: `harness_store` for
+`orchestrator`, `harness_store_loadtest` for `orchestrator-loadtest`. `HARNESS_ARTIFACT_ROOT`, `HARNESS_EXPORT_DIR` and
+`HARNESS_DIFFSTORE_ROOT` point inside it. `deploy/backend.Dockerfile` creates the mountpoint owned by `harness`,
+because a fresh named volume takes the ownership of the image directory and the services run as uid 999. No code
+changed: the stores are content-addressed (artifacts, diffs) or keyed by job id (exports), and they publish with an
+atomic rename.
+
+Check: the loadtest stack ran with `--scale orchestrator-loadtest=2` (ports 18004 and 18005). The script logged in,
+made a project and a run, uploaded an artifact through replica A and downloaded it through replica B, then created
+a `run_history` export on A and downloaded it on B. Then it ran again with A and B swapped.
+
+| direction | artifact upload / download | bytes equal | export create / download | sha256 = `X-Export-Sha256` |
+|---|---|---|---|---|
+| 18004 to 18005 | 201 / 200 | yes | 201 / 200 (1384 B) | yes |
+| 18005 to 18004 | 201 / 200 | yes | 201 / 200 (1384 B) | yes |
+
+The live `orchestrator` was recreated on `harness_store`: healthy, `/ready` 200, mount owned by `harness`.
+Section 1 deploy-config tests 115 passed, 1 skipped; section 4 `test_live_mode.py` 53 passed.
+
+Limits: diffs share the same mount but were not round-tripped through the API. Bytes written to the old per-container
+`/tmp` before the switch are not migrated; they were already lost on every container recreate. The volume is a
+local Docker volume (one host); several hosts need NFS or an object store behind `artifact_store.put/get/remove`.
+The volume is not in the backup scripts.

@@ -142,7 +142,8 @@ either, nothing is truncated: the job is `refused`, no file is written, the resp
 `<jobId>.<format>` (the reference is built server-side and validated against a strict pattern before any file access). They
 expire after `HARNESS_EXPORT_TTL_SECONDS` (default 86400). `purge_expired_exports(factory)` deletes expired files and finishes
 removals interrupted by a crash; the orchestrator runs it every `HARNESS_EXPORT_PURGE_SECONDS` (default 3600, `0` = off). The store is process-local disk like `diffstore.py`: with several
-orchestrator replicas the export store must be a shared volume (see gaps).
+orchestrator replicas it must be a shared volume. The compose stack does this: every orchestrator replica mounts the
+`harness_store` volume and `HARNESS_EXPORT_DIR=/var/lib/harness-store/exports` (`evidence/s12/part54.md` §shared store).
 
 **Download.** `GET exports/{id}` and `GET exports/{id}/download` need the export permission and are for the requester and team
 admins; anyone else, another team and unknown ids get the same `404 EXPORT_NOT_FOUND`. Download **re-authorises the scope**
@@ -226,7 +227,7 @@ Wiring (lead): `app.include_router(search.router)`, `app.include_router(exports.
   request); fine for pilot volumes.
 * Artifact **contents** are not indexed or exported (the artifact store belongs to lane AR); only names, media types and kinds.
   Artifact files are not touched by deletion requests.
-* Exports are built in the request (no background queue) and held in memory up to the byte cap; the store is local disk.
+* Exports are built in the request (no background queue) and held in memory up to the byte cap; the store is a directory (the shared `harness_store` volume under compose), not an object store.
 * Session membership changes and approval changes do not bump the source's timestamp, so participant and approval-state
   *filters* can miss an item until the next reindex or source change (the live re-check can only remove false positives).
 * Comment revisions are not part of history exports (use the discussion export); event payloads in exports are cleaned but
