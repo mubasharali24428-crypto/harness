@@ -152,8 +152,9 @@ _LL_CREATE_RULESET = 444
 _LL_ADD_RULE = 445
 _LL_RESTRICT_SELF = 446
 _LL_RULE_PATH_BENEATH = 1
+_LL_CREATE_RULESET_VERSION = 1  # create_ruleset flag: return the ABI version
 
-# Access bits per landlock ABI v1.
+# Access bits per landlock ABI v1 (LL_TRUNCATE: ABI 3).
 LL_EXECUTE = 1 << 0
 LL_WRITE_FILE = 1 << 1
 LL_READ_FILE = 1 << 2
@@ -167,12 +168,12 @@ LL_MAKE_SOCK = 1 << 9
 LL_MAKE_FIFO = 1 << 10
 LL_MAKE_BLOCK = 1 << 11
 LL_MAKE_SYM = 1 << 12
+LL_TRUNCATE = 1 << 14
 
 _HANDLED = (
     LL_WRITE_FILE | LL_REMOVE_DIR | LL_REMOVE_FILE | LL_MAKE_CHAR | LL_MAKE_DIR
     | LL_MAKE_REG | LL_MAKE_SOCK | LL_MAKE_FIFO | LL_MAKE_BLOCK | LL_MAKE_SYM
 )
-_READ_EXEC_EVERYWHERE = LL_EXECUTE | LL_READ_FILE | LL_READ_DIR
 
 
 def apply_landlock_in_child(
@@ -188,14 +189,19 @@ def apply_landlock_in_child(
     import ctypes.util
 
     libc = ctypes.CDLL(ctypes.util.find_library("c") or "libc.so.6", use_errno=True)
-    attr = struct.pack("Q", _HANDLED)
+    handled = _HANDLED
+    if libc.syscall(_LL_CREATE_RULESET, None, 0, _LL_CREATE_RULESET_VERSION) >= 3:
+        handled |= LL_TRUNCATE  # ABI 3+: truncate(2) by path is a write too
+    attr = struct.pack("Q", handled)
     ruleset_fd = libc.syscall(_LL_CREATE_RULESET, attr, len(attr), 0)
     if ruleset_fd < 0:
         raise OSError("landlock_create_ruleset failed")
 
     def add_beneath(parent_fd: int, allowed: int) -> None:
-        rule = struct.pack("iQi", _LL_RULE_PATH_BENEATH, allowed, parent_fd)
-        if libc.syscall(_LL_ADD_RULE, ruleset_fd, _LL_RULE_PATH_BENEATH, rule) != 0:
+        # struct landlock_path_beneath_attr is packed: u64 allowed_access, s32 parent_fd.
+        rule = struct.pack("=Qi", allowed, parent_fd)
+        # flags must be passed (0): left out, the kernel reads a stale register and says EINVAL.
+        if libc.syscall(_LL_ADD_RULE, ruleset_fd, _LL_RULE_PATH_BENEATH, rule, 0) != 0:
             raise OSError("landlock_add_rule failed")
 
     O_PATH = os.O_PATH | os.O_CLOEXEC
@@ -203,16 +209,18 @@ def apply_landlock_in_child(
     def fs_fd(path: str) -> int:
         return os.open(path, O_PATH)
 
-    add_beneath(fs_fd("/"), _READ_EXEC_EVERYWHERE)
+    # Reads and execute are not handled, so they stay allowed everywhere without a rule
+    # (a rule may only grant handled rights; the old "/" read rule made every add EINVAL).
     # T7b: writes only to the workspace and this task's private tmp (never the shared temp).
     writable = {str(Path(workspace).resolve())}
     if tmpdir is not None:
         writable.add(str(Path(tmpdir).resolve()))
     for p in writable:
         try:
-            add_beneath(fs_fd(p), _HANDLED)
+            add_beneath(fs_fd(p), handled)
         except OSError:  # unreadable temp dir variants etc.
             continue
+    add_beneath(fs_fd("/dev/null"), LL_WRITE_FILE)  # as Seatbelt: tools write to /dev/null
 
     if libc.syscall(_LL_RESTRICT_SELF, ruleset_fd, 0) != 0:
         raise OSError("landlock_restrict_self failed")
