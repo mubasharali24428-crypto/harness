@@ -25,7 +25,8 @@ async def test_logout_revokes_that_token_but_not_the_users_other_session(client)
     assert (await client.get("/api/v1/me", headers=_h(first))).status_code == 200
     assert (await client.post("/api/v1/auth/logout", headers=_h(first))).json() == {"ok": True}
     assert (await client.get("/api/v1/me", headers=_h(first))).status_code == 401
-    assert (await client.post("/api/v1/auth/logout", headers=_h(first))).status_code == 401  # no replay
+    replay = await client.post("/api/v1/auth/logout", headers=_h(first))
+    assert replay.status_code == 401  # no replay
     assert (await client.get("/api/v1/me", headers=_h(second))).status_code == 200
 
 

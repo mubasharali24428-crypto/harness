@@ -14,10 +14,20 @@ class ModelRouterService(ModelRouter):
             ModelRole.PRIMARY: config.default_primary_model,
             ModelRole.REVIEWER: config.default_reviewer_model,
         }
+        # S-02: a team's override never leaks into another team's calls.
+        self.team_role_models: dict[tuple[str, ModelRole], str] = {}
         self.call_history: list[dict] = []
 
-    def set_role_model(self, role: ModelRole, model_name: str) -> None:
-        self.role_models[role] = model_name
+    def set_role_model(self, role: ModelRole, model_name: str, team_id: str | None = None) -> None:
+        if team_id is None:
+            self.role_models[role] = model_name
+        else:
+            self.team_role_models[(team_id, role)] = model_name
+
+    def _role_model(self, role: ModelRole, team_id: str | None) -> str:
+        if team_id is not None and (team_id, role) in self.team_role_models:
+            return self.team_role_models[(team_id, role)]
+        return self.role_models.get(role, config.default_primary_model)
 
     def call_model(
         self,
@@ -27,13 +37,13 @@ class ModelRouterService(ModelRouter):
         opts: ModelCallOpts | None = None,
         api_key: str | None = None,
         model_name: str | None = None,
+        team_id: str | None = None,
     ) -> ModelResult:
         """One provider call. ``api_key`` is the team BYO secret — it goes to
         the provider layer only, never into history or logs. ``model_name``
         overrides the role default (the ``model`` REST body field)."""
-        model = model_name if model_name in MODEL_PRICING_CATALOG else self.role_models.get(
-            role, config.default_primary_model
-        )
+        in_catalog = model_name in MODEL_PRICING_CATALOG
+        model = model_name if in_catalog else self._role_model(role, team_id)
         result = self.client.call(model=model, messages=messages, opts=opts, api_key=api_key)
 
         self.call_history.append(
@@ -47,8 +57,10 @@ class ModelRouterService(ModelRouter):
         )
         return result
 
-    def estimate_cost(self, role: ModelRole, input_tokens: int, output_tokens: int) -> float:
-        model = self.role_models.get(role, config.default_primary_model)
+    def estimate_cost(
+        self, role: ModelRole, input_tokens: int, output_tokens: int, team_id: str | None = None
+    ) -> float:
+        model = self._role_model(role, team_id)
         # Wire edge: /estimate-cost answers in JSON numbers; math stays exact.
         return float(PricingEngine.calculate_cost(model, input_tokens, output_tokens))
 

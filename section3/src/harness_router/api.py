@@ -254,6 +254,7 @@ async def call_model(req: CallModelRequest, principal: Writer) -> ModelResult:
             # fallback stays keyless-only and dev-gated.
             api_key=req.apiKey,
             model_name=req.model,
+            team_id=principal.teamId,
         )
     except InvalidApiKeyError as e:
         raise HTTPException(
@@ -356,6 +357,7 @@ def estimate_cost(req: EstimateCostRequest, principal: Reader) -> dict[str, Any]
         role=req.role,
         input_tokens=req.inputTokens,
         output_tokens=req.outputTokens,
+        team_id=principal.teamId,
     )
     return {
         "role": req.role,
@@ -394,7 +396,7 @@ def configure_role_model(req: ConfigureRoleModelRequest, principal: Writer) -> d
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"error": {"code": "UNKNOWN_MODEL", "message": msg}},
         )
-    _service.set_role_model(req.role, req.model)
+    _service.set_role_model(req.role, req.model, team_id=principal.teamId)
     return {"role": req.role, "model": req.model, "status": "configured"}
 
 
