@@ -1037,8 +1037,10 @@ services:
       # constant under the already-set ALLOW_DEV opt-in — no baked-in secret
       # default ships in compose (H-005/C-004 compose law).
       HARNESS_MASTER_KEY: ${PROBE_MASTER_KEY:-}
+    # A port range so `--scale identity-loadtest=2` (run_probe.sh PROBE_IDENTITY_REPLICAS) can run two
+    # socket replicas; ws_capacity.py spreads sockets across them. Not 18003: a New Relic agent took it here.
     ports:
-      - "127.0.0.1:18001:8001"
+      - "127.0.0.1:18001-18002:8001"
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3)\""]
       interval: 5s

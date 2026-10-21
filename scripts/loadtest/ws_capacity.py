@@ -10,6 +10,9 @@ live one:
     section1/.venv/bin/python scripts/loadtest/ws_capacity.py \
         --identity http://localhost:18001 --orchestrator http://localhost:18004 --users 50 --per-user 10
 
+`--identity a,b` spreads sockets over identity replicas: socket k mints its ticket on replica k mod n
+and connects to replica k+1 mod n, so every socket also redeems a ticket another replica minted.
+
 Needs httpx and websockets (both in section1's venv).
 """
 
@@ -21,6 +24,7 @@ import statistics
 import sys
 import time
 import uuid
+from collections import Counter
 
 import httpx
 from websockets.asyncio.client import connect
@@ -53,17 +57,25 @@ async def _user(http, args, i):
     return token, r.json()["id"], auth
 
 
-async def _socket(http, args, auth, project, inbox, opened, refused, stop):
-    r = await http.post(f"{args.identity}/api/v1/ws-ticket", json={"projectId": project}, headers=auth)
-    if r.status_code != 200:
-        refused.append(f"ticket {r.status_code}")
-        return
-    url = (args.identity.replace("http", "ws", 1)
-           + f"/api/v1/ws/{project}?ticket={r.json()['ticket']}&fingerprint={FP}")
-    try:
+async def _socket(http, args, k, auth, project, inbox, opened, refused, stop, phases):
+    mint, sock = args.ids[k % len(args.ids)], args.ids[(k + 1) % len(args.ids)]
+    t0 = time.perf_counter()  # reset once the gate admits the POST
+    try:  # the ticket POST too: a client-side timeout there must count as refused, not vanish
+        # httpcore rescans its whole request queue per connection event (O(queued x pool)): 1000 queued
+        # POSTs made this client CPU-bound and the ramp twice as long on two replicas. Queue here instead.
+        async with args.mint_gate:
+            t0 = time.perf_counter()
+            r = await http.post(f"{mint}/api/v1/ws-ticket", json={"projectId": project}, headers=auth)
+        if r.status_code != 200:
+            refused.append(f"ticket {r.status_code}")
+            return
+        t1 = time.perf_counter()
+        url = (sock.replace("http", "ws", 1)
+               + f"/api/v1/ws/{project}?ticket={r.json()['ticket']}&fingerprint={FP}")
         async with connect(url, user_agent_header=UA, open_timeout=30, max_size=None,
                            additional_headers={"x-forwarded-for": auth["x-forwarded-for"]}) as ws:
-            opened.append(1)
+            opened.append(sock)
+            phases.append((t1 - t0, time.perf_counter() - t1))  # ticket mint, handshake
             while not stop.is_set():
                 try:
                     raw = await asyncio.wait_for(ws.recv(), 1.0)
@@ -71,19 +83,24 @@ async def _socket(http, args, auth, project, inbox, opened, refused, stop):
                     continue
                 msg = json.loads(raw)
                 if msg.get("type") == "plan_proposed":
-                    inbox.append((project, time.perf_counter()))
+                    inbox.append((project, time.perf_counter(), sock))
     except Exception as exc:  # noqa: BLE001 - a refused or dropped socket is a measurement, not a crash
-        refused.append(type(exc).__name__ + ":" + str(exc)[:80])
+        # 10 s bucket of time since the ticket request: past 30 s a ticket has expired (WS_TICKET_TTL_SECONDS)
+        refused.append(f"{type(exc).__name__}:{str(exc)[:80]} at {int((time.perf_counter() - t0) // 10) * 10}s+")
 
 
 async def main(args):
+    args.ids = args.identity.split(",")
+    args.identity = args.ids[0]  # logins and projects go to the first replica
     limits = httpx.Limits(max_connections=200)
+    args.mint_gate = asyncio.Semaphore(limits.max_connections)
     async with httpx.AsyncClient(timeout=60, limits=limits) as http:
         users = await asyncio.gather(*(_user(http, args, i) for i in range(args.users)))
-        inbox, opened, refused, stop = [], [], [], asyncio.Event()
+        inbox, opened, refused, phases, stop = [], [], [], [], asyncio.Event()
         t_open = time.perf_counter()
-        tasks = [asyncio.create_task(_socket(http, args, auth, project, inbox, opened, refused, stop))
-                 for _, project, auth in users for _ in range(args.per_user)]
+        pairs = [(project, auth) for _, project, auth in users for _ in range(args.per_user)]
+        tasks = [asyncio.create_task(_socket(http, args, k, auth, project, inbox, opened, refused, stop, phases))
+                 for k, (project, auth) in enumerate(pairs)]
         expected = len(tasks)
         while len(opened) + len(refused) < expected and time.perf_counter() - t_open < 120:
             await asyncio.sleep(0.2)
@@ -105,14 +122,18 @@ async def main(args):
             await asyncio.sleep(0.1)
         stop.set()
         await asyncio.gather(*tasks, return_exceptions=True)
-    lat = sorted((t - sent[p]) * 1000 for p, t in inbox)
+    lat = sorted((t - sent[p]) * 1000 for p, t, _ in inbox)
     pct = (lambda q: round(lat[min(len(lat) - 1, int(q * len(lat)))], 1)) if lat else (lambda q: None)
     out = {
         "sockets_requested": expected, "sockets_opened": len(opened), "sockets_refused": len(refused),
-        "refusal_samples": sorted(set(refused))[:5], "open_seconds": round(open_seconds, 2),
+        "refusals": dict(Counter(refused).most_common(10)), "open_seconds": round(open_seconds, 2),
+        "ramp_s": {name: {"p50": round(v[len(v) // 2], 2), "p95": round(v[int(0.95 * len(v))], 2), "max": round(v[-1], 2)}
+                   for name, v in (("ticket", sorted(m for m, _ in phases)), ("handshake", sorted(h for _, h in phases))) if v},
         "delivered": len(inbox), "delivery_expected": len(opened),
         "latency_ms": {"p50": pct(0.5), "p95": pct(0.95), "p99": pct(0.99), "max": lat[-1] if lat else None,
                        "mean": round(statistics.mean(lat), 1) if lat else None},
+        "per_replica": {u: {"opened": opened.count(u), "delivered": sum(1 for *_, s in inbox if s == u)}
+                        for u in args.ids},
     }
     print(json.dumps(out, indent=2))
     return 0 if out["sockets_opened"] == expected and out["delivered"] == expected else 1

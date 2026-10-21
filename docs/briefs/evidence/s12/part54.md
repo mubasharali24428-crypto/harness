@@ -73,8 +73,8 @@ address, was refused with 429 after 60 tickets, as designed.
 
 - One machine, dry engine, synthetic users: no provider latency, no real browsers, no network
   between services. Numbers describe this setup only and set no production user or team cap.
-- One identity replica for sockets; socket fan-out across identity replicas (PG NOTIFY) was not
-  load-tested here.
+- One identity replica for sockets in section 3. Closed 2026-10-21: two replicas, see "Sockets across two
+  identity replicas" below.
 - Artifact and export files were on each replica's local disk (`HARNESS_ARTIFACT_ROOT`,
   `HARNESS_EXPORT_DIR`). Closed 2026-10-21 with a shared volume (see "Shared store" below).
 - Cost per active run: zero by construction (dry engine); provider-backed cost is not measured.
@@ -105,3 +105,41 @@ Limits: diffs share the same mount but were not round-tripped through the API. B
 `/tmp` before the switch are not migrated; they were already lost on every container recreate. The volume is a
 local Docker volume (one host); several hosts need NFS or an object store behind `artifact_store.put/get/remove`.
 The volume is not in the backup scripts.
+
+## Sockets across two identity replicas (2026-10-21)
+
+`run_probe.sh` takes `PROBE_IDENTITY_REPLICAS=2` (`--scale identity-loadtest=2`, host ports 18001-18002; 18003 is
+held by a New Relic agent on this machine). `ws_capacity.py --identity a,b` mints socket k's ticket on replica
+k mod 2 and opens the socket on the other replica, so every socket redeems a ticket the other process minted, and
+every `plan_proposed` envelope reaches half its sockets through PostgreSQL NOTIFY. Same stack as above:
+identity 0.5 CPU / 384 MiB per replica, one orchestrator.
+
+| Replicas | Users x sockets | Opened | Ramp | Delivered | p50 / p95 / p99 / max |
+|---|---|---|---|---|---|
+| 1 | 100 x 10 | 999 / 1000 | 15.2 s | 999 / 999 | 824 / 1217 / 1365 / 1365 ms |
+| 2 | 100 x 10 | 1000 / 1000 | 12.8 s | 1000 / 1000 (500 + 500) | 839 / 1218 / 1306 / 1328 ms |
+| 2 | 100 x 10 | 999 / 1000 | 12.7 s | 999 / 999 (499 + 500) | 816 / 1209 / 1308 / 1308 ms |
+| 2 | 50 x 20 | 999 / 1000 | 11.8 s | 999 / 999 (499 + 500) | 504 / 731 / 746 / 746 ms |
+
+Cross-replica delivery never lost an envelope: delivered equals opened on every run here and on the eight earlier
+diagnostic runs (893 to 1000 sockets each). After the runs: identity 186 and 148 MiB of 384 MiB.
+
+The missing socket in three runs is one ticket POST that failed with "Server disconnected without sending a
+response" right after it was sent, with no error in the identity log: the client reused a keep-alive connection
+the server was closing. httpx does not retry a POST; a browser reconnect would mint a fresh ticket.
+
+**Probe defect found and fixed.** The first two-replica runs ramped in 37 s (one replica: 22 s) and one refused
+107 sockets with HTTP 403. Server side was idle: each identity replica averaged 10 to 12% CPU against a 50% limit,
+PostgreSQL 12%, and its client backends waited on the app (`ClientRead`), not on locks. The probe was the bottleneck:
+33 s of client CPU in 41 s, and cProfile put 109 of 116 s in httpcore's `_assign_requests_to_connections`, which
+rescans its whole request queue on every connection event. With all 1000 ticket POSTs queued behind 200
+connections, and a free connection usable by only one of two hosts, the scan grew with the queue. The probe now
+admits at most `max_connections` ticket POSTs at once (`mint_gate`), and its CPU fell from 34 s to 8 s. The 403s
+came only from runs where the client ramp passed the 30 s ticket lifetime (177 of them in the profiled run);
+an expired ticket closes before accept, which the client sees as 403 (`test_ws_ticket_expired_rejected`). The
+server logs no close reason, so expiry is inferred from timing, not read from the logs. Section 3's ramps were
+measured with the old probe and include this client overhead.
+
+Limits: one host and one Docker port proxy for both replicas; a single client process; latency includes 100 (or
+50) simultaneous plan proposals on one orchestrator. The per-user socket cap (20) is per process, so behind a
+load balancer a user can hold up to 20 sockets per replica.
