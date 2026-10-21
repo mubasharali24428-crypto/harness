@@ -35,7 +35,7 @@ See `capability-matrix.md` (61 rows, one per part, each with its evidence). Grou
 | Presence, control, discussion, plans, agents, delivery, notifications, files, search | 41 to 48, 50 | verified, each with listed gaps |
 | Integrations, governance, billing | 49, 51, 57 | 49 verified (Session 12); 51, 57 partial (residency, in-flight spend; Stripe is out of scope by owner direction) |
 | Security, privacy, compliance, reliability, scale, observability | 28, 31, 52 to 55, 58 | 28 and 54 verified (Session 12); 31, 52, 53, 55, 58 partial (52, 53, 58 externally capped) |
-| Release, rollout, accessibility | 32, 56, 59 | 32 implemented; 56 partial; 59 verified (Session 12 rollback rehearsal) |
+| Release, rollout, accessibility | 32, 56, 59 | 32 verified (batch 4); 56 partial; 59 verified (Session 12 rollback rehearsal) |
 | Roadmap | 60 | verified (planning artifact) |
 | Pilot success and full acceptance | 03, 61 | blocked (no real pilot data; NO-GO report) |
 
@@ -100,7 +100,7 @@ Sessions 6 to 10 were built by Codex and verified by Claude (`path-to-9-checkpoi
 | Sandbox with `confinement=off` has no OS boundary; Linux Landlock path never run | High for any shared host | operator | open; pilot runbook requires container isolation on |
 | SDK shell bypasses the Section 5 command allow-list (parts 31, 52) | Medium | program owner | mitigated 2026-10-21: the engine's bash tool goes through Section 5's shell gate, live in the worker image (`evidence/s12/part52.md`); path checks are argument-level and no pen test has run |
 | `HARNESS_PILOT_TEAMS` empty or unset opens collaboration to every team | High if misconfigured | operator | documented; pilot environments must use a non-empty list |
-| Alerts reach one email address only (no pager, no Alertmanager HA); backup and WAL alerts inert | Medium | operator | email delivery done and proved live (`evidence/s11/alert-delivery.md`); rest open |
+| Alerts reach one email address and one optional webhook (no pager integration, no Alertmanager HA) | Medium | operator | email proved live (`evidence/s11/alert-delivery.md`); webhook proved against a local listener (batch 4), not a real chat or pager service; backup, WAL and never-ran alerts are active |
 | Backup restore, point-in-time recovery not exercised on a cloud object store (self-hosted S3 drilled 2026-10-21) | High | operator | open; part 53 stays capped at 8 |
 | In-flight model spend is estimate-based; warning thresholds are not delivered | Medium | program owner | open (part 57) |
 | Live identity-provider (SSO) flows unproven | Medium | program owner | open; part 37 capped at 8 |

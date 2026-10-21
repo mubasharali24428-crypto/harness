@@ -1,6 +1,6 @@
 # Harness Multiplayer AI: project state and resume guide
 
-Updated 2026-10-21 (path-to-9 batch 4: pilot alert tests and staged rollout A8, webhook channel and backup-never-ran alert A9, notification purge and metrics A10; B3 skipped). Read this first in a new session, then
+Updated 2026-10-21 (path-to-9 batch 5 doc refresh after batch 4: pilot alert tests and staged rollout A8, webhook channel and backup-never-ran alert A9, notification purge and metrics A10; B3 skipped). Read this first in a new session, then
 `docs/briefs/path-to-9-plan.md`, `docs/briefs/capability-matrix.md` and `docs/briefs/path-to-9-checkpoint.md`. The repository is the
 source of truth: re-verify any number before relying on it. Nothing here claims readiness for real users (see "Not cleared").
 Per-session results, the old verification records and the local Session 11 detail (§3g) are in `docs/briefs/evidence/s11/state-history.md`.
@@ -39,7 +39,7 @@ closed part 44 (`00a1412`). Session 11 ran twice in parallel: locally (gap closu
 | 11 cloud | Parts 12, 14, 24, 29, process parts, PostgreSQL IN-list diagnosis, browser check | done; `evidence/s11/cloud-report.md` |
 | 12 | Lane A (11, 14, 29, 38, 40, 42) and lane B (48 to 50, 56 axe); 25, 28, 54, 55, 59 evidence; 52 amd64 probe | done; `evidence/s12/` |
 
-Branches: `master` holds everything (pushed through batch 2, `8977c4d`), including `origin/cloud/path-to-9-finish` and the cloud pass
+Branches: `master` holds everything (pushed through batch 3, `9680ddb`; batch 4 `0bf1f07` committed, not pushed), including `origin/cloud/path-to-9-finish` and the cloud pass
 (`origin/claude/path-to-9-finish-ax6hie`). The other lanes' uncommitted work (P0-P3 isolation, SMTP TLS, section 2 scope mode, A5
 packages, docs) was committed on 2026-10-20 after its suites passed. Not merged: `origin/codex/harness-a1` to `a5`.
 
