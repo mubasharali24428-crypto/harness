@@ -4,7 +4,7 @@ Written 2026-10-20 (Session 11, cloud pass). This is an index. The matrix `capab
 is built; this file points at it and at the evidence, and states the readiness decision. Nothing here is a claim beyond the evidence it
 cites. Results are labelled **pass**, **fail** or **not verified**; "not verified" means nothing was run.
 
-Counts (2026-10-21): verified 49 · implemented 2 · partial 8 · missing 0 · blocked 2.
+Counts (2026-10-21): verified 50 · implemented 1 · partial 8 · missing 0 · blocked 2.
 
 ## 1. Executive summary
 

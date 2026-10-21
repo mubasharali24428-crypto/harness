@@ -497,3 +497,74 @@ async def test_quiet_hours_without_a_valid_zone_fall_back_to_utc(env):
 def test_quiet_until_table_matches_section1(now, tz, start, end, expected):
     # the same table runs in section1 tests/test_notifications_delivery.py
     assert notify.quiet_until(now, tz, start, end) == expected
+
+
+# ---- A10: retention and metrics ------------------------------------------------------------
+
+
+async def _age(factory, nid, days, **cols):
+    sets = ", ".join(["updated_at = :u"] + [f"{k} = :{k}" for k in cols])
+    async with factory() as db:
+        await db.execute(text(f"UPDATE notification_inbox SET {sets} WHERE id = :i"),
+                         {"u": T0 - timedelta(days=days), "i": nid, **cols})
+        await db.commit()
+
+
+async def test_purge_deletes_old_handled_rows_and_keeps_the_rest(env, monkeypatch):
+    from harness_orchestrator import domain_metrics
+
+    factory, _ = env
+    domain_metrics.reset()
+    ids = {}
+    for name, key in (("old_read", "d1"), ("old_dismissed", "d2"), ("old_unread", "d3"),
+                      ("old_snoozed", "d4"), ("old_mail", "d5"), ("new_read", "d6")):
+        ids[name] = (await send(factory, source_id=name, dedupe_key=key))["id"]
+    for name in ("old_read", "old_dismissed", "old_unread", "old_snoozed", "old_mail"):
+        await _age(factory, ids[name], 100)
+    await _age(factory, ids["new_read"], 10)
+    async with factory() as db:
+        for name, state in (("old_read", "read"), ("old_dismissed", "dismissed"),
+                            ("old_snoozed", "snoozed"), ("new_read", "read")):
+            await db.execute(text("UPDATE notification_inbox SET state=:s WHERE id=:i"),
+                             {"s": state, "i": ids[name]})
+        await db.execute(text("UPDATE notification_inbox SET state='read', email_state='pending'"
+                              " WHERE id=:i"), {"i": ids["old_mail"]})
+        await db.execute(text("UPDATE notification_dedupe SET created_at=:c WHERE dedupe_key='d1'"),
+                         {"c": T0 - timedelta(days=40)})
+        await db.execute(text(
+            "INSERT INTO notification_unsub_tokens (token_hash, team_id, user_id, created_at,"
+            " expires_at) VALUES ('h1','t1','ann',:c,:e), ('h2','t1','ann',:c,:f)"),
+            {"c": T0, "e": T0 - timedelta(days=1), "f": T0 + timedelta(days=1)})
+        await db.commit()
+
+    out = await notify.purge_old(factory, now=T0)
+    assert out == {"inbox": 2, "dedupe": 1, "unsub_tokens": 1}
+    left = {r["source_id"] for r in await rows(factory)}
+    assert left == {"old_unread", "old_snoozed", "old_mail", "new_read"}
+    assert await notify.purge_old(factory, now=T0) == {"inbox": 0, "dedupe": 0, "unsub_tokens": 0}
+    assert domain_metrics.value("harness_notification_purged_total", "inbox") == 2
+
+
+async def test_retention_days_come_from_the_environment(env, monkeypatch):
+    factory, _ = env
+    nid = (await send(factory))["id"]
+    await _age(factory, nid, 10)
+    async with factory() as db:
+        await db.execute(text("UPDATE notification_inbox SET state='read'"))
+        await db.commit()
+    assert (await notify.purge_old(factory, now=T0))["inbox"] == 0  # 90 days default
+    monkeypatch.setenv(notify.RETENTION_DAYS_ENV, "5")
+    assert (await notify.purge_old(factory, now=T0))["inbox"] == 1
+
+
+async def test_emit_counts_its_result_by_status(env):
+    from harness_orchestrator import domain_metrics
+
+    factory, _ = env
+    domain_metrics.reset()
+    await send(factory, dedupe_key="k")
+    await send(factory, dedupe_key="k")
+    await send(factory, kind="bogus")
+    v = domain_metrics.value
+    counts = [v("harness_notifications_total", s) for s in ("created", "duplicate", "rejected")]
+    assert counts == [1, 1, 1]

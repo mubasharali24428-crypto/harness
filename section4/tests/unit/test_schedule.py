@@ -12,6 +12,7 @@ from harness_orchestrator import (
     collab,
     discussion,
     exports,
+    notify,
     schedule,
     search,
     session_purge,
@@ -58,6 +59,7 @@ def test_every_maintenance_function_is_scheduled_by_default():
         "workspace-purge": 3600.0,
         "session-purge": 3600.0,  # part 40 (session 12)
         "lease-sweep": 30.0,  # part 42 (session 12)
+        "notification-purge": 3600.0,  # part 47 (A10)
     }
 
 
@@ -66,7 +68,8 @@ def test_zero_or_negative_turns_one_job_off_and_the_rest_keep_running():
            "HARNESS_ARTIFACT_PURGE_SECONDS": "7"}
     jobs = {label: every for label, _, every in schedule.maintenance_jobs(object(), env=env)}
     assert jobs == {"discussion-purge": 3600.0, "artifact-purge": 7.0, "workspace-purge": 3600.0,
-                    "session-purge": 3600.0, "lease-sweep": 30.0}
+                    "session-purge": 3600.0, "lease-sweep": 30.0,
+                    "notification-purge": 3600.0}
 
 
 def test_a_garbage_interval_fails_at_startup_not_silently():
@@ -86,7 +89,8 @@ async def test_each_job_calls_its_function_with_the_session_factory(monkeypatch)
     for mod, name in ((search, "sync_index"), (exports, "purge_expired_exports"),
                       (discussion, "purge_expired"), (artifacts, "purge_expired"),
                       (workspace_gate, "purge_expired_workspaces"),
-                      (session_purge, "purge_due"), (collab, "sweep_expired_leases")):
+                      (session_purge, "purge_due"), (collab, "sweep_expired_leases"),
+                      (notify, "purge_old")):
         monkeypatch.setattr(mod, name, recorder(f"{mod.__name__.rsplit('.', 1)[-1]}.{name}"))
     factory = object()
     for _, call, _ in schedule.maintenance_jobs(factory, env={}):
@@ -95,7 +99,7 @@ async def test_each_job_calls_its_function_with_the_session_factory(monkeypatch)
                     ("discussion.purge_expired", factory), ("artifacts.purge_expired", factory),
                     ("workspace_gate.purge_expired_workspaces", factory),
                     ("session_purge.purge_due", factory),
-                    ("collab.sweep_expired_leases", factory)]
+                    ("collab.sweep_expired_leases", factory), ("notify.purge_old", factory)]
 
 
 def _orchestrator_builder() -> ast.FunctionDef:

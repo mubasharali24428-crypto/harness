@@ -21,6 +21,7 @@ The precedence and quiet-hours rules below are mirrored by section1 (sections ma
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
@@ -31,6 +32,8 @@ from zoneinfo import ZoneInfo
 
 from harness_contracts.timeutil import as_utc, db_now
 from sqlalchemy import text
+
+from . import domain_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -211,6 +214,17 @@ def _check(team_id: Any, user_id: Any, kind: Any, source_kind: Any, source_id: A
     return None
 
 
+def _counted(fn):
+    """Count each emit result in ``harness_notifications_total{status}``."""
+    @functools.wraps(fn)
+    async def wrapper(*a: Any, **kw: Any) -> dict[str, Any]:
+        out = await fn(*a, **kw)
+        domain_metrics.inc("harness_notifications_total", str(out.get("status")))
+        return out
+    return wrapper
+
+
+@_counted
 async def emit(
     db: Any,
     *,
@@ -340,3 +354,44 @@ async def _emit(db: Any, team_id: str, user_id: str, kind: str, source_kind: str
          "dk": dedupe_key, "g": group_key, "c": code, "n": now, "d": json.dumps(delivery),
          "es": email_state, "due": due})
     return {"status": "created", "id": inbox_id}
+
+
+RETENTION_DAYS_ENV = "HARNESS_NOTIFY_RETENTION_DAYS"
+DEDUPE_DAYS_ENV = "HARNESS_NOTIFY_DEDUPE_DAYS"
+
+
+def _days(env: str, default: int) -> int:
+    try:
+        return max(1, int(os.environ.get(env, default)))
+    except ValueError:
+        return default
+
+
+async def purge_old(factory: Any, now: datetime | None = None, batch: int = 1000) -> dict[str, int]:
+    """Retention for the notification tables. Deletes read and dismissed inbox rows untouched for
+    ``HARNESS_NOTIFY_RETENTION_DAYS`` (default 90), dedupe rows older than
+    ``HARNESS_NOTIFY_DEDUPE_DAYS`` (default 30, long past any replay window) and expired
+    unsubscribe tokens. Unread and snoozed rows stay (a person has not dealt with them), and so
+    does any row whose email is still waiting to go out. Idempotent; ``batch`` bounds each delete.
+    Returns the rows deleted per table."""
+    now = now or db_now()
+    inbox_cut = now - timedelta(days=_days(RETENTION_DAYS_ENV, 90))
+    dedupe_cut = now - timedelta(days=_days(DEDUPE_DAYS_ENV, 30))
+    out = {"inbox": 0, "dedupe": 0, "unsub_tokens": 0}
+    async with factory() as db:
+        out["inbox"] = (await db.execute(
+            text("DELETE FROM notification_inbox WHERE id IN (SELECT id FROM notification_inbox"
+                 " WHERE state IN ('read', 'dismissed') AND updated_at < :cut"
+                 " AND email_state NOT IN ('pending', 'digest') LIMIT :n)"),
+            {"cut": inbox_cut, "n": batch})).rowcount or 0
+        out["dedupe"] = (await db.execute(
+            text("DELETE FROM notification_dedupe WHERE created_at < :cut"),
+            {"cut": dedupe_cut})).rowcount or 0
+        out["unsub_tokens"] = (await db.execute(
+            text("DELETE FROM notification_unsub_tokens WHERE expires_at < :cut"),
+            {"cut": now})).rowcount or 0
+        await db.commit()
+    for table, n in out.items():
+        if n:
+            domain_metrics.inc("harness_notification_purged_total", table, n)
+    return out

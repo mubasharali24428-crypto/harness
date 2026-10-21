@@ -943,6 +943,7 @@ services:
       HARNESS_SMTP_FROM: ${HARNESS_SMTP_FROM:-harness@noreply.local}
       HARNESS_SMTP_STARTTLS: ${HARNESS_SMTP_STARTTLS:-true}
       HARNESS_ALERT_EMAIL_TO: ${HARNESS_ALERT_EMAIL_TO:-}
+      HARNESS_ALERT_WEBHOOK_URL: ${HARNESS_ALERT_WEBHOOK_URL:-}
     entrypoint: ["/bin/sh", "-c"]
     # ponytail: sed substitution, so a value must not contain `|`, `&` or `\`
     # (host, port, addresses never do; the password goes to a file instead).
@@ -951,7 +952,15 @@ services:
         [ -n "$$HARNESS_ALERT_EMAIL_TO" ] || { echo "alertmanager: set HARNESS_ALERT_EMAIL_TO" >&2; exit 1; }
         umask 077
         printf '%s' "$$HARNESS_SMTP_PASSWORD" > /tmp/smtp_password
-        sed -e "s|\$${HARNESS_SMTP_HOST}|$$HARNESS_SMTP_HOST|" \
+        # Second channel: a webhook (ntfy, a chat bridge, PagerDuty-compatible relay). The URL goes
+        # to a file so it never lands in a config; with no URL the marked lines are dropped.
+        if [ -n "$$HARNESS_ALERT_WEBHOOK_URL" ]; then
+          printf '%s' "$$HARNESS_ALERT_WEBHOOK_URL" > /tmp/webhook_url; keep='s/^ *#WEBHOOK#//'
+        else
+          keep='/^ *#WEBHOOK#/d'
+        fi
+        sed -e "$$keep" \
+            -e "s|\$${HARNESS_SMTP_HOST}|$$HARNESS_SMTP_HOST|" \
             -e "s|\$${HARNESS_SMTP_PORT}|$$HARNESS_SMTP_PORT|" \
             -e "s|\$${HARNESS_SMTP_USERNAME}|$$HARNESS_SMTP_USERNAME|" \
             -e "s|\$${HARNESS_SMTP_FROM}|$$HARNESS_SMTP_FROM|" \

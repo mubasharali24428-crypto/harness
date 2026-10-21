@@ -9,6 +9,8 @@ contract with the alert rules in deploy/observability/alerts.yml:
     harness_isolation_violation_total{kind}   workspace/path isolation refusals
     harness_event_delivery_total{outcome}     collaboration event delivery (duplicate
                                               suppression here; push/replay in section1)
+    harness_notifications_total{status}       notify.emit results
+    harness_notification_purged_total{table}  rows deleted by the notification purge
 
 Label values come from the closed sets below (unknown values collapse to
 ``other``), so cardinality is bounded by construction. Known series are rendered
@@ -48,6 +50,16 @@ METRICS: dict[str, tuple[str, str, tuple[str, ...]]] = {
         "Collaboration event delivery outcomes.",
         "outcome",
         ("delivered", "duplicate", "dropped", "replayed"),
+    ),
+    "harness_notifications_total": (
+        "Notification emit results.",
+        "status",
+        ("created", "grouped", "duplicate", "suppressed", "rejected", "error"),
+    ),
+    "harness_notification_purged_total": (
+        "Notification rows deleted by the retention purge.",
+        "table",
+        ("inbox", "dedupe", "unsub_tokens"),
     ),
 }
 

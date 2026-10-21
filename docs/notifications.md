@@ -188,7 +188,8 @@ Error codes: `NOT_FOUND` (404), `VALIDATION_ERROR`, `INVALID_TIMEZONE`, `INVALID
 and on SQLite in the tests. Rollback: drop the five tables (product data only).
 
 ## Not built / limits
-* No retention or pruning of `notification_inbox` and `notification_dedupe` (rows are small, never deleted).
+* Retention: the scheduled job `notification-purge` (`HARNESS_NOTIFY_PURGE_SECONDS`, default 3600, 0 = off) deletes read or dismissed inbox rows older than `HARNESS_NOTIFY_RETENTION_DAYS` (default 90) that have no pending or digest email, dedupe rows older than `HARNESS_NOTIFY_DEDUPE_DAYS` (default 30) and expired unsubscribe tokens. Unread rows are never purged.
+* Metrics: `harness_notifications_total{status}` (created, grouped, duplicate, suppressed, rejected, error) and `harness_notification_purged_total{table}`; alert `HarnessNotificationEmitErrors`.
 * No channel other than in-app and email (no push, chat or webhook).
 * Previews are English only (the `summaryCode` is stable for client-side localization).
 * Two simultaneous first events of one burst can produce two rows; a mute created while an event is being

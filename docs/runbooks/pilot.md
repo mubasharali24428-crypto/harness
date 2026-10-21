@@ -125,6 +125,24 @@ the team back restores roster, history and the pending approval. Related pins:
 `section4/tests/unit/test_collab_backend.py` and `test_collab_denial_audit.py`
 (the refusal leaves no audit row; the operator sees the config, not the attempts).
 
+## 5a. Staged rollout
+
+Expansion is the allowlist widened one team at a time (still a human decision, section 4 step 5).
+Between stages, wait at least one working day and hold the gate below; any "no" holds the stage.
+
+| Stage | `HARNESS_PILOT_TEAMS` | Gate to move on |
+|---|---|---|
+| 0 | `__rolled_back__` | stack up, `scripts/test-alerts.sh` green, `curl -s localhost:8004/metrics \| grep -c '^harness_isolation_violation_total'` > 0, one alert delivery proven (section 7 of alerting.md) |
+| 1 | the first pilot team | a day with no firing pilot alert (`/alerts` on :9090), zero `harness_isolation_violation_total`, no unconfirmed cancel |
+| 2..n | previous list plus one team | same gate, per added team |
+
+Widening never touches stored data, and an earlier team keeps working while a later one is added;
+going back one stage is the rollback in section 5. Pinned by
+`test_staged_rollout_admits_one_team_at_a_time_and_loses_nothing` in `test_pilot_flag_rollback.py`.
+The pilot alerts (`harness-pilot` group) are proven to fire by `deploy/observability/alerts_test.yml`
+(promtool unit tests, run with `scripts/test-alerts.sh`) and their counters are scraped live
+(29 series on the running stack, 2026-10-21).
+
 ## 6. Evidence before expanding
 
 Directive 010 is a human decision. Inputs: dated `pilot_metrics` reports, the

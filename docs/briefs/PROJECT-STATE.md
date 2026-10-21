@@ -1,6 +1,6 @@
 # Harness Multiplayer AI: project state and resume guide
 
-Updated 2026-10-21 (path-to-9 batch 3: owner and intent UI A5, stop/fail and session sweep A6, target size A7). Read this first in a new session, then
+Updated 2026-10-21 (path-to-9 batch 4: pilot alert tests and staged rollout A8, webhook channel and backup-never-ran alert A9, notification purge and metrics A10; B3 skipped). Read this first in a new session, then
 `docs/briefs/path-to-9-plan.md`, `docs/briefs/capability-matrix.md` and `docs/briefs/path-to-9-checkpoint.md`. The repository is the
 source of truth: re-verify any number before relying on it. Nothing here claims readiness for real users (see "Not cleared").
 Per-session results, the old verification records and the local Session 11 detail (§3g) are in `docs/briefs/evidence/s11/state-history.md`.
@@ -45,8 +45,8 @@ packages, docs) was committed on 2026-10-20 after its suites passed. Not merged:
 
 ## 3. Where the matrix stands
 
-Counts (2026-10-21): verified 49 · implemented 2 · partial 8 · missing 0 · blocked 2.
-Implemented: 26, 32. Partial: 31, 51, 52 (capped), 53 (capped), 55, 56, 57, 58 (capped). Blocked: 03, 61.
+Counts (2026-10-21): verified 50 · implemented 1 · partial 8 · missing 0 · blocked 2.
+Implemented: 26. Partial: 31, 51, 52 (capped), 53 (capped), 55, 56, 57, 58 (capped). Blocked: 03, 61.
 Readiness: **NO-GO** for broad rollout (`docs/briefs/final-deliverables.md`, section 10).
 
 ## 4. Open work, in order
@@ -56,15 +56,15 @@ Readiness: **NO-GO** for broad rollout (`docs/briefs/final-deliverables.md`, sec
    `shell_gate.py` (allow-list, forbidden and intent scope paths, Landlock), and it runs in the hardened worker image
    (`evidence/s12/part52.md`). The same work fixed Section 5's Landlock, which never applied on Linux before. Left: external
    pen test (cap 8), argument-level path checks, one program per call.
-2. Row 26: `run_smoke.py --real` needs an OpenRouter key (not configured). Row 32: pilot-counter alerts and staged rollout.
+2. Row 26: `run_smoke.py --real` needs an OpenRouter key (not configured).
 3. Row 55: dashboard not imported into Grafana and looked at (no Grafana image; pulling one not authorised).
 4. Row 56: no screen reader; only two pages walked by the browser check; English only (contrast and target size closed 2026-10-21).
 5. Part 57: in-flight engine spend is an estimate. Part 51: residency is deployment-wide.
 6. Parts 31/58: backups expired outside the scripts (bucket lifecycle rules) are not covered by holds.
 7. Multi-replica (closed 2026-10-21 on one host, `evidence/s12/part54.md`): artifacts, exports and diffs share one Docker volume
    across orchestrator replicas, and 1000 sockets over two identity replicas delivered every envelope. Several hosts need NFS or an
-   object store; the store volume is not in the backup scripts. Part 28: one email address is the only alert channel; a stack that
-   never ran a backup has no backup series. Part 53: point-in-time restore is drilled from the live file archive and
+   object store; the store volume is not in the backup scripts. Part 28: alerts go to one email address plus one optional webhook
+   (`HARNESS_ALERT_WEBHOOK_URL`); no pager integration. Part 53: point-in-time restore is drilled from the live file archive and
    through self-hosted S3 (SeaweedFS; `evidence/s12/part28-55.md` sections 5-6), not yet against a cloud bucket.
 8. Smaller limits: a session state change reaches running runs within 30 s, by sweep (40); only intent
    `scopePaths` are engine-enforced, at argument level (42); a timed-out engine call's tool calls are not recorded (44); GitHub OAuth token keeps write scope once a project opts in (49); the audit anchor file is only as safe as its storage (11).
@@ -83,7 +83,7 @@ Not a gap: a paused workspace only blocks new starts, by design (`workspace_gate
 - The A5 packages (`packages/*`, `integrations/connectors/*`) have no venv in the repo: install them with their `dev` extras in a
   fresh venv (extensions needs `mcp<2`) and run `pytest tests` from each package directory with `PYTHONPATH=src`.
 - `HARNESS_PILOT_TEAMS` is an **allowlist**: unset or empty opens collaboration to every team.
-- Prometheus scrapes the **root `/metrics`**; sandbox `confinement=off` has no OS boundary; Alertmanager emails `HARNESS_ALERT_EMAIL_TO` (`docs/runbooks/alerting.md` §7).
+- Prometheus scrapes the **root `/metrics`**; sandbox `confinement=off` has no OS boundary; Alertmanager emails `HARNESS_ALERT_EMAIL_TO` (and posts to `HARNESS_ALERT_WEBHOOK_URL` if set; `scripts/test-alerts.sh` runs the promtool alert tests) (`docs/runbooks/alerting.md` §7).
 - `--env-file .env` makes compose skip `deploy/.env`, so the root `.env` must also set `WALG_FILE_PREFIX` or the live `db` archives
   nothing (`evidence/s12/part28-55.md` §4). Run the `walg` backup with `--no-deps` against `db`, or `walg-db` archives into the live prefix.
 - `ruff check --fix` deletes imported pytest fixtures. Never use it broadly (`--select I001 --fix` on one new file is fine).
@@ -108,7 +108,7 @@ Not a gap: a paused workspace only blocks new starts, by design (`workspace_gate
 
 ## 6. Not cleared
 
-The pilot is **not cleared for real users**: no measured baseline (part 03), alerts reach one email address only, operator-present rules are manual, live
+The pilot is **not cleared for real users**: no measured baseline (part 03), alerts reach one email address and one optional webhook only, operator-present rules are manual, live
 SSO unproven, no pen test, point-in-time recovery proven on file storage and self-hosted S3, not a cloud bucket, no counsel review, the real-engine smoke (`--real`) has not run, and
 the browser checks used synthetic data and no screen reader.
 

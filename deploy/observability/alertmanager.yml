@@ -1,4 +1,6 @@
-# Alertmanager: every Prometheus alert is delivered by email (parts 28/55).
+# Alertmanager: every Prometheus alert is delivered by email and, when HARNESS_ALERT_WEBHOOK_URL is
+# set, also POSTed to that webhook (parts 28/55). Lines starting `#WEBHOOK#` are kept (marker removed)
+# when the URL is set and deleted otherwise, by the compose entrypoint.
 # This is a TEMPLATE. The compose `alertmanager` entrypoint replaces each ${VAR} from the service
 # environment (the stack's existing HARNESS_SMTP_* settings plus HARNESS_ALERT_EMAIL_TO) into
 # /tmp/alertmanager.yml, and writes the SMTP password to a file so it never lands in a config.
@@ -31,3 +33,6 @@ receivers:
     email_configs:
       - to: "${HARNESS_ALERT_EMAIL_TO}"
         send_resolved: true
+    #WEBHOOK#    webhook_configs:
+    #WEBHOOK#      - url_file: /tmp/webhook_url
+    #WEBHOOK#        send_resolved: true

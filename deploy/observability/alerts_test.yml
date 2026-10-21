@@ -1,0 +1,151 @@
+# promtool unit tests for the harness-pilot and notification alerts (part 32 row, part 28/47).
+# Run: scripts/test-alerts.sh  (uses the running prometheus container; no image is pulled).
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    name: approval denial spike fires, a quiet counter does not
+    input_series:
+      - series: 'harness_approval_denied_total{reason="expired"}'
+        values: '0+2x30'
+      - series: 'harness_approval_denied_total{reason="role"}'
+        values: '0+0x30'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: HarnessApprovalDenialSpike
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: HarnessApprovalDenialSpike
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: "More than 10 approval denials in 10m"
+              description: "20 denied approvals in 10m; see the reason label (stale digest, self-approval, expired, role)."
+              runbook: docs/runbooks/alerting.md#6-pilot-alerts-session-2
+
+  - interval: 1m
+    name: only an unconfirmed cancel alerts
+    input_series:
+      - series: 'harness_run_cancel_total{outcome="refused"}'
+        values: '0+1x30'
+      - series: 'harness_run_cancel_total{outcome="unconfirmed"}'
+        values: '0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: HarnessRunCancelFailure
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: HarnessRunCancelFailure
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: "A run stop did not complete cleanly"
+              description: "1 cancellation(s) in 15m were not confirmed (engine may still be able to mutate); verify the run is really stopped."
+              runbook: docs/runbooks/alerting.md#6-pilot-alerts-session-2
+
+  - interval: 1m
+    name: isolation violation pages at once, then clears
+    input_series:
+      - series: 'harness_isolation_violation_total{kind="path"}'
+        values: '0 0 0 1 1 1 1 1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: HarnessIsolationViolation
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: HarnessIsolationViolation
+        exp_alerts:
+          - exp_labels: {severity: page}
+            exp_annotations:
+              summary: "Sandbox or run isolation violation detected"
+              description: "harness_isolation_violation_total increased (kind label says which boundary). Treat as a security incident: stop the pilot."
+              runbook: docs/runbooks/alerting.md#6-pilot-alerts-session-2
+      - eval_time: 14m
+        alertname: HarnessIsolationViolation
+        exp_alerts: []
+
+  - interval: 1m
+    name: event delivery drops fire after 5m sustained; duplicates need more than 5
+    input_series:
+      - series: 'harness_event_delivery_total{outcome="dropped"}'
+        values: '0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1'
+      - series: 'harness_event_delivery_total{outcome="duplicate"}'
+        values: '0+1x15'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: HarnessEventDeliveryDrops
+        exp_alerts: []
+      - eval_time: 9m
+        alertname: HarnessEventDeliveryDrops
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: "Collaboration events are being dropped or failing delivery"
+              description: "1 dropped/failed deliveries in 10m; teammates may see stale state."
+              runbook: docs/runbooks/alerting.md#6-pilot-alerts-session-2
+      - eval_time: 14m
+        alertname: HarnessEventDeliveryDuplicates
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: "Repeated duplicate event deliveries"
+              description: "10 duplicate deliveries in 10m; check cursor resume and client dedup."
+              runbook: docs/runbooks/alerting.md#6-pilot-alerts-session-2
+
+  - interval: 1m
+    name: a stack that never ran a backup alerts, one that did does not
+    input_series:
+      - series: 'up{job="x"}'
+        values: '1x60'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: HarnessBackupNeverRan
+        exp_alerts: []
+      - eval_time: 40m
+        alertname: HarnessBackupNeverRan
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: "No backup has ever been recorded"
+              description: "The backup series is absent: backup.sh has never succeeded on this stack (or the orchestrator is not exporting it)."
+              runbook: docs/runbooks/alerting.md#d-backup-freshness-base-backups-stopped
+
+  - interval: 1m
+    name: backup series present silences never-ran and stale fires after 25h
+    input_series:
+      - series: 'harness_backup_last_success_timestamp_seconds'
+        values: '0x1600'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: HarnessBackupNeverRan
+        exp_alerts: []
+      - eval_time: 1550m
+        alertname: HarnessBackupStale
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: "No successful base backup for more than 25h"
+              description: "The newest base backup recorded by backup.sh is more than 25h old."
+              runbook: docs/runbooks/alerting.md#d-backup-freshness-base-backups-stopped
+
+  - interval: 1m
+    name: notification emit errors alert
+    input_series:
+      - series: 'harness_notifications_total{status="error"}'
+        values: '0 0 1 2 3 3 3 3 3 3 3 3 3 3 3 3 3 3'
+      - series: 'harness_notifications_total{status="created"}'
+        values: '0+5x17'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: HarnessNotificationEmitErrors
+        exp_alerts: []
+      - eval_time: 9m
+        alertname: HarnessNotificationEmitErrors
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: "Notification emits are failing"
+              description: "3 notify.emit calls ended in status=error in 15m; users may be missing inbox items."
+              runbook: docs/runbooks/alerting.md#6-pilot-alerts-session-2

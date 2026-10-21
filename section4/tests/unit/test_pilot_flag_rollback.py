@@ -167,3 +167,21 @@ def test_gate_is_applied_only_to_collab_handlers():
     }
     assert gated and all(name.startswith("collab_") for name in gated), sorted(gated)
     assert len(gated) == 15  # same inventory the allowlist test pins
+
+
+def test_staged_rollout_admits_one_team_at_a_time_and_loses_nothing(shared_run, monkeypatch):
+    """Staged rollout (docs/runbooks/pilot.md section 5a): start closed, list the first team,
+    then widen the list stage by stage. Each stage keeps the earlier team working and every
+    stage writes nothing by itself; a foreign team stays NOT_FOUND throughout."""
+    as_, factory, _ = shared_run
+    before = snapshot(factory)
+    for flag_value, expected in (
+        ("__rolled_back__", 404),  # stage 0: nobody
+        ("team-a", 200),  # stage 1: first pilot team
+        ("team-a,team-b", 200),  # stage 2: a second team added, the first untouched
+        ("team-b,team-a", 200),  # order is irrelevant
+    ):
+        monkeypatch.setenv(FLAG, flag_value)
+        assert as_("lead").get(f"{P}/r1/participants").status_code == expected, flag_value
+        assert as_("evil").get(f"{P}/r1/participants").status_code == 404, flag_value
+    assert snapshot(factory) == before

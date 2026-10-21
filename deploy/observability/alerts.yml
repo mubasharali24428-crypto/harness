@@ -114,6 +114,16 @@ groups:
           description: "The newest base backup recorded by backup.sh is more than 25h old."
           runbook: docs/runbooks/alerting.md#d-backup-freshness-base-backups-stopped
 
+      - alert: HarnessBackupNeverRan
+        expr: absent(harness_backup_last_success_timestamp_seconds)
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No backup has ever been recorded"
+          description: "The backup series is absent: backup.sh has never succeeded on this stack (or the orchestrator is not exporting it)."
+          runbook: docs/runbooks/alerting.md#d-backup-freshness-base-backups-stopped
+
       - alert: HarnessWalArchiveFailing
         expr: increase(harness_pg_wal_archive_failed_count_total[15m]) > 0
         labels:
@@ -197,4 +207,15 @@ groups:
         annotations:
           summary: "Repeated duplicate event deliveries"
           description: "{{ $value }} duplicate deliveries in 10m; check cursor resume and client dedup."
+          runbook: docs/runbooks/alerting.md#6-pilot-alerts-session-2
+
+      - alert: HarnessNotificationEmitErrors
+        expr: |
+          sum(increase(harness_notifications_total{status="error"}[15m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Notification emits are failing"
+          description: "{{ $value }} notify.emit calls ended in status=error in 15m; users may be missing inbox items."
           runbook: docs/runbooks/alerting.md#6-pilot-alerts-session-2

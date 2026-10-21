@@ -140,9 +140,10 @@ time() - harness_backup_last_success_timestamp_seconds > 90000
   (migration 0059) after its storage post-check proves the base backup landed; the orchestrator's
   domain poll exposes the newest row as this gauge (`observability._read_backup_gauges`,
   `section1/tests/test_backup_metrics_pg.py`). A failed insert is logged and the alert then fires.
-- **limit:** with no row at all (a stack that never ran `walg`) the series is absent and this rule
-  cannot fire; a deployment that relies on backups should also alert on
-  `absent(harness_backup_last_success_timestamp_seconds)`.
+- **never ran:** with no row at all (a stack that never ran `walg`) the series is absent and this rule
+  cannot fire. `HarnessBackupNeverRan` covers that case: `absent(harness_backup_last_success_timestamp_seconds)`
+  for 30m (warning). It also fires while the orchestrator is not exporting the gauge, so check
+  `HarnessServiceDown` first.
 - **runbook:** [backup-and-pitr.md](backup-and-pitr.md) — verify wal-g storage
   inventory (`BACKUP_MODE=list`), then pg_stat_archiver on the live db.
 
@@ -198,6 +199,7 @@ harness_stale_running_claims > 0
 | HarnessDbPoolSaturated | ≥12 checked out, 5m | leak hunt via pg_stat_activity; restart worst offender |
 | HarnessRequestLatencySloBurn | route p95 >250ms for 10m | compare route volume, DB pool and queue metrics; separate provider wait from API latency |
 | HarnessBackupStale | >90000s since last success | run `walg` base manually; inspect walg_logs volume |
+| HarnessBackupNeverRan | backup series absent for 30m | no backup ever recorded: run `walg` base; or the orchestrator is not exporting (check HarnessServiceDown) |
 | HarnessWalArchiveFailing (page) | any increase in 15m | storage target writable? wal-g creds? disk full? |
 | HarnessRunQueueStalled | oldest queued >300s for 2m | orchestrator logs for worker loop; per-team cap; executor saturation |
 | HarnessStaleRunningClaims | >0 for 3m | worker/reaper dead: restart orchestrator (stale runs go BLOCKED for re-drive) |
@@ -211,7 +213,7 @@ harness_stale_running_claims > 0
   separate exporter; if every orchestrator replica is down they go stale with it (HarnessServiceDown
   covers that case).
 - No postgres_exporter / Grafana containers (lane scope: no new heavy deps).
-- Delivery is one email address (section 7): no pager or chat channel, no
+- Delivery is the email address plus one optional webhook (section 7): no pager integration, no
   Alertmanager high availability.
 - The legacy `/api/v1/orchestrator/metrics` route keeps serving the
   orchestrator-only Wave 8 collector; both endpoints coexist by design.
@@ -237,12 +239,14 @@ fails if an alert matches a label value the code never emits.
 | HarnessEventDeliveryDrops | warning | `harness_event_delivery_total{outcome}` | `outcome="dropped"` in 10m, sustained 5m | teammates may see stale state; check orchestrator logs and DB; polling remains the fallback. |
 | HarnessEventDeliveryDuplicates | warning | `harness_event_delivery_total{outcome}` | `outcome="duplicate"` >5 in 10m, sustained 5m | cursor-resume or client dedup fault; collect the run id and cursor values. |
 
+| HarnessNotificationEmitErrors | warning | `harness_notifications_total{status}` | `status="error"` in 15m, sustained 5m | `notify.emit` swallowed an exception (it never raises into the caller); read the orchestrator log for `notify`, check the DB and migration 0046 tables. |
+
 Also in `alerts.yml`: `HarnessServiceDown` (page; `up == 0` for 2m) and
 `HarnessHigh5xxRate` (warning; 5xx ratio >5% for 10m on one instance, from
 `http_requests_total`). The per-service split is the `instance` label
 (`orchestrator:8004`); there is one scrape job, `harness-backends`.
 
-## 7. Delivery: Alertmanager emails every alert
+## 7. Delivery: Alertmanager emails every alert (and posts to a webhook if set)
 
 `alertmanager` (profile `observability`) receives every firing rule from Prometheus and emails it, reusing the stack's
 `HARNESS_SMTP_*` settings. Set the recipient and start both:
@@ -257,6 +261,10 @@ docker compose --env-file .env -f deploy/docker-compose.yml --profile observabil
 - The file is a template: the entrypoint substitutes the `${VAR}` placeholders and puts the password in `/tmp/smtp_password`
   (0600). It refuses to start without `HARNESS_ALERT_EMAIL_TO`. Check the rendered file with
   `docker compose ... exec alertmanager amtool check-config /tmp/alertmanager.yml`.
+- **Second channel (optional):** set `HARNESS_ALERT_WEBHOOK_URL` and Alertmanager also POSTs each alert (resolved too) to that URL
+  in the standard Alertmanager webhook JSON, which Slack-compatible bridges, PagerDuty/Opsgenie relays and chat gateways accept.
+  The URL is written to `/tmp/webhook_url` (0600, `url_file`), never into the config. Unset, the receiver is email only.
+  A webhook that is down is retried by Alertmanager and shows in `alertmanager_notifications_failed_total{integration="webhook"}`.
 - `HARNESS_SMTP_STARTTLS=true` (default) makes Alertmanager require TLS; set it to `false` only for a local catcher.
 - Prove delivery after any change: post a test alert
   (`curl -XPOST localhost:9093/api/v2/alerts -H 'Content-Type: application/json' -d '[{"labels":{"alertname":"DeliveryCheck","severity":"warning"}}]'`)
