@@ -202,6 +202,15 @@ verify_base() {
         ELAPSED=$(( $(date -u +%s) - START_TS ))
         tlog "post-check: backup inventory lists at least one full backup (base backup verified in storage)"
         tlog "timed RTO evidence slot — base backup wall time: ${ELAPSED}s (record this in docs/runbooks/backup-and-pitr.md drill table)"
+        # Part 28: record the verified backup; the orchestrator exposes the newest as
+        # harness_backup_last_success_timestamp_seconds (HarnessBackupStale). A failed record is loud
+        # but does not fail a backup that did land: the stale alert then fires, which is the point.
+        if command -v psql >/dev/null 2>&1 &&
+            psql -Atqc "INSERT INTO backup_runs (kind) VALUES ('base')" >/dev/null 2>&1; then
+            tlog "recorded the base backup in backup_runs"
+        else
+            tlog "WARN: could not record the base backup in backup_runs; HarnessBackupStale will fire"
+        fi
     else
         die "post-check FAILED: storage inventory empty after backup-push — treat the backup as NOT taken"
     fi

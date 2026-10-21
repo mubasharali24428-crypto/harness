@@ -136,15 +136,13 @@ time() - harness_backup_last_success_timestamp_seconds > 90000
 - **for:** 0m (fires immediately once stale).
 - **why 25h:** one daily base backup cadence (backup.sh `base` mode); a full
   day + one hour of silence means last night's wrapper never succeeded.
-- **emitting side:** `deploy/runners/backup.sh` appends to the walg_logs
-  volume; expose the timestamp of the last successful base backup as this
-  gauge (a tiny textfile-sidecar or log-tailer writing
-  `harness_backup_last_success_timestamp_seconds` into a node-level scrape is
-  the intended producer — the gauge NAME is contractual here, its emitter is
-  operator-pluggable until the exporter lane lands).
-- **fallback while no exporter runs:** host cron check per OPS-02:
-  `[ $(( $(date +%s) - $(stat -f %m "${WALG_FILE_PREFIX}/base_$(ls ...)" ) )) -gt 90000 ] && echo ALERT`
-  against the storage prefix mtimes.
+- **emitting side (Part 28, session 12):** `deploy/runners/backup.sh` inserts a `backup_runs` row
+  (migration 0059) after its storage post-check proves the base backup landed; the orchestrator's
+  domain poll exposes the newest row as this gauge (`observability._read_backup_gauges`,
+  `section1/tests/test_backup_metrics_pg.py`). A failed insert is logged and the alert then fires.
+- **limit:** with no row at all (a stack that never ran `walg`) the series is absent and this rule
+  cannot fire; a deployment that relies on backups should also alert on
+  `absent(harness_backup_last_success_timestamp_seconds)`.
 - **runbook:** [backup-and-pitr.md](backup-and-pitr.md) — verify wal-g storage
   inventory (`BACKUP_MODE=list`), then pg_stat_archiver on the live db.
 
@@ -158,11 +156,10 @@ increase(harness_pg_wal_archive_failed_count_total[15m]) > 0
 - **why:** any failed_count increase means WAL segments are piling up inside
   pgdata (RPO silently growing toward total-loss-on-volume-failure, exactly
   finding OPS-01's 3am story).
-- **emitting side:** same textfile/exporter contract as (d):
-  `harness_pg_wal_archive_failed_count_total` mirrors `pg_stat_archiver.
-  failed_count` (monotone counter). Until the exporter lane lands, a 1-minute
-  cron can push the value via the Pushgateway or fail loudly to mail — the
-  alert expression stays identical either way.
+- **emitting side (Part 28, session 12):** the orchestrator's domain poll reads
+  `pg_stat_archiver.failed_count` every `HARNESS_METRICS_DB_POLL_SECONDS` and exposes it as
+  `harness_pg_wal_archive_failed_count_total` (a monotone counter; a server restart resets it,
+  which `increase()` tolerates).
 - **runbook:** [backup-and-pitr.md](backup-and-pitr.md) §"Archiving" — check
   `archive_command` stderr in db logs, storage prefix writability, then
   `SELECT * FROM pg_stat_archiver`.
@@ -200,8 +197,8 @@ harness_stale_running_claims > 0
 | HarnessEventBusLag | >300s for 5m | db reachable? orchestrator crash-loop? notify worker stuck? |
 | HarnessDbPoolSaturated | ≥12 checked out, 5m | leak hunt via pg_stat_activity; restart worst offender |
 | HarnessRequestLatencySloBurn | route p95 >250ms for 10m | compare route volume, DB pool and queue metrics; separate provider wait from API latency |
-| HarnessBackupStale (inert) | >90000s since last success | run `walg` base manually; inspect walg_logs volume |
-| HarnessWalArchiveFailing (inert, page) | any increase in 15m | storage target writable? wal-g creds? disk full? |
+| HarnessBackupStale | >90000s since last success | run `walg` base manually; inspect walg_logs volume |
+| HarnessWalArchiveFailing (page) | any increase in 15m | storage target writable? wal-g creds? disk full? |
 | HarnessRunQueueStalled | oldest queued >300s for 2m | orchestrator logs for worker loop; per-team cap; executor saturation |
 | HarnessStaleRunningClaims | >0 for 3m | worker/reaper dead: restart orchestrator (stale runs go BLOCKED for re-drive) |
 | HarnessServiceDown (page) | `up == 0` for 2m | `docker compose ps`, container logs, ops.md section 2 |
@@ -210,11 +207,9 @@ harness_stale_running_claims > 0
 
 ## 5. What deliberately did NOT land here
 
-- Backup/WAL gauges (d, e) have NO emitter in this repo
-  (`harness_backup_last_success_timestamp_seconds`,
-  `harness_pg_wal_archive_failed_count_total` appear only in this doc, in
-  `alerts.yml` and in tests). Rules d/e load but cannot fire until an
-  exporter/textfile producer exists; they are annotated INERT.
+- Backup/WAL gauges (d, e) are emitted from PostgreSQL by the orchestrator (session 12), not by a
+  separate exporter; if every orchestrator replica is down they go stale with it (HarnessServiceDown
+  covers that case).
 - No postgres_exporter / Grafana containers (lane scope: no new heavy deps).
 - Delivery is one email address (section 7): no pager or chat channel, no
   Alertmanager high availability.

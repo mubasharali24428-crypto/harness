@@ -395,6 +395,10 @@ class _DomainState:
     # Stalled-run signals (worker dead / zombie claims). 0 = healthy.
     oldest_queued_age_s: int = 0
     stale_running_claims: int = 0
+    # Part 28 (session 12): backup and WAL-archive health, read from PostgreSQL. Empty = unknown
+    # (SQLite, no backup recorded yet), so the series is absent rather than a false zero.
+    backup_last_success: dict = field(default_factory=dict)
+    wal_archive_failed: dict = field(default_factory=dict)
     # Start fully-shaped so the first scrape renders a valid histogram even
     # before the poller's first successful pass.
     pool_counts: tuple[int, ...] = ()
@@ -437,6 +441,23 @@ async def _read_domain_gauges(factory: "async_sessionmaker") -> tuple[object, ob
         int(queued[0]) if queued else 0,
         latest[0] if latest else None,
     )
+
+
+async def _read_backup_gauges(factory: "async_sessionmaker") -> tuple[float | None, int | None]:
+    """(newest successful base backup as Unix time, pg_stat_archiver.failed_count); None = unknown.
+    PostgreSQL only: other databases return (None, None)."""
+    from sqlalchemy import text
+
+    async with factory() as session:
+        if session.bind.dialect.name != "postgresql":
+            return None, None
+        failed = (await session.execute(text("SELECT failed_count FROM pg_stat_archiver"))).scalar()
+        newest = (
+            await session.execute(
+                text("SELECT extract(epoch FROM max(finished_at)) FROM backup_runs WHERE kind = 'base'")
+            )
+        ).scalar()
+    return (None if newest is None else float(newest)), (None if failed is None else int(failed))
 
 
 async def _read_stall_gauges(factory: "async_sessionmaker") -> tuple[int, int]:
@@ -570,6 +591,22 @@ def install_domain_metrics(
     )
     METRICS.add_gauge(
         GaugeSpec(
+            name="harness_backup_last_success_timestamp_seconds",
+            mtype="gauge",
+            help="Unix time of the newest successful base backup (backup_runs, written by backup.sh).",
+            fn=lambda: state.backup_last_success,
+        )
+    )
+    METRICS.add_gauge(
+        GaugeSpec(
+            name="harness_pg_wal_archive_failed_count_total",
+            mtype="counter",
+            help="pg_stat_archiver.failed_count: WAL segments the archive_command failed to ship.",
+            fn=lambda: state.wal_archive_failed,
+        )
+    )
+    METRICS.add_gauge(
+        GaugeSpec(
             name="harness_runs_completed_total",
             mtype="counter",
             help="Runs finished (terminal states), by outcome.",
@@ -602,6 +639,13 @@ def install_domain_metrics(
                 state.stale_running_claims = stale
         except Exception as exc:  # noqa: BLE001 — telemetry never raises
             logging.getLogger(__name__).warning("stall-gauge poll failed: %r", exc)
+        try:  # separate again: SQLite has neither pg_stat_archiver nor backup_runs
+            backup, wal_failed = await _read_backup_gauges(factory)
+            with state.lock:
+                state.backup_last_success = {} if backup is None else {(): backup}
+                state.wal_archive_failed = {} if wal_failed is None else {(): wal_failed}
+        except Exception as exc:  # noqa: BLE001 — telemetry never raises
+            logging.getLogger(__name__).warning("backup-gauge poll failed: %r", exc)
 
     async def _poll_task() -> None:
         interval = float(os.environ.get("HARNESS_METRICS_DB_POLL_SECONDS", "15"))

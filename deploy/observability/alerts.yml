@@ -103,15 +103,15 @@ groups:
           description: "Checked-out connections reached the pool ceiling for 5m."
           runbook: docs/runbooks/alerting.md#c-db-pool-saturation-connection-exhaustion-imminent
 
-      # d and e: the two metric names have no emitter in this repo yet, so
-      # these rules cannot fire today (alerting.md section 5).
+      # d and e (Part 28, session 12): emitted by the orchestrator's domain poll from PostgreSQL
+      # (backup_runs written by backup.sh; pg_stat_archiver). See alerting.md (d) and (e).
       - alert: HarnessBackupStale
         expr: time() - harness_backup_last_success_timestamp_seconds > 90000
         labels:
           severity: warning
         annotations:
           summary: "No successful base backup for more than 25h"
-          description: "INERT until an exporter emits harness_backup_last_success_timestamp_seconds."
+          description: "The newest base backup recorded by backup.sh is more than 25h old."
           runbook: docs/runbooks/alerting.md#d-backup-freshness-base-backups-stopped
 
       - alert: HarnessWalArchiveFailing
@@ -120,7 +120,7 @@ groups:
           severity: page
         annotations:
           summary: "WAL archiving is failing"
-          description: "INERT until an exporter emits harness_pg_wal_archive_failed_count_total."
+          description: "pg_stat_archiver.failed_count rose in the last 15m: WAL segments are not leaving the primary."
           runbook: docs/runbooks/alerting.md#e-archiver-failure-count-wal-not-leaving-the-primary
 
       - alert: HarnessRunQueueStalled
