@@ -1,4 +1,5 @@
-"""Part 11.004: the audit_log hash chain (migration 0036) on a real Postgres.
+"""Part 11.004: the audit_log hash chain (migration 0036) on a real Postgres. Parts 11 and 29
+(session 12) add the external anchor of the chain head at the end of this file.
 
 Opt-in like the other live-PG suites (HARNESS_TEST_PG=1, default DSN is the local
 pilot DB server; each test builds its own throwaway database, the live harness
@@ -19,6 +20,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from harness_identity.audit import write_audit
+from harness_identity.audit_anchor import anchor_head, read_anchors, verify_anchors
 from harness_identity.audit_chain import verify_chain
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -275,3 +277,98 @@ async def test_cli_exit_codes_intact_then_edited(db):
     await _tamper(db["engine"], "UPDATE audit_log SET target_id = 'other' WHERE chain_pos = 2")
     bad = await asyncio.to_thread(run)
     assert bad.returncode == 1 and "BROKEN" in bad.stdout and "chain_pos 2" in bad.stdout
+
+
+# ---------------------------------------------------------------- external anchor (part 11/29)
+
+
+async def _rebuild_from(engine, pos: int) -> None:
+    """A privileged attacker: re-seal every row from chain position ``pos`` to the head and move
+    the head pointer, so the chain is internally consistent again."""
+    async with engine.begin() as c:
+        await c.execute(text("ALTER TABLE audit_log DISABLE TRIGGER audit_log_no_update"))
+        prev = (await c.execute(
+            text("SELECT row_hash FROM audit_log WHERE chain_pos = :p"), {"p": pos - 1}
+        )).scalar_one()
+        seqs = (await c.execute(
+            text("SELECT seq FROM audit_log WHERE chain_pos >= :p ORDER BY chain_pos"), {"p": pos}
+        )).scalars().all()
+        for seq in seqs:
+            prev = (await c.execute(text(
+                "UPDATE audit_log SET prev_hash = :pv, row_hash = audit_row_hash(:pq, seq,"
+                " chain_pos, ts, actor_member_id, actor_kind, action, target_type, target_id,"
+                " detail) WHERE seq = :s RETURNING row_hash"
+            ), {"pv": prev, "pq": prev, "s": seq})).scalar_one()
+        await c.execute(text("UPDATE audit_chain_head SET last_hash = :h WHERE id = 1"),
+                        {"h": prev})
+        await c.execute(text("ALTER TABLE audit_log ENABLE TRIGGER audit_log_no_update"))
+
+
+async def _head_seq(engine) -> int:
+    async with engine.connect() as c:
+        return (await c.execute(text("SELECT max(seq) FROM audit_log"))).scalar_one()
+
+
+async def test_an_untouched_chain_passes_and_only_a_moved_head_is_appended(db, tmp_path):
+    await _seed(db["factory"], 6)
+    sink = str(tmp_path / "anchors.jsonl")
+    anchor = await anchor_head(db["factory"], sink)
+    assert anchor["seq"] == await _head_seq(db["engine"])
+    async with db["engine"].connect() as c:
+        assert await verify_anchors(c, read_anchors(sink)) == []
+    assert await anchor_head(db["factory"], sink) is None  # the head has not moved
+    await _seed(db["factory"], 2)  # rows written after the anchor leave it intact
+    async with db["engine"].connect() as c:
+        assert await verify_anchors(c, read_anchors(sink)) == []
+    assert (await anchor_head(db["factory"], sink)) is not None
+    assert len(read_anchors(sink)) == 2
+
+
+async def test_rebuilding_the_chain_after_an_edit_passes_verify_chain_but_not_the_anchor(
+    db, tmp_path
+):
+    await _seed(db["factory"], 6)
+    sink = str(tmp_path / "anchors.jsonl")
+    await anchor_head(db["factory"], sink)
+    await _tamper(db["engine"], "UPDATE audit_log SET target_id = 'other' WHERE chain_pos = 2")
+    await _rebuild_from(db["engine"], 2)
+    rep = await _verify(db["engine"])
+    assert rep.ok, rep.problems  # the attacker's consistent chain is invisible to the chain check
+    async with db["engine"].connect() as c:
+        problems = await verify_anchors(c, read_anchors(sink))
+    assert problems and "altered after anchoring" in problems[0]
+
+
+async def test_deleting_the_anchored_head_is_detected(db, tmp_path):
+    await _seed(db["factory"], 4)
+    sink = str(tmp_path / "anchors.jsonl")
+    await anchor_head(db["factory"], sink)
+    async with db["engine"].begin() as c:
+        await c.execute(text("DELETE FROM audit_log WHERE chain_pos = (SELECT max(chain_pos)"
+                             " FROM audit_log)"))
+    async with db["engine"].connect() as c:
+        problems = await verify_anchors(c, read_anchors(sink))
+    assert problems and "is gone" in problems[0]
+
+
+async def test_the_verify_command_exits_1_only_after_an_anchored_row_is_altered(db, tmp_path):
+    await _seed(db["factory"], 6)
+    sink = str(tmp_path / "anchors.jsonl")
+    await anchor_head(db["factory"], sink)
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(
+        [str(ROOT / "section1" / "src"), str(ROOT / "contracts" / "src")]))
+
+    def verify():
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), "--anchors", sink, db["url"]],
+            env=env, capture_output=True, text=True, timeout=60,
+        )
+
+    intact = verify()
+    assert intact.returncode == 0, intact.stdout + intact.stderr
+    assert "anchors checked" in intact.stdout
+    await _tamper(db["engine"], "UPDATE audit_log SET target_id = 'other' WHERE chain_pos = 2")
+    await _rebuild_from(db["engine"], 2)
+    broken = verify()
+    assert broken.returncode == 1, broken.stdout + broken.stderr
+    assert "altered after anchoring" in broken.stdout

@@ -423,6 +423,15 @@ def app_orchestrator():
         # (HARNESS_*_SECONDS, 0 turns one off; see harness_orchestrator.schedule).
         for label, job, interval in maintenance_jobs(factory):
             background.append(asyncio.create_task(run_periodically(label, job, interval)))
+        # Parts 11/29: append the audit chain head to an external sink the database role cannot
+        # write (harness_identity.audit_anchor); HARNESS_AUDIT_ANCHOR_PATH unset turns it off.
+        anchor_path = os.environ.get("HARNESS_AUDIT_ANCHOR_PATH", "")
+        anchor_every = float(os.environ.get("HARNESS_AUDIT_ANCHOR_SECONDS", "300"))
+        if anchor_path and anchor_every > 0:
+            from harness_identity.audit_anchor import anchor_head
+
+            background.append(asyncio.create_task(run_periodically(
+                "audit-anchor", lambda: anchor_head(factory, anchor_path), anchor_every)))
 
     @app.on_event("shutdown")
     async def _stop_run_queue_worker():
