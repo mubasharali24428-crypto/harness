@@ -161,7 +161,9 @@ log "recovery wiring written: target_time=$TARGET_TIME action=pause"
 # --entrypoint postgres BYPASSES the 18+ init entrypoint (it would refuse the
 # mount layout); uid 999 = debian-flavored postgres user. The deploy/walg dir
 # rides along read-only in case the fetched config points hba_file there
-# (compose `walg-db` clusters do).
+# (compose `walg-db` clusters do). max_connections must be >= the primary's
+# (compose `db` passes 120 as a -c flag, so it is NOT in the fetched conf);
+# lower and recovery aborts with "insufficient parameter settings".
 docker rm -f "$PITR_CONTAINER" >/dev/null 2>&1 || true
 T1=$(date +%s)
 docker run -d --name "$PITR_CONTAINER" \
@@ -176,7 +178,7 @@ docker run -d --name "$PITR_CONTAINER" \
     -e AWS_ENDPOINT="${AWS_ENDPOINT:-}" \
     --user 999:999 \
     --entrypoint postgres \
-    "$PITR_IMAGE" -D /pgdata >/dev/null
+    "$PITR_IMAGE" -D /pgdata -c max_connections=120 >/dev/null
 
 READY=no
 i=0
