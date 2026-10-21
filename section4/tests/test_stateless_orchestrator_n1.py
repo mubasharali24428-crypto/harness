@@ -659,6 +659,33 @@ async def test_two_replica_worker_poll_claims_exactly_once(replica_pair):
     assert result["status"] == "completed"
 
 
+async def test_status_on_the_starting_replica_follows_the_replica_that_ran_it(replica_pair):
+    """Part 54 (session 12), found by the two-replica load run: the replica that took the start
+    request cached the run as EXECUTING with no local task. When the OTHER replica's worker ran
+    it to the done-gate, the starting replica kept answering EXECUTING forever (its cache was
+    only fenced after losing a claim it had held), so the client never sent the done-signal."""
+    replica_a, replica_b = replica_pair["replicas"]
+    plan_id = await replica_b.propose_plan("follow-run", goal="n1 follow", project_id="proj-race")
+    await replica_b.approve_plan("follow-run", plan_id, "user-b")
+
+    class StubEngine:
+        def execute_goal(self, goal=None, session_id=None):
+            return {"sessionId": session_id, "engine": "stub", "status": "completed",
+                    "finalResponse": "ran on A"}
+
+    replica_a.engine = StubEngine()
+    replica_b.engine = StubEngine()
+    await replica_b.start_execution("follow-run")  # B announces + enqueues, keeps a cached copy
+    await _drain_publish_chains(replica_b)
+    assert (await replica_b.get_status("follow-run"))["state"] == "executing"
+
+    assert await replica_a.poll_once() == "follow-run"  # only A's worker claims it
+    await asyncio.wait_for(replica_a.runs["follow-run"]["task"], timeout=5)
+    await _drain_publish_chains(replica_a)
+    assert (await replica_a.get_status("follow-run"))["state"] == "awaiting_done_signal"
+    assert (await replica_b.get_status("follow-run"))["state"] == "awaiting_done_signal"
+
+
 # ---------------------------------------------------------------------------
 # S1-R05c — stop is durable: replay honors the stop tombstone
 # ---------------------------------------------------------------------------

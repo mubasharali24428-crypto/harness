@@ -98,7 +98,7 @@ class RunNotFoundError(KeyError):
 _HEARTBEAT_INTERVAL_SECONDS = 10.0
 
 _REHYDRATE_SQL = """
-    SELECT type AS event_type, payload AS payload
+    SELECT type AS event_type, payload AS payload, seq AS seq
     FROM agent_events
     WHERE run_id = :run_id
     ORDER BY seq ASC
@@ -463,10 +463,18 @@ class OrchestratorService(Orchestrator):
 
     async def _ensure_run(self, run_id: str, project_id: str | None = None) -> dict[str, Any]:
         cached = self.runs.get(run_id)
-        if cached is not None and cached.get("_stale"):
+        if cached is not None:
             task = cached.get("task")
-            if task is None or task.done():
-                del self.runs[run_id]  # fenced: replay the durable truth instead
+            # Part 54 (session 12): this replica's copy is authoritative only while it drives the
+            # run (a live local task) or still has events of its own to publish. Otherwise another
+            # replica may have advanced the run (its queue worker claimed it), so a log that moved
+            # past what this copy replayed means: drop it and replay the durable truth.
+            idle_here = (task is None or task.done()) and run_id not in self._publish_chains
+            if idle_here and (cached.get("_stale") or await self._log_moved_past(run_id, cached)):
+                # fenced: replay the durable truth instead. Only drop the copy we checked: a
+                # concurrent read may already have replaced it during the await above.
+                if self.runs.get(run_id) is cached:
+                    del self.runs[run_id]
         if run_id in self.runs:
             return self.runs[run_id]
 
@@ -498,6 +506,24 @@ class OrchestratorService(Orchestrator):
             self.runs[run_id] = run_data
         return run_data
 
+    async def _log_moved_past(self, run_id: str, run_data: dict[str, Any]) -> bool:
+        """True when the run's event log has a newer event than this copy last replayed.
+        One indexed max() per read of a run this replica is not driving; False without a store."""
+        if self.session_factory is None:
+            return False
+        from sqlalchemy import text
+
+        try:
+            async with self.session_factory() as db:
+                newest = (
+                    await db.execute(
+                        text("SELECT max(seq) FROM agent_events WHERE run_id = :r"), {"r": run_id}
+                    )
+                ).scalar()
+        except Exception:  # noqa: BLE001 — no table / no DB: keep the cached copy
+            return False
+        return newest is not None and int(newest) > int(run_data.get("_seq") or 0)
+
     async def _rehydrate(self, run_id: str, sm: AgentStateMachine, rd: dict[str, Any]) -> bool:
         """Replay a run's durable history into a fresh machine.
 
@@ -526,6 +552,7 @@ class OrchestratorService(Orchestrator):
 
         if run_row is not None and rd.get("projectId") is None:
             rd["projectId"] = run_row.project_id
+        rd["_seq"] = max((int(r["seq"]) for r in rows), default=0)  # see _log_moved_past
 
         if plan_row is not None:
             rd["plan_id"] = plan_row["id"]

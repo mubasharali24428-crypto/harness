@@ -11,6 +11,9 @@ async def test_plan_forbidden_paths_fail_closed_before_sdk_execution(env):
     await env.new_run("r1")
     plan = env.svc.planner.get_plan(env.svc.runs["r1"]["plan_id"])
     plan.forbiddenPaths = ["secrets/", "pyproject.toml"]
+    # Persist it like a real plan: a replica that replays the run reads agent_plans, not RAM.
+    await env.x("UPDATE agent_plans SET forbidden_paths = :f WHERE id = :i",
+                f='["secrets/", "pyproject.toml"]', i=env.svc.runs["r1"]["plan_id"])
     await env.start("r1")
     await env.work("r1")
 
