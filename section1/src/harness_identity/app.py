@@ -10,6 +10,7 @@ import harness_contracts as contracts
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 from harness_contracts import Principal as ContractsPrincipal
 from harness_contracts import Role, error_body
+from harness_contracts.policy_enforce import socket_decision
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -999,13 +1000,33 @@ async def _ws_authenticate(
     return principal
 
 
+async def _socket_policy_allows(websocket, principal) -> bool:
+    """Part 38: the org policy binds realtime sockets too, as a `read` at the path's project
+    and run. Callers verify those ids belong to the principal's team first. Raises on a store
+    fault; the upgrade then never completes, and a recheck keeps the socket (see below)."""
+    async with websocket.app.state.session_factory() as db:
+        clock = getattr(websocket.app.state, "policy_clock", None)
+        decision = await socket_decision(db, principal, websocket.scope["path"], clock)
+    return decision is None or decision.allowed
+
+
+async def _admit_socket(websocket, principal) -> bool:
+    """Upgrade-time policy admission: a non-overridable or unoverridden deny closes with 4403."""
+    if await _socket_policy_allows(websocket, principal):
+        return True
+    await websocket.close(code=4403, reason="POLICY_DENIED")
+    return False
+
+
 async def _still_allowed(websocket, principal, project_id: str, run_id: str | None = None) -> bool:
-    """Part 46.011: re-check an open socket's access. A store error keeps the socket (the
-    next tick tries again); only a definite "no" ends it."""
+    """Part 46.011 and Part 38: re-check an open socket's access and its org policy. A store
+    error keeps the socket (the next tick tries again); only a definite "no" ends it."""
     try:
-        return await principal_still_valid(
+        if not await principal_still_valid(
             websocket.app.state.session_factory, principal, project_id, run_id
-        )
+        ):
+            return False
+        return await _socket_policy_allows(websocket, principal)
     except Exception:  # noqa: BLE001 — availability over strictness, same posture as the limiter
         logger.warning("ws access re-check failed; keeping the socket", exc_info=True)
         return True
@@ -1039,6 +1060,8 @@ async def project_ws(
 ):
     principal = await _ws_authenticate(websocket, project_id, token, ticket, fingerprint)
     if principal is None:
+        return
+    if not await _admit_socket(websocket, principal):
         return
 
     bus: EventBus = websocket.app.state.event_bus
@@ -1182,6 +1205,8 @@ async def run_collab_ws(
         ).first()
     if owned is None:
         await websocket.close(code=4404)  # same code as an unknown/foreign project
+        return
+    if not await _admit_socket(websocket, principal):  # the run is verified above
         return
 
     bus: EventBus = websocket.app.state.event_bus

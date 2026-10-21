@@ -16,8 +16,10 @@ Heavy deps (sqlalchemy, starlette) are imported lazily, like ``fastapi_auth``.
 
 from __future__ import annotations
 
+import functools
 import json
 import re
+import time
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
@@ -44,7 +46,15 @@ IDENTITY_RULES: tuple[tuple[str, str, str], ...] = (
     ("*", r"/(health|ready|metrics)", EXEMPT),
     ("*", r"/api/v1/auth/.*", EXEMPT),  # before a session exists
     ("*", r"/api/v1/(csp-report|invites/redeem)", EXEMPT),
-    ("*", r"/api/v1/orgs(/.*)?", EXEMPT),  # org routes carry their own org-scoped checks
+    # Part 38 (session 12): org routes are engine-gated. The gate only evaluates the caller's own
+    # org (teams.org_id), never an org named in the path, so these rows classify the operation.
+    ("POST", r"/api/v1/orgs/invites/accept", "read"),  # the invitee's own action
+    ("GET", r"/api/v1/orgs/service/whoami", "read"),
+    ("DELETE", r"/api/v1/orgs/me/identity", "read"),  # self-service identity removal
+    ("GET", r"/api/v1/orgs", "read"),
+    ("POST", r"/api/v1/orgs", "administer"),
+    ("GET", r"/api/v1/orgs/[^/]+(/(members|invites|execution-control))?", "read"),
+    ("*", r"/api/v1/orgs(/.*)?", "administer"),  # history, service identities, all writes
     ("*", r"/api/v1/policy/.*", EXEMPT),  # the policy API gates itself (policy._gate)
     ("*", r"/api/v1/stepup/verify", EXEMPT),
     ("POST", r"/api/v1/ws-ticket", "read"),
@@ -66,6 +76,7 @@ IDENTITY_RULES: tuple[tuple[str, str, str], ...] = (
     ("*", r"/api/v1/workspaces(/.*)?", "steer"),
     ("GET", r"/api/v1/(sessions|agents)(/.*)?", "read"),
     ("*", r"/api/v1/sessions/[^/]+/(delete|purge|archive|restore)", "administer"),
+    ("POST", r"/api/v1/sessions/[^/]+/owner", "administer"),  # Part 40: ownership transfer
     ("DELETE", r"/api/v1/sessions/[^/]+", "administer"),
     ("*", r"/api/v1/agents/select", "steer"),
     ("*", r"/api/v1/agents(/.*)?", "administer"),
@@ -74,6 +85,9 @@ IDENTITY_RULES: tuple[tuple[str, str, str], ...] = (
     ("*", r"/api/v1/notifications(/.*)?", "read"),
     # Parts 31/58: erasing your own account is self-service (viewers included).
     ("POST", r"/api/v1/account/erasure", "read"),
+    # Part 38 (session 12): the realtime sockets are reads; the identity app evaluates them at
+    # upgrade and on every recheck (`socket_decision`), not through the HTTP middleware.
+    ("GET", r"/api/v1/ws/[^/]+(/runs/[^/]+/collab)?", "read"),
 )
 
 ORCHESTRATOR_RULES: tuple[tuple[str, str, str], ...] = (
@@ -119,6 +133,7 @@ ORCHESTRATOR_RULES: tuple[tuple[str, str, str], ...] = (
 
 _LEVEL_PATHS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("project", re.compile(r"/projects/([^/]+)")),
+    ("project", re.compile(r"/ws/([^/]+)")),  # realtime sockets: /api/v1/ws/{project}/runs/{run}
     ("workspace", re.compile(r"/workspaces/(?!allowlist|templates)([^/]+)")),
     ("run", re.compile(r"/runs/([^/]+)")),
 )
@@ -158,73 +173,176 @@ def _ts(v: Any) -> datetime | None:
     return aware(v)
 
 
+# Part 38 (session 12): the policy reads of an org-linked request (about six) are cached for
+# POLICY_CACHE_TTL seconds. The cache is process-local: a write made by this process clears it at
+# once (see install_policy_cache_listeners); another replica's write is seen within the TTL.
+POLICY_CACHE_TTL = 5.0
+_CACHE_LIMIT = 4096
+_cache: dict[tuple, tuple[float, Any]] = {}
+_generation = [0]  # bumped on every clear: a load that raced a write is not stored
+_DIRTY = "policy_cache_dirty"
+_POLICY_TABLES = frozenset(
+    {"policy_documents", "policy_custom_roles", "policy_assignments",
+     "policy_emergency_grants", "org_members", "teams"}
+)
+_WRITE_SQL = re.compile(r"^\s*(insert|update|delete)\b", re.IGNORECASE)
+_TABLE_SQL = re.compile(r"\b(" + "|".join(sorted(_POLICY_TABLES)) + r")\b")
+
+
+def invalidate() -> None:
+    """Forget every cached policy read in this process."""
+    _cache.clear()
+    _generation[0] += 1
+
+
+async def _cached(db: Any, key: tuple, load: Callable[[], Awaitable[Any]]) -> Any:
+    # Namespaced by the engine the read ran on: a read from another database can never answer
+    # for this one (matters only when several databases share a process, as in the test suites).
+    key = (getattr(db, "bind", None), *key)
+    now = time.monotonic()
+    hit = _cache.get(key)
+    if hit is not None and hit[0] > now:
+        return hit[1]
+    generation = _generation[0]
+    value = await load()
+    if generation == _generation[0]:
+        if len(_cache) >= _CACHE_LIMIT:
+            _cache.clear()
+        _cache[key] = (now + POLICY_CACHE_TTL, value)
+    return value
+
+
+async def _rows(db: Any, key: tuple, sql: str, params: dict[str, Any]) -> list[tuple]:
+    from sqlalchemy import text
+
+    async def load() -> list[tuple]:
+        return [tuple(r) for r in (await db.execute(text(sql), params)).all()]
+
+    return await _cached(db, key, load)
+
+
+@functools.cache
+def install_policy_cache_listeners() -> None:
+    """Clear the cache when a session writes a policy or org table: at execution, and again at
+    commit (a read between the two could repopulate it with pre-commit rows). Runs once."""
+    from sqlalchemy import event
+    from sqlalchemy.orm import Session
+    from sqlalchemy.sql.expression import TextClause
+
+    def writes_policy(state: Any) -> bool:
+        stmt = state.statement
+        if isinstance(stmt, TextClause):
+            return bool(_WRITE_SQL.match(stmt.text) and _TABLE_SQL.search(stmt.text))
+        table = getattr(stmt, "table", None)
+        return bool(state.is_insert or state.is_update or state.is_delete) and (
+            table is not None and table.name in _POLICY_TABLES
+        )
+
+    @event.listens_for(Session, "do_orm_execute")
+    def _on_execute(state: Any) -> None:
+        if writes_policy(state):
+            state.session.info[_DIRTY] = True
+            invalidate()
+
+    @event.listens_for(Session, "before_flush")
+    def _on_flush(session: Any, flush_context: Any, instances: Any) -> None:
+        # ORM unit-of-work writes (session.add, attribute changes) do not pass through execute().
+        objects = (*session.new, *session.dirty, *session.deleted)
+        names = {o.__table__.name for o in objects if hasattr(o, "__table__")}
+        if names & _POLICY_TABLES:
+            session.info[_DIRTY] = True
+            invalidate()
+
+    @event.listens_for(Session, "after_commit")
+    def _on_commit(session: Any) -> None:
+        if session.info.pop(_DIRTY, False):
+            invalidate()
+
+
+def is_missing_schema(exc: BaseException) -> bool:
+    return any(k in str(exc).lower() for k in _MISSING_SCHEMA)
+
+
 async def team_org(db: Any, team_id: str) -> str | None:
     from sqlalchemy import text
 
-    row = (await db.execute(text("SELECT org_id FROM teams WHERE id = :t"), {"t": team_id})).first()
-    return str(row[0]) if row and row[0] else None
+    async def load() -> str | None:
+        result = await db.execute(text("SELECT org_id FROM teams WHERE id = :t"), {"t": team_id})
+        row = result.first()
+        return str(row[0]) if row and row[0] else None
+
+    return await _cached(db, ("team", team_id), load)
 
 
 async def decide_request(
     db: Any, org_id: str, principal: Principal, permission: str, chain: list[Node], now: datetime
 ) -> Decision:
     """Load the org's policy with raw SQL and evaluate it for ``principal`` at ``chain``."""
-    from sqlalchemy import text
-
-    org, uid, p = org_id, principal.userId, {"o": org_id}
+    org, uid = org_id, principal.userId
     docs = {
         (r[0], r[1]): PolicyDoc.model_validate(_json(r[2]))
-        for r in (
-            await db.execute(
-                text("SELECT level, scope_id, doc FROM policy_documents WHERE org_id = :o"), p
-            )
-        ).all()
+        for r in await _rows(
+            db, ("docs", org),
+            "SELECT level, scope_id, doc FROM policy_documents WHERE org_id = :o", {"o": org},
+        )
     }
     custom = {
         r[0]: frozenset(_json(r[1]))
-        for r in (
-            await db.execute(
-                text("SELECT name, permissions FROM policy_custom_roles WHERE org_id = :o"), p
-            )
-        ).all()
+        for r in await _rows(
+            db, ("custom", org),
+            "SELECT name, permissions FROM policy_custom_roles WHERE org_id = :o", {"o": org},
+        )
     }
     binds = [Binding("team", principal.teamId, str(principal.role.value).lower())]
-    mem = (
-        await db.execute(
-            text(
-                "SELECT role, expires_at FROM org_members"
-                " WHERE org_id = :o AND user_id = :u AND removed_at IS NULL"
-            ),
-            {"o": org, "u": uid},
-        )
-    ).first()
-    if mem is not None and (_ts(mem[1]) is None or _ts(mem[1]) > now):
-        binds.append(Binding("org", org, str(mem[0]).lower()))
-    for r in (
-        await db.execute(
-            text(
-                "SELECT level, scope_id, role, expires_at FROM policy_assignments"
-                " WHERE org_id = :o AND user_id = :u"
-            ),
-            {"o": org, "u": uid},
-        )
-    ).all():
+    mem = await _rows(
+        db, ("member", org, uid),
+        "SELECT role, expires_at FROM org_members"
+        " WHERE org_id = :o AND user_id = :u AND removed_at IS NULL",
+        {"o": org, "u": uid},
+    )
+    if mem and (_ts(mem[0][1]) is None or _ts(mem[0][1]) > now):
+        binds.append(Binding("org", org, str(mem[0][0]).lower()))
+    for r in await _rows(
+        db, ("assign", org, uid),
+        "SELECT level, scope_id, role, expires_at FROM policy_assignments"
+        " WHERE org_id = :o AND user_id = :u",
+        {"o": org, "u": uid},
+    ):
         if _ts(r[3]) is None or _ts(r[3]) > now:
             binds.append(Binding(r[0], r[1], r[2]))
     emergency = [
         EmergencyGrant(r[0], uid, r[1], r[2], frozenset(_json(r[3])), _ts(r[4]), _ts(r[5]))
-        for r in (
-            await db.execute(
-                text(
-                    "SELECT id, level, scope_id, permissions, starts_at, expires_at"
-                    " FROM policy_emergency_grants"
-                    " WHERE org_id = :o AND user_id = :u AND status = 'active'"
-                ),
-                {"o": org, "u": uid},
-            )
-        ).all()
+        for r in await _rows(
+            db, ("emerg", org, uid),
+            "SELECT id, level, scope_id, permissions, starts_at, expires_at"
+            " FROM policy_emergency_grants"
+            " WHERE org_id = :o AND user_id = :u AND status = 'active'",
+            {"o": org, "u": uid},
+        )
     ]
     return evaluate(Subject(uid, tuple(binds)), permission, chain, docs, custom, emergency, now=now)
+
+
+async def socket_decision(
+    db: Any, principal: Principal, path: str, clock: Callable[[], datetime] | None = None
+) -> Decision | None:
+    """Part 38: the org policy for a realtime socket's upgrade or recheck, as a ``read`` at the
+    chain named by ``path``. The caller must already have verified the path's project and run
+    belong to the principal's team. None when the team has no org (or the schema is bare)."""
+    try:
+        org_id = await team_org(db, principal.teamId)
+    except Exception as e:  # noqa: BLE001 - a bare schema has no teams.org_id: nothing to enforce
+        if is_missing_schema(e):
+            return None
+        raise
+    if org_id is None:
+        return None
+    now = aware(clock() if clock else datetime.now(UTC))
+    chain = chain_for(org_id, principal.teamId, path)
+    d = await decide_request(db, org_id, principal, "read", chain, now)
+    if not d.allowed:
+        await _record(db, org_id, principal, "read", chain, d, now, "GET", path)
+    return d
 
 
 async def _record(
@@ -282,6 +400,8 @@ def install_policy_gate(
     """Add the gate middleware. ``resolve_principal(request)`` returns None for callers without
     a valid session (the route's own dependency then answers 401); ``session_factory(request)``
     returns the async session factory to read policy with."""
+
+    install_policy_cache_listeners()
 
     @app.middleware("http")
     async def policy_gate(request, call_next):

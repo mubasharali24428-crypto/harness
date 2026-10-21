@@ -79,13 +79,26 @@ One gate for both services: `contracts/src/harness_contracts/policy_enforce.py`.
 - Legacy invites are admin-only and the admin role holds every permission, so they cannot escalate; `missing_for_grant` guards
   org-level grants (assignments, custom roles, emergency approval).
 
+### Realtime sockets and org routes (session 12)
+- The sockets `/api/v1/ws/{project}` and `/api/v1/ws/{project}/runs/{run}/collab` are a `read` under the engine. They are
+  evaluated at upgrade, after the project (and, for the collab socket, the run) is verified to belong to the caller's team:
+  a foreign or unknown id closes 4404 before any policy is read. A deny closes the upgrade with 4403 `POLICY_DENIED`.
+  Every recheck (`WS_REVALIDATE_SECONDS`, default 15 s) evaluates the policy again; a deny that lands while a socket is open
+  closes it with 4410 `ACCESS_REVOKED`. A store fault at upgrade refuses the socket; a store fault at recheck keeps it until
+  the next tick (the same availability posture as part 46.011).
+- `/api/v1/orgs/*` routes are classified in `IDENTITY_RULES`, not exempt. The gate evaluates only the caller's own org
+  (`teams.org_id`), never the org named in the path, so a path org id cannot select another org's policy. These routes stay
+  additive to the org roles they check.
+- Policy reads of an org-linked request are cached for `POLICY_CACHE_TTL` (5 s), per process. Any write this process makes
+  to a policy or org table (`policy_*`, `org_members`, `teams`) clears the cache at execution and again at commit. A write
+  made by another replica is seen within the TTL. A write that bypasses the ORM session (raw connection SQL) is also seen
+  only after the TTL.
+
 ### Known limits
-- The collaboration WebSocket is not passed through the gate (it is bound by single-use, fingerprint-bound tickets).
-- `/orgs/*` routes use org roles, not the engine's deny documents or custom roles.
-- Project and workspace ids come from the URL path; the gate does not verify that the project belongs to the team (the routes'
-  own ownership checks do).
+- HTTP routes are unchanged: project and workspace ids come from the URL path, and the gate does not verify that they belong
+  to the caller's team before evaluating (the routes' own ownership checks do). The sockets above do verify.
 - Non-HTTP actors (queue worker, engine) are not evaluated; they act on runs already authorised at request time.
-- Cost: an org-linked request adds about six small policy reads; no caching yet.
+- Cost: an org-linked request makes about six policy reads on a cold cache and none while the cache is warm.
 
 ### Organization execution stop
 
