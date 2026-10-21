@@ -149,7 +149,14 @@ The gate turns that silent wrongness into a refused boot at deploy time.
 
 Schema is forward-only: undoing applied migrations means restoring the
 database to a point in time before the deploy, then starting the previous
-image against it. Full mechanics, storage targets, and the timed drill live
+image against it.
+
+**Rehearse it** (Part 59, session 12): `deploy/runners/rollback_rehearsal.sh [N-1 ref]` runs this
+whole section on a throwaway `c6rehearsal` stack with the logical snapshot path
+(`deploy/backup/backup.sh` / `restore.sh`): deploy N-1, back up, upgrade to N, prove the drift gate
+refuses an image-only rollback, restore + start N-1, check the restored data, roll forward again.
+It does not exercise the PITR (wal-g) restore below; that drill stays in
+[backup-and-pitr.md](backup-and-pitr.md). Full mechanics, storage targets, and the timed drill live
 in [backup-and-pitr.md](backup-and-pitr.md) — the sequence HERE is the
 rollback-shaped slice:
 
