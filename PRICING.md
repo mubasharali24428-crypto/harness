@@ -1,6 +1,6 @@
 # Pricing — AI Engineering Harness
 
-> **Status: SKELETON.** Tier structure, caps, and upgrade triggers below are
+> **Status: DRAFT — COUNSEL REVIEW REQUIRED.** Tier structure, caps, and upgrade triggers below are
 > mapped to real code. **Dollar amounts are deliberately absent** — pricing
 > numbers are a business decision with tax/legal consequences
 > (`[PLACEHOLDER: counsel review]` in TERMS.md §4). Everything else is stated
@@ -36,6 +36,20 @@
 | Model providers | BYO keys, all supported endpoints | same | same |
 | Billing surface | none needed | Stripe checkout + webhooks **[M3]** | Stripe + invoicing `[PLACEHOLDER: counsel review]` |
 | Support | community | email | priority + SLA `[PLACEHOLDER: counsel review]` |
+
+### Pilot offer (draft, not a quote)
+
+The private pilot is one trusted team, up to five developers, for four weeks.
+There is no automated billing or payment collection in the pilot. Price,
+taxes, payment rail, support commitment, renewal, refund, and data-processing
+terms are **COUNSEL REVIEW REQUIRED** and must be agreed in the pilot SOW
+before customer data is accepted.
+
+Pilot acceptance is evidence-based: the team completes at least 10 real tasks
+unaided, reviews a human-approved plan before every run, sees an audit trail
+and cost line for each run, and reports whether it would pay for the workflow.
+No acceptance criterion overrides the macOS-only sandbox restriction recorded
+in the pilot checklist.
 
 ### Free — what you actually get
 

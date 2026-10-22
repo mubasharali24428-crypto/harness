@@ -1,6 +1,6 @@
 # Privacy — AI Engineering Harness
 
-> **Status: SKELETON.** Real, code-backed statements about where data lives
+> **Status: DRAFT — COUNSEL REVIEW REQUIRED.** Real, code-backed statements about where data lives
 > and how it moves; `[PLACEHOLDER: counsel review]` everywhere legal judgment
 > (GDPR/CCPA roles, DPAs, retention law) is required. Not legal advice; not
 > production-ready until placeholders are resolved by qualified counsel.
@@ -33,6 +33,14 @@ operation:
   the model endpoint YOU configure (`DEEPSEEK_BASE_URL`; local Ollama keeps it
   on-machine). Provider privacy posture is whatever that endpoint's policy is.
 - GitHub API calls: PR/diff operations use the OAuth app / token YOU register.
+
+### Subprocessors and provider flow
+
+There is no committed hosted subprocessor list. A pilot operator must record
+every model provider, email provider, GitHub integration, hosting provider,
+backup store, and support vendor used for that pilot. What prompt/code context
+leaves the operator boundary, the provider's retention/training posture, and
+international transfer terms are **COUNSEL REVIEW REQUIRED** before use.
 
 ## 4. Telemetry (as implemented)
 
@@ -75,6 +83,10 @@ data persists indefinitely in YOUR database. Deletion is therefore always
 under the operator's control. `[PLACEHOLDER: counsel review]` — statutory
 retention obligations (e.g. tax/commercial-law minimums) vs. GDPR storage-
 limitation for hosted offerings; backup (WAL-G) restore-window disclosure.
+
+Deletion requests, backup expiry, legal holds, export format, and incident
+notice timelines are **COUNSEL REVIEW REQUIRED**. The software defaults are
+not a legal retention promise.
 
 ## 7. Security measures (factual, not a certification)
 

@@ -76,6 +76,15 @@ EOF
 docker compose --env-file .env -f deploy/docker-compose.yml up -d
 ```
 
+### Pilot sandbox boundary
+
+Sandboxed pilot execution is currently supported only on macOS hosts using
+Seatbelt. Linux startup with sandboxing enabled fails closed: Landlock confines
+writes, but this release does not deny reads of forbidden paths, so Linux is
+not a supported pilot host. `DockerSandboxRunner` is intentionally unavailable
+and raises instead of falling back to host execution; the containerized
+service is not a per-task Docker sandbox.
+
 **[docs/TUTORIAL.md](docs/TUTORIAL.md)** walks login → project → propose →
 approve → live run → done-signal → events, command by command.
 

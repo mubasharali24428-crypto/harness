@@ -1,3 +1,6 @@
+> **Superseded 2026-10-21.** A second independent audit found S-01/S-02/S-03/S-04; the prior readiness verdict below is not current. See `docs/pilot-remediation/BASELINE_2026-10-21.md` for executed gates and residual
+> blockers. Current verdict: NOT READY for a general pilot; private design-partner only.
+
 # Production-Readiness Remediation — Final Report
 
 Date: 2026-10-17. Working tree left uncommitted per program rule (human

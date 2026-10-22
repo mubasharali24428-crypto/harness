@@ -45,3 +45,12 @@ docker compose --env-file .env -f deploy/docker-compose.yml up -d migrate
 - DeepSeek Harness: MIT, official PyPI SDK `deepseek-harness-sdk`, verified working with
   local Ollama endpoints (`DEEPSEEK_BASE_URL=http://127.0.0.1:11434/v1`). Pin the SDK
   version; re-run `task0/hello.py` on every bump.
+
+
+<claude-mem-context>
+# Memory Context
+
+# [harness] recent context, 2026-10-21 11:30am PDT
+
+No previous sessions found.
+</claude-mem-context>
