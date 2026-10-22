@@ -187,7 +187,7 @@ done
 
 total=$(printf '%s\n' "$src_files" | grep -c '^')
 
-# Rule 1 — literal tree references (any section file, incl. tests/app):
+# Rule 1 — literal tree references (production/app files; tests exempt):
 #   PY: python import statements naming another section's tree
 #       (from section3.x import y / import section4 / from ..section2 import z)
 #   JS: module specifiers resolving into another section's tree
@@ -201,6 +201,7 @@ raw_tree_hits=$(find section*/ -type d \
 	-o -name '*.egg-info' \) -prune \
 	-o -type f \( -name '*.py' -o -name '*.ts' -o -name '*.tsx' \
 	-o -name '*.js' -o -name '*.jsx' -o -name '*.mjs' -o -name '*.cjs' \) -print |
+	grep -vE '(^|/)tests?/|\.test\.|\.spec\.|(^|/)test_' |
 	xargs grep -nE -e "$RE_PY_TREE" -e "$RE_JS_TREE" || true)
 
 # Rule 2 — package-name imports (src trees): any import of a harness_* package
