@@ -665,6 +665,7 @@ def app_meeting():
             team_key_store=factory,
             vault=IdentityKeyVault(MASTER_KEY),
             models_base_url=os.environ.get("HARNESS_MODELS_URL", "http://models:8003"),
+            db_factory=factory,
         )
     )
     # Wave9-E (append): security headers on the meeting app (S6).
@@ -706,14 +707,23 @@ def app_review():
     vault = KeyVault(MASTER_KEY)
 
     async def diff_provider(
-        project_id: str, pr_number: int, team_id: str | None = None
+        project_id: str,
+        pr_number: int,
+        team_id: str | None = None,
+        *,
+        actor_user_id: str | None = None,
     ) -> str:
         # Diff arrives via Section 2's contract (getPRDiff); requires a
-        # connected GitHub account for the acting user. team_id carries the
-        # review principal's team so cross-team reads fail closed (S1-R01d).
+        # connected GitHub account for the ACTING reviewer — never a shared
+        # "system" identity. team_id carries the review principal's team so
+        # cross-team reads fail closed (S1-R01d).
+        if not actor_user_id:
+            raise PermissionError("review diff requires an authenticated user")
         async with factory() as db:
             svc = GitHubService(db, vault)
-            data = await svc.getPRDiff("system", project_id, pr_number, team_id=team_id)
+            data = await svc.getPRDiff(
+                actor_user_id, project_id, pr_number, team_id=team_id
+            )
             await db.close()
             return data["diff"]
 

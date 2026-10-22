@@ -7,10 +7,9 @@ died in ``preexec_fn`` with ``OSError: landlock_add_rule failed`` — a 500 on
 ``POST /tasks/{id}/exec`` on real deployments while every test lane stayed
 green (they ran on macOS/bare-metal Linux where the syscalls work).
 
-These tests simulate the container environment hermetically: kernel 6.x but
-probe failing => 'auto' degrades to 'off' WITH a warning; probe passing =>
-'landlock'; explicit 'landlock' requests still fail closed; the probe runs
-at most once per process.
+These tests simulate the Linux host hermetically.  Landlock remains available
+for the narrower write-boundary probe, but Option B deliberately refuses all
+Linux pilot execution because forbidden-path reads are not yet denied.
 """
 
 import sys
@@ -31,12 +30,11 @@ def linux_env(monkeypatch):
     yield
 
 
-def test_auto_degrades_off_when_probe_fails(tmp_path, monkeypatch, caplog, linux_env):
+def test_auto_fails_closed_when_probe_fails(tmp_path, monkeypatch, linux_env):
     monkeypatch.setattr(confinement, "_probe_landlock_syscalls", lambda timeout=10.0: False)
     runner = LocalSandboxRunner(storage_root=tmp_path / "tasks")
-    with caplog.at_level("WARNING"):
-        assert runner._resolve_confinement() == "off"
-    assert "landlock not usable" in caplog.text
+    with pytest.raises(SecurityPolicyViolationError, match="Linux sandbox execution is disabled"):
+        runner._resolve_confinement()
 
 
 def test_explicit_landlock_fails_closed_when_probe_fails(tmp_path, monkeypatch, linux_env):
@@ -49,7 +47,8 @@ def test_explicit_landlock_fails_closed_when_probe_fails(tmp_path, monkeypatch, 
 def test_auto_picks_landlock_when_probe_passes(tmp_path, monkeypatch, linux_env):
     monkeypatch.setattr(confinement, "_probe_landlock_syscalls", lambda timeout=10.0: True)
     runner = LocalSandboxRunner(storage_root=tmp_path / "tasks")
-    assert runner._resolve_confinement() == "landlock"
+    with pytest.raises(SecurityPolicyViolationError, match="forbidden paths"):
+        runner._resolve_confinement()
 
 
 def test_probe_runs_at_most_once_per_process(monkeypatch, linux_env):
@@ -65,15 +64,7 @@ def test_probe_runs_at_most_once_per_process(monkeypatch, linux_env):
     assert calls["n"] == 1
 
 
-def test_runner_resolution_is_cached(tmp_path, monkeypatch, linux_env):
-    calls = {"n": 0}
-
-    def spy(timeout=10.0):
-        calls["n"] += 1
-        return True
-
-    monkeypatch.setattr(confinement, "_probe_landlock_syscalls", spy)
+def test_linux_auto_does_not_claim_read_confinement(tmp_path, linux_env):
     runner = LocalSandboxRunner(storage_root=tmp_path / "tasks")
-    assert runner._resolve_confinement() == "landlock"
-    assert runner._resolve_confinement() == "landlock"
-    assert calls["n"] == 1
+    with pytest.raises(SecurityPolicyViolationError, match="does not deny reads"):
+        runner._resolve_confinement()

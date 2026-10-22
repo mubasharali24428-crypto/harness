@@ -12,6 +12,7 @@ confined to the task workspace + its private tmp, network is configurable.
 import logging
 import os
 import struct
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -28,7 +29,20 @@ def platform_release() -> str:
 
 
 def seatbelt_available() -> bool:
-    return sys.platform == "darwin" and Path(SEATBELT_BIN).exists()
+    """Return true only when the host can actually enter a Seatbelt profile."""
+    if sys.platform != "darwin" or not Path(SEATBELT_BIN).exists():
+        return False
+    try:
+        probe = subprocess.run(
+            [SEATBELT_BIN, "-p", "(version 1)(allow default)", "/usr/bin/true"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return probe.returncode == 0
 
 
 # Cache for the runtime probe: 'usable' is a property of THIS process's
@@ -87,11 +101,32 @@ def landlock_supported() -> bool:
 # --------------------------------------------------------------------------
 
 
+def _seatbelt_forbidden_rules(workspace: Path, forbidden_paths: list[str] | None) -> str:
+    """Deny reads AND writes for policy forbidden paths inside the workspace.
+
+    S-01: the string policy is UX; this is the enforced boundary. Later SBPL
+    rules win, so these denials are emitted AFTER the broad allow rules.
+    """
+    if not forbidden_paths:
+        return ""
+    ws = Path(workspace).resolve()
+    lines: list[str] = []
+    for raw in forbidden_paths:
+        p = Path(raw)
+        target = (p if p.is_absolute() else ws / p).resolve()
+        escaped = str(target).replace("\\", "\\\\").replace('"', '\\"')
+        lines.append(f'(deny file-read* file-write* (subpath "{escaped}"))')
+        lines.append(f'(deny file-read* file-write* (literal "{escaped}"))')
+    return "".join(line + "\n" for line in lines)
+
+
 def seatbelt_profile(
     workspace: Path,
     allow_network: bool,
     task_dir: Path | None = None,
     tmpdir: Path | None = None,
+    forbidden_paths: list[str] | None = None,
+    denied_task_dirs: list[Path] | None = None,
 ) -> str:
     """deny-default profile; writes confined to the task workspace + its private tmp.
 
@@ -104,14 +139,13 @@ def seatbelt_profile(
     if tmpdir is not None:
         writable.append(f'(subpath "{Path(tmpdir).resolve()}")')
     writable.append('(subpath "/dev/null")')
-    isolation = ""
-    if task_dir is not None:
-        task = Path(task_dir).resolve()
-        # Later rules win in SBPL: deny the whole store, then re-allow our own task.
-        isolation = (
-            f'(deny file-read-data (subpath "{task.parent}"))\n'
-            f'(allow file-read-data (subpath "{task}"))\n'
-        )
+    # Sibling isolation is expressed as per-task denies, NOT deny-parent +
+    # re-allow-own: SBPL's path precedence lets a later deny of a child be
+    # defeated by that re-allow pair, which silently re-opened forbidden dirs.
+    isolation = "".join(
+        f'(deny file-read-data (subpath "{Path(d).resolve()}"))\n'
+        for d in (denied_task_dirs or ())
+    )
     network = "(allow network*)\n(allow system-socket)" if allow_network else "(deny network*)"
     return (
         "(version 1)\n"
@@ -121,6 +155,7 @@ def seatbelt_profile(
         "(allow file-read*)\n"
         f"{isolation}"
         f"(allow file-write* {' '.join(writable)})\n"
+        f"{_seatbelt_forbidden_rules(workspace, forbidden_paths)}"
         "(allow mach-lookup)\n"
         "(allow sysctl-read)\n"
         "(allow ipc-posix-shm)\n"
@@ -130,11 +165,25 @@ def seatbelt_profile(
 
 
 def write_seatbelt_profile(
-    workspace: Path, allow_network: bool, target_dir: Path, tmpdir: Path | None = None
+    workspace: Path,
+    allow_network: bool,
+    target_dir: Path,
+    tmpdir: Path | None = None,
+    forbidden_paths: list[str] | None = None,
+    denied_task_dirs: list[Path] | None = None,
 ) -> Path:
     target_dir.mkdir(parents=True, exist_ok=True)
     path = target_dir / "sb.sb"
-    path.write_text(seatbelt_profile(workspace, allow_network, target_dir, tmpdir))
+    path.write_text(
+        seatbelt_profile(
+            workspace,
+            allow_network,
+            target_dir,
+            tmpdir,
+            forbidden_paths,
+            denied_task_dirs,
+        )
+    )
     return path
 
 
@@ -222,6 +271,11 @@ def apply_landlock_in_child(
             continue
     add_beneath(fs_fd("/dev/null"), LL_WRITE_FILE)  # as Seatbelt: tools write to /dev/null
 
+    # landlock_restrict_self(2) requires no_new_privs; without it the syscall
+    # fails with EPERM and the whole boundary silently looked "unsupported".
+    PR_SET_NO_NEW_PRIVS = 38
+    if libc.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:
+        raise OSError("prctl(PR_SET_NO_NEW_PRIVS) failed")
     if libc.syscall(_LL_RESTRICT_SELF, ruleset_fd, 0) != 0:
         raise OSError("landlock_restrict_self failed")
     os.close(ruleset_fd)

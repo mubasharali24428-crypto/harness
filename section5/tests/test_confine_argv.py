@@ -1,4 +1,6 @@
-"""confine_argv: the wrapped argv runs the target, writes only under its allowed roots, and refuses without confinement."""
+"""confine_argv: wrapped argv runs the target, writes only under allowed roots,
+and refuses without confinement.
+"""
 
 import shutil
 import subprocess

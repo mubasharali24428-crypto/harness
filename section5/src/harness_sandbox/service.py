@@ -38,7 +38,7 @@ class SandboxService(Sandbox):
     ) -> None:
         self.runner = runner or LocalSandboxRunner()
         self.on_stream = on_stream
-        self.checkpoints = checkpoints or CheckpointManager()
+        self.checkpoints = checkpoints or CheckpointManager(root=self.runner.storage_root)
         self._edit_steps: dict[str, int] = {}
 
     def _emit(self, event_type: EventType, handle: TaskHandle, **extra: Any) -> None:

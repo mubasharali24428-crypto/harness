@@ -13,11 +13,12 @@ from pathlib import Path
 
 import pytest
 
+from harness_sandbox import confinement
 from harness_sandbox.local_runner import LocalSandboxRunner
 from harness_sandbox.service import SandboxService
 
 pytestmark = pytest.mark.skipif(
-    sys.platform != "darwin" or shutil.which("sandbox-exec") is None,
+    not confinement.seatbelt_available(),
     reason="Seatbelt confinement tests require macOS sandbox-exec",
 )
 
@@ -89,3 +90,19 @@ def test_auto_mode_resolves_on_this_platform(tmp_path):
 @pytest.mark.skipif(sys.platform == "darwin", reason="landlock is linux-only")
 def test_landlock_module_imports():
     from harness_sandbox import confinement  # noqa: F401
+
+
+@pytest.mark.asyncio
+async def test_seatbelt_blocks_forbidden_path_even_via_interpreter(tmp_path):
+    """S-01 regression: allow-listed python must not read a forbidden path."""
+    svc = _svc(tmp_path, confinement="seatbelt", allow_network=False)
+    handle = svc.run_task("c-s01", "o/r", "m", ["payroll"])
+    ws = tmp_path / "tasks" / "c-s01" / "workspace"
+    (ws / "payroll").mkdir(parents=True)
+    (ws / "payroll" / "data.txt").write_text("CANARY")
+
+    res = await svc.exec_structured(
+        handle, "python -c \"print(open('pay'+'roll/data.txt').read())\""
+    )
+    assert res.exit_code != 0
+    assert "CANARY" not in res.summary

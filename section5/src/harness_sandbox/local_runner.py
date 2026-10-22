@@ -51,6 +51,24 @@ class LocalSandboxRunner:
         return self._resolved_confinement
 
     def _resolve_confinement_once(self) -> str:
+        if self.confinement == "off":
+            # Explicit off is a development escape hatch, never a silent
+            # production fallback: require an unmistakable opt-in and log it.
+            allowed = os.environ.get("HARNESS_SANDBOX_ALLOW_UNCONFINED", "").strip().lower()
+            if allowed not in {"1", "true", "yes"}:
+                raise SecurityPolicyViolationError(
+                    "confinement 'off' is disabled; set"
+                    " HARNESS_SANDBOX_ALLOW_UNCONFINED=1 only for local development"
+                )
+            logger.warning(
+                "sandbox confinement explicitly OFF (HARNESS_SANDBOX_ALLOW_UNCONFINED=1)"
+            )
+            return "off"
+        if self.confinement == "container":
+            raise SecurityPolicyViolationError(
+                "confinement 'container' requires DockerSandboxRunner;"
+                " LocalSandboxRunner cannot provide a container boundary"
+            )
         if self.confinement != "auto":
             # S1-R03d: an EXPLICIT confinement request must never degrade to
             # unconstrained execution — fail closed at task creation instead.
@@ -64,27 +82,32 @@ class LocalSandboxRunner:
                     "confinement 'landlock' requested but unsupported;"
                     " refusing to run unconstrained"
                 )
+            if self.confinement == "landlock" and sys.platform == "linux":
+                raise SecurityPolicyViolationError(
+                    "Linux sandbox execution is disabled for the pilot: Landlock"
+                    " currently confines writes but does not deny reads of"
+                    " forbidden paths; use a macOS Seatbelt host"
+                )
             return self.confinement
         if sys.platform == "darwin":
             if confinement.seatbelt_available():
                 return "seatbelt"
-            logger.warning("sandbox confinement 'auto': seatbelt unavailable — 'off'")
-            return "off"
-        if sys.platform == "linux":
-            if confinement.landlock_supported():
-                return "landlock"
-            # M18-C9 (E2E-found): the version heuristic alone resolved to
-            # 'landlock' inside the shipped compose image (Docker's default
-            # seccomp blocks the syscalls) and every exec died in preexec.
-            # After the probe fix this branch is the HONEST degrade: say so.
-            logger.warning(
-                "sandbox confinement 'auto': landlock not usable here (kernel"
-                " or container policy) — running 'off'; set"
-                " HARNESS_SANDBOX_CONFINEMENT to pin a mode explicitly"
+        elif sys.platform == "linux":
+            # Option B (S-01): Landlock is currently write-only in this
+            # implementation.  It must not be selected for pilot execution
+            # because forbidden-path confidentiality is part of the promise.
+            raise SecurityPolicyViolationError(
+                "Linux sandbox execution is disabled for the pilot: Landlock"
+                " currently confines writes but does not deny reads of"
+                " forbidden paths; use a macOS Seatbelt host"
             )
-            return "off"
-        logger.info("sandbox confinement 'auto': platform %s — 'off'", sys.platform)
-        return "off"
+        raise SecurityPolicyViolationError(
+            "sandbox confinement 'auto' found no usable OS boundary on this host"
+            f" (platform {sys.platform}); refusing to run unconstrained."
+            " Set HARNESS_SANDBOX_CONFINEMENT=off with"
+            " HARNESS_SANDBOX_ALLOW_UNCONFINED=1 only for local development,"
+            " or run the container runner."
+        )
 
     def _task_dir(self, task_id: str) -> Path:
         """The one place a taskId becomes a path (T16): validated, direct child of the root."""
@@ -132,6 +155,34 @@ class LocalSandboxRunner:
                 Path(ws), self.allow_network, Path(tmp)
             )
         return await asyncio.create_subprocess_shell(command, **common, **kwargs)
+
+    def _refresh_seatbelt_profiles(self) -> None:
+        """Rewrite every live seatbelt profile so sibling denies stay complete.
+
+        A new task can appear after an older profile was compiled; each profile
+        therefore denies every OTHER task directory currently on disk. Denying
+        the shared parent is not an option (SBPL precedence would re-open the
+        task's own forbidden paths via the re-allow rule).
+        """
+        task_dirs = [
+            d.resolve()
+            for d in self.storage_root.iterdir()
+            if d.is_dir() and (d / "workspace").is_dir()
+        ]
+        for tid, live in self.active_tasks.items():
+            if live.get("confinement") != "seatbelt":
+                continue
+            own = self._task_dir(tid).resolve()
+            live["profile"] = str(
+                confinement.write_seatbelt_profile(
+                    live["workspace"],
+                    self.allow_network,
+                    own,
+                    Path(live["tmpdir"]),
+                    live.get("forbidden_paths"),
+                    [d for d in task_dirs if d != own],
+                )
+            )
 
     def create_task(
         self,
@@ -186,11 +237,7 @@ class LocalSandboxRunner:
         mode = self._resolve_confinement()
         self.active_tasks[task_id]["confinement"] = mode
         if mode == "seatbelt":
-            self.active_tasks[task_id]["profile"] = str(
-                confinement.write_seatbelt_profile(
-                    workspace, self.allow_network, task_dir, tmpdir
-                )
-            )
+            self._refresh_seatbelt_profiles()
 
         return TaskHandle(
             taskId=task_id,
@@ -324,3 +371,5 @@ class LocalSandboxRunner:
                     self._kill(proc)  # S1-R03f: kills the whole process group
             if task_dir.exists():  # also removes the private tmp dir (T7b)
                 shutil.rmtree(task_dir, ignore_errors=True)
+            if self.active_tasks:
+                self._refresh_seatbelt_profiles()

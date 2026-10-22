@@ -9,6 +9,7 @@ from fixtures.golden_fixtures import (
 )
 from harness_contracts.signatures import TaskHandle
 
+from harness_sandbox import confinement
 from harness_sandbox.api import router
 from harness_sandbox.service import SandboxService
 
@@ -22,6 +23,10 @@ def test_sandbox_implements_protocol():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    not confinement.seatbelt_available(),
+    reason="durable LocalSandboxRunner conformance requires usable macOS Seatbelt",
+)
 async def test_full_sandbox_lifecycle(tmp_path):
     from harness_sandbox.local_runner import LocalSandboxRunner
 
@@ -72,7 +77,13 @@ def _app_with_auth(principal=None):
     return app, client
 
 
-def test_rest_api_conformance():
+def test_rest_api_conformance(tmp_path):
+    import harness_sandbox.api as sandbox_api
+    from harness_sandbox.local_runner import LocalSandboxRunner
+
+    sandbox_api.configure_sandbox(
+        SandboxService(runner=LocalSandboxRunner(storage_root=tmp_path, confinement="off"))
+    )
     app, client = _app_with_auth(_principal("ADMIN"))
     # 1. POST /api/v1/sandbox/tasks
     res = client.post(

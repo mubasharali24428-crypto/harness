@@ -7,7 +7,6 @@ docs/sandbox-isolation.md for the rule -> enforcement -> test map.
 import os
 import shutil
 import stat
-import sys
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,6 +16,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from harness_contracts.signatures import TaskHandle
 
+from harness_sandbox import confinement
 from harness_sandbox.api import configure_sandbox, get_principal, router
 from harness_sandbox.checkpoints import CheckpointManager
 from harness_sandbox.diff_engine import DiffApplyError, apply_unified_diff
@@ -338,19 +338,26 @@ def test_t7b_seatbelt_profile_has_no_system_temp_write_or_sibling_read(tmp_path)
 
     root = (tmp_path / "s").resolve()
     task = root / "t1"
+    forbidden = task / "workspace" / "payroll"
     prof = confinement.seatbelt_profile(
-        task / "workspace", True, task_dir=task, tmpdir=task / "tmp"
+        task / "workspace",
+        True,
+        task_dir=task,
+        tmpdir=task / "tmp",
+        forbidden_paths=["payroll"],
+        denied_task_dirs=[root / "t2"],
     )
     (write_rule,) = [ln for ln in prof.splitlines() if ln.startswith("(allow file-write*")]
     assert write_rule.count("(subpath") == 3  # workspace, private tmp, /dev/null only
     assert f'(subpath "{task / "workspace"}")' in write_rule
     assert f'(subpath "{task / "tmp"}")' in write_rule
-    assert f'(deny file-read-data (subpath "{root}"))' in prof
-    assert f'(allow file-read-data (subpath "{task}"))' in prof
+    assert f'(deny file-read-data (subpath "{root / "t2"}"))' in prof
+    assert f'(deny file-read-data file-write* (literal "{forbidden}"))' not in prof
+    assert f'(deny file-read* file-write* (subpath "{forbidden}"))' in prof
 
 
 pytestmark_seatbelt = pytest.mark.skipif(
-    sys.platform != "darwin" or shutil.which("sandbox-exec") is None,
+    not confinement.seatbelt_available(),
     reason="Seatbelt tests require macOS sandbox-exec",
 )
 
