@@ -57,8 +57,13 @@ class FakeSession:
         # Emulate the two predicates pick_team_key relies on so the fake
         # exercises real behavior: provider match + revoked_at IS NULL.
         wanted_provider = (params or {}).get("provider")
+        wanted_team = (params or {}).get("team_id")
         rows = [
-            r for r in self.rows if r["provider"] == wanted_provider and not r["revoked_at"]
+            r
+            for r in self.rows
+            if r["provider"] == wanted_provider
+            and not r["revoked_at"]
+            and r.get("team_id") == wanted_team
         ]
         return FakeResult(rows)
 
@@ -73,11 +78,14 @@ class FakeRow(dict):
     """Mimics SQLAlchemy Row mapping access: row["key_encrypted"]."""
 
 
-def make_key_row(key_id: str, provider: str, secret: str, revoked_at: Any = None) -> FakeRow:
+def make_key_row(
+    key_id: str, provider: str, secret: str, revoked_at: Any = None, team_id: str = "t1"
+) -> FakeRow:
     vault = KeyVault(b"test-master-key")
     return FakeRow(
         id=key_id,
         provider=provider,
+        team_id=team_id,
         label=f"{provider} main",
         key_encrypted=vault.encrypt(secret),
         key_hint=KeyVault.hint(secret),
@@ -106,7 +114,7 @@ VAULT = KeyVault(b"test-master-key")
 class TestPickTeamKey:
     def test_returns_decrypted_secret_for_active_row(self):
         rows = [make_key_row("key-1", "openai", "sk-live-abcdef1234")]
-        secret = asyncio.run(pick_team_key(fake_factory(rows), VAULT, "openai"))
+        secret = asyncio.run(pick_team_key(fake_factory(rows), VAULT, "openai", "t1"))
         assert secret == "sk-live-abcdef1234"  # gitleaks:allow
 
     def test_skips_revoked_and_picks_latest_active(self):
@@ -115,18 +123,26 @@ class TestPickTeamKey:
         revoked = make_key_row("key-old", "openai", "sk-old-0000", datetime.now(UTC))
         active = make_key_row("key-new", "openai", "sk-new-9999")
         secret = asyncio.run(
-            pick_team_key(fake_factory([active, revoked]), VAULT, "openai")
+            pick_team_key(fake_factory([active, revoked]), VAULT, "openai", "t1")
         )
         assert secret == "sk-new-9999"
 
     def test_provider_mismatch_is_ignored(self):
         rows = [make_key_row("key-a", "anthropic", "sk-ant-1")]
-        secret = asyncio.run(pick_team_key(fake_factory(rows), VAULT, "openai"))
+        secret = asyncio.run(pick_team_key(fake_factory(rows), VAULT, "openai", "t1"))
         assert secret is None
 
     def test_no_rows_means_none(self):
-        secret = asyncio.run(pick_team_key(fake_factory([]), VAULT, "openai"))
+        secret = asyncio.run(pick_team_key(fake_factory([]), VAULT, "openai", "t1"))
         assert secret is None
+
+    def test_missing_team_never_falls_back_to_global_lookup(self):
+        rows = [make_key_row("key-1", "openai", "sk-other-team")]
+        assert asyncio.run(pick_team_key(fake_factory(rows), VAULT, "openai", "")) is None
+
+    def test_other_teams_key_is_not_selected(self):
+        rows = [make_key_row("key-b", "openai", "sk-team-b", team_id="t2")]
+        assert asyncio.run(pick_team_key(fake_factory(rows), VAULT, "openai", "t1")) is None
 
 
 # ---------------------------------------------------------------------------
@@ -302,8 +318,8 @@ class TestInvokeAiWiring:
         svc = MeetingService(team_key_store=fake_factory([broken]), vault=VAULT)
         svc.meeting_ai_client = None
         with caplog.at_level(logging.ERROR):
-            meeting = svc.create_meeting("proj-1", "broken")
-            reply = svc.invoke_ai(meeting.id, "u1", "@ai hello")
+            meeting = svc.create_meeting("proj-1", "broken", team_id="t1")
+            reply = svc.invoke_ai(meeting.id, "u1", "@ai hello", team_id="t1")
         assert reply is not None
         assert reply.userId == "ai-participant"
         assert "could not be used" in reply.content

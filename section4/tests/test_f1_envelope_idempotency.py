@@ -190,7 +190,9 @@ def test_different_key_executes_separately(monkeypatch):
     pool = FakeAsyncPgPool()
     client = _client(monkeypatch, OrchestratorService(), _principal(), idem_pool=pool)
 
-    plan_a = client.post("/api/v1/orchestrator/runs/run-da/plan").json()["planId"]
+    plan_a = client.post(
+        "/api/v1/orchestrator/runs/run-da/plan", json={"projectId": "p-da"}
+    ).json()["planId"]
     client.post("/api/v1/orchestrator/runs/run-da/plan/approve", json={"planId": plan_a})
 
     ra = client.post(

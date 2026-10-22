@@ -311,7 +311,8 @@ def test_org_billing_managers_outside_the_team_get_it_in_their_own_team(factory,
               "INSERT INTO teams (id, name, org_id) VALUES ('team-c', 'C', 'org-1'),"
               " ('team-d', 'D', 'org-1')",
               "INSERT INTO team_members (id, team_id, user_id, role) VALUES"
-              " ('m-o2c', 'team-d', 'owner2', 'engineer'), ('m-o2d', 'team-c', 'owner2', 'engineer')",
+              " ('m-o2c', 'team-d', 'owner2', 'engineer'),"
+              " ('m-o2d', 'team-c', 'owner2', 'engineer')",
               "INSERT INTO org_members (org_id, user_id, role, removed_at) VALUES"
               " ('org-1', 'owner2', 'owner', NULL), ('org-1', 'homeless', 'owner', NULL)"))
     _blocked_run(factory, "o1")

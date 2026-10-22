@@ -713,7 +713,11 @@ async def test_a_claim_taken_before_the_start_is_durable_is_requeued_not_lost(re
     replica_b.bus.publish = slow_publish
     await replica_b.start_execution("gap-run")  # claim visible, announcement not yet durable
     assert await replica_a.poll_once() is None  # claimed inside the gap: requeued, not deleted
-    rows = [r for r in await get_queue_snapshot(replica_pair["factory"]) if r["run_id"] == "gap-run"]
+    rows = [
+        r
+        for r in await get_queue_snapshot(replica_pair["factory"])
+        if r["run_id"] == "gap-run"
+    ]
     assert len(rows) == 1 and rows[0]["state"] == "queued"
 
     release.set()

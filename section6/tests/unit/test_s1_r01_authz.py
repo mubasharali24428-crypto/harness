@@ -71,3 +71,52 @@ def test_create_with_unwired_lookup_fails_closed_503():
     assert res.status_code == 503
     assert res.json()["detail"]["error"]["code"] == "PROJECT_LOOKUP_NOT_CONFIGURED"
     assert svc.meetings == {}
+
+
+def test_foreign_team_cannot_read_or_mutate_meeting():
+    svc = MeetingService()
+    own = _client(svc, _principal("team-a"), lookup={"p1": "team-a"}.get)
+    created = own.post("/api/v1/meetings", json={"projectId": "p1", "title": "private"})
+    meeting_id = created.json()["id"]
+    own.post(
+        f"/api/v1/meetings/{meeting_id}/messages",
+        json={"userId": "forged", "content": "hello"},
+    )
+
+    foreign = _client(svc, _principal("team-b"), lookup={"p1": "team-a"}.get)
+    reads = [
+        foreign.get(f"/api/v1/meetings/{meeting_id}"),
+        foreign.get(f"/api/v1/meetings/{meeting_id}/messages"),
+        foreign.get(f"/api/v1/meetings/{meeting_id}/brief"),
+        foreign.get(f"/api/v1/meetings/{meeting_id}/prompts"),
+    ]
+    writes = [
+        foreign.post(
+            f"/api/v1/meetings/{meeting_id}/messages",
+            json={"userId": "intruder", "content": "leak"},
+        ),
+        foreign.post(
+            f"/api/v1/meetings/{meeting_id}/ai",
+            json={"userId": "x", "content": "@ai hi"},
+        ),
+        foreign.post(f"/api/v1/meetings/{meeting_id}/brief", json={}),
+        foreign.post(f"/api/v1/meetings/{meeting_id}/summary", json={}),
+        foreign.post(f"/api/v1/meetings/{meeting_id}/close"),
+    ]
+    for res in [*reads, *writes]:
+        assert res.status_code == 404, res.text
+        assert res.json()["detail"]["error"]["code"] == "NOT_FOUND"
+    assert len(svc.get_messages(meeting_id)[0]) == 1
+
+
+def test_message_author_comes_from_token_not_body():
+    svc = MeetingService()
+    client = _client(svc, _principal("team-a", "real-user"), lookup={"p1": "team-a"}.get)
+    meeting_id = client.post(
+        "/api/v1/meetings", json={"projectId": "p1", "title": "authorship"}
+    ).json()["id"]
+    client.post(
+        f"/api/v1/meetings/{meeting_id}/messages",
+        json={"userId": "spoofed-admin", "content": "hi"},
+    )
+    assert svc.get_messages(meeting_id)[0][0].userId == "real-user"

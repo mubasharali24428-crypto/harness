@@ -11,7 +11,7 @@ class _CaptureRouter:
     def __init__(self) -> None:
         self.messages: list[dict[str, str]] | None = None
 
-    def call_model(self, agent_id, role, messages, opts=None):
+    def call_model(self, agent_id, role, messages, opts=None, team_id=None):
         self.messages = messages
         from harness_contracts.signatures import ModelResult
 

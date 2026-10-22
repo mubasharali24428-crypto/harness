@@ -51,7 +51,7 @@ def _new_meeting(client: TestClient) -> str:
 
 def _seed(svc: MeetingService, n: int) -> str:
     """Meeting with n plain messages, seeded directly (no AI side effects)."""
-    meeting = svc.create_meeting("proj-x2", "seed")
+    meeting = svc.create_meeting("proj-x2", "seed", team_id="team-x2")
     room = svc.rooms[meeting.id]
     for i in range(1, n + 1):
         room.post_message(user_id="u-seed", content=f"m{i}")

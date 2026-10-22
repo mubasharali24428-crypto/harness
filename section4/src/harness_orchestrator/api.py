@@ -552,6 +552,38 @@ async def _project_belongs_to_team(project_id: str, principal: Principal) -> boo
     return row.team_id == principal.teamId
 
 
+async def _run_belongs_to_team(run_id: str, principal: Principal) -> bool:
+    """True when an EXISTING run is already owned by the principal's team.
+
+    A run that has no durable row yet is a legitimate new run (propose creates
+    it) and is allowed to proceed only after its projectId was verified. A run
+    whose row exists but whose project is foreign/dangling is denied, so a
+    propose can never rebind another tenant's run into the caller's team.
+    """
+    factory = getattr(_service, "session_factory", None)
+    if factory is None:
+        return True  # bare unit mode (conftest sets HARNESS_AUTHZ_TEST_MODE)
+    from sqlalchemy import text
+
+    async with factory() as db:
+        run = (
+            await db.execute(
+                text("SELECT project_id FROM agent_runs WHERE id = :r"), {"r": run_id}
+            )
+        ).first()
+        if run is None:
+            return True
+        if not run.project_id:
+            return False
+        team = (
+            await db.execute(
+                text("SELECT team_id FROM projects WHERE id = :p"),
+                {"p": run.project_id},
+            )
+        ).first()
+    return team is not None and team.team_id == principal.teamId
+
+
 @router.post(
     "/runs/{runId}/plan",
     status_code=status.HTTP_201_CREATED,
@@ -562,13 +594,21 @@ async def _project_belongs_to_team(project_id: str, principal: Principal) -> boo
     },
 )
 async def propose_plan(
-    runId: str, req: ProposePlanRequest | None = None, principal: RequirePrincipal = None
+    runId: str, principal: RequirePrincipal, req: ProposePlanRequest | None = None
 ) -> dict[str, str]:
     try:
         goal = req.goal if req else None
         project_id = req.projectId if req else None
+        # D5 (audit): a plan must bind to an explicit, caller-owned project.
+        # Omitting projectId used to let any caller mint/act on an unattributed
+        # run; there is no legitimate HTTP propose without a target project.
+        if project_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": {"code": "NOT_FOUND", "message": "project not found"}},
+            )
         # D5: proposing BINDS the run to projectId — reject another team's project.
-        if project_id is not None and not await _project_belongs_to_team(project_id, principal):
+        if not await _project_belongs_to_team(project_id, principal):
             # M13-G5a no-oracle law: foreign/unknown project ids are
             # indistinguishable — 404 NOT_FOUND, never a 403 confirming the
             # project exists in another team.
@@ -580,6 +620,11 @@ async def propose_plan(
                         "message": "project not found",
                     }
                 },
+            )
+        if not await _run_belongs_to_team(runId, principal):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": {"code": "NOT_FOUND", "message": "run not found"}},
             )
         plan_id = await _service.propose_plan(runId, goal=goal, project_id=project_id)
         return {"runId": runId, "planId": plan_id}

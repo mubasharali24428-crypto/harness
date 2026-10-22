@@ -70,8 +70,10 @@ class ReviewService(ReviewGate):
         Section 3's ModelRouter instance. Optional — if None, heuristic
         summaries are used instead of calling an LLM.
     diff_provider :
-        Callable that returns diff text for (project_id, github_pr_number).
-        Injected so Section 8 doesn't import Section 2 directly.
+        Callable that returns diff text for (project_id, github_pr_number,
+        team_id). Providers that accept ``actor_user_id`` receive the
+        authenticated reviewer so GitHub reads use that user's OAuth token —
+        never a shared/system identity.
     write_audit :
         Section 1's audit logger function. Every approve/request-changes
         action is recorded here.
@@ -127,12 +129,48 @@ class ReviewService(ReviewGate):
         ).mappings().first()
         return row["team_id"] if row else None
 
+    @staticmethod
+    def _require_nonempty_diff(diff_text: str | None, pr_id: str) -> str:
+        if diff_text is None or not diff_text.strip():
+            raise NoDiffAvailableError(
+                f"No non-empty diff available for PR '{pr_id}'. "
+                "Reviews never run against empty evidence."
+            )
+        return diff_text
+
+    async def _provided_diff(
+        self,
+        project_id: str,
+        pr_number: int,
+        team_id: str | None,
+        actor_user_id: str | None,
+    ) -> str | None:
+        if self._diff_provider is None:
+            return None
+        provider = self._diff_provider
+        supports_actor = False
+        try:
+            supports_actor = "actor_user_id" in inspect.signature(provider).parameters
+        except (TypeError, ValueError):  # builtins/partials without signatures
+            supports_actor = False
+        if supports_actor:
+            provided = provider(
+                project_id,
+                pr_number,
+                team_id,
+                actor_user_id=actor_user_id,
+            )
+        else:
+            provided = provider(project_id, pr_number, team_id)
+        return await provided if inspect.isawaitable(provided) else provided
+
     async def get_review_data(
         self,
         pr_id: str,
         diff_text: str | None = None,
         *,
         team_id: str | None = None,
+        actor_user_id: str | None = None,
     ) -> ReviewData:
         """Fetch full review data for a PR.
 
@@ -149,16 +187,14 @@ class ReviewService(ReviewGate):
             # Resolve diff
             if diff_text is None:
                 diff_text = await get_diff_from_summary(db, pr_id)
-            if diff_text is None and self._diff_provider is not None:
-                provided = self._diff_provider(
-                    record["project_id"], record["github_pr_number"], resolved_team
-                )
-                diff_text = await provided if inspect.isawaitable(provided) else provided
             if diff_text is None:
-                raise NoDiffAvailableError(
-                    f"No diff available for PR '{pr_id}'. "
-                    "Pass diff_text explicitly or provide a diff_provider."
+                diff_text = await self._provided_diff(
+                    record["project_id"],
+                    record["github_pr_number"],
+                    resolved_team,
+                    actor_user_id,
                 )
+            diff_text = self._require_nonempty_diff(diff_text, pr_id)
 
             # Parse diff
             changed_files = parse_diff(diff_text)
@@ -180,6 +216,7 @@ class ReviewService(ReviewGate):
                     changed_files=changed_file_paths,
                     brief_goal=stored_summary.get("brief_goal", "") if stored_summary else "",
                     test_summary="",
+                    team_id=resolved_team,
                 )
                 store_payload = {
                     "generated": True,
@@ -213,10 +250,10 @@ class ReviewService(ReviewGate):
 
             # PR metadata from Section 2 (if available)
             pr_meta: dict[str, Any] = {}
-            if self._github_service is not None:
+            if self._github_service is not None and actor_user_id:
                 try:
                     pr_meta = await self._github_service.getPRStatus(
-                        _system_user_id,
+                        actor_user_id,
                         record["project_id"],
                         record["github_pr_number"],
                         team_id=resolved_team,
@@ -362,20 +399,39 @@ class ReviewService(ReviewGate):
             return await get_review_comments(db, pr_id)
 
     async def get_risk_flags(
-        self, pr_id: str, diff_text: str | None = None, *, team_id: str | None = None
+        self,
+        pr_id: str,
+        diff_text: str | None = None,
+        *,
+        team_id: str | None = None,
+        actor_user_id: str | None = None,
     ) -> list[RiskFlag]:
         """Re-run risk analysis on a PR's diff and return flags."""
-        review_data = await self.get_review_data(pr_id, diff_text=diff_text, team_id=team_id)
+        review_data = await self.get_review_data(
+            pr_id, diff_text=diff_text, team_id=team_id, actor_user_id=actor_user_id
+        )
         return review_data.risk_flags
 
     async def get_summary(
-        self, pr_id: str, diff_text: str | None = None, *, team_id: str | None = None
+        self,
+        pr_id: str,
+        diff_text: str | None = None,
+        *,
+        team_id: str | None = None,
+        actor_user_id: str | None = None,
     ) -> ReviewData:
         """Re-generate and return the AI summary for a PR."""
-        return await self.get_review_data(pr_id, diff_text=diff_text, team_id=team_id)
+        return await self.get_review_data(
+            pr_id, diff_text=diff_text, team_id=team_id, actor_user_id=actor_user_id
+        )
 
     async def evaluate_verdict(
-        self, pr_id: str, diff_text: str | None = None, *, team_id: str | None = None
+        self,
+        pr_id: str,
+        diff_text: str | None = None,
+        *,
+        team_id: str | None = None,
+        actor_user_id: str | None = None,
     ) -> ReviewVerdict:
         """Pass/fail verdict under the PR's team thresholds (M15-G6b).
 
@@ -394,16 +450,14 @@ class ReviewService(ReviewGate):
             # Resolve diff (same chain as get_review_data).
             if diff_text is None:
                 diff_text = await get_diff_from_summary(db, pr_id)
-            if diff_text is None and self._diff_provider is not None:
-                provided = self._diff_provider(
-                    record["project_id"], record["github_pr_number"], resolved_team
-                )
-                diff_text = await provided if inspect.isawaitable(provided) else provided
             if diff_text is None:
-                raise NoDiffAvailableError(
-                    f"No diff available for PR '{pr_id}'. "
-                    "Pass diff_text explicitly or provide a diff_provider."
+                diff_text = await self._provided_diff(
+                    record["project_id"],
+                    record["github_pr_number"],
+                    resolved_team,
+                    actor_user_id,
                 )
+            diff_text = self._require_nonempty_diff(diff_text, pr_id)
 
             changed_files = parse_diff(diff_text)
             changed_file_paths = [f.path for f in changed_files]
@@ -430,9 +484,3 @@ class ReviewService(ReviewGate):
                 has_passing_tests=has_passing_tests,
                 thresholds_source=thresholds_source,
             )
-
-
-# System user ID used when Section 8 needs to look up PR data via Section 2
-# but no individual user's OAuth token is in scope. In production this would
-# be replaced by the calling user's session principal.
-_system_user_id = "system-review"

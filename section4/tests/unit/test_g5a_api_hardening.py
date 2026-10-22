@@ -72,6 +72,12 @@ def _mk_db_service():
             )
             await conn.execute(
                 text(
+                    "CREATE TABLE agent_runs ("
+                    "id VARCHAR(36) PRIMARY KEY, project_id VARCHAR(36))"
+                )
+            )
+            await conn.execute(
+                text(
                     "INSERT INTO projects (id, team_id) VALUES ('proj-theirs', 'team-b'),"
                     " ('proj-ours', 'team-a')"
                 )
@@ -195,3 +201,36 @@ def test_s4_top_routes_have_concrete_openapi_components(monkeypatch):
         if not refs or not all(n in schema["components"]["schemas"] for n in refs):
             missing.append(f"{method.upper()} {path}")
     assert not missing, f"routes without concrete components: {missing}"
+
+
+def test_propose_requires_project_and_cannot_rebind_foreign_run(monkeypatch):
+    """Audit S4: omitted projectId and foreign-run rebinding both deny."""
+    service, engine = _mk_db_service()
+    try:
+        import asyncio
+
+        async def _seed_run():
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text(
+                        "INSERT INTO agent_runs (id, project_id) "
+                        "VALUES ('run-team-b', 'proj-theirs')"
+                    )
+                )
+
+        asyncio.run(_seed_run())
+        client = _client(monkeypatch, service, _principal(team_id="team-a"))
+
+        missing = client.post("/api/v1/orchestrator/runs/run-new/plan", json={"goal": "g"})
+        assert missing.status_code == 404
+        assert _error_code(missing.json()) == "NOT_FOUND"
+
+        hijack = client.post(
+            "/api/v1/orchestrator/runs/run-team-b/plan",
+            json={"goal": "g", "projectId": "proj-ours"},
+        )
+        assert hijack.status_code == 404
+        assert _error_code(hijack.json()) == "NOT_FOUND"
+        assert "run-team-b" not in service.runs
+    finally:
+        asyncio.run(engine.dispose())

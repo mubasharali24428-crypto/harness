@@ -79,7 +79,9 @@ class FakeModelRouter:
         )
         self.call_history: list[dict] = []
 
-    def call_model(self, agent_id: str, role, messages: list[dict[str, str]], opts=None) -> object:
+    def call_model(
+        self, agent_id: str, role, messages: list[dict[str, str]], opts=None, team_id=None
+    ) -> object:
         self.call_history.append({"agent_id": agent_id, "role": role, "messages": messages})
         from harness_contracts.signatures import ModelResult
 

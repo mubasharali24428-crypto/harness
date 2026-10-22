@@ -58,6 +58,29 @@ def _require_approver(principal: Principal) -> None:
         )
 
 
+def _request_diff(request: Request, diff_text: str | None) -> str | None:
+    """Caller-supplied diffs are a test-only escape hatch.
+
+    Production reviews must use stored/provider evidence; otherwise the party
+    under review can show the reviewer a different diff than the PR. Explicitly
+    reject the parameter when disabled instead of silently ignoring it.
+    """
+    settings: Settings = request.app.state.settings
+    if diff_text is None:
+        return None
+    if not settings.allow_request_diff:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": {
+                    "code": "DIFF_OVERRIDE_DISABLED",
+                    "message": "diff_text override is disabled; review evidence comes from the PR",
+                }
+            },
+        )
+    return diff_text
+
+
 class ApproveRequest(BaseModel):
     reviewer_user_id: str = Field(..., min_length=1)
 
@@ -139,8 +162,14 @@ async def get_review(
     pr_id: str, request: Request, principal: RequirePrincipal, diff_text: str | None = None
 ) -> ReviewDataResponse:
     svc: ReviewService = request.app.state.review_service
+    resolved_diff = _request_diff(request, diff_text)
     try:
-        data = await svc.get_review_data(pr_id, diff_text=diff_text, team_id=principal.teamId)
+        data = await svc.get_review_data(
+            pr_id,
+            diff_text=resolved_diff,
+            team_id=principal.teamId,
+            actor_user_id=principal.userId,
+        )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
@@ -222,8 +251,14 @@ async def get_risk_flags(
     pr_id: str, request: Request, principal: RequirePrincipal, diff_text: str | None = None
 ) -> list[dict[str, Any]]:
     svc: ReviewService = request.app.state.review_service
+    resolved_diff = _request_diff(request, diff_text)
     try:
-        flags = await svc.get_risk_flags(pr_id, diff_text=diff_text, team_id=principal.teamId)
+        flags = await svc.get_risk_flags(
+            pr_id,
+            diff_text=resolved_diff,
+            team_id=principal.teamId,
+            actor_user_id=principal.userId,
+        )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
@@ -244,7 +279,9 @@ async def deep_link_to_github(
     """
     svc: ReviewService = request.app.state.review_service
     try:
-        data = await svc.get_review_data(pr_id, team_id=principal.teamId)
+        data = await svc.get_review_data(
+            pr_id, team_id=principal.teamId, actor_user_id=principal.userId
+        )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {
@@ -264,8 +301,14 @@ async def get_verdict(
     applied, ``"defaults"`` when none/malformed — tuning is observable.
     """
     svc: ReviewService = request.app.state.review_service
+    resolved_diff = _request_diff(request, diff_text)
     try:
-        verdict = await svc.evaluate_verdict(pr_id, diff_text=diff_text, team_id=principal.teamId)
+        verdict = await svc.evaluate_verdict(
+            pr_id,
+            diff_text=resolved_diff,
+            team_id=principal.teamId,
+            actor_user_id=principal.userId,
+        )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:

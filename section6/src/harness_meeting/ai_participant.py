@@ -205,7 +205,7 @@ async def pick_team_key(
     session_factory: Any,
     vault: Any,
     provider: str,
-    team_id: str | None = None,
+    team_id: str,
 ) -> str | None:
     """Latest active key for `provider` belonging to `team_id`, decrypted.
 
@@ -213,7 +213,15 @@ async def pick_team_key(
     via raw SQL — cross-section DB access never imports S1 models. Returns
     None when the team has no usable key (the honest-fallback case). The
     plaintext exists solely inside this call chain.
+
+    ``team_id`` is REQUIRED and never optional: an unscoped query would let
+    any team's call use the newest key in the install (BYOK cross-team leak).
+    Missing/blank team ids resolve to no key (honest fallback), never a
+    global lookup.
     """
+
+    if not team_id:
+        return None
 
     async with session_factory() as session:
         row = (
@@ -222,7 +230,7 @@ async def pick_team_key(
                     _sql_text(
                         "SELECT id, provider, key_encrypted FROM api_keys "
                         "WHERE provider = :provider AND revoked_at IS NULL "
-                        "AND (:team_id::text IS NULL OR team_id = :team_id::text) "
+                        "AND team_id = :team_id::text "
                         "ORDER BY created_at DESC LIMIT 1"
                     ),
                     {"provider": provider, "team_id": team_id},
