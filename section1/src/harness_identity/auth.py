@@ -108,7 +108,12 @@ async def get_principal(request: Request) -> Principal:
                     TeamMember.team_id == row.team_id, TeamMember.user_id == row.user_id
                 )
             )
-        ).scalar_one()
+        ).scalar_one_or_none()
+        if member is None:
+            # Membership revoked after the session was minted: the token is
+            # dead, not a server error. Same 401 as an invalid session so a
+            # removed member can never keep acting in the old team.
+            raise HTTPException(status_code=401, detail="invalid or expired session")
         return Principal(userId=row.user_id, teamId=row.team_id, role=DbRole(member.role))
 
 

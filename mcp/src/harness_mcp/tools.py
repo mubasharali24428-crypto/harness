@@ -38,63 +38,37 @@ def _text_result(payload: dict[str, Any], *, is_error: bool = False) -> list[dic
 
 
 async def _tool_start_run(api: HarnessApiClient, args: dict[str, Any]) -> list[dict[str, Any]]:
-    """propose → approve → start, as the service principal.
+    """Propose a plan ONLY. A human must approve it in the Harness UI/REST.
 
-    PILOT DECISION (S1-R04c, documented): this tool AUTO-APPROVES the plan —
-    the walk bypasses a human plan-approval click by design; the gate is the
-    authenticated MCP caller, and the reviewer/merge gates still apply. The
-    orchestrator's plan-gate mints runId+planId together; approve returns
-    the bound runId; /runs/{id}/start flips AWAITING_PLAN_APPROVAL → EXECUTING.
-    A mid-walk failure surfaces which step died plus everything collected so
-    far (planId/runId) so the caller can resume via REST instead of re-minting.
+    S-04: this tool used to walk propose → approve → start, bypassing the
+    human plan gate for anything holding the service principal. It now stops
+    at AWAITING_PLAN_APPROVAL; the caller can poll get_run_status after a
+    human approves, but the agent can never approve its own plan.
     """
     goal = str(args["goal"]).strip()
-    plan_id: str | None = None
-    run_id: str | None = None
     try:
         proposed = await api.propose_plan(goal)
-        plan_id = proposed.get("planId")
-        if not plan_id:
-            return _text_result(
-                {
-                    "error": {
-                        "code": "UPSTREAM_ERROR",
-                        "message": "orchestrator returned no planId",
-                        "upstream": proposed,
-                    }
-                }
-            )
-        approved = await api.approve_plan(str(plan_id))
-        run_id = approved.get("runId")
-        if not run_id:
-            # Plan minted but not approved: report honestly with the handle.
-            return _text_result(
-                {
-                    "error": {
-                        "code": "PLAN_NOT_APPROVED",
-                        "message": "approve did not return a runId; plan remains undecided",
-                        "planId": plan_id,
-                    }
-                }
-            )
-        started = await api.start_run(str(run_id))
     except UpstreamError as exc:
-        body = dict(exc.envelope)
-        error = body.setdefault("error", {})
-        # Attach walk progress so the caller can resume via REST (e.g. decide
-        # the already-minted plan) instead of blindly re-running start_run.
-        if plan_id is not None and "planId" not in body:
-            error["planId"] = plan_id
-        if run_id is not None and "runId" not in body:
-            error["runId"] = run_id
-        return _text_result(body, is_error=True)
-    out: dict[str, Any] = {
-        "runId": started.get("runId", run_id),
-        "planId": plan_id,
-        "state": started.get("state"),
-        "goal": goal,
-    }
-    return _text_result(out)
+        return _text_result(exc.envelope, is_error=True)
+    plan_id = proposed.get("planId")
+    if not plan_id:
+        return _text_result(
+            {
+                "error": {
+                    "code": "UPSTREAM_ERROR",
+                    "message": "orchestrator returned no planId",
+                    "upstream": proposed,
+                }
+            }
+        )
+    return _text_result(
+        {
+            "planId": plan_id,
+            "state": "AWAITING_PLAN_APPROVAL",
+            "approvalRequired": True,
+            "goal": goal,
+        }
+    )
 
 
 async def _tool_get_run_status(api: HarnessApiClient, args: dict[str, Any]) -> list[dict[str, Any]]:
@@ -130,14 +104,12 @@ def build_tools(api: HarnessApiClient) -> list[dict[str, Any]]:
         {
             "name": "start_run",
             "description": (
-                "Start a governed AI engineering run in the harness. Mints a plan "
-                "for the given goal and drives it to EXECUTING using this "
-                "server's service principal — it AUTO-APPROVES the plan on the "
-                "caller's behalf (no human click); the human approval gate is "
-                "represented by the authenticated MCP caller. Use "
-                "this when an agent should DO engineering work in a project repo; "
-                "pair with get_run_status to follow progress. Returns runId, "
-                "planId and state. Requires an engineer/admin service principal."
+                "Propose a governed AI engineering run and STOP at the human "
+                "approval gate. Returns planId and state=AWAITING_PLAN_APPROVAL; "
+                "a human must approve the plan in the Harness UI/REST before the "
+                "run can start. This tool never approves or starts a run on the "
+                "caller's behalf. Use get_run_status to follow progress after "
+                "approval."
             ),
             "inputSchema": _schema(
                 {

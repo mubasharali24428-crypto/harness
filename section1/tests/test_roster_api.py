@@ -556,3 +556,58 @@ async def test_role_column_round_trips_lowercase_values(
     )
     assert r.status_code == 200, r.text
     assert r.json()["role"] == "engineer"
+
+
+# --------------------------------------------------------------- revocation
+
+
+async def test_removing_member_revokes_sessions_and_401s_immediately(
+    roster_factory, roster_client
+):
+    team = await _seed_team(
+        roster_factory,
+        ("boss@x.com", "admin"),
+        ("target@x.com", "engineer"),
+    )
+    boss, target = team["boss@x.com"], team["target@x.com"]
+    url = f"/api/v1/teams/{team['teamId']}/members/{target['userId']}"
+
+    removed = await roster_client.delete(url, headers=_bearer(boss["token"]))
+    assert removed.status_code == 204, removed.text
+
+    stale = await roster_client.get(
+        f"/api/v1/teams/{team['teamId']}/members", headers=_bearer(target["token"])
+    )
+    assert stale.status_code == 401, stale.text
+
+    async with roster_factory() as db:
+        rows = (
+            await db.execute(
+                select(AuthSession).where(AuthSession.user_id == target["userId"])
+            )
+        ).scalars().all()
+    assert rows == [], "membership removal must delete the team's sessions"
+
+
+async def test_deleted_membership_with_live_session_answers_401_not_500(
+    roster_factory, roster_client
+):
+    team = await _seed_team(
+        roster_factory,
+        ("boss@x.com", "admin"),
+        ("target@x.com", "engineer"),
+    )
+    target = team["target@x.com"]
+    async with roster_factory() as db:
+        member = (
+            await db.execute(
+                select(TeamMember).where(TeamMember.user_id == target["userId"])
+            )
+        ).scalar_one()
+        await db.delete(member)
+        await db.commit()
+
+    res = await roster_client.get(
+        f"/api/v1/teams/{team['teamId']}/members", headers=_bearer(target["token"])
+    )
+    assert res.status_code == 401, res.text
