@@ -368,6 +368,7 @@ def apply_landlock_in_child(
     import ctypes
     import ctypes.util
 
+    os.write(2, b"landlock: entered apply_landlock_in_child\n")
     libc = ctypes.CDLL(ctypes.util.find_library("c") or "libc.so.6", use_errno=True)
 
     def create_ruleset(handled: int) -> int:
@@ -424,10 +425,7 @@ def apply_landlock_in_child(
     read_rules = landlock_read_allowlist(
         workspace, tmpdir, forbidden_paths, extra_read_roots
     )
-    if os.environ.get("HARNESS_SANDBOX_DEBUG_ALLOWLIST") == "1":
-        sys.stderr.write(
-            "landlock read roots: " + ",".join(str(p) for p, _ in read_rules) + "\n"
-        )
+    os.write(2, ("landlock read roots: " + ",".join(str(p) for p, _ in read_rules) + "\n").encode())
     read_ruleset = create_ruleset(_READ_HANDLED)
     for path, rights in read_rules:
         try:
@@ -435,6 +433,7 @@ def apply_landlock_in_child(
         except OSError:  # vanished between the walk and the rule
             continue
     restrict_self(read_ruleset)
+    os.write(2, b"landlock: read ruleset applied\n")
     os.close(read_ruleset)
 
     _ = allow_network  # ABI v1 has no network hooks; egress stays policy-layer
