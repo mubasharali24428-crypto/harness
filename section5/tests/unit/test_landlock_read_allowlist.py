@@ -146,3 +146,22 @@ def test_exec_read_roots_adds_only_an_outside_tool_directory(monkeypatch):
     assert confinement.exec_read_roots("/srv/tools/bin/run") == [
         Path("/srv/tools/bin").resolve()
     ]
+
+
+def test_home_root_never_grants_the_filesystem_root(tmp_path, monkeypatch):
+    """Docker with --user and no passwd entry sets HOME="/"; that must not
+    turn the read allow-list into the whole filesystem (found by the
+    native-Linux drill on ubuntu-latest, 2026-10-25)."""
+    monkeypatch.setenv("HOME", "/")
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    rules = _rules(confinement.landlock_read_allowlist(ws))
+    assert Path("/") not in rules
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    assert outside.resolve() not in rules
+
+
+def test_exec_read_roots_never_returns_root(monkeypatch):
+    monkeypatch.setenv("HOME", "/")
+    assert confinement.exec_read_roots("/runme") == []

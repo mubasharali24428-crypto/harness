@@ -42,7 +42,10 @@ Scope: `LocalSandboxRunner` and the `/api/v1/sandbox/tasks*` routes. Threat IDs 
   granted `/` as readable and silently defeated the read allow-list for every
   shell-gated command. `exec_read_roots` now adds a directory only when the
   program lives outside the system roots and HOME; a regression test proves
-  `/bin/sh` adds nothing. The native-Linux drill is what surfaced this.
+  `/bin/sh` adds nothing. The same drill found a second hole: a container
+  started with `--user` and no passwd entry has `HOME=/`, which the allow-list
+  accepted as a readable root. `/` is now refused as a root. The native-Linux
+  drill is what surfaced both.
 - **Linux/Landlock** is now a read/write boundary when the runtime probe passes. Landlock grants handled rights rather than expressing deny rules, so the read side is an allow-list assembled from the task workspace, private tmp, HOME, required system trees, and the target tool's directory; forbidden paths are omitted and sibling task workspaces are outside the allow-list. The rules are installed before `exec`, and a probe failure still fails closed. This is stronger than the prior write-only posture but remains host/kernel dependent and is not a production-readiness claim.
 - **Engine shell gate (part 52, B1).** The DeepSeek runtime's own bash tool is disabled per run and replaced by `section4/src/harness_orchestrator/dsh_plugins/harness-shell.js`, which sends each command to `section5/src/harness_sandbox/shell_gate.py`: `validate_command` (allow-list, no shell operators, secret files, plan `forbiddenPaths`), the run intent's `scopePaths`, then the command under `confine_argv` with a sanitized environment. No confinement available = refused. The plugin also denies tool calls past the run's remaining `maxToolCalls`. Same argument-level limits as the exec path above. Each call starts a fresh `/bin/sh`, so no shell state carries over between calls.
 - **`confinement=off`** has no OS boundary: the private tmp is a convention (env vars) and 0700 mode, not a barrier against code that ignores `TMPDIR`. It requires the explicit `HARNESS_SANDBOX_ALLOW_UNCONFINED=1` opt-in. The Compose journey may use that diagnostic opt-out, but it is not sandbox security evidence.

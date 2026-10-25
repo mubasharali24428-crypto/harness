@@ -73,7 +73,7 @@ print(json.dumps({
         --user "$(id -u):$(id -g)" \
         -v "$WORK:/workspace" \
         -v "$SIBLING:/sibling:ro" \
-        -w /workspace -e HARNESS_SANDBOX_DEBUG_ALLOWLIST=1 \
+        -w /workspace \
         --entrypoint python "$IMAGE" -I "$GATE"
 }
 
@@ -92,37 +92,14 @@ READ_OK=$(printf '%s' "$READ_JSON" | python3 -c 'import json,sys; d=json.load(sy
 
 SIB_JSON=$(run_gate "python3 -c \"print(open('/sibling/data.txt').read())\"")
 SIB_BLOCKED=$(printf '%s' "$SIB_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("exitCode") != 0 and "CANARY" not in d.get("output",""))')
-if [ "$SIB_BLOCKED" != "True" ]; then
-    echo "[native-drill] diagnostics:" >&2
-    docker run --rm --entrypoint sh "$IMAGE" -c \
-        'grep -n "read_ruleset\|exec_read_roots" /opt/harness/section5/src/harness_sandbox/confinement.py | head' >&2 || true
-    ESCAPE_JSON=$(run_gate "python3 -c \"open('/tmp/native-drill-escape.txt','w').write('x')\"")
-    echo "[native-drill] outside write => $ESCAPE_JSON" >&2
-    cat >"$WORK/landlock_diag.py" <<'PYDIAG'
-import ctypes, os, struct
-libc = ctypes.CDLL(None, use_errno=True)
-handled = 1 | 4 | 8
-attr = struct.pack("Q", handled)
-fd = libc.syscall(444, attr, len(attr), 0)
-assert fd >= 0, ctypes.get_errno()
-for root in ("/usr", "/bin", "/sbin", "/lib", "/opt", "/etc", "/proc", "/dev", "/sys", "/run", "/workspace"):
-    if os.path.exists(root):
-        pfd = os.open(root, os.O_PATH | os.O_CLOEXEC)
-        assert libc.syscall(445, fd, 1, struct.pack("=Qi", handled, pfd), 0) == 0, (root, ctypes.get_errno())
-assert libc.prctl(38, 1, 0, 0, 0) == 0
-assert libc.syscall(446, fd, 0) == 0, ctypes.get_errno()
-try:
-    open("/sibling/data.txt").read()
-    print("DIAG READ_ALLOWED")
-except PermissionError as exc:
-    print("DIAG READ_DENIED", exc)
-PYDIAG
-    echo "[native-drill] kernel $(uname -r)" >&2
-    docker run --rm --network none --user "$(id -u):$(id -g)" \
-        -v "$WORK:/workspace" -v "$SIBLING:/sibling:ro" \
-        --entrypoint python "$IMAGE" -I /workspace/landlock_diag.py >&2 || true
-    fail "sibling read leaked: $SIB_JSON"
-fi
+[ "$SIB_BLOCKED" = "True" ] || fail "sibling read leaked: $SIB_JSON"
+
+# Landlock must also stop writes outside the workspace. Without this check a
+# world-writable /tmp could make a "read denied" result look meaningful when
+# the boundary is not actually installed.
+ESCAPE_JSON=$(run_gate "python3 -c \"open('/tmp/native-drill-escape.txt','w').write('x')\"")
+ESCAPE_BLOCKED=$(printf '%s' "$ESCAPE_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("exitCode") != 0)')
+[ "$ESCAPE_BLOCKED" = "True" ] || fail "outside write was allowed: $ESCAPE_JSON"
 
 python3 - "$OUT" "$IMAGE" "$ABI" "$STAMP" <<PY
 import json
@@ -143,11 +120,16 @@ evidence = {
             "ok": True,
             "detail": "read of /sibling/data.txt failed; CANARY never appeared in output",
         },
+        "outsideWriteDenied": {
+            "ok": True,
+            "detail": "write to /tmp outside the workspace was refused by Landlock",
+        },
     },
     "result": "pass",
     "notes": [
         "Reproduces the Docker Desktop/macOS failing path on a native Linux kernel.",
         "The shell gate fails closed when the Landlock probe is unavailable.",
+        "A container started with --user and no passwd entry has HOME=/; the allow-list now refuses / as a root.",
         "This certifies the sandbox host boundary, not the whole product.",
     ],
 }

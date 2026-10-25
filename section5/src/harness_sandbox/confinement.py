@@ -341,6 +341,11 @@ def landlock_read_allowlist(
     rules: list[tuple[Path, int]] = []
     seen: set[tuple[str, int]] = set()
     for root in roots:
+        # "/" is never a scoped root. Containers started with `--user` and no
+        # passwd entry get HOME="/" (Docker's default), which would otherwise
+        # turn the allow-list into "read everything".
+        if root == Path("/"):
+            continue
         if not root.exists():
             continue
         for path, rights in _read_rules_for(root, denies, root):
@@ -368,7 +373,6 @@ def apply_landlock_in_child(
     import ctypes
     import ctypes.util
 
-    os.write(2, b"landlock: entered apply_landlock_in_child\n")
     libc = ctypes.CDLL(ctypes.util.find_library("c") or "libc.so.6", use_errno=True)
 
     def create_ruleset(handled: int) -> int:
@@ -422,18 +426,15 @@ def apply_landlock_in_child(
 
     # ---- ruleset 2: reads (S-01). Stacked on top of the write ruleset; the
     # two are independent because each only restricts the rights it handles.
-    read_rules = landlock_read_allowlist(
-        workspace, tmpdir, forbidden_paths, extra_read_roots
-    )
-    os.write(2, ("landlock read roots: " + ",".join(str(p) for p, _ in read_rules) + "\n").encode())
     read_ruleset = create_ruleset(_READ_HANDLED)
-    for path, rights in read_rules:
+    for path, rights in landlock_read_allowlist(
+        workspace, tmpdir, forbidden_paths, extra_read_roots
+    ):
         try:
             add_beneath(read_ruleset, fs_fd(path), rights)
         except OSError:  # vanished between the walk and the rule
             continue
     restrict_self(read_ruleset)
-    os.write(2, b"landlock: read ruleset applied\n")
     os.close(read_ruleset)
 
     _ = allow_network  # ABI v1 has no network hooks; egress stays policy-layer
@@ -482,6 +483,8 @@ def exec_read_roots(program: str) -> list[Path]:
     home = os.environ.get("HOME")
     if home:
         covered.append(_resolved(Path(home)))
+    if directory == Path("/"):
+        return []  # never grant the filesystem root
     if any(_within(directory, root) for root in covered):
         return []
     return [directory]
