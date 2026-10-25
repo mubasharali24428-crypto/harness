@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-24",
+  "provider": "OpenRouter",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "pricing": "in $0.020/M, out $1.000/M (cheapest fast DeepSeek option in the catalog at the time)",
+  "engineMode": "live (explicit live_mode='live')",
+  "result": {
+    "status": "completed",
+    "durationSeconds": 10.73,
+    "fileCreated": true,
+    "fileContent": "engine ok",
+    "finalResponse": "Created `engine_ok.txt` containing exactly: engine ok",
+    "usage": null
+  },
+  "requiredConfiguration": {
+    "DEEPSEEK_BASE_URL": "https://openrouter.ai/api/v1",
+    "DSH_MODEL": "deepseek/deepseek-v4.1-flash",
+    "DSH_PATCH_FILES": "deploy/patches/openrouter.patch.yml",
+    "why": "the native SDK 0.2.1rc2 adapter always calls the Anthropic Messages API and omits thinking.budget_tokens, which OpenRouter rejects; the patch swaps in the openai-completions adapter"
+  },
+  "diagnostics": [
+    "direct POST to https://openrouter.ai/api/v1/messages with a minimal Anthropic body returned 200 (endpoint is supported)",
+    "the runtime's unpatched body was rejected 400 Invalid Anthropic Messages API request",
+    "removing thinking -> 200; adding thinking.budget_tokens -> 200; so the runtime's thinking object was the invalid part",
+    "installing the openai-completions transport patch (deploy/patches/openrouter.patch.yml) plus DSH_MODEL made the engine complete with a real file side effect"
+  ],
+  "cost": "fractions of a cent; free-model runs were also exercised earlier but looped on tools",
+  "notCovered": [
+    "container-isolated tool-using run against a remote provider",
+    "token usage accounting through this transport patch (usage was null)"
+  ]
+}
