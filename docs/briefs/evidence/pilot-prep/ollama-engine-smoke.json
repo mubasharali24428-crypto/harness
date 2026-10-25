@@ -1,0 +1,46 @@
+{
+  "date": "2026-10-24",
+  "provider": "local Ollama (OpenAI-compatible endpoint; no paid provider call)",
+  "model": "qwen-local:latest",
+  "baseUrl": "http://127.0.0.1:11434/v1",
+  "engineMode": "live (explicit live_mode='live'; never inferred from key presence)",
+  "runs": [
+    {
+      "path": "in-process SDK (isolated=false)",
+      "goal": "Create a file named engine_ok.txt containing exactly 'engine ok'.",
+      "status": "completed",
+      "durationSeconds": 98.96,
+      "fileCreated": true,
+      "fileContent": "engine ok",
+      "finalResponse": "Created `engine_ok.txt` containing exactly `engine ok` (no trailing newline).",
+      "usage": null
+    },
+    {
+      "path": "container-isolated worker (isolated=true, HARNESS_ENGINE_CONFINEMENT=container, image harness-engine-worker:real)",
+      "goal": "Reply with the single word: ready. Do not use tools.",
+      "status": "completed",
+      "durationSeconds": 15.01,
+      "fileCreated": false,
+      "finalResponse": "ready",
+      "usage": null
+    },
+    {
+      "path": "container-isolated worker, tool-using goal",
+      "goal": "Create a file named engine_ok.txt containing exactly 'engine ok'.",
+      "status": "stopped manually after >12 minutes",
+      "note": "Container-to-host networking verified separately (HTTP 200 from the worker image to the Ollama /v1/models endpoint), so this was not a connectivity failure. The local 16 GB model appears to loop on tool calls. section4 engine.py _run_isolated calls proc.communicate() with no timeout, so a stalled worker holds the caller indefinitely; the service-level reaper still records run state, but the call itself is unbounded."
+    }
+  ],
+  "verified": [
+    "engine -> OpenAI-compatible provider integration works end to end with a real model",
+    "the engine produces a real filesystem side effect through the SDK",
+    "the container boundary runs the real dsh worker and returns a completion",
+    "container -> host model endpoint reachability"
+  ],
+  "notCovered": [
+    "paid or remote provider (OpenRouter live probe skipped: no HARNESS_OPENROUTER_KEY_FILE)",
+    "token usage accounting (usage=null for this local endpoint)",
+    "end-to-end orchestrator run with a real model through the compose stack",
+    "a stalled-call timeout (none implemented in _run_isolated)"
+  ]
+}
