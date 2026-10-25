@@ -142,8 +142,9 @@ describe("dashboard root DS migration (M16-X4)", () => {
   const ALLOWED = [/color: "var\(--accent\)"/]; // Go-to-login link ink
 
   it("renders the command-center cards through Card with live-pill hook intact", async () => {
-    const { default: CommandCenter } = await import("../../app/page");
-    const html = renderToStaticMarkup(React.createElement(CommandCenter));
+    const { CommandCenterView } = await import("../../src/components/CommandCenter");
+    // The signed-in surface; the route swaps to it once a session is read.
+    const html = renderToStaticMarkup(React.createElement(CommandCenterView));
 
     expect(html).toContain("Command Center");
     expect(html).toContain('data-testid="live-pill"'); // H-012 WS-truthful pill
@@ -151,8 +152,16 @@ describe("dashboard root DS migration (M16-X4)", () => {
     expect(html).toContain("Agent Status");
     expect(html).toContain("Current Plan");
     expect(html).toContain("Guardrails");
-    // Signed-out visitors get the welcome card (auth read is SSR-guarded):
-    expect(html).toContain("Go to login →");
+  });
+
+  it("serves the landing page to signed-out visitors, with both entry points", async () => {
+    const { default: CommandCenter } = await import("../../app/page");
+    const html = renderToStaticMarkup(React.createElement(CommandCenter));
+
+    expect(html).toContain("Keep the veto.");
+    expect(html).toContain('href="/demo"');
+    expect(html).toContain('href="/login"');
+    expect(html).not.toContain("Command Center");
   });
 
   it("zero undocumented inline styles remain (exception audit)", async () => {
