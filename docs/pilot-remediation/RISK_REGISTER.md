@@ -97,16 +97,34 @@ evidence (kept for audit):
   (repo-wide grep clean).
 
 ### R-03 — Sandbox, filesystem, process, package-install, network boundaries
-**State: PARTIAL — MACOS-ONLY PILOT MITIGATION.** R-03a/b/d/e/f fixed
+**State: PARTIAL — PILOT-GRADE MACOS/LINUX MITIGATION.** R-03a/b/d/e/f fixed
 (double-quoted substitution + `find -exec` + `${VAR}` rejected, glob
 expansion enforced against forbidden paths, installers blocked, explicit
 confinement fails closed incl. landlock child-apply, `HARNESS_` env
-stripped, process-group kill + live streaming timeout). R-03c accepted as
-residual → pilot decision: sandbox network stays available, now explicit via
-`HARNESS_SANDBOX_*` deploy env; egress allow-listing deferred. Evidence:
+stripped, process-group kill + live streaming timeout). R-03c is a residual,
+narrowed: Compose and the Docker runner default to network-disabled
+execution, and an explicit `HARNESS_SANDBOX_ALLOW_NETWORK=1` now attaches the
+per-task container only to a gateway-less network whose sole peer is an
+allow-list HTTPS CONNECT proxy (`section5/src/harness_sandbox/egress_proxy.py`,
+commit `3805a7e`; unit-tested in `test_egress_proxy.py`). Not yet drilled
+against a live Docker daemon. The Compose sandbox service is still a shared
+container on the default network, and the Linux local runner inherits host
+networking because Landlock has no network hooks — so local (non-Docker) runs
+are not network-confined. Evidence:
 `session1/S1-R03-sandbox-boundaries.md` §Verification results. Linux Landlock
-write enforcement is verified, but forbidden-path reads are not. Linux
-sandbox-enabled startup now fails closed; use macOS Seatbelt for the pilot.
+write enforcement and the new read allow-list are covered by
+`section5/tests/unit/test_landlock_read_allowlist.py` and
+`section5/tests/unit/test_landlock_read_isolation.py`; the runtime probe still
+fails closed when the host cannot enforce Landlock. The Compose service remains
+a shared backend container, not a per-task Docker sandbox, and unconfined mode
+is diagnostic-only. `DockerSandboxRunner` now provides an explicit per-task
+container path with read-only root, dropped capabilities, resource limits,
+sanitized environment, and masked forbidden paths; focused unit tests and a
+real local Docker smoke passed. The Compose service remains shared and does
+not enable the Docker socket by default. The complete Section 5 suite passes
+in the temporary Linux test image (`259 passed, 10 skipped`); the native macOS suite is environment
+blocked when both Seatbelt and Landlock are unavailable, rather than falling
+back to an unconfined runner.
 Original
 evidence (kept for audit):
 - **R-03a shell-feature bypasses (exploitable today):** double-quoted `$( )`/backticks

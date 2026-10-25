@@ -34,9 +34,8 @@ flow is not built yet, so run the drill via API calls.
    `state`; tampered JWKS signature; issuer mismatch in discovery.
 
 Evidence to capture: session issuance JSON (redacted), `secretHint` on GET,
-rate-limit 429 on burst start/complete, a written note that the SPA callback
-is still missing (required for any pilot where non-admin humans log in via
-SSO).
+rate-limit 429 on burst start/complete, and the browser round-trip through the
+SPA callback (`/auth/sso/callback`, built 2026-10-17).
 
 ## Stripe — test-mode drill
 

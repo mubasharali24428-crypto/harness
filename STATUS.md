@@ -1,9 +1,27 @@
-# STATUS — where the project stands (updated 2026-08-26, Mission 23 program close)
+# STATUS — where the project stands
 
 > **Terminology (canonical — see also README.md):** "engine" = this platform's
 > Section 4 execution component; "DeepSeek Harness" (or "dsh", always referring
 > to that external product/SDK, never to our engine) = the upstream tool the
 > engine drives; "run" (not job/task); "team" (not org/workspace).
+
+> Read the current-readiness block immediately below first. The
+> Mission 23 program-close entry records the Aug-2026 v1.0.0-candidate feature
+> set; it is not a current readiness verdict.
+
+## Current readiness (2026-10-24)
+
+An independent 2026-10-21 startup audit
+(`docs/briefs/startup-audit-2026-10-21.md`) found security gaps (S-01…S-04)
+and pilot blockers; the remediation program is tracked in
+`docs/pilot-remediation/`.
+
+Current verdict: **NOT READY** for production or a general pilot; private
+design-partner only. Fixed and gate-verified work is listed in
+`docs/pilot-remediation/BASELINE_2026-10-21.md`. Remaining blockers are
+external: a real-provider smoke, Stripe/OIDC/object-store drills
+(`docs/runbooks/external-validation.md`), a reviewed dedicated sandbox
+worker/daemon, host certification, and counsel-approved terms.
 
 ## PROGRAM CLOSE — Mission 23 (2026-08-26)
 
