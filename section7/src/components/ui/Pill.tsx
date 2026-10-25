@@ -31,11 +31,11 @@ export interface PillProps {
 }
 
 /** Tone → { border, text } pairs, exactly the globals.css .pill rules. */
-const TONE_VARS: Record<StatusTone, { border: string; text: string }> = {
-  green: { border: cssVar("green"), text: cssVar("green") },
-  red: { border: cssVar("red"), text: cssVar("red") },
-  yellow: { border: cssVar("yellow"), text: cssVar("yellow") },
-  blue: { border: cssVar("accent"), text: cssVar("accent") },
+const TONE_VARS: Record<StatusTone, { background: string; border: string; text: string }> = {
+  green: { background: "rgba(92, 184, 112, 0.14)", border: "rgba(92, 184, 112, 0.28)", text: cssVar("green") },
+  red: { background: "rgba(255, 107, 107, 0.14)", border: "rgba(255, 107, 107, 0.28)", text: cssVar("red") },
+  yellow: { background: "rgba(229, 168, 20, 0.14)", border: "rgba(229, 168, 20, 0.3)", text: cssVar("yellow") },
+  blue: { background: "rgba(108, 184, 255, 0.13)", border: "rgba(108, 184, 255, 0.28)", text: cssVar("accent") },
 };
 
 /** Static pill geometry — matches the legacy `.pill` class box. */
@@ -87,6 +87,7 @@ export function Pill({ tone, children, onClick, active, className, style, testId
       className={className}
       style={{
         ...baseStyle,
+        background: vars.background,
         border: `1px solid ${vars.border}`,
         color: vars.text,
         ...style,

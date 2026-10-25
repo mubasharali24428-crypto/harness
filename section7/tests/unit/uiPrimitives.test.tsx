@@ -50,12 +50,12 @@ describe("Button", () => {
     const html = markup(<Button>Go</Button>);
     expect(html).toContain('type="button"');
     expect(html).toContain("var(--panel-2)");
-    expect(html).toContain("6px 14px"); // legacy .btn padding
+    expect(html).toContain("7px 14px"); // .btn padding
     expect(html).toContain("Go");
   });
 
-  it("primary/danger variants keep the legacy colored border+text faces", () => {
-    expect(markup(<Button variant="primary">Save</Button>)).toContain("var(--green)");
+  it("primary/danger variants use soft-filled accent faces", () => {
+    expect(markup(<Button variant="primary">Save</Button>)).toContain("var(--accent)");
     expect(markup(<Button variant="danger">Delete</Button>)).toContain("var(--red)");
   });
 
@@ -216,15 +216,15 @@ describe("Modal", () => {
 describe("tokens.ts integrity", () => {
   it("token palette matches globals.css :root exactly", async () => {
     const { colors } = await import("@/components/tokens");
-    expect(colors.bg).toBe("#0d1117");
-    expect(colors.panel).toBe("#161b22");
-    expect(colors.panel2).toBe("#1c2330");
-    expect(colors.border).toBe("#30363d");
-    expect(colors.text).toBe("#e6edf3");
-    expect(colors.muted).toBe("#8b949e");
-    expect(colors.accent).toBe("#58a6ff");
-    expect(colors.green).toBe("#3fb950");
-    expect(colors.red).toBe("#f85149");
-    expect(colors.yellow).toBe("#d29922");
+    expect(colors.bg).toBe("#1a1814");
+    expect(colors.panel).toBe("#1e1c18");
+    expect(colors.panel2).toBe("#252220");
+    expect(colors.border).toBe("#3d3930");
+    expect(colors.text).toBe("#faf9f6");
+    expect(colors.muted).toBe("#a8a296");
+    expect(colors.accent).toBe("#8ee5a1");
+    expect(colors.green).toBe("#5cb870");
+    expect(colors.red).toBe("#ff6b6b");
+    expect(colors.yellow).toBe("#e5a814");
   });
 });

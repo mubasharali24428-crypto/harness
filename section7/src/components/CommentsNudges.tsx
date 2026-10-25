@@ -43,7 +43,7 @@ export function CommentsNudges({ authorName }: { authorName: string }) {
       <div style={{ display: "grid", gap: 6, maxHeight: 160, overflowY: "auto", marginBottom: 10 }}>
         {comments.map((c) => (
           <div key={c.id} style={{ fontSize: 13 }}>
-            <span style={{ color: c.kind === "nudge" ? "#fbbf24" : "#9aa4b2", fontWeight: 600 }}>
+            <span style={{ color: c.kind === "nudge" ? "var(--yellow)" : "var(--muted)", fontWeight: 600 }}>
               {c.kind === "nudge" ? "↳ nudge" : c.author}:
             </span>{" "}
             {c.body}

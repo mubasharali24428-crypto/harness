@@ -14,7 +14,7 @@ import { cssVar, fontSize, radius, space } from "./tokens";
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: `radial-gradient(1200px 600px at 50% -200px, rgba(88,166,255,0.12), transparent), ${cssVar("bg")}`,
+  background: `radial-gradient(1200px 600px at 50% -200px, rgba(142,229,161,0.10), transparent), ${cssVar("bg")}`,
   color: cssVar("text"),
 };
 
@@ -31,12 +31,6 @@ const headerStyle: React.CSSProperties = {
   gap: space.lg,
   padding: `${space.xl * 2}px 0`,
   flexWrap: "wrap",
-};
-
-const brandStyle: React.CSSProperties = {
-  fontWeight: 700,
-  letterSpacing: 2,
-  fontSize: fontSize.md,
 };
 
 const navLink: React.CSSProperties = {
@@ -129,8 +123,11 @@ export function LandingView() {
     <div style={pageStyle} data-testid="landing">
       <div style={shell}>
         <header style={headerStyle}>
-          <span style={brandStyle}>HARNESS</span>
-          <nav aria-label="Get started" style={{ display: "flex", gap: space.md, flexWrap: "wrap" }}>
+          <span className="brand">HARNESS</span>
+          <nav
+            aria-label="Get started"
+            style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: space.md, flexWrap: "wrap" }}
+          >
             <a href="/login" style={navLink}>
               Sign in
             </a>

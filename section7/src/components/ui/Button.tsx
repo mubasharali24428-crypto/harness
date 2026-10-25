@@ -37,14 +37,22 @@ export interface ButtonProps {
 }
 
 const SIZE_STYLE: Record<ButtonSize, React.CSSProperties> = {
-  sm: { padding: `6px ${space.cardPad}px` }, // 6px 14px — .btn box
-  md: { padding: `${space.lg}px 14px` }, // matches .text-input's 10px height rhythm
+  sm: { padding: `7px ${space.controlPadX}px` }, // 7px 14px — .btn box
+  md: { padding: `${space.lg}px ${space.controlPadX}px` }, // matches the input height rhythm
 };
 
 const VARIANT_STYLE: Record<ButtonVariant, React.CSSProperties> = {
   secondary: {},
-  primary: { borderColor: cssVar("green"), color: cssVar("green") },
-  danger: { borderColor: cssVar("red"), color: cssVar("red") },
+  primary: {
+    background: "rgba(142, 229, 161, 0.12)",
+    borderColor: "rgba(142, 229, 161, 0.45)",
+    color: cssVar("accent"),
+  },
+  danger: {
+    background: "rgba(255, 107, 107, 0.12)",
+    borderColor: "rgba(255, 107, 107, 0.4)",
+    color: cssVar("red"),
+  },
   accent: { background: cssVar("accent"), borderColor: cssVar("accent"), color: cssVar("bg") },
 };
 
@@ -85,6 +93,8 @@ export function Button({
         borderRadius: radius.md,
         cursor: "pointer",
         font: "inherit",
+        fontWeight: 500,
+        transition: "background 0.15s ease, border-color 0.15s ease",
         ...SIZE_STYLE[size],
         ...VARIANT_STYLE[variant],
         ...(disabled || loading ? DISABLED_STYLE : undefined),

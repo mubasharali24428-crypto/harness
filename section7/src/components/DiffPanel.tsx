@@ -22,7 +22,7 @@ export function DiffPanel({ diffText }: { diffText: string }) {
       <h2 style={headingStyle}>Diff</h2>
       <div
         ref={containerRef}
-        style={{ height: 220, border: "1px solid #2a3038", borderRadius: 6, overflow: "hidden" }}
+        style={{ height: 220, border: "1px solid var(--border-soft)", borderRadius: 6, overflow: "hidden" }}
       />
     </section>
   );

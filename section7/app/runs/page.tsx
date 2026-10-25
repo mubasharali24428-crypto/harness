@@ -177,6 +177,9 @@ export default function RunsPage() {
   const rangeStart = total === 0 ? 0 : offset + 1;
   const rangeEnd = Math.min(offset + runs.length, total);
 
+  const filtersActive = Boolean(projectId || status);
+  const noResults = !loading && !error && page !== null && runs.length === 0 && total === 0;
+
   return (
     <AppShell active="/runs">
       <h1>Runs</h1>
@@ -267,18 +270,25 @@ export default function RunsPage() {
 
       {loading && !page && !error && <LoadingState label="Loading runs…" rows={5} />}
 
-      {!loading && !error && page !== null && runs.length === 0 && total === 0 && (
+      {noResults && (
         <EmptyState
-          title="No runs yet"
-          body="Start from the Command Center: describe a goal, approve the plan, and the run shows up here with its cost and state."
+          title={filtersActive ? "No runs match these filters" : "No runs yet"}
+          body={
+            filtersActive
+              ? "Nothing has run with this project and status. Clear the filters to see the full history."
+              : "Start from the Command Center: describe a goal, approve the plan, and the run shows up here with its cost and state."
+          }
           action={
-            <a className="btn" href="/">
-              Open the Command Center
-            </a>
+            filtersActive ? undefined : (
+              <a className="btn" href="/">
+                Open the Command Center
+              </a>
+            )
           }
         />
       )}
 
+      {!noResults && (
       <section className="card" style={cardStyle} aria-busy={loading}>
         <RunsTable runs={runs} now={now} />
         {!loading && runs.length === 0 && error === null && total > 0 && (
@@ -327,6 +337,7 @@ export default function RunsPage() {
           )}
         </div>
       </section>
+      )}
 
       <p style={{ color: "var(--muted)", fontSize: 12 }}>
         Times are relative to your machine&apos;s clock ({RUNS_MAX_LIMIT} runs per page maximum). Rows link to

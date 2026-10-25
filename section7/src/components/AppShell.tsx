@@ -143,6 +143,7 @@ export default function AppShell({
           </select>
         </div>
         <NotificationBell />
+        <div className="nav-group-label">Workspace</div>
         <nav>
           {AREAS.slice(0, 1).map((a) => (
             <Link

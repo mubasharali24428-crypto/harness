@@ -18,6 +18,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
+import { ErrorState } from "@/components/States";
+import { loadErrorMessage } from "@/lib/humanize";
 import { getToken, loadSession } from "@/lib/auth";
 import {
   ChecklistItemDto,
@@ -76,7 +78,7 @@ export default function OnboardingPage() {
       setSignals({ teamExists: teamId ? true : null, membersCount, githubConnected, keysCount, runsTotal });
       setUpdatedAt(Date.now());
     } catch (e) {
-      setError(String((e as Error)?.message ?? e));
+      setError(loadErrorMessage(e));
     } finally {
       inFlight.current = false;
       setBusy(false);
@@ -122,14 +124,11 @@ export default function OnboardingPage() {
       </p>
 
       {error && (
-        <div
-          role="alert"
-          data-testid="onboarding-error"
-          className="pill red"
-          style={{ padding: "8px 12px", marginBottom: 16 }}
-        >
-          {error}
-        </div>
+        <ErrorState
+          title="The checklist didn’t load"
+          message={error}
+          onRetry={() => void refresh()}
+        />
       )}
 
       <section className="card" style={cardStyle} aria-busy={busy}>

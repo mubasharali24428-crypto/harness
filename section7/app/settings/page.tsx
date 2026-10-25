@@ -62,7 +62,7 @@ function SettingsInner() {
             borderRadius: 8,
             marginBottom: 16,
             background: params.get("connected") ? "#0f2a1e" : "#2a1215",
-            color: params.get("connected") ? "#34d399" : "#f87171",
+            color: params.get("connected") ? "var(--accent)" : "var(--red)",
           }}
         >
           {params.get("connected")
@@ -73,7 +73,7 @@ function SettingsInner() {
 
       <section style={{ maxWidth: 520 }}>
         <h2 style={{ marginTop: 0 }}>Workspace</h2>
-        <ul style={{ color: "#9aa4b2", fontSize: 14, lineHeight: 2, paddingLeft: 18 }}>
+        <ul style={{ color: "var(--muted)", fontSize: 14, lineHeight: 2, paddingLeft: 18 }}>
           <li><a href="/settings/team" style={{ color: "#93c5fd" }}>Team &amp; invites</a></li>
           <li><a href="/settings/governance" style={{ color: "#93c5fd" }}>Organization governance</a></li>
           <li><a href="/settings/notifications" style={{ color: "#93c5fd" }}>Notifications (inbox, email, quiet hours)</a></li>
@@ -87,7 +87,7 @@ function SettingsInner() {
 
       <section style={{ maxWidth: 520 }}>
         <h2 style={{ marginTop: 0 }}>GitHub connection</h2>
-        <p style={{ color: "#9aa4b2", fontSize: 14 }}>
+        <p style={{ color: "var(--muted)", fontSize: 14 }}>
           Connect your GitHub account so agents can read repos, push branches and
           open draft pull requests on your behalf. Tokens are stored encrypted at
           rest and are never displayed again.
@@ -106,7 +106,7 @@ function SettingsInner() {
               borderRadius: 8,
             }}
           >
-            <span style={{ color: "#34d399", fontWeight: 700 }}>Connected</span>
+            <span style={{ color: "var(--accent)", fontWeight: 700 }}>Connected</span>
             <span style={{ fontFamily: "ui-monospace, monospace" }}>@{conn.login}</span>
             <span style={{ color: "var(--muted)", fontSize: 13 }}>
               scopes: {conn.scopes.join(", ") || "—"}
@@ -123,7 +123,7 @@ function SettingsInner() {
               borderRadius: 8,
             }}
           >
-            <span style={{ color: "#f59e0b", fontWeight: 700 }}>Not connected</span>
+            <span style={{ color: "var(--yellow)", fontWeight: 700 }}>Not connected</span>
             <button className="btn" disabled={busy} onClick={onConnect}>
               {busy ? "Redirecting…" : "Connect GitHub"}
             </button>

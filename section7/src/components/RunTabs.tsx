@@ -60,11 +60,14 @@ export function RunTabBar({
       aria-label="Run sections"
       onKeyDown={onKeyDown}
       style={{
-        display: "flex",
-        gap: 4,
+        display: "inline-flex",
+        gap: 2,
         flexWrap: "wrap",
-        borderBottom: `1px solid ${cssVar("border")}`,
-        margin: "12px 0 18px",
+        background: cssVar("panel"),
+        border: `1px solid ${cssVar("border")}`,
+        borderRadius: radius.lg,
+        padding: 4,
+        margin: "0 0 20px",
       }}
     >
       {RUN_TABS.map((tab, i) => {
@@ -83,15 +86,15 @@ export function RunTabBar({
             type="button"
             onClick={() => onChange(tab.id)}
             style={{
-              background: selected ? cssVar("panel2") : "transparent",
-              color: selected ? cssVar("text") : cssVar("muted"),
-              border: `1px solid ${selected ? cssVar("accent") : "transparent"}`,
-              borderBottom: "none",
-              borderRadius: `${radius.md}px ${radius.md}px 0 0`,
-              padding: `${space.sm}px ${space.lg + 2}px`,
+              background: selected ? "rgba(142, 229, 161, 0.12)" : "transparent",
+              color: selected ? cssVar("accent") : cssVar("muted"),
+              border: "1px solid transparent",
+              borderRadius: radius.md,
+              padding: `${space.sm + 1}px ${space.lg + 2}px`,
               fontSize: fontSize.sm,
+              fontWeight: selected ? 600 : 500,
               cursor: "pointer",
-              marginBottom: -1,
+              transition: "background 0.15s ease, color 0.15s ease",
             }}
           >
             {tab.label}

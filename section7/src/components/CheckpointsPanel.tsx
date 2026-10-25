@@ -65,7 +65,7 @@ export function CheckpointsPanel({
   return (
     <section style={panelStyle}>
       <h2 style={headingStyle}>Checkpoints</h2>
-      {error && <p style={{ color: "#f87171", fontSize: 13 }}>{error}</p>}
+      {error && <p style={{ color: "var(--red)", fontSize: 13 }}>{error}</p>}
       {!error && items === null && (
         <p style={{ color: "var(--muted)", fontSize: 13 }}>Loading snapshots…</p>
       )}
@@ -87,9 +87,9 @@ export function CheckpointsPanel({
                   style={{
                     fontSize: 12,
                     background: "none",
-                    border: "1px solid #2a3038",
+                    border: "1px solid var(--border-soft)",
                     borderRadius: 4,
-                    color: openSha === cp.sha ? "#fbbf24" : "#9aa4b2",
+                    color: openSha === cp.sha ? "var(--yellow)" : "var(--muted)",
                     cursor: "pointer",
                     padding: "2px 8px",
                   }}
@@ -106,8 +106,8 @@ export function CheckpointsPanel({
                   style={{
                     marginTop: 6,
                     padding: 8,
-                    background: "#0d1117",
-                    border: "1px solid #2a3038",
+                    background: "var(--bg)",
+                    border: "1px solid var(--border-soft)",
                     borderRadius: 6,
                     fontSize: 12,
                     overflowX: "auto",

@@ -17,8 +17,8 @@ export const editorTheme = EditorView.theme(
     },
     ".cm-diff-add": { backgroundColor: "rgba(46, 160, 67, 0.15)" },
     ".cm-diff-del": { backgroundColor: "rgba(248, 81, 73, 0.15)" },
-    ".cm-diff-hunk": { color: "#8b949e" },
-    ".cm-diff-file": { color: "#8b949e", fontWeight: "600" },
+    ".cm-diff-hunk": { color: "var(--muted)" },
+    ".cm-diff-file": { color: "var(--muted)", fontWeight: "600" },
   },
   { dark: true },
 );

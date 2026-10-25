@@ -13,9 +13,9 @@ export interface StructuredExecResult {
 }
 
 const STATUS_COLOR: Record<StructuredExecResult["status"], string> = {
-  passed: "#34d399",
-  failed: "#f87171",
-  error: "#f87171",
+  passed: "#8ee5a1",
+  failed: "#ff8c8c",
+  error: "#ff8c8c",
 };
 
 export function TerminalPanel({
@@ -43,7 +43,7 @@ export function TerminalPanel({
               {r.summary} ({r.passed_count} passed, {r.failed_count} failed, {r.skipped_count} skipped,{" "}
               {r.duration_ms}ms)
               {r.diagnostics.length > 0 && (
-                <ul style={{ margin: "4px 0 0 0", paddingLeft: 18, color: "#9aa4b2" }}>
+                <ul style={{ margin: "4px 0 0 0", paddingLeft: 18, color: "var(--muted)" }}>
                   {r.diagnostics.map((d, j) => (
                     <li key={j}>{d}</li>
                   ))}

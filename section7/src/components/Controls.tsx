@@ -104,7 +104,7 @@ export function Controls({
       </div>
 
       {stagedPending && <p role="status">Resolve staged changes before completing this run.</p>}
-      {error && <p style={{ color: "#f87171", fontSize: 13 }}>{error}</p>}
+      {error && <p style={{ color: "var(--red)", fontSize: 13 }}>{error}</p>}
 
       <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 8 }}>
         <input
@@ -131,7 +131,7 @@ export function Controls({
             style={{
               height: 160,
               marginTop: 8,
-              border: "1px solid #2a3038",
+              border: "1px solid var(--border-soft)",
               borderRadius: 6,
               overflow: "hidden",
             }}

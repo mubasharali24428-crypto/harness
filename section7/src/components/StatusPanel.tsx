@@ -4,16 +4,16 @@ import type { WorkingAreaDerivedView } from "@/lib/deriveView";
 import { panelStyle, headingStyle, pillStyle } from "@/lib/styles";
 
 const STATE_COLORS: Record<string, string> = {
-  idle: "#8b949e",
-  planning: "#60a5fa",
-  awaiting_plan_approval: "#60a5fa",
-  executing: "#34d399",
-  paused: "#fbbf24",
-  awaiting_done_signal: "#60a5fa",
-  reviewing: "#a78bfa",
-  blocked: "#f87171",
-  pr_opened: "#2dd4bf",
-  done: "#9ca3af",
+  idle: "#a8a296",
+  planning: "#6cb8ff",
+  awaiting_plan_approval: "#6cb8ff",
+  executing: "#8ee5a1",
+  paused: "#e5a814",
+  awaiting_done_signal: "#6cb8ff",
+  reviewing: "#c9a7ff",
+  blocked: "#ff8c8c",
+  pr_opened: "#6cd5c0",
+  done: "#a8a296",
 };
 
 const CONNECTION_LABEL: Record<ConnectionState, string> = {
@@ -37,15 +37,15 @@ export function StatusPanel({
     <section style={panelStyle}>
       <h2 style={headingStyle}>Status</h2>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
-        <span data-testid="run-state" style={pillStyle(STATE_COLORS[state] ?? "#8b949e")}>{state.replaceAll("_", " ")}</span>
-        <span style={{ fontSize: 12, color: connectionState === "open" ? "#34d399" : "#9aa4b2" }}>
+        <span data-testid="run-state" style={pillStyle(STATE_COLORS[state] ?? "var(--muted)")}>{state.replaceAll("_", " ")}</span>
+        <span style={{ fontSize: 12, color: connectionState === "open" ? "var(--accent)" : "var(--muted)" }}>
           ● {CONNECTION_LABEL[connectionState]}
         </span>
-        {status?.isHumanEditing && <span style={pillStyle("#fbbf24")}>human editing</span>}
+        {status?.isHumanEditing && <span style={pillStyle("var(--yellow)")}>human editing</span>}
       </div>
 
       {derived.blockerQuestion && (
-        <div style={{ ...calloutStyle, borderColor: "#f87171" }}>
+        <div style={{ ...calloutStyle, borderColor: "var(--red)" }}>
           <strong>Blocked — awaiting clarification</strong>
           <p style={{ margin: "4px 0 0 0" }}>{derived.blockerQuestion}</p>
         </div>
@@ -55,7 +55,7 @@ export function StatusPanel({
         <div
           style={{
             ...calloutStyle,
-            borderColor: derived.lastReview.passed ? "#34d399" : "#f87171",
+            borderColor: derived.lastReview.passed ? "var(--accent)" : "var(--red)",
           }}
         >
           <strong>{derived.lastReview.passed ? "Reviewer passed" : "Reviewer failed"}</strong>
