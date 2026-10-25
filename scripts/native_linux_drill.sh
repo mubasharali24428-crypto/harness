@@ -97,6 +97,29 @@ if [ "$SIB_BLOCKED" != "True" ]; then
         'grep -n "read_ruleset\|exec_read_roots" /opt/harness/section5/src/harness_sandbox/confinement.py | head' >&2 || true
     ESCAPE_JSON=$(run_gate "python3 -c \"open('/tmp/native-drill-escape.txt','w').write('x')\"")
     echo "[native-drill] outside write => $ESCAPE_JSON" >&2
+    cat >"$WORK/landlock_diag.py" <<'PYDIAG'
+import ctypes, os, struct
+libc = ctypes.CDLL(None, use_errno=True)
+handled = 1 | 4 | 8
+attr = struct.pack("Q", handled)
+fd = libc.syscall(444, attr, len(attr), 0)
+assert fd >= 0, ctypes.get_errno()
+for root in ("/usr", "/bin", "/sbin", "/lib", "/opt", "/etc", "/proc", "/dev", "/sys", "/run", "/workspace"):
+    if os.path.exists(root):
+        pfd = os.open(root, os.O_PATH | os.O_CLOEXEC)
+        assert libc.syscall(445, fd, 1, struct.pack("=Qi", handled, pfd), 0) == 0, (root, ctypes.get_errno())
+assert libc.prctl(38, 1, 0, 0, 0) == 0
+assert libc.syscall(446, fd, 0) == 0, ctypes.get_errno()
+try:
+    open("/sibling/data.txt").read()
+    print("DIAG READ_ALLOWED")
+except PermissionError as exc:
+    print("DIAG READ_DENIED", exc)
+PYDIAG
+    echo "[native-drill] kernel $(uname -r)" >&2
+    docker run --rm --network none --user "$(id -u):$(id -g)" \
+        -v "$WORK:/workspace" -v "$SIBLING:/sibling:ro" \
+        --entrypoint python "$IMAGE" -I /workspace/landlock_diag.py >&2 || true
     fail "sibling read leaked: $SIB_JSON"
 fi
 
