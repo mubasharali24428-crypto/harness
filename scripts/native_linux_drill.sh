@@ -34,7 +34,10 @@ if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
 fi
 
 WORK=$(mktemp -d)
-SIBLING=$(mktemp -d)
+# The sibling must live outside every root the allow-list grants. On CI,
+# TMPDIR points inside HOME (which is readable), so /tmp would be a bad choice:
+# use /var/tmp, which is not on the list.
+SIBLING=$(mktemp -d /var/tmp/harness-sibling.XXXXXX)
 cleanup() { rm -rf "$WORK" "$SIBLING"; }
 trap cleanup EXIT
 
