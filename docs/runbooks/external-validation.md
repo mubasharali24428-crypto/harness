@@ -11,7 +11,7 @@ shows a drill date, its classification is **HUMAN DECISION REQUIRED**
 | OIDC SSO (backend) | PKCE flow, discovery issuer-match, JWKS RS256, config CRUD, encrypted secret at rest, rate-limited start/complete (`test_sso_oidc.py:620-830`) | Live IdP drill only — **SPA callback BUILT** 2026-10-17 (`412fc30`: `/auth/sso/callback` page + login SSO entry; frontend 507/507 + `tsc`) | HUMAN DECISION REQUIRED (IdP creds) |
 | Stripe billing | Adapter + signed idempotent webhooks vs stub (`STRIPE_API_BASE`); routes mount only with `STRIPE_API_KEY` set (`app.py:210-213`) | Test-mode drill (checkout → webhook → replay) | HUMAN DECISION REQUIRED |
 | WAL-G / PITR | Dev-sized drill: recovered to 4 s before a destructive DELETE (`docs/runbooks/backup-and-pitr.md`) | Drill against a real disposable object store (S3/MinIO) | HUMAN DECISION REQUIRED |
-| Model providers | Simulated mode honest outside real keys; provider failure surfaces verbatim; `HARNESS_ENV=dev` gate (`section3 providers.py`) | Live provider call with a real key through orchestrator; cost-metering accrual check | HUMAN DECISION REQUIRED |
+| Model providers | Simulated mode honest outside real keys; provider failure surfaces verbatim; `HARNESS_ENV=dev` gate (`section3 providers.py`); **drilled 2026-10-25** with OpenRouter `deepseek/deepseek-v4.1-flash`: engine in-process, container-isolated no-tool call, and a full pilot stack run with `cost_ledger` accrual (evidence: `docs/briefs/evidence/pilot-prep/openrouter-deepseek-smoke.json`, `real-result.json`) | Customer-specific provider/key; paid-opt-in (`HARNESS_ALLOW_PAID_SMOKE=1`) remains a human decision | PARTIAL — OpenRouter drilled; other providers HUMAN DECISION REQUIRED |
 
 ## OIDC SSO — staging drill (API walkthrough)
 

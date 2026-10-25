@@ -31,8 +31,11 @@ def orchestrator_real():
     from harness_orchestrator.engine import DeepSeekHarnessWrapper
 
     model = os.environ["HARNESS_TEST_OPENROUTER_MODEL"]
-    if not model.endswith(":free"):
-        raise SystemExit("real-worker proof only runs :free models")
+    if not model.endswith(":free") and os.environ.get("HARNESS_ALLOW_PAID_SMOKE") != "1":
+        raise SystemExit(
+            "real-worker proof only runs :free models"
+            " (set HARNESS_ALLOW_PAID_SMOKE=1 for an explicitly approved paid smoke)"
+        )
     patch_src = ROOT / "section4/tests/fixtures/openrouter.patch.yml"
 
     class RealEngine(DeepSeekHarnessWrapper):
