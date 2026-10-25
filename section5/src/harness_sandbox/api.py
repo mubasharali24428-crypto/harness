@@ -9,9 +9,11 @@ from harness_contracts.signatures import TaskHandle
 from pydantic import BaseModel, Field
 
 from harness_sandbox.checkpoints import (
+    CheckpointConflictError,
     CheckpointError,
     CheckpointNotFoundError,
     CheckpointRepositoryNotFoundError,
+    CheckpointSelectionError,
     InvalidShaError,
 )
 from harness_sandbox.output_parser import StructuredExecResult
@@ -213,6 +215,8 @@ def destroy_task(taskId: str, principal: Writer) -> dict[str, str]:
 def _checkpoint_error(e: CheckpointError) -> HTTPException:
     status_map = {
         InvalidShaError: status.HTTP_400_BAD_REQUEST,
+        CheckpointSelectionError: status.HTTP_422_UNPROCESSABLE_CONTENT,
+        CheckpointConflictError: status.HTTP_409_CONFLICT,
         CheckpointNotFoundError: status.HTTP_404_NOT_FOUND,
         CheckpointRepositoryNotFoundError: status.HTTP_404_NOT_FOUND,
     }
@@ -279,3 +283,64 @@ async def checkpoint_diff(
     except CheckpointError as e:
         raise _checkpoint_error(e) from e
     return Response(content=diff_text, media_type="text/plain; charset=utf-8")
+
+
+# ---------------------------------------------------------------------------
+# C16: hunk-level review. The server parses the snapshot's own diff and the
+# caller only names (path, hunk index) pairs, so no client text ever reaches
+# git apply. Both writes require the writer role and team ownership.
+# ---------------------------------------------------------------------------
+
+
+class HunkRef(BaseModel):
+    path: str = Field(min_length=1, max_length=512)
+    index: int = Field(ge=0)
+
+
+class RevertHunksRequest(BaseModel):
+    hunks: list[HunkRef] = Field(min_length=1, max_length=500)
+
+
+@router.get("/{projectId}/checkpoints/{sha}/hunks")
+async def checkpoint_hunks(
+    projectId: str, sha: str, request: Request, principal: Reader
+) -> dict:
+    """Files and hunks of one snapshot, for the visual review surface."""
+    await _require_checkpoint_project(projectId, request, principal)
+    try:
+        files = _service.checkpoints.list_hunks(projectId, sha)
+    except CheckpointError as e:
+        raise _checkpoint_error(e) from e
+    return {"projectId": projectId, "sha": sha, "files": files}
+
+
+@router.post("/{projectId}/checkpoints/{sha}/revert", status_code=status.HTTP_200_OK)
+async def checkpoint_revert(
+    projectId: str,
+    sha: str,
+    req: RevertHunksRequest,
+    request: Request,
+    principal: Writer,
+) -> dict:
+    """Reverse-apply the selected hunks; records a new checkpoint on success."""
+    await _require_checkpoint_project(projectId, request, principal)
+    try:
+        out = _service.checkpoints.revert_hunks(
+            projectId, sha, [(h.path, h.index) for h in req.hunks]
+        )
+    except CheckpointError as e:
+        raise _checkpoint_error(e) from e
+    return {"status": "reverted", **out}
+
+
+@router.post("/{projectId}/checkpoints/{sha}/restore", status_code=status.HTTP_200_OK)
+async def checkpoint_restore(
+    projectId: str, sha: str, request: Request, principal: Writer
+) -> dict:
+    """Reset the workspace tree to this snapshot; records a new checkpoint."""
+    await _require_checkpoint_project(projectId, request, principal)
+    try:
+        out = _service.checkpoints.restore(projectId, sha)
+    except CheckpointError as e:
+        raise _checkpoint_error(e) from e
+    return {"status": "restored", **out}
