@@ -3,17 +3,18 @@ import type { ConnectionState } from "@/lib/useEventStream";
 import type { WorkingAreaDerivedView } from "@/lib/deriveView";
 import { panelStyle, headingStyle, pillStyle } from "@/lib/styles";
 
+// Theme tokens, never literals: these pills render on both paper and charcoal.
 const STATE_COLORS: Record<string, string> = {
-  idle: "#a8a296",
-  planning: "#6cb8ff",
-  awaiting_plan_approval: "#6cb8ff",
-  executing: "#8ee5a1",
-  paused: "#e5a814",
-  awaiting_done_signal: "#6cb8ff",
-  reviewing: "#c9a7ff",
+  idle: "var(--muted)",
+  planning: "var(--blue)",
+  awaiting_plan_approval: "var(--blue)",
+  executing: "var(--accent)",
+  paused: "var(--yellow)",
+  awaiting_done_signal: "var(--blue)",
+  reviewing: "var(--violet)",
   blocked: "var(--red)",
-  pr_opened: "#6cd5c0",
-  done: "#a8a296",
+  pr_opened: "var(--teal)",
+  done: "var(--muted)",
 };
 
 const CONNECTION_LABEL: Record<ConnectionState, string> = {

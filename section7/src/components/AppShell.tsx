@@ -118,12 +118,16 @@ export default function AppShell({
           {/* M14-F1b: programmatic labels — the visual .label divs are not
               real <label for> pairs, so screen-reader users heard "combobox"
               with no name. */}
-          <div className="label" id="team-select-label">
+          {/* M-A7: this was a <select> with one hardcoded option and no
+              onChange — it looked switchable and did nothing. A principal
+              carries exactly one teamId (contracts/ts/src/roles.ts:16), so
+              until multi-team membership exists this is a read-only value. */}
+          <div className="label" id="team-value-label">
             TEAM
           </div>
-          <select defaultValue="solo" aria-labelledby="team-select-label">
-            <option value="solo">My team</option>
-          </select>
+          <div className="switcher-value" aria-labelledby="team-value-label">
+            My team
+          </div>
           <div className="label" id="project-select-label">
             PROJECT
           </div>

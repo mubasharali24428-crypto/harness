@@ -143,18 +143,22 @@ describe("meeting chat input accessible name (M15-S3)", () => {
 });
 
 /* ------------------------------------------------------------------ *
- * 3. Comment / nudge composer (the app's real review-comment box)     *
+ * 3. Run-note composer (M-A1: renamed from "comment / nudge" — it has *
+ *    no backend, so it no longer claims to reach the agent)           *
  * ------------------------------------------------------------------ */
 
-describe("comment composer accessible name (M15-S3)", () => {
+describe("run-note composer accessible name (M15-S3)", () => {
   it("textarea resolves via aria-label (getByLabelText parity)", async () => {
     const { CommentsNudges } = await import("../../src/components/CommentsNudges");
     const html = renderToStaticMarkup(React.createElement(CommentsNudges, { authorName: "you" }));
 
     expect(html).toContain("<textarea");
     expect(ariaLabelOn(html, "<textarea")).toBe(
-      "Leave a comment or nudge for the agent",
+      "Note for yourself about this run",
     );
+    // The panel must not imply the agent receives it.
+    expect(html).toContain("Private to this browser tab");
+    expect(html).not.toContain("no backend endpoint exists yet");
   });
 });
 

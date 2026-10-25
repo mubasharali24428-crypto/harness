@@ -17,6 +17,9 @@
   --red: #ff6b6b;
   --yellow: #e5a814;
   --blue: #6cb8ff;
+  /* Run-state accents beyond the four semantic colours (reviewing / pr_opened). */
+  --violet: #c9a7ff;
+  --teal: #6cd5c0;
   --faint: #8a857a;
   --input: #141210;
   --accent-rgb: 142, 229, 161;
@@ -51,6 +54,9 @@
   --red: #c0392b;
   --yellow: #9a6a00;
   --blue: #1a6bb5;
+  /* Paper-safe counterparts of the dark-theme accents (AA on --panel). */
+  --violet: #6b3fd4;
+  --teal: #0f766e;
   --faint: #6b665c;
   --input: #ffffff;
   --accent-rgb: 31, 122, 61;
@@ -171,6 +177,19 @@ samp,
 
 .switcher select:hover {
   border-color: var(--border);
+}
+
+/* Read-only sidebar value (the team line): same box as a select, none of its
+   affordance. */
+.switcher-value {
+  width: 100%;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 8px 9px;
+  font: inherit;
+  font-size: 13px;
 }
 
 /* Sidebar navigation only: other <nav> landmarks (breadcrumbs, landing) lay
@@ -314,9 +333,9 @@ h3 {
   white-space: nowrap;
 }
 
-.pill.green { background: rgba(var(--success-rgb), 0.14); color: #8ee5a1; }
+.pill.green { background: rgba(var(--success-rgb), 0.14); color: var(--green); }
 .pill.red { background: rgba(var(--danger-rgb), 0.14); color: var(--red); }
-.pill.yellow { background: rgba(var(--warn-rgb), 0.14); color: #f0c14b; }
+.pill.yellow { background: rgba(var(--warn-rgb), 0.14); color: var(--yellow); }
 .pill.blue { background: rgba(var(--info-rgb), 0.13); color: var(--blue); }
 
 .event-feed {
@@ -802,4 +821,7 @@ a[href] {
   display: inline-block;
   min-height: 24px;
   line-height: 24px;
+  /* One link colour for both themes; pages used to inline #93c5fd, which is
+     1.76:1 on the light theme's paper surfaces. */
+  color: var(--accent);
 }

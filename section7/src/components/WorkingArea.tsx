@@ -84,7 +84,7 @@ export function WorkingArea({ projectId, runId, stagedPending = false }: { proje
         <div className="working-col">
           <StatusPanel status={status} derived={derived} connectionState={connectionState} />
           <PlanPanel plan={plan} />
-          <DiffPanel diffText={diffText} />
+          <DiffPanel diffText={diffText} changedPaths={derived.changedPaths} />
           <TerminalPanel results={[]} lines={derived.terminalLines} />
         </div>
         <div className="working-col">

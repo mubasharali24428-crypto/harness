@@ -77,9 +77,9 @@ export function CheckpointsPanel({
       {items !== null && items.length > 0 && (
         <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {items.map((cp) => (
-            <li key={cp.sha} style={{ padding: "6px 0", borderBottom: "1px solid #232936" }}>
+            <li key={cp.sha} style={{ padding: "6px 0", borderBottom: "1px solid var(--border-soft)" }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                <code style={{ color: "#93c5fd", fontSize: 12 }}>{cp.sha.slice(0, 7)}</code>
+                <code style={{ color: "var(--blue)", fontSize: 12 }}>{cp.sha.slice(0, 7)}</code>
                 <span style={{ fontSize: 13, flex: 1 }}>{cp.message}</span>
                 <button
                   type="button"

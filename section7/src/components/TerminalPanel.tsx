@@ -13,7 +13,7 @@ export interface StructuredExecResult {
 }
 
 const STATUS_COLOR: Record<StructuredExecResult["status"], string> = {
-  passed: "#8ee5a1",
+  passed: "var(--green)",
   failed: "var(--red)",
   error: "var(--red)",
 };
@@ -25,15 +25,17 @@ export function TerminalPanel({
   results: StructuredExecResult[];
   lines?: string[];
 }) {
+  const hasTranscript = lines.length > 0;
   return (
     <section style={panelStyle}>
       <h2 style={headingStyle}>Terminal &amp; test results</h2>
-      {results.length === 0 ? (
+      {results.length === 0 && !hasTranscript && (
         <p style={{ color: "var(--muted)", fontSize: 13 }}>
-          No live terminal feed yet — terminal_output events from the sandbox will
-          stream here in real time once an agent run starts executing commands.
+          Nothing has run yet. Command output and test results appear here while
+          the agent works.
         </p>
-      ) : (
+      )}
+      {results.length > 0 && (
         <div style={{ display: "grid", gap: 8 }}>
           {results.map((r, i) => (
             <div key={i} style={{ fontFamily: "ui-monospace, monospace", fontSize: 12 }}>
@@ -53,26 +55,35 @@ export function TerminalPanel({
           ))}
         </div>
       )}
-      {lines.length > 0 && (
-        <pre
-          tabIndex={0}
-          role="region"
-          aria-label="Terminal output"
-          style={{
-            margin: 0,
-            padding: "10px 12px",
-            background: "#0b1220",
-            color: "#c9d4e3",
-            borderRadius: 8,
-            fontFamily: "ui-monospace, monospace",
-            fontSize: 12,
-            maxHeight: 260,
-            overflowY: "auto" as const,
-            whiteSpace: "pre-wrap" as const,
-          }}
-        >
-          {lines.join("")}
-        </pre>
+      {hasTranscript && (
+        <>
+          <p style={{ color: "var(--muted)", fontSize: 12, margin: results.length > 0 ? "10px 0 4px" : 0 }}>
+            {lines.length} line{lines.length === 1 ? "" : "s"}
+            {lines.length >= 200 ? " (latest 200 kept)" : ""}
+          </p>
+          {/* The transcript stays a dark surface in both themes on purpose —
+              it is a terminal, and mixing it with paper text costs legibility
+              of ANSI-style output. */}
+          <pre
+            tabIndex={0}
+            role="region"
+            aria-label="Terminal output"
+            style={{
+              margin: 0,
+              padding: "10px 12px",
+              background: "#0b1220",
+              color: "#c9d4e3",
+              borderRadius: 8,
+              fontFamily: "ui-monospace, monospace",
+              fontSize: 12,
+              maxHeight: 260,
+              overflowY: "auto" as const,
+              whiteSpace: "pre-wrap" as const,
+            }}
+          >
+            {lines.join("")}
+          </pre>
+        </>
       )}
     </section>
   );

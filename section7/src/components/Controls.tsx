@@ -48,15 +48,14 @@ export function Controls({
     }
   }
 
-  // ponytail: the backend only exposes a submit-shaped human-edit endpoint (no
-  // separate "started editing" signal), so checking the box IS the implicit-pause
-  // trigger - the closest honest match to "pause the moment a human starts editing"
-  // without inventing a keystroke-level API that doesn't exist server-side.
+  // M-A6: this used to POST the human edit the instant the box was ticked,
+  // against a placeholder path and whatever the editor held — so merely peeking
+  // at the controls paused the run and recorded an empty edit against it. The
+  // checkbox now only reveals the editor; the pause + edit happen together on
+  // "Save edit", which is the endpoint's submit-shaped semantics.
   function handleTakeoverToggle(checked: boolean) {
     setTakeover(checked);
-    if (checked) {
-      run("human-edit", () => submitHumanEdit(runId, editPath || "(unspecified)", editContent, token));
-    }
+    if (!checked) setError(null);
   }
 
   const state = status?.state;
@@ -112,8 +111,13 @@ export function Controls({
           checked={takeover}
           onChange={(e) => handleTakeoverToggle(e.target.checked)}
         />
-        Human takeover / manual edit
+        Edit a file myself
       </label>
+      {takeover && (
+        <p style={{ color: "var(--muted)", fontSize: 12, margin: "0 0 8px" }}>
+          Saving pauses the run so the agent can't overwrite your change.
+        </p>
+      )}
 
       {takeover && (
         <div>

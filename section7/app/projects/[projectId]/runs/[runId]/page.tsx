@@ -149,7 +149,9 @@ export default function RunDetailPage({
           role="status"
           data-testid="demo-replay-banner"
           className="pill blue"
-          style={{ padding: "8px 12px", marginBottom: 16 }}
+          // .pill is nowrap by design; a banner-length sentence must wrap or it
+          // forces the whole page to scroll sideways on phones (M-A4).
+          style={{ padding: "8px 12px", marginBottom: 16, whiteSpace: "normal", display: "block" }}
         >
           Demo replay — a recorded session, clearly labeled. No provider keys,
           no live execution.

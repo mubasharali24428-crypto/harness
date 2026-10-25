@@ -35,12 +35,15 @@ import {
   type PlanGatePhase,
 } from "./planGateApi";
 
+// Theme tokens, not literals: the mint/amber/cream values behind these are
+// dark-theme colours and fall under WCAG AA on the light theme's paper
+// surfaces (measured 1.76–2.54:1 before M-A3).
 const PHASE_PILL_COLOR: Record<PlanGatePhase, string> = {
-  "no-plan": "#a8a296",
-  "awaiting-approval": "#e5a814",
-  "ready-to-start": "#8ee5a1",
-  "in-flight": "#6cb8ff",
-  done: "#a8a296",
+  "no-plan": "var(--muted)",
+  "awaiting-approval": "var(--yellow)",
+  "ready-to-start": "var(--accent)",
+  "in-flight": "var(--blue)",
+  done: "var(--muted)",
 };
 
 const composerStyle: React.CSSProperties = {

@@ -31,7 +31,7 @@ export function BreadcrumbTrail({ items }: { items: Crumb[] }) {
       {items.map((c, i) => (
         <span key={`${c.label}-${i}`} style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
           {i > 0 && (
-            <span aria-hidden="true" style={{ color: "var(--border)" }}>
+            <span aria-hidden="true" style={{ color: "var(--faint)" }}>
               /
             </span>
           )}

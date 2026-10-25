@@ -10,6 +10,42 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### UI/UX audit Batch A (2026-10-25)
+
+First batch from `docs/ui-ux-audit-2026-10-25.md` — the eight items that were
+broken or misleading rather than missing.
+
+#### Fixed
+
+- **A1** — the run surface stopped quoting internal engineering notes to users:
+  the diff panel now names the files the agent has actually touched (derived
+  from the `diff_progress` events the sandbox already emits), the plan panel
+  dropped its placeholder "Actual cost: — (no live source yet)" line, and the
+  "Comments & nudges" panel became **Run notes**, labelled for what it is (a
+  browser-local scratchpad) with a pointer to the real direction control.
+- **A2** — `TerminalPanel` no longer claims "no live terminal feed" while
+  transcript lines render directly underneath it.
+- **A3** — light-theme contrast: pills, phase badges, run-state badges,
+  settings links and breadcrumb separators moved onto theme tokens, and
+  `pillStyle()` mixes its fill with `color-mix()` so token colours are legal at
+  all (the old `${color}22` concatenation is what forced every pill to hardcode
+  a dark-theme hex). A headless pass over 12 pages × 2 themes went from 15 AA
+  failures to zero; `src/lib/themeContrast.test.ts` guards it.
+- **A4** — the demo-replay banner (a nowrap `.pill` carrying a whole sentence)
+  forced the run page to 489px at a 390px viewport; it wraps now, measured 0px
+  overflow at 320/390/768.
+- **A6** — ticking "Edit a file myself" used to POST a human edit against a
+  placeholder path immediately, pausing the run and recording an empty edit;
+  the checkbox now only reveals the editor and "Save edit" does the write.
+- **A7** — the sidebar TEAM line is a read-only value, not a `<select>` with
+  one hardcoded option and no handler.
+- **A8** — a rejected model-preference save rolls the control back instead of
+  displaying a model the server refused.
+- **A9** — the review page distinguishes a missing PR (404 → empty state) from
+  a failed load (message + retry) instead of hanging on "loading diff…", and
+  "Request changes" requires a written note and sends it as the review comment
+  rather than POSTing an empty array and reporting a recorded decision.
+
 ### Team model preferences and reasoning effort (2026-10-25)
 
 #### Added

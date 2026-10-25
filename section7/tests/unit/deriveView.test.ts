@@ -78,4 +78,20 @@ describe("deriveWorkingAreaView terminalLines (M2)", () => {
     ]);
     expect(view.terminalLines).toEqual([]);
   });
+
+  // M-A1: the diff panel names the files already touched, which needs the
+  // diff_progress path the sandbox emits per applied edit batch.
+  it("collects touched files from diff_progress, in first-seen order and de-duplicated", () => {
+    const view = deriveWorkingAreaView([
+      evt(1, EventType.DIFF_PROGRESS, { path: "src/b.py" }),
+      evt(2, EventType.DIFF_PROGRESS, { path: "src/a.py", checkpoint: { kind: "post-edit" } }),
+      evt(3, EventType.DIFF_PROGRESS, { path: "src/b.py" }),
+      evt(4, EventType.DIFF_PROGRESS, {}),
+    ]);
+    expect(view.changedPaths).toEqual(["src/b.py", "src/a.py"]);
+  });
+
+  it("reports no touched files for a run that has not edited anything", () => {
+    expect(deriveWorkingAreaView([evt(1, EventType.EXECUTION_STARTED)]).changedPaths).toEqual([]);
+  });
 });
