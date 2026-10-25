@@ -5,8 +5,10 @@ docs/sandbox-isolation.md for the rule -> enforcement -> test map.
 """
 
 import os
+import shlex
 import shutil
 import stat
+import sys
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -31,6 +33,9 @@ from harness_sandbox.service import SandboxService
 
 URL = "/api/v1/sandbox/tasks"
 BODY = {"repoRef": "org/r", "branch": "main"}
+
+# The interpreter running the tests: macOS hosts do not ship a bare `python`.
+PY = shlex.quote(sys.executable)
 
 
 def _principal(team):
@@ -316,7 +321,7 @@ async def test_t7b_exec_gets_private_tmpdir_env(tmp_path):
     handle = svc.run_task("t1", "o/r", "m", [])
     res = await svc.exec_structured(
         handle,
-        "python -c \"import tempfile; open('out.txt','w').write(tempfile.gettempdir())\"",
+        f"{PY} -c \"import tempfile; open('out.txt','w').write(tempfile.gettempdir())\"",
     )
     assert res.exit_code == 0
     got = Path((runner.active_tasks["t1"]["workspace"] / "out.txt").read_text()).resolve()
@@ -372,18 +377,18 @@ async def test_t7b_seatbelt_sibling_workspace_is_neither_writable_nor_readable(t
     (b_ws / "b-data.txt").write_text("B-DATA")
 
     write = await svc.exec_structured(
-        a, f"python -c \"open('{b_ws}/pwn.txt','w').write('x')\""
+        a, f"{PY} -c \"open('{b_ws}/pwn.txt','w').write('x')\""
     )
     assert write.exit_code != 0
     assert not (b_ws / "pwn.txt").exists()
 
     read = await svc.exec_structured(
-        a, f"python -c \"d=open('{b_ws}/b-data.txt').read();open('got.txt','w').write(d)\""
+        a, f"{PY} -c \"d=open('{b_ws}/b-data.txt').read();open('got.txt','w').write(d)\""
     )
     assert read.exit_code != 0
     assert not (runner.active_tasks["ta"]["workspace"] / "got.txt").exists()
 
-    own = await svc.exec_structured(a, "python -c \"open('mine.txt','w').write('ok')\"")
+    own = await svc.exec_structured(a, f"{PY} -c \"open('mine.txt','w').write('ok')\"")
     assert own.exit_code == 0
 
 
@@ -395,13 +400,13 @@ async def test_t7b_seatbelt_shared_system_temp_is_not_writable_but_private_tmp_i
         svc = SandboxService(runner=runner)
         a = svc.run_task("ta", "o/r", "m", [])
         bad = await svc.exec_structured(
-            a, f"python -c \"open('{shared}/leak.txt','w').write('x')\""
+            a, f"{PY} -c \"open('{shared}/leak.txt','w').write('x')\""
         )
         assert bad.exit_code != 0
         assert not (shared / "leak.txt").exists()
         good = await svc.exec_structured(
             a,
-            "python -c \"import tempfile,os;"
+            f"{PY} -c \"import tempfile,os;"
             "p=os.path.join(tempfile.gettempdir(),'f');open(p,'w').write('x');"
             "open('where.txt','w').write(p)\"",
         )

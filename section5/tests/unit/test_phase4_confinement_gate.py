@@ -14,6 +14,6 @@ def test_explicit_off_requires_env_opt_in(tmp_path, monkeypatch):
         runner._resolve_confinement()
 
 
-def test_docker_runner_refuses_instead_of_host_fallback():
-    with pytest.raises(NotImplementedError):
-        DockerSandboxRunner()
+def test_docker_runner_selects_container_boundary_without_host_fallback(tmp_path):
+    runner = DockerSandboxRunner(storage_root=tmp_path / "tasks", client=object())
+    assert runner._resolve_confinement_once() == "container"

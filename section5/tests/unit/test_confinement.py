@@ -7,6 +7,7 @@ network configurable. Interpreters stay allow-listed — this layer is what make
 them safe to run.
 """
 
+import shlex
 import shutil
 import sys
 from pathlib import Path
@@ -21,6 +22,9 @@ pytestmark = pytest.mark.skipif(
     not confinement.seatbelt_available(),
     reason="Seatbelt confinement tests require macOS sandbox-exec",
 )
+
+# The interpreter running the tests: macOS hosts do not ship a bare `python`.
+PY = shlex.quote(sys.executable)
 
 
 def _svc(tmp_path, **kw):
@@ -49,7 +53,7 @@ async def test_seatbelt_blocks_write_outside_workspace(tmp_path):
         svc = _svc(tmp_path, confinement="seatbelt", allow_network=False)
         handle = svc.run_task("c2", "o/r", "m", [])
         res = await svc.exec_structured(
-            handle, f"python -c \"open('{victim}','w').write('x')\""
+            handle, f"{PY} -c \"open('{victim}','w').write('x')\""
         )
         assert res.exit_code != 0, f"write outside must fail: {res.diagnostics}"
         assert not victim.exists()
@@ -62,7 +66,7 @@ async def test_seatbelt_allows_write_inside_workspace(tmp_path):
     svc = _svc(tmp_path, confinement="seatbelt")
     handle = svc.run_task("c3", "o/r", "m", [])
     res = await svc.exec_structured(
-        handle, "python -c \"open('inside.txt','w').write('x')\""
+        handle, f"{PY} -c \"open('inside.txt','w').write('x')\""
     )
     assert res.exit_code == 0
     assert (tmp_path / "tasks" / "c3" / "workspace" / "inside.txt").exists()
@@ -75,7 +79,7 @@ async def test_off_mode_has_no_confinement(tmp_path):
     svc = _svc(tmp_path, confinement="off")
     handle = svc.run_task("c4", "o/r", "m", [])
     victim = outside / "fine.txt"
-    res = await svc.exec_structured(handle, f"python -c \"open('{victim}','w').write('x')\"")
+    res = await svc.exec_structured(handle, f"{PY} -c \"open('{victim}','w').write('x')\"")
     assert res.exit_code == 0
     assert victim.exists()
 
@@ -102,7 +106,7 @@ async def test_seatbelt_blocks_forbidden_path_even_via_interpreter(tmp_path):
     (ws / "payroll" / "data.txt").write_text("CANARY")
 
     res = await svc.exec_structured(
-        handle, "python -c \"print(open('pay'+'roll/data.txt').read())\""
+        handle, f"{PY} -c \"print(open('pay'+'roll/data.txt').read())\""
     )
     assert res.exit_code != 0
     assert "CANARY" not in res.summary

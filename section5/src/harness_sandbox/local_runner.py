@@ -82,25 +82,16 @@ class LocalSandboxRunner:
                     "confinement 'landlock' requested but unsupported;"
                     " refusing to run unconstrained"
                 )
-            if self.confinement == "landlock" and sys.platform == "linux":
-                raise SecurityPolicyViolationError(
-                    "Linux sandbox execution is disabled for the pilot: Landlock"
-                    " currently confines writes but does not deny reads of"
-                    " forbidden paths; use a macOS Seatbelt host"
-                )
             return self.confinement
         if sys.platform == "darwin":
             if confinement.seatbelt_available():
                 return "seatbelt"
         elif sys.platform == "linux":
-            # Option B (S-01): Landlock is currently write-only in this
-            # implementation.  It must not be selected for pilot execution
-            # because forbidden-path confidentiality is part of the promise.
-            raise SecurityPolicyViolationError(
-                "Linux sandbox execution is disabled for the pilot: Landlock"
-                " currently confines writes but does not deny reads of"
-                " forbidden paths; use a macOS Seatbelt host"
-            )
+            # S-01: Landlock now denies reads of the task's forbidden paths
+            # (the read ruleset is an allow-list), so it is a usable boundary
+            # for pilot execution on Linux, not just a write guard.
+            if confinement.landlock_supported():
+                return "landlock"
         raise SecurityPolicyViolationError(
             "sandbox confinement 'auto' found no usable OS boundary on this host"
             f" (platform {sys.platform}); refusing to run unconstrained."
@@ -151,8 +142,13 @@ class LocalSandboxRunner:
         kwargs: dict = {}
         if mode == "landlock":
             ws, tmp = task["workspace"], task["tmpdir"]
+            # S-01: the Landlock read ruleset excludes the task's forbidden
+            # paths, exactly like the Seatbelt profile does on macOS.
             kwargs["preexec_fn"] = lambda ws=ws, tmp=tmp: confinement.apply_landlock_in_child(
-                Path(ws), self.allow_network, Path(tmp)
+                Path(ws),
+                self.allow_network,
+                Path(tmp),
+                list(task.get("forbidden_paths") or []),
             )
         return await asyncio.create_subprocess_shell(command, **common, **kwargs)
 

@@ -9,6 +9,8 @@ from harness_contracts.events import EventType
 from harness_contracts.signatures import Sandbox, TaskHandle
 
 from harness_sandbox.checkpoints import CheckpointError, CheckpointManager
+from harness_sandbox.config import config
+from harness_sandbox.docker_runner import DockerSandboxRunner
 from harness_sandbox.local_runner import LocalSandboxRunner
 from harness_sandbox.output_parser import StructuredExecResult
 
@@ -36,7 +38,12 @@ class SandboxService(Sandbox):
         on_stream: Callable[[EventType, dict[str, Any]], None] | None = None,
         checkpoints: CheckpointManager | None = None,
     ) -> None:
-        self.runner = runner or LocalSandboxRunner()
+        if runner is not None:
+            self.runner = runner
+        elif config.use_docker:
+            self.runner = DockerSandboxRunner()
+        else:
+            self.runner = LocalSandboxRunner()
         self.on_stream = on_stream
         self.checkpoints = checkpoints or CheckpointManager(root=self.runner.storage_root)
         self._edit_steps: dict[str, int] = {}

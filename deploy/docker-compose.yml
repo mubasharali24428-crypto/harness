@@ -66,7 +66,8 @@ x-backend-env: &backend-env
   HARNESS_SANDBOX_CONFINEMENT: ${HARNESS_SANDBOX_CONFINEMENT:-auto}
   HARNESS_SANDBOX_ALLOW_UNCONFINED: ${HARNESS_SANDBOX_ALLOW_UNCONFINED:-}
   # Sandbox network is disabled by default. Enabling it is an explicit
-  # diagnostic/deployment opt-in, not an egress allow-list.
+  # diagnostic/deployment opt-in confined to the allow-list proxy below; the
+  # proxy path is not yet drilled against a live Docker daemon.
   HARNESS_SANDBOX_ALLOW_NETWORK: ${HARNESS_SANDBOX_ALLOW_NETWORK:-0}
   # Opt-in network is confined to the allow-list proxy on the internal network below.
   SANDBOX_EGRESS_NETWORK: harness_sandbox_egress
