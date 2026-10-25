@@ -368,8 +368,22 @@ class DeepSeekHarnessWrapper:
                 self._procs[session_id] = proc
                 if boundary:
                     self._containers[session_id] = boundary
+            budget = float(os.environ.get("HARNESS_ENGINE_TIMEOUT_SECONDS", "900"))
             try:
-                out, err = proc.communicate(request + "\n")
+                out, err = proc.communicate(request + "\n", timeout=budget)
+            except subprocess.TimeoutExpired:
+                # ponytail: kills the process group only; container kill runs in finally.
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)  # pgid == pid (start_new_session)
+                except ProcessLookupError:
+                    pass
+                proc.wait(timeout=5)
+                return (
+                    f"DeepSeek Harness worker exceeded {budget:g}s and was killed",
+                    "error",
+                    model,
+                    [],
+                )
             finally:
                 with self._proc_lock:
                     if self._procs.get(session_id) is proc:
