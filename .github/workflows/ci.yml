@@ -295,3 +295,24 @@ jobs:
           # v2.3.4 fails on PR events while creating its SARIF artifact
           # ("artifact name ... is not valid"); the scan itself is the gate.
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+
+  # Native-Linux proof for the container-isolated tool path. Docker Desktop on
+  # macOS cannot enforce Landlock on a virtiofs bind mount, so this drill only
+  # makes sense on a real Linux kernel. It is not a branch-protection context
+  # (it builds an image), so it runs on master pushes and by hand.
+  native-linux-container:
+    name: native linux container tool drill
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: build image + run drill [scripts/native_linux_drill.sh]
+        run: ./scripts/native_linux_drill.sh
+      - name: upload evidence
+        if: always()
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        with:
+          name: native-linux-container-drill
+          path: docs/briefs/evidence/pilot-prep/native-linux-container-drill.json
+          if-no-files-found: warn

@@ -206,36 +206,55 @@ every number in the drill log table.
 - Scratch volume absent: `docker volume rm -f harness_pgdata_pitr` (idempotent).
 - Image present: `docker image inspect harness-db-walg:${WALG_IMAGE_TAG:-v3.0.9}`.
 
-### Steps
+### Ordering rule (corrected 2026-10-25)
+
+The base backup must come BEFORE the record you plan to recover. If you take
+the backup after `TARGET`, PostgreSQL cannot replay to a moment earlier than
+the backup's consistency point; the drill would "pass" by reading the row out
+of the base backup instead of proving WAL replay. Recorder:
+
+1. seed a baseline row, **take the base backup** (contains baseline only);
+2. write the marker row that must be resurrected, then record TARGET;
+3. archive WAL, then commit the deletion;
+4. restore to TARGET — the marker can only exist via replayed WAL.
+
+`./scripts/pitr_drill.sh` automates exactly this against MinIO and is the
+preferred way to re-run the drill (it also waits for each segment to reach
+storage instead of sleeping a fixed number of seconds).
+
+### Steps (manual, file:// or S3)
 
 ```sh
 cd <repo>
-export WALG_FILE_PREFIX=/tmp/harness-walg-drill
+export WALG_FILE_PREFIX=/tmp/harness-walg-drill   # or WALG_S3_PREFIX + AWS_*
 docker compose -f deploy/docker-compose.yml --profile walg up -d walg-db
 
-# [1] MARKER — business-level proof row
+# [1] BASELINE + BASE BACKUP                                         ⏱ RTO slot 1
 docker exec harness-walg-db-1 psql -U harness -d harness -c \
-  "CREATE TABLE IF NOT EXISTS pitr_marker(id int, t timestamptz default now());"
-docker exec harness-walg-db-1 psql -U harness -d harness -c \
-  "INSERT INTO pitr_marker VALUES(2) RETURNING id, t;"          # ⏱ RPO anchor T0
-sleep 1; date -u +%Y-%m-%d\ %H:%M:%S+00 > /tmp/pitr_target.txt  # TARGET strictly between INSERT and DISASTER
-cat /tmp/pitr_target.txt
-
-# [2] FORCE the segment to storage immediately (don't wait for archive_timeout)
-docker exec harness-walg-db-1 psql -U harness -c "SELECT pg_switch_wal();"; sleep 4
-docker exec harness-walg-db-1 psql -U harness -d harness -tc \
-  "select archived_count, failed_count from pg_stat_archiver;"   # PASS: n,0
-
-# [3] BASE BACKUP via the wrapper                                    ⏱ RTO slot 1
+  "DROP TABLE IF EXISTS pitr_marker; CREATE TABLE pitr_marker(id int primary key, t timestamptz default now());"
+docker exec harness-walg-db-1 psql -U harness -d harness -c "INSERT INTO pitr_marker VALUES(1);"
 BACKUP_MODE=base docker compose -f deploy/docker-compose.yml --profile walg run --rm walg
 #    PASS: "Wrote backup with name base_…" + "base backup complete" + exit 0
 
-# [4] DISASTER — simulate the bad transaction
+# [2] THE ROW THAT MUST COME BACK, then TARGET
+docker exec harness-walg-db-1 psql -U harness -d harness -c "INSERT INTO pitr_marker VALUES(2);"
+sleep 1; date -u +%Y-%m-%d\ %H:%M:%S+00 > /tmp/pitr_target.txt
+cat /tmp/pitr_target.txt
+
+# [3] FORCE the segment to storage and WAIT for the archiver
+docker exec harness-walg-db-1 psql -U harness -c "SELECT pg_switch_wal();"
+# poll until last_archived_wal is the segment you just closed (not a fixed sleep)
+docker exec harness-walg-db-1 psql -U harness -d harness -tc \
+  "select archived_count, failed_count, last_archived_wal from pg_stat_archiver;"
+
+# [4] DISASTER — simulate the bad transaction, then archive that segment too
 docker exec harness-walg-db-1 psql -U harness -d harness -c \
-  "DELETE FROM pitr_marker WHERE id=2 RETURNING id;"             # the row you must resurrect
+  "DELETE FROM pitr_marker WHERE id=2 RETURNING id;"
+docker exec harness-walg-db-1 psql -U harness -c "SELECT pg_switch_wal();"
 
 # [5] RECOVER (scripted; pauses AT the target)                       ⏱ RTO slots 2–3
-./deploy/walg/restore-walg.sh --target-time "$(cat /tmp/pitr_target.txt)"
+PITR_NETWORK=<compose network, e.g. harness_default for MinIO> \
+  ./deploy/walg/restore-walg.sh --target-time "$(cat /tmp/pitr_target.txt)"
 #    PASS: exit 0, "recovery stopping before commit of transaction …",
 #          "UP and PAUSED at <target>", checklist printed
 
@@ -281,6 +300,7 @@ immediate fresh base backup.
 | 2026-08-24 05:09 | W3-VT2 verifier (independent re-execution) | `05:08:56+00` | ~1 s | ~2 s | **PASS** | own marker id=3 inserted→deleted→resurrected while paused; promoted (`pg_is_in_recovery()=f`) + post-promotion INSERT ok; base wall time 1 s (wrapper slot); bogus-PGHOST & missing-segment ⇒ exit 1; alpine ADD variant rebuilt ⇒ exit 127 confirmed |
 | 2026-10-21 07:49 | `restore-walg.sh` against the **live `db` archive** (`/tmp/harness-walg-live`, base 07:32) | `07:48:17+00` | 10 s | ~3 s (13 s script total) | **PASS** (2nd run) | run #1 aborted: live `db` runs `-c max_connections=120`, scratch server defaulted to 100 → "insufficient parameter settings"; script now passes 120. Stopped before the DELETE's commit (07:48:19.656); marker id=1 back, id=99 (after target) absent; users/teams/projects/events/backup_runs counts equal live; promoted in 1 s → timeline 2; scratch `archive_mode=off`, no timeline-2 WAL in the live prefix |
 | 2026-10-21 08:52 | `restore-walg.sh` from **S3** (SeaweedFS 4.48 on 127.0.0.1, `s3://walg/drill`, access keys enforced; `walg-db` archiving, base `…33` in 2 s) | `08:51:55+00` | 1 s | 1 s (4 s script total) | **PASS** (2nd run) | run #1: the DELETE and `pg_switch_wal()` were one `psql -c` transaction, so its commit sat in an unarchived segment → "recovery ended before configured recovery target was reached" (procedure error; switch WAL in its own statement). Stopped before txn 798 (the DELETE); 5000 rows with marker id=1 while paused (`walg-db` after the DELETE: 4999); promoted, INSERT ok. Found and fixed: no `AWS_S3_FORCE_PATH_STYLE` passthrough (wal-g hung), and the script mounted `/nonexistent` in S3 mode, which Docker Desktop refuses |
+| 2026-10-25 09:53 | `./scripts/pitr_drill.sh` (MinIO S3 API, **versioned bucket**, `walg-db` only) | `09:52:59+00` | 1 s | 1 s (3 s script total) | **PASS** | marker id=2 written AFTER the base backup, deleted after TARGET; target restored it while the live drill DB had 1 row; promoted. Base backup 2 s. Also fixed the procedure's ordering (backup must precede the marker) and made the script wait for the archiver instead of sleeping. Evidence: `docs/briefs/evidence/pilot-prep/walg-s3-pitr-drill.json`. The drill cluster is unmigrated, so the wrapper's `backup_runs` write warns; it does not affect WAL/restore |
 
 Base-backup wall times (⏱ RTO input, wrapper-reported): 03:57:39 → ~1.1 s
 (first successful full), 03:58:36 → ~1 s (green post-check run). Dataset is

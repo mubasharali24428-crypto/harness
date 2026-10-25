@@ -1,5 +1,9 @@
 # Private pilot SOW / DPA checklist
 
+> Counsel-ready drafts now live in `docs/legal/` (DPA draft, subprocessors,
+> security questionnaire, open questions). They are drafts, not legal advice;
+> this checklist remains the operator's preparation tracker.
+
 Status: DRAFT — **COUNSEL REVIEW REQUIRED** for every item below. This is an
 operator preparation checklist, not a contract, legal advice, or a claim that
 the platform is legally sufficient.

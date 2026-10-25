@@ -84,6 +84,10 @@ PITR_IMAGE=${PITR_IMAGE:-harness-db-walg:${WALG_IMAGE_TAG:-v3.0.9}}
 PITR_CONTAINER=${PITR_CONTAINER:-harness-pitr}
 PITR_VOLUME=${PITR_VOLUME:-harness_pgdata_pitr}
 HBA_DIR=${HBA_DIR:-"$(CDPATH="" cd -- "$(dirname -- "$0")" && pwd)"}
+# S3 endpoints that live on a compose network (the MinIO drill) are only
+# resolvable when the helper containers join it. "bridge" is docker run's
+# default, so file:// drills behave exactly as before.
+PITR_NETWORK=${PITR_NETWORK:-bridge}
 
 log "storage: ${WALG_S3_PREFIX:-}${WALG_FILE_PREFIX:-}"
 # The file-prefix bind mount below is added only for file:// storage: S3 runs have nothing to mount,
@@ -91,7 +95,7 @@ log "storage: ${WALG_S3_PREFIX:-}${WALG_FILE_PREFIX:-}"
 log "inventorying base backups in storage (wal-g backup-list --detail)"
 
 # --- 0. inventory -------------------------------------------------------------
-docker run --rm \
+docker run --rm --network "$PITR_NETWORK" \
     -e WALG_S3_PREFIX="${WALG_S3_PREFIX:-}" \
     -e WALG_FILE_PREFIX="${WALG_FILE_PREFIX:-}" \
     -e AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-}" \
@@ -111,7 +115,7 @@ log "created empty volume $PITR_VOLUME"
 
 # --- 2. backup-fetch into the volume -------------------------------------------
 T0=$(date +%s)
-docker run --rm \
+docker run --rm --network "$PITR_NETWORK" \
     -v "$PITR_VOLUME:/pgdata" \
     ${WALG_FILE_PREFIX:+-v "$WALG_FILE_PREFIX:$WALG_FILE_PREFIX"} \
     -e WALG_S3_PREFIX="${WALG_S3_PREFIX:-}" \
@@ -133,7 +137,7 @@ fi
 # --- 3. wire recovery into the fetched cluster ----------------------------------
 # restore_command is self-contained (no helper binaries): wal-g resolves %f/%p
 # directly. Dedupe any previously-appended lines so re-runs stay idempotent.
-docker run --rm -i \
+docker run --rm -i --network "$PITR_NETWORK" \
     -v "$PITR_VOLUME:/pgdata" \
     ${WALG_FILE_PREFIX:+-v "$WALG_FILE_PREFIX:$WALG_FILE_PREFIX"} \
     -e WALG_S3_PREFIX="${WALG_S3_PREFIX:-}" \
@@ -172,7 +176,7 @@ log "recovery wiring written: target_time=$TARGET_TIME action=pause"
 # lower and recovery aborts with "insufficient parameter settings".
 docker rm -f "$PITR_CONTAINER" >/dev/null 2>&1 || true
 T1=$(date +%s)
-docker run -d --name "$PITR_CONTAINER" \
+docker run -d --name "$PITR_CONTAINER" --network "$PITR_NETWORK" \
     -v "$PITR_VOLUME:/pgdata" \
     ${WALG_FILE_PREFIX:+-v "$WALG_FILE_PREFIX:$WALG_FILE_PREFIX"} \
     -v "$HBA_DIR:/etc/harness:ro" \

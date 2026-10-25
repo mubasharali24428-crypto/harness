@@ -1,0 +1,92 @@
+{
+  "drill": "oidc-keycloak",
+  "executedAt": "2026-10-25T09:42:03Z",
+  "identity": "http://127.0.0.1:8001",
+  "issuer": "http://sso-idp:8080/realms/harness",
+  "clientId": "harness-drill",
+  "redirectUri": "http://localhost:3000/auth/sso/callback",
+  "memberEmail": "sso-drill-20261025t094200z@harness.dev",
+  "teamId": "7a3478aa-d6d2-438d-8565-3d99be8ffda1",
+  "timingsMs": {
+    "discovery": 24,
+    "idpFormRoundTrip": 76,
+    "total": 2015
+  },
+  "checks": [
+    {
+      "check": "idp discovery reachable",
+      "ok": true,
+      "detail": "200, issuer=http://sso-idp:8080/realms/harness"
+    },
+    {
+      "check": "drill member exists at the IdP",
+      "ok": true,
+      "detail": "sso-drill-20261025t094200z@harness.dev (created)"
+    },
+    {
+      "check": "admin dev login",
+      "ok": true,
+      "detail": "team=7a3478aa-d6d2-438d-8565-3d99be8ffda1"
+    },
+    {
+      "check": "SSO config refused on free plan",
+      "ok": true,
+      "detail": "HTTP 403 PLAN_REQUIRED"
+    },
+    {
+      "check": "SSO config stored with secret hint only",
+      "ok": true,
+      "detail": "hint=\u2026\u2026awI="
+    },
+    {
+      "check": "GET config never returns the secret",
+      "ok": true,
+      "detail": "keys=['clientId', 'configured', 'createdAt', 'enabled', 'idpDisplayName', 'issuerUrl', 'secretHint', 'teamId']"
+    },
+    {
+      "check": "member joined the team by invite",
+      "ok": true,
+      "detail": "member user=ef8ba4ed-99d9-4667-9d3b-e6bac2584ce5 role=engineer"
+    },
+    {
+      "check": "authorization URL uses S256 PKCE + nonce",
+      "ok": true,
+      "detail": "state/nonce/challenge present"
+    },
+    {
+      "check": "IdP login returned an authorization code",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "session minted for the matching member",
+      "ok": true,
+      "detail": "team=7a3478aa-d6d2-438d-8565-3d99be8ffda1 role=engineer"
+    },
+    {
+      "check": "minted session authenticates",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "check": "replayed state refused",
+      "ok": true,
+      "detail": "HTTP 400 SSO_STATE_INVALID"
+    },
+    {
+      "check": "redirect URI mismatch refused before code exchange",
+      "ok": true,
+      "detail": "HTTP 400 SSO_STATE_INVALID"
+    },
+    {
+      "check": "authenticated non-member gets no seat",
+      "ok": true,
+      "detail": "HTTP 403 SSO_EMAIL_NOT_MEMBER"
+    }
+  ],
+  "result": "pass",
+  "notes": [
+    "Drill-only credentials live in deploy/keycloak/harness-realm.json.",
+    "No client secret, authorization code or session token appears here."
+  ]
+}
