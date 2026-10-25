@@ -77,6 +77,7 @@ function SettingsInner() {
           <li><a href="/settings/team" style={{ color: "#93c5fd" }}>Team &amp; invites</a></li>
           <li><a href="/settings/governance" style={{ color: "#93c5fd" }}>Organization governance</a></li>
           <li><a href="/settings/notifications" style={{ color: "#93c5fd" }}>Notifications (inbox, email, quiet hours)</a></li>
+          <li><a href="/settings/models" style={{ color: "#93c5fd" }}>Models &amp; reasoning</a></li>
           <li><a href="/settings/keys" style={{ color: "#93c5fd" }}>API keys (BYO providers)</a></li>
           <li><a href="/settings/integrations" style={{ color: "#93c5fd" }}>Integrations &amp; webhooks</a></li>
           <li><a href="/settings/billing" style={{ color: "#93c5fd" }}>Billing &amp; plan</a></li>

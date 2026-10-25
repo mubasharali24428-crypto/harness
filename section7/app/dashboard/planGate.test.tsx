@@ -46,6 +46,7 @@ function view(opts: {
   note?: string | null;
   error?: string | null;
   optimisticPending?: boolean;
+  modelPicker?: React.ReactNode;
 }) {
   const allOn = { propose: true, approve: true, reject: true, start: true };
   const allOff = { propose: false, approve: false, reject: false, start: false };
@@ -63,6 +64,7 @@ function view(opts: {
       note={opts.note ?? null}
       actions={noopActions}
       optimisticPending={opts.optimisticPending ?? false}
+      modelPicker={opts.modelPicker}
     />,
   );
 }
@@ -261,5 +263,24 @@ describe("PlanGateView — optimistic decision rendering", () => {
     expect(html).not.toContain(OPTIMISTIC_PENDING_CAPTION);
     expect(html).toContain("Plan awaiting approval.");
     expect(html).toContain("Approve plan"); // normal labels back
+  });
+});
+
+describe("PlanGateView — composer model picker slot", () => {
+  it("renders the picker beside the shortcut hint in the propose footer", () => {
+    const html = view({
+      phase: "no-plan",
+      modelPicker: <span data-testid="stub-picker">deepseek-reasoner</span>,
+    });
+    expect(html).toContain('data-testid="stub-picker"');
+    expect(html).toContain("⌘↵ to propose");
+    // Inside the composer: the picker precedes the hint in the same footer row.
+    expect(html.indexOf('data-testid="stub-picker"')).toBeLessThan(html.indexOf("⌘↵ to propose"));
+  });
+
+  it("keeps the gate usable when no picker is supplied (backward compatible)", () => {
+    const html = view({ phase: "no-plan" });
+    expect(html).toContain('data-testid="propose-plan"');
+    expect(html).not.toContain('data-testid="stub-picker"');
   });
 });

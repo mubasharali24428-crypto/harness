@@ -1070,6 +1070,32 @@ class OrchestratorService(Orchestrator):
             reset(run_data["runId"])  # fresh start/resume clears a sticky kill flag
         run_data["task"] = asyncio.create_task(self._execute(run_data, plan))
 
+    async def _team_model_for_run(self, run_id: str) -> str | None:
+        """The team's saved primary model, or None for the deployment default.
+
+        Storage trouble (missing table on an old DB, transient outage) must
+        never block a run: it degrades to the configured engine model.
+        """
+        if self.session_factory is None:
+            return None
+        try:
+            async with self.session_factory() as db:
+                row = (
+                    await db.execute(
+                        text(
+                            "SELECT m.primary_model FROM agent_runs r "
+                            "JOIN projects p ON p.id = r.project_id "
+                            "JOIN team_model_prefs m ON m.team_id = p.team_id "
+                            "WHERE r.id = :rid"
+                        ),
+                        {"rid": run_id},
+                    )
+                ).first()
+        except Exception:  # noqa: BLE001 — preference lookup is best-effort
+            logger.warning("team model lookup failed for run %s", run_id, exc_info=True)
+            return None
+        return str(row[0]) if row and row[0] else None
+
     async def _execute(self, run_data: dict[str, Any], plan: AgentPlan) -> None:
         run_id = run_data["runId"]
         sm: AgentStateMachine = run_data["state_machine"]
@@ -1168,7 +1194,10 @@ class OrchestratorService(Orchestrator):
                 # pool. A hung provider now fails THIS run at the deadline
                 # instead of occupying a slot forever.
                 result = await self.engine_runtime.run(
-                    self.engine, goal=plan.goal + extra, session_id=run_id
+                    self.engine,
+                    goal=plan.goal + extra,
+                    session_id=run_id,
+                    model=await self._team_model_for_run(run_id),
                 )
                 if extra:  # persist the cursor so a restart does not re-deliver
                     await collab.mark_guidance_delivered(

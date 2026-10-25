@@ -308,3 +308,21 @@ def test_provision_workspace_empty_then_seeded_and_resume_keeps_edits(tmp_path, 
     monkeypatch.setenv("HARNESS_WORKSPACE_SEED", str(tmp_path / "missing"))
     with pytest.raises(ValueError, match="not a directory"):
         w.provision_workspace("r-bad")
+
+
+def test_per_run_model_override_wins_over_the_configured_default(monkeypatch):
+    """A team's saved model reaches the SDK call; the default stays intact."""
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
+    monkeypatch.setenv("DEEPSEEK_BASE_URL", "http://localhost:11434/v1")
+    monkeypatch.setenv("DSH_MODEL", "deployment-default")
+    w = DeepSeekHarnessWrapper(live_mode="live")
+    seen: list[str] = []
+
+    def fake_live(goal, session_id, model):  # noqa: ARG001
+        seen.append(model)
+        return "ok", "completed", model, []
+
+    monkeypatch.setattr(w, "_run_live_events", fake_live)
+    w.execute_goal("goal", "s1", model="team-choice")
+    w.execute_goal("goal", "s2")
+    assert seen == ["team-choice", "deployment-default"]

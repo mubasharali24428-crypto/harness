@@ -171,6 +171,40 @@
     "title": "ModelCallOpts",
     "type": "object"
    },
+   "ModelPrefsBody": {
+    "description": "PUT /models/prefs \u2014 the team's durable role models and effort.",
+    "properties": {
+     "primaryModel": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Primarymodel",
+      "type": "string"
+     },
+     "reasoningEffort": {
+      "default": "off",
+      "enum": [
+       "off",
+       "low",
+       "medium",
+       "high"
+      ],
+      "title": "Reasoningeffort",
+      "type": "string"
+     },
+     "reviewerModel": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Reviewermodel",
+      "type": "string"
+     }
+    },
+    "required": [
+     "primaryModel",
+     "reviewerModel"
+    ],
+    "title": "ModelPrefsBody",
+    "type": "object"
+   },
    "ModelResult": {
     "properties": {
      "costUsd": {
@@ -613,6 +647,72 @@
      }
     },
     "summary": "Prometheus Metrics",
+    "tags": [
+     "models"
+    ]
+   }
+  },
+  "/api/v1/models/prefs": {
+   "get": {
+    "description": "The team's saved role models + reasoning effort (defaults when unset).",
+    "operationId": "get_model_prefs_api_v1_models_prefs_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Model Prefs Api V1 Models Prefs Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Get Model Prefs",
+    "tags": [
+     "models"
+    ]
+   },
+   "put": {
+    "description": "Admin-only durable update. Also applies the choice to this process.",
+    "operationId": "put_model_prefs_api_v1_models_prefs_put",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ModelPrefsBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Put Model Prefs Api V1 Models Prefs Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put Model Prefs",
     "tags": [
      "models"
     ]

@@ -305,7 +305,7 @@ class EngineRuntime:
         self._executor.shutdown(wait=False, cancel_futures=True)
 
     async def run(
-        self, engine: Any, *, goal: str, session_id: str
+        self, engine: Any, *, goal: str, session_id: str, model: str | None = None
     ) -> dict[str, Any]:
         """Run one engine call under breaker + deadline; result or raise.
 
@@ -316,8 +316,13 @@ class EngineRuntime:
         """
         key = provider_key_for(engine)
         self.breaker.check(key)  # fail fast BEFORE consuming a slot
-        call: Callable[[], dict[str, Any]] = partial(
-            engine.execute_goal, goal=goal, session_id=session_id
+        # ``model`` is passed only when a team chose one: custom engines in
+        # tests keep their two-argument signature, and the default path is
+        # byte-for-byte unchanged.
+        call: Callable[[], dict[str, Any]] = (
+            partial(engine.execute_goal, goal=goal, session_id=session_id, model=model)
+            if model
+            else partial(engine.execute_goal, goal=goal, session_id=session_id)
         )
         # Submit directly so the thread's real lifetime is tracked: a cancelled
         # or timed-out await does NOT end the thread, and callers (stop) must

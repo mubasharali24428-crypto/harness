@@ -24,6 +24,12 @@ class ModelRouterService(ModelRouter):
         else:
             self.team_role_models[(team_id, role)] = model_name
 
+    def team_override(self, role: ModelRole, team_id: str | None) -> str | None:
+        """The team's in-process override, if one was set this lifetime."""
+        if team_id is None:
+            return None
+        return self.team_role_models.get((team_id, role))
+
     def _role_model(self, role: ModelRole, team_id: str | None) -> str:
         if team_id is not None and (team_id, role) in self.team_role_models:
             return self.team_role_models[(team_id, role)]

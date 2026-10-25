@@ -10,6 +10,32 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Team model preferences and reasoning effort (2026-10-25)
+
+#### Added
+
+- **Per-team model choice, persisted** — migration `0062_team_model_prefs.sql`
+  plus `GET/PUT /api/v1/models/prefs` (Reader may view, Writer+admin may save,
+  unknown models rejected with `UNKNOWN_MODEL`, storage failure returns
+  `503 PREFS_UNAVAILABLE` rather than silently accepting). Router `/call` and
+  orchestrator runs both honour the team's primary model; deployment defaults
+  still apply until a team saves a preference.
+- **Composer model chip and Settings → Models** — `ModelPrefsForm` (compact in
+  the plan-gate composer, full on `/settings/models`) lists the provider
+  catalog, auto-saves for admins, and states plainly what the choice affects.
+- **Honest reasoning limits** — reasoning effort is stored for every
+  deployment but only wired into the request for OpenRouter-style endpoints;
+  the server reports `reasoningWireSupported` and the UI says so instead of
+  implying the setting always does something.
+
+#### Known limitations
+
+- Reasoning effort reaches only OpenRouter-compatible endpoints; other
+  providers accept no reasoning object, so the setting is stored and ignored
+  there (stated in the UI, not hidden).
+- The reviewer model preference is persisted but not yet consumed by the
+  reviewer lane.
+
 ### Mission 23 · Program finale — polish sweep (2026-08-26)
 
 Final mission of the 10x program (graph:

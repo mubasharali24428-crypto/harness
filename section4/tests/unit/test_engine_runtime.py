@@ -490,3 +490,26 @@ def test_engine_exception_text_is_scrubbed_before_events_and_result(queue_factor
         assert "sk-serviceecho-test" not in (result.get("finalResponse") or "")
     finally:
         svc.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_runtime_passes_an_explicit_team_model():
+    class ModelProbe:
+        backend_runner = None
+        model = "default"
+
+        def __init__(self):
+            self.models = []
+
+        def execute_goal(self, goal=None, session_id=None, model=None):  # noqa: ARG002
+            self.models.append(model)
+            return {"status": "completed"}
+
+    runtime = EngineRuntime(max_concurrency=1)
+    engine = ModelProbe()
+    try:
+        await runtime.run(engine, goal="g", session_id="r1")
+        await runtime.run(engine, goal="g", session_id="r2", model="team-model")
+    finally:
+        runtime.shutdown()
+    assert engine.models == [None, "team-model"]

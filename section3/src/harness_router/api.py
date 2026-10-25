@@ -2,7 +2,7 @@ import asyncio
 import logging
 import threading
 from collections import defaultdict
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.concurrency import run_in_threadpool
@@ -12,8 +12,10 @@ from harness_contracts.signatures import ModelCallOpts, ModelResult, ModelRole
 from pydantic import BaseModel, Field
 
 from harness_router import ledger as cost_ledger
+from harness_router import prefs as model_prefs
 from harness_router.catalog import catalog
 from harness_router.config import MODEL_PRICING_CATALOG
+from harness_router.pricing import PricingEngine
 from harness_router.providers import (
     InvalidApiKeyError,
     ModelUnavailableError,
@@ -182,6 +184,14 @@ class CallModelRequest(BaseModel):
     runId: str | None = None
 
 
+class ModelPrefsBody(BaseModel):
+    """PUT /models/prefs — the team's durable role models and effort."""
+
+    primaryModel: str = Field(min_length=1, max_length=120)
+    reviewerModel: str = Field(min_length=1, max_length=120)
+    reasoningEffort: Literal["off", "low", "medium", "high"] = "off"
+
+
 class EstimateCostRequest(BaseModel):
     role: ModelRole
     inputTokens: int = Field(ge=0)
@@ -251,6 +261,43 @@ class SpendErrorEnvelope(BaseModel):
     error: SpendErrorDetail
 
 
+
+def _role_value(role: object) -> str:
+    return getattr(role, "value", str(role))
+
+
+def _require_admin(principal: Principal) -> None:
+    if _role_value(principal.role) != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": {"code": "FORBIDDEN", "message": "admin only"}},
+        )
+
+
+def _reasoning_capable(model: str) -> bool:
+    name = model.lower()
+    return "reasoner" in name or "/o1" in name or "/o3" in name
+
+
+def _with_reasoning(opts: ModelCallOpts | None, effort: str, model: str) -> ModelCallOpts | None:
+    """Attach a provider reasoning object only where it is accepted.
+
+    The preference is stored for every deployment, but sending an unknown
+    field to a first-party API can fail the call, so this is limited to
+    OpenRouter-style endpoints and reasoning-capable models. "off" is a no-op
+    (never changes today's request shape).
+    """
+    if opts is None or effort == "off" or not model_prefs.reasoning_wire_supported():
+        return opts
+    if not _reasoning_capable(model):
+        return opts
+    extra = dict(opts.extra or {})
+    if "reasoning" in extra:
+        return opts
+    extra["reasoning"] = {"effort": effort}
+    return opts.model_copy(update={"extra": extra})
+
+
 @router.post("/call", response_model=ModelResult, status_code=status.HTTP_200_OK)
 async def call_model(req: CallModelRequest, principal: Writer) -> ModelResult:
     pool = get_ledger_pool()
@@ -266,6 +313,20 @@ async def call_model(req: CallModelRequest, principal: Writer) -> ModelResult:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={"error": {"code": "RUN_NOT_FOUND", "message": "run not found"}},
             )
+    # A team's saved preference is the default when the caller does not name
+    # a model. Explicit request models still win.
+    effective_model = req.model or _service.team_override(req.role, principal.teamId)
+    effective_opts = req.opts
+    if effective_model is None:
+        saved = await model_prefs.load_prefs(pool, principal.teamId)
+        effective_model = (
+            saved["reviewerModel"]
+            if req.role == ModelRole.REVIEWER
+            else saved["primaryModel"]
+        )
+        effective_opts = _with_reasoning(
+            effective_opts, saved["reasoningEffort"], effective_model
+        )
     try:
         # Provider call is blocking; keep it off the event loop like the
         # threadpool the sync def previously ran in.
@@ -274,12 +335,12 @@ async def call_model(req: CallModelRequest, principal: Writer) -> ModelResult:
             agent_id=req.agentId,
             role=req.role,
             messages=req.messages,
-            opts=req.opts,
+            opts=effective_opts,
             # FIX-LOOP E1: the decrypted team key survives the REST seam and
             # reaches the provider layer (real-mode gate). The simulated
             # fallback stays keyless-only and dev-gated.
             api_key=req.apiKey,
-            model_name=req.model,
+            model_name=effective_model,
             team_id=principal.teamId,
         )
     except InvalidApiKeyError as e:
@@ -385,12 +446,17 @@ async def model_spend(
 
 
 @router.post("/estimate-cost", status_code=status.HTTP_200_OK)
-def estimate_cost(req: EstimateCostRequest, principal: Reader) -> dict[str, Any]:
-    cost = _service.estimate_cost(
-        role=req.role,
-        input_tokens=req.inputTokens,
-        output_tokens=req.outputTokens,
-        team_id=principal.teamId,
+async def estimate_cost(req: EstimateCostRequest, principal: Reader) -> dict[str, Any]:
+    model = req.model if req.model in MODEL_PRICING_CATALOG else None
+    if model is None:
+        saved = await model_prefs.load_prefs(get_ledger_pool(), principal.teamId)
+        model = (
+            saved["reviewerModel"]
+            if req.role == ModelRole.REVIEWER
+            else saved["primaryModel"]
+        )
+    cost = float(
+        PricingEngine.calculate_cost(model, req.inputTokens, req.outputTokens)
     )
     return {
         "role": req.role,
@@ -431,6 +497,52 @@ def configure_role_model(req: ConfigureRoleModelRequest, principal: Writer) -> d
         )
     _service.set_role_model(req.role, req.model, team_id=principal.teamId)
     return {"role": req.role, "model": req.model, "status": "configured"}
+
+
+@router.get("/prefs", status_code=status.HTTP_200_OK)
+async def get_model_prefs(principal: Reader) -> dict[str, Any]:
+    """The team's saved role models + reasoning effort (defaults when unset)."""
+    return await model_prefs.load_prefs(get_ledger_pool(), principal.teamId)
+
+
+@router.put("/prefs", status_code=status.HTTP_200_OK)
+async def put_model_prefs(body: ModelPrefsBody, principal: Writer) -> dict[str, Any]:
+    """Admin-only durable update. Also applies the choice to this process."""
+    _require_admin(principal)
+    for model in (body.primaryModel, body.reviewerModel):
+        if not model_prefs.model_known(model):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": {
+                        "code": "UNKNOWN_MODEL",
+                        "message": f"Model '{model}' is not in catalog.",
+                    }
+                },
+            )
+    try:
+        await model_prefs.save_prefs(
+            get_ledger_pool(),
+            principal.teamId,
+            primary_model=body.primaryModel,
+            reviewer_model=body.reviewerModel,
+            reasoning_effort=body.reasoningEffort,
+            updated_by=principal.userId,
+        )
+    except Exception as exc:  # noqa: BLE001 — storage is the only failure here
+        logger.warning("model-preference write failed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": {
+                    "code": "PREFS_UNAVAILABLE",
+                    "message": "model-preference storage is not available",
+                }
+            },
+        ) from exc
+    _service.set_role_model(ModelRole.PRIMARY, body.primaryModel, team_id=principal.teamId)
+    _service.set_role_model(ModelRole.REVIEWER, body.reviewerModel, team_id=principal.teamId)
+    return await model_prefs.load_prefs(get_ledger_pool(), principal.teamId)
 
 
 @router.get("/metrics", status_code=status.HTTP_200_OK)

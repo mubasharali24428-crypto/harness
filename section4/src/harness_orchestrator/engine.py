@@ -458,7 +458,15 @@ class DeepSeekHarnessWrapper:
                 totals["outputTokens"] += step["outputTokens"]
         return totals
 
-    def execute_goal(self, goal: str, session_id: str = "session-001") -> dict[str, Any]:
+    def execute_goal(
+        self,
+        goal: str,
+        session_id: str = "session-001",
+        model: str | None = None,
+    ) -> dict[str, Any]:
+        # A per-run/team choice wins over the deployment default. ``None``
+        # keeps the exact historical behavior.
+        effective_model = model or self.model
         used_model: str | None = None
         usage: dict[str, int] | None = None
         tool_calls: list[dict[str, Any]] = []
@@ -470,7 +478,7 @@ class DeepSeekHarnessWrapper:
             # callee ever picks another one (no-downgrade law).
             try:
                 result_text, status, used_model, events = self._run_live_events(
-                    goal, session_id, model=self.model
+                    goal, session_id, model=effective_model
                 )
                 # M14-W4 F1a: real token accounting rides the SDK's usage
                 # chunks; folded onto the result so the orchestrator's
@@ -479,11 +487,11 @@ class DeepSeekHarnessWrapper:
                 tool_calls = self._fold_tool_calls(events)
             except Exception as exc:  # noqa: BLE001 — honest error, never escape
                 result_text = scrub_secrets(
-                    f"DeepSeek Harness run failed on {self.model}: {exc}",
+                    f"DeepSeek Harness run failed on {effective_model}: {exc}",
                     self.api_key,
                 )
                 status = "error"
-                used_model = self.model
+                used_model = effective_model
                 events = []
             if status == "completed" and not (result_text or "").strip():
                 # Wave 6 (D2) honesty rule, preserved after ladder deletion:

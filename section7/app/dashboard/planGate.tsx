@@ -13,6 +13,7 @@ import type { AgentPlan } from "@contracts/plan";
 import type { RunStatus } from "@contracts/api";
 import type { Principal } from "@contracts/roles";
 import { ApiError, getRunStatus } from "@/lib/api";
+import { ModelPrefsForm } from "@/components/ModelPrefs";
 import { getProjectId, setRunId } from "@/lib/auth";
 import {
   panelStyle,
@@ -236,6 +237,7 @@ export function PlanGateCard({
       error={error}
       note={note}
       actions={wire}
+      modelPicker={<ModelPrefsForm token={token} role={principal?.role} variant="compact" />}
     />
     {activeRunId && getProjectId() && <a href={`/projects/${encodeURIComponent(getProjectId()!)}/runs/${encodeURIComponent(activeRunId)}`} style={{ color: "var(--accent)" }}>
       Open shared run
@@ -256,6 +258,7 @@ export function PlanGateView({
   error,
   note,
   actions,
+  modelPicker,
   // M14-F4 — true while an approve/reject decision is on the wire: the phase
   // pill already shows the optimistic guess and the caption says "pending".
   optimisticPending = false,
@@ -269,6 +272,8 @@ export function PlanGateView({
   error: string | null;
   note: string | null;
   actions: GateWireActions;
+  /** Optional model/reasoning control rendered inside the composer footer. */
+  modelPicker?: React.ReactNode;
   optimisticPending?: boolean;
 }) {
   const showProposeForm = phase === "no-plan" && !plan;
@@ -321,7 +326,10 @@ export function PlanGateView({
               marginTop: 8,
             }}
           >
-            <span style={{ color: "var(--muted)", fontSize: 11 }}>⌘↵ to propose</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              {modelPicker}
+              <span style={{ color: "var(--muted)", fontSize: 11 }}>⌘↵ to propose</span>
+            </div>
             <button
               style={buttonStyle}
               disabled={!enabled.propose || !goalDraft.trim()}
