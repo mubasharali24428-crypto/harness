@@ -1,0 +1,33 @@
+# OpenRouter transport patch for the DeepSeek Harness runtime.
+#
+# The native adapter in SDK 0.2.1rc2 always calls the Anthropic Messages API
+# (`/v1/messages`) and sends `thinking: {type: enabled}` without `budget_tokens`,
+# which OpenRouter rejects with `400 Invalid Anthropic Messages API request`.
+# This patch disables that adapter and inserts the OpenAI-completions adapter,
+# so `DEEPSEEK_BASE_URL` may be an OpenAI-compatible endpoint
+# (e.g. https://openrouter.ai/api/v1).
+#
+# Usage (engine or orchestrator process):
+#   DSH_MODEL=deepseek/deepseek-v4.1-flash \
+#   DEEPSEEK_BASE_URL=https://openrouter.ai/api/v1 \
+#   DEEPSEEK_API_KEY=<openrouter key> \
+#   DSH_PATCH_FILES=deploy/patches/openrouter.patch.yml \
+#   <start orchestrator>
+#
+# DSH_MODEL is required: the model id below is read from the environment.
+- id: llm-deepseek
+  disabled: true
+- insert:
+    - id: llm-openrouter
+      name: '@deepseek-ai/dsh-llm-pi-ai'
+      config:
+        providers:
+          deepseek-official:
+            api: openai-completions
+            apiKeyEnv: DEEPSEEK_API_KEY
+            baseURL: !!js process.env.DEEPSEEK_BASE_URL
+            models:
+              - id: !!js process.env.DSH_MODEL
+                contextWindow: 65536
+                maxTokens: 4096
+                input: [text]

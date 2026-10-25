@@ -76,6 +76,25 @@ EOF
 docker compose --env-file .env -f deploy/docker-compose.yml up -d
 ```
 
+OpenRouter (or any OpenAI-compatible endpoint that speaks the OpenAI schema)
+also needs the transport patch: the bundled runtime otherwise calls the
+Anthropic Messages API and OpenRouter rejects it (`400 Invalid Anthropic
+Messages API request`).
+
+```sh
+cat >> .env <<'EOF'
+ENGINE_LIVE_MODE=live
+DEEPSEEK_API_KEY=sk-or-...                                  # OpenRouter key
+DEEPSEEK_BASE_URL=https://openrouter.ai/api/v1
+DSH_MODEL=deepseek/deepseek-v4.1-flash                      # any OpenRouter model id
+DSH_PATCH_FILES=/opt/harness/patches/openrouter.patch.yml
+EOF
+docker compose --env-file .env -f deploy/docker-compose.yml up -d
+```
+
+For a direct engine run outside Compose, point `DSH_PATCH_FILES` at
+`deploy/patches/openrouter.patch.yml` instead.
+
 ### Pilot sandbox boundary
 
 Sandboxed pilot execution can use macOS Seatbelt or Linux Landlock when the

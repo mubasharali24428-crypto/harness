@@ -41,6 +41,10 @@ x-backend-env: &backend-env
   DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
   DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-}
   DSH_MODEL: ${DSH_MODEL:-}
+  # Optional runtime patch files (os.pathsep-separated). The orchestrator mounts
+  # deploy/patches read-only at /opt/harness/patches; set for OpenRouter:
+  # DSH_PATCH_FILES=/opt/harness/patches/openrouter.patch.yml
+  DSH_PATCH_FILES: ${DSH_PATCH_FILES:-}
   DSH_WORKSPACE: /tmp/harness-dsh/workspace
   DSH_SESSION_ROOT: /tmp/harness-dsh/sessions
   GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
@@ -358,6 +362,9 @@ services:
       HARNESS_DIFFSTORE_ROOT: /var/lib/harness-store/diffs
     volumes:
       - harness_store:/var/lib/harness-store
+      # Operator-supplied dsh runtime patches (see deploy/patches/README-free note
+      # in openrouter.patch.yml). Read-only; the engine fails closed on a missing path.
+      - ./patches:/opt/harness/patches:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
