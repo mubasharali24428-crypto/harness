@@ -44,6 +44,10 @@ CREATE TABLE agent_plans (id VARCHAR(36) PRIMARY KEY, run_id VARCHAR(36) NOT NUL
     estimated_cost_usd REAL NOT NULL DEFAULT 0, forbidden_paths TEXT NOT NULL DEFAULT '[]',
     expected_result TEXT NOT NULL DEFAULT '', status VARCHAR(20) NOT NULL,
     created_at TEXT NOT NULL DEFAULT '2026-01-01T00:00:00+00:00');
+-- 0019's table, without its PG-only FKs: start_execution reads it for the
+-- planner's advisory rules block, so its absence aborts that path.
+CREATE TABLE project_rules (id VARCHAR(36) PRIMARY KEY, project_id VARCHAR(36) NOT NULL,
+    rules_text TEXT NOT NULL DEFAULT '');
 CREATE TABLE run_claims (run_id VARCHAR(36) PRIMARY KEY, project_id VARCHAR(36) NOT NULL,
     state VARCHAR(20) NOT NULL, claimed_at TEXT NOT NULL, heartbeat_at TEXT NOT NULL,
     worker_id VARCHAR(80) NOT NULL);

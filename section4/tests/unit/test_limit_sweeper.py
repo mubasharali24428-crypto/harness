@@ -21,11 +21,26 @@ async def test_the_scheduled_sweep_pauses_a_running_run_over_its_limit(env):
     await env.new_run("r1")
     await limits(env, maxSeconds=3600)
     await env.start("r1")
-    await env.x("UPDATE run_claims SET state = 'running'")
-    env.tick(hours=2)
+    # The run was only queued: mark the claim as running (as a queue worker
+    # would) and let the fake clock pass the limit. The clock is the same seam
+    # the sweep reads, so the age is deterministic — no wall-clock sleep.
+    await env.x(
+        "UPDATE run_claims SET state = 'running',"
+        " claimed_at = :t, heartbeat_at = :t",
+        t=env.clock["t"],
+    )
+    env.tick(seconds=3601)
+    assert env.svc.runs["r1"]["state_machine"].state.value == "executing"
+
+    def live_state():
+        # pause_agent rehydrates and REPLACES the state machine; a captured
+        # reference is stale, and the registry briefly drops the id mid-swap.
+        run = env.svc.runs.get("r1")
+        return run["state_machine"].state.value if run else None
+
     task = asyncio.create_task(run_limit_sweeper(env.svc, 0.01))
     try:
-        assert await _until(lambda: env.seat("r1") == "paused")
+        assert await _until(lambda: live_state() == "paused")
     finally:
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
