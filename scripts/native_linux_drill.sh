@@ -91,7 +91,14 @@ READ_OK=$(printf '%s' "$READ_JSON" | python3 -c 'import json,sys; d=json.load(sy
 
 SIB_JSON=$(run_gate "python3 -c \"print(open('/sibling/data.txt').read())\"")
 SIB_BLOCKED=$(printf '%s' "$SIB_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("exitCode") != 0 and "CANARY" not in d.get("output",""))')
-[ "$SIB_BLOCKED" = "True" ] || fail "sibling read leaked: $SIB_JSON"
+if [ "$SIB_BLOCKED" != "True" ]; then
+    echo "[native-drill] diagnostics:" >&2
+    docker run --rm --entrypoint sh "$IMAGE" -c \
+        'grep -n "read_ruleset\|exec_read_roots" /opt/harness/section5/src/harness_sandbox/confinement.py | head' >&2 || true
+    ESCAPE_JSON=$(run_gate "python3 -c \"open('/tmp/native-drill-escape.txt','w').write('x')\"")
+    echo "[native-drill] outside write => $ESCAPE_JSON" >&2
+    fail "sibling read leaked: $SIB_JSON"
+fi
 
 python3 - "$OUT" "$IMAGE" "$ABI" "$STAMP" <<PY
 import json
