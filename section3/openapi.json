@@ -51,6 +51,17 @@
      },
      "role": {
       "$ref": "#/components/schemas/ModelRole"
+     },
+     "runId": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Runid"
      }
     },
     "required": [
@@ -288,6 +299,9 @@
      "totals": {
       "$ref": "#/components/schemas/SpendTotals"
      },
+     "unattributed": {
+      "$ref": "#/components/schemas/UnattributedSpend"
+     },
      "unwired": {
       "default": false,
       "title": "Unwired",
@@ -295,7 +309,8 @@
      }
     },
     "required": [
-     "totals"
+     "totals",
+     "unattributed"
     ],
     "title": "SpendSummaryResponse",
     "type": "object"
@@ -322,6 +337,35 @@
      "costUsd"
     ],
     "title": "SpendTotals",
+    "type": "object"
+   },
+   "UnattributedSpend": {
+    "description": "Ledger calls with no run; never presented as team-owned spend.",
+    "properties": {
+     "calls": {
+      "title": "Calls",
+      "type": "integer"
+     },
+     "costUsd": {
+      "title": "Costusd",
+      "type": "number"
+     },
+     "inputTokens": {
+      "title": "Inputtokens",
+      "type": "integer"
+     },
+     "outputTokens": {
+      "title": "Outputtokens",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "calls",
+     "inputTokens",
+     "outputTokens",
+     "costUsd"
+    ],
+    "title": "UnattributedSpend",
     "type": "object"
    },
    "ValidationError": {

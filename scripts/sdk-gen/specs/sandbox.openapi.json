@@ -91,6 +91,45 @@
     "title": "HTTPValidationError",
     "type": "object"
    },
+   "HunkRef": {
+    "properties": {
+     "index": {
+      "minimum": 0.0,
+      "title": "Index",
+      "type": "integer"
+     },
+     "path": {
+      "maxLength": 512,
+      "minLength": 1,
+      "title": "Path",
+      "type": "string"
+     }
+    },
+    "required": [
+     "path",
+     "index"
+    ],
+    "title": "HunkRef",
+    "type": "object"
+   },
+   "RevertHunksRequest": {
+    "properties": {
+     "hunks": {
+      "items": {
+       "$ref": "#/components/schemas/HunkRef"
+      },
+      "maxItems": 500,
+      "minItems": 1,
+      "title": "Hunks",
+      "type": "array"
+     }
+    },
+    "required": [
+     "hunks"
+    ],
+    "title": "RevertHunksRequest",
+    "type": "object"
+   },
    "StructuredExecResult": {
     "properties": {
      "diagnostics": {
@@ -546,6 +585,178 @@
      }
     },
     "summary": "Checkpoint Diff",
+    "tags": [
+     "sandbox"
+    ]
+   }
+  },
+  "/api/v1/sandbox/{projectId}/checkpoints/{sha}/hunks": {
+   "get": {
+    "description": "Files and hunks of one snapshot, for the visual review surface.",
+    "operationId": "checkpoint_hunks_api_v1_sandbox__projectId__checkpoints__sha__hunks_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "projectId",
+      "required": true,
+      "schema": {
+       "title": "Projectid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "sha",
+      "required": true,
+      "schema": {
+       "title": "Sha",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Checkpoint Hunks Api V1 Sandbox  Projectid  Checkpoints  Sha  Hunks Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Checkpoint Hunks",
+    "tags": [
+     "sandbox"
+    ]
+   }
+  },
+  "/api/v1/sandbox/{projectId}/checkpoints/{sha}/restore": {
+   "post": {
+    "description": "Reset the workspace tree to this snapshot; records a new checkpoint.",
+    "operationId": "checkpoint_restore_api_v1_sandbox__projectId__checkpoints__sha__restore_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "projectId",
+      "required": true,
+      "schema": {
+       "title": "Projectid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "sha",
+      "required": true,
+      "schema": {
+       "title": "Sha",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Checkpoint Restore Api V1 Sandbox  Projectid  Checkpoints  Sha  Restore Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Checkpoint Restore",
+    "tags": [
+     "sandbox"
+    ]
+   }
+  },
+  "/api/v1/sandbox/{projectId}/checkpoints/{sha}/revert": {
+   "post": {
+    "description": "Reverse-apply the selected hunks; records a new checkpoint on success.",
+    "operationId": "checkpoint_revert_api_v1_sandbox__projectId__checkpoints__sha__revert_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "projectId",
+      "required": true,
+      "schema": {
+       "title": "Projectid",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "sha",
+      "required": true,
+      "schema": {
+       "title": "Sha",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RevertHunksRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Checkpoint Revert Api V1 Sandbox  Projectid  Checkpoints  Sha  Revert Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Checkpoint Revert",
     "tags": [
      "sandbox"
     ]
