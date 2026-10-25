@@ -6,6 +6,8 @@ syscall), so they run on every platform; the real enforcement is proven on
 Linux by ``test_landlock_read_isolation.py``.
 """
 
+from pathlib import Path
+
 from harness_sandbox import confinement
 
 
@@ -123,3 +125,43 @@ def test_workspace_and_tmpdir_are_readable_roots(tmp_path):
     assert tmpdir.resolve() in rules
     assert rules[ws.resolve()] & confinement.LL_READ_FILE
     assert rules[tmpdir.resolve()] & confinement.LL_READ_FILE
+
+
+def test_exec_read_roots_never_grant_the_filesystem_root(monkeypatch):
+    """Regression: /bin/sh must not drag "/" into the read allow-list.
+
+    The old bootstrap appended the program's grandparent whenever its
+    directory was named "bin", so every shell-gated command could read the
+    whole filesystem. System programs need no extra root.
+    """
+    monkeypatch.setenv("HOME", "/home/tester")
+    assert confinement.exec_read_roots("/bin/sh") == []
+    assert confinement.exec_read_roots("/usr/bin/python3") == []
+    assert confinement.exec_read_roots("/opt/tool/bin/x") == []
+    assert confinement.exec_read_roots("/home/tester/.local/bin/tool") == []
+
+
+def test_exec_read_roots_adds_only_an_outside_tool_directory(monkeypatch):
+    monkeypatch.setenv("HOME", "/home/tester")
+    assert confinement.exec_read_roots("/srv/tools/bin/run") == [
+        Path("/srv/tools/bin").resolve()
+    ]
+
+
+def test_home_root_never_grants_the_filesystem_root(tmp_path, monkeypatch):
+    """Docker with --user and no passwd entry sets HOME="/"; that must not
+    turn the read allow-list into the whole filesystem (found by the
+    native-Linux drill on ubuntu-latest, 2026-10-25)."""
+    monkeypatch.setenv("HOME", "/")
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    rules = _rules(confinement.landlock_read_allowlist(ws))
+    assert Path("/") not in rules
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    assert outside.resolve() not in rules
+
+
+def test_exec_read_roots_never_returns_root(monkeypatch):
+    monkeypatch.setenv("HOME", "/")
+    assert confinement.exec_read_roots("/runme") == []

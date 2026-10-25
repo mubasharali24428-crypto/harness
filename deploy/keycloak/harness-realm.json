@@ -1,0 +1,66 @@
+{
+  "realm": "harness",
+  "enabled": true,
+  "displayName": "Harness SSO drill",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "verifyEmail": false,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "clients": [
+    {
+      "clientId": "harness-drill",
+      "name": "Harness SSO drill client",
+      "description": "Drill-only OIDC client for scripts/oidc_drill.sh. Never reuse outside a disposable stack.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "harness-drill-secret",
+      "redirectUris": ["http://localhost:3000/auth/sso/callback"],
+      "webOrigins": ["+"],
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "sso-drill",
+      "enabled": true,
+      "email": "sso-drill@harness.dev",
+      "emailVerified": true,
+      "firstName": "SSO",
+      "lastName": "Drill",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "harness-drill-password",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "sso-outsider",
+      "enabled": true,
+      "email": "sso-outsider@harness.dev",
+      "emailVerified": true,
+      "firstName": "SSO",
+      "lastName": "Outsider",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "harness-drill-password",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

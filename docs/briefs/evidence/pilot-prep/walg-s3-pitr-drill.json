@@ -1,0 +1,30 @@
+{
+  "drill": "walg-s3-pitr",
+  "executedAt": "2026-10-25T09:53:08Z",
+  "storage": {
+    "kind": "s3-compatible (MinIO)",
+    "bucket": "harness-walg",
+    "prefix": "s3://harness-walg/pitr-20261025t095249z",
+    "endpoint": "http://minio:9000",
+    "versioning": true,
+    "credentials": "drill-only, from compose defaults"
+  },
+  "source": "drill instance walg-db (own volume), not the live primary",
+  "target": "2026-10-25 09:52:59+00",
+  "rowsAtTarget": "1,2",
+  "rowsAfterDisaster": "1",
+  "promoted": true,
+  "timingsSeconds": {
+    "baseBackup": 2,
+    "fetch": 1,
+    "replayToPause": 1,
+    "restoreTotal": 3
+  },
+  "result": "pass",
+  "notes": [
+    "id=2 was inserted AFTER the base backup, so its presence proves WAL replay.",
+    "The delete happened after the target, so its absence proves the rewind.",
+    "Bucket versioning is enabled for ransomware recovery.",
+    "Cutover onto the live volume remains a manual, destructive decision."
+  ]
+}

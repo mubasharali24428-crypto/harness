@@ -17,7 +17,7 @@ compose profiles; unless operators enable and monitor them, expired data remains
 | Approvals | `high_impact_approvals` | orchestrator `staging.py` | metadata (digest, paths, state) never purged; diffs blanked by retention | |
 | Event stream | `agent_events` (monthly partitions, 0028) | orchestrator + WS replay | 30 d deployment default via events-retention runner; orgs can request shorter windows in 0055 | runner is opt-in; held-run events are excluded from global deletes and prevent dropping any partition that contains held evidence; WS replay is bounded by stored rows |
 | Audit | `audit_log` | identity `audit.py` route | 365 d deployment default via sidecar; orgs can request shorter windows in 0055 | append-only/hash-chain while retained; run-targeted audit rows survive while their run hold exists; retention is opt-in and shorter org window does not override global purge |
-| Billing & cost | `billing_plans`, `cost_ledger`, `cost_ledger_daily`, `stripe_webhook_events`, `rate_buckets` | identity billing | none scheduled | Stripe never driven against live provider (part 57 gate) |
+| Billing & cost | `billing_plans`, `cost_ledger`, `cost_ledger_daily`, `stripe_webhook_events`, `rate_buckets` | identity billing | none scheduled | Stripe remains undrilled and flag-off: Stripe is unavailable in Pakistan (accepted risk) |
 | Delivery | `notification_outbox`, `idempotency_keys` | identity notifier | outbox 30 d (`OUTBOX_RETENTION_DAYS`) | outbox is the only notification path today |
 
 ## Files, logs, caches
@@ -27,7 +27,7 @@ compose profiles; unless operators enable and monitor them, expired data remains
 | Staging baseline + withheld files | engine session root (`DSH_SESSION_ROOT`) | orchestrator staging | removed by `retention.py` after run end unless the run has a hold | withheld material awaiting a decision is never deleted |
 | Diff store | `diffstore.py` | orchestrator | follows run retention (unverified) | crafted-diff risk: see threat model |
 | Service logs | stdout of each service | operators | operator-defined | correlation ids: see ops evidence |
-| Backups / WAL | WAL-G target (`docs/runbooks/backup-and-pitr.md`) | operator | operator-defined; backup expiry is separate from live-row retention | PITR never run on real object store (part 53 gate); deleted data may remain in backups until expiry |
+| Backups / WAL | WAL-G target (`docs/runbooks/backup-and-pitr.md`) | operator | operator-defined; backup expiry is separate from live-row retention | PITR drilled against an S3-compatible versioned bucket 2026-10-25 (`docs/briefs/evidence/pilot-prep/walg-s3-pitr-drill.json`); a provider-specific bucket/IAM drill is still a deployment step; deleted data may remain in backups until expiry |
 | Frontend | browser storage / session token | user's browser | until logout | `section7/src/lib/session.ts` |
 
 ## Telemetry fields

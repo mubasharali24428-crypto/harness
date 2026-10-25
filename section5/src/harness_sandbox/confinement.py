@@ -341,6 +341,11 @@ def landlock_read_allowlist(
     rules: list[tuple[Path, int]] = []
     seen: set[tuple[str, int]] = set()
     for root in roots:
+        # "/" is never a scoped root. Containers started with `--user` and no
+        # passwd entry get HOME="/" (Docker's default), which would otherwise
+        # turn the allow-list into "read everything".
+        if root == Path("/"):
+            continue
         if not root.exists():
             continue
         for path, rights in _read_rules_for(root, denies, root):
@@ -448,22 +453,41 @@ class ConfinementUnavailableError(RuntimeError):
 
 # Linux child bootstrap: load this module by path (no package import), apply
 # Landlock, then replace the process with the target. Landlock survives exec.
-# The target's own directory is added to the readable roots, otherwise a
-# program outside the system trees (a venv, a tool) could not be executed.
+# The target's own directory is added to the readable roots only when it is
+# outside every root the allow-list already covers (see exec_read_roots).
 _LANDLOCK_EXEC = (
     "import importlib.util, os, sys\n"
     "from pathlib import Path\n"
     "spec = importlib.util.spec_from_file_location('confinement', sys.argv[1])\n"
     "module = importlib.util.module_from_spec(spec)\n"
     "spec.loader.exec_module(module)\n"
-    "_roots = [Path(sys.argv[5]).parent]\n"
-    "if _roots[0].name == 'bin':\n"
-    "    _roots.append(_roots[0].parent)\n"
+    "_roots = module.exec_read_roots(sys.argv[5])\n"
     "module.apply_landlock_in_child(\n"
     "    Path(sys.argv[2]), sys.argv[3] == '1', Path(sys.argv[4]), None, _roots\n"
     ")\n"
     "os.execvp(sys.argv[5], sys.argv[5:])\n"
 )
+
+
+def exec_read_roots(program: str) -> list[Path]:
+    """Extra read roots needed to execute ``program`` itself.
+
+    The previous rule appended the program's grandparent when its directory was
+    named ``bin``, so running ``/bin/sh`` granted ``/`` as readable — every
+    shell-gated command could read the entire filesystem. A program already
+    inside the system roots (or HOME) needs nothing extra; only a tool outside
+    all of them gets its own directory.
+    """
+    directory = _resolved(Path(program)).parent
+    covered = [Path(p) for p in _LINUX_READ_ROOTS]
+    home = os.environ.get("HOME")
+    if home:
+        covered.append(_resolved(Path(home)))
+    if directory == Path("/"):
+        return []  # never grant the filesystem root
+    if any(_within(directory, root) for root in covered):
+        return []
+    return [directory]
 
 
 def confine_argv(

@@ -18,10 +18,19 @@ and pilot blockers; the remediation program is tracked in
 
 Current verdict: **NOT READY** for production or a general pilot; private
 design-partner only. Fixed and gate-verified work is listed in
-`docs/pilot-remediation/BASELINE_2026-10-21.md`. Remaining blockers are
-external: a real-provider smoke, Stripe/OIDC/object-store drills
-(`docs/runbooks/external-validation.md`), a reviewed dedicated sandbox
-worker/daemon, host certification, and counsel-approved terms.
+`docs/pilot-remediation/BASELINE_2026-10-21.md`.
+
+Updated 2026-10-25: the real-provider smoke, the OIDC drill (Keycloak 26.1.5,
+14/14 checks) and the object-storage PITR drill (MinIO S3 API, versioned
+bucket) have executed; evidence is in `docs/briefs/evidence/pilot-prep/` and
+the matrix in `docs/runbooks/external-validation.md`. A native-Linux container
+tool drill passed on ubuntu-latest (kernel 6.17); it exposed and fixed two
+Landlock allow-list holes that had granted `/` as readable (via `/bin/sh` and
+via `HOME=/` in `--user` containers).
+Stripe remains undrilled by decision — Stripe is not available in Pakistan, so
+billing stays flag-off. Remaining blockers: a reviewed dedicated sandbox
+worker/daemon, host certification, the first native-Linux drill run, and
+counsel-approved terms (a review packet now exists under `docs/legal/`).
 
 ## PROGRAM CLOSE — Mission 23 (2026-08-26)
 

@@ -1,41 +1,40 @@
 # External validation — staging procedures & status
 
-Status as of 2026-10-17. Nothing in this file has been executed against a real
-external provider yet; every row below is hermetically or stub-verified only.
-Run these procedures BEFORE any pilot that depends on the surface. Until a row
-shows a drill date, its classification is **HUMAN DECISION REQUIRED**
-(execute drill or accept the risk explicitly).
+Status as of 2026-10-25. OIDC SSO, WAL-G/PITR and the native-Linux container
+boundary now have executed drills (self-hosted real implementations, evidence
+under `docs/briefs/evidence/pilot-prep/`). Stripe remains undrilled by
+decision: Stripe is not available to the operator in Pakistan. Every other
+surface still needs either a drill or an explicit accepted risk.
 
 | Surface | Verified so far (evidence) | Missing | Classification |
 |---|---|---|---|
-| OIDC SSO (backend) | PKCE flow, discovery issuer-match, JWKS RS256, config CRUD, encrypted secret at rest, rate-limited start/complete (`test_sso_oidc.py:620-830`) | Live IdP drill only — **SPA callback BUILT** 2026-10-17 (`412fc30`: `/auth/sso/callback` page + login SSO entry; frontend 507/507 + `tsc`) | HUMAN DECISION REQUIRED (IdP creds) |
-| Stripe billing | Adapter + signed idempotent webhooks vs stub (`STRIPE_API_BASE`); routes mount only with `STRIPE_API_KEY` set (`app.py:210-213`) | Test-mode drill (checkout → webhook → replay) | HUMAN DECISION REQUIRED |
-| WAL-G / PITR | Dev-sized drill: recovered to 4 s before a destructive DELETE (`docs/runbooks/backup-and-pitr.md`) | Drill against a real disposable object store (S3/MinIO) | HUMAN DECISION REQUIRED |
+| OIDC SSO | **DRILLED 2026-10-25 against Keycloak 26.1.5** (`./scripts/oidc_drill.sh`): discovery, S256 PKCE, real login form, code exchange, JWKS/nonce, session mint, plus replay / redirect mismatch / non-member negatives. 14/14 checks. Evidence `docs/briefs/evidence/pilot-prep/oidc-keycloak-drill.json` | A hosted customer IdP (Okta/Auth0/Entra) with customer-specific claims; SPA callback exists since `412fc30` | VERIFIED for a standards-compliant IdP; hosted-tenant drill remains customer-specific |
+| Stripe billing | Adapter + signed idempotent webhooks vs stub (`STRIPE_API_BASE`); routes mount only with `STRIPE_API_KEY` set (`app.py:210-213`) | Test-mode drill (checkout → webhook → replay) | **ACCEPTED RISK — Stripe is not available in Pakistan.** Billing stays flag-off; pilot plans are invoiced manually or left on free/team overrides |
+| WAL-G / PITR | **DRILLED 2026-10-25 against MinIO's S3 API** (`./scripts/pitr_drill.sh`): versioned bucket, base backup, WAL archiving, delete after target, restore to target, promote. Base backup 2 s, fetch 1 s, replay-to-pause 1 s. Evidence `docs/briefs/evidence/pilot-prep/walg-s3-pitr-drill.json` | A provider-specific drill (AWS/R2) with the production bucket policy; multi-team data volume | VERIFIED for S3 semantics; provider/IAM drill remains a deployment step |
+| Container sandbox (native Linux) | **DRILLED 2026-10-25 on ubuntu-latest (kernel 6.17.0-1022-azure)** (`./scripts/native_linux_drill.sh`, job `native linux container tool drill`): shell-gated write lands on a bind-mounted workspace, a sibling read is denied and an outside write is denied. 4/4 checks. Evidence `docs/briefs/evidence/pilot-prep/native-linux-container-drill.json`. The drill exposed and fixed two allow-list holes: `/` granted via `/bin/sh`, and `/` accepted as HOME in `--user` containers | Non-root Docker-daemon deployment and image provenance acceptance | VERIFIED on native Linux; Docker Desktop/macOS remains unsupported for Landlock writes |
 | Model providers | Simulated mode honest outside real keys; provider failure surfaces verbatim; `HARNESS_ENV=dev` gate (`section3 providers.py`); **drilled 2026-10-25** with OpenRouter `deepseek/deepseek-v4.1-flash`: engine in-process, container-isolated no-tool call, and a full pilot stack run with `cost_ledger` accrual (evidence: `docs/briefs/evidence/pilot-prep/openrouter-deepseek-smoke.json`, `real-result.json`) | Customer-specific provider/key; paid-opt-in (`HARNESS_ALLOW_PAID_SMOKE=1`) remains a human decision | PARTIAL — OpenRouter drilled; other providers HUMAN DECISION REQUIRED |
 
-## OIDC SSO — staging drill (API walkthrough)
+## OIDC SSO — executed drill and re-run procedure
 
-Config lives per-team in the DB (NOT env vars). The IdP redirect returns to the
-SPA, which POSTs `{teamId, code, state, redirectUri}` — the SPA side of this
-flow is not built yet, so run the drill via API calls.
+The shipped implementation is client-side (PKCE) and config lives per-team in
+the DB, not env vars. `./scripts/oidc_drill.sh` starts a disposable Keycloak
+(`--profile sso-drill`), provisions the drill member through the IdP admin
+API, raises the team plan, invites that member, configures SSO, drives the
+real login form, and asserts the session plus three fail-closed negatives.
+The last run passed 14/14 checks (Keycloak 26.1.5).
 
-1. IdP: create an OIDC app (Auth0/Keycloak/Google). Redirect URI = the value
-   you will store as `redirectUri` on the config (must be echoed exactly at
-   complete time).
-2. As team admin: `PUT /api/v1/teams/{team_id}/sso/config` with
-   `issuerUrl`, `clientId`, `clientSecret`, `redirectUri`. Secret is
-   Fernet-encrypted at rest; GET returns only a `secretHint`.
-3. `POST /api/v1/auth/sso/start` `{teamId}` → returns authorization URL
-   (discovery doc issuer must match `issuerUrl` exactly, §4.3).
-4. Log in at the IdP, capture `code`+`state`, then
-   `POST /api/v1/auth/sso/complete` `{teamId, code, state, redirectUri}` →
-   session issued, `principal` team-scoped.
-5. Negative checks (expect fail-closed): mismatched `redirectUri`; replayed
-   `state`; tampered JWKS signature; issuer mismatch in discovery.
+To re-run:
 
-Evidence to capture: session issuance JSON (redacted), `secretHint` on GET,
-rate-limit 429 on burst start/complete, and the browser round-trip through the
-SPA callback (`/auth/sso/callback`, built 2026-10-17).
+```
+docker compose --env-file .env -f deploy/docker-compose.yml up -d   # dev stack
+./scripts/oidc_drill.sh
+```
+
+Drill-only realm and credentials: `deploy/keycloak/harness-realm.json`.
+Evidence is written to
+`docs/briefs/evidence/pilot-prep/oidc-keycloak-drill.json` (no secrets, codes
+or tokens). A customer-hosted IdP still needs its own app registration and a
+run of the same script with `DRILL_ISSUER`/`DRILL_CLIENT_*` overrides.
 
 ## Stripe — test-mode drill
 
@@ -56,13 +55,19 @@ unset (it exists only so CI can point at a stub).
 Evidence: checkout session id, webhook delivery log with event id, before/after
 `GET /api/v1/billing/state`, replay response, tamper rejection.
 
-## WAL-G / PITR — real object store drill
+## WAL-G / PITR — executed drill and re-run procedure
 
-Procedure already written: `docs/runbooks/backup-and-pitr.md` (logical
-snapshots + physical PITR, cron cadence, drill commands, measured dev RTO).
-Remaining work is ONLY point the `WALG_*` credentials at a disposable bucket
-and re-run the timed restore. Capture RTO/RPO numbers there; do not duplicate
-the procedure here.
+`./scripts/pitr_drill.sh` brings up MinIO (S3 API, versioned bucket) and the
+`walg-db` drill instance, takes a base backup, writes a marker *after* the
+backup, archives the WAL, deletes the marker, then restores to the recorded
+second and verifies both rows on a paused server before promoting. The live
+primary is never touched. Last run: 2 s base backup, 1 s fetch, 1 s
+replay-to-pause. Evidence:
+`docs/briefs/evidence/pilot-prep/walg-s3-pitr-drill.json`.
+
+The full timeline, storage targets and cutover checklist stay in
+`docs/runbooks/backup-and-pitr.md`; production still needs the provider's own
+bucket/IAM drill (AWS/R2) and a real data-volume rehearsal.
 
 ## Model providers — live smoke
 

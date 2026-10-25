@@ -111,3 +111,31 @@ async def test_without_the_os_boundary_the_same_command_reads_the_file(tmp_path)
         handle, "python3 -c \"print(open('pay'+'roll/data.txt').read())\""
     )
     assert res.exit_code == 0, res.summary
+
+
+def test_shell_gate_bootstrap_does_not_grant_root(tmp_path):
+    """S-01 regression for the engine shell-gate path.
+
+    ``confine_argv(["/bin/sh", ...])`` used to append "/" to the read roots,
+    which made every shell-gated read unconfined. A sibling directory outside
+    the workspace must stay unreadable when the command runs through /bin/sh.
+    """
+    import subprocess
+
+    if not confinement.landlock_supported():
+        pytest.skip("landlock not usable in this runtime")
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    canary = outside / "data.txt"
+    canary.write_text("CANARY")
+
+    argv = confinement.confine_argv(
+        ["/bin/sh", "-c", f"cat {canary}"],
+        workspace=workspace,
+        tmpdir=tmp_path / "tmp",
+    )
+    proc = subprocess.run(argv, capture_output=True, text=True, check=False)
+    assert proc.returncode != 0
+    assert "CANARY" not in proc.stdout

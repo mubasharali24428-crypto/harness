@@ -855,6 +855,123 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # SSO drill IdP (Keycloak), opt-in via the 'sso-drill' profile.
+  #
+  # The OIDC code + PKCE implementation in section1 has hermetic tests against
+  # a stub IdP; this service exists so the SAME flow can be exercised against
+  # a real provider implementation (discovery, login form, token endpoint,
+  # JWKS, nonce echo) without an external tenant.
+  #
+  #   docker compose -f deploy/docker-compose.yml --profile sso-drill up -d sso-idp
+  #   ./scripts/oidc_drill.sh                 # waits, drives the flow, tears down
+  #
+  # Hostname is pinned to the compose service name on purpose: the identity
+  # container and the drill script (exec'd inside it) resolve `sso-idp`, while
+  # the browser-facing issuer is irrelevant because the drill never opens a
+  # browser. The realm file holds DRILL-ONLY credentials.
+  sso-idp:
+    image: quay.io/keycloak/keycloak:${KEYCLOAK_VERSION:-26.1}
+    profiles:
+      - sso-drill
+    # Drill-only, but still bounded: section1's deploy tests require every
+    # service to declare limits and rotated json-file logs.
+    deploy:
+      resources:
+        limits:
+          cpus: "${DRILL_IDP_CPU_LIMIT:-1.0}"
+          memory: ${DRILL_IDP_MEM_LIMIT:-1g}
+          pids: ${DRILL_IDP_PIDS_LIMIT:-512}
+    logging: *logging-caps
+    command:
+      - start-dev
+      - --http-port=8080
+      - --hostname=http://sso-idp:8080
+      - --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-drill-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:-drill-admin-password}
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
+    healthcheck:
+      # The base image is UBI-micro (no curl); bash + /dev/tcp need no package.
+      # HTTP/1.0 without a Host header gets a 500 from Keycloak, so send 1.1.
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/8080 &&
+          printf 'GET /realms/harness/.well-known/openid-configuration HTTP/1.1\r\nHost: sso-idp:8080\r\nConnection: close\r\n\r\n' >&3 &&
+          head -1 <&3 | grep -q ' 200 '
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 20s
+    restart: unless-stopped
+
+  # Disposable S3-compatible object store for WAL-G / PITR drills (profile
+  # `walg`). Never part of the app: it exists so the backup path can be
+  # rehearsed against real S3 semantics (versioning, path-style URLs) without
+  # cloud credentials. Drill-only credentials; data lives in `minio_drill`.
+  #
+  # The upstream MinIO images were withdrawn from Docker Hub; the archived
+  # Bitnami build is pinned by digest and already carries the `mc` client.
+  #
+  #   ./scripts/pitr_drill.sh    # starts this, runs the timed restore drill
+  minio:
+    image: ${MINIO_IMAGE:-bitnamilegacy/minio@sha256:451fe6858cb770cc9d0e77ba811ce287420f781c7c1b806a386f6896471a349c}
+    profiles:
+      - walg
+    deploy:
+      resources:
+        limits:
+          cpus: "${DRILL_MINIO_CPU_LIMIT:-0.50}"
+          memory: ${DRILL_MINIO_MEM_LIMIT:-512m}
+          pids: ${DRILL_MINIO_PIDS_LIMIT:-128}
+    logging: *logging-caps
+    command: ["minio", "server", "/data", "--console-address", ":9001"]
+    # The named volume is root-owned; the image's uid 1001 cannot format it.
+    # Drill-only stack, so root here is acceptable and keeps setup dumb.
+    user: "0"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-harnessdrill}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-harness-drill-secret}
+    volumes:
+      - minio_drill:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:9000/minio/health/live || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  # One-shot bucket setup: creates the drill bucket and turns on versioning
+  # (the runbook's ransomware-recovery requirement). Exits 0 and stays gone.
+  minio-init:
+    image: ${MINIO_IMAGE:-bitnamilegacy/minio@sha256:451fe6858cb770cc9d0e77ba811ce287420f781c7c1b806a386f6896471a349c}
+    profiles:
+      - walg
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_JOB_CPU_LIMIT:-0.25}"
+          memory: ${HARNESS_JOB_MEM_LIMIT:-256m}
+          pids: ${HARNESS_JOB_PIDS_LIMIT:-64}
+    logging: *logging-caps
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-harnessdrill}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-harness-drill-secret}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        mc alias set drill http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
+        mc mb --ignore-existing drill/$${WALG_DRILL_BUCKET:-harness-walg} &&
+        mc version enable drill/$${WALG_DRILL_BUCKET:-harness-walg}
+    restart: "no"
+
   # M14-P2 — LEGACY all-in-one backend, opt-in via the 'legacy-backend'
   # profile so the default split-service topology stays untouched (mirrors
   # the wave-8B 'proxy' / Mission-10 'walg' pattern).
@@ -1208,6 +1325,8 @@ volumes:
   walg_logs:
   # M20-T2: Prometheus TSDB (15d retention, see the `prometheus` service).
   prometheus_data:
+  # S3-compatible object store backing the WAL-G/PITR drill (profile `walg`).
+  minio_drill:
   alertmanager_data:
   # M15-W5-D2: db-maintenance run logs (mounted at
   # /var/log/harness-maintenance) survive --rm/restarts.

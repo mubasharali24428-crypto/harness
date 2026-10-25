@@ -34,7 +34,8 @@ PG_URL ?= postgresql+asyncpg://harness:harness@localhost:5499/harness
         gate $(foreach s,$(SECTIONS),lint-$(s) test-$(s)) \
         lint test lint-mcp test-mcp frontend frontend-tsc frontend-vitest static-gates e2e e2e-compose \
         pg-probe pg-probe-integration pg-probe-s1 pg-probe-migrate pg-up pip-audit \
-        guard-routes guard-isolation guard-route-law
+        guard-routes guard-isolation guard-route-law \
+        drill-oidc drill-pitr drill-native
 
 help:
 	@echo "Harness gates — single source of truth shared by CI (.github/workflows/ci.yml):"
@@ -43,6 +44,9 @@ help:
 	@echo "  make test            pytest matrix (same sections, CI order)"
 	@echo "  make frontend        section7: tsc --noEmit + vitest run"
 	@echo "  make static-gates    sh -n entrypoint.sh; compose config; TS mirror --check"
+	@echo "  make drill-oidc      OIDC SSO against a disposable Keycloak (evidence JSON)"
+	@echo "  make drill-pitr      WAL-G PITR against a disposable MinIO bucket (evidence JSON)"
+	@echo "  make drill-native    container tool drill; requires a native Linux host"
 	@echo "                       + route/isolation law guards (M15-G6a)"
 	@echo "  make guard-routes    app/**/page.tsx default-export-only law (W4 carryover)"
 	@echo "  make guard-isolation sections import ONLY contracts/ (M13 isolation law)"
@@ -209,6 +213,19 @@ e2e:
 # generates one via openssl rand -hex 32).
 e2e-compose:
 	python3 scripts/e2e/compose_journey.py
+
+# -------------------------------------------------------------------- drills
+# External-validation drills. Each writes evidence under
+# docs/briefs/evidence/pilot-prep/ and requires the dev compose stack unless
+# noted otherwise. Not part of `make gate` (they pull images / need Linux).
+drill-oidc:
+	./scripts/oidc_drill.sh
+
+drill-pitr:
+	./scripts/pitr_drill.sh
+
+drill-native:
+	./scripts/native_linux_drill.sh
 
 # -------------------------------------------------------------------- pg-probe
 # Nightly-pg-probe job parity. Guarded: silently skipping would fake parity.
