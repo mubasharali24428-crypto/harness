@@ -21,6 +21,9 @@ import * as React from "react";
 import AppShell from "@/components/AppShell";
 import { BreadcrumbTrail } from "@/components/Breadcrumbs";
 import { WorkingArea } from "@/components/WorkingArea";
+import { ChangeReview } from "@/components/ChangeReview";
+import { RunTabBar, RunTabPanel, tabFromSearch, type RunTabId } from "@/components/RunTabs";
+import { ErrorState, LoadingState } from "@/components/States";
 import { ApiError } from "@/lib/api";
 import { loadSession } from "@/lib/auth";
 // W4 gate repair: the presentational aggregate moved to ./runDetailAggregate
@@ -35,8 +38,6 @@ import { PlanGateCard } from "../../../../dashboard/planGate";
 import { SharedRunPanel } from "./sharedRunPanel";
 import { SessionSixWorkbench } from "./sessionSixWorkbench";
 
-const mutedStyle = { color: "var(--muted)" } as const;
-
 export default function RunDetailPage({
   params,
 }: {
@@ -50,7 +51,8 @@ export default function RunDetailPage({
   // marker server-side; this just says it in words on the wow-moment page.
   const [isDemoLanding, setIsDemoLanding] = useState(false);
 
-  const [stagedPending, setStagedPending] = useState(true);
+  const [tab, setTab] = useState<RunTabId>("overview");
+  const [stagedPending, setStagedPending] = useState(false);
   const [agg, setAgg] = useState<RunAggregateDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -72,13 +74,22 @@ export default function RunDetailPage({
 
   useEffect(() => {
     setToken(loadSession()?.token ?? null);
-    // Read the marker off window so the statically prerendered page never
-    // needs a Suspense boundary (same pattern as the login page).
-    if (
-      typeof window !== "undefined" &&
-      new URLSearchParams(window.location.search).get("demo") === "1"
-    ) {
+    if (typeof window === "undefined") return;
+    // Read markers off window so the statically prerendered page never needs
+    // a Suspense boundary (same pattern as the login page).
+    const search = new URLSearchParams(window.location.search);
+    if (search.get("demo") === "1") {
       setIsDemoLanding(true);
+    }
+    setTab(tabFromSearch(window.location.search));
+  }, []);
+
+  const selectTab = useCallback((next: RunTabId) => {
+    setTab(next);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", next);
+      window.history.replaceState(null, "", url.toString());
     }
   }, []);
 
@@ -144,35 +155,57 @@ export default function RunDetailPage({
           no live execution.
         </div>
       )}
-      {notFound && (
-        <div role="alert" className="pill red" style={{ padding: "8px 12px", marginBottom: 16 }}>
-          Run not found (or not visible to your team).
-        </div>
-      )}
-      {error && !notFound && (
-        <div role="alert" className="pill red" style={{ padding: "8px 12px", marginBottom: 16 }}>
-          {error}
-        </div>
-      )}
-      {loading && !agg && !notFound && (
-        <p style={mutedStyle} aria-live="polite">
-          Loading run…
-        </p>
-      )}
 
-      {agg && <RunDetailAggregate agg={agg} now={Date.now()} />}
+      <RunTabBar active={tab} onChange={selectTab} />
 
-      {/* Multiplayer pilot: leader, participants, pending decisions, direction. */}
-      {runId && token && <PlanGateCard token={token} principal={loadSession()?.principal ?? null} runId={runId} />}
-      {runId && <SharedRunPanel runId={runId} projectId={projectId ?? undefined} onStagedPendingChange={setStagedPending} />}
-      {runId && token && <SessionSixWorkbench runId={runId} token={token} />}
+      <RunTabPanel id="overview" active={tab === "overview"}>
+        {notFound && (
+          <ErrorState
+            title="Run not found"
+            message="No run with this id is visible to your team. The link may be stale, or the run belongs to another team."
+          />
+        )}
+        {error && !notFound && (
+          <ErrorState title="Run didn’t load" message={error} onRetry={() => void fetchAgg()} />
+        )}
+        {loading && !agg && !notFound && <LoadingState label="Loading run…" rows={4} />}
+        {agg && <RunDetailAggregate agg={agg} now={Date.now()} />}
+      </RunTabPanel>
 
-      {/* Legacy working area (F1b/F2b territory this wave — untouched). It
-          self-guards on session absence, so it renders nothing until the
-          browser holds a session, same as before this lane existed. */}
-      {projectId && runId && (
-        <WorkingArea projectId={projectId} runId={runId} stagedPending={stagedPending} />
-      )}
+      <RunTabPanel id="plan" active={tab === "plan"}>
+        {/* Multiplayer pilot: leader, participants, plan gate, direction. */}
+        {runId && token && (
+          <PlanGateCard token={token} principal={loadSession()?.principal ?? null} runId={runId} />
+        )}
+        {runId && token && <SessionSixWorkbench runId={runId} token={token} />}
+      </RunTabPanel>
+
+      {/* Kept mounted while hidden: it feeds stagedPending into the Working
+          controls, which must stay correct even if Team was never opened. */}
+      <RunTabPanel id="team" active={tab === "team"} keepMounted>
+        {runId && (
+          <SharedRunPanel
+            runId={runId}
+            projectId={projectId ?? undefined}
+            onStagedPendingChange={setStagedPending}
+          />
+        )}
+      </RunTabPanel>
+
+      <RunTabPanel id="working" active={tab === "working"}>
+        {/* Self-guards on session absence, so it renders nothing without one. */}
+        {projectId && runId && (
+          <WorkingArea projectId={projectId} runId={runId} stagedPending={stagedPending} />
+        )}
+      </RunTabPanel>
+
+      <RunTabPanel id="changes" active={tab === "changes"}>
+        {projectId && token ? (
+          <ChangeReview projectId={projectId} token={token} />
+        ) : (
+          <LoadingState label="Waiting for your session…" rows={2} />
+        )}
+      </RunTabPanel>
     </AppShell>
   );
 }

@@ -38,9 +38,12 @@ test("real OTP sign-in, then a real-model run completes", async ({ page }) => {
   await page.getByRole("button", { name: "Approve plan", exact: true }).click();
   const link = page.getByRole("link", { name: "Open shared run" });
   await link.click();
+  await page.getByRole("tab", { name: "Team" }).click();
   await page.getByRole("button", { name: "Join this run" }).click();
   await page.getByRole("button", { name: "Become session leader" }).click();
+  await page.getByRole("tab", { name: "Plan & work" }).click();
   await page.getByRole("button", { name: "Start run", exact: true }).click();
+  await page.getByRole("tab", { name: "Working" }).click();
   await expect(page.getByTestId("run-state")).toContainText(/done|stopped/i, { timeout: 240_000 });
   expect(faults).toEqual([]);
   await page.screenshot({ path: "test-results/real-complete.png", fullPage: true });

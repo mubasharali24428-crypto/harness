@@ -294,6 +294,67 @@ export async function getCheckpointDiff(
   return res.text();
 }
 
+// ---------------------------------------------------------------------------
+// C16: hunk-level review. The server parses the snapshot diff; callers send
+// only (path, index) pairs back, never patch text.
+// ---------------------------------------------------------------------------
+
+export interface CheckpointHunk {
+  index: number;
+  header: string;
+  lines: string[];
+  additions: number;
+  deletions: number;
+}
+
+export interface CheckpointFile {
+  path: string;
+  binary: boolean;
+  hunks: CheckpointHunk[];
+}
+
+export interface CheckpointReview {
+  projectId: string;
+  sha: string;
+  files: CheckpointFile[];
+}
+
+export async function listCheckpointHunks(
+  projectId: string,
+  sha: string,
+  token: string,
+): Promise<CheckpointReview> {
+  return apiFetch(
+    `${SANDBOX_BASE}/api/v1/sandbox/${encodeURIComponent(projectId)}/checkpoints/${encodeURIComponent(sha)}/hunks`,
+    token,
+  );
+}
+
+export async function revertCheckpointHunks(
+  projectId: string,
+  sha: string,
+  hunks: Array<{ path: string; index: number }>,
+  token: string,
+): Promise<{ status: string; sha: string; reverted: number }> {
+  return apiFetch(
+    `${SANDBOX_BASE}/api/v1/sandbox/${encodeURIComponent(projectId)}/checkpoints/${encodeURIComponent(sha)}/revert`,
+    token,
+    { method: "POST", body: JSON.stringify({ hunks }) },
+  );
+}
+
+export async function restoreCheckpoint(
+  projectId: string,
+  sha: string,
+  token: string,
+): Promise<{ status: string; sha: string; restoredTo: string }> {
+  return apiFetch(
+    `${SANDBOX_BASE}/api/v1/sandbox/${encodeURIComponent(projectId)}/checkpoints/${encodeURIComponent(sha)}/restore`,
+    token,
+    { method: "POST", body: "{}" },
+  );
+}
+
 /** H8: mint a one-time, 30s, project-bound ticket for the WS upgrade.
  *  Tickets are single-use — every connect attempt needs a fresh one. */
 export async function fetchWsTicket(projectId: string, token: string): Promise<string> {

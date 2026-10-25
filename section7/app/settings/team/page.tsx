@@ -33,9 +33,11 @@ import { useCallback, useEffect, useState } from "react";
 // extension; Next's compiler accepts this import too, so one source fits both.
 import * as React from "react";
 import AppShell from "@/components/AppShell";
+import { ErrorState } from "@/components/States";
 // M13-G5b (raw-14): visible way back — Command Center → Settings → Team.
 import { BreadcrumbTrail, settingsCrumbs } from "@/components/Breadcrumbs";
 import { loadSession } from "@/lib/auth";
+import { loadErrorMessage } from "@/lib/humanize";
 // M14-F4 — shared optimistic-mutation engine (apply → wire → commit/rollback).
 import { runOptimistic } from "@/hooks/useOptimistic";
 import {
@@ -174,7 +176,7 @@ export default function TeamSettingsPage() {
     }
     setTeamId(session.principal.teamId);
     refresh(session.principal.teamId).catch((e: unknown) =>
-      setError(String((e as Error)?.message ?? e)),
+      setError(loadErrorMessage(e)),
     );
   }, [refresh]);
 
@@ -347,11 +349,22 @@ export default function TeamSettingsPage() {
       <BreadcrumbTrail items={settingsCrumbs("Team")} />
       <h1>Team</h1>
 
-      {error && (
-        <div role="alert" className="pill red" style={{ padding: "8px 12px", marginBottom: 16 }}>
-          {error}
-        </div>
-      )}
+      {error &&
+        (members.length === 0 ? (
+          <ErrorState
+            title="The team roster didn’t load"
+            message={error}
+            onRetry={() => {
+              if (!teamId) return;
+              setError(null);
+              refresh(teamId).catch((e: unknown) => setError(loadErrorMessage(e)));
+            }}
+          />
+        ) : (
+          <div role="alert" className="pill red" style={{ padding: "8px 12px", marginBottom: 16 }}>
+            {error}
+          </div>
+        ))}
       {!error && notice && (
         <div role="status" style={{ color: "var(--green)", marginBottom: 16 }}>
           {notice}

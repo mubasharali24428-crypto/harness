@@ -16,8 +16,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 // extension; Next's compiler accepts this import too, so one source fits both.
 import * as React from "react";
 import AppShell from "@/components/AppShell";
+import { EmptyState, ErrorState, LoadingState } from "@/components/States";
 import { listProjects } from "@/lib/api";
 import { loadSession } from "@/lib/auth";
+import { loadErrorMessage } from "@/lib/humanize";
 import { isRowActivateKey, RunsTable } from "./runsTable";
 import {
   RUNS_DEFAULT_LIMIT,
@@ -121,7 +123,7 @@ export default function RunsPage() {
         setPage(data);
       } catch (e) {
         setPage(null);
-        setError(String((e as Error)?.message ?? e));
+        setError(loadErrorMessage(e));
       } finally {
         setLoading(false);
       }
@@ -256,9 +258,25 @@ export default function RunsPage() {
       </section>
 
       {error && (
-        <div role="alert" className="pill red" style={{ padding: "8px 12px", marginBottom: 16 }}>
-          {error}
-        </div>
+        <ErrorState
+          title="Runs didn’t load"
+          message={error}
+          onRetry={() => fetchPage({ projectId, status, limit: pageSize, offset })}
+        />
+      )}
+
+      {loading && !page && !error && <LoadingState label="Loading runs…" rows={5} />}
+
+      {!loading && !error && page !== null && runs.length === 0 && total === 0 && (
+        <EmptyState
+          title="No runs yet"
+          body="Start from the Command Center: describe a goal, approve the plan, and the run shows up here with its cost and state."
+          action={
+            <a className="btn" href="/">
+              Open the Command Center
+            </a>
+          }
+        />
       )}
 
       <section className="card" style={cardStyle} aria-busy={loading}>
