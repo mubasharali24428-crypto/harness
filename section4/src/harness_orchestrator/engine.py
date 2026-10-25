@@ -327,6 +327,8 @@ class DeepSeekHarnessWrapper:
             if mode == "container":
                 boundary = ContainerBoundary(self.base_url)
                 env["DEEPSEEK_BASE_URL"] = boundary.start()
+            forbidden = (self._shell_policies.get(session_id) or {}).get("forbiddenPaths")
+            before = confine.forbidden_snapshot(workspace, forbidden)
             argv = confine.wrap_command(
                 [sys.executable, "-m", module],
                 mode=mode,
@@ -338,6 +340,7 @@ class DeepSeekHarnessWrapper:
                 network=boundary.network if boundary else None,
                 image=boundary.image if boundary else "",
                 env=env,
+                forbidden_paths=forbidden,
             )
             request = json.dumps(
                 {
@@ -365,8 +368,22 @@ class DeepSeekHarnessWrapper:
                 self._procs[session_id] = proc
                 if boundary:
                     self._containers[session_id] = boundary
+            budget = float(os.environ.get("HARNESS_ENGINE_TIMEOUT_SECONDS", "900"))
             try:
-                out, err = proc.communicate(request + "\n")
+                out, err = proc.communicate(request + "\n", timeout=budget)
+            except subprocess.TimeoutExpired:
+                # ponytail: kills the process group only; container kill runs in finally.
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)  # pgid == pid (start_new_session)
+                except ProcessLookupError:
+                    pass
+                proc.wait(timeout=5)
+                return (
+                    f"DeepSeek Harness worker exceeded {budget:g}s and was killed",
+                    "error",
+                    model,
+                    [],
+                )
             finally:
                 with self._proc_lock:
                     if self._procs.get(session_id) is proc:
@@ -376,6 +393,8 @@ class DeepSeekHarnessWrapper:
                         self._containers.pop(session_id, None)
             if session_id in self._cancel_requested:
                 return "Execution cancelled.", "cancelled", model, []
+            if confine.forbidden_snapshot(workspace, forbidden) != before:
+                return "Run changed a forbidden path.", "error", model, []
             lines = [ln for ln in (out or "").splitlines() if ln.strip()]
             if proc.returncode != 0 or not lines:
                 tail = scrub_secrets((err or "")[-500:], self.api_key)

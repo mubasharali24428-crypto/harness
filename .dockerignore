@@ -6,8 +6,22 @@
 **/*.egg-info
 **/__pycache__
 **/tsconfig.tsbuildinfo
-integration
-task0
+
+# The backend image copies only contracts/, sections 1–6 and 8, the section 10
+# demo repo, and deploy/{entrypoint.sh,runners/}. Keep unrelated product,
+# documentation, and tooling trees out of the daemon build context.
+.agents/
+.aws/
+.codex/
+.github/
+clients/
+docs/
+integration/
+mcp/
+packages/
+scripts/
+task0/
+*.md
 .git
 **/.env
 **/.env.*

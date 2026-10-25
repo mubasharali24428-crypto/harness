@@ -7,10 +7,10 @@ died in ``preexec_fn`` with ``OSError: landlock_add_rule failed`` — a 500 on
 ``POST /tasks/{id}/exec`` on real deployments while every test lane stayed
 green (they ran on macOS/bare-metal Linux where the syscalls work).
 
-These tests simulate the container environment hermetically: kernel 6.x but
-probe failing => 'auto' degrades to 'off' WITH a warning; probe passing =>
-'landlock'; explicit 'landlock' requests still fail closed; the probe runs
-at most once per process.
+These tests simulate the Linux host hermetically. Since S-01 was closed on
+Linux (the Landlock read ruleset denies forbidden paths, see
+``test_landlock_read_isolation.py``), 'auto' resolves to 'landlock' on a Linux
+host whose probe passes, and still fails closed when the probe fails.
 """
 
 import sys
@@ -31,12 +31,11 @@ def linux_env(monkeypatch):
     yield
 
 
-def test_auto_degrades_off_when_probe_fails(tmp_path, monkeypatch, caplog, linux_env):
+def test_auto_fails_closed_when_probe_fails(tmp_path, monkeypatch, linux_env):
     monkeypatch.setattr(confinement, "_probe_landlock_syscalls", lambda timeout=10.0: False)
     runner = LocalSandboxRunner(storage_root=tmp_path / "tasks")
-    with caplog.at_level("WARNING"):
-        assert runner._resolve_confinement() == "off"
-    assert "landlock not usable" in caplog.text
+    with pytest.raises(SecurityPolicyViolationError, match="no usable OS boundary"):
+        runner._resolve_confinement()
 
 
 def test_explicit_landlock_fails_closed_when_probe_fails(tmp_path, monkeypatch, linux_env):
@@ -65,15 +64,16 @@ def test_probe_runs_at_most_once_per_process(monkeypatch, linux_env):
     assert calls["n"] == 1
 
 
-def test_runner_resolution_is_cached(tmp_path, monkeypatch, linux_env):
-    calls = {"n": 0}
-
-    def spy(timeout=10.0):
-        calls["n"] += 1
-        return True
-
-    monkeypatch.setattr(confinement, "_probe_landlock_syscalls", spy)
+def test_linux_auto_claims_read_confinement_only_when_the_probe_passes(
+    tmp_path, monkeypatch, linux_env
+):
+    """S-01: Linux is no longer a macOS-only pilot; it is a Landlock host."""
+    monkeypatch.setattr(confinement, "_probe_landlock_syscalls", lambda timeout=10.0: True)
     runner = LocalSandboxRunner(storage_root=tmp_path / "tasks")
     assert runner._resolve_confinement() == "landlock"
-    assert runner._resolve_confinement() == "landlock"
-    assert calls["n"] == 1
+
+    monkeypatch.setattr(confinement, "_probe_landlock_syscalls", lambda timeout=10.0: False)
+    monkeypatch.setattr(confinement, "_LANDLOCK_PROBE", None)
+    runner = LocalSandboxRunner(storage_root=tmp_path / "tasks")
+    with pytest.raises(SecurityPolicyViolationError, match="no usable OS boundary"):
+        runner._resolve_confinement()

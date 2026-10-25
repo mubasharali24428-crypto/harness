@@ -7,19 +7,24 @@ network configurable. Interpreters stay allow-listed — this layer is what make
 them safe to run.
 """
 
+import shlex
 import shutil
 import sys
 from pathlib import Path
 
 import pytest
 
+from harness_sandbox import confinement
 from harness_sandbox.local_runner import LocalSandboxRunner
 from harness_sandbox.service import SandboxService
 
 pytestmark = pytest.mark.skipif(
-    sys.platform != "darwin" or shutil.which("sandbox-exec") is None,
+    not confinement.seatbelt_available(),
     reason="Seatbelt confinement tests require macOS sandbox-exec",
 )
+
+# The interpreter running the tests: macOS hosts do not ship a bare `python`.
+PY = shlex.quote(sys.executable)
 
 
 def _svc(tmp_path, **kw):
@@ -48,7 +53,7 @@ async def test_seatbelt_blocks_write_outside_workspace(tmp_path):
         svc = _svc(tmp_path, confinement="seatbelt", allow_network=False)
         handle = svc.run_task("c2", "o/r", "m", [])
         res = await svc.exec_structured(
-            handle, f"python -c \"open('{victim}','w').write('x')\""
+            handle, f"{PY} -c \"open('{victim}','w').write('x')\""
         )
         assert res.exit_code != 0, f"write outside must fail: {res.diagnostics}"
         assert not victim.exists()
@@ -61,7 +66,7 @@ async def test_seatbelt_allows_write_inside_workspace(tmp_path):
     svc = _svc(tmp_path, confinement="seatbelt")
     handle = svc.run_task("c3", "o/r", "m", [])
     res = await svc.exec_structured(
-        handle, "python -c \"open('inside.txt','w').write('x')\""
+        handle, f"{PY} -c \"open('inside.txt','w').write('x')\""
     )
     assert res.exit_code == 0
     assert (tmp_path / "tasks" / "c3" / "workspace" / "inside.txt").exists()
@@ -74,7 +79,7 @@ async def test_off_mode_has_no_confinement(tmp_path):
     svc = _svc(tmp_path, confinement="off")
     handle = svc.run_task("c4", "o/r", "m", [])
     victim = outside / "fine.txt"
-    res = await svc.exec_structured(handle, f"python -c \"open('{victim}','w').write('x')\"")
+    res = await svc.exec_structured(handle, f"{PY} -c \"open('{victim}','w').write('x')\"")
     assert res.exit_code == 0
     assert victim.exists()
 
@@ -89,3 +94,19 @@ def test_auto_mode_resolves_on_this_platform(tmp_path):
 @pytest.mark.skipif(sys.platform == "darwin", reason="landlock is linux-only")
 def test_landlock_module_imports():
     from harness_sandbox import confinement  # noqa: F401
+
+
+@pytest.mark.asyncio
+async def test_seatbelt_blocks_forbidden_path_even_via_interpreter(tmp_path):
+    """S-01 regression: allow-listed python must not read a forbidden path."""
+    svc = _svc(tmp_path, confinement="seatbelt", allow_network=False)
+    handle = svc.run_task("c-s01", "o/r", "m", ["payroll"])
+    ws = tmp_path / "tasks" / "c-s01" / "workspace"
+    (ws / "payroll").mkdir(parents=True)
+    (ws / "payroll" / "data.txt").write_text("CANARY")
+
+    res = await svc.exec_structured(
+        handle, f"{PY} -c \"print(open('pay'+'roll/data.txt').read())\""
+    )
+    assert res.exit_code != 0
+    assert "CANARY" not in res.summary

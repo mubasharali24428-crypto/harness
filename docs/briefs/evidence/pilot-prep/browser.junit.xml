@@ -1,6 +1,6 @@
-<testsuites id="" name="" tests="1" failures="0" skipped="0" errors="0" time="21.896808999999998">
-<testsuite name="real.e2e.ts" timestamp="2026-10-18T11:47:40.654Z" hostname="chromium" tests="1" failures="0" skipped="0" time="19.946" errors="0">
-<testcase name="real OTP sign-in, then a real-model run completes" classname="real.e2e.ts" time="19.946">
+<testsuites id="" name="" tests="1" failures="0" skipped="0" errors="0" time="22.016062">
+<testsuite name="real.e2e.ts" timestamp="2026-10-25T07:13:37.698Z" hostname="chromium" tests="1" failures="0" skipped="0" time="19.628" errors="0">
+<testcase name="real OTP sign-in, then a real-model run completes" classname="real.e2e.ts" time="19.628">
 </testcase>
 </testsuite>
 </testsuites>

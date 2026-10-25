@@ -28,7 +28,7 @@ def test_spend_route_has_concrete_openapi_component():
     # The documented shape mirrors ledger.summarize_spend + the W4-C1
     # ``unwired`` flag (M14-W4 F1a).
     props = set(schema["components"]["schemas"][name]["properties"])
-    assert props == {"totals", "byModel", "byDay", "unwired"}
+    assert props == {"totals", "byModel", "byDay", "unattributed", "unwired"}
 
 
 def test_spend_503_is_documented_with_envelope():

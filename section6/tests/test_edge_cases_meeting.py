@@ -82,7 +82,7 @@ def _fresh_app(service: MeetingService | None = None) -> FastAPI:
 
 def test_x18_53_close_double_invocation_is_idempotent_stamp_immutable():
     svc = MeetingService()
-    meeting = svc.create_meeting("proj-x5", "Close Race")
+    meeting = svc.create_meeting("proj-x5", "Close Race", team_id="team-x5")
     first = svc.close_meeting(meeting.id)
     assert first.status == MEETING_CLOSED
     assert first.closedAt is not None
@@ -132,7 +132,7 @@ async def test_x18_53_close_http_idempotent_and_terminal():
 
 async def test_x18_54_message_to_closed_meeting_is_refused_nothing_appended():
     svc = MeetingService()
-    meeting = svc.create_meeting("proj-x5", "Closed Doors")
+    meeting = svc.create_meeting("proj-x5", "Closed Doors", team_id="team-x5")
     svc.close_meeting(meeting.id)
 
     # Service seam: typed refusal...
@@ -194,7 +194,7 @@ async def test_x18_order_concurrent_posts_preserve_strict_append_order():
     import asyncio
 
     svc = MeetingService()
-    meeting = svc.create_meeting("proj-x5", "Ordered Chaos")
+    meeting = svc.create_meeting("proj-x5", "Ordered Chaos", team_id="team-x5")
 
     seqs: list[tuple[str, str]] = []
     plan = [("alice", i) for i in range(15)] + [("bob", i) for i in range(15)]

@@ -41,6 +41,10 @@ x-backend-env: &backend-env
   DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
   DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-}
   DSH_MODEL: ${DSH_MODEL:-}
+  # Optional runtime patch files (os.pathsep-separated). The orchestrator mounts
+  # deploy/patches read-only at /opt/harness/patches; set for OpenRouter:
+  # DSH_PATCH_FILES=/opt/harness/patches/openrouter.patch.yml
+  DSH_PATCH_FILES: ${DSH_PATCH_FILES:-}
   DSH_WORKSPACE: /tmp/harness-dsh/workspace
   DSH_SESSION_ROOT: /tmp/harness-dsh/sessions
   GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
@@ -59,6 +63,24 @@ x-backend-env: &backend-env
   # M20-T2 observability: log shape + /metrics DB-gauge refresh cadence.
   HARNESS_LOG_FORMAT: ${HARNESS_LOG_FORMAT:-json}
   HARNESS_METRICS_DB_POLL_SECONDS: ${HARNESS_METRICS_DB_POLL_SECONDS:-15}
+  # Pilot policy: auto selects macOS Seatbelt or a probed Linux Landlock
+  # boundary. Landlock uses a read allow-list plus workspace/private-tmp write
+  # rules; the explicit unconfined opt-in is for local compose/E2E diagnostics
+  # only and must never be used for a pilot.
+  HARNESS_SANDBOX_CONFINEMENT: ${HARNESS_SANDBOX_CONFINEMENT:-auto}
+  HARNESS_SANDBOX_ALLOW_UNCONFINED: ${HARNESS_SANDBOX_ALLOW_UNCONFINED:-}
+  # Sandbox network is disabled by default. Enabling it is an explicit
+  # diagnostic/deployment opt-in confined to the allow-list proxy below; the
+  # proxy path is not yet drilled against a live Docker daemon.
+  HARNESS_SANDBOX_ALLOW_NETWORK: ${HARNESS_SANDBOX_ALLOW_NETWORK:-0}
+  # Opt-in network is confined to the allow-list proxy on the internal network below.
+  SANDBOX_EGRESS_NETWORK: harness_sandbox_egress
+  SANDBOX_EGRESS_PROXY_URL: http://sandbox-egress:3128
+  # Per-task Docker is opt-in and requires a separately managed daemon/socket
+  # design plus a pre-pulled, operator-supplied image reference. Do not turn
+  # this on for the shared backend without completing that deployment review.
+  SANDBOX_USE_DOCKER: ${SANDBOX_USE_DOCKER:-false}
+  SANDBOX_DEFAULT_DOCKER_IMAGE: ${SANDBOX_DEFAULT_DOCKER_IMAGE:-}
 
 x-backend-depends: &backend-depends
   migrate:
@@ -340,6 +362,9 @@ services:
       HARNESS_DIFFSTORE_ROOT: /var/lib/harness-store/diffs
     volumes:
       - harness_store:/var/lib/harness-store
+      # Operator-supplied dsh runtime patches (see deploy/patches/README-free note
+      # in openrouter.patch.yml). Read-only; the engine fails closed on a missing path.
+      - ./patches:/opt/harness/patches:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -379,6 +404,23 @@ services:
       start_period: 20s
     restart: unless-stopped
     depends_on: *backend-depends
+
+  sandbox-egress:
+    # Allow-list HTTPS CONNECT proxy: the only peer of the internal sandbox
+    # network that also reaches the internet (see harness_sandbox/egress_proxy.py).
+    <<: *backend-build
+    command: ["python", "-m", "harness_sandbox.egress_proxy"]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128m
+          pids: 128
+    logging: *logging-caps
+    networks:
+      - default
+      - sandbox_egress
+    restart: unless-stopped
 
   meeting:
     <<: *backend-build
@@ -1140,6 +1182,12 @@ networks:
   default:
     name: harness_default
     driver: bridge
+    attachable: true
+  # No gateway: sandbox containers can only reach the egress proxy.
+  sandbox_egress:
+    name: harness_sandbox_egress
+    driver: bridge
+    internal: true
     attachable: true
 
 volumes:

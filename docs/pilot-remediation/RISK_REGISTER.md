@@ -97,14 +97,35 @@ evidence (kept for audit):
   (repo-wide grep clean).
 
 ### R-03 — Sandbox, filesystem, process, package-install, network boundaries
-**State: MITIGATED & VERIFIED (S1 remediation).** R-03a/b/d/e/f fixed
+**State: PARTIAL — PILOT-GRADE MACOS/LINUX MITIGATION.** R-03a/b/d/e/f fixed
 (double-quoted substitution + `find -exec` + `${VAR}` rejected, glob
 expansion enforced against forbidden paths, installers blocked, explicit
 confinement fails closed incl. landlock child-apply, `HARNESS_` env
-stripped, process-group kill + live streaming timeout). R-03c accepted as
-residual → pilot decision: sandbox network stays available, now explicit via
-`HARNESS_SANDBOX_*` deploy env; egress allow-listing deferred. Evidence:
-`session1/S1-R03-sandbox-boundaries.md` §Verification results. Original
+stripped, process-group kill + live streaming timeout). R-03c is a residual,
+narrowed: Compose and the Docker runner default to network-disabled
+execution, and an explicit `HARNESS_SANDBOX_ALLOW_NETWORK=1` now attaches the
+per-task container only to a gateway-less network whose sole peer is an
+allow-list HTTPS CONNECT proxy (`section5/src/harness_sandbox/egress_proxy.py`,
+commit `3805a7e`; unit-tested in `test_egress_proxy.py`). Not yet drilled
+against a live Docker daemon. The Compose sandbox service is still a shared
+container on the default network, and the Linux local runner inherits host
+networking because Landlock has no network hooks — so local (non-Docker) runs
+are not network-confined. Evidence:
+`session1/S1-R03-sandbox-boundaries.md` §Verification results. Linux Landlock
+write enforcement and the new read allow-list are covered by
+`section5/tests/unit/test_landlock_read_allowlist.py` and
+`section5/tests/unit/test_landlock_read_isolation.py`; the runtime probe still
+fails closed when the host cannot enforce Landlock. The Compose service remains
+a shared backend container, not a per-task Docker sandbox, and unconfined mode
+is diagnostic-only. `DockerSandboxRunner` now provides an explicit per-task
+container path with read-only root, dropped capabilities, resource limits,
+sanitized environment, and masked forbidden paths; focused unit tests and a
+real local Docker smoke passed. The Compose service remains shared and does
+not enable the Docker socket by default. The complete Section 5 suite passes
+in the temporary Linux test image (`259 passed, 10 skipped`); the native macOS suite is environment
+blocked when both Seatbelt and Landlock are unavailable, rather than falling
+back to an unconfined runner.
+Original
 evidence (kept for audit):
 - **R-03a shell-feature bypasses (exploitable today):** double-quoted `$( )`/backticks
   skipped by the scanner (`S5/.../policy.py:36-40`); `find -exec` allowed (`:44-45,65`);
@@ -139,9 +160,9 @@ fenced USER-role content + system never-follow rule), R-04b (reviewer/summary
 prompts fence untrusted data), R-04d (plan-gate goal bounded to
 PROPOSE_GOAL_MAX, model- + route-level tests), R-04e (every MCP tool result —
 success and error paths — appends a fixed data-not-instructions framing block,
-asserted by conftest for all tool tests). R-04c resolved as a documented
-pilot decision: MCP start_run auto-approval KEPT, now explicit in the
-LLM-facing description + docstring + note. R-04f documented residual
+asserted by conftest for all tool tests). R-04c resolved by S-04: MCP start_run
+no longer auto-approves; it stops at AWAITING_PLAN_APPROVAL and a human must
+approve in the Harness UI/REST (`mcp/src/harness_mcp/tools.py`). R-04f documented residual
 (inherent repo-content indirect injection; containment unchanged). Also fixed:
 MCP server construction broken against installed mcp SDK 1.28.1 (removed
 `Server(title=/on_list_tools=/on_call_tool=)` kwargs) — pre-existing, blocked

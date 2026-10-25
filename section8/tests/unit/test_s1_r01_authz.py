@@ -34,7 +34,9 @@ class _StubService:
     async def request_changes(self, pr_id, comments, reviewer_user_id, *, team_id=None):
         self.calls.append(("request_changes", pr_id, team_id))
 
-    async def get_review_data(self, pr_id, diff_text=None, *, team_id=None):
+    async def get_review_data(
+        self, pr_id, diff_text=None, *, team_id=None, actor_user_id=None
+    ):
         self.calls.append(("get_review_data", pr_id, team_id))
         raise LookupError("not found")
 

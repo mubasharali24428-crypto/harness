@@ -22,7 +22,7 @@ export function PlanPanel({ plan }: { plan: AgentPlan | null }) {
       <PlanList title="Risks" items={plan.risks ?? []} />
       <PlanList title="Forbidden paths" items={plan.forbiddenPaths ?? []} mono />
 
-      <p style={{ fontSize: 13, color: "#9aa4b2" }}>
+      <p style={{ fontSize: 13, color: "var(--muted)" }}>
         <strong>Expected result:</strong> {plan.expectedResult}
       </p>
 
@@ -54,7 +54,7 @@ function PlanList({
   const Tag = ordered ? "ol" : "ul";
   return (
     <div style={{ marginBottom: 10 }}>
-      <div style={{ fontSize: 12, color: "#9aa4b2", marginBottom: 2 }}>{title}</div>
+      <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 2 }}>{title}</div>
       <Tag
         style={{
           margin: 0,

@@ -1,3 +1,76 @@
+> **Superseded 2026-10-21.** A second independent audit found S-01/S-02/S-03/S-04; the prior readiness verdict below is not current. See `docs/pilot-remediation/BASELINE_2026-10-21.md` for executed gates and residual
+> blockers. Current verdict: NOT READY for a general pilot; private design-partner only.
+
+## Continuation verification — 2026-10-22
+
+The current working tree was verified without committing, deploying, or making
+paid model calls. The completed Linux Landlock implementation was preserved.
+
+| Check | Exact outcome |
+|---|---|
+| Compose validation | `docker compose --env-file .env -f deploy/docker-compose.yml config -q` passed |
+| Backend rebuild | `docker compose --env-file .env -f deploy/docker-compose.yml build --no-cache --progress=plain sandbox` passed; optimized context `39.59 kB`; rebuilt image manifest/container ID `sha256:7796ad76e7b671d98abe5c3f0d30191082928e54ce3db1fcecc843790678f68c` |
+| Active image | Only the sandbox service was recreated. Host/container `confinement.py` SHA-256 matched at `fd20bac80a07569ef313aabb8d9f4aa684c79a1a2bce85b25456c0a7caa76997`; active module contained `landlock_read_allowlist`, `_READ_HANDLED=13` |
+| Linux confinement probe | Inside the active container: `landlock_probe=True`; a forbidden-path read exited `1` and did not expose the canary |
+| Docker runner | Focused unit tests `6 passed`; real local Docker smoke verified container execution and workspace persistence, an indirect read of a masked forbidden directory exited `1`, and cleanup removed the workspace/container |
+| Docker deployment wiring | Resolved Compose config keeps `SANDBOX_USE_DOCKER=false` and `SANDBOX_DEFAULT_DOCKER_IMAGE=""`; the runner is opt-in and empty-image configuration fails closed |
+| Sandbox network default | Compose and `DockerSandboxRunner` now default to network-disabled execution (`HARNESS_SANDBOX_ALLOW_NETWORK=0` / `network_mode=none`); enabling network remains an explicit, non-allow-listed diagnostic/deployment opt-in |
+| Local Docker runtime probe | Image `sha256:7796ad76e7b671d98abe5c3f0d30191082928e54ce3db1fcecc843790678f68c`, configured user `harness`; task process reported `uid=501`, `CapEff=0000000000000000`, `NoNewPrivs=1`. Docker Desktop rootless mode was not verified |
+| Native macOS Section 5 suite | `make test-section5` → `211 passed, 22 skipped, 14 failed, 18 errors in 6.66s`; the host has neither Seatbelt nor Landlock, so `auto` failed closed as designed rather than falling back to unconfined execution |
+| Focused S5 tests | macOS host: `12 passed, 5 skipped in 0.77s`; complete current Section 5 suite in a temporary Linux test image: `259 passed, 10 skipped, 1 warning in 5.55s` |
+| Static gates | `make static-gates` passed route/isolation guards, shell syntax, Compose config, TS mirror, and spec-drift checks |
+| Linux Python gate | Ruff passed for Sections 1–6, 8, 10, 11, and MCP. Tests passed: S1 `986/54 skipped`, S2 `48`, S3 `99`, S4 `1598/62 skipped`, dedicated Linux S5 `259/10 skipped`, S6 `123`, S8 `91`, S10 `69`, S11 `49/1 skipped`, MCP `18` |
+| Frontend gate | `make frontend` passed TypeScript and Vitest: `76 files, 863 passed` |
+| Compose journey | `make e2e-compose` passed all 12 checks in `0.5s`, using default `auto` confinement and no unconfined opt-out |
+| Controlled agent run | `deploy/pilot/run_smoke.py` passed its single Playwright journey in `36.5s` using deterministic Docker worker `harness-engine-worker:p1-tests`; `--real` was not used and no paid/real-provider call was made |
+
+### Current security limitations and readiness
+
+Linux Landlock is now verified for the pilot path: writes are restricted to the
+task workspace/private temp, and reads/exec are granted through an allow-list
+that omits forbidden paths and sibling task workspaces. `auto` still fails
+closed when the kernel/runtime probe fails. The boundary remains host/kernel
+dependent, the Compose service is a shared backend container rather than a
+per-task Docker sandbox, and approved network egress remains unimplemented.
+Compose and Docker task execution default to no network; the explicit network
+opt-in is not an allow-list and must not be treated as production isolation.
+`confinement=off` is an explicit diagnostic-only mode.
+
+The verdict remains **NOT READY** for production or a general pilot. Docker
+runner deployment wiring, real-provider validation, host certification, and
+counsel-approved legal/commercial terms remain open. The deterministic smoke and
+zero-key Compose journey are evidence of application behavior only, not
+production sandbox certification. The broad native `make gate` was not run
+after the macOS Section 5 result because its test matrix would repeat the
+same unavailable-boundary failure; static gates and the complete Section 5
+suite were independently verified in the temporary Linux test image instead.
+The broader Linux Python gate was then completed in independent batches; the
+first combined batch stopped at Section 5 only because the generic backend
+image did not contain `git`, which its checkpoint tests require. No source
+failure was inferred from that image limitation, and the dedicated Linux
+Section 5 image passed the full suite.
+
+### Latest continuation — 2026-10-22 network-default hardening
+
+The remaining local hardening step is complete. `DockerSandboxRunner` now
+defaults to `network_mode=none`, and Compose/deployment wiring defaults
+`HARNESS_SANDBOX_ALLOW_NETWORK=0`. The opt-in flag remains explicitly
+non-allow-listed; an approved relay/proxy is still required for production.
+
+The first rebuild attempt stopped before the project build because Docker
+Buildx could not update `/Users/user/.docker/buildx/activity` with the
+available sandbox permissions. After approved local Docker access, the rebuild
+completed with optimized context `5.69MB` and image digest
+`sha256:2c8fada851dafcdd4792893f4bd4a4f7e67e6ea56dbeafddd5fd0b62a5fbb2ab`.
+Only the local sandbox container was recreated; its image digest matched, its
+resolved network setting was `HARNESS_SANDBOX_ALLOW_NETWORK=0`, and the loaded
+Landlock source retained the verified read allow-list (`confinement.py` SHA
+`fd20bac80a07569ef313aabb8d9f4aa684c79a1a2bce85b25456c0a7caa76997`).
+
+`make static-gates` passed, the focused Docker runner test passed (`4 passed`),
+and `make e2e-compose` passed all 12 checks again after the refresh. No commit,
+deployment, or paid/real-provider model call was made.
+
 # Production-Readiness Remediation — Final Report
 
 Date: 2026-10-17. Working tree left uncommitted per program rule (human

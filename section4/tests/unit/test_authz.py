@@ -61,6 +61,12 @@ def db_service(tmp_path):
             )
             await conn.execute(
                 text(
+                    "CREATE TABLE agent_runs ("
+                    "id VARCHAR(36) PRIMARY KEY, project_id VARCHAR(36))"
+                )
+            )
+            await conn.execute(
+                text(
                     "INSERT INTO projects (id, team_id) VALUES ('proj-ours', 'team-a'),"
                     " ('proj-theirs', 'team-b')"
                 )

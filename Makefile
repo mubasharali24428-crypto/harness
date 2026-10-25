@@ -20,7 +20,7 @@
 # Per-section granular targets (used by CI matrix jobs): make test-section<N>,
 # make lint-section<N> for N in 1 2 3 4 5 6 8 10.
 
-SECTIONS := section1 section2 section3 section4 section5 section6 section8 section10
+SECTIONS := section1 section2 section3 section4 section5 section6 section8 section10 section11
 FRONTEND := section7
 
 # CI pins python-version "3.13" (ci.yml). Locally, use the newest interpreter
@@ -32,7 +32,7 @@ PG_URL ?= postgresql+asyncpg://harness:harness@localhost:5499/harness
 
 .PHONY: help bootstrap clean-venvs guard-script-check \
         gate $(foreach s,$(SECTIONS),lint-$(s) test-$(s)) \
-        lint test frontend frontend-tsc frontend-vitest static-gates e2e e2e-compose \
+        lint test lint-mcp test-mcp frontend frontend-tsc frontend-vitest static-gates e2e e2e-compose \
         pg-probe pg-probe-integration pg-probe-s1 pg-probe-migrate pg-up pip-audit \
         guard-routes guard-isolation guard-route-law
 
@@ -77,11 +77,18 @@ bootstrap:
 	else \
 		echo "== $(FRONTEND): package-lock.json not found, skipping npm ci =="; \
 	fi
+	@echo "== mcp =="; \
+		cd mcp && $(PYTHON) -m venv .venv && \
+			./.venv/bin/pip install --quiet --upgrade pip && \
+			./.venv/bin/pip install --quiet -e ../contracts && \
+			{ ./.venv/bin/pip install --quiet -e ".[dev]" || \
+			  ./.venv/bin/pip install --quiet -e .; } && cd .. || exit 1
 	@echo ""
 	@echo "Bootstrap complete. Try: make test-section1"
 
 clean-venvs:
 	@for s in $(SECTIONS); do rm -rf $$s/.venv; done
+	@rm -rf mcp/.venv
 	@echo "Removed all section venvs. Re-run 'make bootstrap' to recreate."
 
 # ---------------------------------------------------------------- static gates
@@ -124,6 +131,8 @@ lint-section8:
 	$(call LINT_RECIPE,section8)
 lint-section10:
 	$(call LINT_RECIPE,section10)
+lint-section11:
+	$(call LINT_RECIPE,section11)
 
 # ----------------------------------------------------------------------- tests
 # Exactly CI's matrix command per section: the section's OWN venv interpreter
@@ -155,6 +164,16 @@ test-section8:
 	$(call TEST_RECIPE,section8)
 test-section10:
 	$(call TEST_RECIPE,section10)
+
+test-section11:
+	$(call TEST_RECIPE,section11)
+
+# MCP server is not a section: its pyproject already points at contracts.
+lint-mcp:
+	cd mcp && ./.venv/bin/ruff check src tests
+test-mcp:
+	cd mcp && ./.venv/bin/python -m pytest tests -q
+
 
 # -------------------------------------------------------------------- frontend
 # Granular halves so ci.yml steps map 1:1 (tsc and vitest report separately).
@@ -203,9 +222,13 @@ PG_ENV = HARNESS_TEST_PG=1 HARNESS_DATABASE_URL="$(PG_URL)" \
 
 # Idempotently start the compose db and wait until it accepts connections.
 pg-up:
-	$(PG_COMPOSE) up -d db
-	@for i in $$(seq 1 60); do $(PG_COMPOSE) exec -T db pg_isready -U harness >/dev/null 2>&1 && exit 0; sleep 1; done; \
-		echo "pg-up: db not ready after 60s"; exit 1
+	@if [ "$${HARNESS_TEST_PG_EXTERNAL:-}" = "1" ]; then \
+		echo "pg-up: using the caller-supplied Postgres (HARNESS_TEST_PG_EXTERNAL=1)"; \
+	else \
+		$(PG_COMPOSE) up -d db; \
+		for i in $$(seq 1 60); do $(PG_COMPOSE) exec -T db pg_isready -U harness >/dev/null 2>&1 && exit 0; sleep 1; done; \
+		echo "pg-up: db not ready after 60s"; exit 1; \
+	fi
 
 pg-probe: pg-probe-integration pg-probe-s1 pg-probe-migrate
 
@@ -266,7 +289,7 @@ guard-script-check:
 # ----------------------------------------------------------------------- gate
 # Everything branch protection blocks a PR on. (e2e joins here when H3a's
 # specs land; nightly pg-probe and security-scan stay schedule/push-scoped.)
-gate: static-gates lint test frontend
+gate: static-gates lint lint-mcp test test-mcp frontend
 	@echo ""
 	@echo "GATE GREEN — static-gates + lint + test + frontend all passed."
 	@echo "This is byte-for-byte what ci.yml enforces on PRs."

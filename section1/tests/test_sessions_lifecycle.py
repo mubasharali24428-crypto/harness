@@ -141,9 +141,11 @@ async def test_link_run_team_scope_idempotence_and_exclusivity(env):
     assert len(await audit_actions(factory, "session.run_linked")) == 1
     r = await client.post(f"{S}/{s2}/runs", json={"runId": run}, headers=bearer(eng))
     assert r.status_code == 409 and err(r) == "RUN_ALREADY_LINKED"
-    by_run = await client.get(S, params={"runId": run}, headers=bearer(eng))  # run page owner lookup
+    # run page owner lookup
+    by_run = await client.get(S, params={"runId": run}, headers=bearer(eng))
     assert [i["id"] for i in by_run.json()["items"]] == [s1]
-    assert (await client.get(S, params={"runId": "nope"}, headers=bearer(eng))).json()["items"] == []
+    nope = await client.get(S, params={"runId": "nope"}, headers=bearer(eng))
+    assert nope.json()["items"] == []
     runs = (await client.get(link, headers=bearer(obs))).json()["items"]
     assert [x["runId"] for x in runs] == [run] and runs[0]["phase"] == "created"
     assert runs[0]["terminal"] is False

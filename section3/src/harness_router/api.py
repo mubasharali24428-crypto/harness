@@ -177,6 +177,9 @@ class CallModelRequest(BaseModel):
     # deliberately NOT part of the frozen contracts/ protocol types.
     apiKey: str | None = None
     model: str | None = None
+    # Optional attribution to an orchestrator run.  The server verifies the
+    # run belongs to the authenticated team before recording it.
+    runId: str | None = None
 
 
 class EstimateCostRequest(BaseModel):
@@ -210,6 +213,15 @@ class SpendByDay(BaseModel):
     costUsd: float
 
 
+class UnattributedSpend(BaseModel):
+    """Ledger calls with no run; never presented as team-owned spend."""
+
+    calls: int
+    inputTokens: int
+    outputTokens: int
+    costUsd: float
+
+
 class SpendSummaryResponse(BaseModel):
     """Aggregate spend from cost_ledger (mirrors ledger.summarize_spend).
 
@@ -224,6 +236,7 @@ class SpendSummaryResponse(BaseModel):
     totals: SpendTotals
     byModel: list[SpendByModel] = Field(default_factory=list)
     byDay: list[SpendByDay] = Field(default_factory=list)
+    unattributed: UnattributedSpend
     unwired: bool = False
 
 
@@ -240,6 +253,19 @@ class SpendErrorEnvelope(BaseModel):
 
 @router.post("/call", response_model=ModelResult, status_code=status.HTTP_200_OK)
 async def call_model(req: CallModelRequest, principal: Writer) -> ModelResult:
+    pool = get_ledger_pool()
+    if req.runId and pool is not None and hasattr(pool, "fetchrow"):
+        row = await pool.fetchrow(
+            "SELECT r.id FROM agent_runs r JOIN projects p ON p.id = r.project_id "
+            "WHERE r.id = $1 AND p.team_id = $2",
+            req.runId,
+            principal.teamId,
+        )
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": {"code": "RUN_NOT_FOUND", "message": "run not found"}},
+            )
     try:
         # Provider call is blocking; keep it off the event loop like the
         # threadpool the sync def previously ran in.
@@ -254,6 +280,7 @@ async def call_model(req: CallModelRequest, principal: Writer) -> ModelResult:
             # fallback stays keyless-only and dev-gated.
             api_key=req.apiKey,
             model_name=req.model,
+            team_id=principal.teamId,
         )
     except InvalidApiKeyError as e:
         raise HTTPException(
@@ -274,7 +301,13 @@ async def call_model(req: CallModelRequest, principal: Writer) -> ModelResult:
     # Wave 9A: record real usage on every successful provider call. The
     # recorder swallows ledger failures — it must never break the call path.
     try:
-        record_call_usage(agent_id=req.agentId, role=req.role, messages=req.messages, result=result)
+        record_call_usage(
+            agent_id=req.agentId,
+            role=req.role,
+            messages=req.messages,
+            result=result,
+            run_id=req.runId,
+        )
     except Exception:  # pragma: no cover - belt & braces around fire-and-forget
         logger.warning("cost metering scheduling failed; continuing", exc_info=True)
     return result
@@ -331,6 +364,7 @@ async def model_spend(
             },
         )
     try:
+        unattributed = await cost_ledger.unattributed_summary(pool)
         summary = await cost_ledger.spend_summary(
             pool,
             team_id=teamId or None,
@@ -339,7 +373,7 @@ async def model_spend(
         )
         # W4-C1: wired + queryable ⇒ unwired=False, always. The zeros in an
         # empty ledger are real zeros now that run metering is live (F1a).
-        return {**summary, "unwired": False}
+        return {**summary, "unattributed": unattributed, "unwired": False}
     except Exception as e:
         logger.warning("spend aggregation failed", exc_info=True)
         raise HTTPException(
@@ -356,6 +390,7 @@ def estimate_cost(req: EstimateCostRequest, principal: Reader) -> dict[str, Any]
         role=req.role,
         input_tokens=req.inputTokens,
         output_tokens=req.outputTokens,
+        team_id=principal.teamId,
     )
     return {
         "role": req.role,
@@ -394,7 +429,7 @@ def configure_role_model(req: ConfigureRoleModelRequest, principal: Writer) -> d
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"error": {"code": "UNKNOWN_MODEL", "message": msg}},
         )
-    _service.set_role_model(req.role, req.model)
+    _service.set_role_model(req.role, req.model, team_id=principal.teamId)
     return {"role": req.role, "model": req.model, "status": "configured"}
 
 

@@ -137,7 +137,8 @@ class ModelProviderClient:
         if opts.temperature is not None:
             payload["temperature"] = opts.temperature
         if isinstance(opts.extra, dict):
-            payload.update(opts.extra)
+            # S-03: the billed/recorded model must be the model actually called.
+            payload.update({k: v for k, v in opts.extra.items() if k not in ("model", "messages")})
 
         headers = {"Authorization": f"Bearer {api_key}"}
 

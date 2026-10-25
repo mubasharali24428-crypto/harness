@@ -16,6 +16,10 @@ class SandboxConfig(BaseSettings):
         "files.pythonhosted.org",
     ]
     use_docker: bool = False
+    # Opt-in sandbox networking goes through the allow-list proxy on this
+    # internal Docker network; both must be set or the runner fails closed.
+    egress_network: str = ""
+    egress_proxy_url: str = ""
 
     model_config = SettingsConfigDict(env_prefix="SANDBOX_")
 

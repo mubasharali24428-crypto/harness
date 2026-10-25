@@ -32,16 +32,19 @@ def test_model_router_used_on_reviewer_role():
         def __init__(self):
             self.calls = []
 
-        def call_model(self, agent_id, role, messages, opts=None):
-            self.calls.append({"agent_id": agent_id, "role": role})
+        def call_model(self, agent_id, role, messages, opts=None, team_id=None):
+            self.calls.append({"agent_id": agent_id, "role": role, "team_id": team_id})
             return FakeResult()
 
     router = FakeRouter()
     gen = SummaryGenerator(model_router=router)
-    summary = gen.generate(diff_text=GOLDEN_DIFF, changed_files=["src/auth.py"])
+    summary = gen.generate(
+        diff_text=GOLDEN_DIFF, changed_files=["src/auth.py"], team_id="team-a"
+    )
 
     assert len(router.calls) == 1
     assert router.calls[0]["role"].value == "reviewer"
+    assert router.calls[0]["team_id"] == "team-a"
     assert summary.model == "deepseek-v4-flash"
     assert summary.cost_usd == pytest.approx(0.0123)
     assert len(summary.sections) == 1

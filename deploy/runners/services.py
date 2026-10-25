@@ -557,6 +557,7 @@ def app_sandbox():
     from harness_contracts.fastapi_auth import make_bearer_dep
     from harness_identity.eventbus import EventBus
     from harness_sandbox.api import configure_sandbox, router
+    from harness_sandbox.docker_runner import DockerSandboxRunner
     from harness_sandbox.local_runner import LocalSandboxRunner
     from harness_sandbox.service import SandboxService
     from harness_sandbox.tree_api import router as tree_router  # M12-G8 read-only tree
@@ -585,11 +586,24 @@ def app_sandbox():
         loop.create_task(_pub())
 
     _conf = os.environ.get("HARNESS_SANDBOX_CONFINEMENT", "auto")
-    _net = os.environ.get("HARNESS_SANDBOX_ALLOW_NETWORK", "1") == "1"
+    # Fail closed for the deployed sandbox path. Network access remains an
+    # explicit opt-in; the Docker runner confines it to the allow-list proxy.
+    _net = os.environ.get("HARNESS_SANDBOX_ALLOW_NETWORK", "0") == "1"
+    _use_docker = os.environ.get("SANDBOX_USE_DOCKER", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    _docker_image = os.environ.get("SANDBOX_DEFAULT_DOCKER_IMAGE", "").strip() or None
+    _runner = (
+        DockerSandboxRunner(image=_docker_image or "", allow_network=_net)
+        if _use_docker
+        else LocalSandboxRunner(confinement=_conf, allow_network=_net)
+    )
     configure_sandbox(
         SandboxService(
             on_stream=_publish_stream_event,
-            runner=LocalSandboxRunner(confinement=_conf, allow_network=_net),
+            runner=_runner,
         )
     )
     app = simple_app(router, "harness-sandbox")
@@ -665,6 +679,7 @@ def app_meeting():
             team_key_store=factory,
             vault=IdentityKeyVault(MASTER_KEY),
             models_base_url=os.environ.get("HARNESS_MODELS_URL", "http://models:8003"),
+            db_factory=factory,
         )
     )
     # Wave9-E (append): security headers on the meeting app (S6).
@@ -706,14 +721,23 @@ def app_review():
     vault = KeyVault(MASTER_KEY)
 
     async def diff_provider(
-        project_id: str, pr_number: int, team_id: str | None = None
+        project_id: str,
+        pr_number: int,
+        team_id: str | None = None,
+        *,
+        actor_user_id: str | None = None,
     ) -> str:
         # Diff arrives via Section 2's contract (getPRDiff); requires a
-        # connected GitHub account for the acting user. team_id carries the
-        # review principal's team so cross-team reads fail closed (S1-R01d).
+        # connected GitHub account for the ACTING reviewer — never a shared
+        # "system" identity. team_id carries the review principal's team so
+        # cross-team reads fail closed (S1-R01d).
+        if not actor_user_id:
+            raise PermissionError("review diff requires an authenticated user")
         async with factory() as db:
             svc = GitHubService(db, vault)
-            data = await svc.getPRDiff("system", project_id, pr_number, team_id=team_id)
+            data = await svc.getPRDiff(
+                actor_user_id, project_id, pr_number, team_id=team_id
+            )
             await db.close()
             return data["diff"]
 

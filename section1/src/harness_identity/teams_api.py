@@ -42,7 +42,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request
 from harness_contracts import Principal, Role, error_body
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from .audit_emit import emit_member_removed, emit_member_role_changed
 from .auth import get_principal
@@ -150,6 +150,13 @@ async def remove_member(
             )
         removed_role = _role_value(target.role)  # capture BEFORE expiry-prone ops
         membership_id = str(target.id)
+        # Revoke this team's sessions BEFORE the membership row disappears:
+        # get_principal already 401s a removed member, and deleting the
+        # sessions here removes the credential itself (defense in depth).
+        await db.execute(
+            text("DELETE FROM auth_sessions WHERE user_id = :u AND team_id = :t"),
+            {"u": user_id, "t": team_id},
+        )
         await db.delete(target)
         await db.commit()
         # H-010 audit trail: the transition is the event; failure to emit must

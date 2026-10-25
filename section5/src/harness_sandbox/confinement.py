@@ -5,13 +5,25 @@ Linux: Landlock via ctypes (explicit requests fail closed when unsupported —
 see S1-R03d; `auto` picks the best available mode).
 
 Layering contract: policy.py decides WHAT may run; this module decides WHERE it
-may touch the machine. Reads stay broad (toolchains need system SDKs), writes are
-confined to the task workspace + its private tmp, network is configurable.
+may touch the machine. Writes are confined to the task workspace + its private
+tmp; reads are confined to an allow-list (see S-01 below); network is
+configurable.
+
+S-01 (Linux): Landlock rules GRANT rights, they never deny them, so a
+forbidden path cannot be denied by a rule that excludes it — it can only be
+denied by never granting READ_FILE on it. That turns "readable except these
+paths" into an allow-list, which is what ``landlock_read_allowlist`` builds:
+readable roots are enumerated, and every directory that CONTAINS a forbidden
+path is granted ``READ_DIR`` only and split one level down (a path-beneath
+rule covers every descendant, so the containing directory cannot be granted as
+a whole). Everything outside the allow-list is unreadable, which is also what
+isolates sibling task workspaces on Linux.
 """
 
 import logging
 import os
 import struct
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -28,7 +40,20 @@ def platform_release() -> str:
 
 
 def seatbelt_available() -> bool:
-    return sys.platform == "darwin" and Path(SEATBELT_BIN).exists()
+    """Return true only when the host can actually enter a Seatbelt profile."""
+    if sys.platform != "darwin" or not Path(SEATBELT_BIN).exists():
+        return False
+    try:
+        probe = subprocess.run(
+            [SEATBELT_BIN, "-p", "(version 1)(allow default)", "/usr/bin/true"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return probe.returncode == 0
 
 
 # Cache for the runtime probe: 'usable' is a property of THIS process's
@@ -54,7 +79,9 @@ def _probe_landlock_syscalls(timeout: float = 10.0) -> bool:
         try:
             proc = subprocess.run(
                 [sys.executable, "-c", "pass"],
-                preexec_fn=lambda: apply_landlock_in_child(Path(ws), False),
+                preexec_fn=lambda: apply_landlock_in_child(
+                    Path(ws), False, extra_read_roots=[Path(sys.executable).parent]
+                ),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 timeout=timeout,
@@ -87,11 +114,32 @@ def landlock_supported() -> bool:
 # --------------------------------------------------------------------------
 
 
+def _seatbelt_forbidden_rules(workspace: Path, forbidden_paths: list[str] | None) -> str:
+    """Deny reads AND writes for policy forbidden paths inside the workspace.
+
+    S-01: the string policy is UX; this is the enforced boundary. Later SBPL
+    rules win, so these denials are emitted AFTER the broad allow rules.
+    """
+    if not forbidden_paths:
+        return ""
+    ws = Path(workspace).resolve()
+    lines: list[str] = []
+    for raw in forbidden_paths:
+        p = Path(raw)
+        target = (p if p.is_absolute() else ws / p).resolve()
+        escaped = str(target).replace("\\", "\\\\").replace('"', '\\"')
+        lines.append(f'(deny file-read* file-write* (subpath "{escaped}"))')
+        lines.append(f'(deny file-read* file-write* (literal "{escaped}"))')
+    return "".join(line + "\n" for line in lines)
+
+
 def seatbelt_profile(
     workspace: Path,
     allow_network: bool,
     task_dir: Path | None = None,
     tmpdir: Path | None = None,
+    forbidden_paths: list[str] | None = None,
+    denied_task_dirs: list[Path] | None = None,
 ) -> str:
     """deny-default profile; writes confined to the task workspace + its private tmp.
 
@@ -104,14 +152,13 @@ def seatbelt_profile(
     if tmpdir is not None:
         writable.append(f'(subpath "{Path(tmpdir).resolve()}")')
     writable.append('(subpath "/dev/null")')
-    isolation = ""
-    if task_dir is not None:
-        task = Path(task_dir).resolve()
-        # Later rules win in SBPL: deny the whole store, then re-allow our own task.
-        isolation = (
-            f'(deny file-read-data (subpath "{task.parent}"))\n'
-            f'(allow file-read-data (subpath "{task}"))\n'
-        )
+    # Sibling isolation is expressed as per-task denies, NOT deny-parent +
+    # re-allow-own: SBPL's path precedence lets a later deny of a child be
+    # defeated by that re-allow pair, which silently re-opened forbidden dirs.
+    isolation = "".join(
+        f'(deny file-read-data (subpath "{Path(d).resolve()}"))\n'
+        for d in (denied_task_dirs or ())
+    )
     network = "(allow network*)\n(allow system-socket)" if allow_network else "(deny network*)"
     return (
         "(version 1)\n"
@@ -121,6 +168,7 @@ def seatbelt_profile(
         "(allow file-read*)\n"
         f"{isolation}"
         f"(allow file-write* {' '.join(writable)})\n"
+        f"{_seatbelt_forbidden_rules(workspace, forbidden_paths)}"
         "(allow mach-lookup)\n"
         "(allow sysctl-read)\n"
         "(allow ipc-posix-shm)\n"
@@ -130,11 +178,25 @@ def seatbelt_profile(
 
 
 def write_seatbelt_profile(
-    workspace: Path, allow_network: bool, target_dir: Path, tmpdir: Path | None = None
+    workspace: Path,
+    allow_network: bool,
+    target_dir: Path,
+    tmpdir: Path | None = None,
+    forbidden_paths: list[str] | None = None,
+    denied_task_dirs: list[Path] | None = None,
 ) -> Path:
     target_dir.mkdir(parents=True, exist_ok=True)
     path = target_dir / "sb.sb"
-    path.write_text(seatbelt_profile(workspace, allow_network, target_dir, tmpdir))
+    path.write_text(
+        seatbelt_profile(
+            workspace,
+            allow_network,
+            target_dir,
+            tmpdir,
+            forbidden_paths,
+            denied_task_dirs,
+        )
+    )
     return path
 
 
@@ -143,9 +205,12 @@ def seatbelt_command(command: str, profile_path: Path) -> list[str]:
 
 
 # --------------------------------------------------------------------------
-# Linux Landlock (best-effort). Applied inside the forked child via preexec_fn.
-# We only HANDLE write/remove/make rights, so reads+execute stay unrestricted
-# by construction; writes get explicit allow rules for workspace + the task's private tmp.
+# Linux Landlock. Applied inside the forked child via preexec_fn as TWO
+# STACKED rulesets:
+#   1. writes — the task workspace + its private tmp (never the shared temp)
+#   2. reads  — an allow-list; forbidden paths are not readable (S-01)
+# Landlock intersects stacked rulesets, and a ruleset only restricts the
+# rights it HANDLES, so the two rulesets are independent.
 # --------------------------------------------------------------------------
 
 _LL_CREATE_RULESET = 444
@@ -175,9 +240,124 @@ _HANDLED = (
     | LL_MAKE_REG | LL_MAKE_SOCK | LL_MAKE_FIFO | LL_MAKE_BLOCK | LL_MAKE_SYM
 )
 
+# The read ruleset handles exactly the rights the allow-list grants.
+_READ_HANDLED = LL_READ_FILE | LL_READ_DIR | LL_EXECUTE
+_READ_DIR_RIGHTS = LL_READ_FILE | LL_READ_DIR | LL_EXECUTE
+_READ_FILE_RIGHTS = LL_READ_FILE | LL_EXECUTE
+
+# Readable roots on Linux. Toolchains need the system trees and the user
+# cache; anything not listed (another task's workspace, /var, another user's
+# home) is NOT readable. Deny-by-default is the S-01 fix, and it is what
+# isolates sibling task workspaces without a per-task deny list.
+_LINUX_READ_ROOTS: tuple[str, ...] = (
+    "/usr",
+    "/bin",
+    "/sbin",
+    "/lib",
+    "/lib32",
+    "/lib64",
+    "/opt",
+    "/etc",
+    "/proc",
+    "/dev",
+    "/sys",
+    "/run",
+)
+
+
+def _resolved(path: Path) -> Path:
+    """Absolute + symlink-resolved path; tolerant of a missing target."""
+    try:
+        return Path(path).resolve()
+    except OSError:  # pragma: no cover — resolve() is non-strict by default
+        return Path(path).absolute()
+
+
+def _within(child: Path, parent: Path) -> bool:
+    return child == parent or parent in child.parents
+
+
+def _read_rules_for(
+    path: Path, denies: list[Path], root: Path
+) -> list[tuple[Path, int]]:
+    """Landlock read/exec rules for one readable root, forbidden paths removed.
+
+    A rule on a directory covers every descendant, so a directory that
+    CONTAINS a forbidden path cannot be granted as a whole: it gets READ_DIR
+    (listing stays allowed, as on Seatbelt) and is split one level down.
+    """
+    if any(_within(path, deny) for deny in denies):
+        return []  # the path itself is forbidden (or lives under one)
+    if not _within(path, root):
+        return []  # a symlink out of the tree: its target has its own rule
+    if path.is_dir():
+        if not any(deny != path and _within(deny, path) for deny in denies):
+            return [(path, _READ_DIR_RIGHTS)]
+        rules: list[tuple[Path, int]] = [(path, LL_READ_DIR)]
+        try:
+            children = sorted(path.iterdir())
+        except OSError:  # unreadable directory: keep the listing rule only
+            return rules
+        for child in children:
+            rules.extend(_read_rules_for(_resolved(child), denies, root))
+        return rules
+    return [(path, _READ_FILE_RIGHTS)]
+
+
+def landlock_read_allowlist(
+    workspace: Path,
+    tmpdir: Path | None = None,
+    forbidden_paths: list[str] | None = None,
+    extra_roots: list[Path] | None = None,
+) -> list[tuple[Path, int]]:
+    """The (path, rights) rules of the Landlock read/exec ruleset.
+
+    Pure function: no syscall, so the allow-list can be unit-tested on any
+    platform. ``forbidden_paths`` are workspace-relative unless absolute, and
+    are matched by resolved path, so a symlink that points at a forbidden file
+    is denied as well.
+    """
+    ws = _resolved(workspace)
+    denies: list[Path] = []
+    for raw in forbidden_paths or []:
+        candidate = Path(raw)
+        denies.append(
+            _resolved(candidate if candidate.is_absolute() else ws / candidate)
+        )
+
+    roots: list[Path] = [ws]
+    if tmpdir is not None:
+        roots.append(_resolved(tmpdir))
+    home = os.environ.get("HOME")
+    if home:
+        roots.append(_resolved(Path(home)))
+    for raw in _LINUX_READ_ROOTS:
+        candidate = Path(raw)
+        if candidate.exists():
+            roots.append(_resolved(candidate))
+    for extra in extra_roots or []:
+        roots.append(_resolved(extra))
+
+    rules: list[tuple[Path, int]] = []
+    seen: set[tuple[str, int]] = set()
+    for root in roots:
+        if not root.exists():
+            continue
+        for path, rights in _read_rules_for(root, denies, root):
+            key = (str(path), rights)
+            if key in seen:
+                continue
+            seen.add(key)
+            rules.append((path, rights))
+    return rules
+
 
 def apply_landlock_in_child(
-    workspace: Path, allow_network: bool, tmpdir: Path | None = None
+    workspace: Path,
+    allow_network: bool,
+    tmpdir: Path | None = None,
+    forbidden_paths: list[str] | None = None,
+    extra_read_roots: list[Path] | None = None,
 ) -> bool:
     """Runs INSIDE the forked child (preexec_fn). Returns True when enforced.
 
@@ -189,15 +369,15 @@ def apply_landlock_in_child(
     import ctypes.util
 
     libc = ctypes.CDLL(ctypes.util.find_library("c") or "libc.so.6", use_errno=True)
-    handled = _HANDLED
-    if libc.syscall(_LL_CREATE_RULESET, None, 0, _LL_CREATE_RULESET_VERSION) >= 3:
-        handled |= LL_TRUNCATE  # ABI 3+: truncate(2) by path is a write too
-    attr = struct.pack("Q", handled)
-    ruleset_fd = libc.syscall(_LL_CREATE_RULESET, attr, len(attr), 0)
-    if ruleset_fd < 0:
-        raise OSError("landlock_create_ruleset failed")
 
-    def add_beneath(parent_fd: int, allowed: int) -> None:
+    def create_ruleset(handled: int) -> int:
+        attr = struct.pack("Q", handled)
+        ruleset_fd = libc.syscall(_LL_CREATE_RULESET, attr, len(attr), 0)
+        if ruleset_fd < 0:
+            raise OSError("landlock_create_ruleset failed")
+        return ruleset_fd
+
+    def add_beneath(ruleset_fd: int, parent_fd: int, allowed: int) -> None:
         # struct landlock_path_beneath_attr is packed: u64 allowed_access, s32 parent_fd.
         rule = struct.pack("=Qi", allowed, parent_fd)
         # flags must be passed (0): left out, the kernel reads a stale register and says EINVAL.
@@ -206,25 +386,52 @@ def apply_landlock_in_child(
 
     O_PATH = os.O_PATH | os.O_CLOEXEC
 
-    def fs_fd(path: str) -> int:
-        return os.open(path, O_PATH)
+    def fs_fd(path: Path) -> int:
+        return os.open(str(path), O_PATH)
 
-    # Reads and execute are not handled, so they stay allowed everywhere without a rule
-    # (a rule may only grant handled rights; the old "/" read rule made every add EINVAL).
+    def restrict_self(ruleset_fd: int) -> None:
+        # landlock_restrict_self(2) requires no_new_privs; without it the syscall
+        # fails with EPERM and the whole boundary silently looked "unsupported".
+        PR_SET_NO_NEW_PRIVS = 38
+        if libc.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:
+            raise OSError("prctl(PR_SET_NO_NEW_PRIVS) failed")
+        if libc.syscall(_LL_RESTRICT_SELF, ruleset_fd, 0) != 0:
+            raise OSError("landlock_restrict_self failed")
+
+    # ---- ruleset 1: writes (the workspace + this task's private tmp)
+    handled = _HANDLED
+    if libc.syscall(_LL_CREATE_RULESET, None, 0, _LL_CREATE_RULESET_VERSION) >= 3:
+        handled |= LL_TRUNCATE  # ABI 3+: truncate(2) by path is a write too
+    write_ruleset = create_ruleset(handled)
     # T7b: writes only to the workspace and this task's private tmp (never the shared temp).
-    writable = {str(Path(workspace).resolve())}
+    writable = {_resolved(workspace)}
     if tmpdir is not None:
-        writable.add(str(Path(tmpdir).resolve()))
+        writable.add(_resolved(tmpdir))
     for p in writable:
         try:
-            add_beneath(fs_fd(p), handled)
+            add_beneath(write_ruleset, fs_fd(p), handled)
         except OSError:  # unreadable temp dir variants etc.
             continue
-    add_beneath(fs_fd("/dev/null"), LL_WRITE_FILE)  # as Seatbelt: tools write to /dev/null
+    try:
+        add_beneath(write_ruleset, fs_fd(Path("/dev/null")), LL_WRITE_FILE)
+    except OSError:
+        pass  # as Seatbelt: tools write to /dev/null
+    restrict_self(write_ruleset)
+    os.close(write_ruleset)
 
-    if libc.syscall(_LL_RESTRICT_SELF, ruleset_fd, 0) != 0:
-        raise OSError("landlock_restrict_self failed")
-    os.close(ruleset_fd)
+    # ---- ruleset 2: reads (S-01). Stacked on top of the write ruleset; the
+    # two are independent because each only restricts the rights it handles.
+    read_ruleset = create_ruleset(_READ_HANDLED)
+    for path, rights in landlock_read_allowlist(
+        workspace, tmpdir, forbidden_paths, extra_read_roots
+    ):
+        try:
+            add_beneath(read_ruleset, fs_fd(path), rights)
+        except OSError:  # vanished between the walk and the rule
+            continue
+    restrict_self(read_ruleset)
+    os.close(read_ruleset)
+
     _ = allow_network  # ABI v1 has no network hooks; egress stays policy-layer
     return True
 
@@ -241,13 +448,20 @@ class ConfinementUnavailableError(RuntimeError):
 
 # Linux child bootstrap: load this module by path (no package import), apply
 # Landlock, then replace the process with the target. Landlock survives exec.
+# The target's own directory is added to the readable roots, otherwise a
+# program outside the system trees (a venv, a tool) could not be executed.
 _LANDLOCK_EXEC = (
     "import importlib.util, os, sys\n"
     "from pathlib import Path\n"
     "spec = importlib.util.spec_from_file_location('confinement', sys.argv[1])\n"
     "module = importlib.util.module_from_spec(spec)\n"
     "spec.loader.exec_module(module)\n"
-    "module.apply_landlock_in_child(Path(sys.argv[2]), sys.argv[3] == '1', Path(sys.argv[4]))\n"
+    "_roots = [Path(sys.argv[5]).parent]\n"
+    "if _roots[0].name == 'bin':\n"
+    "    _roots.append(_roots[0].parent)\n"
+    "module.apply_landlock_in_child(\n"
+    "    Path(sys.argv[2]), sys.argv[3] == '1', Path(sys.argv[4]), None, _roots\n"
+    ")\n"
     "os.execvp(sys.argv[5], sys.argv[5:])\n"
 )
 

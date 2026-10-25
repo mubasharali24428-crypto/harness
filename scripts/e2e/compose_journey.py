@@ -171,7 +171,9 @@ def main() -> int:
         wait_ready("identity /ready", f"{IDENTITY}/ready", deadline)
         wait_ready("orchestrator /ready", f"{ORCHESTRATOR}/ready", deadline)
         wait_ready("sandbox /ready", f"{SANDBOX}/ready", deadline)
-        status, front = http("GET", f"{FRONTEND}/")
+        # Next.js compiles on first request; a still-starting listener resets
+        # the connection, so the frontend needs the same retry window.
+        status, _ = wait_ready("frontend /", f"{FRONTEND}/", deadline)
         expect("readiness", status == 200, f"frontend answered {status}")
         ok("stack ready: identity+orchestrator+sandbox /ready, frontend 200")
 

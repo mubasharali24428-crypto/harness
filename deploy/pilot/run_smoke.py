@@ -113,7 +113,9 @@ def main():
             "HARNESS_AUTHZ_TEST_MODE": "0",
             "HARNESS_ENGINE_ISOLATED": "1",
             "HARNESS_CORS_ORIGINS": '["http://localhost:3107","http://127.0.0.1:3107"]',
-            "HARNESS_ENGINE_CONFINEMENT": "container",
+            "HARNESS_ENGINE_CONFINEMENT": os.environ.get(
+                "HARNESS_ENGINE_CONFINEMENT", "container"
+            ),
             "HARNESS_ENGINE_IMAGE": IMAGE,
             "PYTHONPATH": str(ROOT / "deploy/pilot"),
             "P1_WORKSPACE": str(work / "runs"),
@@ -225,15 +227,33 @@ def main():
             assert made == ["engine ok"], f"real worker did not create the file: {made}"
             artifact = ROOT / "section7/test-results/real-complete.png"
             (output / "real-complete.png").write_bytes(artifact.read_bytes())
+            ledger = subprocess.check_output(
+                [
+                    "docker", "exec", name, "psql", "-U", "pilot", "-tAc",
+                    "SELECT COALESCE(SUM(cost_usd),0)::text || '|' || COUNT(*)::text"
+                    " || '|' || COALESCE(SUM(input_tokens),0)::text"
+                    " || '|' || COALESCE(SUM(output_tokens),0)::text FROM cost_ledger",
+                ],
+                text=True,
+            ).strip()
+            total_usd, rows, in_tok, out_tok = (part.strip() for part in ledger.split("|"))
+            confinement = env["HARNESS_ENGINE_CONFINEMENT"]
             (output / "real-result.json").write_text(
                 json.dumps(
                     {
                         "status": "passed",
                         "freshDatabase": True,
                         "signIn": "OTP form, HARNESS_REQUIRE_OWNERSHIP=true, code read from identity log (dev notifier)",
-                        "worker": "real engine in container, free OpenRouter model",
+                        "worker": f"real engine, model {os.environ['HARNESS_TEST_OPENROUTER_MODEL']}, confinement {confinement}",
                         "model": os.environ["HARNESS_TEST_OPENROUTER_MODEL"],
+                        "confinement": confinement,
                         "fileCreatedByModel": "engine_ok.txt == 'engine ok'",
+                        "costLedger": {
+                            "totalUsd": total_usd,
+                            "rows": int(rows),
+                            "inputTokens": int(in_tok),
+                            "outputTokens": int(out_tok),
+                        },
                     },
                     indent=2,
                 )

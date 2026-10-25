@@ -19,7 +19,6 @@ import {
   headingStyle,
   buttonStyle,
   dangerButtonStyle,
-  inputStyle,
   pillStyle,
 } from "@/lib/styles";
 import {
@@ -36,11 +35,32 @@ import {
 } from "./planGateApi";
 
 const PHASE_PILL_COLOR: Record<PlanGatePhase, string> = {
-  "no-plan": "#9aa4b2",
-  "awaiting-approval": "#f59e0b",
-  "ready-to-start": "#22c55e",
-  "in-flight": "#60a5fa",
-  done: "#9aa4b2",
+  "no-plan": "#a8a296",
+  "awaiting-approval": "#e5a814",
+  "ready-to-start": "#8ee5a1",
+  "in-flight": "#6cb8ff",
+  done: "#a8a296",
+};
+
+const composerStyle: React.CSSProperties = {
+  border: "1px solid var(--border-soft)",
+  borderRadius: 12,
+  background: "var(--input)",
+  padding: 12,
+};
+
+const composerInputStyle: React.CSSProperties = {
+  width: "100%",
+  border: "none",
+  background: "transparent",
+  color: "inherit",
+  font: "inherit",
+  fontSize: 14,
+  lineHeight: 1.5,
+  minHeight: 64,
+  padding: 0,
+  resize: "vertical",
+  outline: "none",
 };
 
 // M14-F4 — optimistic UI. While an approve/reject wire call is in flight the
@@ -252,36 +272,65 @@ export function PlanGateView({
   optimisticPending?: boolean;
 }) {
   const showProposeForm = phase === "no-plan" && !plan;
+  const propose = () => {
+    if (enabled.propose && goalDraft.trim() && busyAction === null) actions.propose(goalDraft);
+  };
   return (
     <section style={panelStyle} data-testid="plan-gate">
-      <h2 style={headingStyle}>Plan gate</h2>
-      <p>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        <h2 style={{ ...headingStyle, margin: 0 }}>Plan gate</h2>
         <span style={pillStyle(PHASE_PILL_COLOR[phase])} data-testid="plan-gate-phase">
           {phase}
-        </span>{" "}
-        <span style={{ color: "#9aa4b2", fontSize: 13 }}>
-          {optimisticPending ? OPTIMISTIC_PENDING_CAPTION : gateCaption(phase)}
         </span>
+      </div>
+      <p style={{ color: "var(--muted)", fontSize: 13, margin: "8px 0 12px" }}>
+        {optimisticPending ? OPTIMISTIC_PENDING_CAPTION : gateCaption(phase)}
       </p>
 
       {showProposeForm ? (
-        <div>
-          <input
+        <div style={composerStyle}>
+          <textarea
             value={goalDraft}
             onChange={(e) => onGoalDraftChange(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                e.preventDefault();
+                propose();
+              }
+            }}
             placeholder="Describe the goal for this run…"
-            style={inputStyle}
+            style={composerInputStyle}
             aria-label="Run goal"
+            rows={3}
             disabled={busyAction !== null}
           />
-          <button
-            style={{ ...buttonStyle, marginTop: 8 }}
-            disabled={!enabled.propose || !goalDraft.trim()}
-            onClick={() => actions.propose(goalDraft)}
-            data-testid="propose-plan"
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              marginTop: 8,
+            }}
           >
-            {busyAction === "propose" ? "Proposing…" : "Propose plan"}
-          </button>
+            <span style={{ color: "var(--muted)", fontSize: 11 }}>⌘↵ to propose</span>
+            <button
+              style={buttonStyle}
+              disabled={!enabled.propose || !goalDraft.trim()}
+              onClick={propose}
+              data-testid="propose-plan"
+            >
+              {busyAction === "propose" ? "Proposing…" : "Propose plan"}
+            </button>
+          </div>
         </div>
       ) : (
         // The goal is shown by the shared-run panel (read from the server); never print a false "none recorded" here.
@@ -328,18 +377,18 @@ export function PlanGateView({
       )}
 
       {(phase === "in-flight" || phase === "done") && (
-        <p style={{ color: "#9aa4b2", fontSize: 13, margin: "8px 0 0" }}>
+        <p style={{ color: "var(--muted)", fontSize: 13, margin: "8px 0 0" }}>
           No plan-gate action available in this state.
         </p>
       )}
 
       {note && (
-        <p style={{ color: "#22c55e", fontSize: 13, margin: "10px 0 0" }} role="status">
+        <p style={{ color: "var(--accent)", fontSize: 13, margin: "10px 0 0" }} role="status">
           {note}
         </p>
       )}
       {error && (
-        <p style={{ color: "#f87171", fontSize: 13, margin: "10px 0 0" }} role="alert">
+        <p style={{ color: "var(--red)", fontSize: 13, margin: "10px 0 0" }} role="alert">
           {error}
         </p>
       )}

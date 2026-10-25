@@ -22,30 +22,34 @@ import type { CSSProperties } from "react";
  * custom-property names so a token and its var can never drift apart.
  */
 export const colors = {
-  /** Page background (#0d1117). */
-  bg: "#0d1117",
-  /** Sidebar/cards surface (#161b22). */
-  panel: "#161b22",
-  /** Elevated inputs/selects/buttons surface (#1c2330). */
-  panel2: "#1c2330",
-  /** Hairline borders (#30363d). */
-  border: "#30363d",
-  /** Primary text (#e6edf3). */
-  text: "#e6edf3",
-  /** Secondary text (#8b949e). */
-  muted: "#8b949e",
-  /** Accent + informational status (#58a6ff). Also drives links/bars/sparkline. */
-  accent: "#58a6ff",
-  /** Success/positive (#3fb950). */
-  green: "#3fb950",
-  /** Danger/destructive (#f85149). */
-  red: "#f85149",
-  /** Warning/caution (#d29922). */
-  yellow: "#d29922",
-  /** Ink used on accent-filled chips (chipStyle's active text #0b0e14). */
-  onAccent: "#0b0e14",
-  /** Light-blue link ink inside the metering explainer (#93c5fd). */
-  accentSoft: "#93c5fd",
+  /** Page background (warm charcoal, #1a1814). */
+  bg: "#1a1814",
+  /** Sidebar/cards surface (#1e1c18). */
+  panel: "#1e1c18",
+  /** Elevated inputs/selects/buttons surface (#252220). */
+  panel2: "#252220",
+  /** Hairline borders (#3d3930). */
+  border: "#3d3930",
+  /** Softer card/dividing borders (#2d2a22). */
+  borderSoft: "#2d2a22",
+  /** Primary text (cream, #faf9f6). */
+  text: "#faf9f6",
+  /** Secondary text (#a8a296). */
+  muted: "#a8a296",
+  /** Readable body-on-panel text (#c9c4b8). */
+  text2: "#c9c4b8",
+  /** Mint accent (#8ee5a1). Drives links, focus rings, active nav. */
+  accent: "#8ee5a1",
+  /** Success/positive (#5cb870). */
+  green: "#5cb870",
+  /** Danger/destructive (#ff6b6b). */
+  red: "#ff6b6b",
+  /** Warning/caution (#e5a814). */
+  yellow: "#e5a814",
+  /** Ink used on accent-filled chips (warm charcoal). */
+  onAccent: "#1a1814",
+  /** Soft mint ink for secondary accents (#b7f0c4). */
+  accentSoft: "#b7f0c4",
 } as const;
 
 /** A color role key into {@link colors}. */
@@ -64,7 +68,7 @@ export const fontSize = {
   /** Small helper text (12–13px body). */
   sm: 12,
   /** Default body/table text. */
-  md: 13,
+  md: 14,
   /** KPI numerals on dashboard cards (22px). */
   xl: 22,
 } as const;
@@ -98,8 +102,10 @@ export const space = {
   lg: 10,
   /** Wide gaps (page header rows, minted-token top margin). */
   xl: 12,
-  /** .card / explainer-box inner padding (14px). */
-  cardPad: 14,
+  /** .card / explainer-box inner padding (18px). */
+  cardPad: 18,
+  /** Horizontal padding inside button-like controls (14px). */
+  controlPadX: 14,
   /** Sidebar + elevated-container padding (16px). */
   gutter: 16,
   /** Mid-card section separation (team page h2 marginTop). */
@@ -114,9 +120,9 @@ export const space = {
 
 export const radius = {
   /** Inputs, selects, buttons, nav items (6px). */
-  md: 6,
-  /** Cards, panels, explainer boxes, chat bubbles (8px). */
-  lg: 8,
+  md: 8,
+  /** Cards, panels, explainer boxes, chat bubbles (12px). */
+  lg: 12,
   /** Pills/chips (999px = fully rounded). */
   pill: 999,
 } as const;
@@ -176,5 +182,10 @@ export function toneForStatus(status: string): StatusTone {
  * source of truth) while this file remains the compile-time catalog.
  */
 export function cssVar(name: ColorName): string {
-  return `var(--${name === "panel2" ? "panel-2" : name})`;
+  const kebab: Partial<Record<ColorName, string>> = {
+    panel2: "panel-2",
+    text2: "text-2",
+    borderSoft: "border-soft",
+  };
+  return `var(--${kebab[name] ?? name})`;
 }

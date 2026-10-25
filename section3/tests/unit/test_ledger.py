@@ -252,6 +252,25 @@ async def test_call_model_success_records_usage():
     assert params[6] == result.latencyMs
 
 
+async def test_call_model_threads_optional_run_id_into_ledger():
+    pool = FakeLedgerPool()
+    api.set_ledger_pool(pool)
+    result = await api.call_model(
+        api.CallModelRequest(
+            agentId="agent-attributed",
+            role=ModelRole.PRIMARY,
+            messages=[{"role": "user", "content": "attribute me"}],
+            runId="run-123",
+        ),
+        _principal_stub(),
+    )
+    assert isinstance(result, ModelResult)
+    for task in api.pending_usage_tasks():
+        await task
+    execute = next(c for c in pool.calls if c[0] == "execute")
+    assert execute[2][0] == "run-123"
+
+
 async def test_call_model_succeeds_even_when_ledger_is_down():
     pool = FakeLedgerPool(fail=True)
     api.set_ledger_pool(pool)
@@ -336,6 +355,18 @@ async def test_spend_summary_no_filters_binds_nulls():
     pool = FakeLedgerPool()
     await ledger.spend_summary(pool)
     assert pool.calls[0][2] == (None, None, None)
+
+
+async def test_unattributed_summary_is_explicit():
+    class UnattributedPool(FakeLedgerPool):
+        async def fetch(self, sql: str, *params: object):
+            self.calls.append(("fetch", sql, params))
+            if sql == ledger.UNATTRIBUTED_SQL:
+                return [(2, 10, 5, Decimal("0.25"))]
+            return []
+
+    out = await ledger.unattributed_summary(UnattributedPool())
+    assert out == {"calls": 2, "inputTokens": 10, "outputTokens": 5, "costUsd": 0.25}
 
 
 def test_spend_route_through_real_app():

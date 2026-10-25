@@ -78,6 +78,30 @@ def get_meeting_service() -> MeetingService:
     return _service
 
 
+async def _meeting_for_principal(
+    svc: MeetingService, meeting_id: str, principal: Principal
+) -> Any:
+    """Return the meeting only when it belongs to the caller's team.
+
+    Unknown and foreign ids answer the same 404 (no existence oracle). A
+    meeting with no recorded team is denied: legacy/global rooms are not
+    implicitly shared across tenants.
+    """
+    try:
+        meeting = await svc.aget_meeting(meeting_id)
+    except KeyError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": {"code": "NOT_FOUND", "message": str(e)}},
+        ) from e
+    if getattr(meeting, "teamId", None) != principal.teamId:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": {"code": "NOT_FOUND", "message": "meeting not found"}},
+        )
+    return meeting
+
+
 class CreateMeetingRequest(BaseModel):
     # M12-G3: bounded fields (limits are additive; see harness_identity.limits).
     projectId: str = Field(max_length=MEETING_PROJECT_ID_MAX)
@@ -262,7 +286,7 @@ async def create_meeting(
     svc: Annotated[MeetingService, Depends(get_meeting_service)],
 ) -> dict[str, Any]:
     await _require_project_team(req.projectId, request, principal)
-    meeting = svc.create_meeting(req.projectId, req.title, team_id=principal.teamId)
+    meeting = await svc.acreate_meeting(req.projectId, req.title, team_id=principal.teamId)
     return meeting.model_dump()
 
 
@@ -272,15 +296,9 @@ async def create_meeting(
     response_model=MeetingOut,
     responses={404: {"model": _ErrorEnvelope, "description": "unknown meeting"}},
 )
-def get_meeting(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
-    try:
-        meeting = _service.get_meeting(meetingId)
-        return meeting.model_dump()
-    except KeyError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": {"code": "NOT_FOUND", "message": str(e)}},
-        ) from e
+async def get_meeting(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
+    meeting = await _meeting_for_principal(_service, meetingId, principal)
+    return meeting.model_dump()
 
 
 @router.post(
@@ -289,14 +307,15 @@ def get_meeting(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
     response_model=ChatMessageOut,
     responses={404: {"model": _ErrorEnvelope, "description": "unknown meeting"}},
 )
-def post_message(
+async def post_message(
     meetingId: str,
     principal: RequirePrincipal,
     svc: Annotated[MeetingService, Depends(get_meeting_service)],
     req: PostMessageRequest,
 ) -> dict[str, Any]:
+    await _meeting_for_principal(svc, meetingId, principal)
     try:
-        msg = svc.post_message(meetingId, principal.userId, req.content)
+        msg = await svc.apost_message(meetingId, principal.userId, req.content)
         return msg.model_dump()
     except KeyError as e:
         raise HTTPException(
@@ -315,7 +334,7 @@ def post_message(
         404: {"model": _ErrorEnvelope, "description": "unknown meeting"},
     },
 )
-def close_meeting(
+async def close_meeting(
     meetingId: str,
     principal: RequirePrincipal,
     svc: Annotated[MeetingService, Depends(get_meeting_service)],
@@ -323,8 +342,9 @@ def close_meeting(
     """Close a meeting (M16-X5, raw-18 §8). Terminal + idempotent (#53): the
     second close returns the SAME stamped meeting — never an error, never a
     moved closedAt. After close, message posts answer 410 MEETING_CLOSED."""
+    await _meeting_for_principal(svc, meetingId, principal)
     try:
-        meeting = svc.close_meeting(meetingId)
+        meeting = await svc.aclose_meeting(meetingId)
         return meeting.model_dump()
     except KeyError as e:
         raise HTTPException(
@@ -339,7 +359,7 @@ def close_meeting(
     response_model=MessagePageOut,
     responses={404: {"model": _ErrorEnvelope, "description": "unknown meeting"}},
 )
-def get_messages(
+async def get_messages(
     meetingId: str,
     principal: RequirePrincipal,
     svc: Annotated[MeetingService, Depends(get_meeting_service)],
@@ -366,10 +386,11 @@ def get_messages(
       positions, not global ids. A cursor for a message that no longer
       exists resolves to an honest empty page ({items: [], hasMore: false}).
     """
+    await _meeting_for_principal(svc, meetingId, principal)
     try:
         if limit is not None and limit > MESSAGES_MAX_LIMIT:
             limit = MESSAGES_MAX_LIMIT  # clamp, never reject
-        items, has_more, first_seq = svc.get_message_page(
+        items, has_more, first_seq = await svc.aget_message_page(
             meetingId, limit=limit, before=before
         )
         return {
@@ -392,9 +413,14 @@ def get_messages(
     response_model=AiInvokeResponse | NotInvokedResponse,
     responses={404: {"model": _ErrorEnvelope, "description": "unknown meeting"}},
 )
-def invoke_ai(meetingId: str, req: InvokeAIRequest, principal: RequirePrincipal) -> dict[str, Any]:
+async def invoke_ai(
+    meetingId: str, req: InvokeAIRequest, principal: RequirePrincipal
+) -> dict[str, Any]:
+    await _meeting_for_principal(_service, meetingId, principal)
     try:
-        result = _service.invoke_ai(meetingId, principal.userId, req.content)
+        result = await _service.ainvoke_ai(
+            meetingId, principal.userId, req.content, team_id=principal.teamId
+        )
         if result is None:
             return {"status": "not_invoked", "message": "AI was not invoked."}
         return result.model_dump()
@@ -411,9 +437,10 @@ def invoke_ai(meetingId: str, req: InvokeAIRequest, principal: RequirePrincipal)
     response_model=BriefOut,
     responses={404: {"model": _ErrorEnvelope, "description": "unknown meeting"}},
 )
-def generate_brief(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
+async def generate_brief(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
+    await _meeting_for_principal(_service, meetingId, principal)
     try:
-        brief = _service.generate_brief(meetingId)
+        brief = await _service.agenerate_brief(meetingId)
         return brief.model_dump()
     except KeyError as e:
         raise HTTPException(
@@ -430,9 +457,10 @@ def generate_brief(meetingId: str, principal: RequirePrincipal) -> dict[str, Any
         404: {"model": _ErrorEnvelope, "description": "unknown meeting or no brief yet"},
     },
 )
-def get_brief(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
+async def get_brief(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
+    await _meeting_for_principal(_service, meetingId, principal)
     try:
-        brief = _service.get_brief(meetingId)
+        brief = await _service.aget_brief(meetingId)
         if brief is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -455,11 +483,12 @@ def get_brief(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
         404: {"model": _ErrorEnvelope, "description": "unknown meeting/brief"},
     },
 )
-def approve_brief(
+async def approve_brief(
     meetingId: str, briefId: str, req: ApproveBriefRequest, principal: RequirePrincipal
 ) -> dict[str, Any]:
+    await _meeting_for_principal(_service, meetingId, principal)
     try:
-        brief = _service.approve_brief(meetingId, briefId, principal.userId)
+        brief = await _service.aapprove_brief(meetingId, briefId, principal.userId)
         return brief.model_dump()
     except KeyError as e:
         raise HTTPException(
@@ -479,11 +508,12 @@ def approve_brief(
     response_model=BriefOut,
     responses={404: {"model": _ErrorEnvelope, "description": "unknown meeting/brief"}},
 )
-def reject_brief(
+async def reject_brief(
     meetingId: str, briefId: str, req: ApproveBriefRequest, principal: RequirePrincipal
 ) -> dict[str, Any]:
+    await _meeting_for_principal(_service, meetingId, principal)
     try:
-        brief = _service.reject_brief(meetingId, briefId, principal.userId)
+        brief = await _service.areject_brief(meetingId, briefId, principal.userId)
         return brief.model_dump()
     except KeyError as e:
         raise HTTPException(
@@ -498,9 +528,10 @@ def reject_brief(
     response_model=SummaryOut,
     responses={404: {"model": _ErrorEnvelope, "description": "unknown meeting"}},
 )
-def generate_summary(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
+async def generate_summary(meetingId: str, principal: RequirePrincipal) -> dict[str, Any]:
+    await _meeting_for_principal(_service, meetingId, principal)
     try:
-        summary = _service.generate_summary(meetingId)
+        summary = await _service.agenerate_summary(meetingId)
         return summary.model_dump()
     except KeyError as e:
         raise HTTPException(
@@ -514,10 +545,11 @@ def generate_summary(meetingId: str, principal: RequirePrincipal) -> dict[str, A
     status_code=status.HTTP_201_CREATED,
     response_model=PromptOut,
 )
-def create_prompt(
+async def create_prompt(
     meetingId: str, req: CreatePromptRequest, principal: RequirePrincipal
 ) -> dict[str, Any]:
-    prompt = _service.create_prompt(meetingId, principal.userId, req.content)
+    await _meeting_for_principal(_service, meetingId, principal)
+    prompt = await _service.acreate_prompt(meetingId, principal.userId, req.content)
     return prompt.model_dump()
 
 
@@ -526,6 +558,7 @@ def create_prompt(
     status_code=status.HTTP_200_OK,
     response_model=list[PromptOut],
 )
-def list_prompts(meetingId: str, principal: RequirePrincipal) -> list[dict[str, Any]]:
-    prompts = _service.list_prompts(meetingId)
+async def list_prompts(meetingId: str, principal: RequirePrincipal) -> list[dict[str, Any]]:
+    await _meeting_for_principal(_service, meetingId, principal)
+    prompts = await _service.alist_prompts(meetingId)
     return [p.model_dump() for p in prompts]

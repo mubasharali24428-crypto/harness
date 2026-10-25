@@ -122,7 +122,10 @@ def test_at_limit_requests_pass_validation():
     # propose: goal exactly at cap → ACCEPTED end-to-end (bare mode auto-seeds
     # the run): 201 with a minted planId proves validation never fired.
     goal = "g" * PLATFORM_CAPS["S4.PROPOSE_GOAL_MAX"]
-    r = client.post("/api/v1/orchestrator/runs/at-limit/plan", json={"goal": goal})
+    r = client.post(
+        "/api/v1/orchestrator/runs/at-limit/plan",
+        json={"goal": goal, "projectId": "p-limits"},
+    )
     assert r.status_code == 201
     assert r.json()["planId"]
 

@@ -163,7 +163,8 @@ test.describe("H-014 hero journey (compose stack)", () => {
     // -------------------------------------------------- 6. run detail view
     await test.step("view run detail (Working Area)", async () => {
       test.skip(runId === "", "plan-gate leg did not mint a run — nothing to view");
-      await page.goto(`/projects/local/runs/${runId}`);
+      // Tabs split the run page; deep-link straight to the Working surface.
+      await page.goto(`/projects/local/runs/${runId}?tab=working`);
       await expect(page.getByRole("heading", { name: /Working Area · run/i })).toBeVisible();
       // StatusPanel renders RunStatus.state verbatim (underscores → spaces).
       // Dry-mode engines settle at awaiting_done_signal right after start;

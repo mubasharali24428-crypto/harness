@@ -25,7 +25,9 @@ dev = [
     # D5 ownership-guard tests exercise the projects→teams join against sqlite.
     "aiosqlite>=0.20",
     "greenlet>=3",
-    "sqlalchemy>=2",
+    "sqlalchemy[asyncio]>=2",
+    # scripts/spec_drift.py imports the deployed app, whose DSN uses asyncpg.
+    "asyncpg>=0.30",
 ]
 
 [build-system]

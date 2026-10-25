@@ -76,6 +76,42 @@ EOF
 docker compose --env-file .env -f deploy/docker-compose.yml up -d
 ```
 
+OpenRouter (or any OpenAI-compatible endpoint that speaks the OpenAI schema)
+also needs the transport patch: the bundled runtime otherwise calls the
+Anthropic Messages API and OpenRouter rejects it (`400 Invalid Anthropic
+Messages API request`).
+
+```sh
+cat >> .env <<'EOF'
+ENGINE_LIVE_MODE=live
+DEEPSEEK_API_KEY=sk-or-...                                  # OpenRouter key
+DEEPSEEK_BASE_URL=https://openrouter.ai/api/v1
+DSH_MODEL=deepseek/deepseek-v4.1-flash                      # any OpenRouter model id
+DSH_PATCH_FILES=/opt/harness/patches/openrouter.patch.yml
+EOF
+docker compose --env-file .env -f deploy/docker-compose.yml up -d
+```
+
+For a direct engine run outside Compose, point `DSH_PATCH_FILES` at
+`deploy/patches/openrouter.patch.yml` instead.
+
+### Pilot sandbox boundary
+
+Sandboxed pilot execution can use macOS Seatbelt or Linux Landlock when the
+runtime probe passes. On Linux, Landlock applies workspace/private-temp write
+rules and a read/execute allow-list; paths outside that allow-list, including
+sibling task workspaces, are unreadable. `auto` fails closed if the host cannot
+enforce the boundary. `SANDBOX_USE_DOCKER=true` selects the explicit per-task
+`DockerSandboxRunner`, which fails closed if Docker or the pre-pulled image is
+unavailable. It is not enabled by default because the Compose service is a
+shared backend container without a Docker socket mount. Per-task Docker also
+defaults to `network_mode=none`; setting `HARNESS_SANDBOX_ALLOW_NETWORK=1`
+attaches the container only to a gateway-less network whose sole peer is an
+allow-list HTTPS CONNECT proxy (`section5/src/harness_sandbox/egress_proxy.py`).
+That proxy path has not yet been drilled against a live Docker daemon, and a
+dedicated sandbox worker deployment still needs review. This remains pilot
+grade and is not a production-readiness claim.
+
 **[docs/TUTORIAL.md](docs/TUTORIAL.md)** walks login → project → propose →
 approve → live run → done-signal → events, command by command.
 

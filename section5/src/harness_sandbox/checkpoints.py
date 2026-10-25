@@ -41,13 +41,18 @@ Known first-slice limitations (wave notes, not bugs):
 
 from __future__ import annotations
 
+import fcntl
 import logging
 import os
 import re
 import shutil
 import subprocess
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+
+from harness_sandbox.hunk_review import build_reverse_patch, parse_unified_diff
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +88,18 @@ class CheckpointNotFoundError(CheckpointError):
     code = "CHECKPOINT_NOT_FOUND"
 
 
+class CheckpointConflictError(CheckpointError):
+    """The requested revert/restore cannot be applied to the current tree."""
+
+    code = "CHECKPOINT_CONFLICT"
+
+
+class CheckpointSelectionError(CheckpointError):
+    """The hunk selection is empty or does not match this checkpoint's diff."""
+
+    code = "CHECKPOINT_BAD_SELECTION"
+
+
 def _utc_now_iso() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -103,7 +120,12 @@ def _git_env() -> dict[str, str]:
     return env
 
 
-def _git(workspace: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+def _git(
+    workspace: Path,
+    *args: str,
+    check: bool = True,
+    input_text: str | None = None,
+) -> subprocess.CompletedProcess[str]:
     """Run one git command (argv form, no shell) inside ``workspace``."""
     try:
         proc = subprocess.run(  # noqa: S603 — fixed argv, no shell
@@ -112,6 +134,7 @@ def _git(workspace: Path, *args: str, check: bool = True) -> subprocess.Complete
             text=True,
             timeout=30,
             env=_git_env(),
+            input=input_text,
         )
     except FileNotFoundError as exc:  # git binary missing
         raise CheckpointError("git binary unavailable; checkpoints disabled.") from exc
@@ -274,15 +297,93 @@ class CheckpointManager:
         items.sort(key=lambda item: item["createdAt"], reverse=True)
         return items
 
-    def get_diff(self, project_id: str, sha: str) -> str:
-        """Raw unified diff introduced by one checkpoint commit."""
+    def _owner_workspace(self, project_id: str, sha: str) -> Path:
+        """The workspace whose history contains ``sha``."""
         validate_sha(sha)
         for ws in self._project_workspaces(project_id):
             probe = _git(ws, "cat-file", "-e", f"{sha}^{{commit}}", check=False)
-            if probe.returncode != 0:
-                continue
-            show = _git(ws, "show", "--format=", "--no-color", sha)
-            return show.stdout
+            if probe.returncode == 0:
+                return ws
         raise CheckpointNotFoundError(
             f"No checkpoint '{sha}' found for project '{project_id}'."
         )
+
+    def get_diff(self, project_id: str, sha: str) -> str:
+        """Raw unified diff introduced by one checkpoint commit."""
+        ws = self._owner_workspace(project_id, sha)
+        show = _git(ws, "show", "--format=", "--no-color", sha)
+        return show.stdout
+
+    @contextmanager
+    def _review_lock(self, workspace: Path) -> Iterator[None]:
+        """Serialise revert/restore per workspace (multi-process safe)."""
+        lock_path = workspace / ".git" / "harness-review.lock"
+        with open(lock_path, "a+") as fh:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+
+    def list_hunks(self, project_id: str, sha: str) -> list[dict]:
+        """Parsed files/hunks of one snapshot, for the review surface."""
+        from harness_sandbox.hunk_review import summarize
+
+        return summarize(parse_unified_diff(self.get_diff(project_id, sha)))
+
+    def revert_hunks(
+        self, project_id: str, sha: str, selections: list[tuple[str, int]]
+    ) -> dict:
+        """Reverse-apply the selected hunks onto the workspace, then snapshot.
+
+        The reverse patch is rebuilt server-side from ``git show <sha>``: the
+        caller only names (path, hunk index) pairs. ``git apply --check`` runs
+        first, so a conflict leaves the tree untouched and answers 409.
+        """
+        if not selections:
+            raise CheckpointSelectionError("select at least one hunk to revert")
+        ws = self._owner_workspace(project_id, sha)
+        files = parse_unified_diff(self.get_diff(project_id, sha))
+        try:
+            patch, count = build_reverse_patch(files, selections)
+        except Exception as exc:  # noqa: BLE001 - every parse/selection error is a 422
+            raise CheckpointSelectionError(str(exc)) from exc
+        with self._review_lock(ws):
+            check = _git(ws, "apply", "-R", "--check", "-", input_text=patch, check=False)
+            if check.returncode != 0:
+                raise CheckpointConflictError(
+                    "the workspace changed since this snapshot; "
+                    f"the selected hunks no longer apply: {(check.stderr or '').strip()[:300]}"
+                )
+            _git(ws, "apply", "-R", "-", input_text=patch)
+            task_id = self._read_meta(ws, "harness.taskId") or ws.parent.name
+            head = self.snapshot(
+                task_id,
+                ws,
+                kind=f"hunk-revert {count} hunk(s) from {sha[:12]}",
+                project_id=project_id,
+            )
+        return {"sha": head, "reverted": count}
+
+    def restore(self, project_id: str, sha: str) -> dict:
+        """Reset the workspace tree to one snapshot, then record the restore.
+
+        Tracked files match ``sha`` exactly; untracked files are left alone
+        (the reset refuses rather than deleting files it does not know).
+        """
+        ws = self._owner_workspace(project_id, sha)
+        with self._review_lock(ws):
+            reset = _git(ws, "read-tree", "--reset", "-u", sha, check=False)
+            if reset.returncode != 0:
+                raise CheckpointConflictError(
+                    "the workspace cannot be reset to this snapshot without "
+                    f"discarding unknown files: {(reset.stderr or '').strip()[:300]}"
+                )
+            task_id = self._read_meta(ws, "harness.taskId") or ws.parent.name
+            head = self.snapshot(
+                task_id,
+                ws,
+                kind=f"restore {sha[:12]}",
+                project_id=project_id,
+            )
+        return {"sha": head, "restoredTo": sha}

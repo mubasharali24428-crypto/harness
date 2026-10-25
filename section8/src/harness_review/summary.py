@@ -49,6 +49,7 @@ class SummaryGenerator:
         changed_files: Sequence[str],
         brief_goal: str = "",
         test_summary: str = "",
+        team_id: str | None = None,
     ) -> ReviewSummary:
         """Generate a structured review summary."""
         diff_info = summarize_diff(diff_text)
@@ -70,6 +71,7 @@ class SummaryGenerator:
                     {"role": "user", "content": prompt},
                 ],
                 opts=ModelCallOpts(maxTokens=2048),
+                team_id=team_id,
             )
             return ReviewSummary(
                 model=getattr(result, "model", None),

@@ -109,7 +109,9 @@ def test_rest_api_conformance():
     run_id = "api-run-909"
 
     # 1. POST /api/v1/orchestrator/runs/{runId}/plan
-    res = client.post(f"/api/v1/orchestrator/runs/{run_id}/plan")
+    res = client.post(
+        f"/api/v1/orchestrator/runs/{run_id}/plan", json={"projectId": "p-conf"}
+    )
     assert res.status_code == 201
     plan_id = res.json()["planId"]
 

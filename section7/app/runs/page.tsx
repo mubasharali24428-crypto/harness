@@ -16,8 +16,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 // extension; Next's compiler accepts this import too, so one source fits both.
 import * as React from "react";
 import AppShell from "@/components/AppShell";
+import { EmptyState, ErrorState, LoadingState } from "@/components/States";
 import { listProjects } from "@/lib/api";
 import { loadSession } from "@/lib/auth";
+import { loadErrorMessage } from "@/lib/humanize";
 import { isRowActivateKey, RunsTable } from "./runsTable";
 import {
   RUNS_DEFAULT_LIMIT,
@@ -121,7 +123,7 @@ export default function RunsPage() {
         setPage(data);
       } catch (e) {
         setPage(null);
-        setError(String((e as Error)?.message ?? e));
+        setError(loadErrorMessage(e));
       } finally {
         setLoading(false);
       }
@@ -174,6 +176,9 @@ export default function RunsPage() {
   const total = page?.total ?? 0;
   const rangeStart = total === 0 ? 0 : offset + 1;
   const rangeEnd = Math.min(offset + runs.length, total);
+
+  const filtersActive = Boolean(projectId || status);
+  const noResults = !loading && !error && page !== null && runs.length === 0 && total === 0;
 
   return (
     <AppShell active="/runs">
@@ -256,11 +261,34 @@ export default function RunsPage() {
       </section>
 
       {error && (
-        <div role="alert" className="pill red" style={{ padding: "8px 12px", marginBottom: 16 }}>
-          {error}
-        </div>
+        <ErrorState
+          title="Runs didn’t load"
+          message={error}
+          onRetry={() => fetchPage({ projectId, status, limit: pageSize, offset })}
+        />
       )}
 
+      {loading && !page && !error && <LoadingState label="Loading runs…" rows={5} />}
+
+      {noResults && (
+        <EmptyState
+          title={filtersActive ? "No runs match these filters" : "No runs yet"}
+          body={
+            filtersActive
+              ? "Nothing has run with this project and status. Clear the filters to see the full history."
+              : "Start from the Command Center: describe a goal, approve the plan, and the run shows up here with its cost and state."
+          }
+          action={
+            filtersActive ? undefined : (
+              <a className="btn" href="/">
+                Open the Command Center
+              </a>
+            )
+          }
+        />
+      )}
+
+      {!noResults && (
       <section className="card" style={cardStyle} aria-busy={loading}>
         <RunsTable runs={runs} now={now} />
         {!loading && runs.length === 0 && error === null && total > 0 && (
@@ -309,6 +337,7 @@ export default function RunsPage() {
           )}
         </div>
       </section>
+      )}
 
       <p style={{ color: "var(--muted)", fontSize: 12 }}>
         Times are relative to your machine&apos;s clock ({RUNS_MAX_LIMIT} runs per page maximum). Rows link to

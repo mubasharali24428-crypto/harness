@@ -10,49 +10,38 @@ from __future__ import annotations
 from conftest import parse_payload
 
 
-async def test_start_run_walks_propose_approve_start(mcp, stub_api):
+async def test_start_run_stops_at_human_approval_gate(mcp, stub_api):
     run = mcp
     res = run(lambda s: s.call_tool("start_run", {"goal": "add rate limiting to login"}))
     assert res.is_error is not True, res.content
 
-    # All three plan-gate routes hit, in walk order: propose → approve → start.
     urls = [u for _, u, _ in stub_api.calls]
-    propose_i = urls.index("http://orchestrator.test/api/v1/orchestrator/plans")
-    approve_i = next(i for i, u in enumerate(urls) if u.endswith("/plans/plan-777/approve"))
-    start_i = next(i for i, u in enumerate(urls) if u.endswith("/runs/run-abc123/start"))
-    assert propose_i < approve_i < start_i
+    assert urls == ["http://orchestrator.test/api/v1/orchestrator/plans"], urls
+    assert not any("/approve" in u or "/start" in u for u in urls)
 
     payload = parse_payload(res)
     assert payload == {
-        "runId": "run-abc123",
         "planId": "plan-777",
-        "state": "executing",
+        "state": "AWAITING_PLAN_APPROVAL",
+        "approvalRequired": True,
         "goal": "add rate limiting to login",
     }
-    # The goal reached the orchestrator verbatim.
     propose_body = next(b for m, u, b in stub_api.calls if u.endswith("/orchestrator/plans"))
     assert propose_body == {"goal": "add rate limiting to login"}
 
 
-async def test_start_run_failure_mid_walk_is_honest_with_handles(mcp, stub_api):
-    """Start leg dies → isError result carrying the harness code + minted handles."""
+async def test_start_run_failure_is_honest(mcp, stub_api):
     from harness_mcp.client import UpstreamError
 
-    def deny_start(_):
+    def deny(_):
         raise UpstreamError(
-            409, "", {"error": {"code": "PLAN_NOT_APPROVED", "message": "not approved"}}
+            409, "", {"error": {"code": "PLAN_LIMIT_REACHED", "message": "limit"}}
         )
 
-    stub_api.on("POST", "/runs/run-abc123/start", deny_start)
-
-    run = mcp
-    res = run(lambda s: s.call_tool("start_run", {"goal": "g"}))
+    stub_api.on("POST", "/orchestrator/plans", deny)
+    res = mcp(lambda s: s.call_tool("start_run", {"goal": "g"}))
     assert res.is_error is True
-    payload = parse_payload(res)
-    assert payload["error"]["code"] == "PLAN_NOT_APPROVED"
-    # Walk progress rides along so a caller can resume instead of re-minting.
-    assert payload["error"]["planId"] == "plan-777"
-    assert payload["error"]["runId"] == "run-abc123"
+    assert parse_payload(res)["error"]["code"] == "PLAN_LIMIT_REACHED"
 
 
 async def test_get_run_status_returns_state(mcp, stub_api):

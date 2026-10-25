@@ -13,6 +13,7 @@ import { clearSession, getToken, getProjectId, getRunId, setProjectId, loadSessi
 import { MAIN_CONTENT_ID, useSkipTarget } from "@/lib/focus";
 // Part 47: unread badge as a plain link (no sound, no popup); renders nothing without a session.
 import NotificationBell from "../../app/notifications/NotificationBell";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const AREAS = [
   { href: "/", label: "Command Center" },
@@ -143,6 +144,7 @@ export default function AppShell({
           </select>
         </div>
         <NotificationBell />
+        <div className="nav-group-label">Workspace</div>
         <nav>
           {AREAS.slice(0, 1).map((a) => (
             <Link
@@ -185,10 +187,21 @@ export default function AppShell({
           ))}
         </nav>
         <div className="footer">
-          <div className="role-badge">{role}</div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              marginBottom: 8,
+            }}
+          >
+            <div className="role-badge">{role}</div>
+            <ThemeToggle compact />
+          </div>
           <button
             className="btn"
-            style={{ marginTop: 8, width: "100%" }}
+            style={{ width: "100%" }}
             onClick={() => {
               clearSession();
               router.push("/login");

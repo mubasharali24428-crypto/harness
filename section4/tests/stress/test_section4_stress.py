@@ -406,18 +406,24 @@ class TestOrchestratorRestApiStress:
         return TestClient(app)
 
     def test_propose_plan_returns_201(self, client):
-        res = client.post("/api/v1/orchestrator/runs/api-s1/plan")
+        res = client.post(
+            "/api/v1/orchestrator/runs/api-s1/plan", json={"projectId": "p-stress"}
+        )
         assert res.status_code == 201
         assert "planId" in res.json()
 
     def test_start_without_approval_returns_403(self, client):
-        client.post("/api/v1/orchestrator/runs/api-s2/plan")
+        client.post(
+            "/api/v1/orchestrator/runs/api-s2/plan", json={"projectId": "p-stress"}
+        )
         res = client.post("/api/v1/orchestrator/runs/api-s2/start")
         assert res.status_code == 403
 
     def test_full_api_lifecycle(self, client):
         # Propose
-        res = client.post("/api/v1/orchestrator/runs/api-s3/plan")
+        res = client.post(
+            "/api/v1/orchestrator/runs/api-s3/plan", json={"projectId": "p-stress"}
+        )
         pid = res.json()["planId"]
 
         # Approve

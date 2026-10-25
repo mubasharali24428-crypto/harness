@@ -1,6 +1,6 @@
 # Terms of Service — AI Engineering Harness
 
-> **Status: SKELETON.** This document states the real, code-backed mechanics
+> **Status: DRAFT — COUNSEL REVIEW REQUIRED.** This document states the real, code-backed mechanics
 > of the platform and honestly marks every point where legal judgment is
 > required with `[PLACEHOLDER: counsel review]`. It is **not** legal advice
 > and is **not** ready for production use until every placeholder is resolved
@@ -25,6 +25,16 @@ human approval before execution (`section4` plan gate), execute inside an OS-
 confined sandbox with a command allow-list (`section5`), and emit an
 append-only event-sourced audit trail (`agent_events`). Merges are manual;
 there is no auto-merge anywhere.
+
+## 1A. Pilot legal review checklist
+
+The following items are not settled terms and are **COUNSEL REVIEW REQUIRED**
+before a private pilot accepts real customer data: data retention and deletion;
+subprocessors; model-provider data flow; incident notice; limitation of
+liability; confidentiality; governing law; export/sanctions; and pilot
+acceptance, suspension, termination, and data-return criteria. The companion
+[`docs/pilot-remediation/PILOT_SOW_DPA_CHECKLIST.md`](docs/pilot-remediation/PILOT_SOW_DPA_CHECKLIST.md)
+is a negotiation checklist, not legal advice.
 
 ## 2. Your data and where it lives
 

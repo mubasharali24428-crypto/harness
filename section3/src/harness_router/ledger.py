@@ -68,6 +68,17 @@ SPEND_SQL = (
     "ORDER BY day ASC, l.model ASC"
 )
 
+# Calls made outside an orchestrator run cannot be assigned to a team from the
+# frozen schema.  They are still real ledger rows, so expose their aggregate
+# explicitly instead of dropping them from a team spend response.
+UNATTRIBUTED_SQL = (
+    "SELECT COUNT(*) AS calls, "
+    "COALESCE(SUM(input_tokens), 0) AS input_tokens, "
+    "COALESCE(SUM(output_tokens), 0) AS output_tokens, "
+    "COALESCE(SUM(cost_usd), 0) AS cost_usd "
+    "FROM cost_ledger WHERE run_id IS NULL"
+)
+
 _MONEY_Q = Decimal("0.000001")
 # NUMERIC(12,6) envelope (M17-B1 / M-ALPHA F-4): max |value| the column can
 # store. Anything larger raises NumericValueOutOfRangeError on Postgres and
@@ -274,15 +285,34 @@ async def spend_summary(
     return summarize_spend([tuple(r) for r in rows])
 
 
+async def unattributed_summary(pool: Any) -> dict[str, Any]:
+    """Return usage with no run as an explicit, non-team-attributed bucket."""
+    rows = await pool.fetch(UNATTRIBUTED_SQL)
+    if not rows or len(rows[0]) != 4:
+        return {"calls": 0, "inputTokens": 0, "outputTokens": 0, "costUsd": 0.0}
+    row = rows[0]
+    try:
+        return {
+            "calls": int(row[0] or 0),
+            "inputTokens": int(row[1] or 0),
+            "outputTokens": int(row[2] or 0),
+            "costUsd": float(to_money(row[3])),
+        }
+    except (TypeError, ValueError):
+        return {"calls": 0, "inputTokens": 0, "outputTokens": 0, "costUsd": 0.0}
+
+
 __all__ = [
     "CostOutOfRangeError",
     "INSERT_USAGE_SQL",
     "LedgerRow",
     "MONEY_MAX",
     "SPEND_SQL",
+    "UNATTRIBUTED_SQL",
     "build_usage_params",
     "record_usage",
     "spend_summary",
+    "unattributed_summary",
     "summarize_spend",
     "to_money",
 ]

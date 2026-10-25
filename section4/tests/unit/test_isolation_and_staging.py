@@ -87,6 +87,19 @@ def test_cancel_is_sticky_until_reset(tmp_path, worker_env):
     assert e._run_live_events("write:a.txt", "run-s", "m")[1] == "completed"
 
 
+def test_hung_worker_is_killed_at_the_operator_bound(tmp_path, worker_env, monkeypatch):
+    monkeypatch.setenv("HARNESS_ENGINE_TIMEOUT_SECONDS", "1")
+    e = engine(tmp_path)
+    t0 = time.monotonic()
+    text, status, *_ = e._run_live_events("slow", "run-t", "m")
+    assert time.monotonic() - t0 < 10
+    assert status == "error" and "exceeded 1s and was killed" in text
+    child = int((Path(e.run_workspace("run-t")) / "child.pid").read_text())
+    time.sleep(0.2)
+    assert not alive(child), "grandchild must die with the process group"
+    assert not e.is_worker_running("run-t")
+
+
 # ------------------------------------------------------ B2: env + confinement
 
 
