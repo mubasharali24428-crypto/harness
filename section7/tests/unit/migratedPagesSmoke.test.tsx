@@ -149,9 +149,8 @@ describe("dashboard root DS migration (M16-X4)", () => {
     expect(html).toContain("Command Center");
     expect(html).toContain('data-testid="live-pill"'); // H-012 WS-truthful pill
     expect(html).toMatch(/class="card event-feed"/); // Card className merge keeps scroll behavior
-    expect(html).toContain("Agent Status");
-    expect(html).toContain("Current Plan");
-    expect(html).toContain("Guardrails");
+    expect(html).toContain("Activity");
+    expect(html).toContain("Guardrails"); // quiet guardrail strip
   });
 
   it("serves the landing page to signed-out visitors, with both entry points", async () => {

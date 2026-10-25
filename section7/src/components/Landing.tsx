@@ -11,10 +11,11 @@
 
 import * as React from "react";
 import { cssVar, fontSize, radius, space } from "./tokens";
+import { ThemeToggle } from "./ThemeToggle";
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: `radial-gradient(1200px 600px at 50% -200px, rgba(142,229,161,0.10), transparent), ${cssVar("bg")}`,
+  background: `radial-gradient(1200px 600px at 50% -200px, rgba(var(--accent-rgb), 0.10), transparent), ${cssVar("bg")}`,
   color: cssVar("text"),
 };
 
@@ -131,6 +132,7 @@ export function LandingView() {
             <a href="/login" style={navLink}>
               Sign in
             </a>
+            <ThemeToggle compact />
             <a href="/demo" style={primaryCta}>
               Watch a recorded run
             </a>

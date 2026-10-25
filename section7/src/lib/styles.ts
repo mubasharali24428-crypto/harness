@@ -16,14 +16,14 @@ export const headingStyle: CSSProperties = {
   fontWeight: 600,
   textTransform: "uppercase",
   letterSpacing: "1.3px",
-  color: "#8a857a",
+  color: "var(--faint)",
   margin: "0 0 12px 0",
 };
 
 export const buttonStyle: CSSProperties = {
   padding: "8px 14px",
   background: "var(--accent-soft)",
-  border: "1px solid rgba(142, 229, 161, 0.45)",
+  border: "1px solid rgba(var(--accent-rgb), 0.45)",
   borderRadius: 9,
   color: "var(--accent)",
   fontWeight: 600,
@@ -42,9 +42,9 @@ export const secondaryButtonStyle: CSSProperties = {
 
 export const dangerButtonStyle: CSSProperties = {
   ...buttonStyle,
-  background: "rgba(255, 107, 107, 0.12)",
-  border: "1px solid rgba(255, 107, 107, 0.4)",
-  color: "#ff8c8c",
+  background: "rgba(var(--danger-rgb), 0.12)",
+  border: "1px solid rgba(var(--danger-rgb), 0.4)",
+  color: "var(--red)",
 };
 
 export const inputStyle: CSSProperties = {
@@ -52,7 +52,7 @@ export const inputStyle: CSSProperties = {
   width: "100%",
   marginTop: 4,
   padding: "9px 11px",
-  background: "#141210",
+  background: "var(--input)",
   border: "1px solid var(--border-soft)",
   borderRadius: 9,
   color: "inherit",

@@ -44,13 +44,13 @@ const SIZE_STYLE: Record<ButtonSize, React.CSSProperties> = {
 const VARIANT_STYLE: Record<ButtonVariant, React.CSSProperties> = {
   secondary: {},
   primary: {
-    background: "rgba(142, 229, 161, 0.12)",
-    borderColor: "rgba(142, 229, 161, 0.45)",
+    background: "rgba(var(--accent-rgb), 0.12)",
+    borderColor: "rgba(var(--accent-rgb), 0.45)",
     color: cssVar("accent"),
   },
   danger: {
-    background: "rgba(255, 107, 107, 0.12)",
-    borderColor: "rgba(255, 107, 107, 0.4)",
+    background: "rgba(var(--danger-rgb), 0.12)",
+    borderColor: "rgba(var(--danger-rgb), 0.4)",
     color: cssVar("red"),
   },
   accent: { background: cssVar("accent"), borderColor: cssVar("accent"), color: cssVar("bg") },

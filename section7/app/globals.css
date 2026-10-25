@@ -17,11 +17,49 @@
   --red: #ff6b6b;
   --yellow: #e5a814;
   --blue: #6cb8ff;
+  --faint: #8a857a;
+  --input: #141210;
+  --accent-rgb: 142, 229, 161;
+  --success-rgb: 92, 184, 112;
+  --danger-rgb: 255, 107, 107;
+  --warn-rgb: 229, 168, 20;
+  --info-rgb: 108, 184, 255;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 12px 32px rgba(0, 0, 0, 0.16);
+  color-scheme: dark;
   --font-sans: Inter, "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI",
     Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     monospace;
+}
+
+/* QoderWake light theme: paper-warm surfaces, ink text, deep-green accent
+   (the mint is unreadable as text on white). Only the variables change; every
+   rule below consumes them. */
+:root[data-theme="light"] {
+  --bg: #fdfcfa;
+  --panel: #ffffff;
+  --panel-2: #f1ede6;
+  --sidebar: #faf9f6;
+  --border: #d8d2c6;
+  --border-soft: #e8e3da;
+  --text: #202116;
+  --text-2: #4a463c;
+  --muted: #6b665c;
+  --accent: #1f7a3d;
+  --accent-soft: rgba(31, 122, 61, 0.09);
+  --green: #2f7d43;
+  --red: #c0392b;
+  --yellow: #9a6a00;
+  --blue: #1a6bb5;
+  --faint: #6b665c;
+  --input: #ffffff;
+  --accent-rgb: 31, 122, 61;
+  --success-rgb: 47, 125, 67;
+  --danger-rgb: 192, 57, 43;
+  --warn-rgb: 154, 106, 0;
+  --info-rgb: 26, 107, 181;
+  --shadow: 0 1px 2px rgba(32, 33, 22, 0.06), 0 12px 32px rgba(32, 33, 22, 0.08);
+  color-scheme: light;
 }
 
 * {
@@ -48,7 +86,7 @@ samp,
 }
 
 ::selection {
-  background: rgba(142, 229, 161, 0.28);
+  background: rgba(var(--accent-rgb), 0.28);
 }
 
 * {
@@ -106,12 +144,12 @@ samp,
   height: 10px;
   border-radius: 3px;
   background: var(--accent);
-  box-shadow: 0 0 14px rgba(142, 229, 161, 0.5);
+  box-shadow: 0 0 14px rgba(var(--accent-rgb), 0.45);
 }
 
 .switcher .label,
 .nav-group-label {
-  color: #8a857a;
+  color: var(--faint);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 1.3px;
@@ -153,7 +191,7 @@ samp,
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(127, 127, 127, 0.1);
   color: var(--text);
 }
 
@@ -172,7 +210,7 @@ samp,
 .role-badge {
   display: inline-block;
   padding: 3px 10px;
-  border: 1px solid rgba(142, 229, 161, 0.3);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
   background: var(--accent-soft);
   color: var(--accent);
   border-radius: 999px;
@@ -244,14 +282,14 @@ h3 {
   border: 1px solid var(--border-soft);
   border-radius: 14px;
   padding: 18px;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset;
+  box-shadow: 0 1px 0 rgba(127, 127, 127, 0.06) inset;
 }
 
 .card h2 {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 1.4px;
-  color: #8a857a;
+  color: var(--faint);
   margin: 0 0 12px;
   text-transform: uppercase;
 }
@@ -261,7 +299,7 @@ h3 {
   justify-content: space-between;
   gap: 12px;
   padding: 6px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .status-line:last-child {
@@ -276,10 +314,10 @@ h3 {
   white-space: nowrap;
 }
 
-.pill.green { background: rgba(92, 184, 112, 0.14); color: #8ee5a1; }
-.pill.red { background: rgba(255, 107, 107, 0.14); color: #ff8c8c; }
-.pill.yellow { background: rgba(229, 168, 20, 0.14); color: #f0c14b; }
-.pill.blue { background: rgba(108, 184, 255, 0.13); color: var(--blue); }
+.pill.green { background: rgba(var(--success-rgb), 0.14); color: #8ee5a1; }
+.pill.red { background: rgba(var(--danger-rgb), 0.14); color: var(--red); }
+.pill.yellow { background: rgba(var(--warn-rgb), 0.14); color: #f0c14b; }
+.pill.blue { background: rgba(var(--info-rgb), 0.13); color: var(--blue); }
 
 .event-feed {
   max-height: 320px;
@@ -290,7 +328,7 @@ h3 {
   display: flex;
   gap: 10px;
   padding: 7px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--border-soft);
   align-items: baseline;
 }
 
@@ -302,7 +340,7 @@ h3 {
 }
 
 .event-ts {
-  color: #8a857a;
+  color: var(--faint);
   font-family: var(--font-mono);
   font-size: 11px;
 }
@@ -337,7 +375,7 @@ h3 {
 
 .chat-input input {
   flex: 1;
-  background: #141210;
+  background: var(--input);
   border: 1px solid var(--border-soft);
   color: var(--text);
   border-radius: 9px;
@@ -347,7 +385,7 @@ h3 {
 
 .text-input {
   width: 100%;
-  background: #141210;
+  background: var(--input);
   border: 1px solid var(--border-soft);
   color: var(--text);
   border-radius: 9px;
@@ -359,7 +397,7 @@ h3 {
 input:not([type="checkbox"]):not([type="radio"]),
 select,
 textarea {
-  background: #141210;
+  background: var(--input);
   border: 1px solid var(--border-soft);
   color: var(--text);
   border-radius: 9px;
@@ -376,9 +414,9 @@ textarea:hover {
 input:not([type="checkbox"]):not([type="radio"]):focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  border-color: rgba(142, 229, 161, 0.55);
-  box-shadow: 0 0 0 3px rgba(142, 229, 161, 0.1);
-  outline: 2px solid rgba(142, 229, 161, 0.65);
+  border-color: rgba(var(--accent-rgb), 0.55);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.1);
+  outline: 2px solid rgba(var(--accent-rgb), 0.65);
   outline-offset: 1px;
 }
 
@@ -389,7 +427,7 @@ textarea {
 
 input::placeholder,
 textarea::placeholder {
-  color: #6f6a60;
+  color: var(--faint);
 }
 
 /* M15-S3 — login card responsive contract (W4-VT2 carryover): the old inline
@@ -433,22 +471,22 @@ a.btn {
 
 .btn.primary {
   background: var(--accent-soft);
-  border-color: rgba(142, 229, 161, 0.45);
+  border-color: rgba(var(--accent-rgb), 0.45);
   color: var(--accent);
 }
 
 .btn.primary:hover:not(:disabled) {
-  background: rgba(142, 229, 161, 0.18);
+  background: rgba(var(--accent-rgb), 0.18);
 }
 
 .btn.danger {
-  background: rgba(255, 107, 107, 0.12);
-  border-color: rgba(255, 107, 107, 0.4);
-  color: #ff8c8c;
+  background: rgba(var(--danger-rgb), 0.12);
+  border-color: rgba(var(--danger-rgb), 0.4);
+  color: var(--red);
 }
 
 .btn.danger:hover:not(:disabled) {
-  background: rgba(255, 107, 107, 0.18);
+  background: rgba(var(--danger-rgb), 0.18);
 }
 
 table {
@@ -462,7 +500,7 @@ th {
   font-weight: 600;
   letter-spacing: 1px;
   text-transform: uppercase;
-  color: #8a857a;
+  color: var(--faint);
   padding: 8px 12px;
   border-bottom: 1px solid var(--border-soft);
   white-space: nowrap;
@@ -470,7 +508,7 @@ th {
 
 td {
   padding: 11px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--border-soft);
   vertical-align: top;
 }
 
@@ -479,7 +517,7 @@ tbody tr {
 }
 
 tbody tr:hover {
-  background: rgba(255, 255, 255, 0.025);
+  background: rgba(127, 127, 127, 0.07);
 }
 
 .editor-host,

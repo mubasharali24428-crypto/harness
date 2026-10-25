@@ -14,8 +14,8 @@ export interface StructuredExecResult {
 
 const STATUS_COLOR: Record<StructuredExecResult["status"], string> = {
   passed: "#8ee5a1",
-  failed: "#ff8c8c",
-  error: "#ff8c8c",
+  failed: "var(--red)",
+  error: "var(--red)",
 };
 
 export function TerminalPanel({

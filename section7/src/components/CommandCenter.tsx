@@ -1,8 +1,9 @@
 "use client";
 
-// Signed-in dashboard surface, extracted from app/page.tsx so the route can
-// stay a two-branch decision (landing vs app) and Next's PageProps contract
-// stays untouched. Same markup and hooks as before the extraction.
+// Signed-in dashboard surface. Chat-app shape rather than a card dashboard:
+// a composer at the top, the plan it produced, then a chronological run
+// timeline, with the guardrails reduced to one quiet strip. Extracted from
+// app/page.tsx so the route stays a two-branch decision.
 
 import { useEffect, useState } from "react";
 // Classic JSX transform (vitest/esbuild) needs React in scope for the .tsx
@@ -14,15 +15,47 @@ import { getRunStatus, getPlan, replayEvents, listProjects } from "@/lib/api";
 import { useEventStream } from "@/lib/useEventStream";
 import type { ConnectionState } from "@/lib/useEventStream";
 import { getToken, getProjectId, getRunId, loadSession } from "@/lib/auth";
+import { eventLabel, eventTone } from "@/lib/eventLabels";
 import type { EventEnvelope } from "@contracts/events";
 import type { AgentPlan } from "@contracts/plan";
 import type { RunStatus } from "@contracts/api";
-// M16-X4 (raw-17): markup migrated onto the shared DS primitives — Card
-// replaces the class-only shells and the tinted error line moved onto the
-// proposed Notice primitive. Visual parity intent; the .pill class hooks and
-// data-testid="live-pill" are preserved verbatim.
 import { Card, Pill } from "@/components/ui";
 import { Notice } from "@/components/ui/Notice";
+import { cssVar, fontSize, radius, space } from "./tokens";
+
+const page: React.CSSProperties = { maxWidth: 900, margin: "0 auto" };
+const titleRow: React.CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: space.md,
+  flexWrap: "wrap",
+  marginBottom: space.xl,
+};
+const sectionHead: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: space.md,
+  flexWrap: "wrap",
+  marginBottom: space.md,
+};
+const monoMeta: React.CSSProperties = {
+  fontFamily: "var(--font-mono)",
+  fontSize: fontSize.xs,
+  color: cssVar("muted"),
+};
+const TONE_DOT = {
+  danger: cssVar("red"),
+  success: cssVar("green"),
+  accent: cssVar("accent"),
+} as const;
+
+const STEPS = [
+  "Describe the goal — the agent proposes a plan with steps, tests and risks.",
+  "Approve or reject it. Nothing executes before a person decides.",
+  "Follow the run here: every engine event lands in the timeline below.",
+];
 
 export function CommandCenterView() {
   const [status, setStatus] = useState<RunStatus | null>(null);
@@ -31,8 +64,6 @@ export function CommandCenterView() {
   const [projectName, setProjectName] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
 
-  // H-012: the live pill is driven by the WS connection lifecycle, not by REST
-  // fetches succeeding. `source` is now derived purely from that state.
   const { connectionState, attempt } = useEventStream(
     typeof window !== "undefined" ? getProjectId() : null,
     typeof window !== "undefined" ? getToken() : null,
@@ -59,9 +90,7 @@ export function CommandCenterView() {
             getRunStatus(runId, token),
             getPlan(runId, token),
           ]);
-          if (st.status === "fulfilled") {
-            setStatus(st.value);
-          }
+          if (st.status === "fulfilled") setStatus(st.value);
           if (pl.status === "fulfilled" && pl.value) setPlan(pl.value);
         }
       } catch (err) {
@@ -70,7 +99,6 @@ export function CommandCenterView() {
       try {
         if (projectId) {
           const { items } = await replayEvents(projectId, 0, token);
-          // newest last for display consistency with the working area
           setEvents(items.slice(-50));
         }
       } catch {
@@ -79,9 +107,6 @@ export function CommandCenterView() {
     })();
   }, []);
 
-  // H-012: pill state machine — WS-truthful. REST snapshots no longer flip the
-  // pill; only the actual event-stream lifecycle does. M16-X4: the DS tone
-  // rides alongside the legacy class so <Pill> renders the identical face.
   const PILL: Record<ConnectionState, { label: string; cls: string; tone: "yellow" | "green" | "red" }> = {
     connecting: { label: "connecting", cls: "yellow", tone: "yellow" },
     open: { label: "live", cls: "green", tone: "green" },
@@ -92,97 +117,139 @@ export function CommandCenterView() {
 
   return (
     <AppShell active="/">
-      <h1>
-        Command Center{projectName ? ` — ${projectName}` : ""}{" "}
-        <Pill tone={pill.tone} className={`pill ${pill.cls}`} testId="live-pill">
-          {pill.label}
-        </Pill>
-      </h1>
-      <PlanGateCard token={getToken()!} principal={loadSession()?.principal ?? null} />
-      <div className="grid">
-        {/* M16-X4: status cards onto Card; the .pill spans keep their class
-            hooks (live-pill testid + e2e selectors) verbatim. */}
-        <Card title="Agent Status">
-          {status ? (
-            <>
-              <div className="status-line">
-                <span>{getRunId() ?? "—"}</span>
-                <Pill
-                  tone={status.state === "executing" ? "blue" : "yellow"}
-                  className={`pill ${status.state === "executing" ? "blue" : "yellow"}`}
-                >
-                  {status.state}
-                </Pill>
-              </div>
-              <div className="status-line">
-                <span>plan approved</span>
-                <span>{status.planApproved ? "✓" : "pending"}</span>
-              </div>
-              {plan && (
-                <div className="status-line">
-                  <span>est. cost</span>
-                  <span>${(plan.estimatedCostUsd ?? 0).toFixed(3)}</span>
-                </div>
-              )}
-            </>
-          ) : (
-            <p>No live run yet — start one in the Working Area after approving a plan.</p>
-          )}
-        </Card>
+      <div style={page}>
+        <div style={titleRow}>
+          <div>
+            <h1 style={{ margin: 0 }}>
+              Command Center{projectName ? ` — ${projectName}` : ""}
+            </h1>
+            <p style={{ margin: "6px 0 0", color: cssVar("muted"), fontSize: fontSize.md }}>
+              Describe the goal. The agent plans, you approve, every step is checkable.
+            </p>
+          </div>
+          <Pill tone={pill.tone} className={`pill ${pill.cls}`} testId="live-pill">
+            {pill.label}
+          </Pill>
+        </div>
 
-        <Card title="Current Plan">
-          {plan ? (
+        <PlanGateCard token={getToken()!} principal={loadSession()?.principal ?? null} />
+
+        {plan && (
+          <Card title="Current plan" style={{ marginTop: space.xl }}>
             <>
-              <ul>
+              <div style={sectionHead}>
+                <span style={monoMeta}>
+                  {(plan.steps ?? []).length} steps · est. ${(plan.estimatedCostUsd ?? 0).toFixed(3)}
+                </span>
+                {(plan.forbiddenPaths ?? []).length > 0 && (
+                  <span style={monoMeta}>forbidden: {(plan.forbiddenPaths ?? []).join(", ")}</span>
+                )}
+              </div>
+              <ol
+                style={{
+                  margin: 0,
+                  paddingLeft: 20,
+                  display: "grid",
+                  gap: 6,
+                  color: cssVar("text2"),
+                  fontSize: fontSize.md,
+                }}
+              >
                 {(plan.steps ?? []).map((s) => (
                   <li key={s}>{s}</li>
                 ))}
-              </ul>
-              <div className="status-line">
-                <span>est. cost</span>
-                <span>${(plan.estimatedCostUsd ?? 0).toFixed(3)}</span>
-              </div>
-              <div className="status-line">
-                <span>forbidden paths</span>
-                <span>{(plan.forbiddenPaths ?? []).join(", ") || "none"}</span>
-              </div>
+              </ol>
             </>
+          </Card>
+        )}
+
+        <Card
+          title={`Activity${status ? ` · ${status.state.replaceAll("_", " ")}` : ""}`}
+          className="card event-feed"
+          style={{ marginTop: space.xl }}
+        >
+          {getRunId() && <p style={{ ...monoMeta, margin: "0 0 10px" }}>run {getRunId()}</p>}
+          {events.length === 0 ? (
+            <div style={{ padding: "18px 0 8px" }}>
+              <p style={{ margin: "0 0 10px", color: cssVar("text2"), fontSize: fontSize.md }}>
+                Nothing has happened yet.
+              </p>
+              <ol style={{ margin: 0, paddingLeft: 18, color: cssVar("muted"), fontSize: fontSize.sm, lineHeight: 1.8 }}>
+                {STEPS.map((s) => (
+                  <li key={s}>{s}</li>
+                ))}
+              </ol>
+            </div>
           ) : (
-            <p>No plan proposed for the current run.</p>
+            <ol style={{ listStyle: "none", margin: 0, padding: 0 }}>
+              {events.map((e) => (
+                <li
+                  key={e.seq}
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    alignItems: "flex-start",
+                    padding: "9px 0",
+                    borderBottom: `1px solid ${cssVar("borderSoft")}`,
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: radius.pill,
+                      background: TONE_DOT[eventTone(String(e.type))],
+                      marginTop: 6,
+                      flex: "none",
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                      <span style={{ fontSize: fontSize.md }}>{eventLabel(String(e.type))}</span>
+                      <time style={monoMeta}>{new Date(e.ts).toLocaleTimeString()}</time>
+                    </div>
+                    <div style={{ ...monoMeta, overflowWrap: "anywhere" }}>{e.type}</div>
+                  </div>
+                </li>
+              ))}
+            </ol>
           )}
         </Card>
 
-        <Card className="card event-feed" title="Activity Stream">
-          {events.length === 0 && <p>No events yet.</p>}
-          {[...events].reverse().map((e) => (
-            <div className="event-row" key={e.seq}>
-              <span className="event-ts">{new Date(e.ts).toLocaleTimeString()}</span>
-              <span className="event-type">{e.type}</span>
-              <span>{e.runId}</span>
-            </div>
+        <section
+          aria-label="Guardrails"
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: `${space.sm}px ${space.block}px`,
+            alignItems: "center",
+            marginTop: space.xl,
+            padding: `${space.md}px ${space.lg}px`,
+            border: `1px solid ${cssVar("borderSoft")}`,
+            borderRadius: radius.lg,
+            color: cssVar("muted"),
+            fontSize: fontSize.xs,
+          }}
+        >
+          {[
+            "auto-merge: never",
+            "plan approval: required",
+            "sandbox: allow-list + OS confinement",
+            "provider keys: yours",
+          ].map((g) => (
+            <code key={g} style={{ fontFamily: "var(--font-mono)", color: cssVar("muted") }}>
+              {g}
+            </code>
           ))}
-        </Card>
+        </section>
 
-        <Card title="Guardrails">
-          <div className="status-line">
-            <span>auto-merge</span>
-            <Pill tone="red" className="pill red">never</Pill>
+        {error && (
+          <div style={{ marginTop: space.xl }}>
+            <Notice tone="danger">{error}</Notice>
           </div>
-          <div className="status-line">
-            <span>plan gate</span>
-            <Pill tone="green" className="pill green">enforced</Pill>
-          </div>
-          <div className="status-line">
-            <span>sandbox</span>
-            <Pill tone="green" className="pill green">allow-list + OS confinement</Pill>
-          </div>
-          <div className="status-line">
-            <span>forbidden paths</span>
-            <span>.env*, infra/</span>
-          </div>
-        </Card>
+        )}
       </div>
-      {error && <Notice tone="danger">{error}</Notice>}
     </AppShell>
   );
 }

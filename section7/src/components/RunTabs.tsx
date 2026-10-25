@@ -86,7 +86,7 @@ export function RunTabBar({
             type="button"
             onClick={() => onChange(tab.id)}
             style={{
-              background: selected ? "rgba(142, 229, 161, 0.12)" : "transparent",
+              background: selected ? "rgba(var(--accent-rgb), 0.12)" : "transparent",
               color: selected ? cssVar("accent") : cssVar("muted"),
               border: "1px solid transparent",
               borderRadius: radius.md,

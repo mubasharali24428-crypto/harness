@@ -11,7 +11,7 @@ const STATE_COLORS: Record<string, string> = {
   paused: "#e5a814",
   awaiting_done_signal: "#6cb8ff",
   reviewing: "#c9a7ff",
-  blocked: "#ff8c8c",
+  blocked: "var(--red)",
   pr_opened: "#6cd5c0",
   done: "#a8a296",
 };

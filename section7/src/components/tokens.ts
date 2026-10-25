@@ -30,10 +30,14 @@ export const colors = {
   panel2: "#252220",
   /** Hairline borders (#3d3930). */
   border: "#3d3930",
+  /** Softer card/dividing borders (#2d2a22). */
+  borderSoft: "#2d2a22",
   /** Primary text (cream, #faf9f6). */
   text: "#faf9f6",
   /** Secondary text (#a8a296). */
   muted: "#a8a296",
+  /** Readable body-on-panel text (#c9c4b8). */
+  text2: "#c9c4b8",
   /** Mint accent (#8ee5a1). Drives links, focus rings, active nav. */
   accent: "#8ee5a1",
   /** Success/positive (#5cb870). */
@@ -178,5 +182,10 @@ export function toneForStatus(status: string): StatusTone {
  * source of truth) while this file remains the compile-time catalog.
  */
 export function cssVar(name: ColorName): string {
-  return `var(--${name === "panel2" ? "panel-2" : name})`;
+  const kebab: Partial<Record<ColorName, string>> = {
+    panel2: "panel-2",
+    text2: "text-2",
+    borderSoft: "border-soft",
+  };
+  return `var(--${kebab[name] ?? name})`;
 }
