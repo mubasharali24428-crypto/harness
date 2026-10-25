@@ -292,3 +292,6 @@ jobs:
         uses: gitleaks/gitleaks-action@e6dab246340401bf53eec993b8f05aebe80ac636 # v2.3.4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # v2.3.4 fails on PR events while creating its SARIF artifact
+          # ("artifact name ... is not valid"); the scan itself is the gate.
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
