@@ -73,7 +73,8 @@ print(json.dumps({
         --user "$(id -u):$(id -g)" \
         -v "$WORK:/workspace" \
         -v "$SIBLING:/sibling:ro" \
-        -w /workspace --entrypoint python "$IMAGE" -I "$GATE"
+        -w /workspace -e HARNESS_SANDBOX_DEBUG_ALLOWLIST=1 \
+        --entrypoint python "$IMAGE" -I "$GATE"
 }
 
 ABI=$(landlock_abi)

@@ -421,10 +421,15 @@ def apply_landlock_in_child(
 
     # ---- ruleset 2: reads (S-01). Stacked on top of the write ruleset; the
     # two are independent because each only restricts the rights it handles.
-    read_ruleset = create_ruleset(_READ_HANDLED)
-    for path, rights in landlock_read_allowlist(
+    read_rules = landlock_read_allowlist(
         workspace, tmpdir, forbidden_paths, extra_read_roots
-    ):
+    )
+    if os.environ.get("HARNESS_SANDBOX_DEBUG_ALLOWLIST") == "1":
+        sys.stderr.write(
+            "landlock read roots: " + ",".join(str(p) for p, _ in read_rules) + "\n"
+        )
+    read_ruleset = create_ruleset(_READ_HANDLED)
+    for path, rights in read_rules:
         try:
             add_beneath(read_ruleset, fs_fd(path), rights)
         except OSError:  # vanished between the walk and the rule
