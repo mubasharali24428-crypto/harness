@@ -42,8 +42,8 @@
     "toolGoal": {
       "status": "completed (model reported success) but the workspace write was denied",
       "observed": "file created empty; PermissionError [Errno 13] engine_ok.txt; model then wrote to /tmp",
-      "rootCause": "inside the per-task container the engine shell gate re-applies Landlock; writes to the bind-mounted workspace are denied. Reproduced with a minimal 20-line Landlock write ruleset on a Docker Desktop virtiofs bind mount (unchanged file created, content write EACCES), while non-bind-mount container paths behave as expected. Native Linux bind mounts (ext4/overlayfs) are the supported path and remain untested here.",
-      "fixStatus": "not a code fix on this host: the deployment gate requires a native Linux host test; Docker Desktop/macOS container-isolated tool writes are not supported"
+      "rootCause": "inside the per-task container the engine shell gate re-applies Landlock; Landlock is not enforced on Docker Desktop for macOS host-share (virtiofs) mounts, so writes to the bind-mounted workspace are denied. Isolated with the same minimal ruleset (Landlock ABI 6, workspace-only write rule, running as root): a named Docker volume (ext4 in the Linux VM) accepts the write, a virtiofs bind mount returns EACCES. The ruleset itself is correct (Section 5 Landlock suites pass on Linux CI).",
+      "fixStatus": "not a code fix on this host: Docker Desktop/macOS virtiofs does not support Landlock. Run the container engine path on a native Linux host, or back the run workspace with a Docker volume (needs copy-in/copy-out in the orchestrator, not implemented)"
     }
   },
   "fullStack": {
