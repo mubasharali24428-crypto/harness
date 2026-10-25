@@ -14,7 +14,9 @@ import {
   canEditModelPrefs,
   fetchModelCatalog,
   fetchModelPrefs,
+  filterProviders,
   providerGroups,
+  providerSummary,
   saveModelPrefs,
   scopeNote,
   shortModel,
@@ -55,6 +57,9 @@ export function ModelPrefsForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  // The registry lists 50+ providers; a bare <select> of their models is
+  // unusable past the first screen, so the full variant filters as you type.
+  const [filter, setFilter] = useState("");
 
   const editable = canEditModelPrefs(role);
 
@@ -82,10 +87,19 @@ export function ModelPrefsForm({
   const groups = useMemo(
     () =>
       prefs
-        ? providerGroups(providers, [prefs.primaryModel, prefs.reviewerModel])
+        ? providerGroups(
+            variant === "full" ? filterProviders(providers, filter) : providers,
+            [prefs.primaryModel, prefs.reviewerModel],
+          )
         : [],
-    [providers, prefs],
+    [providers, prefs, filter, variant],
   );
+
+  const selectedSummary = useMemo(() => {
+    if (!prefs) return null;
+    const owner = providers.find((p) => p.models.includes(prefs.primaryModel));
+    return owner ? providerSummary(owner) : null;
+  }, [providers, prefs]);
 
   function update(patch: Partial<Pick<ModelPrefs, "primaryModel" | "reviewerModel" | "reasoningEffort">>) {
     if (!prefs || !editable) return;
@@ -201,6 +215,18 @@ export function ModelPrefsForm({
 
   return (
     <div data-testid="model-prefs-form">
+      <div style={{ ...fieldStyle, marginBottom: 14 }}>
+        <span style={labelStyle}>Filter {providers.length} providers</span>
+        <input
+          type="search"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="groq, open weights, deepseek…"
+          aria-label="Filter providers and models"
+          data-testid="model-filter"
+          style={{ ...selectStyle, maxWidth: 300 }}
+        />
+      </div>
       <div style={fieldStyle}>
         <span style={labelStyle}>Primary model (runs, planning)</span>
         {modelSelect(
@@ -208,6 +234,9 @@ export function ModelPrefsForm({
           (v) => update({ primaryModel: v }),
           "Primary model",
           "primary-model",
+        )}
+        {selectedSummary && (
+          <span style={{ color: "var(--muted)", fontSize: 11 }}>{selectedSummary}</span>
         )}
       </div>
       <div style={fieldStyle}>

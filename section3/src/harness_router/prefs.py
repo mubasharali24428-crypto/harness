@@ -18,6 +18,7 @@ import os
 from typing import Any
 
 from harness_router.config import MODEL_PRICING_CATALOG, config
+from harness_router.provider_registry import provider_of
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +44,20 @@ _UPSERT_SQL = (
 def reasoning_wire_supported() -> bool:
     """True when the configured provider endpoint accepts a ``reasoning`` object.
 
-    OpenRouter does; DeepSeek's first-party API uses its own thinking switch
+    OpenRouter does. A first-party API generally uses its own thinking switch
     and may reject unknown fields, so the preference is stored but not sent.
+    Both the deployment-wide gateway env and the historical single-endpoint
+    one count, since either can point at OpenRouter.
     """
-    base = (os.environ.get("DEEPSEEK_BASE_URL") or "").lower()
-    return "openrouter" in base
+    from harness_router.provider_registry import (
+        GLOBAL_BASE_URL_ENV,
+        LEGACY_BASE_URL_ENV,
+    )
+
+    configured = (
+        os.environ.get(GLOBAL_BASE_URL_ENV) or os.environ.get(LEGACY_BASE_URL_ENV) or ""
+    ).lower()
+    return "openrouter" in configured
 
 
 def defaults(team_id: str) -> dict[str, Any]:
@@ -63,7 +73,11 @@ def defaults(team_id: str) -> dict[str, Any]:
 
 
 def model_known(model: str) -> bool:
-    return model in MODEL_PRICING_CATALOG
+    """A model is acceptable when we can route it, not only when we can price
+    it: the provider registry is far larger than the price list, and a team on
+    a provider we have no rate card for is still a valid team. Unpriced calls
+    bill zero and say so (providers.priced_cost)."""
+    return model in MODEL_PRICING_CATALOG or provider_of(model) is not None
 
 
 async def load_prefs(pool: Any, team_id: str) -> dict[str, Any]:

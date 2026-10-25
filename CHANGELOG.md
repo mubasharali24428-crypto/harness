@@ -10,6 +10,53 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Provider registry — 65 providers, three wire protocols (2026-10-25)
+
+`docs/providers.md`. Until now the router had one outbound target —
+`DEEPSEEK_BASE_URL` — no matter which model was named, so the six "providers"
+in the catalog were six labels on one URL.
+
+#### Added
+
+- `section3/src/harness_router/provider_registry.py`: 65 providers / 117 named
+  models across 9 regions (15 frontier labs, 16 open-weight hosts, 12 Chinese
+  labs, 14 gateways and clouds, 8 local runtimes), each with its documented
+  base URL, wire protocol, auth style, key env and docs link.
+- Endpoint resolution with documented precedence: a deployment gateway
+  (`HARNESS_PROVIDER_BASE_URL`) → the provider's own `*_BASE_URL` → the
+  historical `DEEPSEEK_BASE_URL` → the registry default → the deployment
+  fallback for an unregistered provider. Existing installs and suites are
+  unaffected; a gateway override forces the OpenAI shape.
+- Anthropic (`/v1/messages`, `x-api-key`, system lifted out, `max_tokens`
+  defaulted) and Gemini (`:generateContent`, model in the path,
+  `x-goog-api-key`, role mapping) adapters next to the OpenAI one.
+- `GET /api/v1/models/catalog` now carries label, protocol, region,
+  open-weights, `requiresOwnEndpoint` and a `priced` list; the keys page turns
+  the provider `<select>` into a searchable datalist over the registry, and
+  Settings → Models gained a provider filter.
+
+#### Fixed
+
+- **Billing no longer guesses.** `PricingEngine` returns $0.50/$1.50 per
+  million for any model it does not know, which at this catalog size would
+  invent spend for free local runs and under-bill frontier models. The router
+  bills an unpriced model at zero and logs the gap; the UI says "cost not
+  tracked" instead of implying a rate.
+- The provider-key endpoint accepts any valid key: `KeyProvider` was a
+  four-value union in the UI while the backend validates only the provider
+  *shape*, so 61 providers were unreachable from the page that stores their
+  keys.
+
+#### Known limitations
+
+- The sandbox egress allow-list predates the registry: a new provider is
+  routable from S3 but not necessarily from inside a confined run. Deriving
+  that list is a network-policy change and needs sign-off.
+- Teams cannot point a provider at their own base URL (Azure resource, Bedrock
+  region) — still operator env only, deliberately, since a team-supplied URL is
+  an SSRF surface.
+- Only 15 of the 117 model ids have a real rate card.
+
 ### UI/UX audit Batch A (2026-10-25)
 
 First batch from `docs/ui-ux-audit-2026-10-25.md` — the eight items that were

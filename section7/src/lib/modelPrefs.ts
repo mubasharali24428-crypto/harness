@@ -36,6 +36,50 @@ export interface CatalogProvider {
   name: string;
   kind: string;
   models: string[];
+  /** Display name from the provider registry ("Groq", "Alibaba Cloud (Qwen)"). */
+  label?: string;
+  /** Wire protocol the router speaks to this provider. */
+  protocol?: "openai" | "anthropic" | "gemini";
+  baseUrl?: string | null;
+  docsUrl?: string;
+  region?: string;
+  local?: boolean;
+  openWeights?: boolean;
+  /** Azure/Bedrock/Vertex/Databricks/Snowflake/Cloudflare: the documented URL
+   *  embeds an account, region or resource name, so the router can only reach
+   *  them once the operator sets `*_BASE_URL`. */
+  requiresOwnEndpoint?: boolean;
+  /** Models we hold a rate card for. The rest bill zero and say so. */
+  priced?: string[];
+}
+
+export function providerLabel(p: CatalogProvider): string {
+  return p.label ?? p.name;
+}
+
+/** Providers whose name or label matches a query. Empty query returns all. */
+export function filterProviders(providers: CatalogProvider[], query: string): CatalogProvider[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return providers;
+  return providers.filter(
+    (p) =>
+      p.name.toLowerCase().includes(q) ||
+      providerLabel(p).toLowerCase().includes(q) ||
+      p.models.some((m) => m.toLowerCase().includes(q)),
+  );
+}
+
+/** Region badge for the picker, so "which providers exist" is answerable. */
+export function providerSummary(p: CatalogProvider): string {
+  const bits: string[] = [];
+  if (p.local) bits.push("self-hosted");
+  else if (p.region && p.region !== "global") bits.push(p.region.toUpperCase());
+  if (p.openWeights) bits.push("open weights");
+  if (p.protocol && p.protocol !== "openai") bits.push(p.protocol);
+  if (p.requiresOwnEndpoint) bits.push("needs your endpoint URL");
+  const priced = p.priced?.length ?? 0;
+  bits.push(priced === 1 ? "1 priced model" : priced > 1 ? `${priced} priced models` : "cost not tracked");
+  return bits.join(" · ");
 }
 
 async function request<T>(url: string, token: string, init?: RequestInit): Promise<T> {

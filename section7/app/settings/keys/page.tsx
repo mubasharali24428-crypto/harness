@@ -25,6 +25,9 @@ import {
   mintKey,
   revokeKey,
 } from "./keysApi";
+// The provider registry lives in the model router (S3 /api/v1/models/catalog);
+// the keys page only borrows its names so the picker can offer them.
+import { fetchModelCatalog, providerLabel } from "@/lib/modelPrefs";
 
 const cardStyle = { maxWidth: 760, marginBottom: 20 } as const;
 const tableStyle = { width: "100%", borderCollapse: "collapse", fontSize: 13 } as const;
@@ -62,6 +65,10 @@ export default function KeysSettingsPage() {
   // add-key form
   const [label, setLabel] = useState("");
   const [provider, setProvider] = useState<KeyProvider>("openai");
+  /** Suggestions only — the mint endpoint accepts any provider string. */
+  const [providerChoices, setProviderChoices] = useState<Array<{ id: string; label: string }>>(
+    KEY_PROVIDERS.map((p) => ({ id: p, label: p })),
+  );
   const [keyInput, setKeyInput] = useState("");
   const [showKey, setShowKey] = useState(false);
 
@@ -96,6 +103,15 @@ export default function KeysSettingsPage() {
     refresh(session.principal.teamId).catch((e: unknown) =>
       setError(String((e as Error)?.message ?? e)),
     );
+    // Registry names for the provider picker. A failure here is not an error
+    // state: the fallback list stays and the field still accepts free text.
+    fetchModelCatalog(session.token)
+      .then((providers) =>
+        setProviderChoices(
+          providers.map((p) => ({ id: p.name, label: providerLabel(p) })),
+        ),
+      )
+      .catch(() => {});
   }, [refresh]);
 
   const onAddSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -223,18 +239,30 @@ export default function KeysSettingsPage() {
             <label htmlFor="key-provider" style={{ alignSelf: "center" }}>
               Provider
             </label>
-            <select
+            {/* A datalist, not a select: the registry holds 50+ providers and
+                the mint endpoint accepts any provider string, so a closed list
+                would be a policy the backend never set. */}
+            <input
               id="key-provider"
+              type="text"
+              required
+              list="provider-registry"
               value={provider}
-              onChange={(e) => setProvider(e.target.value as KeyProvider)}
-              style={selectStyle}
-            >
-              {KEY_PROVIDERS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
+              onChange={(e) => setProvider(e.target.value.trim())}
+              placeholder="openai"
+              className="text-input"
+              data-testid="key-provider"
+              style={{ width: 200 }}
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <datalist id="provider-registry">
+              {providerChoices.map((choice) => (
+                <option key={choice.id} value={choice.id}>
+                  {choice.label}
                 </option>
               ))}
-            </select>
+            </datalist>
             <label htmlFor="key-input" style={{ alignSelf: "center" }}>
               Key
             </label>

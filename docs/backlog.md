@@ -106,3 +106,21 @@ scope for a freeze-window polish sweep.
 
 No cross-section copy-paste blocks were found between backend sections,
 contracts, or mcp.
+
+## From the 2026-10-25 provider-registry work
+
+The registry (`docs/providers.md`) made 65 providers routable from the model
+router. Three follow-ups were left open deliberately, not by omission:
+
+- [ ] **Egress allow-list derived from the registry** (owner: S5). The sandbox
+  proxy's list predates the registry, so a newly routable provider works from
+  S3 but not necessarily from inside a confined run. Needs a network-policy
+  sign-off, and `harness-sandbox-egress` is currently crash-looping on the dev
+  stack — investigate both together.
+- [ ] **Rate card beyond the 15 priced models** (owner: S3). 117 model ids are
+  listed; an unpriced call bills zero and logs the gap. Per-provider price
+  ingestion (or a documented "bring your own rate card" table) closes this.
+- [ ] **Per-team endpoint override** (owner: S1 + S3, security review). Teams
+  still cannot point a provider at their own base URL (Azure resource, Bedrock
+  region); it stays operator env because a team-supplied URL is an SSRF
+  surface. Needs an allow-list or an out-of-band approval step first.

@@ -13,6 +13,9 @@ import {
   saveModelPrefs,
   scopeNote,
   shortModel,
+  filterProviders,
+  providerLabel,
+  providerSummary,
   type CatalogProvider,
 } from "./modelPrefs";
 
@@ -144,5 +147,50 @@ describe("wire contract", () => {
       expect((e as ApiError).code).toBe("UNKNOWN_MODEL");
       expect((e as ApiError).status).toBe(400);
     }
+  });
+});
+
+describe("provider registry presentation helpers", () => {
+  const rich: CatalogProvider[] = [
+    {
+      name: "groq", kind: "api", models: ["groq/llama-3.3-70b-versatile"],
+      label: "Groq", protocol: "openai", region: "us", openWeights: true, priced: [],
+    },
+    {
+      name: "ollama", kind: "local", models: ["ollama/qwen3:14b"],
+      label: "Ollama", protocol: "openai", local: true, openWeights: true, priced: [],
+    },
+    {
+      name: "anthropic", kind: "api", models: ["anthropic/claude-sonnet-4"],
+      label: "Anthropic", protocol: "anthropic", region: "us", priced: ["anthropic/claude-sonnet-4"],
+    },
+  ];
+
+  it("matches on label, name or a model id", () => {
+    expect(filterProviders(rich, "groq").map((p) => p.name)).toEqual(["groq"]);
+    expect(filterProviders(rich, "llama-3.3").map((p) => p.name)).toEqual(["groq"]);
+    expect(filterProviders(rich, "").length).toBe(3);
+    expect(filterProviders(rich, "nope")).toEqual([]);
+  });
+
+  it("states what a provider costs us, instead of implying a rate we do not have", () => {
+    expect(providerSummary(rich[0])).toContain("open weights");
+    expect(providerSummary(rich[0])).toContain("cost not tracked");
+    expect(providerSummary(rich[1])).toContain("self-hosted");
+    expect(providerSummary(rich[2])).toContain("1 priced model");
+    expect(providerSummary(rich[2])).toContain("anthropic"); // protocol is not openai
+  });
+
+  it("falls back to the id when a provider has no label", () => {
+    expect(providerLabel({ name: "x", kind: "api", models: [] })).toBe("x");
+  });
+
+  it("says when a provider needs an operator-supplied endpoint", () => {
+    const azure: CatalogProvider = {
+      name: "azure", kind: "api", models: ["azure/gpt-4o"], label: "Azure OpenAI",
+      requiresOwnEndpoint: true, priced: ["azure/gpt-4o"],
+    };
+    expect(providerSummary(azure)).toContain("needs your endpoint URL");
+    expect(providerSummary(azure)).toContain("1 priced model");
   });
 });

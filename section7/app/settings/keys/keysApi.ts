@@ -5,9 +5,24 @@
 // app/settings/team/teamApi.ts and src/lib/api.ts.
 import { ApiError, IDENTITY_BASE, parseApiError } from "@/lib/api";
 
-/** Providers accepted by the mint endpoint (contract: `{label, provider, key}`). */
-export type KeyProvider = "openai" | "anthropic" | "deepseek" | "ollama";
-export const KEY_PROVIDERS: KeyProvider[] = ["openai", "anthropic", "deepseek", "ollama"];
+/** Provider ids accepted by the mint endpoint (contract: `{label, provider,
+ *  key}`). The backend validates the SHAPE only (`^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$`,
+ *  section1/src/harness_identity/api_keys.py:42), so any provider a team has a
+ *  working key for is acceptable — this is a string, not a union. The picker
+ *  offers the router's registry as suggestions and still lets you type a name
+ *  that is not on the list. */
+export type KeyProvider = string;
+
+/** Shown when the model router is unreachable and the registry cannot be read. */
+export const KEY_PROVIDERS: KeyProvider[] = [
+  "openai",
+  "anthropic",
+  "deepseek",
+  "mistral",
+  "groq",
+  "openrouter",
+  "ollama",
+];
 
 /** One row of GET /api/v1/keys — camelCase per contract M10-C1. */
 export interface ApiKeyDto {

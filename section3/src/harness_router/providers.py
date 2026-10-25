@@ -22,17 +22,28 @@ Authorization header. It never enters logs, exception messages, or
 ``ModelResult`` payloads (``_scrub`` is belt-and-braces on anything surfaced).
 """
 
+import logging
 import os
 import time
+from decimal import Decimal
 from typing import Any
 
 import httpx
 from harness_contracts.signatures import ModelCallOpts, ModelResult
 
-from harness_router.pricing import PricingEngine
+from harness_router.pricing import MODEL_PRICING_CATALOG, PricingEngine
+from harness_router.provider_registry import (
+    ANTHROPIC_VERSION,
+    Endpoint,
+    resolve_endpoint,
+    wire_name,
+)
 
-# OpenAI-compatible endpoint. DEEPSEEK_BASE_URL also serves local Ollama
-# (AGENTS.md / catalog.py); unset falls back to DeepSeek's official API.
+logger = logging.getLogger(__name__)
+
+# Kept for existing imports and the single-endpoint dev stack; the authoritative
+# resolution now lives in provider_registry.resolve_endpoint(), which knows that
+# only one URL used to be reachable no matter which model was named.
 PROVIDER_BASE_URL_ENV = "DEEPSEEK_BASE_URL"
 DEFAULT_PROVIDER_BASE_URL = "https://api.deepseek.com"
 
@@ -124,23 +135,18 @@ class ModelProviderClient:
         api_key: str,
         start_time: float,
     ) -> ModelResult:
-        """Genuine completion from the OpenAI-compatible endpoint.
+        """Genuine completion from the provider that owns this model id.
 
         No synthesis anywhere: every failure raises, nothing fabricates text.
         """
-        base_url = os.environ.get(PROVIDER_BASE_URL_ENV, DEFAULT_PROVIDER_BASE_URL).rstrip("/")
-        url = f"{base_url}/chat/completions"
-
-        payload: dict[str, Any] = {"model": wire_model_name(model), "messages": messages}
-        if opts.maxTokens:
-            payload["max_tokens"] = opts.maxTokens
-        if opts.temperature is not None:
-            payload["temperature"] = opts.temperature
-        if isinstance(opts.extra, dict):
-            # S-03: the billed/recorded model must be the model actually called.
-            payload.update({k: v for k, v in opts.extra.items() if k not in ("model", "messages")})
-
-        headers = {"Authorization": f"Bearer {api_key}"}
+        endpoint = resolve_endpoint(model)
+        url = (
+            gemini_url(endpoint, model)
+            if endpoint.protocol == "gemini"
+            else endpoint.url
+        )
+        payload = _request_payload(endpoint, model, messages, opts)
+        headers = _request_headers(endpoint, api_key)
 
         try:
             with httpx.Client(timeout=self.timeout_seconds, transport=self._transport) as client:
@@ -174,8 +180,7 @@ class ModelProviderClient:
             )
 
         try:
-            data = response.json()
-            text = data["choices"][0]["message"]["content"]
+            text, usage = _parse_completion(endpoint, response.json())
         except (ValueError, KeyError, IndexError, TypeError) as exc:
             raise ModelUnavailableError(
                 f"Provider returned a malformed completion for model '{model}'."
@@ -183,10 +188,8 @@ class ModelProviderClient:
         if not isinstance(text, str) or not text.strip():
             raise ModelUnavailableError(f"Provider returned no completion for model '{model}'.")
 
-        usage = data.get("usage") if isinstance(data, dict) else None
-        usage = usage if isinstance(usage, dict) else {}
-        input_tokens = int(usage.get("prompt_tokens") or max(1, len(messages_str(messages)) // 4))
-        output_tokens = int(usage.get("completion_tokens") or max(1, len(text) // 4))
+        input_tokens = int(usage.get("input") or max(1, len(messages_str(messages)) // 4))
+        output_tokens = int(usage.get("output") or max(1, len(text) // 4))
 
         latency_ms = max(1, int((time.perf_counter() - start_time) * 1000))
         return self._build_result(
@@ -237,7 +240,13 @@ class ModelProviderClient:
         # H-023: cost math is exact Decimal internally (PricingEngine); the
         # frozen contracts/ field is a JSON number, so convert only at this
         # serialization edge. No float arithmetic ever touches money.
-        cost = PricingEngine.calculate_cost(model, input_tokens, output_tokens)
+        #
+        # An unpriced model bills 0 and says so in the log. The alternative was
+        # PricingEngine's silent $0.50/$1.50 fallback, which would have charged
+        # a real number for a model we have no price for — a free local run at
+        # DeepSeek's rate, or Claude at a sixth of its rate. Zero is wrong too,
+        # but it is visibly wrong and never invents spend.
+        cost = priced_cost(model, input_tokens, output_tokens)
         return ModelResult(
             text=text,
             costUsd=float(cost),
@@ -254,3 +263,138 @@ class ModelProviderClient:
 def messages_str(messages: list[dict[str, str]]) -> str:
     """Concatenated message content — token estimation input."""
     return " ".join(m.get("content", "") for m in messages)
+
+
+# ---------------------------------------------------------------------------
+# Wire protocols. One OpenAI-compatible shape is not enough for a registry of
+# this size: Anthropic and Google both publish a native messages API whose
+# request/response bodies differ, and pretending otherwise means silently
+# dropping half the providers.
+# ---------------------------------------------------------------------------
+
+
+def _request_payload(
+    endpoint: Endpoint, model: str, messages: list[dict[str, str]], opts: ModelCallOpts
+) -> dict[str, Any]:
+    """Build the request body for this endpoint's protocol."""
+    wire = wire_name(model)
+    extra: dict[str, Any] = {}
+    if isinstance(opts.extra, dict):
+        # S-03: the billed/recorded model must be the model actually called.
+        extra = {k: v for k, v in opts.extra.items() if k not in ("model", "messages")}
+
+    if endpoint.protocol == "anthropic":
+        system = "\n".join(m.get("content", "") for m in messages if m.get("role") == "system")
+        turns = [m for m in messages if m.get("role") != "system"]
+        payload: dict[str, Any] = {
+            "model": wire,
+            "messages": turns,
+            # max_tokens is required by the Messages API; without one the call
+            # would 400 on every Anthropic model.
+            "max_tokens": opts.maxTokens or 4096,
+        }
+        if system:
+            payload["system"] = system
+        if opts.temperature is not None:
+            payload["temperature"] = opts.temperature
+        payload.update(extra)
+        return payload
+
+    if endpoint.protocol == "gemini":
+        contents = [
+            {
+                "role": "model" if m.get("role") == "assistant" else "user",
+                "parts": [{"text": m.get("content", "")}],
+            }
+            for m in messages
+            if m.get("role") != "system"
+        ]
+        payload = {"contents": contents}
+        config: dict[str, Any] = {}
+        if opts.maxTokens:
+            config["maxOutputTokens"] = opts.maxTokens
+        if opts.temperature is not None:
+            config["temperature"] = opts.temperature
+        system = "\n".join(m.get("content", "") for m in messages if m.get("role") == "system")
+        if system:
+            payload["systemInstruction"] = {"parts": [{"text": system}]}
+        if config:
+            payload["generationConfig"] = config
+        payload.update(extra)
+        return payload
+
+    payload = {"model": wire, "messages": messages}
+    if opts.maxTokens:
+        payload["max_tokens"] = opts.maxTokens
+    if opts.temperature is not None:
+        payload["temperature"] = opts.temperature
+    payload.update(extra)
+    return payload
+
+
+def _request_headers(endpoint: Endpoint, api_key: str) -> dict[str, str]:
+    """Auth per protocol. The raw key exists only here — never in a log, an
+    exception message or a ModelResult."""
+    if endpoint.protocol == "anthropic":
+        return {
+            "x-api-key": api_key,
+            "anthropic-version": ANTHROPIC_VERSION,
+            "content-type": "application/json",
+        }
+    if endpoint.protocol == "gemini":
+        return {"x-goog-api-key": api_key, "content-type": "application/json"}
+    return {"Authorization": f"Bearer {api_key}", "content-type": "application/json"}
+
+
+def gemini_url(endpoint: Endpoint, model: str) -> str:
+    """Gemini addresses the model in the path, not the body."""
+    base = endpoint.url.rstrip("/")
+    if ":generateContent" in base:
+        return base
+    return f"{base}/v1beta/models/{wire_name(model)}:generateContent"
+
+
+def _parse_completion(endpoint: Endpoint, data: Any) -> tuple[str, dict[str, int]]:
+    """(text, {input, output} token counts) from a protocol-specific body."""
+    if not isinstance(data, dict):
+        raise TypeError("response body is not an object")
+
+    if endpoint.protocol == "anthropic":
+        blocks = data.get("content") or []
+        text = "".join(
+            b.get("text", "") for b in blocks if isinstance(b, dict) and b.get("type") == "text"
+        )
+        usage = data.get("usage") or {}
+        return text, {
+            "input": int(usage.get("input_tokens") or 0),
+            "output": int(usage.get("output_tokens") or 0),
+        }
+
+    if endpoint.protocol == "gemini":
+        candidates = data.get("candidates") or []
+        parts = (candidates[0].get("content") or {}).get("parts") or []
+        text = "".join(p.get("text", "") for p in parts if isinstance(p, dict))
+        usage = data.get("usageMetadata") or {}
+        return text, {
+            "input": int(usage.get("promptTokenCount") or 0),
+            "output": int(usage.get("candidatesTokenCount") or 0),
+        }
+
+    text = data["choices"][0]["message"]["content"]
+    usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+    return text, {
+        "input": int(usage.get("prompt_tokens") or 0),
+        "output": int(usage.get("completion_tokens") or 0),
+    }
+
+
+def priced_cost(model: str, input_tokens: int, output_tokens: int) -> Decimal:
+    """Exact cost when we have a price for this model id; zero when we do not."""
+    if model in MODEL_PRICING_CATALOG:
+        return PricingEngine.calculate_cost(model, input_tokens, output_tokens)
+    logger.warning(
+        "model %r has no entry in the pricing catalog (%d known); billing 0 for this call",
+        model,
+        len(MODEL_PRICING_CATALOG),
+    )
+    return Decimal("0")

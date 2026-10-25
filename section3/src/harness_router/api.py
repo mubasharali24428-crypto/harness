@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from harness_router import ledger as cost_ledger
 from harness_router import prefs as model_prefs
+from harness_router import provider_registry
 from harness_router.catalog import catalog
 from harness_router.config import MODEL_PRICING_CATALOG
 from harness_router.pricing import PricingEngine
@@ -473,24 +474,59 @@ def list_models(principal: Reader) -> list[str]:
 
 @router.get("/catalog", status_code=status.HTTP_200_OK)
 def provider_catalog(principal: Reader) -> list[dict[str, Any]]:
-    """E-cat: declarative provider catalog (providers, env-var indirection,
-    models). No secrets — env var NAMES only."""
-    return [
-        {
+    """Declarative provider catalog (providers, env-var indirection, models).
+    No secrets — env var NAMES only.
+
+    Registry entries carry the metadata the picker needs: display label, wire
+    protocol, region, whether the weights are open, and whether we can price
+    the model. An unlisted provider still works — this list is a convenience,
+    not a permission."""
+    out: list[dict[str, Any]] = []
+    for e in catalog.list_providers():
+        entry: dict[str, Any] = {
             "name": e.name,
             "kind": e.kind,
             "baseUrlEnv": e.base_url_env,
             "apiKeyEnv": e.api_key_env,
             "models": e.models,
         }
-        for e in catalog.list_providers()
-    ]
+        provider = provider_registry.get(e.name)
+        if provider is not None:
+            entry.update(
+                {
+                    "label": provider.label,
+                    "protocol": provider.protocol,
+                    "baseUrl": provider.base_url,
+                    "docsUrl": provider.docs_url,
+                    "region": provider.region,
+                    "local": provider.local,
+                    "openWeights": provider.open_weights,
+                    "requiresOwnEndpoint": provider.requires_own_endpoint,
+                }
+            )
+        else:
+            entry.update(
+                {
+                    "label": e.name.title(),
+                    "protocol": "openai",
+                    "baseUrl": None,
+                    "docsUrl": "",
+                    "region": "global",
+                    "local": e.kind == "local",
+                    "openWeights": True,
+                    "requiresOwnEndpoint": False,
+                }
+            )
+        entry["priced"] = [m for m in e.models if m in MODEL_PRICING_CATALOG]
+        out.append(entry)
+    return out
 
 
 @router.post("/config", status_code=status.HTTP_200_OK)
 def configure_role_model(req: ConfigureRoleModelRequest, principal: Writer) -> dict[str, str]:
-    if req.model not in MODEL_PRICING_CATALOG:
-        msg = f"Model '{req.model}' is not in catalog."
+    # Routable, not merely priced — see prefs.model_known for why.
+    if not model_prefs.model_known(req.model):
+        msg = f"Model '{req.model}' names no provider we can route to."
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"error": {"code": "UNKNOWN_MODEL", "message": msg}},
