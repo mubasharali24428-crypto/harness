@@ -1,0 +1,32 @@
+{
+  "drill": "native-linux-container-tool",
+  "executedAt": "2026-10-25T10:41:02Z",
+  "kernel": "6.17.0-1022-azure",
+  "platform": "Linux x86_64",
+  "image": "harness-backend:drill",
+  "landlockUsableInContainer": true,
+  "checks": {
+    "toolWriteThroughShellGate": {
+      "ok": true,
+      "detail": "engine_ok.txt written by the confined child, content verified on the host"
+    },
+    "workspaceReadStillWorks": {
+      "ok": true
+    },
+    "siblingReadDenied": {
+      "ok": true,
+      "detail": "read of /sibling/data.txt failed; CANARY never appeared in output"
+    },
+    "outsideWriteDenied": {
+      "ok": true,
+      "detail": "write to /tmp outside the workspace was refused by Landlock"
+    }
+  },
+  "result": "pass",
+  "notes": [
+    "Reproduces the Docker Desktop/macOS failing path on a native Linux kernel.",
+    "The shell gate fails closed when the Landlock probe is unavailable.",
+    "A container started with --user and no passwd entry has HOME=/; the allow-list now refuses / as a root.",
+    "This certifies the sandbox host boundary, not the whole product."
+  ]
+}

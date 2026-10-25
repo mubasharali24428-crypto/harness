@@ -24,8 +24,9 @@ Updated 2026-10-25: the real-provider smoke, the OIDC drill (Keycloak 26.1.5,
 14/14 checks) and the object-storage PITR drill (MinIO S3 API, versioned
 bucket) have executed; evidence is in `docs/briefs/evidence/pilot-prep/` and
 the matrix in `docs/runbooks/external-validation.md`. A native-Linux container
-tool drill is wired into CI and awaits its first run; it already exposed and
-fixed a Landlock bootstrap bug that had granted `/` as readable for `/bin/sh`.
+tool drill passed on ubuntu-latest (kernel 6.17); it exposed and fixed two
+Landlock allow-list holes that had granted `/` as readable (via `/bin/sh` and
+via `HOME=/` in `--user` containers).
 Stripe remains undrilled by decision — Stripe is not available in Pakistan, so
 billing stays flag-off. Remaining blockers: a reviewed dedicated sandbox
 worker/daemon, host certification, the first native-Linux drill run, and
