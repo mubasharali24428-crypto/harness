@@ -21,8 +21,6 @@ mcp/
 packages/
 scripts/
 task0/
-section7/
-section9/
 *.md
 .git
 **/.env

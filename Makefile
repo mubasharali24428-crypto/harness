@@ -222,9 +222,13 @@ PG_ENV = HARNESS_TEST_PG=1 HARNESS_DATABASE_URL="$(PG_URL)" \
 
 # Idempotently start the compose db and wait until it accepts connections.
 pg-up:
-	$(PG_COMPOSE) up -d db
-	@for i in $$(seq 1 60); do $(PG_COMPOSE) exec -T db pg_isready -U harness >/dev/null 2>&1 && exit 0; sleep 1; done; \
-		echo "pg-up: db not ready after 60s"; exit 1
+	@if [ "$${HARNESS_TEST_PG_EXTERNAL:-}" = "1" ]; then \
+		echo "pg-up: using the caller-supplied Postgres (HARNESS_TEST_PG_EXTERNAL=1)"; \
+	else \
+		$(PG_COMPOSE) up -d db; \
+		for i in $$(seq 1 60); do $(PG_COMPOSE) exec -T db pg_isready -U harness >/dev/null 2>&1 && exit 0; sleep 1; done; \
+		echo "pg-up: db not ready after 60s"; exit 1; \
+	fi
 
 pg-probe: pg-probe-integration pg-probe-s1 pg-probe-migrate
 

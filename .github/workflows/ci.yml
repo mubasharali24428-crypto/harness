@@ -10,6 +10,9 @@ name: CI
 
 permissions:
   contents: read
+  # gitleaks-action enumerates a PR's commits on pull_request events; without
+  # this it fails with HTTP 403 and blocks the whole job.
+  pull-requests: read
 
 on:
   push:
@@ -255,6 +258,8 @@ jobs:
         run: make --no-print-directory pg-probe-migrate
         env:
           HARNESS_TEST_PG: "1"
+          # The job's service container owns 5499; do not start a second db.
+          HARNESS_TEST_PG_EXTERNAL: "1"
           HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@localhost:5499/harness
 
   security-scan:
