@@ -42,5 +42,14 @@
     "token usage accounting (usage=null for this local endpoint)",
     "end-to-end orchestrator run with a real model through the compose stack",
     "a stalled-call timeout (none implemented in _run_isolated)"
-  ]
+  ],
+  "providerFailureCheck": {
+    "date": "2026-10-24",
+    "provider": "OpenRouter",
+    "attempt": "strict live engine probe (test_live_run_against_openrouter), model cohere/north-mini-code:free",
+    "result": "error surfaced verbatim: 401 {\"message\":\"User not found.\",\"code\":401}",
+    "directKeyCheck": "GET /api/v1/key with the same credential returned HTTP 401 User not found",
+    "conclusion": "the supplied credential is not associated with an active account; no model was invoked and nothing was billed",
+    "note": "the engine reported the provider error honestly instead of a fake success"
+  }
 }
