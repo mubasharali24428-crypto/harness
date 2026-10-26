@@ -9,8 +9,9 @@ runtime plugin which hands every command to this script:
 It applies the same rules as Section 5's own exec path (``validate_command``: allow-list,
 no shell operators, secret files, forbidden paths), refuses paths inside the workspace
 that fall outside the run intent's ``scopePaths``, then runs the command under OS
-confinement (Seatbelt or Landlock; none available = refused) with a sanitized
-environment. It prints one JSON line: ``{"denied": reason}`` or ``{"exitCode", "output"}``.
+confinement (Seatbelt or Landlock; none available = refused) whose only writable part of
+the workspace is that scope (M03), with a sanitized environment. It prints one JSON line:
+``{"denied": reason}`` or ``{"exitCode", "output"}``.
 
 Stdlib only, and the sibling modules are loaded by file path, so the worker image needs
 these three files and not the ``harness_sandbox`` package (whose ``__init__`` pulls in
@@ -64,6 +65,26 @@ def scope_violation(command: str, cwd: str, scope_paths: list[str]) -> str | Non
     return None
 
 
+def scope_roots(cwd: str, scope_paths: list[str]) -> list[Path] | None:
+    """M03: the only writable roots for a narrower intent; ``None`` = the whole workspace.
+
+    ``scope_violation`` reads command strings, so ``python3 -c "open('do'+'cs/x','w')"`` passed
+    it (M01). Handing these to the OS boundary as its write set is what actually refuses that.
+    A scope path that does not exist yet, or resolves outside the workspace, is not writable.
+    """
+    if not scope_paths:
+        return None
+    root = os.path.realpath(cwd)
+    roots: list[Path] = []
+    for scope in scope_paths:
+        real = os.path.realpath(os.path.join(root, str(scope).strip().strip("/")))
+        if real == root:
+            return None
+        if real.startswith(root + os.sep) and os.path.exists(real):
+            roots.append(Path(real))
+    return roots
+
+
 def unprotected_forbidden(cwd: str, patterns: list[str]) -> str | None:
     """First existing forbidden path that is still writable (not a read-only mount)."""
     root = os.path.realpath(cwd)
@@ -94,7 +115,8 @@ def run(req: dict) -> dict:
     with tempfile.TemporaryDirectory(prefix="harness-shell-") as tmp:
         try:
             argv = confinement.confine_argv(
-                ["/bin/sh", "-c", command], workspace=Path(cwd), tmpdir=Path(tmp)
+                ["/bin/sh", "-c", command], workspace=Path(cwd), tmpdir=Path(tmp),
+                write_roots=scope_roots(cwd, req.get("scopePaths") or []),
             )
         except confinement.ConfinementUnavailableError as exc:
             return {"denied": f"{exc}; refusing to run unconfined"}

@@ -97,3 +97,31 @@ def test_writable_forbidden_path_refuses_to_run(tmp_path):
 def test_missing_forbidden_path_is_not_checked(tmp_path):
     res = gate(tmp_path, "python3 -c pass", forbiddenPaths=["absent.txt"])
     assert "not read-only" not in res.get("denied", "")
+
+
+@requires_confinement
+def test_scope_is_the_write_set_so_code_strings_cannot_leave_it(tmp_path):
+    """M03: the M01 bypass. The string check skips code strings; the OS boundary does not."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "docs").mkdir()
+    for code in ("open('docs/leak.txt','w').write('x')", "open('do'+'cs/leak2.txt','w')",
+                 "open(__import__('os').path.join('docs','leak3.txt'),'w')", "open('top.txt','w')"):
+        res = gate(tmp_path, f'python3 -c "{code}"', scopePaths=["src"])
+        assert res.get("exitCode") not in (0, None), (code, res)
+    assert sorted(p.name for p in tmp_path.rglob("*") if p.is_file()) == []
+    ok = gate(tmp_path, "python3 -c \"open('src/ok.txt','w').write('x')\"", scopePaths=["src"])
+    assert ok["exitCode"] == 0 and (tmp_path / "src" / "ok.txt").read_text() == "x"
+
+
+def test_scope_roots(tmp_path):
+    sys.path.insert(0, str(GATE.parent))
+    try:
+        import shell_gate
+    finally:
+        sys.path.pop(0)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "away").symlink_to(tmp_path.parent)
+    real = tmp_path.resolve()
+    assert shell_gate.scope_roots(str(tmp_path), []) is None
+    assert shell_gate.scope_roots(str(tmp_path), ["src", "."]) is None  # whole workspace
+    assert shell_gate.scope_roots(str(tmp_path), ["src/", "missing", "away"]) == [real / "src"]

@@ -69,6 +69,14 @@ _REPO_SHELL_GATE = (
 )
 
 
+def _read_only(path: str) -> bool:
+    """Is ``path`` on a read-only mount (the container boundary's own, observable signal)?"""
+    try:
+        return bool(os.statvfs(path).f_flag & os.ST_RDONLY)
+    except OSError:
+        return False
+
+
 def _fs_write_capability(
     shell_policy: dict[str, Any] | None, workspace_dir: str
 ) -> tuple[bool, str]:
@@ -82,13 +90,14 @@ def _fs_write_capability(
       nested read-only binds and by Seatbelt's ``deny file-write*``; Landlock
       cannot express "grant the tree, deny a subtree", and ``none`` enforces
       nothing.
-    * ``scopePaths`` — an approved intent narrower than the workspace. No
-      boundary freezes that for a native tool: mounts cannot express an
-      allow-list inside a writable tree, so a native write outside the intent
-      would be indistinguishable from an allowed one.
+    * ``scopePaths`` — an approved intent narrower than the workspace. M03: the
+      container boundary mounts the workspace read-only and binds only the scope
+      back writable (``confine.scope_targets``), so the kernel refuses a native
+      write outside the intent. Anywhere else nothing would.
 
     So writes stay off unless they are covered: forbidden paths need
-    container/Seatbelt, and a narrower intent scope always disables them.
+    container/Seatbelt, and a narrower intent scope needs the workspace to be
+    read-only around it, which is observed here rather than assumed.
     Returns ``(allowed, reason)``; the reason is written into the patch so an
     operator reading a session can see why writes were off.
     """
@@ -96,11 +105,12 @@ def _fs_write_capability(
     forbidden = list(policy.get("forbiddenPaths") or [])
     scope = [str(p) for p in (policy.get("scopePaths") or []) if str(p).strip()]
     root = os.path.realpath(workspace_dir)
-    narrower = [p for p in scope if os.path.realpath(p) != root]
-    if narrower:
+    narrower = [p for p in scope if os.path.realpath(os.path.join(root, p)) != root]
+    if narrower and not _read_only(root):
         return False, (
             f"write/edit off: intent scope names {len(narrower)} path(s) inside the "
-            "workspace and a native file tool cannot enforce a narrower scope"
+            "workspace and a native file tool cannot enforce a narrower scope unless the "
+            "workspace is mounted read-only around it (container boundary)"
         )
     if not forbidden:
         return True, ""
@@ -572,13 +582,17 @@ class DeepSeekHarnessWrapper:
                     "DEEPSEEK_API_KEY": self.api_key,
                     **({"DEEPSEEK_BASE_URL": self.base_url} if self.base_url else {}),
                     "DSH_HOME": sess,
+                    # The worker's own write-capability check must see the boundary the
+                    # parent chose; inside a container "auto" would otherwise read "none".
+                    confine.CONFINEMENT_ENV: "off" if mode == "none" else mode,
                 },
                 tmp,
             )
             if mode == "container":
                 boundary = ContainerBoundary(self.base_url)
                 env["DEEPSEEK_BASE_URL"] = boundary.start()
-            forbidden = (self._shell_policies.get(session_id) or {}).get("forbiddenPaths")
+            policy = self._shell_policies.get(session_id) or {}
+            forbidden = policy.get("forbiddenPaths")
             before = confine.forbidden_snapshot(workspace, forbidden)
             argv = confine.wrap_command(
                 [sys.executable, "-m", module],
@@ -592,6 +606,7 @@ class DeepSeekHarnessWrapper:
                 image=boundary.image if boundary else "",
                 env=env,
                 forbidden_paths=forbidden,
+                scope_paths=policy.get("scopePaths"),
             )
             request = json.dumps(
                 {

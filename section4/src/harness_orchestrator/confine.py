@@ -109,6 +109,36 @@ def forbidden_targets(workspace: str, patterns: list[str] | None) -> list[str]:
     return sorted(found)
 
 
+def scope_targets(
+    workspace: str, scope_paths: list[str] | None, forbidden: list[str]
+) -> list[str] | None:
+    """Real paths the run intent's ``scopePaths`` name, when narrower than the workspace (M03).
+
+    ``None`` means the whole workspace is in scope. Otherwise the container mounts the workspace
+    read-only and binds each target back read-write, so the approval holds for every writer in the
+    worker - the shell, ``python3 -c``, and the native file tools alike (M01 measured that the
+    string check holds for none of them). Fail-closed by omission: a path that does not exist at
+    launch cannot be bound and stays read-only, a link that resolves outside the workspace is never
+    bound, and a scope at or beneath a forbidden target is dropped (forbidden paths are hard).
+    """
+    if not scope_paths:
+        return None
+    root = os.path.realpath(workspace)
+    found: dict[str, None] = {}
+    for raw in scope_paths:
+        rel = str(raw).strip().strip("/")
+        real = os.path.realpath(os.path.join(root, rel))
+        if real == root:
+            return None
+        inside = real.startswith(root + os.sep) and ".." not in Path(rel).parts
+        if not inside or not os.path.exists(real):
+            continue
+        if any(real == f or real.startswith(f + os.sep) for f in forbidden):
+            continue
+        found[real] = None
+    return sorted(found)
+
+
 def forbidden_snapshot(workspace: str, patterns: list[str] | None) -> dict[str, str]:
     """File -> sha256 for every file under a forbidden pattern (detective check for paths
     the mounts cannot cover: created after launch, or no mount mode)."""
@@ -188,6 +218,7 @@ def wrap_command(
     image: str = "harness-engine-worker:p0",
     env: dict[str, str] | None = None,
     forbidden_paths: list[str] | None = None,
+    scope_paths: list[str] | None = None,
 ) -> list[str]:
     """Build the worker launch command for the selected boundary."""
     forbidden = forbidden_targets(workspace, forbidden_paths) if mode != "none" else []
@@ -197,6 +228,7 @@ def wrap_command(
         for path in (workspace, session_dir):
             if Path(path).is_symlink() or not Path(path).is_dir() or "," in path:
                 raise ValueError("container mounts must be real directories without commas")
+        scope = scope_targets(workspace, scope_paths, forbidden)
         result = [
             "docker",
             "run",
@@ -225,9 +257,15 @@ def wrap_command(
             "--workdir",
             workspace,
         ]
-        for path in (workspace, session_dir):
+        # M03: a narrower intent freezes the workspace and binds only the scope back writable.
+        frozen = "true" if scope is not None else "false"
+        result += ["--mount", f"type=bind,src={workspace},dst={workspace},readonly={frozen}"]
+        result += ["--mount", f"type=bind,src={session_dir},dst={session_dir},readonly=false"]
+        for path in scope or []:
+            if "," in path:
+                raise ConfinementUnavailableError("scope paths must not contain commas")
             result += ["--mount", f"type=bind,src={path},dst={path},readonly=false"]
-        for path in forbidden:  # S-01: nested read-only bind; later mounts win over the workspace
+        for path in forbidden:  # S-01: nested read-only bind; Docker mounts deeper paths later
             if "," in path:
                 raise ConfinementUnavailableError("forbidden paths must not contain commas")
             result += ["--mount", f"type=bind,src={path},dst={path},readonly"]

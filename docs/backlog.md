@@ -320,7 +320,22 @@ made the real cause easy to find once the environment was inspected.
 
 ## From W1 M01 (confinement spike, 2026-10-26)
 
-- [ ] **Scope enforcement needs mounts, not parsing** (owner: S5+S4, gates M03).
+- [x] **Scope enforcement needs mounts, not parsing** (owner: S5+S4, gates M03).
+  **Closed 2026-10-26 (M03).** Container worker: a narrower intent mounts the
+  workspace read-only and binds only existing `scopePaths` back writable
+  (`confine.scope_targets`; a scope at or under a forbidden path is dropped, a
+  missing one stays read-only). Shell gate: the scope is the OS boundary's write
+  set (`confine_argv(write_roots=…)`, Seatbelt and Landlock), so the M01 bypass
+  is refused in host mode too. Native write/edit are now ON under a narrower
+  scope when the workspace is observed read-only (`engine._read_only`), and the
+  worker is told its boundary (`HARNESS_ENGINE_CONFINEMENT` crosses), which
+  also stops an `off` worker on macOS reading itself as `seatbelt`. Live:
+  `scripts/e2e/m03_scope_drill.py` → `m03-scope-mounts.json`, native `write`
+  into `src/` succeeded and into `docs/` failed `EROFS`. Limits: a scope that
+  names a *file* is not writable through the native tool (it stages a temp
+  beside the target, in the read-only parent); `.git` is read-only unless in
+  scope; Landlock write roots are unit-tested only (no Linux kernel here).
+  Original entry:
   The approved scope is unenforced: with `scopePaths=["src"]`, writes to `docs/`
   succeeded as a literal, a concatenation and an `os.path.join`
   (`m01-confinement-spike.json`). `python3` is the only file-writing binary on the
@@ -331,8 +346,10 @@ made the real cause easy to find once the environment was inspected.
   Desktop's linuxkit kernel returns `ENOSYS` for `landlock_create_ruleset`, so
   `scripts/m01_confinement_spike.py` can only answer for Seatbelt until it runs on
   a Linux host. Re-run there and record both backends before M03 is designed.
-- [ ] **Native `tool-fs` read/write/edit are not in the matrix at all**
-  (owner: S4+S5). They bypass the shell gate and run inside the worker. The
+- [x] **Native `tool-fs` read/write/edit are not in the matrix at all**
+  (owner: S4+S5). Write measured by the M03 drill (container, scope `src`):
+  in-scope write succeeded, out-of-scope write refused by the kernel. Edit not
+  separately driven. They bypass the shell gate and run inside the worker. The
   confined worker now runs, so add a scope-forbidden write through the native
   tool to the spike rather than assuming it matches the shell result.
 - [ ] **A forbidden path with no read-only mount disables the shell tool**
