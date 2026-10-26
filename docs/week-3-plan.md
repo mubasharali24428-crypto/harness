@@ -67,7 +67,7 @@ sample count is one, not enough to state as a gate.
 | Gate clause | State | Evidence |
 |---|---|---|
 | The worker and its child tool stop | **half** | container kill measured 0.58–1.01 s over four samples; a live `sleep` child observed in one; the guard now calls the kill |
-| Resume reconciles partial writes | **open** | nothing implemented; needs a kill mid-write and a workspace comparison |
+| Resume reconciles partial writes | **half** | resume adopts the disk (pinned); the *partial-write* case is unmeasured |
 | A rejected action stays blocked | **open** | approval routes exist; no W3 evidence gathered |
 | Steering does not silently expand the approved scope | **open** | guidance is stored as events and never touches the shell policy, but that is a code reading, not a measurement |
 
@@ -135,3 +135,61 @@ library call); (b) a run-scoped `rewind` route that maps a run to its workspace
 and calls the existing restore; (c) evidence that a killed run can be rewound and
 then resumed with the tree matching the checkpoint. None of that is done, and
 W3's gate stays open on it.
+
+## Rewind, first slice (2026-10-26)
+
+Decision 1 ("revert to the last checkpoint") had nothing to revert to. This slice
+gives it something, without borrowing another section's storage or widening one.
+
+**Why not git.** The obvious local tool is a commit per checkpoint, and the
+orchestrator image has no `git` binary (checked inside the running container).
+Adding one to the image is a build dependency bought for one feature. Why not
+Section 5's checkpoint store either: it covers sandbox task workspaces, and
+pointing it at `harness_runs` would let one run's sandbox read every other run's
+workspace — a tenant-isolation regression for convenience.
+
+**What it does instead** (`section4/src/harness_orchestrator/run_checkpoints.py`):
+a checkpoint is a manifest plus content-addressed blobs, written under
+`DSH_WORKSPACE/.checkpoints/<runId>/`, *outside* the run's own tree so the agent
+cannot read or edit its own undo history as files. `max files`/`max bytes` caps
+refuse rather than write a partial manifest — a checkpoint that quietly misses
+files would make a later rewind delete real work.
+
+**Wiring.** `_execute` snapshots `before attempt N` and `after attempt N` around
+every engine call, best-effort: a snapshot failure is logged, never raised, and a
+run with no checkpoints answers "this run has no checkpoints" rather than
+pretending. Two routes join the execution surface:
+`GET /runs/{runId}/checkpoints` and `POST /runs/{runId}/rewind`
+(`{checkpoint?}` defaults to the newest). Rewind is refused with 409 while the
+run has a live task: resetting files under a worker that is writing them would
+race the agent and could restore a tree the agent never saw.
+
+**Rewind is exact.** Files are written back AND files that did not exist at the
+snapshot are removed. A "restore what you know" implementation would leave stray
+files behind, and a later resume would then read a tree no checkpoint ever
+contained.
+
+**Evidence.** `test_run_checkpoints.py` (11) pins the store, including the
+removal property, the caps refusal, symlinks never being captured or recreated,
+and ids that cannot escape the store. `test_run_checkpoints_wiring.py` (5) pins
+the before/after pair around a real `_execute`, that the BEFORE snapshot does not
+contain the attempt's own write, the restore through the service, and the live
+refusal. A live drill (`scripts/e2e/w3_rewind_drill.py`) drives the same path
+over HTTP against the deployed stack.
+
+**Live evidence (2026-10-26, deployed stack).** `w3_rewind_drill.py` →
+`w3-rewind.json`: a run edited `calc.py` (`a - b` → `a + b`), two checkpoints
+appeared (`before-attempt-1`, `after-attempt-1`), a rewind posted while the run
+was EXECUTING was refused 409 `INVALID_STATE`, and a rewind to the before
+checkpoint put the file back to `a - b` byte-for-byte.
+
+The first run of that drill reported a *false failure* — a correct restore read
+as wrong because `print()` added a newline the comparison did not expect — and a
+*false pass* would have been worse: its "refused while executing" step fired
+before any checkpoint existed and got 409 `CHECKPOINT_UNAVAILABLE`, which would
+have credited the race guard for a refusal with a different cause. Both are
+fixed and the evidence JSON above is from the corrected run.
+
+**Still open in W3:** "resume reconciles partial writes" as a *measured* claim
+(kill mid-write, resume, compare), "a rejected action stays blocked", and
+"steering does not expand scope" as a measurement rather than a code reading.

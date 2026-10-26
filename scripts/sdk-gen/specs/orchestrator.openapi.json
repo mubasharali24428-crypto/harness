@@ -2022,6 +2022,24 @@
     "title": "RevokeBody",
     "type": "object"
    },
+   "RewindBody": {
+    "properties": {
+     "checkpoint": {
+      "anyOf": [
+       {
+        "maxLength": 120,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Checkpoint"
+     }
+    },
+    "title": "RewindBody",
+    "type": "object"
+   },
    "RunAggregateResponse": {
     "description": "M14-W4 F3a \u2014 the FROZEN pair-contract W4-C2 aggregate shape.\n\n``costUsd``/``prId``/``url``/``steps`` are explicit-null when their source\ndoes not exist yet (no ledger rows, no PR opened, \u2026); the detail page (F3b)\ndegrades honestly per missing field. ``costUsd`` is exact scale-6 money.",
     "properties": {
@@ -5660,6 +5678,51 @@
     ]
    }
   },
+  "/api/v1/orchestrator/runs/{runId}/checkpoints": {
+   "get": {
+    "description": "W3: the run workspace's snapshots, newest last.",
+    "operationId": "run_checkpoints_list_api_v1_orchestrator_runs__runId__checkpoints_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Run Checkpoints List Api V1 Orchestrator Runs  Runid  Checkpoints Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Run Checkpoints List",
+    "tags": [
+     "execution"
+    ]
+   }
+  },
   "/api/v1/orchestrator/runs/{runId}/collab-history": {
    "get": {
     "operationId": "collab_history_api_v1_orchestrator_runs__runId__collab_history_get",
@@ -9024,6 +9087,61 @@
      }
     },
     "summary": "Retry Route",
+    "tags": [
+     "execution"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/rewind": {
+   "post": {
+    "description": "W3: restore the run's workspace to a checkpoint (default: the newest).\n\nRefused while the run is live \u2014 files cannot be reset under a worker that is\nstill writing them.",
+    "operationId": "run_rewind_api_v1_orchestrator_runs__runId__rewind_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RewindBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Run Rewind Api V1 Orchestrator Runs  Runid  Rewind Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Run Rewind",
     "tags": [
      "execution"
     ]

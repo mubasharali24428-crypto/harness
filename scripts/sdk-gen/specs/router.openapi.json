@@ -518,7 +518,7 @@
   },
   "/api/v1/models/catalog": {
    "get": {
-    "description": "E-cat: declarative provider catalog (providers, env-var indirection,\nmodels). No secrets \u2014 env var NAMES only.",
+    "description": "Declarative provider catalog (providers, env-var indirection, models).\nNo secrets \u2014 env var NAMES only.\n\nRegistry entries carry the metadata the picker needs: display label, wire\nprotocol, region, whether the weights are open, and whether we can price\nthe model. An unlisted provider still works \u2014 this list is a convenience,\nnot a permission.",
     "operationId": "provider_catalog_api_v1_models_catalog_get",
     "responses": {
      "200": {

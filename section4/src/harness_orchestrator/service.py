@@ -17,7 +17,7 @@ from harness_contracts.signatures import Orchestrator
 from harness_contracts.timeutil import db_now
 from sqlalchemy import text
 
-from harness_orchestrator import collab, domain_metrics, staging
+from harness_orchestrator import collab, domain_metrics, run_checkpoints, staging
 from harness_orchestrator.budget import (
     BudgetStatus,
     check_budget,
@@ -298,6 +298,70 @@ class OrchestratorService(Orchestrator):
         run_data["_guard_killed"] = killed
         sm.execution_failed(
             detail if killed else f"{detail} (worker kill could not be confirmed)"
+        )
+
+    # ------------------------------------------------------- W3 run checkpoints
+
+    def _checkpoint_workspace(self, run_id: str) -> str | None:
+        """The run's own workspace, when the engine can name one.
+
+        Capability-probed: a stub engine in a test has no workspace, and a run
+        must not fail because it cannot be checkpointed.
+        """
+        workspace_of = getattr(self.engine, "run_workspace", None)
+        if workspace_of is None:
+            return None
+        try:
+            return str(workspace_of(run_id))
+        except Exception:  # noqa: BLE001 — an unusable workspace is not a run failure
+            logger.warning("no workspace for checkpoint of %s", run_id, exc_info=True)
+            return None
+
+    async def _checkpoint_run(self, run_id: str, label: str) -> None:
+        """Best-effort snapshot. A failure is logged, never raised into the run.
+
+        Not raising is deliberate and it is not silent: a run with no checkpoints
+        answers "this run has no checkpoints" on rewind, which is true. Failing
+        the engine because a snapshot did not fit would trade the work for the
+        undo.
+        """
+        workspace = self._checkpoint_workspace(run_id)
+        if workspace is None:
+            return
+        try:
+            snap = await asyncio.to_thread(
+                run_checkpoints.snapshot, workspace, run_id, label
+            )
+            logger.info("checkpoint %s for %s (%d files)", snap["id"], run_id, len(snap["files"]))
+        except Exception:  # noqa: BLE001
+            logger.warning("checkpoint %r for %s failed", label, run_id, exc_info=True)
+
+    async def list_run_checkpoints(self, run_id: str) -> dict[str, Any]:
+        workspace = self._checkpoint_workspace(run_id)
+        if workspace is None:
+            return {"runId": run_id, "items": []}
+        items = await asyncio.to_thread(run_checkpoints.list_snapshots, workspace, run_id)
+        return {"runId": run_id, "items": items}
+
+    async def rewind_run(self, run_id: str, checkpoint_id: str | None = None) -> dict[str, Any]:
+        """Restore the run's workspace to a checkpoint.
+
+        Refused while the run is live: resetting files under a worker that is
+        still writing would race the agent and could restore a tree the agent
+        never saw. Stop or pause first — that is what makes this the inverse of
+        an attempt rather than a surprise mid-step.
+        """
+        run_data = await self._ensure_run(run_id)
+        task = run_data.get("task")
+        if task is not None and not task.done():
+            raise InvalidStateTransitionError(
+                "rewind requires the run to be stopped or paused first"
+            )
+        workspace = self._checkpoint_workspace(run_id)
+        if workspace is None:
+            raise run_checkpoints.CheckpointError("this run has no workspace to rewind")
+        return await asyncio.to_thread(
+            run_checkpoints.rewind, workspace, run_id, checkpoint_id
         )
 
     @staticmethod
@@ -1394,6 +1458,13 @@ class OrchestratorService(Orchestrator):
                     # claim about what happened, not about this process's
                     # memory: a replayed run must reproduce it.
                     self._emit(EventType.GOAL_IMAGES, {"runId": run_id, **images.summary()})
+                # W3: a checkpoint BEFORE the engine touches the tree and one
+                # after it settles. Two snapshots per attempt are what make
+                # "rewind to the last checkpoint" and "undo this attempt"
+                # different, useful choices instead of the same one.
+                attempt = int(run_data.get("_attempts_started") or 0) + 1
+                run_data["_attempts_started"] = attempt
+                await self._checkpoint_run(run_id, f"before attempt {attempt}")
                 try:
                     result = await self.engine_runtime.run(
                         self.engine,
@@ -1418,6 +1489,10 @@ class OrchestratorService(Orchestrator):
                             await consume_record(record)
                         else:
                             self._emit_tool_record(run_id, record)
+                    # The tree as the attempt actually left it — including a
+                    # half-written one when the worker was killed, which is
+                    # exactly the state a rewind may need to undo.
+                    await self._checkpoint_run(run_id, f"after attempt {attempt}")
                     if forwarder is not None:
                         forwarder.cancel()
                 if isinstance(result, dict) and images is not None and (

@@ -10,6 +10,26 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W3 (rewind) — a run workspace can go back to a checkpoint (2026-10-26)
+
+"Revert to the last checkpoint" was a policy with nothing behind it: a run
+executes in its own directory on the `harness_runs` volume and nothing
+snapshotted it. Now every execution attempt leaves a `before attempt N` and an
+`after attempt N` checkpoint, and `POST /runs/{runId}/rewind` restores the tree
+to one (default: the newest). Rewind is exact — files are written back and files
+created after the snapshot are removed — and it is refused with 409 while the run
+has a live task, because resetting files under a worker that is still writing
+them would race the agent.
+
+Checkpoints are manifests plus content-addressed blobs under
+`DSH_WORKSPACE/.checkpoints/<runId>/`, outside the run's own tree so the agent
+cannot edit its own undo history. Not git: the orchestrator image has no `git`
+binary, and adding one for this is a build dependency the feature does not need.
+
+Also: the resume-status caveat no longer tells operators to "review the workspace
+checkpoints" — it says side effects are not rolled back and resume continues from
+whatever is on disk, which is the behaviour the engine actually has.
+
 ### W1 (M07) — both remaining acceptance legs, driven over HTTP (2026-10-26)
 
 M07's gate asked for a run started through the API and a screenshot visible

@@ -46,8 +46,9 @@ from sqlalchemy.exc import IntegrityError
 from harness_orchestrator import api as _api
 from harness_orchestrator import collab
 from harness_orchestrator.context_window import configured_context_window
+from harness_orchestrator.run_checkpoints import CheckpointError
 from harness_orchestrator.session_gate import session_block
-from harness_orchestrator.state_machine import AgentState
+from harness_orchestrator.state_machine import AgentState, InvalidStateTransitionError
 from harness_orchestrator.workspace_gate import workspace_block
 
 logger = logging.getLogger(__name__)
@@ -2344,6 +2345,37 @@ async def execution_limits_get(runId: str, actor: Reader) -> dict:
 @router.put(_B + "/execution-limits")
 async def execution_limits_put(runId: str, req: LimitsBody, actor: Writer) -> dict:
     return await _call(lambda f: limits_put(f, actor, runId, req))
+
+
+class RewindBody(BaseModel):
+    checkpoint: str | None = Field(default=None, max_length=120)
+
+
+@router.get(_B + "/checkpoints")
+async def run_checkpoints_list(runId: str, actor: Reader) -> dict:
+    """W3: the run workspace's snapshots, newest last."""
+    return await _svc().list_run_checkpoints(runId)
+
+
+@router.post(_B + "/rewind")
+async def run_rewind(runId: str, req: RewindBody, actor: Writer) -> dict:
+    """W3: restore the run's workspace to a checkpoint (default: the newest).
+
+    Refused while the run is live — files cannot be reset under a worker that is
+    still writing them.
+    """
+    try:
+        return await _svc().rewind_run(runId, req.checkpoint)
+    except InvalidStateTransitionError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"error": {"code": "INVALID_STATE", "message": str(exc)}},
+        ) from exc
+    except CheckpointError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"error": {"code": "CHECKPOINT_UNAVAILABLE", "message": str(exc)}},
+        ) from exc
 
 
 @router.get(_B + "/execution-status")
