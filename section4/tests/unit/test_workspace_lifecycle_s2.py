@@ -92,8 +92,10 @@ async def test_cleanup_refuses_while_the_worker_is_alive(isolated):
     svc, root = isolated
     task = await _run(svc, "live-run", "slow")
     scratch = root / "ws" / ".run-tmp" / "live-run"
+    # Wait on the condition itself: the scratch dir is created BEFORE the worker is spawned
+    # and registered, so under load "dir exists" raced "worker running" (W2 flake).
     for _ in range(300):
-        if scratch.is_dir():
+        if svc.engine.is_worker_running("live-run"):
             break
         await asyncio.sleep(0.02)
     assert svc.engine.is_worker_running("live-run")

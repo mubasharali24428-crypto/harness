@@ -133,6 +133,26 @@ than called green: chasing it properly is its own task, and guessing at a fix
 under a feature commit is how the budgets in this repository became decorative in
 the first place.
 
+**Root-caused afterwards (2026-10-26): both were test races, not product bugs.**
+Each was reproduced deterministically by widening its window rather than by
+waiting for load:
+
+- `test_cleanup_refuses_while_the_worker_is_alive` waited for `.run-tmp/<id>` and
+  then asserted the worker was running, but `_run_isolated` creates that dir
+  *before* it spawns and registers the worker. A 0.5 s delay in `wrap_command`
+  fails it every time. It now waits on `is_worker_running` itself.
+- `test_mixed_decision_race_…` asserted the reject wins a `gather` of two
+  decisions, but the replicas' DB threads, not `gather`, pick the winner. Delaying
+  the reject's first read fails it every time. It now asserts the real invariant
+  whichever side wins: one `PlanAlreadyDecidedError`, version 1, and a durable
+  status that matches the winner.
+
+Ruled out: SQLite locks held across an await. With the busy timeout cut from 5 s
+to 0.25 s, all three implicated files pass 5×. A third pair
+(`test_s1_r05_resume_queue.py`) did fail with `database is locked`, but only at
+load average ~80. That load was a stuck CPU-burn script of mine, not the suite.
+It is starvation past the 5 s timeout, and it is not reproducible at normal load.
+
 ## N04 — the retry the roadmap asked for, and the order that makes it real
 
 The backend already had both halves: `POST /runs/{runId}/redirect` with
