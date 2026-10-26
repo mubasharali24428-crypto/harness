@@ -1,13 +1,18 @@
 # Week 1 plan — make the agent able to see, and let us watch it
 
 From `docs/capability-gap-2026-10-25.md`. One theme: **the runtime we ship is
-already more capable than the profile we run it with.** Week 1 is configuration,
-one callback and one attachment path — no new subsystems. Everything here is
-reversible and test-gated.
+already more capable than the profile we run it with.** The work includes
+security review, a versioned event contract, worker transport and an attachment
+path. It is larger than a configuration flip or one callback. The ordered
+packages and provisional estimates in [the marathon execution plan](marathon-execution-plan.md)
+govern scheduling; the day labels below are the original sequence, not a promise
+that every package fits one week.
 
-## Day 0 — before anything else: live execution is broken right now
+## Day 0 — historical incident and landed fix
 
-Found while writing the gap list, and it blocks the rest of the week.
+The original incident below was found while writing the gap list. Its source
+fix is recorded in the outcome section; current deployment health still needs
+fresh verification.
 
 - `harness-sandbox-egress` crash-loops: *"Refusing to start: set
   HARNESS_MASTER_KEY…"*. The shared env block passes
@@ -86,23 +91,24 @@ source-overlay image over the previous build.
 - Emit each `tool/call` / `tool/result` as it happens, and render it: one row
   per call with tool, target, duration, outcome, collapsible output, plus a
   running token/cost/elapsed footer.
-- **Decision needed from you on day 1**, because it gates the rest: frozen
-  `contracts/` has no tool event type (`contracts/ts/src/events.ts:4-19`).
-  Either (a) version the contract with `tool_call` / `tool_result`, or (b) ride
-  `terminal_output` with a payload convention. I recommend (a); (b) rots and
-  every consumer has to guess.
+- Land a versioned `tool_call` / `tool_result` contract before streaming
+  consumers, with generated mirrors, mocks and golden fixtures in the same
+  change. Trace notification delivery across the isolated worker boundary;
+  adding a callback to the direct SDK call alone does not complete streaming.
 - Tests: reducer folds a call/result pair into one row; denial appears as an
   error row, not a silent gap; reconnect replays without duplicating.
 
 ## Day 4 — stop crippling the context (B4, B6)
 
-- Stop stripping `.git` from the seeded workspace (`engine.py:194-198`) so the
-  agent can see history and run `git diff` against reality.
+- Design safe history provisioning before changing the `.git` exclusion
+  (`engine.py:194-198`): inherited hooks, credential-bearing config and gitdir
+  references outside the workspace must not enter the run.
 - Remove the hardcoded `max_tokens=4096` (`engine.py:602`) in favour of a
   per-model value, and surface what the runtime already knows: the profile
   defaults `defaultContextWindow` to 1M via `DSH_CONTEXT_WINDOW`, and
   `compaction-basic` + `image-offload` are enabled. We currently show none of
-  it and cap answers at a number we chose in a hurry.
+  it and cap answers at a number we chose in a hurry. Validate limits against
+  the selected provider/model; the profile default is not proof of a 1M window.
 
 ## Day 5 — a picture is worth the whole debug session (A6)
 
@@ -112,13 +118,18 @@ source-overlay image over the previous build.
   the goal) so "fix this UI, here's the screenshot" works.
 - Small, visible, and it makes the browser gap (A4) tolerable for a while.
 
-## Also this week if there's room
+## Boundary work required before widening tool access
 
-- S2: the `python -c` scope bypass — either parse the code argument or document
-  plainly that OS confinement, not the gate, is the boundary.
+- S2: the `python -c` scope bypass needs enforcement of approved scope, including
+  writes inside the workspace but outside the allowed subdirectory. Whole-workspace
+  OS confinement does not establish this narrower boundary. Keep new tools
+  disabled until the boundary is demonstrated; parsing arbitrary code strings
+  or documenting the limitation does not close the gap.
 - S1: say in the docs that Landlock ABI v1 has no network hook, so on Linux the
   container is the network boundary (`confinement.py:440`).
-- Copy buttons on run id / sha / error / diff (audit item 16, ~2 hours).
+
+Copy buttons on run id / sha / error / diff remain optional polish (audit item
+16, originally estimated at ~2 hours).
 
 ## Explicitly not this week
 
@@ -134,3 +145,18 @@ agent reads and edits files with real tools instead of shell smuggling; you can
 watch each tool call stream with its outcome and a running cost; a screenshot
 attached to a goal reaches the model; and a compose smoke test would have
 caught the egress outage on the day it started.
+
+### Days 1–2 outcome — files, output ceiling, `.git`
+
+`sdk-minimal` ships `tool-fs` with read/write/edit off; the patch now enables
+it and `tool-fs-search` (glob/grep). The safety argument is not "the tool is
+scoped to the workspace" alone, because a plan's `forbiddenPaths` live inside
+that workspace and the tool does not know them: writes stay off unless the
+confinement can freeze those paths (container read-only mounts, Seatbelt).
+Landlock and `none` therefore get read-only file access, and the patch records
+why. `max_tokens=4096` is gone (`HARNESS_SDK_MAX_TOKENS` pins a cap), and the
+workspace seed keeps `.git`.
+
+Not yet done in W1: `on_notification` streaming to the run page (needs the
+`tool_call`/`tool_result` event bump), surfacing the 1M context window and
+compaction state, the goal-attachment path, and the live end-to-end gate.

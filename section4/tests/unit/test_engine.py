@@ -300,7 +300,9 @@ def test_provision_workspace_empty_then_seeded_and_resume_keeps_edits(tmp_path, 
 
     monkeypatch.setenv("HARNESS_WORKSPACE_SEED", str(seed))
     ws = Path(w.provision_workspace("r-seeded"))
-    assert (ws / "src" / "a.py").read_text() == "one" and not (ws / ".git").exists()
+    assert (ws / "src" / "a.py").read_text() == "one"
+    # W1: .git is copied with the seed — checkpoints and diffs need real history.
+    assert (ws / ".git" / "config").read_text() == "x"
     (ws / "src" / "a.py").write_text("edited")
     assert w.provision_workspace("r-seeded") == str(ws)  # resume does not re-seed
     assert (ws / "src" / "a.py").read_text() == "edited"
@@ -326,3 +328,22 @@ def test_per_run_model_override_wins_over_the_configured_default(monkeypatch):
     w.execute_goal("goal", "s1", model="team-choice")
     w.execute_goal("goal", "s2")
     assert seen == ["team-choice", "deployment-default"]
+
+
+def test_output_ceiling_is_the_operators_choice_not_a_hardcoded_4096(monkeypatch):
+    """W1: max_tokens=4096 was hardcoded, silently truncating long answers."""
+    from harness_orchestrator.engine import _sdk_max_tokens
+
+    monkeypatch.delenv("HARNESS_SDK_MAX_TOKENS", raising=False)
+    assert _sdk_max_tokens() is None  # unset = let the provider decide
+
+    monkeypatch.setenv("HARNESS_SDK_MAX_TOKENS", "8192")
+    assert _sdk_max_tokens() == 8192
+
+    monkeypatch.setenv("HARNESS_SDK_MAX_TOKENS", "  ")
+    assert _sdk_max_tokens() is None
+
+    for bad in ("lots", "0", "-5"):
+        monkeypatch.setenv("HARNESS_SDK_MAX_TOKENS", bad)
+        with pytest.raises(ValueError, match="HARNESS_SDK_MAX_TOKENS"):
+            _sdk_max_tokens()

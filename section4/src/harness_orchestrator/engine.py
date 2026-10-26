@@ -58,6 +58,33 @@ _REPO_SHELL_GATE = (
 )
 
 
+def _fs_write_capability(shell_policy: dict[str, Any] | None) -> tuple[bool, str]:
+    """Can this run's filesystem tool be allowed to WRITE?
+
+    The runtime confines tool-fs to the workspace, but a plan's
+    ``forbiddenPaths`` live *inside* that workspace, and the tool does not know
+    about them. Two boundaries do freeze them for the whole worker:
+    container mode (nested read-only bind mounts) and Seatbelt
+    (``deny file-write* <subpath>``). Landlock cannot express "grant the tree,
+    deny a subtree inside it", and ``none`` enforces nothing — so with
+    forbidden paths and no real boundary we keep write/edit off rather than
+    widen the agent's reach past the policy it was approved under.
+
+    Returns ``(allowed, reason)``; the reason is written into the patch so an
+    operator reading a session can see why writes were off.
+    """
+    forbidden = list((shell_policy or {}).get("forbiddenPaths") or [])
+    if not forbidden:
+        return True, ""
+    mode = confine.resolve_mode()
+    if mode in ("container", "seatbelt"):
+        return True, ""
+    return False, (
+        f"write/edit off: {len(forbidden)} forbidden path(s) and confinement mode "
+        f"{mode!r} cannot freeze them (needs container or seatbelt)"
+    )
+
+
 def _execution_policy_patch(
     session_dir: str, workspace_dir: str, shell_policy: dict[str, Any] | None = None
 ) -> str:
@@ -82,6 +109,13 @@ def _execution_policy_patch(
         "scopePaths": list(policy.get("scopePaths") or []),
     }
     patch = Path(session_dir) / "harness-execution-policy.yml"
+    may_write, write_note = _fs_write_capability(shell_policy)
+    if write_note:
+        logger.warning("run %s: %s", Path(session_dir).name, write_note)
+    write_flags = (
+        "    write: true\n    edit: true\n" if may_write else "    write: false\n    edit: false\n"
+    )
+    note = f"    # {write_note}\n" if write_note else ""
     patch.write_text(
         "- id: sandbox-policy\n"
         "  name: '@deepseek-ai/dsh-sandbox-policy'\n"
@@ -89,6 +123,27 @@ def _execution_policy_patch(
         "  config:\n"
         "    mode: workspace-write\n"
         f"    workspaceRoot: {json.dumps(os.path.realpath(workspace_dir))}\n"
+        # W1: the shipped sdk-minimal profile turns the filesystem tool off
+        # (read/write/edit all false, only readImage on), so until now the agent
+        # could not open a file without going through the shell gate. Turning it
+        # on is safe only because the runtime confines this tool to the same
+        # workspace the shell gate enforces: the workspace-file layer raises
+        # `outside-workspace` for any path that escapes `workspaceRoot` above.
+        # Writes additionally depend on the plan's forbidden paths being frozen
+        # by the OS boundary — see _fs_write_capability.
+        "- id: tool-fs\n"
+        "  name: '@deepseek-ai/dsh-tool-fs'\n"
+        "  disabled: false\n"
+        "  config:\n"
+        "    read: true\n"
+        "    readImage: true\n" + note + write_flags +
+        # glob/grep as first-class tools: they were only reachable through
+        # bash before, which meant every file search paid a shell round-trip.
+        "- id: tool-fs-search\n"
+        "  name: '@deepseek-ai/dsh-tool-fs-search'\n"
+        "  disabled: false\n"
+        "  config:\n"
+        "    sampleOverCapGlobResults: false\n"
         "- id: persistent-bash\n"
         "  disabled: true\n"
         "- insert:\n"
@@ -98,6 +153,26 @@ def _execution_policy_patch(
         encoding="utf-8",
     )
     return str(patch)
+
+
+def _sdk_max_tokens() -> int | None:
+    """Output ceiling for one turn: operator's choice, otherwise the provider's.
+
+    The wrapper used to hardcode ``max_tokens=4096``, which silently truncated
+    long edits and multi-file answers regardless of the model's real limit.
+    An unset value is the honest default (let the provider decide); an operator
+    that needs a cap for cost control sets ``HARNESS_SDK_MAX_TOKENS``.
+    """
+    raw = os.environ.get("HARNESS_SDK_MAX_TOKENS", "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"HARNESS_SDK_MAX_TOKENS must be an integer, got {raw!r}") from exc
+    if value <= 0:
+        raise ValueError("HARNESS_SDK_MAX_TOKENS must be positive")
+    return value
 
 
 class DeepSeekHarnessWrapper:
@@ -186,7 +261,9 @@ class DeepSeekHarnessWrapper:
         """Create the run workspace once; seed it from ``HARNESS_WORKSPACE_SEED`` if set.
 
         Resumes keep whatever is already there. The seed is a local directory (a checkout
-        the operator prepared); ``.git`` is not copied. Unset = an empty workspace.
+        the operator prepared); its ``.git`` is copied too, because the checkpoint and
+        diff machinery reads real history — stripping it left every run starting from a
+        tree git could not describe. Unset = an empty workspace.
         """
         path = self.run_workspace(session_id)
         if os.path.isdir(path):
@@ -195,7 +272,7 @@ class DeepSeekHarnessWrapper:
         if seed:
             if not os.path.isdir(seed):
                 raise ValueError("HARNESS_WORKSPACE_SEED is not a directory")
-            shutil.copytree(seed, path, symlinks=True, ignore=shutil.ignore_patterns(".git"))
+            shutil.copytree(seed, path, symlinks=True)
         else:
             os.makedirs(path)
         return path
@@ -599,7 +676,6 @@ class DeepSeekHarnessWrapper:
             kwargs: dict[str, Any] = dict(
                 provider="deepseek-official",
                 model=model,
-                max_tokens=4096,
                 cwd=run_cwd,
                 dsh_home=self.run_session_dir(session_id),
                 # Do not allow an environment override to select a profile
@@ -607,6 +683,9 @@ class DeepSeekHarnessWrapper:
                 profile=DEFAULT_DSH_PROFILE,
                 api_key=self.api_key,
             )
+            max_tokens = _sdk_max_tokens()
+            if max_tokens is not None:
+                kwargs["max_tokens"] = max_tokens
             if self.base_url:
                 kwargs["base_url"] = self.base_url
             operator_patches = tuple(

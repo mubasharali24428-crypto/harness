@@ -10,6 +10,29 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W1 — the agent can use files, and output is no longer capped (2026-10-25)
+
+The shipped `sdk-minimal` profile turns the filesystem tool off (`read`,
+`write`, `edit` all false) and the wrapper additionally pinned
+`max_tokens=4096`. An agent could only touch files through bash, and every
+answer was truncated at 4k tokens regardless of the model.
+
+#### Changed
+
+- The per-run policy patch enables `tool-fs` (`read`, `write`, `edit`,
+  `readImage`) and `tool-fs-search` (glob/grep), so file work no longer costs a
+  shell round-trip. This is safe only because the runtime confines the tool to
+  the same `workspaceRoot` the shell gate enforces, and because
+  `_fs_write_capability` keeps `write`/`edit` **off** when a plan has
+  `forbiddenPaths` and the confinement mode cannot freeze them (Landlock and
+  `none` cannot; container read-only mounts and Seatbelt can). The reason is
+  written into the patch so an operator can see why writes were disabled.
+- The hardcoded `max_tokens=4096` is gone: unset lets the provider decide, and
+  `HARNESS_SDK_MAX_TOKENS` pins a cap for cost control (invalid values fail
+  fast).
+- Seeding a workspace no longer strips `.git`, so checkpoints and diffs work
+  against real history instead of an undescribed tree.
+
 ### W1 Day 0 — the sidecar that was never running (2026-10-25)
 
 `sandbox-egress` was crash-looping and every check passed anyway.
