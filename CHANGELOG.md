@@ -10,6 +10,37 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W2 (N04) — retry with changes is a visible control, not a model ladder (2026-10-26)
+
+The backend already recorded guidance and resumed runs; what was missing was the
+affordance, so an operator facing a stuck run could only press Resume and hope.
+
+#### Added
+
+- **`resumeWithChanges(runId, content, token)`** — guidance is recorded first,
+  then the run resumes. The order *is* the feature: the executor drains guidance
+  through `guidance_since` when it starts, so resuming first would read nothing
+  and silently discard the correction — a working-looking button with no effect.
+  Empty content is refused before any request rather than degrading into a plain
+  resume (Resume already exists; a second button for it is decoration), a denied
+  redirect never resumes, and the content is trimmed so whitespace cannot become a
+  meaningless guidance row.
+- **"Resume with changes" in Controls** — visible only while a run can resume
+  (`paused` / `blocked`), accessible name on the input, disabled until something
+  is typed, and honest copy: guidance the agent reads before it continues, not a
+  chat message and not a restart.
+
+#### Limits stated
+
+- This is not a silent model retry: no model is switched. It continues the same
+  session with new guidance. A checkpoint rewind is Week 3's work.
+
+#### Tests
+
+`section7`: `resumeWithChanges.test.ts` (4), `controlsResumeWithChanges.test.tsx`
+(6), both written failing first. tsc clean, **1003 tests across 91 files**,
+`next build` green.
+
 ### W2 (N02, N03) — the context was assembled and then dropped (2026-10-26)
 
 The runtime's own context injector is off in the shipped profile

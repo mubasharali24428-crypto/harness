@@ -1,8 +1,9 @@
 "use client";
 
+import * as React from "react";
 import { useState } from "react";
 import type { RunStatus } from "@contracts/api";
-import { pauseAgent, resumeAgent, stopAgent, submitHumanEdit, signalDone, ApiError } from "@/lib/api";
+import { pauseAgent, resumeAgent, resumeWithChanges, stopAgent, submitHumanEdit, signalDone, ApiError } from "@/lib/api";
 import { useEditorView } from "@/lib/codemirror";
 import {
   panelStyle,
@@ -33,6 +34,7 @@ export function Controls({
   const [takeover, setTakeover] = useState(false);
   const [editPath, setEditPath] = useState("");
   const [editContent, setEditContent] = useState("");
+  const [change, setChange] = useState("");
   const editorRef = useEditorView(editContent, { onChange: setEditContent, label: "New file content" });
 
   async function run(action: string, fn: () => Promise<unknown>) {
@@ -101,6 +103,52 @@ export function Controls({
           Done, continue
         </button>
       </div>
+
+      {/* W2 (N04): the visible retry. A stuck run is resumed *with a change* —
+          the text is recorded as durable guidance before the resume call, so the
+          agent reads it on the next attempt. Disabled with nothing typed,
+          because resuming without a change is what the Resume button already
+          does and a second button for it would be decoration. */}
+      {canResume && (
+        <div
+          style={{
+            marginBottom: 12,
+            paddingTop: 12,
+            borderTop: "1px solid var(--border-soft)",
+          }}
+        >
+          <label
+            htmlFor="resume-change"
+            style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}
+          >
+            Resume with changes
+          </label>
+          <p style={{ color: "var(--muted)", fontSize: 12, margin: "0 0 8px" }}>
+            Saved as guidance the agent reads before the agent continues — not a chat
+            message, and not a restart.
+          </p>
+          <input
+            id="resume-change"
+            value={change}
+            onChange={(e) => setChange(e.target.value)}
+            placeholder="e.g. use the existing helper instead of a new module"
+            aria-label="What should change before resuming"
+            style={inputStyle}
+          />
+          <button
+            style={{ ...secondaryButtonStyle, marginTop: 8 }}
+            disabled={busy !== null || !change.trim()}
+            onClick={() =>
+              run("resume-with-changes", async () => {
+                await resumeWithChanges(runId, change, token);
+                setChange("");
+              })
+            }
+          >
+            Resume with changes
+          </button>
+        </div>
+      )}
 
       {stagedPending && <p role="status">Resolve staged changes before completing this run.</p>}
       {error && <p style={{ color: "var(--red)", fontSize: 13 }}>{error}</p>}

@@ -24,7 +24,7 @@ this week inherits: *"An unchecked gate stays open when a dependent week begins.
 | N01 | A looping or burning run is caught from the event stream and stopped with a durable reason, not left to the wall clock | `tests/unit/test_loop_guard.py`, `tests/unit/test_loop_guard_wiring.py`; mutation-checked (wiring disabled → 3 of 4 wiring tests fail) | **done** |
 | N02 | Baseline repo context reaches the prompt (tree, README, git status, dependency manifests) | `tests/unit/test_repo_context.py` (8), `test_repo_context_wiring.py` (6); bounded block, once per session | **done** |
 | N03 | `project_rules` reaches the executing agent, not only the planner | `tests/unit/test_n03_context_to_executor.py` (5) | **done** |
-| N04 | Retry-with-changes as a visible affordance | the UI offers it and the audit records it; no silent model ladder | open |
+| N04 | Retry-with-changes as a visible affordance | `tests/unit/resumeWithChanges.test.ts` (4), `controlsResumeWithChanges.test.tsx` (6); ordering pinned, empty change refused | **done** |
 
 ## N01 — what was actually wrong
 
@@ -132,3 +132,41 @@ pre-change run, and this week's change does add work before the worker spawns, s
 than called green: chasing it properly is its own task, and guessing at a fix
 under a feature commit is how the budgets in this repository became decorative in
 the first place.
+
+## N04 — the retry the roadmap asked for, and the order that makes it real
+
+The backend already had both halves: `POST /runs/{runId}/redirect` with
+`kind: "guidance"` records the correction, `POST …/resume` restarts, and the
+executor already drains guidance through `collab.guidance_since` into `extra`.
+What was missing was the affordance, so this is a client + component change
+rather than plumbing.
+
+`resumeWithChanges(runId, content, token)` is the whole feature in one function,
+because **the order is the feature**: guidance is posted first, then the run is
+resumed. Resume first would read nothing and throw the operator's correction away
+— a real button with no effect, which is the fake-affordance class the roadmap's
+first ground rule forbids. Three consequences fall out of that and are each
+pinned:
+
+- **Empty content is refused** before any request, rather than degrading into a
+  plain resume. Resume already has a button; a second one that does the same
+  thing is decoration.
+- **A failed redirect never resumes.** If recording the change is denied, the run
+  stays where it is; resuming would pretend the change had been accepted.
+- **Content is trimmed**, so whitespace cannot pass the guard and become a
+  meaningless guidance row.
+
+In `Controls` the affordance appears only while a run can actually resume
+(`paused` or `blocked`), is labelled `Resume with changes`, has an accessible name
+on the input, starts disabled, and says what it does — "guidance the agent reads
+before the agent continues — not a chat message, and not a restart".
+
+Two things this does not claim: it is not a *model* retry ladder (no silent model
+change), and it does not restart from a checkpoint — it continues the existing
+session with new guidance, which is what the executor's `guidance_since` drain
+supports today. A checkpoint rewind is W3's, not this week's.
+
+Verification: `section7` — tsc clean, **1003 tests passed across 91 files**,
+`next build` green. The sequence tests were written first and watched failing
+(`resumeWithChanges` did not exist; the component had no affordance and failed
+all six render assertions).

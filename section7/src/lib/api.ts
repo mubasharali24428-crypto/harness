@@ -198,6 +198,28 @@ export function resumeAgent(runId: string, token: string): Promise<{ runId: stri
   });
 }
 
+// W2 (N04): retry a stuck run *with a correction*. The order is the feature —
+// guidance is recorded first because the executor drains it with
+// `guidance_since` when it starts; resuming first would read nothing and throw
+// the operator's correction away, which is the fake affordance this replaces.
+// Empty content is refused rather than treated as a plain resume: that already
+// has its own button, and this one has to mean something.
+export async function resumeWithChanges(
+  runId: string,
+  content: string,
+  token: string,
+): Promise<{ runId: string; state: string }> {
+  const trimmed = content.trim();
+  if (!trimmed) {
+    throw new ApiError("Describe what should change before resuming", "EMPTY_CHANGE", 400);
+  }
+  await apiFetch(`${ORCHESTRATOR_BASE}/api/v1/orchestrator/runs/${runId}/redirect`, token, {
+    method: "POST",
+    body: JSON.stringify({ kind: "guidance", content: trimmed }),
+  });
+  return resumeAgent(runId, token);
+}
+
 export function stopAgent(runId: string, token: string): Promise<{ runId: string; status: string }> {
   return apiFetch(`${ORCHESTRATOR_BASE}/api/v1/orchestrator/runs/${runId}/stop`, token, {
     method: "POST",
