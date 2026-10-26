@@ -204,6 +204,9 @@ Still open here, stated plainly:
   client in that window goes text-only. Reported as `requested: 0`, not hidden.
 - The cross-replica resume case re-attaches: the "already sent" marker is
   per-process, because nothing in the frozen schema records what a session saw.
-- No live acceptance evidence yet (M07) — this has never been sent to a real
-  vision model.
+- ~~No live acceptance evidence~~ — drilled 2026-10-26 on OpenRouter: with the
+  transport patch declaring image input, `qwen/qwen3.7-flash` read the attached
+  PNG and answered `(220, 40, 40)`. With `input: [text]` the same run reported
+  "image omitted because this model accepts text only", which is the modality
+  gate working. Evidence: `docs/briefs/evidence/pilot-prep/m07-openrouter-smoke.json`.
 

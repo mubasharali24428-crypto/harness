@@ -12,7 +12,31 @@ surface still needs either a drill or an explicit accepted risk.
 | Stripe billing | Adapter + signed idempotent webhooks vs stub (`STRIPE_API_BASE`); routes mount only with `STRIPE_API_KEY` set (`app.py:210-213`) | Test-mode drill (checkout → webhook → replay) | **ACCEPTED RISK — Stripe is not available in Pakistan.** Billing stays flag-off; pilot plans are invoiced manually or left on free/team overrides |
 | WAL-G / PITR | **DRILLED 2026-10-25 against MinIO's S3 API** (`./scripts/pitr_drill.sh`): versioned bucket, base backup, WAL archiving, delete after target, restore to target, promote. Base backup 2 s, fetch 1 s, replay-to-pause 1 s. Evidence `docs/briefs/evidence/pilot-prep/walg-s3-pitr-drill.json` | A provider-specific drill (AWS/R2) with the production bucket policy; multi-team data volume | VERIFIED for S3 semantics; provider/IAM drill remains a deployment step |
 | Container sandbox (native Linux) | **DRILLED 2026-10-25 on ubuntu-latest (kernel 6.17.0-1022-azure)** (`./scripts/native_linux_drill.sh`, job `native linux container tool drill`): shell-gated write lands on a bind-mounted workspace, a sibling read is denied and an outside write is denied. 4/4 checks. Evidence `docs/briefs/evidence/pilot-prep/native-linux-container-drill.json`. The drill exposed and fixed two allow-list holes: `/` granted via `/bin/sh`, and `/` accepted as HOME in `--user` containers | Non-root Docker-daemon deployment and image provenance acceptance | VERIFIED on native Linux; Docker Desktop/macOS remains unsupported for Landlock writes |
-| Model providers | Simulated mode honest outside real keys; provider failure surfaces verbatim; `HARNESS_ENV=dev` gate (`section3 providers.py`); **drilled 2026-10-25** with OpenRouter `deepseek/deepseek-v4.1-flash`: engine in-process, container-isolated no-tool call, and a full pilot stack run with `cost_ledger` accrual (evidence: `docs/briefs/evidence/pilot-prep/openrouter-deepseek-smoke.json`, `real-result.json`) | Customer-specific provider/key; paid-opt-in (`HARNESS_ALLOW_PAID_SMOKE=1`) remains a human decision | PARTIAL — OpenRouter drilled; other providers HUMAN DECISION REQUIRED |
+| Model providers | Simulated mode honest outside real keys; provider failure surfaces verbatim; `HARNESS_ENV=dev` gate (`section3 providers.py`); **re-drilled 2026-10-26** with OpenRouter via `scripts/e2e/openrouter_smoke.py`: a tool-using run (2 live tool calls, real `hello.txt` side effect) and a **goal image** the model actually read back (`(220, 40, 40)` from an attached PNG). Evidence `docs/briefs/evidence/pilot-prep/m07-openrouter-smoke.json` | usage stays `null` through the openai-completions transport patch, so `cost_ledger` accrual on this path is unproven; container-isolated tool writes still need a native Linux host | VERIFIED for text + image on OpenRouter; metering on this transport and other providers remain open |
+
+### Provider and model facts this drill settled (2026-10-26)
+
+- The shipped `sdk-minimal` profile registers **one** LLM route,
+  `deepseek-official`. The route *name* is not the wire format: unpatched it
+  posts an Anthropic Messages body, which OpenRouter rejects with
+  `Invalid Anthropic Messages API request`. Reaching an OpenAI-compatible
+  gateway means `DSH_PATCH_FILES=deploy/patches/openrouter.patch.yml`, not a
+  provider env var — there is deliberately no `HARNESS_DSH_PROVIDER` knob, and
+  probing one produces `NO_ADAPTER` from the runtime either way.
+- The patch declares `input: [text]`. With that declaration the runtime
+  **silently offloads** an attached image and the model reports "image omitted
+  because this model accepts text only". Declaring `input: [text, image]` makes
+  the same run read the pixels correctly. So goal images require a model entry
+  that declares image input, and `HARNESS_VISION_MODELS` is what refuses a
+  text-only model *before* the call.
+- Providers enforce minimum image dimensions: an 8×8 PNG was refused with
+  `height:8 or width:8 must be larger than 10`. A real screenshot is required.
+- Model choice for paid work, measured rather than assumed (single-token
+  latency probe over the 467-model catalog, sorted by price):
+  `deepseek/deepseek-v4-flash` for agent runs (tool-calling is what the harness
+  exercises), `qwen/qwen3.7-flash` when an image is in play,
+  `inclusionai/ling-3.0-flash` for plain summarisation/classification chores.
+
 
 ## OIDC SSO — executed drill and re-run procedure
 

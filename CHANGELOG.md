@@ -10,6 +10,19 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+#### Verified live (2026-10-26)
+
+`scripts/e2e/openrouter_smoke.py` drives the shipped engine against a real key
+(one attempt, `max_tokens` pinned, `HARNESS_ALLOW_PAID_SMOKE=1` gate — it
+refuses to spend otherwise). It completed a tool-using run with two live tool
+calls and a real file side effect, and got `qwen/qwen3.7-flash` to read the
+colour of an attached PNG back as `(220, 40, 40)`. Three facts it settled: the
+profile registers one LLM route and OpenRouter needs
+`deploy/patches/openrouter.patch.yml`, not a provider env var; a model declared
+`input: [text]` makes the runtime silently drop the image and say so; and
+providers refuse tiny images (`8x8 must be larger than 10`), so fixtures must
+be real screenshots.
+
 ### W1 — a screenshot can travel with the goal (2026-10-26, contracts 1.0.0rc4)
 
 `readImage` was already on and the runtime already admits image content blocks,

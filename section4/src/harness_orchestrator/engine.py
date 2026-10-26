@@ -49,6 +49,15 @@ logger = logging.getLogger(__name__)
 
 # Restricted shipped composition; the default "sdk" profile is danger-full-access.
 DEFAULT_DSH_PROFILE = "sdk-minimal"
+# The only LLM route the shipped profile registers. It is a ROUTE NAME, not a
+# wire format: `deploy/patches/openrouter.patch.yml` keeps this same id and
+# re-points it at the openai-completions API, which is how an OpenAI-compatible
+# gateway (OpenRouter, LiteLLM, vLLM) is reached. Unpatched, the route speaks
+# the Anthropic Messages API and such a gateway answers
+# "Invalid Anthropic Messages API request". There is deliberately no
+# HARNESS_DSH_PROVIDER env knob: a provider that the profile has not registered
+# fails with NO_ADAPTER, so the switch worth having is the reviewed patch file.
+DEFAULT_DSH_PROVIDER = "deepseek-official"
 REAL_WORKER_MODULE = "harness_orchestrator.engine_worker"
 _SESSION_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
 _SHELL_PLUGIN = Path(__file__).with_name("dsh_plugins") / "harness-shell.js"
@@ -973,7 +982,7 @@ class DeepSeekHarnessWrapper:
                 self.run_session_dir(session_id), run_cwd, self._shell_policies.get(session_id)
             )
             kwargs: dict[str, Any] = dict(
-                provider="deepseek-official",
+                provider=DEFAULT_DSH_PROVIDER,
                 model=model,
                 cwd=run_cwd,
                 dsh_home=self.run_session_dir(session_id),

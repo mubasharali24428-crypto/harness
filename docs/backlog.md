@@ -181,5 +181,6 @@ rebuild commit so it does not ride along inside an unrelated PR.
   500 chars and scrubbed, but a runtime that echoed the prompt in a debug mode
   would put truncated base64 into the durable result. Confirm the runtime never
   logs prompt bodies before widening image limits.
-- [ ] **No live evidence that a vision model received one** (owner: S10). Blocks
-  M06's completion evidence and is part of M07's acceptance run.
+- [x] **Live evidence that a vision model received one** (2026-10-26,
+  `scripts/e2e/openrouter_smoke.py`, `m07-openrouter-smoke.json`). The image
+  reached `qwen/qwen3.7-flash` and the colour was read back correctly.
