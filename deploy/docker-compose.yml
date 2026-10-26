@@ -400,6 +400,16 @@ services:
       target: worker
     entrypoint: ["true"]
     restart: "no"
+    # The stack laws apply to every service, build-only ones included: a service
+    # that exists in the file must be capped and rotate its logs, or the guard
+    # stops meaning "every service" and only means "the services someone
+    # remembered". Nothing here runs, so the caps are cheap.
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128m
+    logging: *logging-caps
 
   worker-daemon:
     # M07: the reviewed holder of the Docker socket (docs/sandbox-isolation.md). It accepts a
