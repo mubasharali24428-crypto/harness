@@ -40,6 +40,7 @@ from harness_orchestrator.engine_runtime import (
 )
 from harness_orchestrator.goal_images import GoalImages, resolve_goal_images
 from harness_orchestrator.lifecycle import lifecycle_view
+from harness_orchestrator.loop_guard import LoopGuard, loop_repeat_limit
 from harness_orchestrator.planner import PlanNotApprovedError, PlanService
 from harness_orchestrator.redact import scrub_secrets
 from harness_orchestrator.reviewer import ReviewerSubAgent, ReviewFindings
@@ -254,6 +255,37 @@ class OrchestratorService(Orchestrator):
         self._publish_chains: dict[str, asyncio.Task] = {}
 
     # ------------------------------------------------------------------ events
+
+    async def _guard_stopped(
+        self,
+        run_id: str,
+        run_data: dict[str, Any],
+        sm: Any,
+        reason: str,
+        guard: LoopGuard,
+        set_shell_policy: Any,
+        shell_policy: dict[str, Any] | None,
+    ) -> None:
+        """Stop a run the event stream says is stuck, and say so durably.
+
+        What this honestly cannot do is stop the worker: the SDK session has no
+        cancel channel, which is Week 3's spike and not this. So the run keeps
+        burning until it ends on its own. What this does instead is three things
+        that are real today:
+
+        * the stop is durable and visible immediately, as ``ENGINE_FAILED`` —
+          the same event the deadline path uses to fail one run honestly;
+        * every further shell call is refused, by writing the budget the engine's
+          shell plugin reads down to zero rather than leaving it at the stale
+          snapshot taken before the run started;
+        * ``_guard_stopped`` is set so the late result is discarded instead of
+          letting a run that was told to stop come back and mark itself done.
+        """
+        run_data["_guard_stopped"] = reason
+        detail = f"{reason} after {guard.calls_seen} tool calls"
+        if set_shell_policy is not None and shell_policy is not None:
+            set_shell_policy(run_id, {**shell_policy, "maxToolCalls": 0})
+        sm.execution_failed(detail)
 
     def _emit_tool_record(self, run_id: str, record: dict[str, Any]) -> None:
         """Bridge one engine tool record onto the project bus.
@@ -1217,21 +1249,23 @@ class OrchestratorService(Orchestrator):
                 extra = ""
             try:
                 await self._ensure_baseline(run_data)
+                budget: int | None = None
+                shell_policy: dict[str, Any] | None = None
                 if set_shell_policy is not None:
                     # Part 52/44/42: the engine's bash tool enforces the plan's forbidden
                     # paths, the intent's scope paths and the run's remaining tool calls.
                     from harness_orchestrator.execution import remaining_tool_calls
 
                     factory = self.session_factory
-                    set_shell_policy(run_id, {
+                    budget = await remaining_tool_calls(factory, run_id) if factory else None
+                    shell_policy = {
                         "forbiddenPaths": list(getattr(plan, "forbiddenPaths", None) or []),
                         "scopePaths": (
                             await collab.intent_scope_paths(factory, run_id) if factory else []
                         ),
-                        "maxToolCalls": (
-                            await remaining_tool_calls(factory, run_id) if factory else None
-                        ),
-                    })
+                        "maxToolCalls": budget,
+                    }
+                    set_shell_policy(run_id, shell_policy)
                 # M17-B5 (PBC1 F2): the dedicated bounded executor + hard
                 # deadline replaces asyncio.to_thread's invisible ~16–36 slot
                 # pool. A hung provider now fails THIS run at the deadline
@@ -1246,10 +1280,31 @@ class OrchestratorService(Orchestrator):
                 records: queue.Queue[dict[str, Any]] = queue.Queue()
                 progress_kwargs: dict[str, Any] = {}
                 forwarder: asyncio.Task[None] | None = None
+                consume_record = None
                 if accepts_keyword(getattr(self.engine, "execute_goal", None), "on_progress"):
+                    # W2: the transcript stream is also the only place that sees
+                    # every call as it happens. `budget` above is a snapshot taken
+                    # before the run, from a table `record_engine_tool_calls` only
+                    # populates after it, so nothing else in the stack knows a run
+                    # has gone round the same hole 30 times.
+                    guard = LoopGuard(max_calls=budget, repeat_limit=loop_repeat_limit())
 
                     def _progress(record: dict[str, Any]) -> None:
                         records.put(record)
+
+                    async def _consume(record: dict[str, Any]) -> None:
+                        self._emit_tool_record(run_id, record)
+                        reason = guard.observe(record)
+                        if reason and not run_data.get("_guard_stopped"):
+                            await self._guard_stopped(
+                                run_id,
+                                run_data,
+                                sm,
+                                reason,
+                                guard,
+                                set_shell_policy,
+                                shell_policy,
+                            )
 
                     async def _forward_tool_records() -> None:
                         while True:
@@ -1258,8 +1313,9 @@ class OrchestratorService(Orchestrator):
                             except queue.Empty:
                                 await asyncio.sleep(0.05)
                                 continue
-                            self._emit_tool_record(run_id, record)
+                            await _consume(record)
 
+                    consume_record = _consume
                     progress_kwargs["on_progress"] = _progress
                     forwarder = asyncio.create_task(_forward_tool_records())
                 # M06: the goal may carry screenshots. Resolution reads only
@@ -1316,12 +1372,19 @@ class OrchestratorService(Orchestrator):
                 finally:
                     # Drain what the worker already produced before stopping;
                     # a record that arrived during teardown still belongs in
-                    # the transcript.
+                    # the transcript — and still counts against the guard,
+                    # because a loop that starts in the last second is the same
+                    # loop. An engine without the progress keyword has no stream
+                    # to judge, so the drain stays a plain emit.
                     while True:
                         try:
-                            self._emit_tool_record(run_id, records.get_nowait())
+                            record = records.get_nowait()
                         except queue.Empty:
                             break
+                        if consume_record is not None:
+                            await consume_record(record)
+                        else:
+                            self._emit_tool_record(run_id, record)
                     if forwarder is not None:
                         forwarder.cancel()
                 if isinstance(result, dict) and images is not None and (
@@ -1406,6 +1469,12 @@ class OrchestratorService(Orchestrator):
             await record_engine_tool_calls(self, run_data, result.get("toolCalls"))
             if run_data.get("cancel_requested"):
                 return  # zombie result from a cancelled live call — discard
+            if run_data.get("_guard_stopped"):
+                # Same reasoning as the cancel above: the guard already failed
+                # this run on the record. A worker that finished after being told
+                # to stop must not overwrite that with a success it earned only
+                # by wandering longer.
+                return
             staging_error = await self._stage_outputs(run_data)
             if staging_error:
                 run_data["engine_result"] = {

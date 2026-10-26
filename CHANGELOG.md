@@ -10,6 +10,48 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W2 (N01) — a stuck run is now caught from the event stream (2026-10-26)
+
+Two live acceptance attempts made 14 and 37 tool calls against a one-sentence
+goal and were stopped by nothing but the wall clock. The budget was not missing —
+it was late. `remaining_tool_calls` computed `maxToolCalls` from
+`COUNT(*) FROM agent_tool_calls`, and `record_engine_tool_calls` only fills that
+table *after* the engine returns, so every run started with its full allowance and
+never lost any. Native `tool-fs` calls are not bash calls, so the shell plugin's
+own counter never saw them either.
+
+#### Added
+
+- **`loop_guard.py`**: a pure, DB-free guard observing the W1 transcript stream —
+  the one place every call passes on both execution paths. Two independent
+  stops: `loop_detected` (same tool, whitespace-normalised same arguments, four
+  times) and `tool_budget_exhausted` (distinct calls over the cap, because 100
+  different commands is a burn even if nothing repeats). Results are not counted;
+  once stopped it stays stopped, so it cannot report a stop and then let the run
+  continue.
+- **Service wiring**, on both the live forwarder *and* the `finally` drain that
+  previously emitted records without consulting the guard. On a stop the run
+  fails durably with `ENGINE_FAILED`, the shell policy's `maxToolCalls` is
+  written to zero so further bash calls refuse, and the worker's late
+  `completed` is discarded instead of overwriting the failure.
+- `HARNESS_LOOP_REPEAT_LIMIT` tunes detection; unset means the default (4), and
+  an explicit empty/`off` means disabled. "No config" falling through to "no
+  detection" is how the budget became decorative.
+
+#### Limits stated, not smoothed over
+
+- **The worker is not killed.** There is no cancel channel into the SDK session;
+  that is Week 3's spike. A stopped run keeps consuming until it ends on its own.
+- `tool_budget_exhausted` is covered by unit tests but **not** at the service
+  seam — the fixture has no `run_limits` row, so `budget` arrives as `None`.
+- The wiring tests were written after the wiring, so they were mutation-checked:
+  disabling `guard.observe` fails 3 of 4 of them.
+
+#### Tests
+
+`section4`: `tests/unit/test_loop_guard.py` (12) and
+`tests/unit/test_loop_guard_wiring.py` (4). Ruff clean, `make static-gates` green.
+
 #### Verified live (2026-10-26) — M00 and M04
 
 **M00 (stack health on the current revision) closed.** Both images already on
