@@ -412,3 +412,35 @@ made the real cause easy to find once the environment was inspected.
   installed. Fixed in the gitignored `.env` on this host; `.env.example` should
   state that the name must match an installed model, and a startup probe could
   refuse a live deployment whose model the endpoint does not list.
+
+## From the 2026-10-26 full-project test sweep
+
+- [ ] **The bracketed-IPv6 `NO_PROXY` crash is not only Section 1's** (owner:
+  S10 + mcp). The SSO fix (`b99b316`) added a local `env_client()` that strips
+  the bracket when httpx chokes on Docker Desktop's `NO_PROXY=...,[::1]`. The
+  same crash still hits **Section 10** (`tests/unit/test_state.py`, 4 tests) and
+  the **MCP server** (`mcp/tests/test_tools.py`, 18 tests), which build their own
+  `httpx.AsyncClient` without it. Verified on this host: both fail as-is, both go
+  fully green with `[::1]` removed from `NO_PROXY` (section10 91 passed, mcp 18
+  passed). This is environmental — it does not fail on a clean shell — but three
+  sections now carry the same latent bug. Decide where the helper lives: a shared
+  `harness_contracts` client factory (one fix, contract bump) versus a copy per
+  section (the cross-section import law forbids Section 10 importing Section 1's).
+  Recommend the contracts route so a fourth section cannot rediscover it.
+
+- [ ] **`test_index_lifecycle_over_http` is intermittent under load** (owner:
+  S11). Seen once (`assert 7 == 8`) during a full sweep that ran every section
+  suite back to back; it did not reproduce in 5 isolated runs or 2 full-suite
+  runs afterwards. The suspect is line 90, `assert int(n) ==
+  status_body["chunksIndexed"]` — a `SELECT COUNT(*)` racing the indexer's own
+  writes, the same class as the Section 4 races fixed in `4632550`. Not a
+  deterministic order dependency (the full suite and the single test both pass in
+  isolation). Pin the count to the job's committed output rather than a live
+  table count.
+
+### What was green in that sweep
+section1 992 (after `56af081` fixed engine-worker's missing resource limits + log
+rotation), section2 48, section3 128, section4 1722, section5 319, section6 123,
+section8 91, section10 91 and mcp 18 once `NO_PROXY` is sanitized, section11 50.
+The M07 `engine-worker` compose service had quietly broken Section 1's two
+stack-law tests; that was this branch's regression and it is fixed.
