@@ -91,3 +91,47 @@ writing more of the same. "Resume reconciles partial writes" needs a decision
 about what reconciliation means before it needs an implementation, and "rewind"
 is listed in the plan below as owing a human policy decision. Week 4 should not
 start on the assumption that W3's gate is met.
+
+## Decisions taken (2026-10-26)
+
+Two policy questions were open. Both are answered, and the answers are the
+common ones rather than inventions:
+
+1. **Rewind = revert to the last checkpoint.** Chosen over "leave the tree and
+   mark the run abandoned". This matches how checkpointed agent tools behave
+   (Cursor/Devin-style: a step boundary is a restore point) and it is the only
+   one that lets a run continue after a bad step instead of abandoning work.
+2. **Resume adopts whatever is on disk.** Chosen over "refuse to resume when the
+   diff is dirty" and over "auto-revert on resume". Adopting is what the engine
+   already does — it re-invokes in the same workspace and the SDK continues its
+   own session history — and it is what other harnesses do: the interrupted write
+   is visible to the next read, so the agent sees the real tree instead of a
+   guess. Auto-revert would silently discard work the user may have accepted.
+
+### What that changed now
+
+The resume caveat used to read "review the workspace checkpoints before
+resuming". **There are no run-workspace checkpoints**, so that sentence pointed
+at a control that does not exist — the fake affordance the roadmap forbids. It
+now says what is true: side effects are not rolled back and resume continues from
+whatever is on disk. `test_execution_runs.py` pins both clauses.
+
+### What that does NOT change, and the next slice
+
+Decision 1 has nothing to revert to yet. Section 5 already implements the hard
+part and it is reachable over HTTP —
+`POST /api/v1/sandbox/{projectId}/checkpoints/{sha}/restore` resets tracked files
+to a snapshot and records the restore as a new snapshot
+(`section5/src/harness_sandbox/checkpoints.py:368`), with `list_checkpoints`,
+`get_diff`, `list_hunks` and `revert_hunks` beside it. What is missing is the
+*orchestrator* side: a run executes in its own workspace on the `harness_runs`
+volume, and nothing snapshots it before or after the engine's edits. The seam is
+even marked "UNVERIFIED" in `service.py` around the human-edit path.
+
+So W3's rewind clause needs, in order: (a) a snapshot of the run workspace
+before the engine's first edit and at each step boundary, written through the
+sandbox checkpoint API (sections may not import each other, so HTTP, not a
+library call); (b) a run-scoped `rewind` route that maps a run to its workspace
+and calls the existing restore; (c) evidence that a killed run can be rewound and
+then resumed with the tree matching the checkpoint. None of that is done, and
+W3's gate stays open on it.

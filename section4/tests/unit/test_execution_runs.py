@@ -253,6 +253,11 @@ async def test_a_failed_run_shows_its_checkpoints_failure_and_a_safe_resume_poin
     )
     assert res["resumeFrom"]["lastEventType"] == "engine_failed"
     assert "not rolled back" in res["caveat"]
+    # W3: the caveat must not point at workspace checkpoints — run workspaces are
+    # not snapshotted, so telling an operator to review them named a control that
+    # does not exist. Pin the truthful text, not just its first clause.
+    assert "checkpoints" not in res["caveat"]
+    assert "on disk" in res["caveat"]
 
 
 async def test_unreconciled_side_effects_make_resume_unsafe(env):

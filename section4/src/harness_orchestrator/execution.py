@@ -1774,8 +1774,18 @@ async def assess_resume(
         ),
         "how": "POST /runs/{runId}/retry (or /resume): the engine is re-invoked with the same"
         " session id and the dsh SDK continues its own session history",
-        "caveat": "side effects of the interrupted step are not rolled back; review the"
-        " workspace checkpoints before resuming",
+        # W3 policy (chosen 2026-10-26): resume ADOPTS whatever is on disk. That
+        # is the behaviour the engine already has — it re-invokes in the same
+        # workspace and the SDK continues its own session — and it is the common
+        # one: an interrupted write is visible to the next read, so the agent
+        # sees it. The caveat used to tell operators to "review the workspace
+        # checkpoints", which was an affordance with nothing behind it: run
+        # workspaces are not snapshotted (Section 5's checkpoint store covers
+        # sandbox task workspaces only). Naming a thing that does not exist is
+        # the fake affordance the roadmap forbids, so the text states the real
+        # contract instead.
+        "caveat": "side effects of the interrupted step are not rolled back; resume"
+        " continues from whatever is on disk",
     }
 
 
