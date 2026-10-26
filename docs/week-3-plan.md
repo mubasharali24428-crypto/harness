@@ -61,3 +61,33 @@ sample count is one, not enough to state as a gate.
    that has already written files — revert to the last checkpoint, or leave the
    workspace and mark the run abandoned. No implementation should pick one
    silently.
+
+## W3 outcome (2026-10-26) — one clause closed, one half, three open
+
+| Gate clause | State | Evidence |
+|---|---|---|
+| The worker and its child tool stop | **half** | container kill measured 0.58–1.01 s over four samples; a live `sleep` child observed in one; the guard now calls the kill |
+| Resume reconciles partial writes | **open** | nothing implemented; needs a kill mid-write and a workspace comparison |
+| A rejected action stays blocked | **open** | approval routes exist; no W3 evidence gathered |
+| Steering does not silently expand the approved scope | **open** | guidance is stored as events and never touches the shell policy, but that is a code reading, not a measurement |
+
+**What landed.** `_guard_stopped` no longer stops at the event stream: it calls
+`_kill_engine`, so a run the guard judges stuck is actually killed instead of
+burning until `ENGINE_RUN_TIMEOUT_SECONDS`. That closes the gap W2's N01
+outcome named. The kill's own answer is recorded and the failure text says
+"worker kill could not be confirmed" when the engine cannot confirm it — an
+unconfirmed kill must not read as a stop. The method is also idempotent: the
+live forwarder and the post-run drain can both reach it before either sets the
+flag, and two failure events for one stop say nothing new.
+
+Two tests pin it (`test_a_guarded_run_kills_its_worker`,
+`test_an_unconfirmed_kill_is_not_reported_as_a_stop`). One thing they do not
+pin, stated rather than implied: more than one `cancel` call for a run is
+legitimate — the claim fence kills too, and `cancel` is idempotent by contract —
+so the assertion is "the guard asked for the kill", not "exactly one call".
+
+**The honest gap.** The remaining three clauses are not code I can close by
+writing more of the same. "Resume reconciles partial writes" needs a decision
+about what reconciliation means before it needs an implementation, and "rewind"
+is listed in the plan below as owing a human policy decision. Week 4 should not
+start on the assumption that W3's gate is met.

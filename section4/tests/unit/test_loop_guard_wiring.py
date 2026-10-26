@@ -10,6 +10,9 @@ It uses the M06 service harness (`test_goal_image_execution._started`) because
 that fixture already proposes and approves a plan against real migrations, which
 is the only way to reach `_execute` the way the stack does.
 
+W3 adds the kill: a guarded run must call the engine's cancel, and an
+unconfirmed kill must be reported as unconfirmed.
+
 What is NOT covered here, stated so it does not read as covered: the
 `tool_budget_exhausted` path at this seam. That needs a `run_limits` row with
 `max_tool_calls` set, which this fixture does not create, so `budget` arrives as
@@ -25,11 +28,18 @@ class LoopingEngine:
 
     api_key = None
 
-    def __init__(self, repeats: int = 6, tail: int = 0):
+    def __init__(self, repeats: int = 6, tail: int = 0, killable: bool = True):
         self.repeats = repeats
         self.tail = tail
         self.policies: list[dict] = []
         self.finished = False
+        self.killable = killable
+        self.cancelled: list[str] = []
+
+    def cancel(self, session_id: str) -> bool:
+        """W3: the kill the spike proved. Recorded, and answerable either way."""
+        self.cancelled.append(session_id)
+        return self.killable
 
     def set_shell_policy(self, session_id: str, policy: dict) -> None:
         self.policies.append(dict(policy))
@@ -94,13 +104,40 @@ def test_a_streaming_loop_fails_the_run_with_a_reason(tmp_path):
 
 
 def test_the_engine_never_gets_to_report_its_own_success(tmp_path):
-    """The worker keeps running (there is no cancel channel — that is W3), but a
-    late `completed` must not overwrite the stop that already happened."""
+    """A late `completed` must not overwrite the stop that already happened."""
     engine = LoopingEngine(repeats=6)
     _svc, run_data, _seen = _execute(tmp_path, engine)
 
     assert engine.finished is True  # it did come back
     assert run_data.get("engine_result", {}).get("status") != "completed"
+
+
+def test_a_guarded_run_kills_its_worker(tmp_path):
+    """W3: the stop must reach the worker, not just the event stream.
+
+    Before this, `_guard_stopped` wrote the flag and the budget and let the
+    worker burn to the wall clock. The spike showed `engine.cancel` kills a
+    confined worker in under a second, so the guard now calls it.
+    """
+    engine = LoopingEngine(repeats=6)
+    _svc, run_data, _seen = _execute(tmp_path, engine)
+
+    # Every cancel targets this run. More than one is legitimate — the claim
+    # fence and the stop path both kill, and `cancel` is idempotent by contract —
+    # so the claim is "the guard asked for the kill", not "exactly one call".
+    assert engine.cancelled and set(engine.cancelled) == {run_data["runId"]}
+    assert run_data["_guard_killed"] is True
+
+
+def test_an_unconfirmed_kill_is_not_reported_as_a_stop(tmp_path):
+    """If the worker cannot be confirmed dead, the event must say so rather than
+    claim a stop that did not happen."""
+    engine = LoopingEngine(repeats=6, killable=False)
+    _svc, run_data, seen = _execute(tmp_path, engine)
+
+    assert run_data["_guard_killed"] is False
+    failed = [p for t, p in seen if getattr(t, "value", t) == "engine_failed"]
+    assert failed and "could not be confirmed" in failed[-1]["reason"]
 
 
 def test_the_shell_budget_is_written_down_after_the_stop(tmp_path):

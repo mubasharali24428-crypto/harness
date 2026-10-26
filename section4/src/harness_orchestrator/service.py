@@ -268,24 +268,37 @@ class OrchestratorService(Orchestrator):
     ) -> None:
         """Stop a run the event stream says is stuck, and say so durably.
 
-        What this honestly cannot do is stop the worker: the SDK session has no
-        cancel channel, which is Week 3's spike and not this. So the run keeps
-        burning until it ends on its own. What this does instead is three things
-        that are real today:
+        W3 closed the gap this docstring used to admit: the stop now reaches the
+        worker. `_kill_engine` was measured killing a confined worker and its
+        relay in under a second (`docs/week-3-plan.md`, `w3_stop_spike.py`), so a
+        guarded run no longer keeps burning until the wall clock. Four things
+        happen, in this order:
 
         * the stop is durable and visible immediately, as ``ENGINE_FAILED`` —
           the same event the deadline path uses to fail one run honestly;
         * every further shell call is refused, by writing the budget the engine's
           shell plugin reads down to zero rather than leaving it at the stale
           snapshot taken before the run started;
+        * the worker is killed, and the kill's own answer is recorded: an
+          unconfirmed kill must not read as a confirmed one in the event text;
         * ``_guard_stopped`` is set so the late result is discarded instead of
           letting a run that was told to stop come back and mark itself done.
+
+        Idempotent on purpose: the live forwarder and the post-run drain can both
+        reach this coroutine before either has set the flag (each awaits an emit
+        first), and a second failure event for one stop says nothing new.
         """
+        if run_data.get("_guard_stopped"):
+            return
         run_data["_guard_stopped"] = reason
         detail = f"{reason} after {guard.calls_seen} tool calls"
         if set_shell_policy is not None and shell_policy is not None:
             set_shell_policy(run_id, {**shell_policy, "maxToolCalls": 0})
-        sm.execution_failed(detail)
+        killed = await self._kill_engine(run_id)
+        run_data["_guard_killed"] = killed
+        sm.execution_failed(
+            detail if killed else f"{detail} (worker kill could not be confirmed)"
+        )
 
     @staticmethod
     def _executor_context_prefix(run_data: dict[str, Any]) -> str:
