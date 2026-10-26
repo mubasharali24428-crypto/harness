@@ -157,6 +157,28 @@ Landlock and `none` therefore get read-only file access, and the patch records
 why. `max_tokens=4096` is gone (`HARNESS_SDK_MAX_TOKENS` pins a cap), and the
 workspace seed keeps `.git`.
 
-Not yet done in W1: `on_notification` streaming to the run page (needs the
-`tool_call`/`tool_result` event bump), surfacing the 1M context window and
-compaction state, the goal-attachment path, and the live end-to-end gate.
+Not yet done in W1: the goal-attachment path, and the live end-to-end gate.
+
+### Days 2–4 outcome — the transcript (2026-10-26)
+
+`execute_goal(..., on_progress=)` exists on both execution paths: the direct
+SDK call passes `on_notification`, and the isolated worker turns turn events
+into NDJSON `progress` lines that the parent reads. The service forwards them
+from the worker thread through a queue onto the bus; `ToolActivity` pairs each
+result with its call by `callId` and renders output collapsed.
+
+The contract landed first, as this plan required: `1.0.0rc3` adds `tool_call`,
+`tool_result` and `context_compacted`, with golden payloads and a regenerated
+TS mirror, and the tests that pin the event set were updated in the same change.
+
+Context is visible too: the state machine records the window at execution
+start, compaction is summed from the durable log, and the status panel shows
+it. What is still not verified: reconnect/replay deduplication against a real
+browser session (the reducer is tested; the browser round-trip is not), and the
+running cost footer.
+
+One correction to the plan text above: `on_notification` is not passed for
+every engine. The wrapper probes whether `execute_goal` accepts `on_progress`
+and passes it only then — 32 section-4 tests failed when it was assumed, which
+is the check that now guards it.
+

@@ -10,6 +10,35 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W1 — the transcript is live, and compaction is visible (2026-10-26)
+
+The SDK emits turn events, but this wrapper dropped them: a run showed a
+spinner, then a final answer, with no evidence of what the agent actually did.
+Contracts had no tool-event vocabulary at all.
+
+#### Added
+
+- **Contracts `1.0.0rc3`** (additive): `tool_call`, `tool_result` and
+  `context_compacted`, with golden payloads and a regenerated TS mirror. The
+  call/result pair is correlated by `(runId, callId)`; results that arrive
+  before their call are buffered by the UI rather than dropped.
+- **A live transcript path**: `execute_goal(..., on_progress=)` forwards SDK
+  turn events on the direct path; the isolated worker emits NDJSON `progress`
+  lines so the parent process sees them; the service drains a thread-safe queue
+  onto the event bus (scrubbed before persistence). `ToolActivity` renders the
+  stream in section 7 and pairs each result with its call.
+- **Context visibility**: the state machine records the context window at
+  execution start; compaction events are summed into `GET /runs/{id}` status,
+  and the status panel shows compacted tokens.
+
+#### Fixed
+
+- **Optional engine keywords are probed, not assumed.** `on_progress` is now
+  passed only when `execute_goal` accepts it (and `**kwargs` counts), and no
+  forwarder is started for engines that cannot emit. Narrow test/custom engines
+  previously failed the whole run with a `TypeError`; 32 section-4 tests caught
+  this before it shipped.
+
 ### W1 — the agent can use files, and output is no longer capped (2026-10-25)
 
 The shipped `sdk-minimal` profile turns the filesystem tool off (`read`,
