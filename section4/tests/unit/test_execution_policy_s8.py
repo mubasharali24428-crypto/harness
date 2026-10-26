@@ -103,3 +103,42 @@ def test_write_and_edit_need_an_os_boundary_that_can_freeze_forbidden_paths(tmp_
     # no forbidden paths at all: the workspace boundary is the whole story
     text = Path(_execution_policy_patch(str(tmp_path), str(tmp_path / "ws"), {})).read_text()
     assert "    write: true" in text and "    edit: true" in text
+
+
+def test_a_narrower_intent_scope_disables_native_writes(tmp_path, monkeypatch):
+    """M01/M03: the runtime confines tool-fs to the workspace root only, so an
+    approved intent narrower than the workspace cannot be enforced by a native
+    tool — writes stay off instead of silently exceeding the approval."""
+    from harness_orchestrator.engine import _fs_write_capability
+
+    workspace = tmp_path / "ws"
+    (workspace / "src").mkdir(parents=True)
+    monkeypatch.setattr("harness_orchestrator.engine.confine.resolve_mode", lambda: "container")
+
+    allowed, _ = _fs_write_capability({"forbiddenPaths": [], "scopePaths": []}, str(workspace))
+    assert allowed is True
+
+    # scope naming the workspace itself is not narrower
+    allowed, _ = _fs_write_capability({"scopePaths": [str(workspace)]}, str(workspace))
+    assert allowed is True
+
+    allowed, why = _fs_write_capability(
+        {"scopePaths": [str(workspace / "src")]}, str(workspace)
+    )
+    assert allowed is False
+    assert "narrower scope" in why
+
+
+def test_the_patch_records_why_writes_were_disabled(tmp_path, monkeypatch):
+    from harness_orchestrator.engine import _execution_policy_patch
+
+    workspace = tmp_path / "ws"
+    (workspace / "src").mkdir(parents=True)
+    monkeypatch.setattr("harness_orchestrator.engine.confine.resolve_mode", lambda: "container")
+    text = Path(
+        _execution_policy_patch(
+            str(tmp_path), str(workspace), {"scopePaths": [str(workspace / "src")]}
+        )
+    ).read_text()
+    assert "    write: false" in text
+    assert "narrower scope" in text

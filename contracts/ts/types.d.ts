@@ -1,4 +1,4 @@
-// TS mirror of harness_contracts v1.0.0rc2 (Python is source of truth).
+// TS mirror of harness_contracts v1.0.0rc3 (Python is source of truth).
 // Regenerate by hand only on a deliberate contracts version bump.
 
 export type Role = "admin" | "engineer" | "viewer" | "guest";
@@ -19,7 +19,14 @@ export type EventType =
   | "done_signal_received"
   | "review_passed"
   | "review_failed"
-  | "pr_opened";
+  | "pr_opened"
+  | "terminal_output"
+  | "diff_progress"
+  | "engine_completed"
+  | "engine_failed"
+  | "tool_call"
+  | "tool_result"
+  | "context_compacted";
 
 /** The one wire shape on the WebSocket bus (Section 1 delivery). */
 export interface EventEnvelope {

@@ -7,12 +7,31 @@ export interface LastReview {
   seq: number;
 }
 
+/** One tool invocation, paired from its tool_call and tool_result events.
+ *  `ok` stays null while the call is still running — the UI says "running",
+ *  it does not guess success. */
+export interface ToolCallView {
+  callId: string;
+  name: string;
+  arguments: string;
+  ok: boolean | null;
+  error: string | null;
+  output: string;
+  durationMs: number | null;
+}
+
 export interface WorkingAreaDerivedView {
   blockerQuestion: string | null;
   lastReview: LastReview | null;
   terminalLines: string[];
   /** Files the agent has touched, in first-seen order (diff_progress events). */
   changedPaths: string[];
+  /** Tool calls in call order, each paired with its result when one arrived. */
+  toolCalls: ToolCallView[];
+  /** The window the runtime runs with, as reported at execution start. */
+  contextWindow: number | null;
+  /** Tokens summarised away by compaction so far (summed across compactions). */
+  compactedTokens: number;
 }
 
 const TERMINAL_LINE_CAP = 200;
@@ -30,6 +49,11 @@ export function deriveWorkingAreaView(events: EventEnvelope[]): WorkingAreaDeriv
   let lastReview: LastReview | null = null;
   const terminalLines: string[] = [];
   const changedPaths: string[] = [];
+  const toolCalls: ToolCallView[] = [];
+  const byCallId = new Map<string, ToolCallView>();
+  const toolCallStart = new Map<string, number>();
+  let contextWindow: number | null = null;
+  let compactedTokens = 0;
 
   for (const evt of events) {
     const payload = evt.payload ?? {};
@@ -37,6 +61,9 @@ export function deriveWorkingAreaView(events: EventEnvelope[]): WorkingAreaDeriv
       blockerQuestion = (payload.question as string) ?? "Agent is awaiting clarification.";
     } else if (evt.type === EventType.RESUMED || evt.type === EventType.EXECUTION_STARTED) {
       blockerQuestion = null;
+      if (evt.type === EventType.EXECUTION_STARTED && typeof payload.contextWindow === "number") {
+        contextWindow = payload.contextWindow;
+      }
     } else if (evt.type === EventType.REVIEW_PASSED || evt.type === EventType.REVIEW_FAILED) {
       const findings = (payload.findings ?? {}) as Record<string, unknown>;
       lastReview = {
@@ -53,6 +80,40 @@ export function deriveWorkingAreaView(events: EventEnvelope[]): WorkingAreaDeriv
           terminalLines.splice(0, terminalLines.length - TERMINAL_LINE_CAP);
         }
       }
+    } else if (evt.type === EventType.CONTEXT_COMPACTED) {
+      if (typeof payload.contextWindow === "number") contextWindow = payload.contextWindow;
+      const tokens = payload.compactedTokens;
+      if (typeof tokens === "number" && tokens > 0) compactedTokens += tokens;
+    } else if (evt.type === EventType.TOOL_CALL) {
+      const callId = typeof payload.callId === "string" ? payload.callId : "";
+      if (callId && !byCallId.has(callId)) {
+        const call: ToolCallView = {
+          callId,
+          name: typeof payload.name === "string" && payload.name ? payload.name : "tool",
+          arguments: typeof payload.arguments === "string" ? payload.arguments : "",
+          ok: null,
+          error: null,
+          output: "",
+          durationMs: null,
+        };
+        byCallId.set(callId, call);
+        toolCalls.push(call);
+        if (typeof payload.startedAt === "number") toolCallStart.set(callId, payload.startedAt);
+      }
+    } else if (evt.type === EventType.TOOL_RESULT) {
+      const callId = typeof payload.callId === "string" ? payload.callId : "";
+      const call = callId ? byCallId.get(callId) : undefined;
+      if (call) {
+        call.ok = payload.ok === true;
+        call.error = typeof payload.error === "string" ? payload.error : null;
+        call.output = typeof payload.output === "string" ? payload.output : "";
+        const started = toolCallStart.get(callId);
+        const finished = typeof payload.finishedAt === "number" ? payload.finishedAt : null;
+        call.durationMs =
+          typeof started === "number" && finished !== null && finished >= started
+            ? finished - started
+            : null;
+      }
     } else if (evt.type === EventType.DIFF_PROGRESS) {
       const path = payload.path;
       if (typeof path === "string" && path && !changedPaths.includes(path)) {
@@ -61,5 +122,13 @@ export function deriveWorkingAreaView(events: EventEnvelope[]): WorkingAreaDeriv
     }
   }
 
-  return { blockerQuestion, lastReview, terminalLines, changedPaths };
+  return {
+    blockerQuestion,
+    lastReview,
+    terminalLines,
+    changedPaths,
+    toolCalls,
+    contextWindow,
+    compactedTokens,
+  };
 }

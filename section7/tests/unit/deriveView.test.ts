@@ -95,3 +95,86 @@ describe("deriveWorkingAreaView terminalLines (M2)", () => {
     expect(deriveWorkingAreaView([evt(1, EventType.EXECUTION_STARTED)]).changedPaths).toEqual([]);
   });
 });
+
+describe("deriveWorkingAreaView — tool transcript", () => {
+  it("pairs a call with its result and computes duration", () => {
+    const view = deriveWorkingAreaView([
+      evt(1, EventType.TOOL_CALL, {
+        callId: "c1",
+        name: "bash",
+        arguments: '{"command":"ls"}',
+        startedAt: 1000,
+      }),
+      evt(2, EventType.TOOL_RESULT, {
+        callId: "c1",
+        ok: true,
+        output: "a.txt",
+        finishedAt: 1450,
+      }),
+    ]);
+    expect(view.toolCalls).toEqual([
+      {
+        callId: "c1",
+        name: "bash",
+        arguments: '{"command":"ls"}',
+        ok: true,
+        error: null,
+        output: "a.txt",
+        durationMs: 450,
+      },
+    ]);
+  });
+
+  it("a call without a result stays running instead of assuming success", () => {
+    const view = deriveWorkingAreaView([
+      evt(1, EventType.TOOL_CALL, { callId: "c1", name: "edit_file" }),
+    ]);
+    expect(view.toolCalls[0].ok).toBeNull();
+    expect(view.toolCalls[0].durationMs).toBeNull();
+  });
+
+  it("a result with no call does not invent an entry", () => {
+    const view = deriveWorkingAreaView([
+      evt(1, EventType.TOOL_RESULT, { callId: "ghost", ok: true }),
+    ]);
+    expect(view.toolCalls).toEqual([]);
+  });
+
+  it("keeps call order even when results arrive out of order", () => {
+    const view = deriveWorkingAreaView([
+      evt(1, EventType.TOOL_CALL, { callId: "c1", name: "read_file" }),
+      evt(2, EventType.TOOL_CALL, { callId: "c2", name: "grep" }),
+      evt(3, EventType.TOOL_RESULT, { callId: "c2", ok: true }),
+      evt(4, EventType.TOOL_RESULT, { callId: "c1", ok: false, error: "ENOENT" }),
+    ]);
+    expect(view.toolCalls.map((c) => c.name)).toEqual(["read_file", "grep"]);
+    expect(view.toolCalls[0].ok).toBe(false);
+    expect(view.toolCalls[0].error).toBe("ENOENT");
+    expect(view.toolCalls[1].ok).toBe(true);
+  });
+});
+
+describe("deriveWorkingAreaView — context window", () => {
+  it("reports the window the run started with", () => {
+    const view = deriveWorkingAreaView([
+      evt(1, EventType.EXECUTION_STARTED, { contextWindow: 1_000_000 }),
+    ]);
+    expect(view.contextWindow).toBe(1_000_000);
+    expect(view.compactedTokens).toBe(0);
+  });
+
+  it("sums compaction across events and keeps the latest window", () => {
+    const view = deriveWorkingAreaView([
+      evt(1, EventType.EXECUTION_STARTED, { contextWindow: 200_000 }),
+      evt(2, EventType.CONTEXT_COMPACTED, { compactedTokens: 5_000, contextWindow: 200_000 }),
+      evt(3, EventType.CONTEXT_COMPACTED, { compactedTokens: 7_500, contextWindow: 1_000_000 }),
+    ]);
+    expect(view.contextWindow).toBe(1_000_000);
+    expect(view.compactedTokens).toBe(12_500);
+  });
+
+  it("stays unknown rather than assuming a default when nothing reported one", () => {
+    const view = deriveWorkingAreaView([evt(1, EventType.EXECUTION_STARTED)]);
+    expect(view.contextWindow).toBeNull();
+  });
+});

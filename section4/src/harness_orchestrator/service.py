@@ -3,6 +3,7 @@ import inspect
 import json
 import logging
 import os
+import queue
 import secrets
 import socket
 import time
@@ -35,6 +36,7 @@ from harness_orchestrator.engine_runtime import (
     CircuitOpenError,
     EngineRuntime,
     EngineRunTimeout,
+    accepts_keyword,
 )
 from harness_orchestrator.lifecycle import lifecycle_view
 from harness_orchestrator.planner import PlanNotApprovedError, PlanService
@@ -251,6 +253,46 @@ class OrchestratorService(Orchestrator):
         self._publish_chains: dict[str, asyncio.Task] = {}
 
     # ------------------------------------------------------------------ events
+
+    def _emit_tool_record(self, run_id: str, record: dict[str, Any]) -> None:
+        """Bridge one engine tool record onto the project bus.
+
+        Payloads follow the contract note on ``EventType.TOOL_CALL``. Both
+        strings are scrubbed here rather than at the source: the arguments and
+        output are model- and tool-authored text, and the transcript is durable.
+        """
+        key = getattr(self.engine, "api_key", "") or ""
+
+        def _clean(value: Any, limit: int = 4000) -> str:
+            return scrub_secrets(str(value or ""), key)[:limit]
+
+        if record.get("phase") == "call":
+            self._emit(
+                EventType.TOOL_CALL,
+                {
+                    "runId": run_id,
+                    "callId": str(record.get("callId") or ""),
+                    "name": _clean(record.get("name"), 80),
+                    "arguments": _clean(record.get("arguments")),
+                    "turn": record.get("turn"),
+                    "step": record.get("step"),
+                    "startedAt": record.get("at"),
+                },
+            )
+            return
+        self._emit(
+            EventType.TOOL_RESULT,
+            {
+                "runId": run_id,
+                "callId": str(record.get("callId") or ""),
+                "ok": bool(record.get("ok")),
+                "error": _clean(record.get("error"), 500) or None,
+                "output": _clean(record.get("output"), 2000),
+                "turn": record.get("turn"),
+                "step": record.get("step"),
+                "finishedAt": record.get("at"),
+            },
+        )
 
     def _emit(self, event_type: EventType, payload: dict[str, Any]) -> None:
         """Single emission bridge: sync test callback first, then bus fan-out."""
@@ -1193,12 +1235,62 @@ class OrchestratorService(Orchestrator):
                 # deadline replaces asyncio.to_thread's invisible ~16–36 slot
                 # pool. A hung provider now fails THIS run at the deadline
                 # instead of occupying a slot forever.
-                result = await self.engine_runtime.run(
-                    self.engine,
-                    goal=plan.goal + extra,
-                    session_id=run_id,
-                    model=await self._team_model_for_run(run_id),
-                )
+                #
+                # W1: the engine runs on its own OS thread, so it cannot emit
+                # onto the bus (no running loop there). It hands records to a
+                # queue and this task forwards them, which is what makes the
+                # transcript live instead of post-hoc. Capability is probed,
+                # not assumed: a stub/custom engine without the keyword simply
+                # gets no stream, and no forwarder is wasted on it.
+                records: queue.Queue[dict[str, Any]] = queue.Queue()
+                progress_kwargs: dict[str, Any] = {}
+                forwarder: asyncio.Task[None] | None = None
+                if accepts_keyword(getattr(self.engine, "execute_goal", None), "on_progress"):
+
+                    def _progress(record: dict[str, Any]) -> None:
+                        records.put(record)
+
+                    async def _forward_tool_records() -> None:
+                        while True:
+                            try:
+                                record = records.get_nowait()
+                            except queue.Empty:
+                                await asyncio.sleep(0.05)
+                                continue
+                            self._emit_tool_record(run_id, record)
+
+                    progress_kwargs["on_progress"] = _progress
+                    forwarder = asyncio.create_task(_forward_tool_records())
+                try:
+                    result = await self.engine_runtime.run(
+                        self.engine,
+                        goal=plan.goal + extra,
+                        session_id=run_id,
+                        model=await self._team_model_for_run(run_id),
+                        **progress_kwargs,
+                    )
+                finally:
+                    # Drain what the worker already produced before stopping;
+                    # a record that arrived during teardown still belongs in
+                    # the transcript.
+                    while True:
+                        try:
+                            self._emit_tool_record(run_id, records.get_nowait())
+                        except queue.Empty:
+                            break
+                    if forwarder is not None:
+                        forwarder.cancel()
+                context = result.get("context") if isinstance(result, dict) else None
+                if isinstance(context, dict) and context.get("compactions"):
+                    self._emit(
+                        EventType.CONTEXT_COMPACTED,
+                        {
+                            "runId": run_id,
+                            "compactions": context.get("compactions"),
+                            "compactedTokens": context.get("compactedTokens"),
+                            "contextWindow": context.get("contextWindow"),
+                        },
+                    )
                 if extra:  # persist the cursor so a restart does not re-deliver
                     await collab.mark_guidance_delivered(
                         self.session_factory, run_id, run_data["guidance_seq"]

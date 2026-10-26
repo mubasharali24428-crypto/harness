@@ -58,22 +58,39 @@ _REPO_SHELL_GATE = (
 )
 
 
-def _fs_write_capability(shell_policy: dict[str, Any] | None) -> tuple[bool, str]:
+def _fs_write_capability(
+    shell_policy: dict[str, Any] | None, workspace_dir: str
+) -> tuple[bool, str]:
     """Can this run's filesystem tool be allowed to WRITE?
 
-    The runtime confines tool-fs to the workspace, but a plan's
-    ``forbiddenPaths`` live *inside* that workspace, and the tool does not know
-    about them. Two boundaries do freeze them for the whole worker:
-    container mode (nested read-only bind mounts) and Seatbelt
-    (``deny file-write* <subpath>``). Landlock cannot express "grant the tree,
-    deny a subtree inside it", and ``none`` enforces nothing — so with
-    forbidden paths and no real boundary we keep write/edit off rather than
-    widen the agent's reach past the policy it was approved under.
+    The runtime confines tool-fs to ``workspaceRoot``, and nothing else. Two
+    things the approved policy names live *inside* that root and the tool does
+    not know them:
 
+    * ``forbiddenPaths`` — frozen for the whole worker by the container's
+      nested read-only binds and by Seatbelt's ``deny file-write*``; Landlock
+      cannot express "grant the tree, deny a subtree", and ``none`` enforces
+      nothing.
+    * ``scopePaths`` — an approved intent narrower than the workspace. No
+      boundary freezes that for a native tool: mounts cannot express an
+      allow-list inside a writable tree, so a native write outside the intent
+      would be indistinguishable from an allowed one.
+
+    So writes stay off unless they are covered: forbidden paths need
+    container/Seatbelt, and a narrower intent scope always disables them.
     Returns ``(allowed, reason)``; the reason is written into the patch so an
     operator reading a session can see why writes were off.
     """
-    forbidden = list((shell_policy or {}).get("forbiddenPaths") or [])
+    policy = shell_policy or {}
+    forbidden = list(policy.get("forbiddenPaths") or [])
+    scope = [str(p) for p in (policy.get("scopePaths") or []) if str(p).strip()]
+    root = os.path.realpath(workspace_dir)
+    narrower = [p for p in scope if os.path.realpath(p) != root]
+    if narrower:
+        return False, (
+            f"write/edit off: intent scope names {len(narrower)} path(s) inside the "
+            "workspace and a native file tool cannot enforce a narrower scope"
+        )
     if not forbidden:
         return True, ""
     mode = confine.resolve_mode()
@@ -109,7 +126,7 @@ def _execution_policy_patch(
         "scopePaths": list(policy.get("scopePaths") or []),
     }
     patch = Path(session_dir) / "harness-execution-policy.yml"
-    may_write, write_note = _fs_write_capability(shell_policy)
+    may_write, write_note = _fs_write_capability(shell_policy, workspace_dir)
     if write_note:
         logger.warning("run %s: %s", Path(session_dir).name, write_note)
     write_flags = (
@@ -155,6 +172,74 @@ def _execution_policy_patch(
     return str(patch)
 
 
+def _content_preview(content: Any, limit: int = 4000) -> str:
+    """Flatten a ToolResultMessage's content blocks into a short preview."""
+    parts: list[str] = []
+    if isinstance(content, str):
+        parts.append(content)
+    elif isinstance(content, list):
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict):
+                for key in ("text", "value", "content"):
+                    value = block.get(key)
+                    if isinstance(value, str):
+                        parts.append(value)
+                        break
+    return "\n".join(parts)[:limit]
+
+
+def _notification_events(payload: Any) -> list[dict[str, Any]]:
+    """Every plausible session-event shape inside one SDK notification payload.
+
+    The runtime's notification envelope is not part of the SDK's typed surface,
+    so the three documented shapes are accepted — a bare event, ``{event: …}``
+    (``SessionEventEntry``), and a nested ``data`` — instead of inventing one.
+    """
+    if not isinstance(payload, dict):
+        return []
+    out: list[dict[str, Any]] = []
+    for key in ("event", "events"):
+        value = payload.get(key)
+        if isinstance(value, dict):
+            out.append(value)
+        elif isinstance(value, list):
+            out.extend(item for item in value if isinstance(item, dict))
+    if payload.get("type") in ("tool/call", "tool/result"):
+        out.append(payload)
+    data = payload.get("data")
+    if isinstance(data, dict) and data.get("type") in ("tool/call", "tool/result"):
+        out.append(data)
+    return out
+
+
+def _context_meta(events: list[Any]) -> dict[str, Any]:
+    """What the runtime's context window is, and how much it has compacted.
+
+    The window comes from the same variable the shipped profile reads
+    (``DSH_CONTEXT_WINDOW``, default 1,000,000) — reported, not guessed. Token
+    counts come from ``compaction/summary`` events (``shadowedTokenCount``),
+    summed because a long run can compact more than once.
+    """
+    try:
+        window = int(os.environ.get("DSH_CONTEXT_WINDOW", "1000000"))
+    except ValueError:
+        window = 1_000_000
+    compactions = 0
+    tokens = 0
+    for event in events or []:
+        if not isinstance(event, dict) or event.get("type") != "compaction/summary":
+            continue
+        compactions += 1
+        data = event.get("data") if isinstance(event.get("data"), dict) else {}
+        try:
+            tokens += int(data.get("shadowedTokenCount") or 0)
+        except (TypeError, ValueError):
+            pass
+    return {"contextWindow": window, "compactions": compactions, "compactedTokens": tokens}
+
+
 def _sdk_max_tokens() -> int | None:
     """Output ceiling for one turn: operator's choice, otherwise the provider's.
 
@@ -173,6 +258,56 @@ def _sdk_max_tokens() -> int | None:
     if value <= 0:
         raise ValueError("HARNESS_SDK_MAX_TOKENS must be positive")
     return value
+
+
+_GIT_CONFIG_DENY = (
+    "helper",       # credential helpers execute commands
+    "extraheader",  # tokens pasted into request headers
+    "fsmonitor",
+    "hookspath",
+    "sshcommand",
+    "proxy",
+)
+
+
+def _prepare_seeded_git(workspace: str) -> None:
+    """Keep a seed's history, drop what must not travel with it.
+
+    Copying ``.git`` blindly hands the agent three things it should never have:
+    executable hooks (they run on our checkpoint commits), a config that can
+    carry credentials or point git at an external command, and gitdir pointers
+    (a worktree/submodule ``.git`` file or ``modules/`` entry) that escape the
+    workspace root. History, refs, objects and index are kept; everything that
+    runs code or names a path outside the run is removed.
+    """
+    git_dir = Path(workspace) / ".git"
+    if not git_dir.exists():
+        return
+    if git_dir.is_symlink() or git_dir.is_file():
+        # A worktree/gitdir pointer: never follow it out of the workspace.
+        git_dir.unlink(missing_ok=True)
+        return
+    for name in ("hooks", "worktrees", "modules"):
+        target = git_dir / name
+        if target.is_symlink():
+            target.unlink(missing_ok=True)
+        elif target.is_dir():
+            shutil.rmtree(target, ignore_errors=True)
+    config = git_dir / "config"
+    if not config.is_file():
+        return
+    original = config.read_text(encoding="utf-8", errors="replace")
+    kept: list[str] = []
+    for line in original.splitlines():
+        stripped = line.strip().lower()
+        if any(key in stripped for key in _GIT_CONFIG_DENY):
+            continue
+        if stripped.startswith("url =") and "@" in stripped:
+            continue  # credentials embedded in a remote URL
+        kept.append(line)
+    if kept != original.splitlines():  # only touch a file we actually had to clean
+        suffix = "\n" if original.endswith("\n") else ""
+        config.write_text("\n".join(kept) + suffix, encoding="utf-8")
 
 
 class DeepSeekHarnessWrapper:
@@ -273,6 +408,7 @@ class DeepSeekHarnessWrapper:
             if not os.path.isdir(seed):
                 raise ValueError("HARNESS_WORKSPACE_SEED is not a directory")
             shutil.copytree(seed, path, symlinks=True)
+            _prepare_seeded_git(path)
         else:
             os.makedirs(path)
         return path
@@ -365,7 +501,11 @@ class DeepSeekHarnessWrapper:
         )
 
     def _run_isolated(
-        self, goal: str, session_id: str, model: str
+        self,
+        goal: str,
+        session_id: str,
+        model: str,
+        on_progress: Callable[[dict[str, Any]], None] | None = None,
     ) -> tuple[str, str, str | None, list[Any]]:
         """Run the SDK call in a confined, killable worker process (B2/B4)."""
         boundary = None
@@ -446,44 +586,89 @@ class DeepSeekHarnessWrapper:
                 if boundary:
                     self._containers[session_id] = boundary
             budget = float(os.environ.get("HARNESS_ENGINE_TIMEOUT_SECONDS", "900"))
-            try:
-                out, err = proc.communicate(request + "\n", timeout=budget)
-            except subprocess.TimeoutExpired:
-                # ponytail: kills the process group only; container kill runs in finally.
+            # Read the worker's stdout as it arrives instead of at the end: the
+            # worker writes one NDJSON line per tool event, then one result
+            # line. Without this the transcript could only appear after the run
+            # finished, which is exactly what a "live" transcript must not do.
+            err_chunks: list[str] = []
+
+            def _drain_stderr() -> None:
+                try:
+                    for chunk in iter(lambda: proc.stderr.readline(), ""):
+                        err_chunks.append(chunk)
+                except (OSError, ValueError):
+                    pass
+
+            def _kill() -> None:
+                nonlocal timed_out
+                timed_out = True
                 try:
                     os.killpg(proc.pid, signal.SIGKILL)  # pgid == pid (start_new_session)
                 except ProcessLookupError:
                     pass
-                proc.wait(timeout=5)
-                return (
-                    f"DeepSeek Harness worker exceeded {budget:g}s and was killed",
-                    "error",
-                    model,
-                    [],
-                )
+
+            timed_out = False
+            stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
+            stderr_thread.start()
+            watchdog = threading.Timer(budget, _kill)
+            watchdog.start()
+            result_line: dict[str, Any] | None = None
+            try:
+                proc.stdin.write(request + "\n")
+                proc.stdin.flush()
+                proc.stdin.close()
+                for raw in proc.stdout:  # blocks until a line or EOF
+                    line = raw.strip()
+                    if not line:
+                        continue
+                    try:
+                        parsed = json.loads(line)
+                    except ValueError:
+                        continue  # a chatty runtime line, not our protocol
+                    if not isinstance(parsed, dict):
+                        continue
+                    progress = parsed.get("progress")
+                    if isinstance(progress, dict):
+                        if on_progress is not None:
+                            on_progress(progress)
+                        continue
+                    if "status" in parsed:
+                        result_line = parsed
+                proc.wait(timeout=10)
             finally:
+                watchdog.cancel()
                 with self._proc_lock:
                     if self._procs.get(session_id) is proc:
                         if boundary and not boundary.kill(proc):
                             raise RuntimeError("container termination could not be confirmed")
                         del self._procs[session_id]
                         self._containers.pop(session_id, None)
+            if timed_out:
+                return (
+                    f"DeepSeek Harness worker exceeded {budget:g}s and was killed",
+                    "error",
+                    model,
+                    [],
+                )
             if session_id in self._cancel_requested:
                 return "Execution cancelled.", "cancelled", model, []
             if confine.forbidden_snapshot(workspace, forbidden) != before:
                 return "Run changed a forbidden path.", "error", model, []
-            lines = [ln for ln in (out or "").splitlines() if ln.strip()]
-            if proc.returncode != 0 or not lines:
-                tail = scrub_secrets((err or "")[-500:], self.api_key)
+            if proc.returncode != 0 or result_line is None:
+                tail = scrub_secrets("".join(err_chunks)[-500:], self.api_key)
                 return (
                     f"DeepSeek Harness worker exited {proc.returncode}: {tail}",
                     "error",
                     model,
                     [],
                 )
-            res = json.loads(lines[-1])
-            res["text"] = scrub_secrets(str(res.get("text", "")), self.api_key)
-            return res["text"], res["status"], res.get("model") or model, res.get("events") or []
+            result_line["text"] = scrub_secrets(str(result_line.get("text", "")), self.api_key)
+            return (
+                result_line["text"],
+                result_line["status"],
+                result_line.get("model") or model,
+                result_line.get("events") or [],
+            )
         except Exception as exc:  # noqa: BLE001 - includes ConfinementUnavailableError: fail closed
             msg = scrub_secrets(f"DeepSeek Harness run failed: {exc}", self.api_key)
             return msg, "error", model, []
@@ -540,6 +725,7 @@ class DeepSeekHarnessWrapper:
         goal: str,
         session_id: str = "session-001",
         model: str | None = None,
+        on_progress: Callable[[dict[str, Any]], None] | None = None,
     ) -> dict[str, Any]:
         # A per-run/team choice wins over the deployment default. ``None``
         # keeps the exact historical behavior.
@@ -547,6 +733,7 @@ class DeepSeekHarnessWrapper:
         used_model: str | None = None
         usage: dict[str, int] | None = None
         tool_calls: list[dict[str, Any]] = []
+        events: list[Any] = []
         if self.backend_runner:
             result_text = self.backend_runner(goal)
             status = "completed"
@@ -554,8 +741,11 @@ class DeepSeekHarnessWrapper:
             # The configured model is THE model: passed explicitly so no
             # callee ever picks another one (no-downgrade law).
             try:
+                live_kwargs: dict[str, Any] = {"model": effective_model}
+                if on_progress is not None:
+                    live_kwargs["on_progress"] = on_progress
                 result_text, status, used_model, events = self._run_live_events(
-                    goal, session_id, model=effective_model
+                    goal, session_id, **live_kwargs
                 )
                 # M14-W4 F1a: real token accounting rides the SDK's usage
                 # chunks; folded onto the result so the orchestrator's
@@ -595,6 +785,8 @@ class DeepSeekHarnessWrapper:
             **({"usage": usage} if usage is not None else {}),
             # Part 44: the run's own tool calls, recorded toward its tool-call limit.
             **({"toolCalls": tool_calls} if tool_calls else {}),
+            # W1: the window the run actually ran with, and what it compacted.
+            "context": _context_meta(events),
         }
 
     @staticmethod
@@ -629,6 +821,69 @@ class DeepSeekHarnessWrapper:
                     call["outcome"] = "error" if data["message"].get("isError") else "ok"
         return list(calls.values())
 
+    @staticmethod
+    def _tool_record(event: Any) -> dict[str, Any] | None:
+        """One transcript record from a runtime ``tool/call`` or ``tool/result``.
+
+        Shapes come from the runtime's own ``SessionEventMap``:
+        ``tool/call {turn, step, callId, name, arguments}`` and
+        ``tool/result {turn, step, message: {toolCallId, isError?, content},
+        error?}``. Text is scrubbed by the caller before it is stored; nothing
+        here reads a path, a key or the environment.
+        """
+        if not isinstance(event, dict) or not isinstance(event.get("data"), dict):
+            return None
+        kind = event.get("type")
+        data = event["data"]
+        base = {
+            "turn": data.get("turn"),
+            "step": data.get("step"),
+            "at": event.get("time"),
+            "seq": event.get("seq"),
+        }
+        if kind == "tool/call" and data.get("callId"):
+            args = data.get("arguments")
+            if not isinstance(args, str):
+                try:
+                    args = json.dumps(args, ensure_ascii=False)
+                except (TypeError, ValueError):
+                    args = ""
+            return {
+                **base,
+                "phase": "call",
+                "callId": str(data["callId"]),
+                "name": str(data.get("name") or "unknown"),
+                "arguments": args[:2000],
+            }
+        if kind == "tool/result" and isinstance(data.get("message"), dict):
+            message = data["message"]
+            call_id = message.get("toolCallId")
+            if not call_id:
+                return None
+            error = data.get("error") if isinstance(data.get("error"), dict) else None
+            failed = bool(message.get("isError") or error)
+            reason = None
+            if error:
+                reason = str(error.get("reason") or error.get("code") or "tool error")
+            return {
+                **base,
+                "phase": "result",
+                "callId": str(call_id),
+                "ok": not failed,
+                "error": reason,
+                "output": _content_preview(message.get("content")),
+            }
+        return None
+
+    @classmethod
+    def _tool_records(cls, events: list[Any]) -> list[dict[str, Any]]:
+        records = []
+        for event in events or []:
+            record = cls._tool_record(event)
+            if record is not None:
+                records.append(record)
+        return records
+
     def _engine_name(self, model_used: str | None = None) -> str:
         """Name the engine AND the model that actually answered.
 
@@ -648,16 +903,28 @@ class DeepSeekHarnessWrapper:
         return text, status, used_model
 
     def _run_live_events(
-        self, goal: str, session_id: str, model: str | None = None
+        self,
+        goal: str,
+        session_id: str,
+        model: str | None = None,
+        on_progress: Callable[[dict[str, Any]], None] | None = None,
     ) -> tuple[str, str, str | None, list[Any]]:
         """One attempt against exactly one model — no ladder, no retries on
         other models. Returns (text, status, model_that_answered, events); the
         third element keeps attribution honest even on failure paths and the
         fourth carries the raw SDK events so real token usage can be metered
-        (M14-W4 F1a)."""
+        (M14-W4 F1a).
+
+        ``on_progress`` receives one record per tool call / tool result as the
+        runtime reports it, so a caller can write the transcript while the run
+        is still going. The same records are re-derived from ``events`` after
+        the run and anything not already sent is pushed as a final sweep — a
+        provider or runtime that ignores the notification channel still yields
+        a complete transcript, just not a live one.
+        """
         model = model or self.model
         if self.isolated:
-            return self._run_isolated(goal, session_id, model)
+            return self._run_isolated(goal, session_id, model, on_progress)
         try:
             from deepseek_harness import DeepSeekHarness
 
@@ -695,10 +962,42 @@ class DeepSeekHarnessWrapper:
             if missing:  # fail closed: a missing restriction patch must not be skipped
                 raise FileNotFoundError(f"DSH_PATCH_FILES entry not found: {missing[0]}")
             kwargs["patches"] = (*operator_patches, policy_patch)
+            sent: set[str] = set()
+
+            def _push(record: dict[str, Any]) -> None:
+                key = f"{record['phase']}:{record.get('callId')}"
+                if key in sent:
+                    return
+                sent.add(key)
+                if on_progress is not None:
+                    on_progress(record)
+
+            def _notify(notification: Any) -> None:
+                """Runtime notification -> transcript record.
+
+                The SDK hands us whatever the runtime notifies; a session event
+                may arrive bare, wrapped in ``event``, or inside ``data``. All
+                three shapes are tried rather than assuming one, and anything
+                unrecognised is ignored (never guessed at).
+                """
+                payload = getattr(notification, "payload", notification)
+                for candidate in _notification_events(payload):
+                    record = self._tool_record(candidate)
+                    if record is not None:
+                        _push(record)
+
             with DeepSeekHarness(**kwargs) as harness:
-                result = harness.run(goal, session_id=session_id)
+                # Subscribe only when someone is listening: a caller that does
+                # not want progress should not pay for the callback, and an
+                # engine stub with the narrow historical signature still works.
+                run_kwargs: dict[str, Any] = {"session_id": session_id}
+                if on_progress is not None:
+                    run_kwargs["on_notification"] = _notify
+                result = harness.run(goal, **run_kwargs)
             text = result.final_response
             events = list(result.events or [])
+            for record in self._tool_records(events):  # final sweep: nothing lost
+                _push(record)
             if getattr(result, "finish_reason", None) == "error":
                 message = "runtime reported a failed turn"
                 for event in reversed(events):

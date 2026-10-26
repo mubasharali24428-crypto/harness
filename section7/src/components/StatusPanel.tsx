@@ -1,3 +1,4 @@
+import * as React from "react";
 import type { RunStatus } from "@contracts/api";
 import type { ConnectionState } from "@/lib/useEventStream";
 import type { WorkingAreaDerivedView } from "@/lib/deriveView";
@@ -24,6 +25,12 @@ const CONNECTION_LABEL: Record<ConnectionState, string> = {
   closed: "Disconnected",
 };
 
+function formatWindow(tokens: number): string {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(tokens % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}k`;
+  return String(tokens);
+}
+
 export function StatusPanel({
   status,
   derived,
@@ -44,6 +51,16 @@ export function StatusPanel({
         </span>
         {status?.isHumanEditing && <span style={pillStyle("var(--yellow)")}>human editing</span>}
       </div>
+
+      {(derived.contextWindow !== null || derived.compactedTokens > 0) && (
+        <p style={{ margin: "0 0 10px 0", fontSize: 12, color: "var(--muted)" }}>
+          Context:{" "}
+          {derived.contextWindow !== null ? `${formatWindow(derived.contextWindow)} window` : "window unknown"}
+          {derived.compactedTokens > 0
+            ? ` · ${derived.compactedTokens.toLocaleString()} tokens compacted`
+            : " · no compaction yet"}
+        </p>
+      )}
 
       {derived.blockerQuestion && (
         <div style={{ ...calloutStyle, borderColor: "var(--red)" }}>

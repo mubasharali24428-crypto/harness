@@ -17,6 +17,7 @@ import { PlanPanel } from "./PlanPanel";
 import { StatusPanel } from "./StatusPanel";
 import { DiffPanel } from "./DiffPanel";
 import { TerminalPanel } from "./TerminalPanel";
+import { ToolActivity } from "./ToolActivity";
 import { CheckpointsPanel } from "./CheckpointsPanel";
 import { CommentsNudges } from "./CommentsNudges";
 import { Controls } from "./Controls";
@@ -85,6 +86,7 @@ export function WorkingArea({ projectId, runId, stagedPending = false }: { proje
           <StatusPanel status={status} derived={derived} connectionState={connectionState} />
           <PlanPanel plan={plan} />
           <DiffPanel diffText={diffText} changedPaths={derived.changedPaths} />
+          <ToolActivity calls={derived.toolCalls} />
           <TerminalPanel results={[]} lines={derived.terminalLines} />
         </div>
         <div className="working-col">

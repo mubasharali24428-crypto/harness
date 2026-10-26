@@ -1,0 +1,11 @@
+{
+  "type": "tool_result",
+  "payload": {
+    "fixture": true
+  },
+  "ts": "2026-10-26T06:23:01.275264+00:00",
+  "seq": 7,
+  "projectId": "proj-golden",
+  "runId": "run-golden",
+  "schemaVersion": 1
+}

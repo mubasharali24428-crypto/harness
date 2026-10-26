@@ -16,6 +16,9 @@ export const EventType = {
   DIFF_PROGRESS: "diff_progress",
   ENGINE_COMPLETED: "engine_completed",
   ENGINE_FAILED: "engine_failed",
+  TOOL_CALL: "tool_call",
+  TOOL_RESULT: "tool_result",
+  CONTEXT_COMPACTED: "context_compacted",
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];

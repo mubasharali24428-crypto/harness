@@ -50,6 +50,14 @@ from harness_contracts.events import EventType
 from harness_contracts.timeutil import as_utc, now_utc
 
 
+def _context_window() -> int:
+    """Default context window of the shipped SDK profile (env-overridable)."""
+    try:
+        return int(os.environ.get("DSH_CONTEXT_WINDOW", "1000000"))
+    except ValueError:
+        return 1_000_000
+
+
 class AgentState(StrEnum):
     IDLE = "idle"
     PLANNING = "planning"
@@ -242,7 +250,12 @@ class AgentStateMachine:
                 f"{plan_approval_ttl_seconds()}s). Re-approve the plan."
             )
         self.transition_to(AgentState.EXECUTING)
-        self.emit(EventType.EXECUTION_STARTED, {"runId": self.run_id})
+        self.emit(
+            EventType.EXECUTION_STARTED,
+            # W1: the window this run will use, from the same variable the
+            # shipped profile reads, so the UI can state it instead of guessing.
+            {"runId": self.run_id, "contextWindow": _context_window()},
+        )
 
     def execution_completed(self, summary: str = "") -> None:
         """Wave 6 (D4): engine settled successfully — open the human done-gate.

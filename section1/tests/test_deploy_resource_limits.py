@@ -254,11 +254,14 @@ async def test_ready_reports_schema_drift(probes_module, tmp_path):
 def test_all_seven_backends_install_probes_with_their_port():
     """Static pin: each app builder wires _install_probes(app, ITS port) so a
     new backend cannot ship without both routes; the old per-app /health stubs
-    are gone (liveness defined once, in the shared installer)."""
+    are gone (liveness defined once, in the shared installer). The sandbox is
+    the one backend that also reports egress in /ready — the proxy is its
+    reason to exist, so that fact is pinned too."""
     src = _SERVICES.read_text()
     assert src.count('@app.get("/health")') == 1
     for name, port in BACKEND_PORTS.items():
-        assert f"_install_probes(app, {port})" in src, f"{name} ({port}) unwired"
+        extra = ", reports_egress=True" if name == "sandbox" else ""
+        assert f"_install_probes(app, {port}{extra})" in src, f"{name} ({port}) unwired"
 
 
 def test_compose_healthchecks_probe_readiness():

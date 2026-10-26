@@ -23,6 +23,17 @@ class EventType(StrEnum):
     # failure advances EXECUTING→BLOCKED. Payload keys: summary | reason.
     ENGINE_COMPLETED = "engine_completed"
     ENGINE_FAILED = "engine_failed"
+    # W1 (contracts 1.0.0rc3, additive): the live transcript. One TOOL_CALL when
+    # the agent invokes a tool and one TOOL_RESULT when it settles, paired by
+    # callId. Payloads: TOOL_CALL {runId, callId, name, arguments, turn, step,
+    # startedAt}; TOOL_RESULT {runId, callId, name, ok, error?, output?,
+    # durationMs}. Output and arguments are scrubbed before they are stored.
+    TOOL_CALL = "tool_call"
+    TOOL_RESULT = "tool_result"
+    # W1 (same rc3 bump): the runtime compacted the conversation. Payload:
+    # {runId, compactions, compactedTokens, at}. Emitted per run completion, not
+    # per compaction, so a transcript reads as one fact rather than a stream.
+    CONTEXT_COMPACTED = "context_compacted"
 
 
 EVENT_TYPES = frozenset(EventType)

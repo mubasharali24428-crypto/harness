@@ -51,7 +51,7 @@ from .tiers import (
 )
 from .timeutil import as_utc, db_now, now_utc, utcnow_iso
 
-__version__ = "1.0.0rc2"
+__version__ = "1.0.0rc3"
 
 __all__ = [
     "Principal",

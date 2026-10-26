@@ -347,3 +347,49 @@ def test_output_ceiling_is_the_operators_choice_not_a_hardcoded_4096(monkeypatch
         monkeypatch.setenv("HARNESS_SDK_MAX_TOKENS", bad)
         with pytest.raises(ValueError, match="HARNESS_SDK_MAX_TOKENS"):
             _sdk_max_tokens()
+
+
+def test_seeded_history_keeps_commits_and_drops_executable_or_escaping_git_state(
+    tmp_path, monkeypatch
+):
+    """M05: a seed's .git travels with history only — no hooks that would run on
+    our checkpoint commits, no credential-bearing config, no gitdir escape."""
+    seed = tmp_path / "seed"
+    (seed / ".git" / "objects").mkdir(parents=True)
+    (seed / ".git" / "refs" / "heads").mkdir(parents=True)
+    (seed / ".git" / "hooks").mkdir()
+    (seed / ".git" / "hooks" / "pre-commit").write_text("#!/bin/sh\nexfiltrate\n")
+    (seed / ".git" / "worktrees" / "wt").mkdir(parents=True)
+    (seed / ".git" / "config").write_text(
+        "[core]\n\trepositoryformatversion = 0\n"
+        "[credential]\n\thelper = osxkeychain\n"
+        "[http]\n\textraheader = AUTHORIZATION: Bearer sk-secret\n"
+        "[remote \"origin\"]\n\turl = https://user:token@example.com/repo.git\n"
+        "[branch \"main\"]\n\tremote = origin\n",
+        encoding="utf-8",
+    )
+    (seed / "app.py").write_text("print(1)")
+
+    monkeypatch.setenv("HARNESS_WORKSPACE_SEED", str(seed))
+    wrapper = DeepSeekHarnessWrapper(workspace_dir=str(tmp_path / "ws"))
+    ws = Path(wrapper.provision_workspace("run-seed"))
+
+    assert (ws / ".git" / "objects").is_dir() and (ws / ".git" / "refs" / "heads").is_dir()
+    assert not (ws / ".git" / "hooks").exists()
+    assert not (ws / ".git" / "worktrees").exists()
+    config = (ws / ".git" / "config").read_text()
+    assert "repositoryformatversion" in config and "branch" in config
+    for banned in ("helper", "extraheader", "sk-secret", "token@"):
+        assert banned not in config
+
+
+def test_a_gitdir_pointer_file_is_never_followed(tmp_path, monkeypatch):
+    seed = tmp_path / "seed"
+    seed.mkdir()
+    (seed / ".git").write_text("gitdir: /somewhere/else/.git\n")
+    (seed / "a.txt").write_text("x")
+    monkeypatch.setenv("HARNESS_WORKSPACE_SEED", str(seed))
+    wrapper = DeepSeekHarnessWrapper(workspace_dir=str(tmp_path / "ws"))
+    ws = Path(wrapper.provision_workspace("run-pointer"))
+    assert not (ws / ".git").exists()
+    assert (ws / "a.txt").read_text() == "x"

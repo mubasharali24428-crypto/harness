@@ -1,8 +1,9 @@
 """Isolated engine worker: ``python -m harness_orchestrator.engine_worker``.
 
 Reads ONE JSON request line on stdin, runs the SDK call in-process (this
-process is the OS-confined, killable unit), writes ONE JSON result line to
-stdout. Credentials arrive via the scrubbed environment, never argv or logs.
+process is the OS-confined, killable unit), writes NDJSON progress lines as the
+runtime reports tool calls, then ONE result line — all on stdout. Credentials
+arrive via the scrubbed environment, never argv or logs.
 """
 
 from __future__ import annotations
@@ -23,8 +24,14 @@ def main() -> int:
         isolated=False,  # we ARE the isolated process
     )
     wrapper.set_shell_policy(req["session_id"], req.get("shell_policy") or {})
+
+    def emit_progress(record: dict) -> None:
+        """One line per tool event; the parent persists it as it arrives."""
+        sys.stdout.write(json.dumps({"progress": record}, default=str) + "\n")
+        sys.stdout.flush()
+
     text, status, used, events = wrapper._run_live_events(
-        req["goal"], req["session_id"], model=req["model"]
+        req["goal"], req["session_id"], model=req["model"], on_progress=emit_progress
     )
     sys.stdout.write(
         json.dumps({"text": text, "status": status, "model": used, "events": events}, default=str)

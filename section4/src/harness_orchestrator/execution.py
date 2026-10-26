@@ -1814,6 +1814,7 @@ async def status_get(factory: Any, service: Any, run_id: str) -> dict[str, Any]:
         ex = exceeded(limits, usage) if limits is not None else []
         resume = await assess_resume(service, db, run_id, now)
         events = await _events(db, run_id)
+        context = await _context_view(db, run_id)
         comp = await _completion_row(db, run_id)
         subs = _summary(await _subtasks(db, run_id))
         attempts = await _attempts(db, run_id)
@@ -1852,6 +1853,8 @@ async def status_get(factory: Any, service: Any, run_id: str) -> dict[str, Any]:
         },
         "resume": resume,
         "failure": failure,
+        # W1: the window the runtime runs with and what it has compacted so far.
+        "context": context,
         "attempts": attempts,
         "subtasks": subs,
         "completion": {
@@ -1860,6 +1863,35 @@ async def status_get(factory: Any, service: Any, run_id: str) -> dict[str, Any]:
             "reportNo": int(comp.report_no) if comp else 0,
         },
     }
+
+
+async def _context_view(db: Any, run_id: str) -> dict[str, Any]:
+    """Context window + compaction totals for a run, from durable events.
+
+    The window is the profile's own default/env (``DSH_CONTEXT_WINDOW``); the
+    totals come from the ``context_compacted`` rows S4 writes when a run
+    reports ``compaction/summary``. Payloads are read in Python rather than
+    with a JSON operator so this stays portable across PG and SQLite.
+    """
+    import os as _os
+
+    try:
+        window = int(_os.environ.get("DSH_CONTEXT_WINDOW", "1000000"))
+    except ValueError:
+        window = 1_000_000
+    rows = (
+        await db.execute(
+            text("SELECT payload FROM agent_events WHERE run_id = :r AND type = :t"),
+            {"r": run_id, "t": "context_compacted"},
+        )
+    ).all()
+    compactions = 0
+    tokens = 0
+    for row in rows:
+        payload = _payload(getattr(row, "payload", None))
+        compactions += int(payload.get("compactions") or 0)
+        tokens += int(payload.get("compactedTokens") or 0)
+    return {"contextWindow": window, "compactions": compactions, "compactedTokens": tokens}
 
 
 # --------------------------------------------------------------------- abandon, retry
