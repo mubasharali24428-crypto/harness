@@ -68,8 +68,8 @@ sample count is one, not enough to state as a gate.
 |---|---|---|
 | The worker and its child tool stop | **half** | container kill measured 0.58–1.01 s over four samples; a live `sleep` child observed in one; the guard now calls the kill |
 | Resume reconciles partial writes | **half** | resume adopts the disk (pinned); the *partial-write* case is unmeasured |
-| A rejected action stays blocked | **open** | approval routes exist; no W3 evidence gathered |
-| Steering does not silently expand the approved scope | **open** | guidance is stored as events and never touches the shell policy, but that is a code reading, not a measurement |
+| A rejected action stays blocked | **closed** | `test_w3_rejected_stays_blocked.py`: a rejected plan is not approved, start raises, no engine call, no task |
+| Steering does not silently expand the approved scope | **half** | `test_w3_steering_scope.py`: guidance reaches the model as text and leaves `scopePaths` untouched; the write itself is refused by M03's mounts, not re-proved here |
 
 **What landed.** `_guard_stopped` no longer stops at the event stream: it calls
 `_kill_engine`, so a run the guard judges stuck is actually killed instead of
@@ -190,6 +190,7 @@ before any checkpoint existed and got 409 `CHECKPOINT_UNAVAILABLE`, which would
 have credited the race guard for a refusal with a different cause. Both are
 fixed and the evidence JSON above is from the corrected run.
 
-**Still open in W3:** "resume reconciles partial writes" as a *measured* claim
-(kill mid-write, resume, compare), "a rejected action stays blocked", and
-"steering does not expand scope" as a measurement rather than a code reading.
+**Still open in W3:** "resume reconciles partial writes" as a *measured* claim —
+kill mid-write, resume, compare the tree against the checkpoint. Everything else
+in the gate is either closed or closed as far as a seam test can take it, and the
+gap is named rather than averaged away.
