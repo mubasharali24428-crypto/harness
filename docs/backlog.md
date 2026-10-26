@@ -195,22 +195,54 @@ rebuild commit so it does not ride along inside an unrelated PR.
   spend (local Ollama), and `off` was never set. Evidence
   `docs/briefs/evidence/pilot-prep/m04-container-streaming.json`.
 
-## Section 1 is not green at HEAD (found 2026-10-26, pre-existing)
+## "Section 1 is not green" was wrong — root-caused to this host's NO_PROXY (2026-10-26)
 
-- [ ] **11 failures in `section1/tests/test_sso_oidc.py` — blocks any PR**
-  (owner: S1). `httpx.InvalidURL: Invalid port: ':1]'`. What is verified: the
-  error is raised **inside the ASGI app's own outbound request**, not in the
-  test — `tests/test_sso_oidc.py:294` → `httpx.post` → `ASGITransport` → app →
-  `httpx/_urlparse.py` → `InvalidURL`. So something in the SSO login path builds
-  a URL whose host/port split is wrong (the `:1]` shape looks like a bracketed
-  host being parsed as a port). It is **not** the live stack and **not** the
-  mock IdP, which binds `127.0.0.1` with a plain port: results are identical with
-  Keycloak running and stopped. It is **not** W1's either — that test file was
-  last touched in `72cf901` (Mission 22) and no section1 file changed during W1;
-  it fails at `HEAD` on a clean tree. AGENTS.md requires Section 1 tests to pass
-  before any PR, so this gates opening the W1 branch. Not root-caused here:
-  section4 is green (1400 passed, 40 skipped) and `make static-gates` is green,
-  and I stopped rather than guess at an S1 URL fix under a W1 deadline.
+The entry below this one claimed 11 pre-existing Section 1 failures that blocked
+any PR. **It was misdiagnosed, and Section 1 is not red.** Corrected rather than
+quietly amended, because a phantom blocker was gating the W1 branch.
+
+- [ ] **SSO outbound clients inherit environment proxies** (owner: S1 + human
+  decision). `tests/test_sso_oidc.py` fails 11 / passes 13 **only when this
+  host's `NO_PROXY` is present**, and passes `24/24` under
+  `env -u NO_PROXY -u no_proxy`. The raise is not in the app's request and not
+  in URL building — it is in **httpx client construction**:
+  `_client.py` builds `self._mounts` from `_get_proxy_map(None, trust_env and
+  transport is None)` → `get_environment_proxies()`, which turns every
+  `NO_PROXY` entry into a mount key. Docker Desktop's value here is
+  `localhost,localhost.,.localhost,127.0.0.1,127.0.0.0/8,::1,[::1]`, and the
+  IPv6 entries become `all://*[::1]`; `URL("all://*[::1]")` reads the port as
+  `:1]` and raises `InvalidURL: Invalid port: ':1]'`. `all://127.0.0.0/8` (a
+  CIDR) parses only by luck.
+
+  Why it still matters, and is smaller than the original claim: `sso.py:566` and
+  `sso.py:681` construct `httpx.AsyncClient(timeout=…)` with `trust_env` at its
+  default, so **a deployment host carrying that `NO_PROXY` shape fails SSO login
+  with a 500 before any IdP call**. Not the tests' problem, and not CI's —
+  GitHub's ubuntu runners don't set it — but a real fragility. `webhooks.py:547`
+  already passes `trust_env=False`, so the repo has a precedent for opting out.
+
+  The fix is a decision, not a line: honouring env proxies is what a
+  self-hostable product behind a corporate proxy needs, and it also means IdP
+  token traffic can be routed through a proxy nobody reviewed. Choose one —
+  (a) `trust_env=False` on SSO's clients, consistent with webhooks; (b) keep
+  proxy support and normalise/reject unusable `NO_PROXY` entries ourselves; or
+  (c) pin an httpx that fixes the `*[::1]` expansion and report it upstream. Not
+  chosen here because it changes enterprise-visible behaviour and AGENTS.md puts
+  that with the human, not under a W1 deadline.
+
+### The superseded claim, kept for the record
+
+> **11 failures in `section1/tests/test_sso_oidc.py` — blocks any PR** (owner:
+> S1). … the error is raised **inside the ASGI app's own outbound request**, not
+> in the test … So something in the SSO login path builds a URL whose host/port
+> split is wrong …
+
+Wrong on the location (client construction, not the app's request), wrong on the
+cause (no malformed URL is built anywhere in `sso.py`), and therefore wrong on
+the consequence: it does not gate the PR. What was right in it — not the live
+stack, not the mock IdP, not W1's, `72cf901` last touched that file — is what
+made the real cause easy to find once the environment was inspected.
+
 
 ## From W1 M07 (confined vision attempt failed, 2026-10-26)
 
