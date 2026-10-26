@@ -308,3 +308,26 @@ made the real cause easy to find once the environment was inspected.
   Carried over from the OpenRouter drill: without usage, `cost_ledger` accrual
   on that path is unproven, so the cost footer and per-run spend are both
   unfunded there.
+
+## From W1 M01 (confinement spike, 2026-10-26)
+
+- [ ] **Scope enforcement needs mounts, not parsing** (owner: S5+S4, gates M03).
+  The approved scope is unenforced: with `scopePaths=["src"]`, writes to `docs/`
+  succeeded as a literal, a concatenation and an `os.path.join`
+  (`m01-confinement-spike.json`). `python3` is the only file-writing binary on the
+  allow-list and redirection is banned, so code strings are not an edge case —
+  they are the entire write surface. Close it with OS/mount restrictions on the
+  scope subtree; do not extend the string matcher.
+- [ ] **Landlock column of the spike is unmeasured** (owner: S5). Docker
+  Desktop's linuxkit kernel returns `ENOSYS` for `landlock_create_ruleset`, so
+  `scripts/m01_confinement_spike.py` can only answer for Seatbelt until it runs on
+  a Linux host. Re-run there and record both backends before M03 is designed.
+- [ ] **Native `tool-fs` read/write/edit are not in the matrix at all**
+  (owner: S4+S5). They bypass the shell gate and run inside the worker. The
+  confined worker now runs, so add a scope-forbidden write through the native
+  tool to the spike rather than assuming it matches the shell result.
+- [ ] **A forbidden path with no read-only mount disables the shell tool**
+  (owner: S5). `unprotected_forbidden` refuses every command, including ones that
+  touch nothing forbidden. Fail-closed is right; the cost is that the tool is
+  unavailable rather than scoped, which should be a stated product consequence,
+  not a surprise in the run page.

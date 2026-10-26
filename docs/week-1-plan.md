@@ -378,3 +378,62 @@ that is worth attempting, some way to bound the loop and price the call.
 
 
 
+
+## M01 outcome — the approved-scope boundary does not exist (2026-10-26)
+
+Measured by `scripts/m01_confinement_spike.py`, which drives the real
+`shell_gate` the way the plugin does (JSON in, JSON out) against disposable
+fixture workspaces. Evidence:
+`docs/briefs/evidence/pilot-prep/m01-confinement-spike.json`. Intent for the run:
+`scopePaths=["src"]`.
+
+**The answer to the question Week 1 was built on: no.** Writes inside the
+workspace but outside the approved scope are **permitted**, three ways over —
+`open('docs/leak.txt','w')`, a concatenation `'do'+'cs/leak2.txt'`, and
+`os.path.join('docs','leak3.txt')`. All three landed on disk.
+
+Why, which is more interesting than the result: `scope_violation` skips code
+strings (`shell_gate.py:55-58`), and a code string is the **only** write vector
+the policy leaves. Redirection `<`/`>` is banned outright (`policy.py:79`) and
+`cp`/`touch`/`mv` are not in `ALLOWLIST_BINARIES`; the allow-list's sole
+file-writing member is `python3`. So the one path an agent has to write a file is
+exactly the one the intent check does not read. The gap is structural, not an
+edge case.
+
+What **does** hold, at workspace granularity — all refused by the OS, with no
+file left behind:
+
+| case | result |
+|---|---|
+| `escape.txt` → symlink out of the workspace | `PermissionError` |
+| `../outside/climbed.txt` | `PermissionError` |
+| absolute path outside the workspace | `PermissionError` |
+| control write inside `src/` | allowed |
+
+Second finding, from the axis that adds a forbidden path: when `app.conf` is
+forbidden and no read-only mount is available, `unprotected_forbidden` refuses
+**every** command — including the control. Correct fail-closed behaviour, and the
+reason the first version of this spike reported nine identical denials and a
+green summary while testing nothing. The two constraints had to be measured apart
+to say anything at all. It also means the shell tool is not "partially scoped" on
+this backend; it is unavailable.
+
+Honest limits on this spike:
+
+- **Landlock was not measured.** Docker Desktop's linuxkit kernel
+  (`6.12.76-linuxkit`) answers `ENOSYS` for `landlock_create_ruleset`, and this
+  machine has no Linux VM (`multipass`/`lima`/`colima` all absent). The plan
+  asks for "each supported enforcement backend"; this covers Seatbelt only.
+  The Landlock column needs a Linux runner.
+- **The native file tools are untested.** `tool-fs` read/write/edit run in the
+  engine worker, not through the shell gate. The confined worker now runs
+  (M04 evidence), so this half is doable — it is not done.
+
+Consequence for M03, stated as the plan puts it: *"If intent restrictions cannot
+be enforced by the native SDK policy, keep those tools disabled and implement
+mediation or OS/mount restrictions covering the approved scope."* Parsing did not
+fail here; there was nothing to parse against. M03 therefore needs mount-level
+enforcement of the scope subtree (the per-run container already mounts the
+workspace — a second read-only bind over the out-of-scope paths, or a read-only
+bind of `src/` alone, is the shape that would actually hold), not a better
+string matcher.

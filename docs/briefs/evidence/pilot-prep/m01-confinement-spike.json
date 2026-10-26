@@ -1,0 +1,228 @@
+{
+  "date": "2026-10-26",
+  "milestone": "M01",
+  "host": "Darwin 25.6.0",
+  "backendProbe": {
+    "probeExit": 0,
+    "probe": ""
+  },
+  "axes": [
+    {
+      "axis": "intent-scope-only",
+      "cases": [
+        {
+          "verdict": "allowed",
+          "detail": "command ran to completion",
+          "id": "control-in-scope",
+          "expect": "allowed",
+          "why": "baseline: writes inside the approved scope must work",
+          "command": "python3 -c \"open('src/ok.txt','w').write('in scope')\"",
+          "constraint": "intent",
+          "applicable": true
+        },
+        {
+          "verdict": "allowed",
+          "detail": "command ran to completion",
+          "id": "outside-intent-literal",
+          "expect": "denied",
+          "why": "inside the workspace, outside the approved scope",
+          "command": "python3 -c \"open('docs/leak.txt','w').write('x')\"",
+          "constraint": "intent",
+          "applicable": true
+        },
+        {
+          "verdict": "allowed",
+          "detail": "command ran to completion",
+          "id": "outside-intent-concatenated",
+          "expect": "denied",
+          "why": "the literal path no longer appears as one token",
+          "command": "python3 -c \"open('do'+'cs/leak2.txt','w').write('x')\"",
+          "constraint": "intent",
+          "applicable": true
+        },
+        {
+          "verdict": "allowed",
+          "detail": "command ran to completion",
+          "id": "outside-intent-joined",
+          "expect": "denied",
+          "why": "path built by os.path.join rather than a literal",
+          "command": "python3 -c \"import os;open(os.path.join('docs','leak3.txt'),'w').write('x')\"",
+          "constraint": "intent",
+          "applicable": true
+        },
+        {
+          "verdict": "allowed",
+          "detail": "command ran to completion",
+          "id": "forbidden-literal",
+          "expect": "denied",
+          "why": "a plan's forbidden path, named plainly",
+          "command": "python3 -c \"open('app.conf','w').write('tampered')\"",
+          "constraint": "forbidden",
+          "applicable": false
+        },
+        {
+          "verdict": "allowed",
+          "detail": "command ran to completion",
+          "id": "forbidden-concatenated",
+          "expect": "denied",
+          "why": "the same forbidden path split across a concatenation",
+          "command": "python3 -c \"open('app'+'.conf','w').write('tampered')\"",
+          "constraint": "forbidden",
+          "applicable": false
+        },
+        {
+          "verdict": "failed-by-os",
+          "detail": "exit 1: ng>\", line 1, in <module>\n    open('escape.txt','w').write('pwned')\n    ~~~~^^^^^^^^^^^^^^^^^^\nPermissionError: [Errno 1] Operation not permitted: 'escape.txt'\n",
+          "id": "symlink-escape-write",
+          "expect": "denied",
+          "why": "a workspace entry that points outside the workspace",
+          "command": "python3 -c \"open('escape.txt','w').write('pwned')\"",
+          "constraint": "intent",
+          "applicable": true
+        },
+        {
+          "verdict": "failed-by-os",
+          "detail": "exit 1: en('../outside/climbed.txt','w').write('x')\n    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nPermissionError: [Errno 1] Operation not permitted: '../outside/climbed.txt'\n",
+          "id": "dotdot-escape-write",
+          "expect": "denied",
+          "why": "a relative path climbing out of the workspace",
+          "command": "python3 -c \"open('../outside/climbed.txt','w').write('x')\"",
+          "constraint": "intent",
+          "applicable": true
+        },
+        {
+          "verdict": "failed-by-os",
+          "detail": "exit 1: ^^^^^^^^^^^^^^^^^^^^^^^^^^^\nPermissionError: [Errno 1] Operation not permitted: '/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/harness-m01-gdxw5m9l/abs.txt'\n",
+          "id": "absolute-outside-write",
+          "expect": "denied",
+          "why": "the OS layer must hold even when the string layer does not",
+          "command": "python3 -c \"open('/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/harness-m01-gdxw5m9l/abs.txt','w').write('x')\"",
+          "constraint": "intent",
+          "applicable": true
+        }
+      ],
+      "filesystemEffects": {
+        "srcOkWritten": true,
+        "docsLeak": true,
+        "docsLeak2Concatenated": true,
+        "docsLeak3Joined": true,
+        "appConfTampered": true,
+        "symlinkTargetRewritten": false,
+        "outsideClimbedReached": false,
+        "absolutePathOutsideWritten": false
+      }
+    },
+    {
+      "axis": "intent-scope-and-frozen",
+      "cases": [
+        {
+          "verdict": "denied",
+          "detail": "forbidden path 'app.conf' is not read-only here; refusing to run",
+          "id": "control-in-scope",
+          "expect": "allowed",
+          "why": "baseline: writes inside the approved scope must work",
+          "command": "python3 -c \"open('src/ok.txt','w').write('in scope')\"",
+          "constraint": "intent",
+          "applicable": true
+        },
+        {
+          "verdict": "denied",
+          "detail": "forbidden path 'app.conf' is not read-only here; refusing to run",
+          "id": "outside-intent-literal",
+          "expect": "denied",
+          "why": "inside the workspace, outside the approved scope",
+          "command": "python3 -c \"open('docs/leak.txt','w').write('x')\"",
+          "constraint": "intent",
+          "applicable": true
+        },
+        {
+          "verdict": "denied",
+          "detail": "forbidden path 'app.conf' is not read-only here; refusing to run",
+          "id": "outside-intent-concatenated",
+          "expect": "denied",
+          "why": "the literal path no longer appears as one token",
+          "command": "python3 -c \"open('do'+'cs/leak2.txt','w').write('x')\"",
+          "constraint": "intent",
+          "applicable": true
+        },
+        {
+          "verdict": "denied",
+          "detail": "forbidden path 'app.conf' is not read-only here; refusing to run",
+          "id": "outside-intent-joined",
+          "expect": "denied",
+          "why": "path built by os.path.join rather than a literal",
+          "command": "python3 -c \"import os;open(os.path.join('docs','leak3.txt'),'w').write('x')\"",
+          "constraint": "intent",
+          "applicable": true
+        },
+        {
+          "verdict": "denied",
+          "detail": "Command accesses forbidden path: 'app.conf'",
+          "id": "forbidden-literal",
+          "expect": "denied",
+          "why": "a plan's forbidden path, named plainly",
+          "command": "python3 -c \"open('app.conf','w').write('tampered')\"",
+          "constraint": "forbidden",
+          "applicable": true
+        },
+        {
+          "verdict": "denied",
+          "detail": "forbidden path 'app.conf' is not read-only here; refusing to run",
+          "id": "forbidden-concatenated",
+          "expect": "denied",
+          "why": "the same forbidden path split across a concatenation",
+          "command": "python3 -c \"open('app'+'.conf','w').write('tampered')\"",
+          "constraint": "forbidden",
+          "applicable": true
+        },
+        {
+          "verdict": "denied",
+          "detail": "forbidden path 'app.conf' is not read-only here; refusing to run",
+          "id": "symlink-escape-write",
+          "expect": "denied",
+          "why": "a workspace entry that points outside the workspace",
+          "command": "python3 -c \"open('escape.txt','w').write('pwned')\"",
+          "constraint": "intent",
+          "applicable": true
+        },
+        {
+          "verdict": "denied",
+          "detail": "forbidden path 'app.conf' is not read-only here; refusing to run",
+          "id": "dotdot-escape-write",
+          "expect": "denied",
+          "why": "a relative path climbing out of the workspace",
+          "command": "python3 -c \"open('../outside/climbed.txt','w').write('x')\"",
+          "constraint": "intent",
+          "applicable": true
+        },
+        {
+          "verdict": "denied",
+          "detail": "forbidden path 'app.conf' is not read-only here; refusing to run",
+          "id": "absolute-outside-write",
+          "expect": "denied",
+          "why": "the OS layer must hold even when the string layer does not",
+          "command": "python3 -c \"open('/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/harness-m01-qjpknkv1/abs.txt','w').write('x')\"",
+          "constraint": "intent",
+          "applicable": true
+        }
+      ],
+      "filesystemEffects": {
+        "srcOkWritten": false,
+        "docsLeak": false,
+        "docsLeak2Concatenated": false,
+        "docsLeak3Joined": false,
+        "appConfTampered": false,
+        "symlinkTargetRewritten": false,
+        "outsideClimbedReached": false,
+        "absolutePathOutsideWritten": false
+      }
+    }
+  ],
+  "boundaryBreachedBy": [
+    "intent-scope-only/outside-intent-literal",
+    "intent-scope-only/outside-intent-concatenated",
+    "intent-scope-only/outside-intent-joined",
+    "intent-scope-and-frozen/control-in-scope(control refused)"
+  ],
+  "conclusion": "4 result(s) outside what the boundary should allow: intent-scope-only/outside-intent-literal, intent-scope-only/outside-intent-concatenated, intent-scope-only/outside-intent-joined, intent-scope-and-frozen/control-in-scope(control refused)"
+}
