@@ -10,6 +10,64 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+#### Verified live (2026-10-26) — M00 and M04
+
+**M00 (stack health on the current revision) closed.** Both images already on
+the host (`vdev-local`, `vbuild-1025`) were checked first and contain none of
+this week's code, so they could not have produced current-revision evidence.
+`harness-backend:vm00-1026` and `harness-frontend:vm00-1026` were built from
+`df4096e`: 61/61/61 migrations, `migrate` exit 0, 18 containers healthy, journey
+13/13, `CONNECT github.com:443 → 200` and `CONNECT example.com:443 → 403` on that
+image, and a forced sidecar stop producing `[FAIL] container health` before
+recovering.
+
+**M04 (live transcript from the confined worker) closed.** A real worker in a
+real `container` boundary on a worker image built from this tree streamed two
+call/result pairs — `read` at 34.85 s, `write` at 48.89 s — against a 68.42 s
+completion, with `notes.txt` on disk containing exactly what the goal asked. No
+spend (local Ollama), and `HARNESS_ENGINE_CONFINEMENT=off` was never set.
+
+#### Added
+
+- **`deploy/patches/openrouter-vision.patch.yml`** — the same transport patch
+  with `input: [text, image]`. It is committed and baked into the worker image
+  because a confined worker can only read `DSH_PATCH_FILES` from inside its own
+  image: the previous approach wrote the widened declaration to a host temp path
+  and the worker died before reaching any model. A modality claim that has to be
+  reviewed and versioned is the right shape anyway.
+- **`scripts/e2e/m04_streaming_smoke.py`** — timestamps every `on_progress`
+  record against the run clock and asserts arrival-before-completion, which is
+  the one M04 claim unit tests cannot make. Same money guard as the sibling
+  smoke.
+
+#### Fixed
+
+- The M04 smoke's own classification bug: it filtered records on `kind`, while
+  the worker's transcript records use `phase`. It reported 0 calls on a run that
+  had made two — a probe that silently under-counts is worse than no probe.
+
+#### Known
+
+- **M07 was attempted and failed.** The confined screenshot run attached the image
+  (`goalImagesAttached: 1`) and streamed correctly — 74 records, 37 correlated
+  pairs, first at 13.45 s — but made 37 `bash` calls in 516.75 s, never returned
+  the colour, and ended in an empty model response at the deadline. No retry: the
+  discipline is one attempt, and re-running a runaway would have spent again
+  without becoming measurable.
+- **That run cannot be priced.** `usage` is `null` on the openai-completions
+  transport, so 37 paid calls yield no cost figure from evidence. Metering is now
+  the thing that would let a runaway be stopped, not merely reported.
+- **Tool choice varies by model on identical policy**: `qwen-local` used native
+  `read`/`write`; `qwen/qwen3.7-flash` used `bash` 37 times and never the file
+  tools.
+- Journey check 07 still reports the engine result as `replayed`, not live; the
+  journey proves the stack, never a live run.
+- The first trip-test attempt PASSED with the sidecar stopped — `ps -a` was read
+  before the daemon reflected the exit. Detection is fine; the test needs a
+  settle.
+- `compose_journey` and the confined drills run on Docker Desktop here;
+  Landlock-backed writes remain a native-Linux matter (`d04752e`).
+
 #### Verified live (2026-10-26)
 
 `scripts/e2e/openrouter_smoke.py` drives the shipped engine against a real key
@@ -31,14 +89,19 @@ because Seatbelt breaks the runtime's PTY and no container boundary was up. That
 is the guard doing its job. Setting `HARNESS_ENGINE_CONFINEMENT=off` would have
 produced a green run proving only that an unconfined worker runs, so it was not
 set and the refusal is recorded as evidence
-(`m07-ollama-isolated-refused.json`). Consequence: M04's isolated-worker
-transport is unit-tested but has never streamed live, and **M07 remains open**.
+(`m07-ollama-isolated-refused.json`). **Superseded the same day**: the container
+boundary turned out to be reachable and M04 has since streamed live through it —
+see *M00 and M04* above. What the refusal established still stands: bypassing
+confinement to obtain evidence was correctly refused, and the direct path was the
+only proven one until a real boundary existed.
 
 Reading that output also exposed a displayed number that is not the model's:
 the status panel shows `DSH_CONTEXT_WINDOW` (1,000,000 by default) while the
-transport patch declares `contextWindow: 65536` for the model in use. Tracked
-against W2; the profile default is not proof of the window, which is what Day 4
-predicted and what the roadmap's no-fake-affordances rule forbids shipping.
+transport patch declares `contextWindow: 65536` for the model in use. **Closed in
+`a5148e0`** — a window is now reported only when an operator set one, and the run
+page's never-before-reachable "window unknown" branch is what an unset variable
+produces. The profile default was indeed not proof of the window, exactly as Day 4
+predicted and the roadmap's no-fake-affordances rule forbids shipping.
 
 ### W1 — a screenshot can travel with the goal (2026-10-26, contracts 1.0.0rc4)
 

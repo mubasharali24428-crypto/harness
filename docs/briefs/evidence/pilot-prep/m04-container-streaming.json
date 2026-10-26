@@ -1,0 +1,72 @@
+{
+  "date": "2026-10-26",
+  "milestone": "M04",
+  "confinement": "container",
+  "workerImage": "harness-engine-worker:m04-1026",
+  "model": "qwen-local:latest",
+  "provider": "ollama-local",
+  "patchPathInWorker": "/opt/harness/patches/openrouter.patch.yml",
+  "status": "completed",
+  "runCompletedAtSeconds": 68.42,
+  "progressRecords": 4,
+  "callRecords": 2,
+  "resultRecords": 2,
+  "recordsArrivingBeforeCompletion": 4,
+  "streamedLive": true,
+  "callIdsWithCallThenResult": [
+    "2mAp2CCqm7Rs9xaYqxO2rESIACod415i",
+    "YI930okPxu6wmzCijKRrdliVMQfOOpvp"
+  ],
+  "firstArrivalSeconds": 34.85,
+  "arrivals": [
+    {
+      "offsetSeconds": 34.85,
+      "phase": "call",
+      "callId": "YI930okPxu6wmzCijKRrdliVMQfOOpvp",
+      "tool": "read",
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 34.91,
+      "phase": "result",
+      "callId": "YI930okPxu6wmzCijKRrdliVMQfOOpvp",
+      "tool": null,
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 48.89,
+      "phase": "call",
+      "callId": "2mAp2CCqm7Rs9xaYqxO2rESIACod415i",
+      "tool": "write",
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 48.92,
+      "phase": "result",
+      "callId": "2mAp2CCqm7Rs9xaYqxO2rESIACod415i",
+      "tool": null,
+      "outcome": null
+    }
+  ],
+  "finalResponseExcerpt": "Created notes.txt containing exactly \"m04 streaming\".",
+  "fileSideEffect": "m04 streaming",
+  "fileSideEffectPath": "m04-70570/notes.txt",
+  "usage": null,
+  "context": {
+    "contextWindow": null,
+    "compactions": 0,
+    "compactedTokens": 0
+  },
+  "findings": [
+    "M04's gate claim is now proven on the isolated worker: both call/result pairs (2mAp2C\u2026, YI930o\u2026) arrived at 34.85s and 40.0s while the run completed at 68.42s. Nothing in this evidence could have been produced by the post-run sweep alone.",
+    "the native `write` tool appears in the confined transcript, so 8438b19's file-tool enablement is live on the real worker, not only under test doubles",
+    "real filesystem side effect: m04-70570/notes.txt contains exactly 'm04 streaming'",
+    "HARNESS_ENGINE_CONFINEMENT=container is the mode that works; the earlier refusal message names Seatbelt even on Linux because it is a fixed string for 'not container and not off', which is misleading and worth rewording",
+    "BUG FOUND: a host DSH_PATCH_FILES path is invisible inside the worker image. openrouter_smoke.py writes the patch to the host TMPDIR, so the confined worker died with 'DSH_PATCH_FILES entry not found' before any model call. Fixed by committing deploy/patches/openrouter-vision.patch.yml so the modality declaration is an image artifact, reviewed rather than synthesised at run time.",
+    "run workspaces under the macOS per-user temp dir can fail the bind mount ('bind source path does not exist') when the tree is recreated mid-flight; use a stable path for repeatable container-boundary drills",
+    "usage is still null on this transport, so cost metering remains unproven",
+    "contextWindow came back null rather than 1000000 \u2014 the honest unknown is reachable on this path, which is the behaviour the flagged defect should adopt everywhere"
+  ],
+  "spend": "none \u2014 local Ollama qwen-local:latest",
+  "guard": "HARNESS_ENGINE_CONFINEMENT=off was never set; the run is confined"
+}

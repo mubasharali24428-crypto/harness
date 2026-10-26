@@ -1,0 +1,248 @@
+{
+  "date": "2026-10-26",
+  "milestone": "M04",
+  "confinement": "container",
+  "workerImage": "harness-engine-worker:m04-1026",
+  "model": "qwen/qwen3.7-flash",
+  "provider": "ollama-local",
+  "patchPathInWorker": "/opt/harness/patches/openrouter-vision.patch.yml",
+  "goalImagesAttached": 1,
+  "screenshotFixture": "/Users/user/.harness-m07/m04-stream/shot.png",
+  "status": "error",
+  "runCompletedAtSeconds": 516.75,
+  "progressRecords": 74,
+  "callRecords": 37,
+  "resultRecords": 37,
+  "recordsArrivingBeforeCompletion": 74,
+  "streamedLive": true,
+  "callIdsWithCallThenResult": [
+    "call_0d47d3f36df84d8cae184c9c",
+    "call_12b58336f3564a0295f28404",
+    "call_15db86ccbe2f4e73a474f172",
+    "call_197424da7ca5492f9ee784c9",
+    "call_23b6695b61a745fda478fb7d",
+    "call_26220627618a401e9c5693b7",
+    "call_28981cdc117a4bc69edbf1af",
+    "call_2a69eadb454145408473fdbe",
+    "call_2d11671f720b476a8234c99b",
+    "call_323d7a8eb8ea4664bb1fa5bc",
+    "call_350cff48de894d3a96776163",
+    "call_37dd165fee684576b61b9c49",
+    "call_398e721a024542c38bf92264",
+    "call_5041e6cca6b54d78a6587373",
+    "call_570f4ad21dfc4e2291370d23",
+    "call_626092601f1549fda49c9662",
+    "call_696a509fbe1c43eb9b8cf486",
+    "call_71702370c19f44e4a091bb4c",
+    "call_73b649f7acec48df8f434967",
+    "call_7a37591f93724d98a0ef5ae0",
+    "call_7dd87f4dfd7140cdb8f95400",
+    "call_883d413eb2754cdba976047c",
+    "call_8c029ebfd64e45f3bf920c51",
+    "call_8c34157cca0f4ebb9b882e21",
+    "call_95ea07b2234a40b880e91404",
+    "call_996bd3e1f8d0487bb5384445",
+    "call_b78002842d1e4f0897a41f2e",
+    "call_bc671b4805a74654af0bc446",
+    "call_c1e3319ea95d42169c6f25ab",
+    "call_c7412c804b164623a118197c",
+    "call_cdecd8665ca9470495883af1",
+    "call_d0c0e8479e5342158ed98a36",
+    "call_daedcda6ba6641f5a4bcddc1",
+    "call_dee41b34b8fb4bfd8be8641b",
+    "call_df741dd8ee33431493bd2f66",
+    "call_ea477fc3d1bf4bec817a171c",
+    "call_f2945709e606423fadf83eef"
+  ],
+  "firstArrivalSeconds": 13.45,
+  "arrivals": [
+    {
+      "offsetSeconds": 13.45,
+      "phase": "call",
+      "callId": "call_26220627618a401e9c5693b7",
+      "tool": "bash",
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 13.83,
+      "phase": "result",
+      "callId": "call_26220627618a401e9c5693b7",
+      "tool": null,
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 21.07,
+      "phase": "call",
+      "callId": "call_daedcda6ba6641f5a4bcddc1",
+      "tool": "bash",
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 21.49,
+      "phase": "result",
+      "callId": "call_daedcda6ba6641f5a4bcddc1",
+      "tool": null,
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 27.76,
+      "phase": "call",
+      "callId": "call_2a69eadb454145408473fdbe",
+      "tool": "bash",
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 28.17,
+      "phase": "result",
+      "callId": "call_2a69eadb454145408473fdbe",
+      "tool": null,
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 33.11,
+      "phase": "call",
+      "callId": "call_626092601f1549fda49c9662",
+      "tool": "read_image",
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 33.13,
+      "phase": "result",
+      "callId": "call_626092601f1549fda49c9662",
+      "tool": null,
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 39.75,
+      "phase": "call",
+      "callId": "call_8c34157cca0f4ebb9b882e21",
+      "tool": "bash",
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 40.28,
+      "phase": "result",
+      "callId": "call_8c34157cca0f4ebb9b882e21",
+      "tool": null,
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 63.13,
+      "phase": "call",
+      "callId": "call_12b58336f3564a0295f28404",
+      "tool": "bash",
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 63.33,
+      "phase": "result",
+      "callId": "call_12b58336f3564a0295f28404",
+      "tool": null,
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 81.41,
+      "phase": "call",
+      "callId": "call_0d47d3f36df84d8cae184c9c",
+      "tool": "write",
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 81.42,
+      "phase": "result",
+      "callId": "call_0d47d3f36df84d8cae184c9c",
+      "tool": null,
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 83.73,
+      "phase": "call",
+      "callId": "call_323d7a8eb8ea4664bb1fa5bc",
+      "tool": "bash",
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 84.15,
+      "phase": "result",
+      "callId": "call_323d7a8eb8ea4664bb1fa5bc",
+      "tool": null,
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 92.14,
+      "phase": "call",
+      "callId": "call_23b6695b61a745fda478fb7d",
+      "tool": "bash",
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 92.57,
+      "phase": "result",
+      "callId": "call_23b6695b61a745fda478fb7d",
+      "tool": null,
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 97.13,
+      "phase": "call",
+      "callId": "call_883d413eb2754cdba976047c",
+      "tool": "bash",
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 97.32,
+      "phase": "result",
+      "callId": "call_883d413eb2754cdba976047c",
+      "tool": null,
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 100.35,
+      "phase": "call",
+      "callId": "call_73b649f7acec48df8f434967",
+      "tool": "bash",
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 100.8,
+      "phase": "result",
+      "callId": "call_73b649f7acec48df8f434967",
+      "tool": null,
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 103.67,
+      "phase": "call",
+      "callId": "call_df741dd8ee33431493bd2f66",
+      "tool": "bash",
+      "outcome": null
+    },
+    {
+      "offsetSeconds": 104.08,
+      "phase": "result",
+      "callId": "call_df741dd8ee33431493bd2f66",
+      "tool": null,
+      "outcome": null
+    }
+  ],
+  "finalResponseExcerpt": "model qwen/qwen3.7-flash returned an empty response",
+  "fileSideEffect": null,
+  "fileSideEffectPath": null,
+  "usage": null,
+  "context": {
+    "contextWindow": null,
+    "compactions": 0,
+    "compactedTokens": 0
+  },
+  "paidSmokeOptIn": true,
+  "keyInOutput": false,
+  "outcome": "FAILED \u2014 M07 stays open",
+  "findings": [
+    "the goal image crossed into the confined worker (goalImagesAttached=1) and the vision patch resolved inside the image, so the plumbing M06 built is reachable across the boundary; the run still never produced the colour, so M06's live claim holds only on the direct (non-isolated) path where it was drilled earlier",
+    "37 tool calls, ALL bash, over 516.75s, ending in 'model qwen/qwen3.7-flash returned an empty response' at the deadline \u2014 a stuck run, exactly the W2 'loop detection + stuck-run recovery' gap, reached in anger rather than in a fixture",
+    "the confined worker used bash 37 times where the local-model run used native read/write: on the same image and same tool-fs policy, the model's tool choice changed. Worth a look before claiming file-tool enablement is uniform",
+    "streaming itself passed again: 74 records, 37 call/result pairs each correlated by callId, first arrival 13.45s against a 516.75s completion",
+    "SPEND IS UNMEASURABLE: usage stayed null across the openai-completions patch, so after 37 paid calls the cost cannot be stated from evidence \u2014 only bounded roughly by price x tokens. The metering gap stopped being academic the moment a run ran away"
+  ],
+  "actionTaken": "No retry. The script's own discipline is ONE attempt; re-running a runaway paid loop to get a nicer picture would have spent again and still could not have been priced."
+}

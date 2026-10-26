@@ -250,9 +250,131 @@ showed 1,000,000 in both drills. The panel is displaying a profile default and
 calling it the window — precisely the "the profile default is not proof of a 1M
 window" line from Day 4, now with a measured counterexample.
 
-Not fixed in this change: the model's real window lives in the runtime's patched
-provider config, which the engine does not currently read, and guessing at it
-would replace one wrong number with another. Recorded as a defect against W2's
-context work, with the provenance question (configured vs. reported) to settle
-there.
+Not fixed at the time of writing: the model's real window lives in the runtime's
+patched provider config, which the engine does not currently read, and guessing
+at it would replace one wrong number with another. **Closed later the same day in
+`a5148e0`** — `configured_context_window()` reports a window only when an
+operator actually set one, rejects empty and non-positive values, and returns
+`None` otherwise, which reaches the `StatusPanel` branch that prints "window
+unknown" and had never been reachable. The three duplicated readings were
+collapsed into that one helper so the run page and the durable
+`context_compacted` rows cannot drift. What remains is provider-verified limits
+rather than operator-asserted ones — W2 work, not W1.
+
+## M00 outcome — the stack re-verified on a current image (2026-10-26)
+
+M00 stayed open because **no image on this host contained the week's code**.
+`harness-backend:vdev-local` and `vbuild-1025` were both inspected first: neither
+has `goal_images.py`, and `engine.py` in them has zero `on_progress`. Verifying
+against either would have re-reported an old revision as current health — the
+precise failure this plan forbids. So `harness-backend:vm00-1026` and
+`harness-frontend:vm00-1026` were built from `df4096e`.
+
+Evidence: `docs/briefs/evidence/pilot-prep/m00-stack-verification-2026-10-26.json`.
+
+- **Migrations:** 61 in tree, 61 in image, 61 applied, `migrate` exit 0. The
+  schema-drift crash class from Day 0 did not recur.
+- **Sidecar startup:** `sandbox-egress` runs its own `command:` on the current
+  image, not the all-in-one fallback.
+- **Proxy enforcement:** `CONNECT github.com:443 → 200`,
+  `CONNECT example.com:443 → 403`, identical after recovery. The 403 probe *is*
+  the healthcheck, so a listener that stops enforcing reads unhealthy.
+- **Readiness:** sandbox `/ready` reports `egress: up` as information only.
+- **Journey:** 13 checks green, 18 containers running/healthy.
+- **Trip test:** stopping the sidecar produced `[FAIL] container health`;
+  restarting cleared it.
+
+Two caveats, kept in the record:
+
+1. The **first** trip attempt PASSED with the sidecar stopped, because the
+   journey read `docker ps -a` before the daemon reflected the exit. A
+   settle-window race in the trip test, not a hole in check 0 — three seconds
+   later it caught it. Backlogged.
+2. **Check 07 still says `replayed`, not live.** The journey proves the stack;
+   it does not prove a live agent run. M00 closing does not move M07.
+
+## M04 outcome — the confined worker really does stream (2026-10-26)
+
+The week's central claim, previously unit-tested only, is now live. A real
+worker in a real `HARNESS_ENGINE_CONFINEMENT=container` boundary, on a worker
+image built from this tree (`harness-engine-worker:m04-1026`), against local
+Ollama — **zero spend**.
+
+Evidence: `docs/briefs/evidence/pilot-prep/m04-container-streaming.json`.
+
+- Run completed at **68.42 s**. Progress records arrived at **34.85 s** and
+  **48.89 s** — before completion, so they cannot have come from the post-run
+  sweep.
+- **2 calls and 2 results**, each result paired to a `callId` whose call arrived
+  first: `read` at 34.85 s with its result 60 ms later at 34.91 s, and `write` at
+  48.89 s with its result at 48.92 s.
+- Both tools are the **native file tools**, so the enablement in `8438b19` runs
+  on the real worker rather than only under test doubles — and the agent read
+  before it wrote, which is the behaviour the shell-smuggling path could not
+  show.
+- Real side effect on disk: `m04-70570/notes.txt` contains exactly
+  `m04 streaming`.
+
+Three findings this produced that are worth more than the green:
+
+1. **`DSH_PATCH_FILES` does not survive the boundary.** The earlier smoke wrote
+   its patch into the *host* temp dir, so the confined worker died with
+   `DSH_PATCH_FILES entry not found` before any model call. `DSH_`-prefixed
+   variables are allowlisted across `confine.scrubbed_env`, so the value
+   traveled — the file did not. Fixed properly rather than worked around:
+   `deploy/patches/openrouter-vision.patch.yml` is committed and baked into the
+   worker image, which makes the modality declaration a reviewed artifact
+   instead of something a script synthesises at run time.
+2. **The refusal message is misleading.** It names Seatbelt even on a Linux
+   kernel, because it is a fixed string for "not container and not off". It
+   sent a reader looking for macOS-specific code when the actual rule is mode
+   selection. Worth rewording.
+3. **`contextWindow` came back `null` on this path**, not 1,000,000. The honest
+   unknown is already reachable — which is the behavior the flagged defect in
+   *A displayed number* should adopt everywhere, not just here.
+
+Still open on M04: reconnect/replay deduplication against a real browser session,
+the running cost footer, and `usage`, which stayed `null` on this transport.
+
+## M07 outcome — failed, and the failure is the useful part (2026-10-26)
+
+Same boundary, same image, a real screenshot attached, and the cheapest vision
+model available (`qwen/qwen3.7-flash`). It did **not** work.
+
+Evidence: `docs/briefs/evidence/pilot-prep/m07-confined-vision-failure.json`.
+
+- **The image did cross the boundary** — `goalImagesAttached: 1`, the vision patch
+  resolved from inside the worker image. So M06's plumbing is reachable in the
+  confined path.
+- **The run never produced the colour.** 37 tool calls, **all `bash`**, 516.75 s,
+  ending in `model qwen/qwen3.7-flash returned an empty response` at the deadline.
+  No `color.txt`.
+- **Streaming passed again**: 74 records, all 37 call/result pairs correlated by
+  `callId`, first arrival at 13.45 s against a 516.75 s completion.
+
+Three findings worth more than a green would have been:
+
+1. **The W2 loop-detection gap was reached in anger, not in a fixture.** A stuck
+   run burned 37 calls to a wall-clock deadline with nothing to stop it. W2's
+   "loop fixture stops within explicit budget" is no longer hypothetical.
+2. **Tool choice changed between two runs of the same image under the same
+   `tool-fs` policy**: local `qwen-local` used native `read`/`write`;
+   `qwen3.7-flash` used `bash` 37 times and never touched the file tools. Any
+   claim that file tools are now the agent's default needs to be model-aware.
+3. **The metering gap stopped being academic.** `usage` is `null` on the
+   openai-completions transport, so after 37 paid calls **the cost cannot be
+   stated from evidence** — only bounded roughly by price × tokens. A runaway
+   loop you cannot price is the worst combination available, and it is the one
+   the plan's "actual usage distinguished from estimates" line was warning about.
+
+No retry was made. The script's own discipline is one attempt; re-running a
+runaway paid loop to obtain a nicer picture would have spent again and still
+could not have been priced.
+
+**M07 remains open.** Its gate needs a real task that reads, edits *and verifies*
+a fixture repo, with the screenshot answered and the evidence visible — and, before
+that is worth attempting, some way to bound the loop and price the call.
+
+
+
 

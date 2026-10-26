@@ -1,0 +1,32 @@
+# OpenRouter transport patch with image input declared.
+#
+# Why this is a separate committed file rather than a temp file a script edits:
+# the container-confined worker can only read `DSH_PATCH_FILES` from INSIDE its
+# own image. A host temp path is invisible across the boundary — it produced
+# `DSH_PATCH_FILES entry not found` and a run that failed before the model was
+# ever called. So the only patch a confined run can use is one baked into
+# `harness-engine-worker`, which is the better place for it anyway: the modality
+# claim becomes a reviewed, versioned file instead of something a script
+# synthesises at run time.
+#
+# The one line that differs from openrouter.patch.yml is `input`. Declaring
+# `[text]` makes the runtime silently offload an attached image and report "image
+# omitted because this model accepts text only"; `[text, image]` is what lets
+# goal images through. `HARNESS_VISION_MODELS` refuses a text-only model before
+# the call so the widening is an operator decision, not a default.
+- id: llm-deepseek
+  disabled: true
+- insert:
+    - id: llm-openrouter
+      name: '@deepseek-ai/dsh-llm-pi-ai'
+      config:
+        providers:
+          deepseek-official:
+            api: openai-completions
+            apiKeyEnv: DEEPSEEK_API_KEY
+            baseURL: !!js process.env.DEEPSEEK_BASE_URL
+            models:
+              - id: !!js process.env.DSH_MODEL
+                contextWindow: 65536
+                maxTokens: 4096
+                input: [text, image]

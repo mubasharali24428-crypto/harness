@@ -187,21 +187,74 @@ rebuild commit so it does not ride along inside an unrelated PR.
 
 ## From W1 M07 (isolated worker, 2026-10-26)
 
-- [ ] **The isolated worker has never streamed on a real host** (owner: S4+S10).
-  `--isolated` against local Ollama returned `error` in 0.0 s with zero tool
-  calls: the confined worker refuses because Seatbelt breaks the runtime's PTY
-  and no container boundary was available. Correct guard behaviour — running it
-  with `HARNESS_ENGINE_CONFINEMENT=off` would have proven nothing worth
-  claiming. M04's NDJSON `progress` transport is unit-tested but not
-  live-verified, and M07 stays open until it is, on Docker or native Linux.
-  Evidence: `docs/briefs/evidence/pilot-prep/m07-ollama-isolated-refused.json`.
-- [ ] **The status panel reports a context window the model does not have**
-  (owner: S4+S7). `state_machine._context_window()` returns `DSH_CONTEXT_WINDOW`
+- [x] **The isolated worker has never streamed on a real host** (owner: S4+S10).
+  Closed 2026-10-26: `HARNESS_ENGINE_CONFINEMENT=container` with a worker image
+  built from this tree (`harness-engine-worker:m04-1026`) produced two
+  call/result pairs arriving at 34.85 s and 48.89 s against a 68.42 s completion,
+  using the native `read` and `write` tools, with a real file side effect. No
+  spend (local Ollama), and `off` was never set. Evidence
+  `docs/briefs/evidence/pilot-prep/m04-container-streaming.json`.
+
+## From W1 M07 (confined vision attempt failed, 2026-10-26)
+
+- [ ] **A stuck run has no budget but the wall clock** (owner: S4, W2). The
+  confined vision attempt made 37 `bash` calls over 516.75 s and ended in an empty
+  model response at the deadline. W2's "loop fixture stops within explicit budget"
+  is now a prerequisite for trusting any live run, not a feature.
+- [ ] **The metering gap made a runaway unpriceable** (owner: S4+S3). `usage` is
+  `null` on the openai-completions transport, so after 37 paid calls the cost
+  cannot be stated from evidence. This turns "actual usage distinguished from
+  estimates" (M05) from a nicety into the thing that lets you stop spending.
+- [ ] **Tool choice is model-dependent, not policy-dependent** (owner: S4+S14).
+  Same worker image, same `tool-fs` policy: local `qwen-local` used native
+  `read`/`write`, `qwen/qwen3.7-flash` used `bash` 37 times and never touched the
+  file tools. Do not claim file tools are the agent's default without naming the
+  model, and re-check the routing work in W14 against this.
+- [ ] **Goal images are unproven through the container boundary** (owner: S4+S1).
+  The attachment crossed (`goalImagesAttached: 1`) and the in-image vision patch
+  resolved, but no colour came back, so M06's live evidence still stands only for
+  the direct non-isolated path. The stack's real path is the isolated one.
+
+## From W1 M04 (container boundary, 2026-10-26)
+
+- [ ] **A host `DSH_PATCH_FILES` path is invisible to the confined worker**
+  (owner: S4). `DSH_` is allowlisted across `confine.scrubbed_env`, so the value
+  crosses the boundary but the file does not: `openrouter_smoke.py` wrote its
+  patch into the host temp dir and the worker died with `DSH_PATCH_FILES entry
+  not found` before any model call. Worked around for the drill by committing
+  `deploy/patches/openrouter-vision.patch.yml`, which is baked into the worker
+  image — the modality declaration is now a reviewed artifact rather than a
+  runtime temp file. The underlying trap remains for any other host-side path
+  the parent passes down.
+- [ ] **The confinement refusal names Seatbelt on Linux** (owner: S4).
+  `engine.py:554` is a fixed string for "mode is neither container nor off", so
+  on a Linux kernel it reports that seatbelt breaks the PTY — true, but not the
+  reason a reader should care there. Reword to name the resolved mode and the
+  accepted ones.
+- [ ] **Container mounts fail on freshly recreated macOS temp trees** (owner:
+  deploy). Re-running with the workspace tree deleted mid-flight gave `invalid
+  mount config for type "bind": bind source path does not exist` against
+  `/host_mnt/private/var/folders/...`. Reproduce with a stable path
+  (`~/.harness-m04`-style) until it is understood.
+- [ ] **`compose_journey.py` check 0 races the daemon on a stop** (owner: S10).
+  The first trip attempt PASSED with `sandbox-egress` stopped because `ps -a`
+  was read before the exit was reflected; three seconds later it reported
+  `[FAIL] container health`. Detection works; the trip test should settle or
+  poll before asserting so a documented drill never has to be re-run to be
+  believed.
+- [x] **The status panel reports a context window the model does not have**
+  (owner: S4+S7). `state_machine._context_window()` returned `DSH_CONTEXT_WINDOW`
   (default 1,000,000) while the OpenRouter transport patch declares
-  `contextWindow: 65536`, and both live drills showed 1M. Roadmap ground rule 1
-  forbids affordances that do not do the thing. Fix in W2's context work: read
-  the window for the selected model, or label it `configured` rather than
-  presenting it as the ceiling. Do not replace it with another guess.
+  `contextWindow: 65536`, and both live drills showed 1M — roadmap ground rule 1
+  forbids an affordance that does not do the thing. Closed in `a5148e0`:
+  `context_window.configured_context_window()` returns the value only when an
+  operator actually set it, rejects empty and non-positive values, and yields
+  `None` otherwise, which the `StatusPanel` "window unknown" branch already
+  handled but had never been able to reach. The three duplicated env readings
+  (`state_machine.py`, `engine.py`, `execution.py`) now share it, so the run page
+  and the durable `context_compacted` rows cannot drift.
+  Still not done: reading the window the *selected model* actually declares, so a
+  configured value is still operator-asserted rather than provider-verified.
 - [ ] **`usage` is `null` on the openai-completions transport** (owner: S4).
   Carried over from the OpenRouter drill: without usage, `cost_ledger` accrual
   on that path is unproven, so the cost footer and per-run spend are both

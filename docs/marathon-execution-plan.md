@@ -52,15 +52,22 @@ after it supersedes five rows; the rest still stand.
 | Git context | `.git` now travels, after `_prepare_seeded_git` strips hooks, worktrees, submodule pointers and credential-bearing config keys | `engine.py` (8438b19) |
 | Output limit | The `4096` cap is gone; `HARNESS_SDK_MAX_TOKENS` sets the provider ceiling explicitly | `engine.py` (8438b19) |
 
-Still open exactly as written: M00 live re-verification on the current image,
-and M01/M03 confinement. M06 landed 2026-10-26 (`15a3a66`) and its image
-reached a real vision model the same day. M07 is **still open**, for a reason
-this plan did not anticipate: the isolated worker — the one the stack actually
-runs — refuses to start without a container boundary, so nothing has yet
-streamed through it live (`docs/backlog.md`, "From W1 M07"). The proxy row stays
-accurate — enforcement was proven live once (`w1-day0-egress`), but that is
-evidence for that image revision, not a standing claim, and no stack is up on
-this host as of 2026-10-26.
+**M00 closed 2026-10-26** on `harness-backend:vm00-1026` built from `df4096e` —
+the earlier candidates `vdev-local` and `vbuild-1025` were checked first and
+contain none of this week's code, so they could not have produced
+current-revision evidence (`m00-stack-verification-2026-10-26.json`). **M04
+closed the same day**: a confined worker streamed a native `read` at 34.85 s and a
+native `write` at 48.89 s against a 68.42 s completion, correlated by `callId`,
+with a real file side effect, on local Ollama at no spend and with `off` never set
+(`m04-container-streaming.json`). M06 landed 2026-10-26 (`15a3a66`) and its image
+reached a real vision model the same day. **M07 is open and was attempted**: the
+confined screenshot run made 37 `bash` calls in 516.75 s, never returned the
+colour, and cannot be priced because `usage` is `null` on this transport
+(`m07-confined-vision-failure.json`). M01/M03 confinement is still open exactly as
+written, and now has a live symptom — the loop-detection work W2 assumed is what
+would have bounded that run. The proxy row holds for the revision it was re-probed
+on: `github.com → 200`, `example.com → 403` on `vm00-1026`, reproduced after a
+forced sidecar restart.
 
 Also superseded in the queue text: M04 describes the transcript as future work;
 the transport and UI landed in e610191. What remains from M04 is reconnect/replay
