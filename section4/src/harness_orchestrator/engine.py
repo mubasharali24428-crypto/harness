@@ -45,6 +45,7 @@ from harness_orchestrator.live_mode import (
     validate_live_credentials,
 )
 from harness_orchestrator.redact import scrub_secrets
+from harness_orchestrator.repo_context import build_repo_context
 
 logger = logging.getLogger(__name__)
 
@@ -358,6 +359,10 @@ class DeepSeekHarnessWrapper:
         self._containers: dict[str, ContainerBoundary] = {}
         self._cancel_requested: set[str] = set()
         self._shell_policies: dict[str, dict[str, Any]] = {}
+        # N02: which sessions already carry the repo baseline. The SDK session
+        # continues across a resume, so a second copy is a duplicate the model
+        # pays to read again, not extra context.
+        self._repo_context_sent: set[str] = set()
         self._proc_lock = threading.Lock()
         self.workspace = workspace_dir or os.environ.get(
             "DSH_WORKSPACE", "/tmp/harness-dsh-workspace"
@@ -750,6 +755,24 @@ class DeepSeekHarnessWrapper:
                 totals["outputTokens"] += step["outputTokens"]
         return totals
 
+    def _with_repo_context(self, goal: str, session_id: str) -> str:
+        """Prepend the workspace baseline, once per session.
+
+        The runtime's own ``includeRuntimeContext`` is off in the shipped profile
+        and that key belongs to the SDK; this is the product's own baseline, in
+        the goal string, on both execution paths — the isolated worker receives
+        the goal verbatim, so injecting here covers it too.
+        """
+        if os.environ.get("HARNESS_REPO_CONTEXT", "1").strip().lower() in {"0", "off", "false"}:
+            return goal
+        if session_id in self._repo_context_sent:
+            return goal
+        block = build_repo_context(self.workspace)
+        if not block:
+            return goal
+        self._repo_context_sent.add(session_id)
+        return f"{goal}\n\n{block}"
+
     def execute_goal(
         self,
         goal: str,
@@ -758,6 +781,9 @@ class DeepSeekHarnessWrapper:
         on_progress: Callable[[dict[str, Any]], None] | None = None,
         images: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
+        # N02: one injection point, so the direct SDK call and the isolated
+        # worker cannot drift apart on what the model was told about the repo.
+        goal = self._with_repo_context(goal, session_id)
         # A per-run/team choice wins over the deployment default. ``None``
         # keeps the exact historical behavior.
         effective_model = model or self.model

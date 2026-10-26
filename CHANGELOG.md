@@ -10,6 +10,50 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W2 (N02, N03) — the context was assembled and then dropped (2026-10-26)
+
+The runtime's own context injector is off in the shipped profile
+(`includeRuntimeContext:false`) and that key is the SDK's, so what this product
+controls is the goal it hands the engine. Two blocks it was already assembling
+never got there.
+
+#### Added
+
+- **`repo_context.py`**: a bounded baseline — pruned file tree, README excerpt,
+  `git status --short` when the workspace is a repo, and the dependency manifests
+  present. Prepended by `execute_goal`, which means the direct SDK call and the
+  isolated worker cannot drift on what the model was told about the repo.
+  `HARNESS_REPO_CONTEXT=0` disables it.
+- `HARNESS_REPO_CONTEXT` is injected **once per session**: an SDK session
+  continues across a resume, so a second copy is a duplicate the model pays to
+  read again, not extra context. A different session still gets its own.
+
+#### Fixed
+
+- `run_data["rules_prompt_block"]` never reached the executor. Its loader comment
+  already said it was stored "so … future engine calls can carry it into system
+  context"; they did not. Project rules are now in the engine call, before the
+  curated context and the goal.
+- `run_data["context_bundle"]["rendered"]` — the bounded @ref bundle, documented as
+  riding "on the run for engine prompt assembly" — also never reached the engine.
+  Same fix, same ordering.
+
+Both stay advisory: a blank block contributes nothing rather than an empty
+heading, so a run with neither gets the prompt it always got (pinned by test).
+
+#### Limits stated
+
+- The empty case is deliberate: a workspace with nothing recognisable returns
+  `""`, because an empty scaffold is worse than no scaffold.
+- **Not yet demonstrated:** the gate's other half — a real task in a 500-file repo
+  finding the right files unprompted. That needs a live run, which is what M07 is
+  blocked on.
+
+#### Tests
+
+`section4`: `test_repo_context.py` (8), `test_repo_context_wiring.py` (6),
+`test_n03_context_to_executor.py` (5). Ruff clean, `make static-gates` green.
+
 ### W2 (N01) — a stuck run is now caught from the event stream (2026-10-26)
 
 Two live acceptance attempts made 14 and 37 tool calls against a one-sentence

@@ -22,8 +22,8 @@ this week inherits: *"An unchecked gate stays open when a dependent week begins.
 | ID | Deliverable | Completion evidence | State |
 |---|---|---|---|
 | N01 | A looping or burning run is caught from the event stream and stopped with a durable reason, not left to the wall clock | `tests/unit/test_loop_guard.py`, `tests/unit/test_loop_guard_wiring.py`; mutation-checked (wiring disabled → 3 of 4 wiring tests fail) | **done** |
-| N02 | Baseline repo context reaches the prompt (tree, README, git status, dependency manifests) | a run in a large fixture repo finds the right files without being told | open |
-| N03 | `project_rules` reaches the executing agent, not only the planner | rules text present in the engine call on both execution paths | open |
+| N02 | Baseline repo context reaches the prompt (tree, README, git status, dependency manifests) | `tests/unit/test_repo_context.py` (8), `test_repo_context_wiring.py` (6); bounded block, once per session | **done** |
+| N03 | `project_rules` reaches the executing agent, not only the planner | `tests/unit/test_n03_context_to_executor.py` (5) | **done** |
 | N04 | Retry-with-changes as a visible affordance | the UI offers it and the audit records it; no silent model ladder | open |
 
 ## N01 — what was actually wrong
@@ -62,3 +62,73 @@ Three things worth stating plainly:
 A deliberately looping fixture is caught and stopped with a message, not a budget
 burn; and a representative task in a 500-file repo finds the relevant files
 without being told. The first half is met. The second needs N02.
+
+## N02 — the baseline the product can actually control
+
+`includeRuntimeContext:false` is a key in the **SDK's** profile, not in our source,
+so the lever this product holds is the goal string it hands the engine.
+`repo_context.py` builds a bounded block — file tree with generated/vendored
+directories pruned, README excerpt, `git status --short` when the workspace is a
+repo, and the names of any dependency manifests — and `execute_goal` prepends it
+once per session.
+
+Four decisions worth their reasons:
+
+- **Pruned before descent, not filtered after.** Walking `node_modules` and then
+  discarding it costs seconds on a real checkout and buys nothing.
+- **Bounded, and the bound is tested.** A context block that grows with the repo
+  turns every run of a 500-file project into a 500-file prompt, paid for every
+  time. `max_chars` truncates with an explicit marker so the model does not read
+  the cut as the end of the repository.
+- **Empty means empty.** A workspace with nothing recognisable returns `""`
+  rather than a page of headings — an empty scaffold teaches the model that the
+  repo is empty, which is worse than saying nothing.
+- **Once per session.** The SDK session continues across a resume, so a second
+  copy is not extra context; it is a duplicate the model pays to read again. A
+  *different* session still gets its own copy.
+
+`HARNESS_REPO_CONTEXT=0` disables it. Not yet demonstrated: the gate's other half —
+a real task in a 500-file repo finding the right files without being told. That
+needs a live run, and live runs are what M07 is blocked on.
+
+## N03 — two blocks were assembled and thrown away
+
+The finding here is smaller than N02's work and worse than it looks. Both context
+blocks are built while planning and neither reached execution:
+
+- `run_data["rules_prompt_block"]` — the project's rules, the
+  `CLAUDE.md`/`AGENTS.md` equivalent. Its own comment says it is "stored on the run
+  so … future engine calls can carry it into system context". The executor received
+  `plan.goal + guidance` and nothing else.
+- `run_data["context_bundle"]["rendered"]` — the bounded @ref bundle, whose comment
+  says it "rides on the run for engine prompt assembly". It did not.
+
+`_executor_context_prefix` now carries both into the engine call, rules before
+curated context: instructions, then evidence, then the task. Reversing that order
+puts the model's attention on a code snippet before it knows how the project wants
+it to work. Both stay advisory — a blank block contributes nothing rather than an
+empty heading, so a run with neither gets exactly the prompt it always got, which
+is pinned by a test rather than assumed.
+
+## Verification, including what is not clean
+
+`section4` full suite, three consecutive runs after N02/N03: **5 failed / 1679
+passed**, **2 failed / 1682 passed**, **1 failed / 1683 passed** (58 skipped
+throughout). The first run's five were all `test_staging_e2e.py` and were **my
+regression**: appending the repo baseline to the goal broke `standin_worker`'s
+`startswith("delete:")` parsing, which resolved the path to
+`"gone.txt\n\n## Repository context…"`. The double's assumption was wrong, not the
+product change; it now reads the directive from the first line, and that file
+passes 5/5.
+
+The remaining failures are a different matter and are **not resolved here**:
+`test_stateless_orchestrator_n1.py::test_mixed_decision_race_reject_wins_late_approve_conflicts`
+and `test_workspace_lifecycle_s2.py::test_cleanup_refuses_while_the_worker_is_alive`.
+Both pass alone, `test_workspace_lifecycle_s2.py` passes 6/6 three times as a
+file, and which of the two fails changes between runs — so it is load- or
+ordering-dependent rather than deterministic. They did not appear in the
+pre-change run, and this week's change does add work before the worker spawns, so
+"pre-existing" would be a guess. Recorded as an open flake with the numbers rather
+than called green: chasing it properly is its own task, and guessing at a fix
+under a feature commit is how the budgets in this repository became decorative in
+the first place.

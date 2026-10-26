@@ -287,6 +287,26 @@ class OrchestratorService(Orchestrator):
             set_shell_policy(run_id, {**shell_policy, "maxToolCalls": 0})
         sm.execution_failed(detail)
 
+    @staticmethod
+    def _executor_context_prefix(run_data: dict[str, Any]) -> str:
+        """Project rules, then the curated @ref bundle, then whatever calls it.
+
+        Both blocks are assembled while planning and were stored "for engine
+        prompt assembly" that never happened: the executor received
+        ``plan.goal + guidance`` and nothing else. They stay advisory — an absent
+        or blank block contributes nothing rather than an empty heading, so a run
+        with neither produces exactly the prompt it always did.
+        """
+        parts: list[str] = []
+        rules = str(run_data.get("rules_prompt_block") or "").strip()
+        if rules:
+            parts.append(rules)
+        bundle = run_data.get("context_bundle")
+        rendered = str(bundle.get("rendered") or "").strip() if isinstance(bundle, dict) else ""
+        if rendered:
+            parts.append(rendered)
+        return "\n\n".join(parts) + "\n\n" if parts else ""
+
     def _emit_tool_record(self, run_id: str, record: dict[str, Any]) -> None:
         """Bridge one engine tool record onto the project bus.
 
@@ -1364,7 +1384,7 @@ class OrchestratorService(Orchestrator):
                 try:
                     result = await self.engine_runtime.run(
                         self.engine,
-                        goal=plan.goal + extra,
+                        goal=self._executor_context_prefix(run_data) + plan.goal + extra,
                         session_id=run_id,
                         model=run_model,
                         **progress_kwargs,
