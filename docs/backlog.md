@@ -195,6 +195,23 @@ rebuild commit so it does not ride along inside an unrelated PR.
   spend (local Ollama), and `off` was never set. Evidence
   `docs/briefs/evidence/pilot-prep/m04-container-streaming.json`.
 
+## Section 1 is not green at HEAD (found 2026-10-26, pre-existing)
+
+- [ ] **11 failures in `section1/tests/test_sso_oidc.py` — blocks any PR**
+  (owner: S1). `httpx.InvalidURL: Invalid port: ':1]'`. What is verified: the
+  error is raised **inside the ASGI app's own outbound request**, not in the
+  test — `tests/test_sso_oidc.py:294` → `httpx.post` → `ASGITransport` → app →
+  `httpx/_urlparse.py` → `InvalidURL`. So something in the SSO login path builds
+  a URL whose host/port split is wrong (the `:1]` shape looks like a bracketed
+  host being parsed as a port). It is **not** the live stack and **not** the
+  mock IdP, which binds `127.0.0.1` with a plain port: results are identical with
+  Keycloak running and stopped. It is **not** W1's either — that test file was
+  last touched in `72cf901` (Mission 22) and no section1 file changed during W1;
+  it fails at `HEAD` on a clean tree. AGENTS.md requires Section 1 tests to pass
+  before any PR, so this gates opening the W1 branch. Not root-caused here:
+  section4 is green (1400 passed, 40 skipped) and `make static-gates` is green,
+  and I stopped rather than guess at an S1 URL fix under a W1 deadline.
+
 ## From W1 M07 (confined vision attempt failed, 2026-10-26)
 
 - [ ] **A stuck run has no budget but the wall clock** (owner: S4, W2). The
