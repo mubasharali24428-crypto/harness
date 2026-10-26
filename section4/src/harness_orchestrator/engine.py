@@ -37,6 +37,7 @@ from typing import Any
 
 from harness_orchestrator import confine, domain_metrics
 from harness_orchestrator.container_runtime import ContainerBoundary
+from harness_orchestrator.context_window import configured_context_window
 from harness_orchestrator.live_mode import (
     LiveMode,
     parse_live_mode,
@@ -240,15 +241,13 @@ def _notification_events(payload: Any) -> list[dict[str, Any]]:
 def _context_meta(events: list[Any]) -> dict[str, Any]:
     """What the runtime's context window is, and how much it has compacted.
 
-    The window comes from the same variable the shipped profile reads
-    (``DSH_CONTEXT_WINDOW``, default 1,000,000) — reported, not guessed. Token
-    counts come from ``compaction/summary`` events (``shadowedTokenCount``),
-    summed because a long run can compact more than once.
+    The window is the operator's configured value or ``None`` — never this
+    module's own default, which is what made a 1M figure appear on runs whose
+    model declared 65536. Token counts come from ``compaction/summary`` events
+    (``shadowedTokenCount``), summed because a long run can compact more than
+    once.
     """
-    try:
-        window = int(os.environ.get("DSH_CONTEXT_WINDOW", "1000000"))
-    except ValueError:
-        window = 1_000_000
+    window = configured_context_window()
     compactions = 0
     tokens = 0
     for event in events or []:

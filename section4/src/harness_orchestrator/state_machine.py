@@ -49,13 +49,17 @@ from typing import Any
 from harness_contracts.events import EventType
 from harness_contracts.timeutil import as_utc, now_utc
 
+from harness_orchestrator.context_window import configured_context_window
 
-def _context_window() -> int:
-    """Default context window of the shipped SDK profile (env-overridable)."""
-    try:
-        return int(os.environ.get("DSH_CONTEXT_WINDOW", "1000000"))
-    except ValueError:
-        return 1_000_000
+
+def _context_window() -> int | None:
+    """The operator-configured window, or None when nobody set one.
+
+    Delegated so the run page and the durable ``context_compacted`` rows cannot
+    drift apart; see ``context_window.py`` for why an unset variable is not a
+    licence to display a default.
+    """
+    return configured_context_window()
 
 
 class AgentState(StrEnum):

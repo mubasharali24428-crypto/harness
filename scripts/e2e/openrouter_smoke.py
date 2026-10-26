@@ -121,11 +121,6 @@ def main() -> int:
     # image blocks on the model's declared modalities.
     source = Path(args.patch).read_text()
     patch_text = source.replace("input: [text]", "input: [text, image]") if args.vision else source
-    patch_path = Path(os.environ.get("TMPDIR", "/tmp")) / (
-        "openrouter-vision.patch.yml" if args.vision else "openrouter-smoke.patch.yml"
-    )
-    patch_path.write_text(patch_text)
-    os.environ["DSH_PATCH_FILES"] = str(patch_path)
     os.environ["DSH_MODEL"] = model
     os.environ["ENGINE_LIVE_MODE"] = "live"
     os.environ["HARNESS_ENGINE_ISOLATED"] = "1" if args.isolated else "0"
@@ -136,6 +131,28 @@ def main() -> int:
     sess = Path(os.environ.get("TMPDIR", "/tmp")) / "m07-smoke-sessions"
     work.mkdir(parents=True, exist_ok=True)
     sess.mkdir(parents=True, exist_ok=True)
+
+    from harness_orchestrator.engine import DeepSeekHarnessWrapper
+
+    engine = DeepSeekHarnessWrapper(
+        workspace_dir=str(work), session_root=str(sess), model=model
+    )
+    session_id = f"m07-{int(time.time())}"
+
+    # The transport patch must be readable INSIDE the confinement boundary. A
+    # container-mode run bind-mounts only the workspace and the session dir and
+    # gives /tmp a fresh tmpfs, so a host-temporary patch is not there, and the
+    # engine fails closed rather than running with no transport restriction.
+    # The session dir is the right home for it: the engine mkdirs it itself, and
+    # the per-run execution-policy patch is still appended after ours, so an
+    # operator (or smoke) patch cannot widen what the policy patch restricts.
+    patch_dir = Path(engine.run_session_dir(session_id))
+    patch_dir.mkdir(parents=True, exist_ok=True)
+    patch_path = patch_dir / (
+        "openrouter-vision.patch.yml" if args.vision else "openrouter-smoke.patch.yml"
+    )
+    patch_path.write_text(patch_text)
+    os.environ["DSH_PATCH_FILES"] = str(patch_path)
 
     if args.tool_goal:
         goal = "Create hello.txt in the workspace containing exactly: harness m07. Then stop."
@@ -158,14 +175,9 @@ def main() -> int:
         img = None
         images = None
 
-    from harness_orchestrator.engine import DeepSeekHarnessWrapper
-
     live: list[dict] = []
     t0 = time.perf_counter()
-    engine = DeepSeekHarnessWrapper(
-        workspace_dir=str(work), session_root=str(sess), model=model
-    )
-    result = engine.execute_goal(goal, session_id=f"m07-{int(t0)}", images=images)
+    result = engine.execute_goal(goal, session_id=session_id, images=images)
     elapsed = time.perf_counter() - t0
 
     for record in result.get("toolCalls") or []:

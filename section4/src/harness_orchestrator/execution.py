@@ -45,6 +45,7 @@ from sqlalchemy.exc import IntegrityError
 
 from harness_orchestrator import api as _api
 from harness_orchestrator import collab
+from harness_orchestrator.context_window import configured_context_window
 from harness_orchestrator.session_gate import session_block
 from harness_orchestrator.state_machine import AgentState
 from harness_orchestrator.workspace_gate import workspace_block
@@ -1868,17 +1869,12 @@ async def status_get(factory: Any, service: Any, run_id: str) -> dict[str, Any]:
 async def _context_view(db: Any, run_id: str) -> dict[str, Any]:
     """Context window + compaction totals for a run, from durable events.
 
-    The window is the profile's own default/env (``DSH_CONTEXT_WINDOW``); the
-    totals come from the ``context_compacted`` rows S4 writes when a run
-    reports ``compaction/summary``. Payloads are read in Python rather than
-    with a JSON operator so this stays portable across PG and SQLite.
+    The window is the operator's configured value or ``None``; the totals come
+    from the ``context_compacted`` rows S4 writes when a run reports
+    ``compaction/summary``. Payloads are read in Python rather than with a JSON
+    operator so this stays portable across PG and SQLite.
     """
-    import os as _os
-
-    try:
-        window = int(_os.environ.get("DSH_CONTEXT_WINDOW", "1000000"))
-    except ValueError:
-        window = 1_000_000
+    window = configured_context_window()
     rows = (
         await db.execute(
             text("SELECT payload FROM agent_events WHERE run_id = :r AND type = :t"),
