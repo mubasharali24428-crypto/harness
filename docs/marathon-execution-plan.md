@@ -70,8 +70,16 @@ the scope is enforced by mounts in the container and by Seatbelt/Landlock write
 roots in the shell gate (`m03-scope-mounts.json`, `m03-landlock-scope.json`). M07's
 topology blocker closed with the worker daemon. The deployed orchestrator, which
 has no socket, ran a confined worker that fixed and re-read a fixture repo
-(`m07-daemon-topology.json`). M07's full gate is still open: the screenshot
-through the container boundary and a run driven through the API. The proxy row holds for the revision it was re-probed
+(`m07-daemon-topology.json`). **M07 closed the same day**, both remaining legs
+driven over HTTP against the deployed stack: a run created by `POST /plan` →
+approve → start reached a worker at `999:999` with a read-only root, no
+capabilities and volume-subpath mounts, and fixed a fixture repo
+(`m07-api-run.json`); a screenshot uploaded as a run artifact was named correctly
+twice, with two different solid fills, under a 4-call budget set before the first
+call (`m07-vision-api.json`, `m07-vision-api-purple.json`). Two residual
+limitations are recorded rather than claimed away: a settled run's `/engine`
+replay carries no model and no usage (backlog, owner S4), and browser-session
+transcript replay is still unverified. The proxy row holds for the revision it was re-probed
 on: `github.com → 200`, `example.com → 403` on `vm00-1026`, reproduced after a
 forced sidecar restart.
 

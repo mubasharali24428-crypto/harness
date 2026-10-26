@@ -1,0 +1,121 @@
+{
+ "date": "2026-10-26",
+ "milestone": "M07 screenshot through the container",
+ "runId": "m07vis-1793033470",
+ "drive": "HTTP only",
+ "paidSmokeOptIn": true,
+ "expectedColour": "purple",
+ "goalNamesAColour": false,
+ "solidRgb": [
+  128,
+  0,
+  128
+ ],
+ "maxToolCalls": 4,
+ "budgetSet": true,
+ "artifactId": "3e4d19e7-2135-47c4-9773-2f888e9b173f",
+ "engine": {
+  "engine": "replayed",
+  "status": "completed",
+  "finalResponse": "purple"
+ },
+ "engineKeys": [
+  "engine",
+  "finalResponse",
+  "sessionId",
+  "status"
+ ],
+ "usage": null,
+ "answer": "purple",
+ "answerNamesTheColour": true,
+ "statePath": [
+  "executing",
+  "awaiting_done_signal"
+ ],
+ "workersObserved": [
+  {
+   "name": "harness-b2c74dbf5cca4c6986f2f95a88a486df-relay",
+   "role": "relay",
+   "user": "10001:10001",
+   "readonlyRootfs": true,
+   "capDrop": [
+    "ALL"
+   ],
+   "networks": [
+    "bridge",
+    "harness-b2c74dbf5cca4c6986f2f95a88a486df-net"
+   ],
+   "mounts": []
+  },
+  {
+   "name": "harness-b2c74dbf5cca4c6986f2f95a88a486df",
+   "role": "worker",
+   "user": "999:999",
+   "readonlyRootfs": true,
+   "capDrop": [
+    "ALL"
+   ],
+   "networks": [
+    "harness-b2c74dbf5cca4c6986f2f95a88a486df-net"
+   ],
+   "mounts": [
+    {
+     "src": "harness_runs",
+     "dst": "/var/lib/harness-runs/workspace/m07vis-1793033470",
+     "readOnly": false,
+     "subpath": "workspace/m07vis-1793033470"
+    },
+    {
+     "src": "harness_runs",
+     "dst": "/var/lib/harness-runs/sessions/m07vis-1793033470",
+     "readOnly": false,
+     "subpath": "sessions/m07vis-1793033470"
+    }
+   ]
+  }
+ ],
+ "elapsedSeconds": 22.59,
+ "steps": [
+  {
+   "step": "login",
+   "ok": true
+  },
+  {
+   "step": "create project",
+   "ok": "6fea23e6-3816-4d81-8ae3-e2fcdce97714",
+   "status": 201
+  },
+  {
+   "step": "propose plan",
+   "ok": "plan-a5bd9dbd",
+   "status": 201
+  },
+  {
+   "step": "set tool budget",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "upload screenshot",
+   "ok": "3e4d19e7-2135-47c4-9773-2f888e9b173f",
+   "status": 201,
+   "bytes": 133
+  },
+  {
+   "step": "approve plan",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "start",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "settled",
+   "ok": true,
+   "state": "awaiting_done_signal"
+  }
+ ],
+ "ok": true
+}

@@ -10,6 +10,29 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W1 (M07) — both remaining acceptance legs, driven over HTTP (2026-10-26)
+
+M07's gate asked for a run started through the API and a screenshot visible
+through the container boundary. Both now exist as drills against the deployed
+stack, with no host-side engine call:
+
+- `scripts/e2e/m07_api_run_drill.py` — login, `POST /projects`, `plan`,
+  `plan/approve`, `start`, then status/engine polling; the worker is snapshotted
+  live (`999:999`, read-only root, `cap-drop ALL`, private network, two
+  volume-subpath mounts) and the fixture repo is verified on disk after the run
+  (`m07-api-run.json`).
+- `scripts/e2e/m07_vision_api_drill.py` — uploads a PNG as a run artifact, sets
+  `maxToolCalls` *before* the first call, and reads the model's answer. Two runs
+  with two different solid fills both came back correct (`orange`, `purple`) in
+  12.53 s / 22.59 s with zero tools used (`m07-vision-api.json`,
+  `m07-vision-api-purple.json`). The deployment was returned to the local model
+  afterwards; the provider key was read from `~/.harness-secrets` and never
+  printed.
+
+Found on the way: `GET /runs/{runId}/engine` replays a settled run without
+model or usage (recorded in `docs/backlog.md`), and the local `.env` named a
+model the configured Ollama does not have.
+
 ### W2 (N04) — retry with changes is a visible control, not a model ladder (2026-10-26)
 
 The backend already recorded guidance and resumed runs; what was missing was the

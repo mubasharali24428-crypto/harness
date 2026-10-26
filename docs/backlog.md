@@ -383,3 +383,32 @@ made the real cause easy to find once the environment was inspected.
   these runs, and it counts shell-plugin calls — native `tool-fs` calls may not
   consume it. 14 and 37 tool calls against one trivial goal, stopped only by the
   wall clock, is the symptom.
+
+## From W1 M07 closure (API-driven run, 2026-10-26)
+
+- [ ] **A settled run's `/engine` result loses model and usage** (owner: S4,
+  M05). `GET /runs/{runId}/engine` answers the in-RAM dict while the run is live,
+  but a settled run is evicted and the route rebuilds the result from the
+  `ENGINE_COMPLETED` / `ENGINE_FAILED` event payload
+  (`service.py:_load_engine_result`), which carries only the summary. The
+  replayed shape is `{sessionId, engine: "replayed", status, finalResponse}` —
+  so "which model ran" and "what did it cost" cannot be answered after the fact
+  even though the live dict had both. Cost metering is unaffected: it reads the
+  live dict before eviction. Evidence: `m07-api-run.json`
+  (`engine.replayLosesModelAndUsage: true`). Fix shape: carry `usedModel` and
+  `usage` in the completion event payload (additive; check the event schema and
+  golden fixtures before touching the contract) and restore them in the replay.
+
+- [x] **M07's two remaining legs** (owner: S10 + S4). Closed 2026-10-26 over
+  HTTP: `m07-api-run.json` (plan → approve → start → confined worker fixes and
+  re-reads a fixture repo), `m07-vision-api.json` + `m07-vision-api-purple.json`
+  (screenshot uploaded as an artifact, named correctly for two different
+  colours). Drills: `scripts/e2e/m07_api_run_drill.py`,
+  `scripts/e2e/m07_vision_api_drill.py`.
+
+- [ ] **`.env` model drift** (owner: deployment). The local stack set
+  `DSH_MODEL=qwen3.5:9b` while the configured Ollama only had
+  `qwen-local:latest`, so any API-driven run would fail on a model that is not
+  installed. Fixed in the gitignored `.env` on this host; `.env.example` should
+  state that the name must match an installed model, and a startup probe could
+  refuse a live deployment whose model the endpoint does not list.

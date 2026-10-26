@@ -481,3 +481,66 @@ Option 1 is the only one consistent with everything else in this plan. Not
 chosen here because it is architecture, not a fix, and because M07 is gated on
 M03 — which the spike above just showed cannot be met by the current design
 either. Recording M07 as **blocked with cause**, not as failed, and not as passed.
+
+## M07 closed — both remaining legs, over HTTP (2026-10-26)
+
+The topology drill proved a confined worker could be created by the daemon, but
+it called `execute_goal` inside the orchestrator container: no HTTP client was
+involved, so nothing showed that a request arriving at the API reaches a
+confined worker, and nothing showed a screenshot crossing the boundary. Both
+legs are now driven the way a user drives them.
+
+**Leg A — `scripts/e2e/m07_api_run_drill.py`, `m07-api-run.json`.** Login to
+Section 1, `POST /projects`, `POST /runs/{id}/plan`, `/plan/approve`, `/start`,
+then poll `/status` and `/engine`. While the run is live the drill snapshots the
+worker container: `999:999`, read-only root, `cap-drop ALL`, only the per-run
+internal network, and two volume-subpath mounts (workspace, sessions) on the
+shared `harness_runs` volume. The agent read `calc.py`, fixed `add()` to return
+the sum, re-read it, and the README that the policy forbids stayed byte-identical.
+The orchestrator container still has no Docker socket. State path:
+`executing → awaiting_done_signal` — the run settles into the human done-gate,
+which this drill does not pull; that is a separate product decision, not the
+agent's work.
+
+A deployment defect surfaced on the way in: `.env` set `DSH_MODEL=qwen3.5:9b`
+and the configured Ollama has `qwen-local:latest`. Any API-driven run would have
+failed against a model that does not exist. Fixed in `.env` (gitignored) and
+re-verified in the container's own environment.
+
+**Leg B — `scripts/e2e/m07_vision_api_drill.py`, `m07-vision-api.json` and
+`m07-vision-api-purple.json`.** The 2026-10-26 attempt made 37 bash calls in
+516 s and ended "the model returned an empty response". The difference now is a
+budget that exists before the first call (W2 N01): the drill sets
+`maxToolCalls: 4` through `PUT /execution-limits`, uploads a 64×64 PNG as a run
+artifact, then plans, approves and starts — all over HTTP. The goal never names
+a colour. Two runs, two different solid fills:
+
+| fill | answer | expected | seconds | tools used |
+|---|---|---|---|---|
+| `#E86A0C` orange | `orange` | orange | 12.53 | 0 |
+| `#800080` purple | `purple` | purple | 22.59 | 0 |
+
+One right answer could be a guess; two different right answers cannot. The
+image crossed the container boundary and a real vision model read it, on the
+cheapest measured vision model (`qwen/qwen3.7-flash`, $0.03/M in). The
+deployment was returned to the local model afterwards; the exact env block that
+enabled it is in this section's drills, and the key was read from
+`~/.harness-secrets`, never printed or committed.
+
+Two things about the evidence worth stating rather than hiding:
+
+1. My first pass at the container snapshot reported **no mounts at all** — the
+   parse read `Destination`/`RW`, which is the shape of `docker inspect`'s
+   top-level `Mounts`, not `HostConfig.Mounts`, which uses `Target`/`ReadOnly`.
+   A worker with no workspace mount cannot have edited a file, so the reading
+   was checked instead of believed. The corrected parse is in the script.
+2. A **settled run's `/engine` result is a replay that carries no model and no
+   usage** — only `sessionId`, `engine: "replayed"`, `status`, `finalResponse`.
+   The live dict had them and cost metering already consumed them, so billing is
+   not affected, but the read API cannot answer "which model ran" or "what did
+   it cost" after the fact. Recorded in `docs/backlog.md` (owner S4), not fixed
+   here.
+
+Still not proven, and unchanged by this: the transcript in a real browser
+session (M04 records reconnect/replay deduplication as verified only in the
+reducer), and the run-completion acceptance call itself.
