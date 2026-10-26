@@ -157,7 +157,7 @@ Landlock and `none` therefore get read-only file access, and the patch records
 why. `max_tokens=4096` is gone (`HARNESS_SDK_MAX_TOKENS` pins a cap), and the
 workspace seed keeps `.git`.
 
-Not yet done in W1: the goal-attachment path, and the live end-to-end gate.
+Still open from Days 1–2: the live end-to-end gate (M07).
 
 ### Days 2–4 outcome — the transcript (2026-10-26)
 
@@ -181,4 +181,29 @@ One correction to the plan text above: `on_notification` is not passed for
 every engine. The wrapper probes whether `execute_goal` accepts `on_progress`
 and passes it only then — 32 section-4 tests failed when it was assumed, which
 is the check that now guards it.
+
+### Day 5 outcome — the screenshot path (2026-10-26)
+
+The runtime did accept images all along: `run()` takes a content-block list, and
+the bundled runtime admits `{"type":"image","data":<canonical base64>,
+"mimeType":…}` for png/jpeg/webp/gif, then rewrites it into its own attachment
+store. What was missing was ours, exactly as this plan said.
+
+Shipped: the composer holds a picked screenshot, stores it through the existing
+artifact route once approve mints the run id, and the engine attaches it at
+execution. Limits are enforced twice (ours, then the runtime's), a
+non-vision-configured model is refused before the call rather than billed,
+`HARNESS_GOAL_IMAGES=0` disables the path, and contracts `1.0.0rc4` carries a
+`goal_images` event so the run page can say what the model saw and what was
+declined — including a resumed attempt not re-attaching the same picture.
+
+Still open here, stated plainly:
+
+- One image per goal in the UI; the backend accepts three.
+- The upload lands between approve and start, so a run started from another
+  client in that window goes text-only. Reported as `requested: 0`, not hidden.
+- The cross-replica resume case re-attaches: the "already sent" marker is
+  per-process, because nothing in the frozen schema records what a session saw.
+- No live acceptance evidence yet (M07) — this has never been sent to a real
+  vision model.
 

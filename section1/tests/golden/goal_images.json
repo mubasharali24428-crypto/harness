@@ -1,0 +1,11 @@
+{
+  "type": "goal_images",
+  "payload": {
+    "fixture": true
+  },
+  "ts": "2026-10-26T08:35:53.914178+00:00",
+  "seq": 7,
+  "projectId": "proj-golden",
+  "runId": "run-golden",
+  "schemaVersion": 1
+}

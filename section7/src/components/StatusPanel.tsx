@@ -62,6 +62,19 @@ export function StatusPanel({
         </p>
       )}
 
+      {derived.goalImages && (
+        <p data-testid="goal-images" style={{ margin: "0 0 10px 0", fontSize: 12, color: "var(--muted)" }}>
+          {derived.goalImages.attached > 0
+            ? `${derived.goalImages.attached} image${derived.goalImages.attached === 1 ? "" : "s"} with the goal`
+            : "no images reached the model"}
+          {derived.goalImages.skipped.length > 0 &&
+            ` · ${derived.goalImages.skipped.length} not sent (${derived.goalImages.skipped
+              .map((s) => `${s.name}: ${s.reason}`)
+              .join("; ")})`}
+          {derived.goalImages.refused && ` · ${derived.goalImages.refused}`}
+        </p>
+      )}
+
       {derived.blockerQuestion && (
         <div style={{ ...calloutStyle, borderColor: "var(--red)" }}>
           <strong>Blocked — awaiting clarification</strong>

@@ -331,6 +331,7 @@ class EngineRuntime:
         session_id: str,
         model: str | None = None,
         on_progress: Callable[[dict[str, Any]], None] | None = None,
+        images: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Run one engine call under breaker + deadline; result or raise.
 
@@ -349,6 +350,14 @@ class EngineRuntime:
             kwargs["model"] = model
         if on_progress is not None and accepts_keyword(engine.execute_goal, "on_progress"):
             kwargs["on_progress"] = on_progress
+        if images:
+            if accepts_keyword(engine.execute_goal, "images"):
+                kwargs["images"] = images
+            else:  # never drop a user's screenshot silently
+                logger.warning(
+                    "engine %s cannot accept goal images; sending text only",
+                    type(engine).__name__,
+                )
         call: Callable[[], dict[str, Any]] = partial(engine.execute_goal, **kwargs)
         # Submit directly so the thread's real lifetime is tracked: a cancelled
         # or timed-out await does NOT end the thread, and callers (stop) must

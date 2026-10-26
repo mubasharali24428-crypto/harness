@@ -10,6 +10,46 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W1 — a screenshot can travel with the goal (2026-10-26, contracts 1.0.0rc4)
+
+`readImage` was already on and the runtime already admits image content blocks,
+but nothing in this product ever attached one: "fix this UI, here's the
+screenshot" was impossible.
+
+#### Added
+
+- **`goal_images.py`**: a run's verified image artifacts become SDK content
+  blocks (`{"type":"image","data":<canonical base64>,"mimeType":…}`) at
+  execution time. Selection is bounded twice — our own
+  `HARNESS_GOAL_IMAGE_MAX_BYTES` / `_MAX_COUNT` / `_TOTAL_BYTES` and the
+  runtime's own image limits — and every image that does not travel is
+  reported with a reason. `HARNESS_VISION_MODELS`, when configured, refuses
+  before the call rather than paying for a rejection the runtime would file
+  anyway; `HARNESS_GOAL_IMAGES=0` turns the path off.
+- **Upload→model path** in section 7's composer: the picked file is stored via
+  the existing artifact route once approve mints the run id (no new endpoint,
+  no invented contract), then the engine hands it to the model at start.
+- **Contracts `1.0.0rc4`** (additive): `goal_images`, so "what did the agent
+  actually see" is durable and replayable rather than process memory. The
+  section 7 status panel renders attached/skipped/refused from that event.
+
+#### Fixed
+
+- A resumed run re-attached the same image into a continuing SDK session
+  (duplicate attachments). The first attempt of a session now owns the image.
+- **Review-found, test-confirmed:** the team filter was appended *after*
+  `ORDER BY`, which made the SQL a syntax error on the first real run — the
+  module-level tests could not see it because they never went through the
+  service. Service-level tests now pin the keyword actually reaching the
+  engine, the refusal-before-the-call, and the resume case.
+- `teamId` is a process stamp, not a durable column, so a replica that never
+  saw the bind would have selected nothing and said nothing. It now resolves
+  through the same durable witness the budget gate uses, and reports
+  `teamScoped: false` when only run scope is available.
+- Artifact bytes were read synchronously on the event loop; they now go
+  through a worker thread, and an expired-but-unpurged image is no longer sent
+  after the artifacts API has already 410'd it.
+
 ### W1 — the transcript is live, and compaction is visible (2026-10-26)
 
 The SDK emits turn events, but this wrapper dropped them: a run showed a

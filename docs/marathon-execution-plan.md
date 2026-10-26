@@ -48,7 +48,7 @@ after it supersedes five rows; the rest still stand.
 |---|---|---|
 | Live tool events | `_run_live_events` takes `on_progress` and forwards turn events; the isolated worker emits NDJSON `progress` lines | `section4/.../engine.py`, `engine_worker.py` (e610191) |
 | Tool-event contract | `tool_call`, `tool_result`, `context_compacted` exist in contracts `1.0.0rc3`, TS mirror regenerated, golden payloads in section1 | `contracts/`, `section1/tests/golden/` (e610191) |
-| Contract version | The package is `1.0.0rc3`, pinned in four places | `contracts/pyproject.toml` (e610191) |
+| Contract version | The package is `1.0.0rc4` (rc3 added the transcript events, rc4 added `goal_images`), pinned in four places | `contracts/pyproject.toml` |
 | Git context | `.git` now travels, after `_prepare_seeded_git` strips hooks, worktrees, submodule pointers and credential-bearing config keys | `engine.py` (8438b19) |
 | Output limit | The `4096` cap is gone; `HARNESS_SDK_MAX_TOKENS` sets the provider ceiling explicitly | `engine.py` (8438b19) |
 
@@ -60,6 +60,17 @@ that is evidence for that image revision, not a standing claim.
 Also superseded in the queue text: M04 describes the transcript as future work;
 the transport and UI landed in e610191. What remains from M04 is reconnect/replay
 deduplication evidence, not construction.
+
+M06 (goal image attachment) landed on 2026-10-26 in the same branch, and the
+package moved again to pay for it: contracts are now `1.0.0rc4` with a
+`goal_images` event. The queue's prerequisite line — "inspect existing
+upload/artifact authorization and SDK content blocks" — resolved as follows:
+the artifact route already did uploads, team scoping, magic-byte MIME
+verification and retention, so no new endpoint was added; the SDK's `run()`
+accepts a content-block list and the bundled runtime admits
+`{"type":"image","data":<canonical base64>,"mimeType":…}` for png/jpeg/webp/gif
+before rewriting it into its own attachment store. Evidence still owed on M06
+is the live one: an image actually reaching a vision model (M07).
 
 ## First implementation queue
 

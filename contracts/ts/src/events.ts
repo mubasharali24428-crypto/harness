@@ -19,6 +19,7 @@ export const EventType = {
   TOOL_CALL: "tool_call",
   TOOL_RESULT: "tool_result",
   CONTEXT_COMPACTED: "context_compacted",
+  GOAL_IMAGES: "goal_images",
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];

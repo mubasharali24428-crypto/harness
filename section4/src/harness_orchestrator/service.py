@@ -38,6 +38,7 @@ from harness_orchestrator.engine_runtime import (
     EngineRunTimeout,
     accepts_keyword,
 )
+from harness_orchestrator.goal_images import GoalImages, resolve_goal_images
 from harness_orchestrator.lifecycle import lifecycle_view
 from harness_orchestrator.planner import PlanNotApprovedError, PlanService
 from harness_orchestrator.redact import scrub_secrets
@@ -1261,12 +1262,55 @@ class OrchestratorService(Orchestrator):
 
                     progress_kwargs["on_progress"] = _progress
                     forwarder = asyncio.create_task(_forward_tool_records())
+                # M06: the goal may carry screenshots. Resolution reads only
+                # artifacts this run owns and reports everything it declines;
+                # an engine that cannot take images never has them resolved.
+                run_model = await self._team_model_for_run(run_id)
+                if accepts_keyword(getattr(self.engine, "execute_goal", None), "images"):
+                    # teamId is this process's stamp and is not a durable
+                    # column: a replica that never saw the bind, or a resume
+                    # after a restart, resolves it the way the budget gate does.
+                    team_id = run_data.get("teamId") or await self._team_for_run(run_data)
+                    if run_data.get("_goal_images_sent"):
+                        # The SDK session continues across a resume, so the
+                        # image is already in its history. Re-sending it would
+                        # attach the same screenshot twice to one conversation.
+                        # Known limit, stated rather than papered over: this
+                        # marker is per-process. A resume that lands on a
+                        # DIFFERENT replica re-attaches, because nothing in the
+                        # frozen schema records what a session already saw.
+                        images = GoalImages(team_scoped=bool(team_id))
+                    else:
+                        images = await resolve_goal_images(
+                            self.session_factory, run_id, team_id, run_model
+                        )
+                    if images.refused:
+                        reason = f"execution refused: {images.refused}"
+                        run_data["engine_result"] = {
+                            "sessionId": run_id,
+                            "engine": "image_policy",
+                            "status": "error",
+                            "finalResponse": reason,
+                        }
+                        sm.execution_failed(reason)
+                        return
+                    if images.blocks:
+                        progress_kwargs["images"] = images.blocks
+                        run_data["_goal_images_sent"] = True
+                else:
+                    images = None
+                run_data["goalImages"] = images.summary() if images is not None else None
+                if images is not None and (images.selected or images.skipped):
+                    # Durable, because "the agent ignored my screenshot" is a
+                    # claim about what happened, not about this process's
+                    # memory: a replayed run must reproduce it.
+                    self._emit(EventType.GOAL_IMAGES, {"runId": run_id, **images.summary()})
                 try:
                     result = await self.engine_runtime.run(
                         self.engine,
                         goal=plan.goal + extra,
                         session_id=run_id,
-                        model=await self._team_model_for_run(run_id),
+                        model=run_model,
                         **progress_kwargs,
                     )
                 finally:
@@ -1280,6 +1324,13 @@ class OrchestratorService(Orchestrator):
                             break
                     if forwarder is not None:
                         forwarder.cancel()
+                if isinstance(result, dict) and images is not None and (
+                    images.selected or images.skipped
+                ):
+                    # What the model actually saw, and what it did not: the
+                    # run page shows this instead of letting a skipped
+                    # screenshot read as if it had been understood.
+                    result = {**result, "goalImages": images.summary()}
                 context = result.get("context") if isinstance(result, dict) else None
                 if isinstance(context, dict) and context.get("compactions"):
                     self._emit(

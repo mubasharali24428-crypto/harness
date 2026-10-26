@@ -20,6 +20,15 @@ export interface ToolCallView {
   durationMs: number | null;
 }
 
+export interface GoalImagesView {
+  /** Image content blocks the model was actually handed. */
+  attached: number;
+  /** Images that existed for this run but did not travel, with the reason. */
+  skipped: { artifactId: string; name: string; reason: string }[];
+  /** Set when the deployment refused images entirely (e.g. model has no vision). */
+  refused: string | null;
+}
+
 export interface WorkingAreaDerivedView {
   blockerQuestion: string | null;
   lastReview: LastReview | null;
@@ -32,6 +41,8 @@ export interface WorkingAreaDerivedView {
   contextWindow: number | null;
   /** Tokens summarised away by compaction so far (summed across compactions). */
   compactedTokens: number;
+  /** What the model was shown besides text, or null when no attempt reported. */
+  goalImages: GoalImagesView | null;
 }
 
 const TERMINAL_LINE_CAP = 200;
@@ -54,6 +65,7 @@ export function deriveWorkingAreaView(events: EventEnvelope[]): WorkingAreaDeriv
   const toolCallStart = new Map<string, number>();
   let contextWindow: number | null = null;
   let compactedTokens = 0;
+  let goalImages: GoalImagesView | null = null;
 
   for (const evt of events) {
     const payload = evt.payload ?? {};
@@ -84,6 +96,26 @@ export function deriveWorkingAreaView(events: EventEnvelope[]): WorkingAreaDeriv
       if (typeof payload.contextWindow === "number") contextWindow = payload.contextWindow;
       const tokens = payload.compactedTokens;
       if (typeof tokens === "number" && tokens > 0) compactedTokens += tokens;
+    } else if (evt.type === EventType.GOAL_IMAGES) {
+      const attached = typeof payload.attached === "number" ? payload.attached : 0;
+      const skipped = Array.isArray(payload.skipped) ? payload.skipped : [];
+      const refused = typeof payload.refused === "string" ? payload.refused : null;
+      // A later attempt that reports nothing does not erase an earlier one:
+      // a resumed run legitimately sends no new image, and showing "no images"
+      // after the user's screenshot was already in the session would be a lie.
+      if (attached > 0 || skipped.length > 0 || refused !== null) {
+        goalImages = {
+          attached,
+          skipped: skipped
+            .filter((s): s is Record<string, unknown> => typeof s === "object" && s !== null)
+            .map((s) => ({
+              artifactId: typeof s.artifactId === "string" ? s.artifactId : "",
+              name: typeof s.name === "string" ? s.name : "image",
+              reason: typeof s.reason === "string" ? s.reason : "not sent",
+            })),
+          refused,
+        };
+      }
     } else if (evt.type === EventType.TOOL_CALL) {
       const callId = typeof payload.callId === "string" ? payload.callId : "";
       if (callId && !byCallId.has(callId)) {
@@ -130,5 +162,6 @@ export function deriveWorkingAreaView(events: EventEnvelope[]): WorkingAreaDeriv
     toolCalls,
     contextWindow,
     compactedTokens,
+    goalImages,
   };
 }

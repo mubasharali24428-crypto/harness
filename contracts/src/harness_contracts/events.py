@@ -34,6 +34,15 @@ class EventType(StrEnum):
     # {runId, compactions, compactedTokens, at}. Emitted per run completion, not
     # per compaction, so a transcript reads as one fact rather than a stream.
     CONTEXT_COMPACTED = "context_compacted"
+    # W1 (contracts 1.0.0rc4, additive): what the model was actually shown
+    # besides text. Emitted once per execution attempt that resolved goal
+    # images. Payload: {runId, requested, attached, skipped:[{artifactId,
+    # name, reason}], refused, teamScoped}. `attached` counts image content
+    # blocks handed to the SDK; every image that did not travel is in
+    # `skipped` with the reason, so an over-limit screenshot reads as a
+    # reported decline instead of a picture the agent apparently ignored.
+    # The bytes themselves are never in this event — only ids and names.
+    GOAL_IMAGES = "goal_images"
 
 
 EVENT_TYPES = frozenset(EventType)

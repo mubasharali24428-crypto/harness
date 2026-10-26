@@ -27,9 +27,12 @@ import {
   classifyGatePhase,
   gateActionsFor,
   gateCaption,
+  GOAL_IMAGE_TYPES,
+  goalImageRejection,
   proposePlan,
   rejectPlan,
   startRun,
+  uploadGoalImage,
   type GateActions,
   type GateRole,
   type PlanGatePhase,
@@ -116,6 +119,12 @@ export function PlanGateCard({
   onAfterAction?: () => void;
 }) {
   const [goalDraft, setGoalDraft] = useState("");
+  // M06 — a screenshot picked in the composer travels with the goal: it is
+  // uploaded to the server-minted run at approve time (the artifact route
+  // needs a run id, which only exists after approve) and the engine puts it
+  // into the model call at start.
+  const [goalImage, setGoalImage] = useState<File | null>(null);
+  const [goalImageError, setGoalImageError] = useState<string | null>(null);
   const [proposed, setProposed] = useState<AgentPlan | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -186,6 +195,17 @@ export function PlanGateCard({
           const res = await approvePlan(planId, token);
           setActiveRunId(res.runId);
           setRunId(res.runId);
+          // The approval stands even if the screenshot cannot be stored: a
+          // text-only run is honest, a rolled-back approval would not be.
+          if (goalImage) {
+            try {
+              await uploadGoalImage(res.runId, token, goalImage);
+              setGoalImage(null);
+              setGoalImageError(null);
+            } catch (err) {
+              setGoalImageError(err instanceof ApiError ? err.message : String(err));
+            }
+          }
           setStatus(await getRunStatus(res.runId, token));
           setOptimisticPhase(null);
         } catch (err) {
@@ -236,6 +256,12 @@ export function PlanGateCard({
       plan={proposed}
       goalDraft={goalDraft}
       onGoalDraftChange={setGoalDraft}
+      goalImage={goalImage}
+      onGoalImageChange={(file) => {
+        setGoalImageError(file ? goalImageRejection(file) : null);
+        setGoalImage(file && !goalImageRejection(file) ? file : null);
+      }}
+      goalImageError={goalImageError}
       busyAction={busyAction}
       error={error}
       note={note}
@@ -257,6 +283,9 @@ export function PlanGateView({
   plan,
   goalDraft,
   onGoalDraftChange,
+  goalImage,
+  onGoalImageChange,
+  goalImageError,
   busyAction,
   error,
   note,
@@ -271,6 +300,10 @@ export function PlanGateView({
   plan: Pick<AgentPlan, "goal"> | null;
   goalDraft: string;
   onGoalDraftChange: (goal: string) => void;
+  /** M06 — the picked screenshot, held until the run id exists. */
+  goalImage?: File | null;
+  onGoalImageChange?: (file: File | null) => void;
+  goalImageError?: string | null;
   busyAction: string | null;
   error: string | null;
   note: string | null;
@@ -320,6 +353,35 @@ export function PlanGateView({
             rows={3}
             disabled={busyAction !== null}
           />
+          {/* M06 — "fix this UI, here's the screenshot": the file is uploaded
+              with the run once approve mints its id. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+            <label style={{ color: "var(--muted)", fontSize: 12 }}>
+              Attach a screenshot
+              <input
+                type="file"
+                accept={GOAL_IMAGE_TYPES.join(",")}
+                data-testid="goal-image-input"
+                disabled={busyAction !== null || !onGoalImageChange}
+                onChange={(e) => onGoalImageChange?.(e.target.files?.[0] ?? null)}
+              />
+            </label>
+            {goalImage && <span style={{ fontSize: 12 }}>{goalImage.name}</span>}
+            {(goalImage || goalImageError) && (
+              <button
+                type="button"
+                style={{ background: "none", border: 0, color: "var(--muted)", fontSize: 12 }}
+                onClick={() => onGoalImageChange?.(null)}
+              >
+                remove
+              </button>
+            )}
+          </div>
+          {goalImageError && (
+            <p role="alert" style={{ color: "var(--danger)", fontSize: 12, margin: "4px 0 0" }}>
+              {goalImageError}
+            </p>
+          )}
           <div
             style={{
               display: "flex",
@@ -401,6 +463,14 @@ export function PlanGateView({
       {error && (
         <p style={{ color: "var(--red)", fontSize: 13, margin: "10px 0 0" }} role="alert">
           {error}
+        </p>
+      )}
+      {/* M06 — an upload that fails AFTER approval is the case the composer
+          cannot show: by then the composer is unmounted, and silence would
+          leave "plan approved" reading as "screenshot attached". */}
+      {goalImageError && !showProposeForm && (
+        <p data-testid="goal-image-error" style={{ color: "var(--red)", fontSize: 13, margin: "10px 0 0" }} role="alert">
+          {goalImageError} The plan is approved; the run will go ahead without the image.
         </p>
       )}
     </section>

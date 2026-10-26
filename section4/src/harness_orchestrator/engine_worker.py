@@ -4,6 +4,11 @@ Reads ONE JSON request line on stdin, runs the SDK call in-process (this
 process is the OS-confined, killable unit), writes NDJSON progress lines as the
 runtime reports tool calls, then ONE result line — all on stdout. Credentials
 arrive via the scrubbed environment, never argv or logs.
+
+Goal images arrive in that same request line as base64 blocks (this process is
+confined away from the shared artifact store, so it cannot read them itself).
+They are written to the SDK and never echoed: not into progress lines, not into
+the result line, not into any log.
 """
 
 from __future__ import annotations
@@ -31,7 +36,11 @@ def main() -> int:
         sys.stdout.flush()
 
     text, status, used, events = wrapper._run_live_events(
-        req["goal"], req["session_id"], model=req["model"], on_progress=emit_progress
+        req["goal"],
+        req["session_id"],
+        model=req["model"],
+        on_progress=emit_progress,
+        images=req.get("images") or None,
     )
     sys.stdout.write(
         json.dumps({"text": text, "status": status, "model": used, "events": events}, default=str)

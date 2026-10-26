@@ -160,3 +160,26 @@ rebuild commit so it does not ride along inside an unrelated PR.
 - [ ] **Wheel cache for air-gapped/CI builds** (owner: deploy). Same root
   cause; a `PIP_FIND_LINKS` build arg plus a mounted wheel dir makes repeat
   builds minutes instead of half an hour.
+
+## From W1 Day 5 (goal images, 2026-10-26)
+
+- [ ] **The composer takes one image; the backend accepts three** (owner: S7).
+  `HARNESS_GOAL_IMAGE_MAX_COUNT` defaults to 3 and `goal_images.py` honours it
+  oldest-first, but the picker holds a single `File` and the client cap is
+  4 MiB while the server cap is env-tunable. Either widen the picker or serve
+  the limits from the API so the client stops mirroring a default.
+- [ ] **Upload window between approve and start** (owner: S4+S7). The artifact
+  route needs a run id, and the plan-gate response only returns `planId`, so a
+  screenshot can only be stored after approval. A run started from another
+  client in that window goes text-only (visible as `requested: 0`, not hidden).
+  Returning `runId` from `POST /plans` removes the window.
+- [ ] **A resume on a different replica re-attaches the image** (owner: S4).
+  The "already sent" marker is per-process because the frozen schema records no
+  per-session attachment fact. Either add that fact to `agent_events` or accept
+  the duplicate and say so in the run page.
+- [ ] **Worker stderr tail lands in `finalResponse`** (owner: S4). Bounded to
+  500 chars and scrubbed, but a runtime that echoed the prompt in a debug mode
+  would put truncated base64 into the durable result. Confirm the runtime never
+  logs prompt bodies before widening image limits.
+- [ ] **No live evidence that a vision model received one** (owner: S10). Blocks
+  M06's completion evidence and is part of M07's acceptance run.

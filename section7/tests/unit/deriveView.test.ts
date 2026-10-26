@@ -177,4 +177,51 @@ describe("deriveWorkingAreaView — context window", () => {
     const view = deriveWorkingAreaView([evt(1, EventType.EXECUTION_STARTED)]);
     expect(view.contextWindow).toBeNull();
   });
+
+  it("reports nothing about goal images when no attempt mentioned them", () => {
+    expect(deriveWorkingAreaView([evt(1, EventType.EXECUTION_STARTED)]).goalImages).toBeNull();
+  });
+
+  it("shows the attached count and every declined image with its reason", () => {
+    const view = deriveWorkingAreaView([
+      evt(1, EventType.GOAL_IMAGES, {
+        requested: 3,
+        attached: 1,
+        refused: null,
+        teamScoped: true,
+        skipped: [
+          { artifactId: "a2", name: "huge.png", reason: "larger than 4194304 bytes" },
+          { artifactId: "a3", name: "second.png", reason: "image count limit" },
+        ],
+      }),
+    ]);
+    expect(view.goalImages).not.toBeNull();
+    expect(view.goalImages?.attached).toBe(1);
+    expect(view.goalImages?.skipped.map((s) => s.name)).toEqual(["huge.png", "second.png"]);
+    expect(view.goalImages?.refused).toBeNull();
+  });
+
+  it("keeps the earlier attachment report when a resumed attempt sends none", () => {
+    const view = deriveWorkingAreaView([
+      evt(1, EventType.GOAL_IMAGES, { attached: 1, skipped: [], refused: null }),
+      evt(2, EventType.GOAL_IMAGES, { attached: 0, skipped: [], refused: null }),
+    ]);
+    expect(view.goalImages?.attached).toBe(1);
+  });
+
+  it("surfaces a deployment-level refusal", () => {
+    const view = deriveWorkingAreaView([
+      evt(1, EventType.GOAL_IMAGES, {
+        attached: 0,
+        skipped: [],
+        refused: "model x is not in HARNESS_VISION_MODELS; goal images were not sent",
+      }),
+    ]);
+    expect(view.goalImages?.refused).toContain("HARNESS_VISION_MODELS");
+  });
+
+  it("ignores a malformed payload instead of inventing one", () => {
+    const view = deriveWorkingAreaView([evt(1, EventType.GOAL_IMAGES, { attached: "many" })]);
+    expect(view.goalImages).toBeNull();
+  });
 });

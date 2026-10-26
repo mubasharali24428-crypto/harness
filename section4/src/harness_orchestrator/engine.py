@@ -190,6 +190,20 @@ def _content_preview(content: Any, limit: int = 4000) -> str:
     return "\n".join(parts)[:limit]
 
 
+def _prompt_input(
+    goal: str, images: list[dict[str, Any]] | None
+) -> str | list[dict[str, Any]]:
+    """The SDK's ``run`` input for one goal.
+
+    Text-only stays a bare string — the byte-for-byte historical shape. With
+    images the runtime wants the ACP block list, and the text block must come
+    first so the instruction is read before the picture it refers to.
+    """
+    if not images:
+        return goal
+    return [{"type": "text", "text": goal}, *images]
+
+
 def _notification_events(payload: Any) -> list[dict[str, Any]]:
     """Every plausible session-event shape inside one SDK notification payload.
 
@@ -506,8 +520,15 @@ class DeepSeekHarnessWrapper:
         session_id: str,
         model: str,
         on_progress: Callable[[dict[str, Any]], None] | None = None,
+        images: list[dict[str, Any]] | None = None,
     ) -> tuple[str, str, str | None, list[Any]]:
-        """Run the SDK call in a confined, killable worker process (B2/B4)."""
+        """Run the SDK call in a confined, killable worker process (B2/B4).
+
+        Goal images ride the request line as base64 rather than as artifact
+        references: the worker is OS-confined to this run's workspace/session
+        and cannot read the shared artifact store, and it must not be given a
+        path into it.
+        """
         boundary = None
         try:
             workspace = self.run_workspace(session_id)
@@ -567,6 +588,7 @@ class DeepSeekHarnessWrapper:
                     "workspace_root": os.path.realpath(self.workspace),
                     "session_root": os.path.realpath(self.session_root),
                     "shell_policy": self._shell_policies.get(session_id),
+                    "images": images or [],
                 }
             )
             with self._proc_lock:
@@ -726,6 +748,7 @@ class DeepSeekHarnessWrapper:
         session_id: str = "session-001",
         model: str | None = None,
         on_progress: Callable[[dict[str, Any]], None] | None = None,
+        images: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         # A per-run/team choice wins over the deployment default. ``None``
         # keeps the exact historical behavior.
@@ -744,6 +767,8 @@ class DeepSeekHarnessWrapper:
                 live_kwargs: dict[str, Any] = {"model": effective_model}
                 if on_progress is not None:
                     live_kwargs["on_progress"] = on_progress
+                if images:
+                    live_kwargs["images"] = images
                 result_text, status, used_model, events = self._run_live_events(
                     goal, session_id, **live_kwargs
                 )
@@ -908,6 +933,7 @@ class DeepSeekHarnessWrapper:
         session_id: str,
         model: str | None = None,
         on_progress: Callable[[dict[str, Any]], None] | None = None,
+        images: list[dict[str, Any]] | None = None,
     ) -> tuple[str, str, str | None, list[Any]]:
         """One attempt against exactly one model — no ladder, no retries on
         other models. Returns (text, status, model_that_answered, events); the
@@ -921,10 +947,16 @@ class DeepSeekHarnessWrapper:
         the run and anything not already sent is pushed as a final sweep — a
         provider or runtime that ignores the notification channel still yields
         a complete transcript, just not a live one.
+
+        ``images`` are SDK image content blocks (``{"type": "image", "data":
+        <canonical base64>, "mimeType": ...}``) attached to the same prompt as
+        the goal. They are validated by ``goal_images`` before they get here;
+        the runtime rewrites them into its own attachment store, so the base64
+        exists only in this call's transport.
         """
         model = model or self.model
         if self.isolated:
-            return self._run_isolated(goal, session_id, model, on_progress)
+            return self._run_isolated(goal, session_id, model, on_progress, images)
         try:
             from deepseek_harness import DeepSeekHarness
 
@@ -993,7 +1025,7 @@ class DeepSeekHarnessWrapper:
                 run_kwargs: dict[str, Any] = {"session_id": session_id}
                 if on_progress is not None:
                     run_kwargs["on_notification"] = _notify
-                result = harness.run(goal, **run_kwargs)
+                result = harness.run(_prompt_input(goal, images), **run_kwargs)
             text = result.final_response
             events = list(result.events or [])
             for record in self._tool_records(events):  # final sweep: nothing lost
