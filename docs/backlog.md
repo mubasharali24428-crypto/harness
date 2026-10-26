@@ -444,3 +444,24 @@ rotation), section2 48, section3 128, section4 1722, section5 319, section6 123,
 section8 91, section10 91 and mcp 18 once `NO_PROXY` is sanitized, section11 50.
 The M07 `engine-worker` compose service had quietly broken Section 1's two
 stack-law tests; that was this branch's regression and it is fixed.
+
+## From the whole-project test run (docs/test-report-2026-10-26.md)
+
+- [ ] **`env_client` belongs in `harness_contracts`, not in three more sections**
+  (owner: S1 + affected sections). The bracketed-IPv6 `NO_PROXY` failure that
+  turned SSO login into a 500 is reproduced in **section10 (4 tests), section11
+  (1) and the MCP server (3 failed + 15 errors)** — all green with the variable
+  unset, all dying at `httpx` client construction with it set. That is a runtime
+  shape, not a test shape: a deployment inheriting Docker Desktop's
+  `NO_PROXY=[::1]` breaks the same way. Copying Section 1's helper into each
+  service multiplies exactly the drift the isolation guard exists to prevent, so
+  the fix is a contracts addition — which requires a version bump, regenerated
+  TS mirror and golden/mock conformance in the same change. Not done here: that
+  is a deliberate contract move, not a patch.
+
+- [ ] **`test_ws_replay_cap.py::test_resume_never_resends_at_or_below_afterseq_during_concurrent_publish`
+  is load/order dependent** (owner: S1). Passes 5/5 in isolation; failed once in
+  a full section1 run and passed in another. Same class as the two Section 4
+  flakes fixed today, and it sits in the reconnect/replay-dedup area W1 recorded
+  as verified only in the reducer. Reproduce by widening its timing window rather
+  than re-running, as with the Section 4 pair.
