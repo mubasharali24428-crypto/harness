@@ -32,6 +32,14 @@ class CreateTaskRequest(typing.TypedDict, total=False):
     resume: bool
     taskId: str  # required
 
+class Diagnostic(typing.TypedDict, total=False):
+    """Diagnostic. Required keys: message."""
+    col: int | None
+    kind: typing.Literal['error', 'warning', 'note']
+    line: int | None
+    message: str  # required
+    path: str | None
+
 class ExecCommandRequest(typing.TypedDict, total=False):
     """ExecCommandRequest. Required keys: command."""
     command: str  # required
@@ -40,9 +48,20 @@ class HTTPValidationError(typing.TypedDict, total=False):
     """HTTPValidationError."""
     detail: list[ValidationError]
 
+class HunkRef(typing.TypedDict, total=False):
+    """HunkRef. Required keys: path, index."""
+    index: int  # required
+    path: str  # required
+
+class RevertHunksRequest(typing.TypedDict, total=False):
+    """RevertHunksRequest. Required keys: hunks."""
+    hunks: list[HunkRef]  # required
+
 class StructuredExecResult(typing.TypedDict, total=False):
     """StructuredExecResult. Required keys: status, exit_code."""
-    diagnostics: list[str]
+    diagnostics: list[Diagnostic]
+    diagnostics_source: typing.Literal['protocol', 'located', 'scan', 'none']
+    diagnostics_truncated: bool
     duration_ms: int
     exit_code: int  # required
     failed_count: int
@@ -133,6 +152,30 @@ class SandboxClient:
         _path = f"/api/v1/sandbox/{project_id}/checkpoints/{sha}/diff"
         return self._http.request(self.base_url, "GET", _path)
 
+    def checkpoint_hunks(self, project_id: str, sha: str) -> dict[str, typing.Any]:
+        """Checkpoint Hunks
+
+        GET /api/v1/sandbox/{projectId}/checkpoints/{sha}/hunks
+        """
+        _path = f"/api/v1/sandbox/{project_id}/checkpoints/{sha}/hunks"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def checkpoint_restore(self, project_id: str, sha: str) -> dict[str, typing.Any]:
+        """Checkpoint Restore
+
+        POST /api/v1/sandbox/{projectId}/checkpoints/{sha}/restore
+        """
+        _path = f"/api/v1/sandbox/{project_id}/checkpoints/{sha}/restore"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def checkpoint_revert(self, project_id: str, sha: str, body: RevertHunksRequest) -> dict[str, typing.Any]:
+        """Checkpoint Revert
+
+        POST /api/v1/sandbox/{projectId}/checkpoints/{sha}/revert
+        """
+        _path = f"/api/v1/sandbox/{project_id}/checkpoints/{sha}/revert"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
     def get_project_tree(self, project_id: str, path: str | None = None) -> TreeListing:
         """Get Project Tree
 
@@ -159,4 +202,4 @@ class SandboxClient:
         return self._http.request(self.base_url, "GET", _path)
 
 
-__all__ = ["SandboxClient", "ApplyEditRequest", "CreateTaskRequest", "ExecCommandRequest", "HTTPValidationError", "StructuredExecResult", "TaskHandle", "TreeEntry", "TreeListing", "ValidationError"]
+__all__ = ["SandboxClient", "ApplyEditRequest", "CreateTaskRequest", "Diagnostic", "ExecCommandRequest", "HTTPValidationError", "HunkRef", "RevertHunksRequest", "StructuredExecResult", "TaskHandle", "TreeEntry", "TreeListing", "ValidationError"]

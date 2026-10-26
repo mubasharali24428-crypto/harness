@@ -26,6 +26,7 @@ class CallModelRequest(typing.TypedDict, total=False):
     model: str | None
     opts: ModelCallOpts | None
     role: ModelRole  # required
+    runId: str | None
 
 class ConfigureRoleModelRequest(typing.TypedDict, total=False):
     """ConfigureRoleModelRequest. Required keys: role, model."""
@@ -48,6 +49,12 @@ class ModelCallOpts(typing.TypedDict, total=False):
     extra: dict[str, typing.Any] | None
     maxTokens: int
     temperature: float | None
+
+class ModelPrefsBody(typing.TypedDict, total=False):
+    """ModelPrefsBody. Required keys: primaryModel, reviewerModel."""
+    primaryModel: str  # required
+    reasoningEffort: typing.Literal['off', 'low', 'medium', 'high']
+    reviewerModel: str  # required
 
 class ModelResult(typing.TypedDict, total=False):
     """ModelResult. Required keys: text, costUsd, model, latencyMs."""
@@ -79,14 +86,22 @@ class SpendErrorEnvelope(typing.TypedDict, total=False):
     error: SpendErrorDetail  # required
 
 class SpendSummaryResponse(typing.TypedDict, total=False):
-    """SpendSummaryResponse. Required keys: totals."""
+    """SpendSummaryResponse. Required keys: totals, unattributed."""
     byDay: list[SpendByDay]
     byModel: list[SpendByModel]
     totals: SpendTotals  # required
+    unattributed: UnattributedSpend  # required
     unwired: bool
 
 class SpendTotals(typing.TypedDict, total=False):
     """SpendTotals. Required keys: inputTokens, outputTokens, costUsd."""
+    costUsd: float  # required
+    inputTokens: int  # required
+    outputTokens: int  # required
+
+class UnattributedSpend(typing.TypedDict, total=False):
+    """UnattributedSpend. Required keys: calls, inputTokens, outputTokens, costUsd."""
+    calls: int  # required
     costUsd: float  # required
     inputTokens: int  # required
     outputTokens: int  # required
@@ -156,6 +171,22 @@ class RouterClient:
         _path = "/api/v1/models/metrics"
         return self._http.request(self.base_url, "GET", _path)
 
+    def get_model_prefs(self) -> dict[str, typing.Any]:
+        """Get Model Prefs
+
+        GET /api/v1/models/prefs
+        """
+        _path = "/api/v1/models/prefs"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def put_model_prefs(self, body: ModelPrefsBody) -> dict[str, typing.Any]:
+        """Put Model Prefs
+
+        PUT /api/v1/models/prefs
+        """
+        _path = "/api/v1/models/prefs"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
+
     def model_spend(self, team_id: str | None = None, project_id: str | None = None, since_days: int | None = None) -> SpendSummaryResponse:
         """Model Spend
 
@@ -182,4 +213,4 @@ class RouterClient:
         return self._http.request(self.base_url, "GET", _path)
 
 
-__all__ = ["RouterClient", "CallModelRequest", "ConfigureRoleModelRequest", "EstimateCostRequest", "HTTPValidationError", "ModelCallOpts", "ModelResult", "ModelRole", "SpendByDay", "SpendByModel", "SpendErrorDetail", "SpendErrorEnvelope", "SpendSummaryResponse", "SpendTotals", "ValidationError"]
+__all__ = ["RouterClient", "CallModelRequest", "ConfigureRoleModelRequest", "EstimateCostRequest", "HTTPValidationError", "ModelCallOpts", "ModelPrefsBody", "ModelResult", "ModelRole", "SpendByDay", "SpendByModel", "SpendErrorDetail", "SpendErrorEnvelope", "SpendSummaryResponse", "SpendTotals", "UnattributedSpend", "ValidationError"]

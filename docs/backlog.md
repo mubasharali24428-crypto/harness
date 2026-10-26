@@ -124,3 +124,26 @@ router. Three follow-ups were left open deliberately, not by omission:
   still cannot point a provider at their own base URL (Azure resource, Bedrock
   region); it stays operator env because a team-supplied URL is an SSRF
   surface. Needs an allow-list or an out-of-band approval step first.
+
+## From the 2026-10-25 H1 tool-output protocol
+
+The contract itself is shipped (`docs/tool-diagnostics-protocol.md`). Three
+pieces of it are deliberately later, and none should be improvised mid-week:
+
+- [ ] **Promote `Diagnostic` into `harness_contracts`** (owner: S4 + S5, with
+  the W2 tool-event bump). It stays section-local until a second section
+  consumes it — the promotion would otherwise force the atomic four-way
+  contract version bump outside the two bumps the roadmap schedules.
+- [ ] **Differential gate as review evidence** (owner: S4, W2). Baseline vs
+  patched output over the run's corpus, plus a scheduled planted-defect drill
+  so the gate's detecting power is measured rather than assumed. Today the
+  pattern is applied to the diagnostic parser only.
+- [ ] **Our own sandbox tools emit the contract** (owner: S5, W1). fs, glob/grep
+  and web wrappers should print `{path,line,col,kind,message}` on stderr so
+  `diagnostics_source` is `protocol` by construction for first-party tools.
+
+While regenerating the SDKs above, the committed `clients/ts/dist` turned out to
+be stale for several sections (identity/agents operations and the SDK version
+string predate it). Only the two `dist` files this change touches were rebuilt —
+`dist` for the other sections is still behind `src` and needs one dedicated
+rebuild commit so it does not ride along inside an unrelated PR.

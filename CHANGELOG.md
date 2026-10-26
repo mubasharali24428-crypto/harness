@@ -10,6 +10,39 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Tool-output protocol — structured diagnostics instead of scraping (2026-10-25)
+
+`docs/tool-diagnostics-protocol.md`. Hermes' `hermesc --json` contract adopted
+verbatim (roadmap H1): `{path,line,col,kind,message}` on stderr, the program's
+output on stdout, never mixed.
+
+#### Changed
+
+- `StructuredExecResult.diagnostics` is a list of records, not strings — with
+  `diagnostics_source` (`protocol` / `located` / `scan` / `none`) recording how
+  the parser got them, and `diagnostics_truncated` when the 20-record display
+  cap drops the rest. A record with no position says so instead of carrying a
+  guess; `kind` defaults to `error` so an unknown severity is never softened.
+- Diagnostics are read from stderr for the two structured tiers. Only the
+  keyword `scan` fallback reads stdout, because test runners print their
+  summary there — and the API now labels that case.
+- `parse_output` (an unused alias flagged as an orphan in
+  `docs/briefs/m17-findings-pbeta.md`) removed.
+- Python and TypeScript SDK clients regenerated — this also picks up drift that
+  predated this change: the router clients were missing `runId`,
+  `ModelPrefsBody` and `unattributed` spend, and the sandbox client was missing
+  the checkpoint hunk/restore operations already served by the API.
+
+#### Added
+
+- `render_diagnostics_json()` — the emitter half, so a tool that speaks the
+  contract round-trips through the parser (`emit → parse` is an identity).
+- A seeded corpus of nine tool outputs across all three tiers, with a test that
+  asserts the corpus exercises every tier — the "validate the validator" step
+  applied to the parser before it becomes a review gate.
+- Terminal panel renders `path:line:col`, the kind and the message per
+  diagnostic, plus a plain note when positions came from scanning.
+
 ### Provider registry — 65 providers, three wire protocols (2026-10-25)
 
 `docs/providers.md`. Until now the router had one outbound target —

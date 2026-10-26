@@ -43,6 +43,24 @@ export class SandboxClient {
         const _path = `/api/v1/sandbox/${encodeURIComponent(project_id)}/checkpoints/${encodeURIComponent(sha)}/diff`;
         return this.http.request(this.baseUrl, _path, "GET", undefined);
     }
+    /** Checkpoint Hunks
+     *  GET /api/v1/sandbox/{projectId}/checkpoints/{sha}/hunks */
+    checkpoint_hunks(project_id, sha) {
+        const _path = `/api/v1/sandbox/${encodeURIComponent(project_id)}/checkpoints/${encodeURIComponent(sha)}/hunks`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
+    /** Checkpoint Restore
+     *  POST /api/v1/sandbox/{projectId}/checkpoints/{sha}/restore */
+    checkpoint_restore(project_id, sha) {
+        const _path = `/api/v1/sandbox/${encodeURIComponent(project_id)}/checkpoints/${encodeURIComponent(sha)}/restore`;
+        return this.http.request(this.baseUrl, _path, "POST", undefined);
+    }
+    /** Checkpoint Revert
+     *  POST /api/v1/sandbox/{projectId}/checkpoints/{sha}/revert */
+    checkpoint_revert(project_id, sha, body) {
+        const _path = `/api/v1/sandbox/${encodeURIComponent(project_id)}/checkpoints/${encodeURIComponent(sha)}/revert`;
+        return this.http.request(this.baseUrl, _path, "POST", body);
+    }
     /** Get Project Tree
      *  GET /api/v1/sandbox/{projectId}/tree */
     get_project_tree(project_id, path) {
@@ -56,13 +74,22 @@ export class SandboxClient {
         const _path = `/health`;
         return this.http.request(this.baseUrl, _path, "GET", undefined);
     }
+    /** Ready
+     *  GET /ready */
+    ready_ready_get() {
+        const _path = `/ready`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
 }
 /* Module surface (mirrors __all__ in clients/python):
  * export class SandboxClient
  * export interface/type ApplyEditRequest
  * export interface/type CreateTaskRequest
+ * export interface/type Diagnostic
  * export interface/type ExecCommandRequest
  * export interface/type HTTPValidationError
+ * export interface/type HunkRef
+ * export interface/type RevertHunksRequest
  * export interface/type StructuredExecResult
  * export interface/type TaskHandle
  * export interface/type TreeEntry

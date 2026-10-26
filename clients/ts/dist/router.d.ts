@@ -17,6 +17,7 @@ export interface CallModelRequest {
     model?: string | null;
     opts?: ModelCallOpts | null;
     role: ModelRole;
+    runId?: string | null;
 }
 /** ConfigureRoleModelRequest. Required keys: model, role. */
 export interface ConfigureRoleModelRequest {
@@ -41,6 +42,12 @@ export interface ModelCallOpts {
     } | null;
     maxTokens?: number;
     temperature?: number | null;
+}
+/** ModelPrefsBody. Required keys: primaryModel, reviewerModel. */
+export interface ModelPrefsBody {
+    primaryModel: string;
+    reasoningEffort?: "off" | "low" | "medium" | "high";
+    reviewerModel: string;
 }
 /** ModelResult. Required keys: costUsd, latencyMs, model, text. */
 export interface ModelResult {
@@ -71,15 +78,23 @@ export interface SpendErrorDetail {
 export interface SpendErrorEnvelope {
     error: SpendErrorDetail;
 }
-/** SpendSummaryResponse. Required keys: totals. */
+/** SpendSummaryResponse. Required keys: totals, unattributed. */
 export interface SpendSummaryResponse {
     byDay?: SpendByDay[];
     byModel?: SpendByModel[];
     totals: SpendTotals;
+    unattributed: UnattributedSpend;
     unwired?: boolean;
 }
 /** SpendTotals. Required keys: costUsd, inputTokens, outputTokens. */
 export interface SpendTotals {
+    costUsd: number;
+    inputTokens: number;
+    outputTokens: number;
+}
+/** UnattributedSpend. Required keys: calls, costUsd, inputTokens, outputTokens. */
+export interface UnattributedSpend {
+    calls: number;
     costUsd: number;
     inputTokens: number;
     outputTokens: number;
@@ -119,10 +134,19 @@ export declare class RouterClient {
     /** Prometheus Metrics
      *  GET /api/v1/models/metrics */
     prometheus_metrics(): Promise<unknown>;
+    /** Get Model Prefs
+     *  GET /api/v1/models/prefs */
+    get_model_prefs(): Promise<Record<string, unknown>>;
+    /** Put Model Prefs
+     *  PUT /api/v1/models/prefs */
+    put_model_prefs(body: ModelPrefsBody): Promise<Record<string, unknown>>;
     /** Model Spend
      *  GET /api/v1/models/spend */
     model_spend(team_id?: string | null, project_id?: string | null, since_days?: number | null): Promise<SpendSummaryResponse>;
     /** Health
      *  GET /health */
     health(): Promise<unknown>;
+    /** Ready
+     *  GET /ready */
+    ready_ready_get(): Promise<unknown>;
 }

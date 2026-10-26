@@ -15,6 +15,7 @@ export interface CallModelRequest {
   model?: string | null;  // optional
   opts?: ModelCallOpts | null;  // optional
   role: ModelRole;
+  runId?: string | null;  // optional
 }
 
 /** ConfigureRoleModelRequest. Required keys: model, role. */
@@ -41,6 +42,13 @@ export interface ModelCallOpts {
   extra?: { [key: string]: unknown } | null;  // optional
   maxTokens?: number;  // optional
   temperature?: number | null;  // optional
+}
+
+/** ModelPrefsBody. Required keys: primaryModel, reviewerModel. */
+export interface ModelPrefsBody {
+  primaryModel: string;
+  reasoningEffort?: "off" | "low" | "medium" | "high";  // optional
+  reviewerModel: string;
 }
 
 /** ModelResult. Required keys: costUsd, latencyMs, model, text. */
@@ -78,16 +86,25 @@ export interface SpendErrorEnvelope {
   error: SpendErrorDetail;
 }
 
-/** SpendSummaryResponse. Required keys: totals. */
+/** SpendSummaryResponse. Required keys: totals, unattributed. */
 export interface SpendSummaryResponse {
   byDay?: SpendByDay[];  // optional
   byModel?: SpendByModel[];  // optional
   totals: SpendTotals;
+  unattributed: UnattributedSpend;
   unwired?: boolean;  // optional
 }
 
 /** SpendTotals. Required keys: costUsd, inputTokens, outputTokens. */
 export interface SpendTotals {
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+/** UnattributedSpend. Required keys: calls, costUsd, inputTokens, outputTokens. */
+export interface UnattributedSpend {
+  calls: number;
   costUsd: number;
   inputTokens: number;
   outputTokens: number;
@@ -153,6 +170,20 @@ export class RouterClient {
     return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined);
   }
 
+  /** Get Model Prefs
+   *  GET /api/v1/models/prefs */
+  get_model_prefs(): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/models/prefs`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Put Model Prefs
+   *  PUT /api/v1/models/prefs */
+  put_model_prefs(body: ModelPrefsBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/models/prefs`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
   /** Model Spend
    *  GET /api/v1/models/spend */
   model_spend(team_id?: string | null, project_id?: string | null, since_days?: number | null): Promise<SpendSummaryResponse> {
@@ -183,6 +214,7 @@ export class RouterClient {
  * export interface/type EstimateCostRequest
  * export interface/type HTTPValidationError
  * export interface/type ModelCallOpts
+ * export interface/type ModelPrefsBody
  * export interface/type ModelResult
  * export interface/type ModelRole
  * export interface/type SpendByDay
@@ -191,5 +223,6 @@ export class RouterClient {
  * export interface/type SpendErrorEnvelope
  * export interface/type SpendSummaryResponse
  * export interface/type SpendTotals
+ * export interface/type UnattributedSpend
  * export interface/type ValidationError
  */

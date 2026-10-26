@@ -23,6 +23,15 @@ export interface CreateTaskRequest {
   taskId: string;
 }
 
+/** Diagnostic. Required keys: message. */
+export interface Diagnostic {
+  col?: number | null;  // optional
+  kind?: "error" | "warning" | "note";  // optional
+  line?: number | null;  // optional
+  message: string;
+  path?: string | null;  // optional
+}
+
 /** ExecCommandRequest. Required keys: command. */
 export interface ExecCommandRequest {
   command: string;
@@ -33,9 +42,22 @@ export interface HTTPValidationError {
   detail?: ValidationError[];  // optional
 }
 
+/** HunkRef. Required keys: index, path. */
+export interface HunkRef {
+  index: number;
+  path: string;
+}
+
+/** RevertHunksRequest. Required keys: hunks. */
+export interface RevertHunksRequest {
+  hunks: HunkRef[];
+}
+
 /** StructuredExecResult. Required keys: exit_code, status. */
 export interface StructuredExecResult {
-  diagnostics?: string[];  // optional
+  diagnostics?: Diagnostic[];  // optional
+  diagnostics_source?: "protocol" | "located" | "scan" | "none";  // optional
+  diagnostics_truncated?: boolean;  // optional
   duration_ms?: number;  // optional
   exit_code: number;
   failed_count?: number;  // optional
@@ -125,6 +147,27 @@ export class SandboxClient {
     return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined);
   }
 
+  /** Checkpoint Hunks
+   *  GET /api/v1/sandbox/{projectId}/checkpoints/{sha}/hunks */
+  checkpoint_hunks(project_id: string, sha: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sandbox/${encodeURIComponent(project_id)}/checkpoints/${encodeURIComponent(sha)}/hunks`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Checkpoint Restore
+   *  POST /api/v1/sandbox/{projectId}/checkpoints/{sha}/restore */
+  checkpoint_restore(project_id: string, sha: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sandbox/${encodeURIComponent(project_id)}/checkpoints/${encodeURIComponent(sha)}/restore`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Checkpoint Revert
+   *  POST /api/v1/sandbox/{projectId}/checkpoints/{sha}/revert */
+  checkpoint_revert(project_id: string, sha: string, body: RevertHunksRequest): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/sandbox/${encodeURIComponent(project_id)}/checkpoints/${encodeURIComponent(sha)}/revert`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
   /** Get Project Tree
    *  GET /api/v1/sandbox/{projectId}/tree */
   get_project_tree(project_id: string, path?: string): Promise<TreeListing> {
@@ -152,8 +195,11 @@ export class SandboxClient {
  * export class SandboxClient
  * export interface/type ApplyEditRequest
  * export interface/type CreateTaskRequest
+ * export interface/type Diagnostic
  * export interface/type ExecCommandRequest
  * export interface/type HTTPValidationError
+ * export interface/type HunkRef
+ * export interface/type RevertHunksRequest
  * export interface/type StructuredExecResult
  * export interface/type TaskHandle
  * export interface/type TreeEntry
