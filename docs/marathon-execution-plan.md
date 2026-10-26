@@ -53,9 +53,14 @@ after it supersedes five rows; the rest still stand.
 | Output limit | The `4096` cap is gone; `HARNESS_SDK_MAX_TOKENS` sets the provider ceiling explicitly | `engine.py` (8438b19) |
 
 Still open exactly as written: M00 live re-verification on the current image,
-M01/M03 confinement, M06 image attachment and M07 live acceptance. The proxy
-row stays accurate — enforcement was proven live once (`w1-day0-egress`), but
-that is evidence for that image revision, not a standing claim.
+and M01/M03 confinement. M06 landed 2026-10-26 (`15a3a66`) and its image
+reached a real vision model the same day. M07 is **still open**, for a reason
+this plan did not anticipate: the isolated worker — the one the stack actually
+runs — refuses to start without a container boundary, so nothing has yet
+streamed through it live (`docs/backlog.md`, "From W1 M07"). The proxy row stays
+accurate — enforcement was proven live once (`w1-day0-egress`), but that is
+evidence for that image revision, not a standing claim, and no stack is up on
+this host as of 2026-10-26.
 
 Also superseded in the queue text: M04 describes the transcript as future work;
 the transport and UI landed in e610191. What remains from M04 is reconnect/replay

@@ -206,7 +206,53 @@ Still open here, stated plainly:
   per-process, because nothing in the frozen schema records what a session saw.
 - ~~No live acceptance evidence~~ — drilled 2026-10-26 on OpenRouter: with the
   transport patch declaring image input, `qwen/qwen3.7-flash` read the attached
-  PNG and answered `(220, 40, 40)`. With `input: [text]` the same run reported
+  PNG and answered `(220, 40, 40)`. With an `[text]`-only declaration the same run
+reported
   "image omitted because this model accepts text only", which is the modality
   gate working. Evidence: `docs/briefs/evidence/pilot-prep/m07-openrouter-smoke.json`.
+  Every one of those runs used `isolated: false`.
+
+### The isolated worker cannot be evidenced on this host (2026-10-26)
+
+Re-running the same smoke with `--isolated` against local Ollama (free, no
+provider spend) returned `status: error` in **0.0 s, zero tool calls, zero
+tokens** — it never reached the model:
+
+> OS confinement is unavailable for the real DeepSeek runtime (seatbelt breaks
+> its PTY); set `HARNESS_ENGINE_CONFINEMENT=off` explicitly to accept an
+> unconfined worker, or run it inside a container/VM boundary
+
+Evidence: `docs/briefs/evidence/pilot-prep/m07-ollama-isolated-refused.json`.
+
+This is the guard behaving correctly, not a fault to route around. The
+temptation is to set `HARNESS_ENGINE_CONFINEMENT=off`, watch the run go green,
+and book it as M07 evidence — which would prove only that an unconfined worker
+works, the one thing the week's whole argument says must not be claimed. So the
+flag was not set and the run is recorded as a refusal.
+
+Consequence for the plan, stated plainly:
+
+- **M04's "both execution paths" is live-verified on one path.** The direct SDK
+  call streams; the isolated worker's NDJSON `progress` transport is covered by
+  unit tests only. It needs either Docker (a container boundary, currently not
+  running on this machine) or a native Linux host.
+- **M07's acceptance run is therefore still open**, independent of the
+  screenshot evidence above. The real stack's worker is the isolated one.
+- The same host limitation is why Landlock write evidence needs
+  ubuntu-latest rather than this machine.
+
+### A displayed number that is not the model's (found while reading that evidence)
+
+`state_machine._context_window()` reports `DSH_CONTEXT_WINDOW`, default
+`1000000`, as the run's context window. The OpenRouter transport patch declares
+`contextWindow: 65536` for the model actually in use, and the status panel still
+showed 1,000,000 in both drills. The panel is displaying a profile default and
+calling it the window — precisely the "the profile default is not proof of a 1M
+window" line from Day 4, now with a measured counterexample.
+
+Not fixed in this change: the model's real window lives in the runtime's patched
+provider config, which the engine does not currently read, and guessing at it
+would replace one wrong number with another. Recorded as a defect against W2's
+context work, with the provenance question (configured vs. reported) to settle
+there.
 

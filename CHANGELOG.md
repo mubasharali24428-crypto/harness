@@ -23,6 +23,23 @@ profile registers one LLM route and OpenRouter needs
 providers refuse tiny images (`8x8 must be larger than 10`), so fixtures must
 be real screenshots.
 
+#### Not proven, and why that is the honest result (2026-10-26)
+
+The same smoke re-run with `--isolated` against local Ollama — free, no provider
+spend — failed in **0.0 s with zero tool calls**: the confined worker refuses
+because Seatbelt breaks the runtime's PTY and no container boundary was up. That
+is the guard doing its job. Setting `HARNESS_ENGINE_CONFINEMENT=off` would have
+produced a green run proving only that an unconfined worker runs, so it was not
+set and the refusal is recorded as evidence
+(`m07-ollama-isolated-refused.json`). Consequence: M04's isolated-worker
+transport is unit-tested but has never streamed live, and **M07 remains open**.
+
+Reading that output also exposed a displayed number that is not the model's:
+the status panel shows `DSH_CONTEXT_WINDOW` (1,000,000 by default) while the
+transport patch declares `contextWindow: 65536` for the model in use. Tracked
+against W2; the profile default is not proof of the window, which is what Day 4
+predicted and what the roadmap's no-fake-affordances rule forbids shipping.
+
 ### W1 — a screenshot can travel with the goal (2026-10-26, contracts 1.0.0rc4)
 
 `readImage` was already on and the runtime already admits image content blocks,

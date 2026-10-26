@@ -184,3 +184,25 @@ rebuild commit so it does not ride along inside an unrelated PR.
 - [x] **Live evidence that a vision model received one** (2026-10-26,
   `scripts/e2e/openrouter_smoke.py`, `m07-openrouter-smoke.json`). The image
   reached `qwen/qwen3.7-flash` and the colour was read back correctly.
+
+## From W1 M07 (isolated worker, 2026-10-26)
+
+- [ ] **The isolated worker has never streamed on a real host** (owner: S4+S10).
+  `--isolated` against local Ollama returned `error` in 0.0 s with zero tool
+  calls: the confined worker refuses because Seatbelt breaks the runtime's PTY
+  and no container boundary was available. Correct guard behaviour — running it
+  with `HARNESS_ENGINE_CONFINEMENT=off` would have proven nothing worth
+  claiming. M04's NDJSON `progress` transport is unit-tested but not
+  live-verified, and M07 stays open until it is, on Docker or native Linux.
+  Evidence: `docs/briefs/evidence/pilot-prep/m07-ollama-isolated-refused.json`.
+- [ ] **The status panel reports a context window the model does not have**
+  (owner: S4+S7). `state_machine._context_window()` returns `DSH_CONTEXT_WINDOW`
+  (default 1,000,000) while the OpenRouter transport patch declares
+  `contextWindow: 65536`, and both live drills showed 1M. Roadmap ground rule 1
+  forbids affordances that do not do the thing. Fix in W2's context work: read
+  the window for the selected model, or label it `configured` rather than
+  presenting it as the ceiling. Do not replace it with another guess.
+- [ ] **`usage` is `null` on the openai-completions transport** (owner: S4).
+  Carried over from the OpenRouter drill: without usage, `cost_ledger` accrual
+  on that path is unproven, so the cost footer and per-run spend are both
+  unfunded there.

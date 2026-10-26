@@ -1,0 +1,25 @@
+{
+  "model": "qwen-local:latest",
+  "provider": "ollama-local",
+  "patch": "/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/openrouter-smoke.patch.yml",
+  "visionDeclared": false,
+  "isolated": true,
+  "status": "error",
+  "elapsedSeconds": 0.0,
+  "maxTokens": 512,
+  "usage": null,
+  "context": {
+    "contextWindow": 1000000,
+    "compactions": 0,
+    "compactedTokens": 0
+  },
+  "toolCallCount": 0,
+  "goalImagesAttached": 0,
+  "imageFile": null,
+  "finalResponseExcerpt": "DeepSeek Harness run failed: OS confinement is unavailable for the real DeepSeek runtime (seatbelt breaks its PTY); set HARNESS_ENGINE_CONFINEMENT=off explicitly to accept an unconfined worker, or run it inside a container/VM boundary",
+  "paidSmokeOptIn": "flag set to satisfy the script's guard; the run is local and spent nothing",
+  "keyInOutput": false,
+  "baseURL": "http://127.0.0.1:11434/v1",
+  "outcome": "REFUSED before any model call: the confined isolated worker has no available enforcement on macOS",
+  "conclusion": "M04/M07 isolated-worker streaming remains unproven on this host. The failure is the guard behaving correctly; HARNESS_ENGINE_CONFINEMENT=off was NOT set, because running an unconfined worker to obtain green evidence would invalidate the evidence."
+}
