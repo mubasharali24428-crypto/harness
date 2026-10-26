@@ -360,8 +360,19 @@ services:
       HARNESS_ARTIFACT_ROOT: /var/lib/harness-store/artifacts
       HARNESS_EXPORT_DIR: /var/lib/harness-store/exports
       HARNESS_DIFFSTORE_ROOT: /var/lib/harness-store/diffs
+      # M07: live runs get a confined worker from worker-daemon (profile "worker"), the
+      # only service holding the Docker socket. This container never gets one, and
+      # without the daemon a live run fails closed ("worker daemon"), never unconfined.
+      HARNESS_ENGINE_ISOLATED: "1"
+      HARNESS_ENGINE_CONFINEMENT: container
+      HARNESS_WORKER_DAEMON_URL: http://worker-daemon:8010
+      HARNESS_WORKER_DAEMON_TOKEN: ${HARNESS_WORKER_DAEMON_TOKEN:-}
+      # Run directories live on the volume the daemon's workers mount (volume-subpath).
+      DSH_WORKSPACE: /var/lib/harness-runs/workspace
+      DSH_SESSION_ROOT: /var/lib/harness-runs/sessions
     volumes:
       - harness_store:/var/lib/harness-store
+      - harness_runs:/var/lib/harness-runs
       # Operator-supplied dsh runtime patches (see deploy/patches/README-free note
       # in openrouter.patch.yml). Read-only; the engine fails closed on a missing path.
       - ./patches:/opt/harness/patches:ro
@@ -377,6 +388,51 @@ services:
       start_period: 20s
     restart: unless-stopped
     depends_on: *backend-depends
+
+  engine-worker:
+    # Build-only: the image worker-daemon starts once per run. `up` builds it and the
+    # container exits at once; it never runs as a service.
+    profiles: ["worker"]
+    image: harness-engine-worker:v${HARNESS_IMAGE_TAG:-dev-local}
+    build:
+      context: ..
+      dockerfile: section4/worker.Dockerfile
+      target: worker
+    entrypoint: ["true"]
+    restart: "no"
+
+  worker-daemon:
+    # M07: the reviewed holder of the Docker socket (docs/sandbox-isolation.md). It accepts a
+    # run id, goal and policy from the orchestrator and builds the confined worker itself:
+    # paths, image, mode and limits are its own. No published port; bearer token required.
+    profiles: ["worker"]
+    image: harness-worker-daemon:v${HARNESS_IMAGE_TAG:-dev-local}
+    build:
+      context: ..
+      dockerfile: section4/worker.Dockerfile
+      target: daemon
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256m
+          pids: 128
+    logging: *logging-caps
+    environment:
+      HARNESS_WORKER_DAEMON_TOKEN: ${HARNESS_WORKER_DAEMON_TOKEN:-}
+      HARNESS_ENGINE_IMAGE: harness-engine-worker:v${HARNESS_IMAGE_TAG:-dev-local}
+      HARNESS_ENGINE_TIMEOUT_SECONDS: ${HARNESS_ENGINE_TIMEOUT_SECONDS:-900}
+      HARNESS_RUNS_VOLUME: harness_runs
+      HARNESS_RUNS_ROOT: /var/lib/harness-runs
+      DSH_WORKSPACE: /var/lib/harness-runs/workspace
+      DSH_SESSION_ROOT: /var/lib/harness-runs/sessions
+    volumes:
+      - harness_runs:/var/lib/harness-runs
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      orchestrator:
+        condition: service_started  # it initialises the runs volume as its own user
+    restart: unless-stopped
 
   sandbox:
     # M20-T3 (OPS-03): THE noisy-neighbor risk S-GAMMA flagged — sandbox
@@ -1333,6 +1389,10 @@ volumes:
   # Back it up with the database: the artifacts table points into it.
   harness_store:
   harness_store_loadtest:
+  # M07: run workspaces/sessions. Fixed name because worker-daemon names it in each worker's
+  # `--mount type=volume,src=harness_runs,volume-subpath=…` (Docker resolves that, not compose).
+  harness_runs:
+    name: harness_runs
   # H-018 (M13-W3-H2): the archiving database's own data volume — deliberately
   # SEPARATE from `pgdata` so PITR drills can never collide with live data.
   pgdata_walg:

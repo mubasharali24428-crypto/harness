@@ -1,0 +1,105 @@
+{
+  "date": "2026-10-26",
+  "milestone": "M07 topology",
+  "runId": "m07d-1793031415",
+  "model": "qwen-local:latest",
+  "orchestratorHasNoDockerSocket": true,
+  "orchestratorHasNoDockerCli": true,
+  "workersObserved": [
+    {
+      "role": "relay",
+      "user": "10001:10001",
+      "readonlyRootfs": true,
+      "capDrop": [
+        "ALL"
+      ],
+      "networks": [
+        "bridge",
+        "harness-7f40847c17fc4cbaa2befd10cb14a00c-net"
+      ],
+      "mounts": []
+    },
+    {
+      "role": "worker",
+      "user": "999:999",
+      "readonlyRootfs": true,
+      "capDrop": [
+        "ALL"
+      ],
+      "networks": [
+        "harness-7f40847c17fc4cbaa2befd10cb14a00c-net"
+      ],
+      "mounts": [
+        {
+          "type": "volume",
+          "src": "harness_runs",
+          "dst": "/var/lib/harness-runs/workspace/m07d-1793031415",
+          "readOnly": false,
+          "subpath": "workspace/m07d-1793031415"
+        },
+        {
+          "type": "volume",
+          "src": "harness_runs",
+          "dst": "/var/lib/harness-runs/sessions/m07d-1793031415",
+          "readOnly": false,
+          "subpath": "sessions/m07d-1793031415"
+        },
+        {
+          "type": "volume",
+          "src": "harness_runs",
+          "dst": "/var/lib/harness-runs/workspace/m07d-1793031415/README.md",
+          "readOnly": true,
+          "subpath": "workspace/m07d-1793031415/README.md"
+        }
+      ]
+    }
+  ],
+  "daemonUrl": "http://worker-daemon:8010",
+  "status": "completed",
+  "seconds": 92.82,
+  "calc": "def add(a, b):\n    return a + b\n",
+  "readmeUnchanged": true,
+  "records": [
+    {
+      "t": 21.97,
+      "phase": "call",
+      "tool": "read"
+    },
+    {
+      "t": 21.98,
+      "phase": "result",
+      "tool": null
+    },
+    {
+      "t": 40.95,
+      "phase": "call",
+      "tool": "read"
+    },
+    {
+      "t": 40.95,
+      "phase": "result",
+      "tool": null
+    },
+    {
+      "t": 62.83,
+      "phase": "call",
+      "tool": "edit"
+    },
+    {
+      "t": 62.85,
+      "phase": "result",
+      "tool": null
+    },
+    {
+      "t": 73.68,
+      "phase": "call",
+      "tool": "read"
+    },
+    {
+      "t": 73.69,
+      "phase": "result",
+      "tool": null
+    }
+  ],
+  "finalResponseExcerpt": "DONE\n\nFixed `add()` in calc.py: it was returning `a - b` (subtraction) instead of `a + b`. I re-read the file after the edit to verify it now correctly returns the sum."
+}

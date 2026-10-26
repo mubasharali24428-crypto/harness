@@ -334,7 +334,9 @@ made the real cause easy to find once the environment was inspected.
   into `src/` succeeded and into `docs/` failed `EROFS`. Limits: a scope that
   names a *file* is not writable through the native tool (it stages a temp
   beside the target, in the read-only parent); `.git` is read-only unless in
-  scope; Landlock write roots are unit-tested only (no Linux kernel here).
+  scope. Landlock write roots were then measured inside the worker image
+  (linuxkit 6.12, `m03-landlock-scope.json`): the three M01 writes refused
+  `EACCES`, `src/` allowed, an unscoped control allowed.
   Original entry:
   The approved scope is unenforced: with `scopePaths=["src"]`, writes to `docs/`
   succeeded as a literal, a concatenation and an `os.path.join`
@@ -342,7 +344,10 @@ made the real cause easy to find once the environment was inspected.
   allow-list and redirection is banned, so code strings are not an edge case —
   they are the entire write surface. Close it with OS/mount restrictions on the
   scope subtree; do not extend the string matcher.
-- [ ] **Landlock column of the spike is unmeasured** (owner: S5). Docker
+- [x] **Landlock column of the spike is unmeasured** (owner: S5). Measured
+  2026-10-26 inside a container on the same Docker Desktop kernel, where
+  Landlock *is* available (`m03-landlock-scope.json`); the `ENOSYS` below was
+  not reproduced there. A bare Linux host run is still worth having. Docker
   Desktop's linuxkit kernel returns `ENOSYS` for `landlock_create_ruleset`, so
   `scripts/m01_confinement_spike.py` can only answer for Seatbelt until it runs on
   a Linux host. Re-run there and record both backends before M03 is designed.
@@ -360,8 +365,11 @@ made the real cause easy to find once the environment was inspected.
 
 ## From W1 M07 (acceptance blocked on topology, 2026-10-26)
 
-- [ ] **The deployed topology cannot create a confined worker** (owner: S4+S10,
-  blocks M07). The orchestrator container has no Docker socket and no CLI,
+- [x] **The deployed topology cannot create a confined worker** (owner: S4+S10,
+  blocks M07). **Closed 2026-10-26 with the worker-daemon option**: see
+  `docs/sandbox-isolation.md` "Engine worker daemon (M07)" and
+  `scripts/e2e/m07_daemon_drill.py` → `m07-daemon-topology.json`.
+  Original entry: The orchestrator container has no Docker socket and no CLI,
   `container` is one of only two modes the runtime accepts, and
   `HARNESS_ENGINE_ISOLATED` / `_CONFINEMENT` / `_IMAGE` are set in no env file or
   compose service — so isolation is unset (in-process) or refuses. Choose the

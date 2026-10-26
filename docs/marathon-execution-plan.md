@@ -65,7 +65,13 @@ confined screenshot run made 37 `bash` calls in 516.75 s, never returned the
 colour, and cannot be priced because `usage` is `null` on this transport
 (`m07-confined-vision-failure.json`). M01/M03 confinement is still open exactly as
 written, and now has a live symptom — the loop-detection work W2 assumed is what
-would have bounded that run. The proxy row holds for the revision it was re-probed
+would have bounded that run. **Update, end of 2026-10-26:** M03 closed:
+the scope is enforced by mounts in the container and by Seatbelt/Landlock write
+roots in the shell gate (`m03-scope-mounts.json`, `m03-landlock-scope.json`). M07's
+topology blocker closed with the worker daemon. The deployed orchestrator, which
+has no socket, ran a confined worker that fixed and re-read a fixture repo
+(`m07-daemon-topology.json`). M07's full gate is still open: the screenshot
+through the container boundary and a run driven through the API. The proxy row holds for the revision it was re-probed
 on: `github.com → 200`, `example.com → 403` on `vm00-1026`, reproduced after a
 forced sidecar restart.
 

@@ -31,6 +31,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -61,6 +62,8 @@ DEFAULT_DSH_PROFILE = "sdk-minimal"
 # fails with NO_ADAPTER, so the switch worth having is the reviewed patch file.
 DEFAULT_DSH_PROVIDER = "deepseek-official"
 REAL_WORKER_MODULE = "harness_orchestrator.engine_worker"
+DAEMON_URL_ENV = "HARNESS_WORKER_DAEMON_URL"
+DAEMON_TOKEN_ENV = "HARNESS_WORKER_DAEMON_TOKEN"
 _SESSION_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
 _SHELL_PLUGIN = Path(__file__).with_name("dsh_plugins") / "harness-shell.js"
 # Section 5's gate script; the worker image sets HARNESS_SHELL_GATE (section4/worker.Dockerfile).
@@ -374,6 +377,12 @@ class DeepSeekHarnessWrapper:
         # pays to read again, not extra context.
         self._repo_context_sent: set[str] = set()
         self._proc_lock = threading.Lock()
+        # M07: where confined workers come from when this process holds no Docker socket.
+        self.daemon_url = os.environ.get(DAEMON_URL_ENV, "").strip().rstrip("/")
+        self._daemon_runs: set[str] = set()
+        # Allowlisted (DSH_*) values a worker daemon received from the orchestrator; the
+        # daemon's own environment is not the deployment's runtime configuration.
+        self.worker_env: dict[str, str] = {}
         self.workspace = workspace_dir or os.environ.get(
             "DSH_WORKSPACE", "/tmp/harness-dsh-workspace"
         )
@@ -503,6 +512,12 @@ class DeepSeekHarnessWrapper:
             self._cancel_requested.add(session_id)
             proc = self._procs.get(session_id)
             boundary = self._containers.get(session_id)
+        if self.daemon_url:
+            try:
+                with self._daemon_call("POST", f"/runs/{session_id}/cancel") as resp:
+                    return bool(json.load(resp).get("confirmed"))
+            except (OSError, ValueError):
+                return False  # an unreachable daemon is not confirmation
         if boundary is not None:
             return boundary.kill(proc)
         if proc is None:
@@ -530,6 +545,12 @@ class DeepSeekHarnessWrapper:
             self._cancel_requested.discard(session_id)
 
     def is_worker_running(self, session_id: str) -> bool:
+        if self.daemon_url:
+            try:
+                with self._daemon_call("GET", f"/runs/{session_id}") as resp:
+                    return bool(json.load(resp).get("running"))
+            except (OSError, ValueError):
+                return True  # unknown is treated as alive, so nothing cleans up under it
         with self._proc_lock:
             proc = self._procs.get(session_id)
             boundary = self._containers.get(session_id)
@@ -552,6 +573,8 @@ class DeepSeekHarnessWrapper:
         and cannot read the shared artifact store, and it must not be given a
         path into it.
         """
+        if self.daemon_url:
+            return self._run_via_daemon(goal, session_id, model, on_progress, images)
         boundary = None
         try:
             workspace = self.run_workspace(session_id)
@@ -581,6 +604,7 @@ class DeepSeekHarnessWrapper:
                 {
                     "DEEPSEEK_API_KEY": self.api_key,
                     **({"DEEPSEEK_BASE_URL": self.base_url} if self.base_url else {}),
+                    **self.worker_env,
                     "DSH_HOME": sess,
                     # The worker's own write-capability check must see the boundary the
                     # parent chose; inside a container "auto" would otherwise read "none".
@@ -726,6 +750,91 @@ class DeepSeekHarnessWrapper:
         finally:
             if boundary:
                 boundary.close()
+
+    def _daemon_call(
+        self, method: str, path: str, body: dict[str, Any] | None = None, timeout: float = 10.0
+    ) -> Any:
+        token = os.environ.get(DAEMON_TOKEN_ENV, "")
+        request = urllib.request.Request(
+            self.daemon_url + path,
+            method=method,
+            data=None if body is None else json.dumps(body).encode(),
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        )
+        return urllib.request.urlopen(request, timeout=timeout)  # noqa: S310 - operator-set URL
+
+    def _run_via_daemon(
+        self,
+        goal: str,
+        session_id: str,
+        model: str,
+        on_progress: Callable[[dict[str, Any]], None] | None = None,
+        images: list[dict[str, Any]] | None = None,
+    ) -> tuple[str, str, str | None, list[Any]]:
+        """M07: the same confined worker, created by ``worker_daemon`` instead of this process.
+
+        The deployed orchestrator has no Docker socket, by design. The daemon that holds it
+        receives the run id, goal, policy and allowlisted (``DSH_*``) settings - never paths,
+        an image or limits - and streams back the worker's own NDJSON. The run's directories
+        are created HERE first, as this process's user, on the volume both share, so the
+        worker (run as their owner) can write them.
+        """
+        try:
+            for path in (
+                self.run_workspace(session_id),
+                self.run_session_dir(session_id),
+                self.run_tmp_dir(session_id),
+            ):
+                os.makedirs(path, exist_ok=True)
+            body = {
+                "goal": goal,
+                "model": model,
+                "images": images or [],
+                "shellPolicy": self._shell_policies.get(session_id),
+                "apiKey": self.api_key,
+                "baseUrl": self.base_url,
+                "env": {
+                    k: v for k, v in os.environ.items() if k.startswith(confine.ENV_ALLOW_PREFIX)
+                },
+            }
+            with self._proc_lock:
+                if session_id in self._cancel_requested:
+                    return "Execution cancelled.", "cancelled", model, []
+                self._daemon_runs.add(session_id)
+            budget = float(os.environ.get("HARNESS_ENGINE_TIMEOUT_SECONDS", "900"))
+            result: dict[str, Any] | None = None
+            try:
+                with self._daemon_call(
+                    "POST", f"/runs/{session_id}", body, timeout=budget + 60
+                ) as resp:
+                    for raw in resp:  # one NDJSON line per tool event, then the result
+                        try:
+                            parsed = json.loads(raw)
+                        except ValueError:
+                            continue
+                        if not isinstance(parsed, dict):
+                            continue
+                        if isinstance(parsed.get("progress"), dict):
+                            if on_progress is not None:
+                                on_progress(parsed["progress"])
+                        elif isinstance(parsed.get("result"), dict):
+                            result = parsed["result"]
+            finally:
+                with self._proc_lock:
+                    self._daemon_runs.discard(session_id)
+            if session_id in self._cancel_requested:
+                return "Execution cancelled.", "cancelled", model, []
+            if result is None:
+                return "worker daemon ended the run without a result", "error", model, []
+            return (
+                scrub_secrets(str(result.get("text", "")), self.api_key),
+                str(result.get("status") or "error"),
+                result.get("model") or model,
+                result.get("events") or [],
+            )
+        except Exception as exc:  # noqa: BLE001 - daemon loss fails the run, never degrades it
+            msg = scrub_secrets(f"DeepSeek Harness run failed: worker daemon: {exc}", self.api_key)
+            return msg, "error", model, []
 
     @property
     def mode(self) -> LiveMode:

@@ -205,6 +205,34 @@ def seatbelt_profile(
     )
 
 
+RUNS_VOLUME_ENV = "HARNESS_RUNS_VOLUME"
+RUNS_ROOT_ENV = "HARNESS_RUNS_ROOT"
+
+
+def _mount(path: str, readonly: str) -> str:
+    """``--mount`` value for ``path``; ``readonly`` is the literal suffix (``readonly=false`` …).
+
+    A launcher on the host binds the path as is. The worker daemon (M07) runs in a container,
+    and the Docker engine resolves a bind source on ITS host, where the daemon's paths do not
+    exist; so paths under ``HARNESS_RUNS_ROOT`` become a subpath of the shared named volume.
+    """
+    volume = os.environ.get(RUNS_VOLUME_ENV, "").strip()
+    root = os.path.realpath(os.environ.get(RUNS_ROOT_ENV, "") or "/nonexistent")
+    if volume and path.startswith(root + os.sep):
+        sub = os.path.relpath(path, root)
+        return f"type=volume,src={volume},dst={path},volume-subpath={sub},{readonly}"
+    return f"type=bind,src={path},dst={path},{readonly}"
+
+
+def _worker_user(workspace: str) -> str:
+    """Never root. A root launcher (the worker daemon) runs the worker as the workspace's
+    owner, so the run can write what the orchestrator provisioned; anyone else, as itself."""
+    if os.getuid() == 0:
+        st = os.stat(workspace)
+        return f"{st.st_uid}:{st.st_gid}" if st.st_uid else "10001:10001"
+    return f"{os.getuid()}:{os.getgid() or 10001}"
+
+
 def wrap_command(
     argv: list[str],
     *,
@@ -251,7 +279,7 @@ def wrap_command(
             "--cpus",
             "1",
             "--user",
-            f"{os.getuid() or 10001}:{os.getgid() or 10001}",
+            _worker_user(workspace),
             "--tmpfs",
             "/tmp:rw,exec,nosuid,nodev,size=256m,mode=1777",
             "--workdir",
@@ -259,16 +287,16 @@ def wrap_command(
         ]
         # M03: a narrower intent freezes the workspace and binds only the scope back writable.
         frozen = "true" if scope is not None else "false"
-        result += ["--mount", f"type=bind,src={workspace},dst={workspace},readonly={frozen}"]
-        result += ["--mount", f"type=bind,src={session_dir},dst={session_dir},readonly=false"]
+        result += ["--mount", _mount(workspace, f"readonly={frozen}")]
+        result += ["--mount", _mount(session_dir, "readonly=false")]
         for path in scope or []:
             if "," in path:
                 raise ConfinementUnavailableError("scope paths must not contain commas")
-            result += ["--mount", f"type=bind,src={path},dst={path},readonly=false"]
+            result += ["--mount", _mount(path, "readonly=false")]
         for path in forbidden:  # S-01: nested read-only bind; Docker mounts deeper paths later
             if "," in path:
                 raise ConfinementUnavailableError("forbidden paths must not contain commas")
-            result += ["--mount", f"type=bind,src={path},dst={path},readonly"]
+            result += ["--mount", _mount(path, "readonly")]
         # Values are inherited by Docker from its scrubbed client environment, never argv.
         for key in sorted(env or {}):
             if key not in {"PATH", "PYTHONPATH", "TMPDIR", "HOME"}:

@@ -27,4 +27,14 @@ COPY section4/tests/unit/standin_worker.py /opt/probes/standin_worker.py
 COPY deploy/pilot/worker.py /opt/probes/pilot_worker.py
 ENV PYTHONPATH=/opt/probes
 
+# M07 worker daemon: the only image that talks to the Docker engine. Same code as the worker
+# plus the static Docker CLI; it runs as root because the socket is root-owned, and runs each
+# worker as the workspace's owner (confine._worker_user), never as root.
+FROM docker:29.5.3-cli AS docker-cli
+
+FROM base AS daemon
+COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
+USER root
+ENTRYPOINT ["python", "-m", "harness_orchestrator.worker_daemon"]
+
 FROM base AS worker

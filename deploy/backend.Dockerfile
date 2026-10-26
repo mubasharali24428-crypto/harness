@@ -28,7 +28,9 @@ ENV HARNESS_SHELL_GATE=/opt/harness/section5/src/harness_sandbox/shell_gate.py
 # owning it here makes a fresh named volume writable by uid harness.
 RUN useradd --system --create-home --shell /usr/sbin/nologin harness \
     && mkdir -p /tmp/harness-dsh /tmp/harness_sandboxes /var/lib/harness-store \
-    && chown -R harness:harness /tmp/harness-dsh /tmp/harness_sandboxes /var/lib/harness-store
+       /var/lib/harness-runs \
+    && chown -R harness:harness /tmp/harness-dsh /tmp/harness_sandboxes /var/lib/harness-store \
+       /var/lib/harness-runs
 USER harness
 
 EXPOSE 8001 8002 8003 8004 8005 8006 8008

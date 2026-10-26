@@ -75,3 +75,21 @@ but not production-certified. Acceptance requires a dedicated worker/daemon,
 explicit image provenance, verified non-root execution, no shared backend
 socket, and a Linux host test before `SANDBOX_USE_DOCKER=true` is enabled for
 a pilot.
+
+## Engine worker daemon (M07, 2026-10-26)
+
+The engine's confined worker (`HARNESS_ENGINE_CONFINEMENT=container`) now has
+that dedicated holder. The `worker-daemon` service (compose profile `worker`) is
+the only service with the Docker socket. The orchestrator posts it a run id, the
+goal, the run's policy and its `DSH_*` settings. The daemon builds the boundary
+from its own configuration: the run directories under its `DSH_WORKSPACE`, the
+image in `HARNESS_ENGINE_IMAGE`, mode `container`, and `confine`'s limits. Each
+worker runs as the workspace's owner and never as root. Its run directories
+reach it as subpaths of the `harness_runs` volume. Calls need a bearer token,
+and the daemon has no published port. Without the daemon, a live run fails
+closed.
+
+What this is not: the daemon uses the host's main Docker engine, so whoever
+controls it controls the host. It narrows *who* holds that power (one small,
+reviewed service instead of the API), but it is not the separately managed
+rootless daemon this gate ultimately asks for.
