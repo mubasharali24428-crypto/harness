@@ -1,5 +1,6 @@
 """Assembly runners: one FastAPI app per backend service, wired at deploy time."""
 
+import asyncio
 import json
 import os
 import sys
@@ -117,7 +118,11 @@ def _wire_observability(app, extra=None) -> None:
     install_metrics_endpoint(app, extra)  # public GET /metrics (Prometheus text)
 
 
-def _install_probes(app, port):
+def _install_probes(app, port, *, reports_egress: bool = False):
+    """``reports_egress`` is True for the sandbox app ONLY: every backend
+    container receives SANDBOX_EGRESS_PROXY_URL, so presence of the env
+    cannot identify who actually uses the proxy — the app that owns the
+    runner has to say so."""
     """M20-T3 (S-GAMMA OPS-03/OPS-06): TWO probes with distinct jobs.
 
     /health — LIVENESS. Cheap and dependency-free: answers 200 as long as
@@ -131,6 +136,10 @@ def _install_probes(app, port):
       2. migrations applied: schema_migrations ⊆ THIS image's chain
          (deploy/runners/migrate.check_drift — same gate entrypoint.sh
          runs at boot, re-evaluated per probe).
+      3. egress (informational only, sandbox app only): whether the allow-list
+         proxy accepts a connection, reported as `egress`. It is never a
+         failure reason — a run that needs no network must still be able to
+         execute — but readiness must not imply reach either.
 
     Any failed check → 503 {"ok": false, ...reasons}. The compose
     healthcheck hits /ready, so a DB-down backend reports unhealthy for
@@ -177,9 +186,47 @@ def _install_probes(app, port):
             return JSONResponse(
                 status_code=503, content={"ok": False, "not_ready": reasons}
             )
-        return {"ok": True, "db": "ok", "migrations": "ok"}
+        body: dict[str, object] = {"ok": True, "db": "ok", "migrations": "ok"}
+        egress = await _egress_state() if reports_egress else None
+        if egress is not None:
+            body["egress"] = egress
+        return body
 
     app.state.ready_port = port
+
+
+async def _egress_state() -> str | None:
+    """Informational only: is the allow-list proxy reachable from here?
+
+    Deliberately NOT a readiness reason. A run that never touches the network
+    is still executable while the proxy is down, so failing /ready would take
+    the sandbox out of service for a dependency most runs do not use — and
+    compose would restart a healthy container. But readiness must not imply
+    reach either, so the answer is reported instead of assumed. ``None`` means
+    this service has no egress pairing (only the sandbox container sets the
+    env).
+    """
+    url = os.environ.get("SANDBOX_EGRESS_PROXY_URL", "").strip()
+    if not url:
+        return None
+    hostport = url.split("://", 1)[-1].rstrip("/")
+    host, _, port_text = hostport.partition(":")
+    try:
+        port = int(port_text or "3128")
+    except ValueError:
+        return "down"
+    try:
+        _reader, writer = await asyncio.wait_for(
+            asyncio.open_connection(host, port), 0.75
+        )
+    except (OSError, TimeoutError, ValueError):
+        return "down"
+    writer.close()
+    try:
+        await writer.wait_closed()
+    except (OSError, TimeoutError):
+        pass
+    return "up"
 
 
 def simple_app(router, title, extra_metrics=None):
@@ -610,7 +657,7 @@ def app_sandbox():
     # M20-T2: request ids + JSON logs + /metrics (sandbox, port 8005).
     _wire_observability(app)
     # M20-T3: /ready gates on db + migrations (sandbox, port 8005).
-    _install_probes(app, 8005)
+    _install_probes(app, 8005, reports_egress=True)
     # M12-G8: mount the read-only tree router on the same app + bearer auth.
     app.include_router(tree_router)
     app.state.get_principal = make_bearer_dep(factory)

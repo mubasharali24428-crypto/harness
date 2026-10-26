@@ -6,6 +6,10 @@ up -d`), exactly as CI boots it (workflow: .github/workflows/e2e.yml). Covers
 the deterministic product path with recorded truth — no live provider is
 touched, and nothing here claims one:
 
+  0.    stack shape: every container of the compose project is Running, and
+       healthy wherever a healthcheck exists — a sidecar the product path never
+       calls still counts (sandbox-egress crash-looped through 708 failed
+       healthchecks while every check below passed).
   1-2. readiness of identity/orchestrator/sandbox/frontend (identity /ready
        also gates "migrations applied", so a half-migrated stack fails here);
   3-5. passwordless login for user A (request-login → OTP read from the
@@ -123,6 +127,116 @@ def wait_ready(name: str, url: str, deadline: float) -> tuple[int, dict | str]:
     raise Failure(f"readiness of {name}", f"{url} not ready: {last!r}")
 
 
+_ONE_SHOTS = {"migrate"}  # must exist and exit 0; never "running"
+
+
+def _problems_from_rows(rows: list[dict], enabled: set[str]) -> list[str]:
+    """Every ENABLED compose service must have the container it should have.
+
+    ``enabled`` is `docker compose config --services` — the services this
+    stack is actually running, profiles applied — so containers left over from
+    a drill profile are not held against a normal boot.
+
+    `starting` is not a problem: it is what a healthy container looks like
+    inside its start_period. Anything else — exited, restarting, dead,
+    unhealthy, missing — is, including sidecars the product path never calls.
+    sandbox-egress crash-looped through 708 healthchecks while every journey
+    check passed, because the demo replay path does not need it; a sidecar that
+    is down is a broken stack, not a pass. (An earlier version of this check
+    read `docker compose ps` without `-a`, so a stopped container simply did
+    not appear — the gate silently passed the exact case it exists for.)
+    """
+    by_service: dict[str, dict] = {}
+    for row in rows:
+        service = row.get("Service") or row.get("Name") or "?"
+        by_service.setdefault(str(service), row)
+
+    problems: list[str] = []
+    for service in sorted(enabled):
+        row = by_service.get(service)
+        if row is None:
+            problems.append(f"{service}: no container")
+            continue
+        state = str(row.get("State") or "").strip().lower()
+        health = str(row.get("Health") or "").strip().lower()
+        status = str(row.get("Status") or "").strip()
+        suffix = f" ({status})" if status else ""
+        if service in _ONE_SHOTS:
+            exit_code = row.get("ExitCode")
+            if state == "exited" and exit_code == 0:
+                continue
+            problems.append(f"{service}: expected a clean one-shot exit, got {state} exit {exit_code}")
+        elif state != "running":
+            problems.append(f"{service}: {state}{suffix}")
+        elif health == "unhealthy":
+            problems.append(f"{service}: unhealthy{suffix}")
+    return problems
+
+
+def _compose_lines(args: list[str], what: str) -> list[str]:
+    proc = subprocess.run(
+        ["docker", "compose", "-f", COMPOSE_FILE, *args],
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    if proc.returncode != 0:
+        raise Failure("container health", f"{what} failed: {proc.stderr.strip()[:300]}")
+    return [line for line in proc.stdout.splitlines() if line.strip()]
+
+
+def enabled_services() -> set[str]:
+    """Services this stack is running (profiles applied) — not every service
+    the file defines, or a drill profile that was exercised last month would
+    fail today's gate."""
+    services = {line.strip() for line in _compose_lines(["config", "--services"], "compose config")}
+    if not services:
+        raise Failure("container health", "compose config --services listed nothing")
+    return services
+
+
+def container_rows() -> list[dict]:
+    """`ps -a` on purpose: a container that stopped is the case to catch."""
+    text = "\n".join(_compose_lines(["ps", "-a", "--format", "json"], "docker compose ps"))
+    if not text.strip():
+        raise Failure("container health", "docker compose ps reported no containers")
+    try:  # newer compose emits one JSON array; older emits one object per line
+        parsed = json.loads(text)
+        if isinstance(parsed, list):
+            return [row for row in parsed if isinstance(row, dict)]
+        if isinstance(parsed, dict):
+            return [parsed]
+    except ValueError:
+        pass
+    rows: list[dict] = []
+    for line in text.splitlines():
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows
+
+
+def wait_containers_healthy(deadline: float) -> None:
+    """Wait for every enabled service to be up (and healthy where probed).
+
+    Polls until the deadline so a stack that is still inside its start_period
+    is not failed early; an unhealthy or exited container is reported with the
+    whole list, because the fix is usually one service and the message should
+    say which.
+    """
+    problems: list[str] = []
+    while time.time() < deadline:
+        problems = _problems_from_rows(container_rows(), enabled_services())
+        if not problems:
+            return
+        time.sleep(2)
+    raise Failure("container health", "; ".join(problems))
+
+
 def fetch_otp(email: str) -> str:
     fixed = os.environ.get("E2E_OTP_CODE")
     if fixed:
@@ -166,8 +280,12 @@ def main() -> int:
     t0 = time.time()
     print(f"compose E2E journey against {IDENTITY} (+orchestrator/sandbox/frontend)", flush=True)
     try:
-        # 1-2. readiness (identity /ready gates db + migrations applied)
         deadline = t0 + WAIT_SECONDS
+        # 0. stack shape: every container running, healthy where probed.
+        wait_containers_healthy(deadline)
+        ok(f"all {len(container_rows())} containers running/healthy")
+
+        # 1-2. readiness (identity /ready gates db + migrations applied)
         wait_ready("identity /ready", f"{IDENTITY}/ready", deadline)
         wait_ready("orchestrator /ready", f"{ORCHESTRATOR}/ready", deadline)
         wait_ready("sandbox /ready", f"{SANDBOX}/ready", deadline)

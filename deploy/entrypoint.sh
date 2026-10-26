@@ -4,6 +4,17 @@
 set -e
 cd "$(dirname "$0")/runners"
 
+# A compose `command:` belongs to the service that set it. Before this, the
+# argument list was never read, so `sandbox-egress` (command: python -m
+# harness_sandbox.egress_proxy) silently ignored its own command, fell through
+# to the all-in-one branch and tried to boot seven uvicorns — plus the migrate
+# job — inside a 128MB, 0.25-CPU sidecar. It crash-looped on the master-key
+# gate instead of ever proxying anything. Checked BEFORE HARNESS_SERVICE so a
+# command-carrying sidecar needs no HARNESS_SERVICE at all.
+if [ "$#" -gt 0 ]; then
+  exec "$@"
+fi
+
 if [ -n "${HARNESS_SERVICE:-}" ]; then
   case "$HARNESS_SERVICE" in
     migrate|identity|github|models|orchestrator|sandbox|meeting|review|webhook-delivery) ;;

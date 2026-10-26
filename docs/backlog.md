@@ -147,3 +147,16 @@ be stale for several sections (identity/agents operations and the SDK version
 string predate it). Only the two `dist` files this change touches were rebuilt —
 `dist` for the other sections is still behind `src` and needs one dedicated
 rebuild commit so it does not ride along inside an unrelated PR.
+
+## From W1 Day 0 (2026-10-25)
+
+- [ ] **Backend image build cannot be trusted to finish** (owner: deploy). The
+  `pip install` layer comes *after* `COPY section*/`, so any source change
+  invalidates it and re-downloads the 60MB `deepseek_harness_runtime_bin`
+  wheel — measured at ~28 kB/s in the builder and ~100 kB/s on the host, with
+  connection resets. Move dependency install ahead of the source copy (a
+  `requirements`/pyproject-only layer) and support an offline wheel dir, or CI
+  will keep timing out on a build that has nothing to do with the change.
+- [ ] **Wheel cache for air-gapped/CI builds** (owner: deploy). Same root
+  cause; a `PIP_FIND_LINKS` build arg plus a mounted wheel dir makes repeat
+  builds minutes instead of half an hour.

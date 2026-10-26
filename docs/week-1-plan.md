@@ -25,6 +25,41 @@ decide whether that coupling is right. Add a compose-level smoke test that
 fails when any service is `unhealthy`, so "broken but the demo still plays"
 cannot recur. **~0.5 day, and it is the highest-priority item in the week.**
 
+### Day 0 outcome (2026-10-25)
+
+The env hypothesis was wrong, and the real cause was worse: `entrypoint.sh`
+never read `"$@"`, so the egress sidecar ignored its own `command:` and booted
+the all-in-one branch — seven uvicorns plus a migrate job in a 128MB
+container — then died on the master-key gate. The proxy handles no secrets, so
+the fix is not to give it a key but to let the container run its command:
+`deploy/entrypoint.sh` now execs a passed command before the `HARNESS_SERVICE`
+branch. `sandbox-egress` gained a healthcheck that proves policy (a denied
+`CONNECT` must answer 403) rather than liveness.
+
+Readiness does **not** depend on egress, and that is now a decision rather than
+an accident: a run needing no network must execute while the proxy is down, so
+`/ready` still gates only on db + schema drift, and reports `egress: up|down`
+as information — for the sandbox app only, since every backend container
+receives the proxy URL and identity was reporting it too.
+
+`scripts/e2e/compose_journey.py` check 0 now fails the journey if any service
+this stack runs is missing, stopped, restarting or unhealthy. Its first version
+read `docker compose ps` without `-a` and passed while a stopped sidecar was
+invisible; the trip test caught that, and the check now reads `ps -a` and
+enumerates enabled services via `compose config --services`.
+
+Live evidence: all nine backend containers healthy including
+`sandbox-egress`; `CONNECT example.com:443 → 403`, `CONNECT github.com:443 →
+200`; sandbox `/ready` reports `egress: up`, identity reports no egress field;
+stopping the sidecar makes the new check report it, restarting clears it.
+
+Separately: the stack was ALSO down for a second reason — the database had
+migration `0062_team_model_prefs` applied while the running image declared 60,
+so identity/github/review/meeting/webhook-delivery were crash-looping on the
+schema-drift gate. A rebuild from the current tree clears it; the full build is
+currently blocked by a 60MB runtime wheel at ~28 kB/s, so verification used a
+source-overlay image over the previous build.
+
 ## Days 1–2 — the agent can read and write files properly (A1, A2)
 
 - Flip `tool-fs` to `read: true, write: true, edit: true` in the profile patch

@@ -417,6 +417,22 @@ services:
           memory: 128m
           pids: 128
     logging: *logging-caps
+    # Proves the proxy is enforcing, not merely listening: a CONNECT to a host
+    # outside the allow-list must come back 403. That needs no outbound
+    # network, so the check is deterministic on an isolated runner — and a
+    # dead listener, a broken allow-list or a wedged event loop all read as
+    # unhealthy instead of "up" (OPS-20: 708 failed healthchecks once passed
+    # unnoticed because nothing asserted container health).
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import socket; s=socket.create_connection(('127.0.0.1',3128),3); s.sendall(b'CONNECT example.com:443 HTTP/1.1\\r\\n\\r\\n'); r=s.recv(64); s.close(); assert b' 403 ' in r, r\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
     networks:
       - default
       - sandbox_egress

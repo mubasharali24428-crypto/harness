@@ -10,6 +10,50 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W1 Day 0 — the sidecar that was never running (2026-10-25)
+
+`sandbox-egress` was crash-looping and every check passed anyway.
+
+#### Fixed
+
+- **The entrypoint ignored `command:`.** `deploy/entrypoint.sh` never read
+  `"$@"`, so the egress sidecar (whose only purpose is
+  `python -m harness_sandbox.egress_proxy`) booted the all-in-one branch —
+  seven uvicorns plus a migrate job inside a 128MB, 0.25-CPU container — and
+  died on the master-key gate. It now execs a passed command before the
+  `HARNESS_SERVICE` branch, so a sidecar needs no service identity at all.
+- **`sandbox-egress` had no healthcheck.** It has one now, and it tests
+  policy rather than liveness: a `CONNECT` to a non-allow-listed host must
+  answer `403` (no outbound network needed), so a dead listener, a broken
+  allow-list or a wedged loop all read as unhealthy.
+- **Readiness no longer implies reach, and never depended on it.** The sandbox
+  `/ready` body reports `egress: up|down` when the proxy is configured and
+  still fails only on db + schema drift — a run that needs no network must
+  execute while the proxy is down, but `ready` must not be read as
+  "network available".
+
+#### Added
+
+- `scripts/e2e/compose_journey.py` check 0: every service this stack actually
+  runs (profiles applied) must have the container it should have — running,
+  healthy where a healthcheck exists, and `migrate` exited 0. It reads
+  `ps -a`, because the first version of this check read `ps` and therefore did
+  not see stopped containers at all: stopping `sandbox-egress` by hand still
+  passed. Verified both ways against the live stack (stopped → reported,
+  restarted → clean). This is the check that would have caught 708 consecutive
+  failed healthchecks behind a demo replay.
+
+#### Found while verifying
+
+- The database had migration `0062_team_model_prefs` applied while the running
+  image declared 60, so identity / github / review / meeting / webhook-delivery
+  were crash-looping on the schema-drift gate — correctly: the image predated
+  the migration. A rebuild from the current tree clears it. The full image
+  build is currently blocked on a 60 MB `deepseek_harness_runtime_bin` wheel
+  downloading at ~28 kB/s from inside the builder (~100 kB/s on the host), so
+  the live verification used a source-overlay image over the previous build
+  (`harness-backend:vrollback-1024` is the untouched original tag).
+
 ### Tool-output protocol — structured diagnostics instead of scraping (2026-10-25)
 
 `docs/tool-diagnostics-protocol.md`. Hermes' `hermesc --json` contract adopted
