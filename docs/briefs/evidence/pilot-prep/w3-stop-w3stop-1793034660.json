@@ -1,0 +1,65 @@
+{
+ "date": "2026-10-26",
+ "milestone": "W3 stop spike",
+ "runId": "w3stop-1793034660",
+ "sleepSeconds": 180,
+ "steps": [
+  {
+   "step": "project",
+   "ok": true,
+   "status": 201
+  },
+  {
+   "step": "plan",
+   "ok": true,
+   "status": 201
+  },
+  {
+   "step": "approve",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "start",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "worker appeared",
+   "ok": true,
+   "seconds": 4.46
+  },
+  {
+   "step": "stop",
+   "ok": true,
+   "status": 200,
+   "body": {
+    "runId": "w3stop-1793034660",
+    "status": "stopped"
+   }
+  }
+ ],
+ "workerContainer": "5464d8a8924c",
+ "processesAtStop": [
+  {
+   "pid": "65915",
+   "cmd": "python -m harness_orchestrator.engine_worker"
+  },
+  {
+   "pid": "65938",
+   "cmd": "/usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runtime/deepseek-harness-sdk-runtime-linux-arm64 --prof"
+  }
+ ],
+ "hadLiveChild": false,
+ "waitedForChildSeconds": 155.15,
+ "stateAtStop": "executing",
+ "workerGoneAfterSeconds": 0.92,
+ "relayGoneAfterSeconds": 0.92,
+ "relayContainer": null,
+ "workerStillAlive": false,
+ "survivorProcesses": [],
+ "stateAfterStop": "done",
+ "stopApiStatus": "stopped",
+ "ok": false,
+ "verdict": "INCONCLUSIVE: no live shell child was observed before /stop"
+}
