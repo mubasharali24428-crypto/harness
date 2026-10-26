@@ -40,6 +40,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from harness_identity.auth import get_principal, issue_otp, verify_otp
 from harness_identity.crypto import KeyVault
+from harness_identity.http_client import env_client
 from harness_identity.models import (
     AuditLog,
     AuthSession,
@@ -336,7 +337,7 @@ def test_generate_pkce_pair_shape():
 
 
 async def test_discovery_parses_via_real_http(mock_idp):
-    async with AsyncClient() as http:
+    async with env_client() as http:  # the product's factory: a bracketed NO_PROXY can't break it
         doc = await fetch_discovery(http, mock_idp.issuer_url)
     assert doc["issuer"] == mock_idp.issuer_url  # the REAL bound URL
     assert all(doc[k] for k in REQUIRED_DISCOVERY_KEYS)

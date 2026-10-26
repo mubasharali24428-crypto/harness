@@ -64,6 +64,7 @@ from .audit_emit import emit_sso_config_deleted, emit_sso_config_saved
 from .auth import SESSION_TTL_HOURS, get_principal, hash_token
 from .billing import BillingPlan
 from .crypto import ensure_kdf_params, load_kdf_params
+from .http_client import env_client
 from .models import AuthSession, Base, User
 from .orgs import mark_session_assurance
 
@@ -563,7 +564,7 @@ async def sso_start(body: SsoStartBody, request: Request) -> dict[str, Any]:
                 ),
             )
 
-        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_S) as http:
+        async with env_client(timeout=HTTP_TIMEOUT_S) as http:
             discovery = await fetch_discovery(http, issuer_url)
 
         verifier, challenge = generate_pkce_pair()
@@ -678,10 +679,10 @@ async def sso_complete(body: SsoCompleteBody, request: Request) -> dict[str, Any
             ),
         )
 
-    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_S) as http:
+    async with env_client(timeout=HTTP_TIMEOUT_S) as http:
         try:
             discovery = await fetch_discovery(http, issuer_url)
-            jwks = await fetch_jwks(http, discovery["jwks_uri"])
+            jwks =await fetch_jwks(http, discovery["jwks_uri"])
             try:
                 token_resp = await http.post(
                     discovery["token_endpoint"],

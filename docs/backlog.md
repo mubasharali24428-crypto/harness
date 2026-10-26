@@ -201,8 +201,17 @@ The entry below this one claimed 11 pre-existing Section 1 failures that blocked
 any PR. **It was misdiagnosed, and Section 1 is not red.** Corrected rather than
 quietly amended, because a phantom blocker was gating the W1 branch.
 
-- [ ] **SSO outbound clients inherit environment proxies** (owner: S1 + human
-  decision). `tests/test_sso_oidc.py` fails 11 / passes 13 **only when this
+- [x] **SSO outbound clients inherit environment proxies** (owner: S1 + human
+  decision). **Closed 2026-10-26 with option (b)**: `harness_identity.http_client.env_client`
+  keeps proxy support and, only when construction fails on a bracketed entry,
+  rebuilds with the brackets stripped (`[::1]` and `::1` name the same address).
+  Any other `InvalidURL` still raises. Option (c) was not available — 0.28.1 is the
+  newest httpx — and `test_plain_httpx_still_rejects_the_shape` fails the day it
+  is, so the helper can be deleted then. Used by both SSO clients and the Stripe
+  adapter (same exposure). `test_sso_oidc.py` 24/24 with and without the Docker
+  Desktop `NO_PROXY`; Section 1 992 passed. Not fixed here: the other sections'
+  env-trusting clients (S2 GitHub, S4 context resolver, S6 meeting, S10
+  onboarding, `mcp`) carry the same latent shape. `tests/test_sso_oidc.py` fails 11 / passes 13 **only when this
   host's `NO_PROXY` is present**, and passes `24/24` under
   `env -u NO_PROXY -u no_proxy`. The raise is not in the app's request and not
   in URL building — it is in **httpx client construction**:
