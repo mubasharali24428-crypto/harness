@@ -331,3 +331,21 @@ made the real cause easy to find once the environment was inspected.
   touch nothing forbidden. Fail-closed is right; the cost is that the tool is
   unavailable rather than scoped, which should be a stated product consequence,
   not a surprise in the run page.
+
+## From W1 M07 (acceptance blocked on topology, 2026-10-26)
+
+- [ ] **The deployed topology cannot create a confined worker** (owner: S4+S10,
+  blocks M07). The orchestrator container has no Docker socket and no CLI,
+  `container` is one of only two modes the runtime accepts, and
+  `HARNESS_ENGINE_ISOLATED` / `_CONFINEMENT` / `_IMAGE` are set in no env file or
+  compose service — so isolation is unset (in-process) or refuses. Choose the
+  worker-daemon option; do not mount the socket, and do not ship `off`.
+- [ ] **Evidence collected on a host-only topology** (owner: S10). M04 and both
+  M07 attempts ran as host processes with the host's `docker` CLI. Valid as
+  behaviour, not as proof the stack can do it. Re-run through the stack once the
+  daemon exists.
+- [ ] **A stuck run has no tool-call budget in practice** (owner: S4, W2).
+  `remaining_tool_calls` exists (`execution.py:437`) but nothing applied it to
+  these runs, and it counts shell-plugin calls — native `tool-fs` calls may not
+  consume it. 14 and 37 tool calls against one trivial goal, stopped only by the
+  wall clock, is the symptom.

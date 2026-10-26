@@ -437,3 +437,47 @@ enforcement of the scope subtree (the per-run container already mounts the
 workspace — a second read-only bind over the out-of-scope paths, or a read-only
 bind of `src/` alone, is the shape that would actually hold), not a better
 string matcher.
+
+## M07 blocked on topology, not on the model (2026-10-26)
+
+Two live acceptance attempts through the confined worker were run, and both
+thrashed: 14 and 37 call/result pairs against the same "report the colour of this
+screenshot" goal, each ending at the wall clock, one with
+`model … returned an empty response`. Streaming worked in both — every record
+arrived before completion, so this is not the transcript failing again.
+
+Investigating where the boundary actually exists turned up the reason M07 cannot
+pass as the stack is composed:
+
+- `harness-orchestrator-1` has **no `/var/run/docker.sock` and no `docker` CLI**,
+  and `deploy/docker-compose.yml` never mounts one. That is deliberate —
+  `container_runtime.py`'s own header says "Docker socket stays on host".
+- `container` is one of only two modes the real runtime accepts (the other being
+  an explicit `off`), and it is the only one that is not a safety compromise.
+- `HARNESS_ENGINE_ISOLATED`, `HARNESS_ENGINE_CONFINEMENT` and
+  `HARNESS_ENGINE_IMAGE` are set **nowhere** — not in `.env`, not in
+  `.env.example`, not in the compose file. The orchestrator container carries only
+  `ENGINE_LIVE_MODE=live`.
+
+So the deployed orchestrator cannot create a confined worker at all: with
+isolation unset it runs in-process, and if isolation is set, `auto` resolves to
+`none` on Linux and the worker refuses. Meanwhile the runs that *do* work —
+including both M04 and these M07 attempts — are host processes with the host's
+Docker CLI. **The evidence this week collected for the isolated worker was
+therefore produced on a topology the product does not deploy.**
+
+That is STATUS.md's remaining blocker "a reviewed dedicated sandbox worker/daemon",
+now with a mechanism instead of a label. It needs a decision between:
+
+1. a **worker daemon** that owns the boundary and receives work from the
+   orchestrator over a socket — the reviewed thing the pilot checklist already
+   asks for;
+2. **mounting the Docker socket** into the orchestrator, which contradicts the
+   documented design and hands the API a root-equivalent control channel; or
+3. accepting **`off`** in the stack and saying so in the UI — which the roadmap's
+   own gate forbids, since confinement is the product.
+
+Option 1 is the only one consistent with everything else in this plan. Not
+chosen here because it is architecture, not a fix, and because M07 is gated on
+M03 — which the spike above just showed cannot be met by the current design
+either. Recording M07 as **blocked with cause**, not as failed, and not as passed.
