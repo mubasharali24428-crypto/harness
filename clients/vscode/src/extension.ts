@@ -13,6 +13,7 @@ import { Harness } from "harness-ts-sdk";
 import { sdkTransport } from "./adapter/sdk.js";
 import {
   fileItem,
+  hunkItemsFor,
   pickSymbols,
   PreviewProvider,
   selectionItem,
@@ -76,6 +77,14 @@ async function collectContext(editor: vscode.TextEditor): Promise<ContextItem[]>
     );
     if (addFile?.value === "file") items.push(fileItem(editor));
   }
+  const withHunks = await vscode.window.showQuickPick(
+    [
+      { label: "Uncommitted hunks of this file", value: "hunks" },
+      { label: "Nothing else", value: "none" },
+    ],
+    { title: "Harness context: also send the uncommitted diff?" },
+  );
+  if (withHunks?.value === "hunks") items.push(...hunkItemsFor(editor));
   const symbols = await pickSymbols(editor);
   items.push(...symbols);
   return items;

@@ -10,6 +10,41 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W7 (IDE) — an in-editor edit goes through the plan gate, the done-signal and the change review, in that order (2026-10-27)
+
+`clients/vscode` is a client of the control path W6 built, not a second one:
+context builder, diff applier, run controller, typed-SDK transport, VS Code
+adapter, activation. Everything that decides anything sits in `src/core` with no
+`vscode` import, so the policy is tested against fakes instead of described.
+
+The flow the gate demanded turned out to have **two** approvals, because the
+product has two: the operator approves the *plan*, and the operator approves the
+*result* (`POST /runs/{id}/done-signal`) — and that second one is the only thing
+that makes a diff exist server-side, which is what `/changes` and
+`review_change(diffSha)` bind to. So the editor shows the engine's proposed diff
+labelled *proposed*, asks for confirmation, records it, then shows each file's
+recorded patch labelled *reviewed* and takes approve/reject per file. Declining
+either step leaves nothing recorded and writes nothing.
+
+Bytes are the contract, and the refusals are the feature: a patch that does not
+hash to the digest is never displayed; drifted context is applied only on a
+unique match, never a guess; binary, symlink, rename-only and
+patch-omitted changes are refused; a file that changed after its diff was shown
+is not overwritten; a `@`-context path that climbs out of the workspace is
+rejected before it reaches the wire; and a context block over the cap says in
+the goal itself which items were dropped or truncated, so "what the model saw"
+stays answerable from the audit.
+
+`awaiting_done_signal` is a settled state — the engine finishing is not the run
+finishing — and this was learned twice: once by reading `service.py`, once by
+watching a test poll a deadline that would never arrive. Building it also
+required rebuilding `clients/ts/dist`, which was 12 files stale against its own
+`src` (no `run_diff`, `list_changes`, `review_change`).
+
+Not claimed: the live drill is written but unrun, and the `vscode` adapter is
+typechecked and built without a window ever being opened in this environment.
+`docs/week-7-plan.md` states both plainly rather than implying a desktop test.
+
 ### W4 (installs) — permitted only under the boundary, and the proxy keeps the record (2026-10-27)
 
 `pip install` is no longer blocked by name alone. `policy.install_permission()`

@@ -7,9 +7,11 @@
  * core, where it is tested against a fake editor.
  */
 
+import { execFileSync } from "node:child_process";
+
 import * as vscode from "vscode";
 
-import type { ContextItem } from "../core/context.js";
+import { hunkContextItems, type ContextItem } from "../core/context.js";
 import type { EditorPort, PlanOffer } from "../core/run.js";
 
 const PREVIEW_SCHEME = "harness-preview";
@@ -157,6 +159,26 @@ export function fileItem(editor: vscode.TextEditor): ContextItem {
     label: `@${relative}`,
     text: editor.document.getText(),
   };
+}
+
+/**
+ * Uncommitted hunks of one file, as `@`-context. Parsed by the same strict
+ * parser the tests pin, so a file git cannot show as text yields nothing
+ * rather than a plausible-looking empty item.
+ */
+export function hunkItemsFor(editor: vscode.TextEditor): ContextItem[] {
+  const relative = vscode.workspace.asRelativePath(editor.document.uri, false);
+  let diffText = "";
+  try {
+    diffText = execFileSync(
+      "git",
+      ["-C", workspaceRoot().fsPath, "diff", "--unified=3", "--", relative],
+      { encoding: "utf8", timeout: 5000 },
+    );
+  } catch {
+    return [];  // no git, no repo or no changes: the item is simply absent
+  }
+  return hunkContextItems(diffText);
 }
 
 interface SymbolNode extends vscode.DocumentSymbol {}
