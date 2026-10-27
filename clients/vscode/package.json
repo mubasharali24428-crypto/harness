@@ -53,6 +53,22 @@
           "default": 8000,
           "minimum": 500,
           "description": "Hard cap on the context block sent with a goal. Larger selections are reduced and the goal says so."
+        },
+        "harness.repoRoot": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the harness repo whose deploy/runners/local_engine.py executes the confined run (required to run)."
+        },
+        "harness.launcherPython": {
+          "type": "string",
+          "default": "",
+          "description": "Interpreter with the harness SDK importable (e.g. section1/.venv/bin/python). Defaults to python3."
+        },
+        "harness.runTimeoutSeconds": {
+          "type": "number",
+          "default": 900,
+          "minimum": 30,
+          "description": "Wall-clock deadline for one confined engine run."
         }
       }
     }

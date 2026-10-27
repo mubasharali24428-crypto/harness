@@ -2,8 +2,16 @@
  * The typed SDK as the extension's transport (W7 slice 3 adapter).
  *
  * Every call here is an ordinary product API — the same one the web and the
- * CLI use. There is no privileged endpoint and no local executor: if a
- * capability is not in the public surface, the editor does not get it.
+ * CLI use. There is no privileged endpoint: if a capability is not in the
+ * public surface, the editor does not get it. Execution is *not* in this file;
+ * see `local.ts`, which spawns the same confined runner the CLI uses rather
+ * than a second implementation of it.
+ *
+ * `start_run` is deliberately absent. An IDE run executes on the operator's
+ * machine inside the container boundary (W6's local mode), and the queue only
+ * claims runs that are EXECUTING — starting one here would double-execute a
+ * plan whose work already happened. The server still holds the plan gate, the
+ * recorded diff and every change decision.
  */
 
 import type { Harness } from "harness-ts-sdk";
@@ -63,19 +71,6 @@ export function sdkTransport(harness: Harness, projectId: string | null = null):
     },
     async rejectPlan(planId: string): Promise<void> {
       await harness.orchestrator.reject_plan(planId);
-    },
-    async startRun(runId: string): Promise<void> {
-      await harness.orchestrator.start_run(runId);
-    },
-    async status(runId: string): Promise<{ state: string }> {
-      const response = await harness.orchestrator.get_run_status(runId);
-      return { state: response.state };
-    },
-    async pendingDiff(runId: string): Promise<{ diff: string; omitted?: string | null }> {
-      const engine = await harness.orchestrator.get_engine_result(runId);
-      const diff = typeof engine.diff === "string" ? engine.diff : "";
-      const omitted = typeof engine.diffOmitted === "string" ? engine.diffOmitted : null;
-      return { diff, omitted };
     },
     async confirmDone(runId: string, diffText: string): Promise<void> {
       await harness.orchestrator.signal_done(runId, { diffText });

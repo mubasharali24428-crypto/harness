@@ -10,6 +10,7 @@
 import * as vscode from "vscode";
 import { Harness } from "harness-ts-sdk";
 
+import { localEngineExecution } from "./adapter/local.js";
 import { sdkTransport } from "./adapter/sdk.js";
 import {
   fileItem,
@@ -20,7 +21,7 @@ import {
   vscodeEditor,
 } from "./adapter/vscode.js";
 import type { ContextItem } from "./core/context.js";
-import { runFromEditor } from "./core/run.js";
+import { RunError, runFromEditor } from "./core/run.js";
 
 const TOKEN_KEY = "harness.sessionToken";
 const LAST_RUN_KEY = "harness.lastRun";
@@ -29,12 +30,24 @@ let output: vscode.OutputChannel;
 let status: vscode.StatusBarItem;
 let preview: PreviewProvider;
 
-function config(): { orchestratorUrl: string; identityUrl: string; maxContextChars: number } {
+function config(): {
+  orchestratorUrl: string;
+  identityUrl: string;
+  maxContextChars: number;
+  repoRoot: string;
+  launcherPython: string;
+  runTimeoutSeconds: number;
+} {
   const settings = vscode.workspace.getConfiguration("harness");
   return {
     orchestratorUrl: settings.get<string>("serverUrl", "http://127.0.0.1:8004"),
     identityUrl: settings.get<string>("identityUrl", "http://127.0.0.1:8001"),
     maxContextChars: settings.get<number>("maxContextChars", 8000),
+    // The confined runner lives in the product repo; pointing the editor at a
+    // checkout is an explicit operator decision, not something to guess.
+    repoRoot: settings.get<string>("repoRoot", ""),
+    launcherPython: settings.get<string>("launcherPython", ""),
+    runTimeoutSeconds: settings.get<number>("runTimeoutSeconds", 900),
   };
 }
 
@@ -109,10 +122,19 @@ async function run(context: vscode.ExtensionContext): Promise<void> {
   const port = vscodeEditor({ output, status, preview });
   status.show();
   try {
+    const root = vscode.workspace.workspaceFolders?.[0];
+    if (!root) throw new RunError("open a folder first — an IDE run executes in it, confined");
+    const repoRoot = config().repoRoot;
     const outcome = await runFromEditor(sdkTransport(harness), port, {
       task,
       context: items,
       cap: config().maxContextChars,
+      execution: localEngineExecution({
+        repoRoot,
+        directory: root.uri.fsPath,
+        python: config().launcherPython || undefined,
+        timeoutSeconds: config().runTimeoutSeconds,
+      }),
     });
     await context.globalState.update(LAST_RUN_KEY, outcome.runId);
     for (const refusal of outcome.refused) {

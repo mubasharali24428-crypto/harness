@@ -20,7 +20,7 @@
  *     cd clients/vscode && npx tsx scripts/w7_ide_drill.ts [--timeout-min 20]
  */
 
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
@@ -28,9 +28,10 @@ import { fileURLToPath } from "node:url";
 
 import { Harness } from "harness-ts-sdk";
 
+import { localEngineExecution } from "../src/adapter/local.js";
 import { sdkTransport } from "../src/adapter/sdk.js";
 import { sha256Hex } from "../src/core/diff.js";
-import type { ChangeView, EditorPort, HarnessTransport, PlanOffer } from "../src/core/run.js";
+import type { ChangeView, EditorPort, PlanOffer } from "../src/core/run.js";
 import { runFromEditor } from "../src/core/run.js";
 
 const IDENTITY = "http://127.0.0.1:8001";
@@ -40,12 +41,16 @@ const WORKER_RE = /^harness-[0-9a-f]{32}(-relay)?$/;
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const OUT = join(REPO, "docs", "briefs", "evidence", "pilot-prep");
 
+/**
+ * Combined stdout+stderr. `docker logs` writes a container's stderr to its own
+ * stderr, and the identity service prints the login code there — reading only
+ * stdout returns nothing and looks like "no code was sent" (the first run of
+ * this drill failed exactly that way, with the code plainly in the logs).
+ */
 function sh(argv: string[]): string {
-  try {
-    return execFileSync(argv[0]!, argv.slice(1), { encoding: "utf8", timeout: 30_000 });
-  } catch (error) {
-    return String((error as { stdout?: string }).stdout ?? "");
-  }
+  const result = spawnSync(argv[0]!, argv.slice(1), { encoding: "utf8", timeout: 30_000 });
+  if (result.error) throw new Error(`${argv.join(" ")}: ${result.error.message}`);
+  return `${result.stdout ?? ""}${result.stderr ?? ""}`;
 }
 
 async function post<T>(url: string, body: unknown, token?: string): Promise<{ status: number; json: T }> {
@@ -132,9 +137,15 @@ function startWorkerPoller(): { seen: Record<string, unknown>; stop: () => void 
     for (const line of lines) {
       const [id, name] = line.trim().split(" ");
       if (!id || !name || !WORKER_RE.test(name) || seen[name]) continue;
-      const inspect = sh(["docker", "inspect", id]);
-      if (!inspect.trim()) continue;
-      const info = JSON.parse(inspect)[0];
+      const raw = sh(["docker", "inspect", id]);
+      const jsonStart = raw.indexOf("[");
+      if (jsonStart < 0) continue;
+      let info: Record<string, any>;
+      try {
+        info = JSON.parse(raw.slice(jsonStart))[0];
+      } catch {
+        continue;  // never let a malformed inspect hide the observation
+      }
       seen[name] = {
         role: name.endsWith("-relay") ? "relay" : "worker",
         image: info.Config?.Image,
@@ -200,11 +211,17 @@ async function main(): Promise<number> {
   };
   const editor = dirEditor(workspace, trace);
 
-  const base = sdkTransport(harness, projectId);
-  const transport: HarnessTransport = { ...base };
+  const transport = sdkTransport(harness, projectId);
+  const execution = localEngineExecution({
+    repoRoot: REPO,
+    directory: workspace,
+    python: process.env.HARNESS_LAUNCHER_PYTHON ?? "python3",
+    timeoutSeconds: timeoutMin * 60,
+  });
 
   const poller = startWorkerPoller();
   const outcome = await runFromEditor(transport, editor, {
+    execution,
     task:
       "Create a file named ide_note.txt in the workspace root whose only content is the " +
       "line: reviewed in the editor. Do not change any other file.",
@@ -218,8 +235,6 @@ async function main(): Promise<number> {
         endLine: 2,
       },
     ],
-    deadlineMs: timeoutMin * 60_000,
-    pollMs: 2000,
   }).finally(() => poller.stop());
 
   const appliedPath = outcome.applied[0] ?? null;
@@ -229,7 +244,7 @@ async function main(): Promise<number> {
 
   // The server's record of the same run: the goal carried the selection, and
   // the change is approved with the digest the editor reviewed.
-  const changes = await base.changes(outcome.runId);
+  const changes = await transport.changes(outcome.runId);
   const change = changes.find((c: ChangeView) => c.path === appliedPath) ?? changes[0] ?? null;
 
   let wrongDigest: { refused: boolean; code?: string; status?: number } = { refused: false };
@@ -247,17 +262,14 @@ async function main(): Promise<number> {
   }
 
   // The goal the model was given lives in the plan version the gate approved.
-  const planRow = execFileSync(
+  const planRow = sh([
     "docker",
-    [
-      "exec",
-      sh(["docker", "ps", "-q", "--filter", "label=com.docker.compose.service=db"]).trim(),
-      "sh",
-      "-lc",
-      `psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select content from plan_versions where run_id='${outcome.runId}' order by version limit 1"`,
-    ],
-    { encoding: "utf8" },
-  );
+    "exec",
+    sh(["docker", "ps", "-q", "--filter", "label=com.docker.compose.service=db"]).trim(),
+    "sh",
+    "-lc",
+    `psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select content from plan_versions where run_id='${outcome.runId}' order by version limit 1"`,
+  ]);
   const planContent = (JSON.parse(planRow.trim() || "{}") ?? {}) as PlanContent;
   const goal = planContent.goal ?? "";
 
@@ -271,6 +283,9 @@ async function main(): Promise<number> {
     drive: "extension core (clients/vscode/src/core) against the live stack; vscode adapter typechecked, not opened",
     runId: outcome.runId,
     state: outcome.state,
+    confinement: outcome.confinement,
+    image: outcome.image,
+    resultConfirmedByOperator: outcome.confirmed,
     goalCarriedSelection: goal.includes("@src/note.py:1-2") && goal.includes("hello {name}"),
     goalChars: goal.length,
     planApprovedInEditor: trace.plans.length === 1,
@@ -297,6 +312,7 @@ async function main(): Promise<number> {
     goalCarriedSelection: evidence.goalCarriedSelection,
     planApproved: evidence.planApprovedInEditor,
     workerObserved: evidence.workerObserved && Boolean(worker?.readOnlyRoot),
+    confinementNamed: outcome.confinement === "container",
     diffShown: evidence.diffShown !== null,
     wrongDigestRefused: wrongDigest.refused && wrongDigest.code === "CHANGE_STALE",
     reviewApprovedWithDigest: change?.reviewState === "approved",

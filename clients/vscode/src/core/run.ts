@@ -27,19 +27,6 @@ import {
   type RunDiffItem,
 } from "./diff.js";
 
-export const TERMINAL_STATES = new Set([
-  "done",
-  "error",
-  "failed",
-  "execution_failed",
-  "stopped",
-  "cancelled",
-  "blocked",
-  // The engine is finished and the run waits on a human: from the client's
-  // point of view this has settled, and it is where the done-gate lives.
-  "awaiting_done_signal",
-]);
-
 export class RunError extends Error {}
 
 export interface PlanOffer {
@@ -58,13 +45,9 @@ export interface ChangeView {
 
 export interface HarnessTransport {
   proposePlan(goal: string): Promise<PlanOffer>;
-  /** Approving is what starts a run: the server returns its id. */
+  /** Approval is the gate: the server returns the run id it authorised. */
   approvePlan(planId: string): Promise<{ runId: string }>;
   rejectPlan(planId: string): Promise<void>;
-  startRun(runId: string): Promise<void>;
-  status(runId: string): Promise<{ state: string; detail?: string }>;
-  /** The diff the engine proposed, before the run has a recorded one. */
-  pendingDiff(runId: string): Promise<{ diff: string; omitted?: string | null }>;
   /** The operator's done-signal; it is what records the diff server-side. */
   confirmDone(runId: string, diffText: string): Promise<void>;
   diff(runId: string): Promise<RunDiffItem[]>;
@@ -107,12 +90,45 @@ export interface EditorPort {
   deleteFile(path: string): Promise<void>;
 }
 
+export interface ExecutionResult {
+  /** `completed` is the only value that lets the review begin. */
+  state: string;
+  summary: string;
+  /** The patch the confined run produced, as unified-diff text. */
+  diff: string;
+  diffOmitted?: string | null;
+  /** Named in the evidence: an IDE run must say what bounded it. */
+  confinement?: string;
+  image?: string;
+  detail?: string;
+}
+
+/**
+ * Where an approved plan executes. The policy gate is already satisfied by the
+ * time this is called, and it cannot be skipped: an implementation that runs
+ * agent code outside the container boundary is not an `Execution`, it is the
+ * bypass this week's gate exists to refuse.
+ */
+export interface Execution {
+  run(input: {
+    runId: string;
+    planId: string;
+    goal: string;
+    report: (state: string, detail?: string) => void;
+  }): Promise<ExecutionResult>;
+  /**
+   * The run's own copy of a changed file, when it kept one. Used only as a
+   * cross-check: if the editor's applier and the run disagree about a file's
+   * bytes, neither is written.
+   */
+  readOutput?(path: string): Promise<string | null>;
+}
+
 export interface RunOptions {
   task: string;
   context?: ContextItem[];
   cap?: number;
-  deadlineMs?: number;
-  pollMs?: number;
+  execution: Execution;
 }
 
 export interface Refusal {
@@ -126,18 +142,13 @@ export interface RunOutcome {
   state: string;
   planned: boolean;
   confirmed: boolean;
+  /** Named so evidence can say what bounded the run, not just that it ran. */
+  confinement: string | null;
+  image: string | null;
   reviewed: Array<{ path: string; decision: "approved" | "rejected"; diffSha: string }>;
   applied: string[];
   deleted: string[];
   refused: Refusal[];
-}
-
-function isSettled(state: string): boolean {
-  return TERMINAL_STATES.has(state);
-}
-
-async function sleep(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -161,46 +172,50 @@ export async function runFromEditor(
     throw new RunError(`plan ${offer.planId} was rejected; nothing was executed`);
   }
   const { runId } = await transport.approvePlan(offer.planId);
-  await transport.startRun(runId);
 
-  const deadline = Date.now() + (options.deadlineMs ?? 15 * 60 * 1000);
-  const pollMs = options.pollMs ?? 2000;
-  let state = "executing";
-  for (;;) {
-    const status = await transport.status(runId);
-    state = status.state;
-    editor.report(state, status.detail);
-    if (isSettled(state)) break;
-    if (Date.now() >= deadline) {
-      throw new RunError(`run ${runId} did not settle before the deadline (last: ${state})`);
-    }
-    await sleep(pollMs);
-  }
-
-  const outcome: RunOutcome = {
-    runId: runId,
+  // Execution is injected, and it is the only place work happens. The IDE does
+  // not get a second executor: this call is the W6 local-engine path, i.e. the
+  // same confine module, the same container boundary and the same runner script
+  // the CLI uses, launched with the plan the server just authorised.
+  const executed = await options.execution.run({
+    runId,
+    planId: offer.planId,
     goal,
-    state,
+    report: (state, detail) => editor.report(state, detail),
+  });
+  const outcome: RunOutcome = {
+    runId,
+    goal,
+    state: executed.state,
     planned: true,
     confirmed: false,
+    confinement: executed.confinement ?? null,
+    image: executed.image ?? null,
     reviewed: [],
     applied: [],
     deleted: [],
     refused: [],
   };
+  if (executed.state !== "completed") {
+    throw new RunError(
+      `the confined run ended ${executed.state}: ${executed.detail || executed.summary || "(no reason given)"}`,
+    );
+  }
 
-  // The engine finishing is not the run finishing: the product records the
-  // diff when a human confirms it (`done-signal`). The editor shows that diff
-  // and asks; a refusal leaves the run awaiting, with nothing recorded.
-  if (state === "awaiting_done_signal") {
-    const pending = await transport.pendingDiff(runId);
-    const files = splitPatchByFile(pending.diff);
-    if (!pending.diff.trim() || !files.length) {
-      throw new RunError(
-        `run ${runId} finished without a diff to review${pending.omitted ? ` (${pending.omitted})` : ""}`,
-      );
+  // The engine finishing is not the run finishing: the product records a diff
+  // only when a human confirms it (`done-signal`). The editor shows the patch
+  // the run produced and asks; declining leaves nothing recorded.
+  {
+    const files = splitPatchByFile(executed.diff);
+    if (!executed.diff.trim() || !files.length) {
+      editor.report("no changes", executed.diffOmitted ?? "the run touched no file");
+      outcome.refused.push({
+        path: "(run)",
+        reason: `the run produced no reviewable diff${executed.diffOmitted ? ` (${executed.diffOmitted})` : ""}`,
+      });
+      return outcome;
     }
-    editor.report("review", `${files.length} file(s), ${pending.diff.length} chars`);
+    editor.report("review", `${files.length} file(s), ${executed.diff.length} chars`);
     for (const file of files) {
       let before: string | null = null;
       if (file.path) {
@@ -221,7 +236,7 @@ export async function runFromEditor(
     }
     const confirmed = await editor.confirmResult({
       files: files.map((f) => f.path),
-      chars: pending.diff.length,
+      chars: executed.diff.length,
     });
     if (!confirmed) {
       outcome.refused.push({
@@ -230,15 +245,9 @@ export async function runFromEditor(
       });
       return outcome;
     }
-    await transport.confirmDone(runId, pending.diff);
-    const after = await transport.status(runId);
-    state = after.state;
-    outcome.state = state;
-    editor.report(state, after.detail);
-  }
-
-  if (state !== "done") {
-    throw new RunError(`run ${runId} ended in ${state}`);
+    await transport.confirmDone(runId, executed.diff);
+    outcome.state = "done";
+    editor.report("done", "the diff is recorded; per-file review begins");
   }
   outcome.confirmed = true;
 
@@ -302,6 +311,17 @@ export async function runFromEditor(
     if (verdict === "reject") {
       outcome.refused.push({ path: change.path, reason: "rejected during review" });
       continue;
+    }
+
+    if (options.execution.readOutput) {
+      const runCopy = await options.execution.readOutput(change.path).catch(() => null);
+      if (runCopy !== null && plan2.content !== null && runCopy !== plan2.content) {
+        outcome.refused.push({
+          path: change.path,
+          reason: "the editor's applier and the confined run disagree about these bytes",
+        });
+        continue;
+      }
     }
 
     // Stale check: the file must still be what the diff was computed against.

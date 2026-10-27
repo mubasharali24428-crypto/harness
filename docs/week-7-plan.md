@@ -65,7 +65,10 @@ Expanded into five claims that must each be shown:
    inventing one to share one package is a build-system change, not a W7 one).
 2. **Transport — the typed client, not a subprocess.** Shelling out to `harness`
    would make the extension's policy behaviour depend on another binary's
-   version. The SDK is the same code path the web uses.
+   version. The SDK is the same code path the web uses. *Amended 2026-10-27 by
+   decision 6:* this holds for the API surface; execution is a subprocess of
+   `deploy/runners/local_engine.py` — the very script the CLI executes, so the
+   launcher stays single-implementation even though two clients invoke it.
 3. **Apply — `WorkspaceEdit`, computed by a strict TS applier.** No shelling to
    `patch`/`git apply`: the bytes the editor shows are the bytes it writes, and
    an applier that cannot reproduce them **refuses** instead of guessing.
@@ -147,3 +150,43 @@ The credential non-leak drill (`scripts/e2e/w4_credential_leak_drill.py`) is
 rerunning after the NUL audit-row fix (commit 4b2f300). Until it is green, W4
 has one open clause and this week is running alongside it, per the governing
 rule.
+
+## Decision 6 — where an IDE run executes, and why the answer is not "the server"
+
+Found while wiring the drill, not while writing prose: **a server-side run has
+no proposed diff to review.** `/runs/{id}/diff` and `/changes` read
+`get_done_diff`, and the only writer of that value is `signal_done` — the
+human's `done-signal`. `engine_result` carries no diff for a server run (only
+W6's local launcher computes one, `git diff --no-index` inside the container),
+and the web UI's Done button sends text a human typed. So a client that wanted
+an inline diff *before* confirming one would have to invent it from tool
+results: fabricated bytes, reviewed as if they were the run's.
+
+Two consequences, both taken seriously:
+
+1. **The IDE runs W6's local path.** `src/adapter/local.ts` spawns the same
+   `deploy/runners/local_engine.py` the CLI spawns, with the same arguments and
+   the same container boundary (`preflight` refuses anything but
+   `container`, and the seatbelt/off paths are refused regardless of server
+   policy). One launcher, one `confine` module, one `ContainerBoundary` — the
+   extension adds a UI, not an executor. It also does **not** call
+   `start_run`: the queue only claims EXECUTING runs, and starting one would
+   double-execute a plan whose work already happened on the operator's machine.
+2. **The IDE run then supplies the diff the product lacks.** The operator
+   confirms the patch the confined run produced, and that text goes up as the
+   `done-signal`. `/changes` and `review_change(diffSha)` then exist for an
+   editor flow for the first time — which is what makes "approve/reject from the
+   editor names bytes" provable rather than aspirational.
+
+**What this costs, stated plainly:** an IDE run emits `plan_proposed` and
+`plan_approved` on the server but no `execution_started`, and no per-tool
+`agent_events` — the same audit shape W6 recorded for `harness run --local`.
+The confinement claim is carried by the container the run actually executes in
+(observed, read-only root, dropped caps, internal network) plus the recorded
+diff and the per-file review rows, not by an event the off-host path cannot
+truthfully mint.
+
+**Cross-check, because two derivations of a file can disagree:** the launcher
+copies the run's changed files to a scratch dir; before writing, the controller
+compares the applier's output with that copy and refuses if they differ. The
+editor never writes bytes that only one of the two produced.
