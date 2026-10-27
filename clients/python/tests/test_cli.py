@@ -13,6 +13,7 @@ import stat
 
 import pytest
 from harness_sdk.cli import config
+from harness_sdk.cli import session as session_store
 from harness_sdk.cli.commands import CliError, execute_run, format_diff
 from harness_sdk.cli.main import main
 
@@ -219,3 +220,101 @@ def test_run_without_a_client_uses_the_stored_token_and_env_urls(config_dir, mon
     assert code == 0, err.getvalue()
     assert seen["token"] == "tok"
     assert json.loads(out.getvalue())["runId"] == "r1"
+
+
+# ---------------------------------------------------------------- chat (slice 3)
+
+
+def _chat_argv(*extra: str, message: str = "hello"):
+    return ["chat", "--message", message, *extra]
+
+
+def test_chat_single_turn_goes_through_the_gate_and_persists(config_dir):
+    sdk = _Sdk()
+    out, err = io.StringIO(), io.StringIO()
+    code = main(_chat_argv("--yes", "--json"), sdk=sdk, stdout=out, stderr=err,
+                prompt=lambda _p: "y")
+    assert code == 0, err.getvalue()
+    calls = [name for name, *_ in sdk.orchestrator.calls]
+    assert calls[:3] == ["propose", "approve", "start"]
+    payload = json.loads(out.getvalue())
+    (turn,) = payload["exchanges"]
+    assert turn["message"] == "hello" and turn["answer"] == "fixed it"
+    stored = session_store.load_session(payload["sessionId"])
+    assert stored.exchanges[0]["runId"] == turn["runId"]
+    path = session_store.session_path(payload["sessionId"])
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
+
+
+def test_chat_followup_replays_plain_messages_not_compounded_goals(config_dir):
+    session = session_store.new_session("proj-1")
+    session.add("first", "first", {"runId": "r1", "planId": "p1", "state": "done", "answer": "a1"})
+    goal = session.compose_goal("second")
+    assert goal.startswith(session_store.HISTORY_HEADER)
+    assert "- first\n  → a1" in goal
+    assert "Current message: second" in goal
+    # The rendered goal is what the server sees; the transcript stays plain.
+    session.add("second", goal, {"runId": "r2", "planId": "p2", "state": "done", "answer": "a2"})
+    assert session.exchanges[1]["message"] == "second"
+    again = session.compose_goal("third")
+    assert again.count("- first") == 1 and "- second" in again
+
+
+def test_chat_refusal_rejects_that_turn_and_stops_the_loop(config_dir):
+    sdk = _Sdk()
+    out, err = io.StringIO(), io.StringIO()
+    code = main(_chat_argv("--json"), sdk=sdk, stdout=out, stderr=err,
+                prompt=lambda _p: "n")
+    assert code == 0
+    calls = [name for name, *_ in sdk.orchestrator.calls]
+    assert calls == ["propose", "reject"]
+    payload = json.loads(out.getvalue())
+    assert payload["exchanges"][0]["state"] == "rejected"
+
+
+def test_chat_resume_finds_the_stored_session_by_id(config_dir):
+    sdk = _Sdk()
+    out, err = io.StringIO(), io.StringIO()
+    main(_chat_argv("--yes", "--json"), sdk=sdk, stdout=out, stderr=err)
+    session_id = json.loads(out.getvalue())["sessionId"]
+
+    sdk2 = _Sdk()
+    out2, err2 = io.StringIO(), io.StringIO()
+    code = main(_chat_argv("--resume", session_id, "--yes", "--json"),
+                sdk=sdk2, stdout=out2, stderr=err2)
+    assert code == 0, err2.getvalue()
+    payload = json.loads(out2.getvalue())
+    assert payload["sessionId"] == session_id
+    assert len(payload["exchanges"]) == 2
+    # The second turn's wire goal carried the first turn's history.
+    second_goal = sdk2.orchestrator.calls[0][1]["goal"]
+    assert "hello" in second_goal and "Current message: hello" in second_goal
+
+
+def test_chat_resume_of_an_unknown_session_is_actionable(config_dir):
+    config.save(config.Credentials("tok"))
+    err = io.StringIO()
+    code = main(_chat_argv("--resume", "chat-nope", "--yes"),
+                stdout=io.StringIO(), stderr=err)
+    assert code == 1 and "no session" in err.getvalue()
+
+
+def test_chat_json_prints_exactly_one_object(config_dir):
+    sdk = _Sdk()
+    out, err = io.StringIO(), io.StringIO()
+    assert main(_chat_argv("--yes", "--json"), sdk=sdk, stdout=out, stderr=err) == 0
+    text = out.getvalue()
+    payload = json.loads(text)
+    assert payload["sessionId"].startswith("chat-")
+    assert text.rstrip().endswith("}") and text.count("}{") == 0
+
+
+def test_chat_continue_picks_the_newest_session(config_dir):
+    first = session_store.new_session("proj-1")
+    second = session_store.new_session("proj-1")
+    assert session_store.latest_session_id() == second.session_id
+    second.add("m", "m", {"runId": "r", "planId": "p", "state": "done", "answer": "x"})
+    second.save()
+    assert session_store.latest_session_id() == second.session_id
+    assert first.session_id != second.session_id

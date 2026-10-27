@@ -10,6 +10,35 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W6 (chat) — an interactive loop that says exactly what it remembers (2026-10-27)
+
+`harness chat` is slice 3: an interactive loop over the SAME run path — every
+turn is a normal plan-gated run (`propose → approve → start`), `--yes` covers
+all turns only as an explicit operator decision, and a refusal rejects that
+turn's plan and ends the loop rather than letting the next message assume an
+approval that never happened.
+
+The session identity the plan demanded, answered without inventing a server
+object: the engine remembers exactly the history block `compose_goal` renders
+into the next goal — it travels on the wire inside `propose_plan`, so it is
+auditable, not implied — and the transcript lives in a local session file
+under the credentials permission contract (0700 dir, 0600 file, atomic
+replace). The transcript stores the plain message per turn; the rendered goal
+is stored alongside it because that string is what the server actually saw.
+History is capped newest-first at 4 KB, so the oldest exchanges drop first —
+a bound, stated in the code, not a silent truncation.
+
+Live smoke (`scripts/e2e/w6_chat_smoke.py`, `w6-chat-1793092724.json`): two
+scripted turns against the stack; turn 1 shows the same event sequence as a
+`harness run` (plan_proposed, plan_approved, execution_started,
+engine_completed); turn 2's wire goal provably carried turn 1; session file
+permissions checked on the real store. `--message`/`--resume`/`--continue`
+make chat scriptable, so the drill needs no pty.
+
+There is no server-side conversation object, and chat does not pretend there
+is one; server-remembered sessions would be a contract decision, not a CLI
+workaround.
+
 ### W6 (CLI) — the same task completes from a terminal, with the same audit trail (2026-10-27)
 
 Week-6 slices 1–2: `harness_sdk.cli` ships a `harness` console script with

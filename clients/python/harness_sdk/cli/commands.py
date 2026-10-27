@@ -121,6 +121,63 @@ def execute_run(
     }
 
 
+def chat_loop(
+    sdk: Any,
+    session: Any,
+    *,
+    read_line: Callable[[str], str | None],
+    emit: Callable[[str], None],
+    confirm: Callable[[str], str] = input,
+    assume_yes: bool = False,
+    note: Callable[[str], None] = lambda _m: None,
+    poll_seconds: float = 2.0,
+    timeout: float = 900.0,
+) -> dict[str, Any]:
+    """`harness chat`: an interactive loop over the same run path.
+
+    Session identity is explicit (see cli/session.py): each turn is a normal
+    plan-gated run whose goal is the composed history block plus the message,
+    so the engine remembers exactly what is rendered into that block and
+    nothing else. Every turn goes through the gate — `--yes` covers all turns
+    because the operator opted in explicitly, and a refusal rejects that
+    turn's plan and ends the loop rather than silently continuing without the
+    approval the next message would assume.
+    """
+    auto = bool(assume_yes)
+    while True:
+        message = read_line("you> ")
+        if message is None or not message.strip():
+            break
+        message = message.strip()
+        if message in {"/exit", "/quit"}:
+            break
+        if message == "/id":
+            emit(f"[session {session.session_id}]")
+            continue
+        goal = session.compose_goal(message)
+        result = execute_run(
+            sdk,
+            goal,
+            project_id=session.project_id,
+            assume_yes=auto,
+            confirm=confirm,
+            note=note,
+            poll_seconds=poll_seconds,
+            timeout=timeout,
+        )
+        session.add(message, goal, result)
+        session.save()
+        if result["state"] == "rejected":
+            emit("plan rejected; ending the chat — approve is a per-run decision, "
+                 "use --yes to cover every turn")
+            break
+        emit(f"{result['answer']}\n[run {result['runId']}: {result['state']}]")
+    return {
+        "sessionId": session.session_id,
+        "exchanges": session.exchanges,
+    }
+
+
 def run_status(sdk: Any, run_id: str) -> dict[str, Any]:
     run = sdk.orchestrator.get_run(run_id)
     return {

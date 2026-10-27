@@ -2,6 +2,7 @@
 
     harness login --email you@example.com     # or --token <session token>
     harness run "fix the failing test" --project <id> [--yes] [--json]
+    harness chat [--resume <id>] [--message "..."] [--yes] [--json]
     harness status <runId> [--json]
     harness diff <runId> [--json]
 
@@ -20,8 +21,10 @@ from typing import Any, TextIO
 from ..client import Harness
 from ..errors import ApiError
 from . import config
+from . import session as session_store
 from .commands import (
     CliError,
+    chat_loop,
     execute_run,
     format_diff,
     format_steps,
@@ -64,6 +67,18 @@ def build_parser() -> argparse.ArgumentParser:
     diff = subs.add_parser("diff", parents=[common], help="the run's recorded diff")
     diff.add_argument("run_id")
     diff.add_argument("--json", action="store_true")
+
+    chat = subs.add_parser("chat", parents=[common], help="interactive loop over the run path")
+    chat.add_argument("--project", help="project id (required when you belong to several)")
+    chat.add_argument("--resume", help="continue a stored session by id")
+    chat.add_argument("--continue", dest="continue_last", action="store_true",
+                      help="resume the most recently written session")
+    chat.add_argument("--message", help="send exactly one turn and exit (scriptable)")
+    chat.add_argument("--yes", action="store_true",
+                      help="approve every turn without asking (an explicit operator decision)")
+    chat.add_argument("--json", action="store_true",
+                      help="one machine-readable object: the session with its turns")
+    chat.add_argument("--timeout", type=float, default=900.0)
     return parser
 
 
@@ -168,6 +183,45 @@ def main(
             payload = run_diff(client, args.run_id)
             _emit(out, args.json, payload, lambda: format_diff(payload))
             return 0
+        if args.command == "chat":
+            if args.resume and args.continue_last:
+                raise CliError("pass either --resume or --continue, not both")
+            if args.continue_last:
+                resume_id = session_store.latest_session_id()
+                if not resume_id:
+                    raise CliError("no stored session to continue; `harness chat` starts a new one")
+            else:
+                resume_id = args.resume
+            if resume_id:
+                loaded = session_store.load_session(resume_id)
+                if loaded is None:
+                    raise CliError(f"no session {resume_id!r} in {session_store.session_path(resume_id)}")
+                chat_session = loaded
+                if args.project:
+                    chat_session.project_id = args.project
+            else:
+                chat_session = session_store.new_session(args.project)
+            note = lambda message: err.write(message + "\n")
+            if args.message:
+                lines = iter([args.message, None])
+                read_line: Callable[[str], str | None] = lambda _p: next(lines)
+            else:
+                read_line = lambda _p: input(_p)
+            result = chat_loop(
+                client,
+                chat_session,
+                read_line=read_line,
+                emit=lambda text: (
+                    err.write(text + "\n") if args.json else out.write(text + "\n")
+                ),
+                confirm=prompt,
+                assume_yes=args.yes,
+                note=note,
+                timeout=args.timeout,
+            )
+            _emit(out, args.json, result, lambda: f"[session {result['sessionId']}]")
+            bad = [e for e in result["exchanges"] if e.get("state") in {"error", "failed", "timeout"}]
+            return 1 if bad else 0
         raise CliError(f"unknown command {args.command!r}")
     except CliError as exc:
         err.write(f"error: {exc}\n")

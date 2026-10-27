@@ -75,6 +75,17 @@ Four claims to show:
    goal over HTTP, comparing `agent_events` rows.
 3. **`chat`.** An interactive loop over the same run path, with the session
    identity made explicit (what is remembered between turns, and where).
+   **Done 2026-10-27.** The answer to "what is remembered": only the history
+   block `session.compose_goal` renders into the next turn's goal — it is on
+   the wire in the `propose_plan` body, so it is auditable, not implied; and
+   "where": the transcript file at `$XDG_CONFIG_HOME/harness/sessions/<id>.json`
+   (0700 dir, 0600 file, same contract as credentials). Each turn is a normal
+   plan-gated run; `--yes` covers every turn only as an explicit operator
+   decision, and a refusal rejects that turn's plan and ends the loop. The
+   server has no conversation object — chat deliberately does not invent one;
+   if session-scoped memory on the server is ever wanted, that is a contract
+   decision. Evidence: `w6-chat-1793092724.json` (two live turns, gate events
+   identical to `harness run`, turn 2's wire goal carried turn 1).
 4. **Local-workspace mode.** Design first: reuse `ContainerBoundary` /
    `confine` rather than write a second executor; refuse to run when confinement
    is unavailable. No evidence, no feature.

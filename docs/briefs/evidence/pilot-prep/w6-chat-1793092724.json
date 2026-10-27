@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-27T09:20:57Z",
+  "project": "demo-proj-ad6b2cd07eae",
+  "sessionId": "chat-20261027-021844-aa87dbf2",
+  "turns": [
+    {
+      "message": "Reply with the single word: one",
+      "runId": "run-800a3420f428",
+      "state": "awaiting_done_signal"
+    },
+    {
+      "message": "Reply with the single word: two",
+      "runId": "run-83c4b852e5f5",
+      "state": "awaiting_done_signal"
+    }
+  ],
+  "turn1EventTypes": [
+    "plan_proposed",
+    "plan_approved",
+    "execution_started",
+    "engine_completed"
+  ],
+  "turn2GoalCarriedHistory": true,
+  "credentialPermissions": "0o700 dir / 0o600 file",
+  "jsonSingleObject": true
+}
