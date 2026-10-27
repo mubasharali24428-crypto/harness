@@ -14,6 +14,10 @@ RUN pip install --no-deps --no-build-isolation /build/contracts '/build/section4
 COPY section5/src/harness_sandbox/shell_gate.py section5/src/harness_sandbox/policy.py \
      section5/src/harness_sandbox/confinement.py /opt/harness-shell/
 ENV HARNESS_SHELL_GATE=/opt/harness-shell/shell_gate.py
+# W4: the web gate and the generated allow-list it reads (stdlib only as well).
+COPY section5/src/harness_sandbox/web_gate.py section5/src/harness_sandbox/egress.py \
+     section5/src/harness_sandbox/egress_allowlist.json /opt/harness-shell/
+ENV HARNESS_WEB_GATE=/opt/harness-shell/web_gate.py
 # Operator runtime patches (e.g. the OpenRouter transport patch). The worker
 # container receives DSH_PATCH_FILES through the engine's scrubbed env, so the
 # file must exist at the same path inside this image.

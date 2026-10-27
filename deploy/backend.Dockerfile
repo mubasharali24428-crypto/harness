@@ -22,6 +22,8 @@ RUN pip install --no-cache-dir "deepseek-harness-sdk==0.1.1rc1" \
     && rm -rf /root/.cache
 # Section 5's shell gate for the engine's bash tool (section4 engine._execution_policy_patch).
 ENV HARNESS_SHELL_GATE=/opt/harness/section5/src/harness_sandbox/shell_gate.py
+# W4: same idea for web_fetch; the allow-list travels with the package.
+ENV HARNESS_WEB_GATE=/opt/harness/section5/src/harness_sandbox/web_gate.py
 
 # Non-root runtime: services never need privileges beyond /tmp workspaces.
 # /var/lib/harness-store is the mountpoint of the shared store volume (compose `harness_store`):

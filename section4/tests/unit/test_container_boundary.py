@@ -66,14 +66,37 @@ def test_endpoint_rejected(endpoint):
 
 def test_private_network_and_fixed_relay(monkeypatch):
     calls = []
-    monkeypatch.setattr(container_runtime, "docker", lambda *a, **k: calls.append(a))
+
+    def fake(*a, **k):
+        calls.append(a)
+        return subprocess.CompletedProcess(a, 0, "", "")
+
+    monkeypatch.setattr(container_runtime, "docker", fake)
     boundary = container_runtime.ContainerBoundary("http://127.0.0.1:11434/v1")
     assert boundary.start() == "http://model:8080/v1"
     assert calls[0] == ("network", "create", "--internal", boundary.network)
-    create = calls[1]
+    # W4: the proxy joins the run network as the only peer with a route out.
+    assert calls[1][:4] == (
+        "network", "connect", "--alias", container_runtime.EGRESS_PROXY_ALIAS
+    )
+    assert calls[1][-1] == "harness-sandbox-egress-1"
+    assert boundary.web_proxy_url == "http://harness-egress:3129"
+    create = calls[2]
     assert "host.docker.internal" in create
     assert create[-3:] == ("http", "host.docker.internal", "11434")
     assert not any("--publish" in call for call in calls)
+
+
+def test_missing_egress_proxy_leaves_web_fetch_without_a_route(monkeypatch):
+    def fake(*a, **k):
+        if a[:2] == ("network", "connect"):
+            return subprocess.CompletedProcess(a, 1, "", "no such container")
+        return subprocess.CompletedProcess(a, 0, "", "")
+
+    monkeypatch.setattr(container_runtime, "docker", fake)
+    boundary = container_runtime.ContainerBoundary("http://127.0.0.1:11434/v1")
+    assert boundary.start() == "http://model:8080/v1"
+    assert boundary.web_proxy_url is None  # denial still works; an allowed fetch fails closed
 
 
 def test_cancel_does_not_confirm_before_launcher_exits(monkeypatch):

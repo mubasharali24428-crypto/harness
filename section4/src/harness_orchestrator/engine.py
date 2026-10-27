@@ -70,6 +70,13 @@ _SHELL_PLUGIN = Path(__file__).with_name("dsh_plugins") / "harness-shell.js"
 _REPO_SHELL_GATE = (
     Path(__file__).resolve().parents[3] / "section5" / "src" / "harness_sandbox" / "shell_gate.py"
 )
+# W4: web_fetch is our own plugin, not the runtime's web tool, so the egress
+# decision (_REPO_WEB_GATE -> egress.py + the generated allow-list) is the only
+# way out. Both files are copied beside shell_gate.py in the worker image.
+_WEB_PLUGIN = Path(__file__).with_name("dsh_plugins") / "harness-web.js"
+_REPO_WEB_GATE = (
+    Path(__file__).resolve().parents[3] / "section5" / "src" / "harness_sandbox" / "web_gate.py"
+)
 
 
 def _read_only(path: str) -> bool:
@@ -138,6 +145,10 @@ def _execution_policy_patch(
     It also swaps the runtime's PTY bash tool for ``dsh_plugins/harness-shell.js``, which sends
     every command through Section 5's shell gate with this run's ``shell_policy``
     (``forbiddenPaths``, intent ``scopePaths``, ``maxToolCalls``). A missing gate fails the run.
+
+    W4 adds ``dsh_plugins/harness-web.js`` when Section 5's web gate is present: ``web_fetch``
+    asks that gate before dialing, so the allow-list (derived from the provider registry) is the
+    only reachable set. A missing web gate disables the tool rather than opening an unfiltered one.
     """
     gate = os.environ.get("HARNESS_SHELL_GATE") or str(_REPO_SHELL_GATE)
     if not os.path.isfile(gate):  # fail closed: never fall back to an unmediated shell
@@ -157,6 +168,28 @@ def _execution_policy_patch(
         "    write: true\n    edit: true\n" if may_write else "    write: false\n    edit: false\n"
     )
     note = f"    # {write_note}\n" if write_note else ""
+    web = ""
+    web_gate = os.environ.get("HARNESS_WEB_GATE") or str(_REPO_WEB_GATE)
+    if os.path.isfile(web_gate) and _WEB_PLUGIN.is_file():
+        web_config = {
+            "gate": [sys.executable, "-I", web_gate],
+            "timeoutSeconds": 15,
+            "maxBytes": 2_000_000,
+            # The worker's run network has no gateway; ContainerBoundary attaches the
+            # allow-list proxy to it under this alias (web-purpose port 3129).
+            "proxyUrl": os.environ.get("HARNESS_WEB_PROXY_URL")
+            or "http://harness-egress:3129",
+        }
+        web = (
+            "- insert:\n"
+            "    - id: harness-web\n"
+            f"      name: {json.dumps(str(_WEB_PLUGIN))}\n"
+            f"      config: {json.dumps(web_config)}\n"
+        )
+    else:
+        logger.warning(
+            "web gate or plugin missing (%s); web_fetch is not mounted for this run", web_gate
+        )
     patch.write_text(
         "- id: sandbox-policy\n"
         "  name: '@deepseek-ai/dsh-sandbox-policy'\n"
@@ -190,7 +223,7 @@ def _execution_policy_patch(
         "- insert:\n"
         "    - id: harness-shell\n"
         f"      name: {json.dumps(str(_SHELL_PLUGIN))}\n"
-        f"      config: {json.dumps(shell)}\n",
+        f"      config: {json.dumps(shell)}\n" + web,
         encoding="utf-8",
     )
     return str(patch)

@@ -6,6 +6,7 @@ traffic): wrong method, unlisted host, non-443 port, and upstream failure.
 """
 
 import asyncio
+import socket
 
 from harness_sandbox import egress_proxy
 from harness_sandbox.egress import is_allowed_destination
@@ -26,8 +27,12 @@ class _FakeWriter:
         self.closed = True
 
 
-async def _roundtrip(payload: bytes, body_len: int = 0) -> tuple[bytes, bytes]:
-    server = await asyncio.start_server(egress_proxy.handle, "127.0.0.1", 0)
+async def _roundtrip(
+    payload: bytes, body_len: int = 0, purpose: str = "sandbox"
+) -> tuple[bytes, bytes]:
+    server = await asyncio.start_server(
+        lambda r, w: egress_proxy.handle(r, w, purpose), "127.0.0.1", 0
+    )
     port = server.sockets[0].getsockname()[1]
     reader, writer = await asyncio.open_connection("127.0.0.1", port)
     try:
@@ -105,3 +110,47 @@ def test_destination_matching_is_exact_not_suffixed():
     assert is_allowed_destination("https://github.com/org/repo.git")
     assert not is_allowed_destination("github.com.evil.test")
     assert not is_allowed_destination("evil.test")
+
+
+def test_the_sandbox_port_refuses_docs_but_the_web_port_allows_them(monkeypatch):
+    # W4: purposes are separated by listener, not by a caller-supplied header.
+    sandbox_status, _ = asyncio.run(
+        _roundtrip(b"CONNECT api-docs.deepseek.com:443 HTTP/1.1\r\n\r\n")
+    )
+    assert b"403" in sandbox_status
+
+    real_open_connection = asyncio.open_connection
+    calls: list[tuple[str, int]] = []
+
+    async def fake_open_connection(host, port):
+        if (host, port) != ("api-docs.deepseek.com", 443):
+            return await real_open_connection(host, port)
+        calls.append((host, port))
+        reader = asyncio.StreamReader()
+        reader.feed_data(b"ok")
+        reader.feed_eof()
+        return reader, _FakeWriter()
+
+    monkeypatch.setattr(egress_proxy.asyncio, "open_connection", fake_open_connection)
+    web_status, body = asyncio.run(
+        _roundtrip(b"CONNECT api-docs.deepseek.com:443 HTTP/1.1\r\n\r\n",
+                   body_len=2, purpose="web")
+    )
+    assert b"200" in web_status and body == b"ok"
+    assert calls == [("api-docs.deepseek.com", 443)]
+
+
+def test_the_web_port_still_refuses_a_host_outside_its_list():
+    status, _ = asyncio.run(
+        _roundtrip(b"CONNECT example.com:443 HTTP/1.1\r\n\r\n", purpose="web")
+    )
+    assert b"403" in status
+
+
+def test_healthcheck_fails_when_a_purpose_listener_is_dead():
+    # A closed port stands in for a dead 3129: health must not read "up" just
+    # because the other listener answered.
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        closed_port = sock.getsockname()[1]
+    assert egress_proxy.healthcheck("127.0.0.1", (closed_port,)) == 1

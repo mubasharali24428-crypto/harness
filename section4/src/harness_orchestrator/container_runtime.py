@@ -10,6 +10,14 @@ from urllib.parse import urlsplit, urlunsplit
 
 IMAGE = "harness-engine-worker:p0"
 
+#: W4: the engine worker joins its run network with no gateway; the only peer
+#: with a route out is the allow-list proxy, attached here under this alias and
+#: reached on the *web* purpose port (docs + provider endpoints). The sandbox's
+#: narrower port (3128) is not given to the worker.
+EGRESS_PROXY_CONTAINER_ENV = "HARNESS_EGRESS_PROXY_CONTAINER"
+EGRESS_PROXY_ALIAS = "harness-egress"
+EGRESS_WEB_PORT = int(os.environ.get("EGRESS_WEB_PORT", "3129"))
+
 RELAY_READY = """
 import socket, time
 for _ in range(100):
@@ -41,10 +49,30 @@ class ContainerBoundary:
         self.network = self.name + "-net"
         self.relay = self.name + "-relay"
         self.image = os.environ.get("HARNESS_ENGINE_IMAGE", IMAGE)
+        self.web_proxy_url: str | None = None
+
+    def _attach_egress_proxy(self) -> str | None:
+        """Make the allow-list proxy the run network's only way out.
+
+        Docker lets a container join several networks, so connecting the proxy to
+        this gateway-less network is enough: the worker reaches ``harness-egress``
+        and nothing else. Missing proxy (bare local dev, no compose) is not fatal
+        — web_fetch then fails closed with a name-resolution error, and the
+        denial path still works because it never dials.
+        """
+        name = os.environ.get(EGRESS_PROXY_CONTAINER_ENV, "harness-sandbox-egress-1")
+        connected = docker(
+            "network", "connect", "--alias", EGRESS_PROXY_ALIAS, self.network, name,
+            check=False,
+        )
+        if connected.returncode != 0:
+            return None
+        return f"http://{EGRESS_PROXY_ALIAS}:{EGRESS_WEB_PORT}"
 
     def start(self) -> str:
         docker("network", "create", "--internal", self.network)
         try:
+            self.web_proxy_url = self._attach_egress_proxy()
             host = self.url.hostname
             if host in {"localhost", "127.0.0.1", "::1"}:
                 host = "host.docker.internal"

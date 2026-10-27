@@ -1,0 +1,35 @@
+{
+  "drill": "w4-web-fetch",
+  "takenAt": "2026-10-27T04:53:07Z",
+  "scope": "gate decision + live fetch; not a confinement boundary test",
+  "gate": "section5/src/harness_sandbox/web_gate.py",
+  "cases": {
+    "allowed_docs": {
+      "url": "https://api-docs.deepseek.com/",
+      "status": 200,
+      "contentType": "text/html",
+      "truncated": false,
+      "textChars": 3775,
+      "seconds": 0.87
+    },
+    "denied_host": {
+      "url": "https://example.com/",
+      "denied": "example.com is not in the web allow-list",
+      "host": "example.com",
+      "seconds": 0.26
+    },
+    "denied_scheme": {
+      "url": "http://api-docs.deepseek.com/",
+      "denied": "only https is reachable (got 'http')",
+      "host": "api-docs.deepseek.com",
+      "seconds": 0.08
+    },
+    "denied_port": {
+      "url": "https://api-docs.deepseek.com:8443/",
+      "denied": "only port 443 is reachable (got 8443)",
+      "host": "api-docs.deepseek.com",
+      "seconds": 0.08
+    }
+  },
+  "verdict": "pass"
+}

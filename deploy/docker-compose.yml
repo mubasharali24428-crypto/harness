@@ -71,11 +71,18 @@ x-backend-env: &backend-env
   HARNESS_SANDBOX_ALLOW_UNCONFINED: ${HARNESS_SANDBOX_ALLOW_UNCONFINED:-}
   # Sandbox network is disabled by default. Enabling it is an explicit
   # diagnostic/deployment opt-in confined to the allow-list proxy below; the
-  # proxy path is not yet drilled against a live Docker daemon.
+  # proxy path was drilled live on 2026-10-26 (inside the sidecar and from a
+  # container on the internal network) — see
+  # docs/briefs/evidence/pilot-prep/w4-egress-network-*.json.
   HARNESS_SANDBOX_ALLOW_NETWORK: ${HARNESS_SANDBOX_ALLOW_NETWORK:-0}
   # Opt-in network is confined to the allow-list proxy on the internal network below.
   SANDBOX_EGRESS_NETWORK: harness_sandbox_egress
   SANDBOX_EGRESS_PROXY_URL: http://sandbox-egress:3128
+  # Purpose ports (W4): 3128 is for sandboxed shells, 3129 for the engine
+  # worker's web_fetch. The purpose is the listener, not a caller header.
+  EGRESS_SANDBOX_PORT: ${EGRESS_SANDBOX_PORT:-3128}
+  EGRESS_WEB_PORT: ${EGRESS_WEB_PORT:-3129}
+  HARNESS_EGRESS_PROXY_CONTAINER: ${HARNESS_EGRESS_PROXY_CONTAINER:-harness-sandbox-egress-1}
   # Per-task Docker is opt-in and requires a separately managed daemon/socket
   # design plus a pre-pulled, operator-supplied image reference. Do not turn
   # this on for the shared backend without completing that deployment review.
@@ -484,17 +491,14 @@ services:
           pids: 128
     logging: *logging-caps
     # Proves the proxy is enforcing, not merely listening: a CONNECT to a host
-    # outside the allow-list must come back 403. That needs no outbound
-    # network, so the check is deterministic on an isolated runner — and a
-    # dead listener, a broken allow-list or a wedged event loop all read as
-    # unhealthy instead of "up" (OPS-20: 708 failed healthchecks once passed
-    # unnoticed because nothing asserted container health).
+    # outside the allow-list must come back 403 on BOTH purpose ports (3128 for
+    # sandboxed shells, 3129 for the engine's web_fetch). That needs no outbound
+    # network, so the check is deterministic on an isolated runner — and a dead
+    # listener, a broken allow-list or a wedged event loop all read as unhealthy
+    # instead of "up" (OPS-20: 708 failed healthchecks once passed unnoticed
+    # because nothing asserted container health).
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "python -c \"import socket; s=socket.create_connection(('127.0.0.1',3128),3); s.sendall(b'CONNECT example.com:443 HTTP/1.1\\r\\n\\r\\n'); r=s.recv(64); s.close(); assert b' 403 ' in r, r\"",
-        ]
+      test: ["CMD", "python", "-m", "harness_sandbox.egress_proxy", "--healthcheck"]
       interval: 10s
       timeout: 5s
       retries: 6

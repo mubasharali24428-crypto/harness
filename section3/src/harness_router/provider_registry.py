@@ -127,7 +127,10 @@ FRONTIER: tuple[Provider, ...] = (
     _p(
         "anthropic", "Anthropic", protocol="anthropic",
         base_url="https://api.anthropic.com",
-        docs_url="https://docs.anthropic.com/en/api/messages", region="us",
+        # Anthropic moved the console docs off docs.anthropic.com; the old URL
+        # 301s to platform.claude.com, which an egress allow-list derived from
+        # this registry would then refuse (surfaced by W4's live drill).
+        docs_url="https://platform.claude.com/docs/en/api/messages", region="us",
         models=(
             "anthropic/claude-opus-4-1", "anthropic/claude-sonnet-4",
             "anthropic/claude-3-7-sonnet", "anthropic/claude-3-5-haiku",
