@@ -45,7 +45,10 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 MAX_BYTES_DEFAULT = 4 * 1024 * 1024  # the goal-image cap; a render is an image
-MAX_SECONDS_DEFAULT = 30
+# A cold Chromium under the worker's limits (1 CPU share, read-only root, tmpfs
+# /tmp) needs far longer than a warm one: measured 30 s+ on the first render of a
+# run, where the same call on an idle container finishes in a few seconds.
+MAX_SECONDS_DEFAULT = 60
 MAX_SECONDS_CAP = 120
 MAX_DOM_CHARS = 200_000
 DEFAULT_WIDTH = 1280
@@ -168,7 +171,8 @@ def _chromium() -> str:
     return found
 
 
-def _run_chromium(argv: list[str], timeout: float, proxy: str | None) -> tuple[int, bytes, str]:
+def _run_chromium(argv: list[str], timeout: float, proxy: str | None) -> tuple[int, bytes, str, bool]:
+    """(exit code, stdout, stderr tail, timed out). A timeout kills the whole renderer tree."""
     proc = subprocess.Popen(
         argv,
         stdout=subprocess.PIPE,
@@ -178,14 +182,14 @@ def _run_chromium(argv: list[str], timeout: float, proxy: str | None) -> tuple[i
     )
     try:
         out, err = proc.communicate(timeout=timeout)
+        return proc.returncode, out or b"", (err or b"").decode("utf-8", "replace")[-800:], False
     except subprocess.TimeoutExpired:
         try:
             os.killpg(proc.pid, signal.SIGKILL)
         except OSError:
             proc.kill()
-        proc.communicate()
-        raise Refused(f"render timed out after {timeout:g}s")
-    return proc.returncode, out or b"", (err or b"").decode("utf-8", "replace")[-800:]
+        out, err = proc.communicate()
+        return -1, out or b"", (err or b"").decode("utf-8", "replace")[-800:], True
 
 
 def _base_args(binary: str, profile: str, proxy: str | None, width: int, height: int) -> list[str]:
@@ -253,11 +257,13 @@ def _render(request: dict) -> dict:
             args += [f"--screenshot={target}", "--virtual-time-budget=4000", url]
         else:
             args += ["--dump-dom", "--virtual-time-budget=4000", url]
-        code, stdout, stderr = _run_chromium(args, timeout, proxy)
+        code, stdout, stderr, timed_out = _run_chromium(args, timeout, proxy)
 
         if action == "dump":
             if code != 0:
-                return {"error": f"chromium exited {code}: {stderr}".strip()}
+                reason = f"render timed out after {timeout:g}s" if timed_out else \
+                    f"chromium exited {code}: {stderr}".strip()
+                return {"error": reason}
             dom = stdout.decode("utf-8", "replace")
             truncated = len(dom) > MAX_DOM_CHARS
             return {
@@ -268,7 +274,9 @@ def _render(request: dict) -> dict:
             }
 
         if not target.exists():
-            return {"error": f"chromium exited {code} without a screenshot: {stderr}".strip()}
+            reason = f"render timed out after {timeout:g}s without a screenshot" if timed_out else \
+                f"chromium exited {code} without a screenshot: {stderr}".strip()
+            return {"error": reason}
         size = target.stat().st_size
         if size > max_bytes:
             target.unlink(missing_ok=True)
@@ -279,7 +287,13 @@ def _render(request: dict) -> dict:
         if dims is None:
             target.unlink(missing_ok=True)
             return {"error": f"chromium wrote something that is not a PNG ({size} bytes)"}
-        if code != 0:
+        if timed_out:
+            # The render finished writing a complete PNG and then the CLI lingered
+            # past the deadline (cold start under the worker's limits). The image
+            # exists and is valid: hand it over, and say it was slow, rather than
+            # deleting evidence the agent can use.
+            pass
+        elif code != 0:
             return {"error": f"chromium exited {code} after writing the screenshot: "
                              f"{stderr}".strip()}
         ws = os.path.realpath(workspace)
@@ -289,6 +303,7 @@ def _render(request: dict) -> dict:
             "bytes": size,
             "width": dims[0],
             "height": dims[1],
+            "slowRender": timed_out,
             "hint": "open this path with the read tool to see the image",
         }
 

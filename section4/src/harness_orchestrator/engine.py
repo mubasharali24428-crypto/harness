@@ -208,7 +208,7 @@ def _execution_policy_patch(
             # The gate confines every write to this tree; the agent opens the PNG
             # with the fs read tool, so it must be the same root.
             "workspace": os.path.realpath(workspace_dir),
-            "timeoutSeconds": 30,
+            "timeoutSeconds": 60,
             "maxBytes": 4_000_000,
             "proxyUrl": os.environ.get("HARNESS_WEB_PROXY_URL")
             or "http://harness-egress:3129",

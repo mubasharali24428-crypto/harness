@@ -410,7 +410,13 @@ def wrap_command(
             "--security-opt",
             "no-new-privileges",
             "--pids-limit",
-            "128",
+            # 128 was enough for python + the runtime's node process, and not
+            # enough once a browser is mounted: measured on the stack, the worker
+            # sits at 115/128 tasks and Chromium needs ~40 more, so the first
+            # render of a run succeeded and every later one hung in
+            # pthread_create until the gate's timeout (W10). The cap still bounds
+            # a fork bomb; it is a resource limit, not the security boundary.
+            "512",
             "--memory",
             "1g",
             "--cpus",

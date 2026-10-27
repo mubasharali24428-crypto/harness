@@ -10,7 +10,7 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
-### W10 (in progress) — a browser inside the run boundary; the "agent sees it" half is blocked on the model (2026-10-27)
+### W10 — a browser inside the run boundary, and an agent that verifies its own UI fix by looking (2026-10-27)
 
 * **Browser tool, confined.** `browser` (screenshot/dump) runs headless Chromium
   inside the run's own container, through a gate that confines every write to the
@@ -26,14 +26,28 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   `FETCH OK` for an allow-listed host through the proxy and `FETCH FAILED` for an
   unlisted one; an 11 MiB upload is `413 ARTIFACT_TOO_LARGE`; the agent's CSS fix
   was recorded as one reviewable change; sibling-run reads answer `not found`.
-* **What is NOT shown — the W10 gate stays open.** The agent never saw its own
-  screenshot: the runtime refuses images for a text-only model
-  (`does not declare image input`), the OpenRouter account is out of credit
-  (`total_credits 5`, `total_usage 5.198` — a run at 18:41 worked, the same call
-  at 18:49 answered 402), free image models either rate-limit (`429`) or emit no
-  tool calls, and the host's Ollama has no vision model. The before/after
-  re-verification is therefore unproven; `docs/week-10-plan.md` records the exact
-  messages and how to resume.
+* **The gate passes on the live stack.** `w10-browser-1793129794.json` — PASS,
+  16/16, one run with `qwen/qwen3.7-flash` and the vision transport patch. The
+  page's CSS says red and a white veil covers it; the agent screenshots before,
+  opens the image, removes the veil, screenshots after, opens that too, and
+  answers `BEFORE: white` / `AFTER: red`. The drill decodes both PNGs itself:
+  the swatch is `(255,255,255)` before and `(255,0,0)` after, so the words match
+  the bytes; both PNGs are attached with matching sha256, and the fix is one
+  reviewable change. Boundary legs: the page's fetch fails with no proxy,
+  succeeds through the proxy for an allow-listed host, still fails for
+  `example.com`; an 11 MiB upload is `413`.
+* **Two defects the gate found, both fixed and pinned.** The worker's
+  `--pids-limit 128` was already 115 used by python + the runtime, so Chromium's
+  first render fit and every later one died in `pthread_create` until timeout
+  (measured with `docker stats` mid-run; limit is now 512). And a cold render
+  can outlive the deadline *after* writing a valid PNG: the default is 60 s and
+  a timeout with a complete image hands it over (`slowRender: true`) instead of
+  deleting it.
+* **Why two probe runs could not close it earlier** (recorded, not hidden): the
+  runtime refuses images for a model that does not declare image input
+  (`does not declare image input`), the previous OpenRouter key was out of
+  credit, free image models emitted no tool calls, and the host had no vision
+  model.
 
 ### W9 slices 1–3 — share links that are capabilities, deployments bound to the reviewed revision (2026-10-27)
 

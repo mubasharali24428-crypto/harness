@@ -149,73 +149,63 @@ from images: a screenshot the agent can look at.
   (`confine.py:56-61`); the browser claim is a container-mode claim and is
   recorded as such, not extrapolated.
 
-## Status 2026-10-27 — the browser works; the gate is OPEN on model availability
 
-**The W10 gate is not passed.** Two of its six claims are shown end to end, one is
-shown in pieces, and the two that need the agent to *look at an image* are
-blocked by the model, not by the browser. Recorded here rather than smoothed over.
+## Outcome (2026-10-27) — gate PASSED
 
-Evidence: `w10-browser-1793126302.json`, `w10-browser-1793126496.json` (probe runs,
-see the drift note), plus the unit and mount tests committed with slice 1.
+Evidence: `docs/briefs/evidence/pilot-prep/w10-browser-1793129794.json` — **PASS,
+16/16 checks**, one run, against the compose stack with
+`qwen/qwen3.7-flash` through OpenRouter and the vision transport patch
+(`openrouter-vision.patch.yml`).
 
-Shown:
+The gate, as the roadmap states it — *a UI bug is reproduced, fixed and
+re-verified by the agent with before/after screenshots attached to the run* — is
+what the run did:
 
-- **The browser renders inside the run's boundary.** A real screenshot was taken
-  by the agent itself through the product (`browser` call, `shots/swatch.png`
-  written into the run workspace), and the same gate was run by hand in the worker
-  image with the real flags (`--read-only`, `cap-drop ALL`,
-  `no-new-privileges`, uid 10001) — both produced a 1280×800 PNG.
-- **The network is confined, and the allow-list is the only way out.** A page's
-  `fetch()` on a fresh `--internal` network with no proxy answers `FETCH FAILED`;
-  with the egress proxy attached the allow-listed `api-docs.deepseek.com`
-  answers `FETCH OK` while `example.com` still answers `FETCH FAILED`. That is
-  the same proxy `web_fetch` uses, and the browser inherits it rather than
-  bypassing it.
-- **Screenshots obey the product's limits.** An 11 MiB upload is refused with
-  `413 ARTIFACT_TOO_LARGE` before any bytes are stored.
-- **The fix is a reviewable change.** The agent's `style.css` edit was reported
-  through the done-gate and recorded as exactly one change (`style.css`, digest
-  `c5a9e21a…`).
-- **Cross-run reads fail closed.** During a wandering run the agent tried to read
-  two sibling runs' workspaces and `.baseline/`; every attempt answered
-  `not found`, and `ls /var/lib/harness-runs/workspace/` answered `Permission
-  denied`. The fs tool is scoped to the run, not the runs root.
+- the page's `style.css` declares the swatch red and a white `veil` covers it, so
+  the source gives the wrong answer;
+- the agent screenshotted **before** (`shots/before.png`), opened it with the
+  image tool, edited `style.css` to make the veil transparent, screenshotted
+  **after** (`shots/after.png`), opened that too, and answered
+  `BEFORE: white` / `AFTER: red`;
+- the drill decoded both PNGs itself: the swatch centre is
+  `(255,255,255)` before and `(255,0,0)` after — the agent's words and the bytes
+  agree;
+- both PNGs are attached to the run as artifacts whose `sha256` equals the
+  files on disk (`2ebbdc02…`, `17fd6ab0…`);
+- the fix was reported through the done-gate and recorded as exactly one
+  reviewable change (`style.css`, digest `d79eb9f0…`).
 
-Not shown, and why:
+The boundary legs, independent of the model:
 
-- **The agent seeing its own screenshot.** The runtime answers a `read_image`
-  call with:
-  `cannot read "shot.png" as an image: model "deepseek/deepseek-v4-flash" does
-  not declare image input; switch to an image-capable model to read images`.
-  That is correct, explicit product behaviour — and it is the blocker: the
-  declared model is text-only.
-- **A before/after re-verification by the agent.** First probe run: the agent
-  fixed the bug from the CSS, took one screenshot, never opened it (it read the
-  PNG zero times). Second probe run: it wandered, never called the browser, and
-  hit the 16-call budget. Neither run followed the two-screenshot protocol.
+- no proxy: the page's `fetch()` answers `FETCH FAILED`;
+- proxy attached: `api-docs.deepseek.com` answers `FETCH OK`, `example.com`
+  still `FETCH FAILED` — the browser uses the same web-purpose allow-list as
+  `web_fetch` and nothing else;
+- an 11 MiB upload is `413 ARTIFACT_TOO_LARGE` before any byte is stored;
+- sibling-run reads answer `not found`; `ls` of the runs root is `Permission
+  denied`.
 
-Why no successful run was possible today:
+Three defects were found on the way, each fixed and pinned:
 
-- The OpenRouter account is out of credit (`total_credits` 5, `total_usage`
-  5.198): a run at 18:41 worked; the same class of call at 18:49 answered
-  `402 … can only afford 2320 tokens`. W8/W9 evidence predates the exhaustion.
-- Free image-capable OpenRouter models were either rate-limited (`429`,
-  gemma-4) or returned no tool calls at all (`nemotron-3-nano-omni-30b` answered
-  a colour but `finish_reason=stop` with `tool_calls: null`), so they cannot
-  drive the harness.
-- The host's Ollama has no vision model (`nomic-embed-text` only); pulling one
-  (~3 GB) was considered and declined.
+1. **The worker's pids limit was 128 and the runtime already uses ~115.** The
+   first render of a run fit; every later one failed inside Chromium with
+   `pthread_create: Resource temporarily unavailable` until the gate's timeout.
+   Measured with `docker stats` during a run (`336MiB / 1GiB`, `115` PIDs), then
+   reproduced in a container with the run's exact limits. `confine.wrap_command`
+   now sets `--pids-limit 512` — still a bound on a fork bomb, but high enough
+   for python + node + Chromium (`test_container_boundary.py` pins it).
+2. **A cold render outlives a 30 s deadline.** The gate killed Chromium after
+   the PNG was already written, and the model retried. Default is now 60 s; and
+   a timeout with a complete, valid PNG hands the image over (`slowRender: true`)
+   instead of deleting usable evidence.
+3. **The runtime refuses images to a model that does not declare image input**
+   (`does not declare image input; switch to an image-capable model`). This is
+   correct product behaviour and is why the drill runs with the vision patch and
+   an image-capable model; the text-only configuration is recorded in the
+   CHANGELOG as the reason two probe runs could not close the gate.
 
-Drift found in the drill itself (fixed after these runs): the detailed protocol
-was passed as the *plan* goal only in the newer version — the two probe runs
-above were started with a one-line goal, so their tool trails are evidence about
-the tool and the boundary, not about the protocol. The corrected drill commits
-the full protocol into the plan goal (which is what the engine receives),
-raises the budget to 24 calls, and sends the workspace's absolute page path.
-
-To resume, all that is needed is a model that declares image input *and* emits
-tool calls: restore credit (or supply another provider) and run the stack with
-`DSH_MODEL` set to such a model and
-`DSH_PATCH_FILES=/opt/harness/patches/openrouter-vision.patch.yml`
-(`qwen/qwen3.7-flash` was the model chosen for this attempt: $0.03/$0.13 per M,
-1M context, image input). Then `scripts/e2e/w10_browser_drill.py`.
+What is still not claimed, as planned: no clicking or typing, no hosted browser,
+no real dev-server frontend (the fixture is a static page), and W11's vision
+features (design-to-code, image diffing) remain open. The gate is closed for
+the claim the roadmap makes; the interaction breadth is the next increment, not
+a gap in this week's evidence.

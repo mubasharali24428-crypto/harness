@@ -207,12 +207,29 @@ def test_output_that_is_not_a_png_is_refused(tmp_path, monkeypatch):
 
 def test_a_hung_render_is_killed(tmp_path, monkeypatch):
     _ready(tmp_path)
+    script, _ = _fake_chromium(tmp_path, body='rm -f "$out"; sleep 30')
+    monkeypatch.setenv("HARNESS_CHROMIUM", str(script))
+    gate = _gate()
+
+    out = gate.render(_request(tmp_path, timeoutSeconds=1))
+    assert "timed out" in out["error"], out
+    assert not (tmp_path / "shots" / "before.png").exists()
+
+
+def test_a_slow_render_that_finished_is_still_evidence(tmp_path, monkeypatch):
+    """Cold Chromium under the worker's limits outlives the deadline but writes the PNG.
+
+    Killing it and reporting a timeout would delete a perfectly good screenshot and
+    teach the model to retry; the gate hands over the valid image and says it was slow.
+    """
+    _ready(tmp_path)
     script, _ = _fake_chromium(tmp_path, body="sleep 30")
     monkeypatch.setenv("HARNESS_CHROMIUM", str(script))
     gate = _gate()
 
     out = gate.render(_request(tmp_path, timeoutSeconds=1))
-    assert "timed out" in out["denied"], out
+    assert out.get("ok") is True and out["slowRender"] is True, out
+    assert (tmp_path / "shots" / "before.png").read_bytes() == PNG_1X1
 
 
 def test_a_nonzero_exit_without_output_is_an_error(tmp_path, monkeypatch):

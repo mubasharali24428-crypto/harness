@@ -30,7 +30,7 @@ def test_container_argv(tmp_path):
     assert "/host/venv/python" not in argv
     for flag, value in [
         ("--network", "private"),
-        ("--pids-limit", "128"),
+        ("--pids-limit", "512"),
         ("--memory", "1g"),
         ("--cpus", "1"),
         ("--security-opt", "no-new-privileges"),

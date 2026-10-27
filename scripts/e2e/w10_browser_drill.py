@@ -448,7 +448,10 @@ def main() -> int:
 
     events = tpl.audit_tool_events(run_id)
     browser_calls = [e for e in events if e["type"] == "tool_call" and e["tool"] == "browser"]
-    reads = [e for e in events if e["type"] == "tool_call" and e["tool"] == "read"]
+    # A PNG opened with an image-capable model is a `read_image` call; the same
+    # tool on a text file is `read`. Both are "the agent opened the file".
+    reads = [e for e in events if e["type"] == "tool_call"
+             and e["tool"] in ("read", "read_image")]
     reads_before = [r for r in reads if "before.png" in str(r.get("arguments") or "")]
     reads_after = [r for r in reads if "after.png" in str(r.get("arguments") or "")]
     shot_calls = [c for c in browser_calls
