@@ -4,8 +4,9 @@ Eligible run: finished before the cutoff and no approval still
 pending/approved/executing. "Finished" = an engine_completed / engine_failed /
 pr_opened event or a run.stopped audit row (``agent_runs.state`` is not maintained).
 Withheld material awaiting a decision is never deleted. For eligible runs this removes
-the staging baseline, withheld files, per-run scratch (.run-tmp) and engine session
-directory, blanks approval
+the staging baseline, withheld files, per-run scratch (.run-tmp), engine session
+directory and checkpoint manifests, sweeps the checkpoint blob store that those
+manifests were the only reference to, blanks approval
 diffs, and deletes collaboration events.
 Run outputs (the per-run workspace) are kept unless ``include_workspace`` is set.
 The audit log and approval metadata (digest, paths, state) are never purged.
@@ -30,6 +31,7 @@ from typing import Any
 
 from sqlalchemy import text
 
+from harness_orchestrator import run_checkpoints
 from harness_orchestrator.runs_index import _FINISHED_EVENT_TYPES
 
 DAYS_ENV = "HARNESS_RETENTION_DAYS"
@@ -119,6 +121,13 @@ async def purge(
             ]
             if include_workspace:
                 targets.append((f"{workspace_root}/{rid}", workspace_root))
+            # Checkpoint manifests belong to the run, so they go with it. Before
+            # this, retention deleted everything else and left `.checkpoints/<rid>`
+            # on the volume forever — the docstring called the blobs "left for the
+            # next reaper", and no reaper existed to receive them.
+            targets.append(
+                (str(run_checkpoints.checkpoint_root(workspace_root) / rid), workspace_root)
+            )
             report["removedDirs"] += sum(_rm(p, root) for p, root in targets)
             await db.execute(
                 text(
@@ -129,6 +138,16 @@ async def purge(
             )
             await db.execute(text("DELETE FROM run_collab_events WHERE run_id = :r"), {"r": rid})
         await db.commit()
+        if runs:
+            # One sweep per run of the sweep, AFTER every manifest was dropped:
+            # a blob is freed only when no remaining manifest references it AND
+            # it is older than the grace window, because a snapshot in flight
+            # publishes its blobs before the manifest that points at them.
+            report["blobSweep"] = await asyncio.to_thread(
+                run_checkpoints.sweep_blobs, workspace_root
+            )
+        else:
+            report["blobSweep"] = {"checked": 0, "deleted": 0, "keptRecent": 0, "referenced": 0}
     return report
 
 

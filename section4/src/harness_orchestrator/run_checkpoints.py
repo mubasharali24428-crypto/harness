@@ -40,12 +40,19 @@ import json
 import os
 import re
 import shutil
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
 
 CHECKPOINT_DIRNAME = ".checkpoints"
 ROOT_ENV = "HARNESS_CHECKPOINT_ROOT"
+BLOBS_DIRNAME = "blobs"
+
+#: A blob younger than this is never swept, because a snapshot writes its blobs
+#: before it writes the manifest that references them (see `sweep_blobs`).
+#: One hour is comfortably longer than any single engine turn's file work.
+DEFAULT_BLOB_GRACE_SECONDS = 3600.0
 
 MAX_FILES = 5000
 MAX_BYTES = 64 * 1024 * 1024
@@ -82,6 +89,108 @@ def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _publish_blob(blobs: Path, digest: str, data: bytes) -> None:
+    """Write one content-addressed blob so a concurrent writer cannot corrupt it.
+
+    The first version shared a single temporary name (``<digest>.tmp``) between
+    every writer. Two runs snapshotting the same bytes could then truncate each
+    other's temp file mid-write, and whichever ``replace`` ran first published a
+    PARTIAL blob under the correct digest — a checkpoint that restores the wrong
+    bytes while its manifest says the content is verified. Per-writer temp names
+    make that impossible: each writer renames only its own complete file, and the
+    losers of the race simply overwrite with identical bytes.
+    """
+    blob = blobs / digest
+    if blob.exists():
+        return
+    fd, tmp = tempfile.mkstemp(prefix=f"{digest}.", suffix=".tmp", dir=blobs)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, blob)  # atomic publish: a reader never sees a half blob
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def referenced_blobs(workspace_root: str | Path, *, root: Path | None = None) -> set[str]:
+    """Every digest any remaining manifest points at.
+
+    Raises `CheckpointError` if a manifest cannot be read: an unreadable manifest
+    has UNKNOWN references, and "delete what looks unreferenced" against an
+    unknown is how a garbage collector eats live content.
+    """
+    store = root or checkpoint_root(workspace_root)
+    found: set[str] = set()
+    for manifest in store.glob("*/*.json"):
+        try:
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise CheckpointError(f"checkpoint manifest {manifest.name} is unreadable") from exc
+        found.update((data.get("files") or {}).values())
+    return found
+
+
+def sweep_blobs(
+    workspace_root: str | Path,
+    *,
+    now: float | None = None,
+    grace_seconds: float = DEFAULT_BLOB_GRACE_SECONDS,
+    root: Path | None = None,
+) -> dict[str, Any]:
+    """Delete blobs no manifest references, older than the grace window.
+
+    ``purge`` drops a run's manifests and always said the blobs were "left for
+    the next reaper" — a reaper that did not exist, so the shared blob store grew
+    for the lifetime of the volume. Two conditions must both hold before
+    anything is deleted: no remaining manifest references it, and it is older
+    than the grace window. Age matters because a snapshot publishes its blobs
+    BEFORE it writes the manifest that references them, so a sweep keyed only on
+    "unreferenced" would eat the content of a run executing right now. And if any
+    manifest cannot be read, the sweep aborts and deletes nothing: unknown
+    references are not absent references.
+    """
+    store = root or checkpoint_root(workspace_root)
+    blobs = store / BLOBS_DIRNAME
+    if not blobs.is_dir():
+        return {"checked": 0, "deleted": 0, "keptRecent": 0,
+                "referenced": len(referenced_blobs(store, root=store))}
+    moment = time.time() if now is None else now
+    try:
+        referenced = referenced_blobs(store, root=store)
+    except CheckpointError as exc:
+        return {"checked": 0, "deleted": 0, "keptRecent": 0, "referenced": 0,
+                "aborted": str(exc)}
+    deleted = kept_recent = checked = 0
+    for entry in blobs.iterdir():
+        if not entry.is_file():
+            continue
+        checked += 1
+        try:
+            age = moment - entry.stat().st_mtime
+        except OSError:
+            continue  # vanished mid-sweep: nothing to delete
+        # An abandoned temp file is by definition not publishable content.
+        if entry.name.endswith(".tmp"):
+            if age > grace_seconds:
+                entry.unlink(missing_ok=True)
+                deleted += 1
+            else:
+                kept_recent += 1
+            continue
+        if entry.name in referenced:
+            continue
+        if age > grace_seconds:
+            entry.unlink(missing_ok=True)
+            deleted += 1
+        else:
+            kept_recent += 1
+    return {"checked": checked, "deleted": deleted, "keptRecent": kept_recent,
+            "referenced": len(referenced)}
+
+
 def _run_dir(root: Path, run_id: str) -> Path:
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", run_id or ""):
         raise CheckpointError("invalid run id for a checkpoint store")
@@ -100,7 +209,7 @@ def snapshot(workspace: str | Path, run_id: str, label: str = "snapshot",
     if not ws.is_dir():
         raise CheckpointError(f"workspace is not a directory: {ws}")
     store = _run_dir(root or checkpoint_root(ws.parent), run_id)
-    blobs = (root or checkpoint_root(ws.parent)) / "blobs"
+    blobs = (root or checkpoint_root(ws.parent)) / BLOBS_DIRNAME
     blobs.mkdir(parents=True, exist_ok=True)
 
     files: dict[str, str] = {}
@@ -122,11 +231,7 @@ def snapshot(workspace: str | Path, run_id: str, label: str = "snapshot",
                     f"workspace exceeds the checkpoint caps at {path.relative_to(ws)}"
                 )
             digest = _sha(data)
-            blob = blobs / digest
-            if not blob.exists():
-                tmp = blob.with_suffix(".tmp")
-                tmp.write_bytes(data)
-                tmp.replace(blob)  # atomic publish: a reader never sees a half blob
+            _publish_blob(blobs, digest, data)
             files[path.relative_to(ws).as_posix()] = digest
 
     store.mkdir(parents=True, exist_ok=True)
@@ -242,7 +347,12 @@ def rewind(workspace: str | Path, run_id: str, checkpoint_id: str | None = None,
 
 
 def purge(workspace_root: str | Path, run_id: str) -> None:
-    """Drop a run's manifests. Blobs are shared and left for the next reaper."""
+    """Drop a run's manifests.
+
+    The shared blobs it referenced stay: another run may still use them, and
+    only `sweep_blobs` — which reads every remaining manifest and respects the
+    grace window — is allowed to decide a blob is unreferenced.
+    """
     store = _run_dir(checkpoint_root(workspace_root), run_id)
     if store.is_dir():
         shutil.rmtree(store, ignore_errors=True)

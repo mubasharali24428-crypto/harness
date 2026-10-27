@@ -3,6 +3,7 @@
 import asyncio
 import os
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 from sqlalchemy import text
@@ -199,3 +200,50 @@ def test_resumed_run_with_recent_activity_is_not_purged(env):
     rep = asyncio.run(retention.purge(f, ws, sess, days=30, apply=True, now=NOW))
     assert rep["runs"] == ["old-stopped"]
     assert os.path.isdir(f"{sess}/old-done")
+
+
+def test_apply_removes_a_purged_run_checkpoints_and_sweeps_its_blobs(env):
+    """The retention docstring said checkpoint blobs were "left for the next
+    reaper" — there was no reaper, so a finished run's content lived on the
+    volume forever. Retention now drops the manifests and sweeps what they were
+    the only reference to."""
+    import asyncio as _asyncio
+
+    from harness_orchestrator import run_checkpoints as cp
+
+    f, ws, sess = env
+    run_ws = Path(ws) / "old-stopped"
+    run_ws.mkdir(parents=True, exist_ok=True)
+    (run_ws / "note.txt").write_text("only old-stopped had this\n")
+    snap = cp.snapshot(run_ws, "old-stopped", "before", root=cp.checkpoint_root(Path(ws)))
+    digest = snap["files"]["note.txt"]
+    blob = Path(ws) / ".checkpoints" / "blobs" / digest
+    assert blob.is_file()
+    # Age it the way a 45-day-old run's blob already is. A just-written blob is
+    # deliberately NOT collectable (see the next test), so this is the case where
+    # a reaper is allowed to act.
+    old_epoch = NOW.timestamp() - 2 * cp.DEFAULT_BLOB_GRACE_SECONDS
+    os.utime(blob, (old_epoch, old_epoch))
+
+    rep = _asyncio.run(retention.purge(f, ws, sess, days=30, apply=True, now=NOW))
+
+    assert not (Path(ws) / ".checkpoints" / "old-stopped").exists()
+    assert rep["blobSweep"]["deleted"] >= 1, rep
+    assert not blob.exists(), "the swept blob was referenced by nothing after the purge"
+
+
+def test_apply_leaves_a_young_unreferenced_blob_for_the_in_flight_snapshot(env):
+    """A snapshot publishes blobs before writing the manifest that names them, so
+    a sweep that deletes anything unreferenced would eat a live run's work."""
+    import asyncio as _asyncio
+
+    f, ws, sess = env
+    blobs = Path(ws) / ".checkpoints" / "blobs"
+    blobs.mkdir(parents=True, exist_ok=True)
+    young = blobs / ("e" * 64)
+    young.write_bytes(b"being written by a run that has not finished\n")
+    # Nothing references it and it is brand new: the grace window must save it.
+    rep = _asyncio.run(retention.purge(f, ws, sess, days=30, apply=True, now=NOW))
+
+    assert young.exists(), rep
+    assert rep["blobSweep"]["keptRecent"] >= 1
