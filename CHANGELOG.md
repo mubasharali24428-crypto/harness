@@ -10,6 +10,46 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W8 slice 2 — a container-mode run can finally write, and abandoned boundaries get a reaper (2026-10-27)
+
+Three defects, all found on the live stack, none visible in review:
+
+* **`EACCES` on every write.** The daemon launches the worker as uid 10001 while
+  the run's own workspace is root:root 0755, so `write` failed, the run settled
+  `blocked` with zero changes, and *no* container-mode run had ever produced a
+  reviewable diff. Handing the directories over
+  (`confine.claim_run_dirs_for_worker`) was necessary but not sufficient: the
+  engine re-creates a `volume-subpath` mount as root:root 0755 at mount time
+  (measured `pre 10001 → during 0`, `pre 0o2777 → during 0o755`).
+  `confine._mount()` now binds the named volume's own engine-host directory
+  under `HARNESS_RUNS_ROOT` — verified with `WRITE OK` and the directory left
+  10001:10001 — and keeps `volume-subpath` as the fallback when the mountpoint
+  cannot be resolved (`HARNESS_RUNS_BIND=0` forces it).
+* **The boundary sweeper could not see a running container.**
+  `_running_containers` matched `" running "` against a line that ends with the
+  state, so everything looked stopped — on a path that deletes other runs'
+  networks. The listing is piped and parsed positionally now, pinned by a test.
+* **`agent_runs.state` is not the durable lifecycle.** It only ever holds
+  `idle`/`pr_opened`; the states the API reports are replayed from
+  `agent_events`. Boundary settlement is therefore decided by the event log
+  (`service._settled_run_ids`), not that column.
+
+New: per-run networks are labelled `harness-run=<run id>` (an unlabelled orphan
+is untraceable, so nothing may be deleted on a guess);
+`container_runtime.sweep_orphan_boundaries` with its two proofs — durable
+settlement, or nothing attached still running — never touching a held run, an
+unlabelled network, an unproven one, or the shared egress proxy (disconnected,
+not stopped: it serves the runs beside this one); `service.recover_boundaries`
+on the worker's own cadence, plus a DB-free pass in the socket-holding daemon.
+`scripts/e2e/w8_crash_cleanup_drill.py` is written but has **never run**: the
+host's Ollama no longer has `qwen-local:latest`, so every run now ends
+`engine_failed: model 'qwen-local:latest' not found` in seconds. The W8 live
+gates are blocked on restoring that model, and
+`w8-concurrency-1793122243.json` records the failure rather than hiding it.
+What those files already show: three runs `executing` at once over three
+distinct boundary networks and one run dir each; and the crash path itself —
+killing the daemon released all three stale claims and left no boundary behind.
+
 ### W7 (IDE gate) — an in-editor edit round-trips through the gate, and the bytes reviewed are the bytes written (2026-10-27)
 
 Live evidence `w7-ide-1793116802.json`, verdict PASS on ten checks, driven by

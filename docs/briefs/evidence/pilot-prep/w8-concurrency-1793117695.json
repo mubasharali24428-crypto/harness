@@ -1,0 +1,132 @@
+{
+  "date": "2026-10-27",
+  "week": "W8",
+  "claim": "three concurrent runs in one repo: each isolated, each reviewable, none clobbering another's checkpoint",
+  "drive": "three live runs over HTTP on the compose stack (Postgres, container confinement)",
+  "projectId": "18991ec1-6ac4-407e-ae7d-d262670d900f",
+  "model": "qwen-local:latest",
+  "capsInForce": {
+    "ENGINE_RUN_TIMEOUT_SECONDS": "1800",
+    "HARNESS_ENGINE_CONFINEMENT": "container"
+  },
+  "runs": {
+    "a": {
+      "runId": "w8-a-1793117695",
+      "planId": "plan-23d82d21",
+      "goal": "Create a file named w8_run_a.txt in the workspace root containing exactly: alpha",
+      "startStatus": 200,
+      "finalState": "blocked",
+      "changes": [],
+      "checkpointManifests": 0,
+      "checkpointPaths": [],
+      "foreignCheckpointNames": [],
+      "ownCheckpointFileSeen": false
+    },
+    "b": {
+      "runId": "w8-b-1793117695",
+      "planId": "plan-7e241269",
+      "goal": "Create a file named w8_run_b.txt in the workspace root containing exactly: beta",
+      "startStatus": 200,
+      "finalState": "blocked",
+      "changes": [],
+      "checkpointManifests": 0,
+      "checkpointPaths": [],
+      "foreignCheckpointNames": [],
+      "ownCheckpointFileSeen": false
+    },
+    "c": {
+      "runId": "w8-c-1793117695",
+      "planId": "plan-debf7686",
+      "goal": "Create a file named w8_run_c.txt in the workspace root containing exactly: gamma",
+      "startStatus": 200,
+      "finalState": "blocked",
+      "changes": [],
+      "checkpointManifests": 0,
+      "checkpointPaths": [],
+      "foreignCheckpointNames": [],
+      "ownCheckpointFileSeen": false
+    }
+  },
+  "maxConcurrentExecuting": 3,
+  "stateTimeline": [
+    "a=executing,b=executing,c=executing",
+    "a=blocked,b=blocked,c=blocked"
+  ],
+  "workerContainers": [
+    {
+      "name": "harness-acaa8d389f5f42fba0e9994bada9370a",
+      "role": "worker",
+      "networks": [
+        "harness-acaa8d389f5f42fba0e9994bada9370a-net"
+      ],
+      "mounts": [
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data",
+          "dst": "/var/lib/harness-runs/workspace/w8-b-1793117695",
+          "rw": false
+        },
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data",
+          "dst": "/var/lib/harness-runs/sessions/w8-b-1793117695",
+          "rw": false
+        }
+      ],
+      "started": "2026-10-27T16:14:59.540161009Z"
+    },
+    {
+      "name": "harness-cc92357d23d943f1b643e164c7879e1b",
+      "role": "worker",
+      "networks": [
+        "harness-cc92357d23d943f1b643e164c7879e1b-net"
+      ],
+      "mounts": [
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data",
+          "dst": "/var/lib/harness-runs/workspace/w8-a-1793117695",
+          "rw": false
+        },
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data",
+          "dst": "/var/lib/harness-runs/sessions/w8-a-1793117695",
+          "rw": false
+        }
+      ],
+      "started": "2026-10-27T16:14:59.535444759Z"
+    },
+    {
+      "name": "harness-807335476c4c4c7f8b12b33aba6891d1",
+      "role": "worker",
+      "networks": [
+        "harness-807335476c4c4c7f8b12b33aba6891d1-net"
+      ],
+      "mounts": [
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data",
+          "dst": "/var/lib/harness-runs/workspace/w8-c-1793117695",
+          "rw": false
+        },
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data",
+          "dst": "/var/lib/harness-runs/sessions/w8-c-1793117695",
+          "rw": false
+        }
+      ],
+      "started": "2026-10-27T16:14:59.521884926Z"
+    }
+  ],
+  "distinctWorkerNetworkSets": 3,
+  "distinctWorkspaceMounts": 0,
+  "checks": {
+    "threeStarted": true,
+    "overlapObserved": true,
+    "threeWorkersSeen": true,
+    "networksDistinct": true,
+    "workspacesDistinct": false,
+    "eachReviewable": false,
+    "eachCheckpointed": false,
+    "ownFileInOwnCheckpoint": false,
+    "noClobbering": true,
+    "allSettled": true
+  },
+  "verdict": "FAIL"
+}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import time
 import uuid
@@ -37,14 +38,24 @@ def docker(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     )
 
 
+#: A boundary network with this label can be traced back to the run that owns
+#: it. Without it, an orphaned network is anonymous: nothing on `docker network
+#: ls` says which run created it, so no sweeper can tell a crash's leftovers from
+#: a live run's equipment — and guessing means deleting a network a running agent
+#: is using. See `sweep_orphan_boundaries`.
+RUN_LABEL = "harness-run"
+BOUNDARY_NET_RE = re.compile(r"^harness-[0-9a-f]{32}-net$")
+
+
 class ContainerBoundary:
-    def __init__(self, endpoint: str):
+    def __init__(self, endpoint: str, run_id: str | None = None):
         url = urlsplit(endpoint or "https://api.deepseek.com")
         if url.scheme not in {"http", "https"} or not url.hostname or url.username or url.password:
             raise ValueError(
                 "container model endpoint must be an http(s) origin without credentials"
             )
         self.url = url
+        self.run_id = run_id
         self.name = "harness-" + uuid.uuid4().hex
         self.network = self.name + "-net"
         self.relay = self.name + "-relay"
@@ -72,7 +83,11 @@ class ContainerBoundary:
         return f"http://{EGRESS_PROXY_ALIAS}:{EGRESS_WEB_PORT}"
 
     def start(self) -> str:
-        docker("network", "create", "--internal", self.network)
+        create = ["network", "create", "--internal"]
+        if self.run_id:
+            create += ["--label", f"{RUN_LABEL}={self.run_id}"]
+        create.append(self.network)
+        docker(*create)
         try:
             self.web_proxy_url = self._attach_egress_proxy()
             host = self.url.hostname
@@ -175,3 +190,183 @@ class ContainerBoundary:
                 docker(*args, check=False)
             except (OSError, subprocess.SubprocessError):
                 pass  # daemon loss must never turn an unconfirmed stop into success
+
+
+def labelled_boundary_runs() -> dict[str, str]:
+    """``{network: run id}`` for the boundary networks Docker still has.
+
+    A caller that must ask a database about those runs (which of them the
+    lifecycle says are over) needs this list first; it is the same read the
+    sweep does, separated so the sweep itself stays free of the DB.
+    """
+    listing = docker(
+        "network", "ls", "--format", "{{.Name}}\t{{.Label \"harness-run\"}}", check=False
+    )
+    if listing.returncode != 0:
+        return {}
+    found: dict[str, str] = {}
+    for line in listing.stdout.splitlines():
+        name, _, label = line.partition("\t")
+        name = name.strip()
+        label = label.strip()
+        if label and BOUNDARY_NET_RE.match(name):
+            found[name] = label
+    return found
+
+
+def _attached_container_ids(network: str) -> list[str]:
+    out = docker("network", "inspect", network, check=False)
+    if out.returncode != 0:
+        return []
+    try:
+        import json
+
+        info = json.loads(out.stdout)[0]
+    except (ValueError, IndexError, KeyError):
+        return []  # unreadable: the caller treats it as "in use", which is the safe side
+    return sorted((info.get("Containers") or {}).keys())
+
+
+def _running_containers(ids: list[str]) -> list[tuple[str, str]]:
+    """``(id, name)`` for the given container ids that are currently running.
+
+    Piped, not space-separated: a container NAME may contain spaces, and a
+    space-delimited line was mis-parsed into "no container is running" — which
+    reads as a fully quiet network to the sweeper, i.e. a licence to delete a
+    live run's boundary. Test-pinned in ``test_boundary_sweep``.
+    """
+    if not ids:
+        return []
+    out = docker(
+        "ps", "--all", "--no-trunc", "--format", "{{.ID}}|{{.Names}}|{{.State}}", check=False
+    )
+    wanted = set(ids)
+    found: list[tuple[str, str]] = []
+    for line in out.stdout.splitlines():
+        cid, _, rest = line.partition("|")
+        if cid not in wanted:
+            continue
+        name, _, state = rest.rpartition("|")
+        if state.strip() == "running":
+            found.append((cid, name or cid))
+    return found
+
+
+def sweep_orphan_boundaries(
+    held_run_ids: set[str],
+    settled_run_ids: set[str] | None,
+    *,
+    older_than_seconds: float = 0.0,
+) -> dict[str, object]:
+    """Remove per-run boundaries that their owner demonstrably abandoned.
+
+    The engine's own `close()` runs in a `finally`, so the ordinary failure paths
+    (worker killed, timeout, exception) already clean up. What they cannot clean
+    up is the process being killed: a SIGKILLed launcher leaves its network, its
+    relay container and - because `docker run` without `-d` detaches when its
+    client dies - a *running* worker container behind. Nothing reaped those, so
+    leaks accumulated silently until Docker refused every new run (W4 measured
+    17-20 orphan networks on one dev stack, then "all predefined address pools
+    have been fully subnetted" and NO run could start).
+
+    Every candidate is labelled, older than `older_than_seconds`, and NOT held by
+    this process (`held_run_ids`: the boundaries of the runs it is executing).
+    Then two independent proofs, because a deployment gives the sweeper only one
+    of them:
+
+    * ``settled_run_ids`` - the durable lifecycle says the run is terminal. This
+      may stop a still-running container: an orphaned worker has no client left,
+      and only the DB knows the run it belongs to is finished.
+    * otherwise, nothing attached is running. Safe without any DB, which is why
+      the socket-holding daemon can sweep on this rule alone - but it cannot
+      catch the detached-client corpse, whose container is still up.
+
+    A run satisfying neither is KEPT. "I do not know this run" is not evidence of
+    death: an unlabelled pre-label network, a local CLI run with no ``agent_runs``
+    row, and a peer daemon's live boundary all look identical to an orphan from
+    here. The conservative side costs a leak the next sweep catches; the other
+    side stops a live agent's network out from under it, which the W7/W8 gates
+    forbid.
+
+    Removal order is the one `close()` learned the hard way: stop the run's own
+    containers, disconnect every endpoint (the shared egress proxy included), then
+    remove the network - a network with an attached endpoint cannot be removed.
+    """
+    listing = docker(
+        "network", "ls", "--format", "{{.Name}}\t{{.Label \"harness-run\"}}", check=False
+    )
+    if listing.returncode != 0:
+        # An empty list here would read as "no orphans": say what actually failed.
+        return {
+            "removed": [],
+            "kept": [],
+            "count": 0,
+            "error": (listing.stderr or listing.stdout or "docker network ls failed")[:300],
+        }
+    removed: list[str] = []
+    kept: list[str] = []
+    for line in listing.stdout.splitlines():
+        name, _, label = line.partition("\t")
+        name = name.strip()
+        if not BOUNDARY_NET_RE.match(name):
+            continue
+        run_id = label.strip()
+        if not run_id or run_id in held_run_ids:
+            kept.append(name)  # anonymous, or ours to keep: not ours to destroy
+            continue
+        if older_than_seconds > 0:
+            created = docker(
+                "network", "inspect", "--format", "{{.Created}}", name, check=False
+            ).stdout.strip()
+            try:
+                age = time.time() - _parse_iso(created)
+            except (ValueError, TypeError):
+                kept.append(name)
+                continue
+            if age < older_than_seconds:
+                kept.append(name)
+                continue
+        base = name[: -len("-net")]
+        proxy = os.environ.get(EGRESS_PROXY_CONTAINER_ENV, "harness-sandbox-egress-1")
+        stopped: list[str] = []
+        attached = _attached_container_ids(name)
+        # The egress proxy is attached here ON PURPOSE and serves every run: it
+        # may LEAVE this network, but stopping or removing it would take the
+        # allow-list gateway down for the live runs beside this one. (`close()`
+        # disconnects it for exactly this reason.)
+        running = [cid for cid, name in _running_containers(attached) if name != proxy]
+        settled = settled_run_ids is not None and run_id in settled_run_ids
+        if not settled and running:
+            kept.append(name)  # rule 1 alone cannot judge a container that is still up
+            continue
+        for cid in running:
+            if docker("stop", "--time", "5", cid, check=False).returncode == 0:
+                stopped.append(cid)
+        for container in (base, f"{base}-relay"):
+            docker("rm", "--force", container, check=False)
+        for cid in attached:
+            docker("network", "disconnect", "--force", name, cid, check=False)
+        docker(
+            "network",
+            "disconnect",
+            name,
+            os.environ.get(EGRESS_PROXY_CONTAINER_ENV, "harness-sandbox-egress-1"),
+            check=False,
+        )
+        gone = docker("network", "rm", name, check=False)
+        if gone.returncode == 0:
+            removed.append({"network": name, "runId": run_id, "stopped": stopped})
+        else:
+            kept.append(name)
+    return {
+        "removed": removed,
+        "kept": kept,
+        "count": len(removed),
+        "containersStopped": sum(len(entry["stopped"]) for entry in removed),
+    }
+
+
+def _parse_iso(value: str) -> float:
+    from datetime import datetime
+
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()

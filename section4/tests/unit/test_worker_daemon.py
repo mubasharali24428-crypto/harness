@@ -125,12 +125,19 @@ def test_daemon_refuses_to_start_without_a_token(monkeypatch):
 
 
 def test_runs_volume_mounts_replace_binds_under_the_runs_root(tmp_path, monkeypatch):
+    # The subpath form is the FALLBACK: it is what a deployment gets when the
+    # engine's own filesystem is not reachable from here. It is also the form
+    # that made every container-mode run unwritable (Docker re-creates the
+    # subpath as root:root at mount time), so it stays pinned as a fallback and
+    # nothing more — see the bind test below.
     root = tmp_path.resolve()
     ws, sess = root / "workspace" / "run-v", root / "sessions" / "run-v"
     (ws / "src").mkdir(parents=True)
     sess.mkdir(parents=True)
     monkeypatch.setenv("HARNESS_RUNS_VOLUME", "harness_runs")
     monkeypatch.setenv("HARNESS_RUNS_ROOT", str(root))
+    monkeypatch.setenv("HARNESS_RUNS_BIND", "0")
+    monkeypatch.setattr(confine, "_MOUNTPOINT_CACHE", {})
     argv = confine.wrap_command(
         ["python", "-m", "w"], mode="container", roots=[], workspace=str(ws),
         session_dir=str(sess), tmp_dir=str(root), container_name="n", network="p",
@@ -143,6 +150,53 @@ def test_runs_volume_mounts_replace_binds_under_the_runs_root(tmp_path, monkeypa
         f"type=volume,src=harness_runs,dst={ws / 'src'},"
         "volume-subpath=workspace/run-v/src,readonly=false",
     ]
+
+
+def test_runs_volume_mounts_bind_the_volumes_own_directory_when_resolvable(
+    tmp_path, monkeypatch
+):
+    """The preferred form keeps the ownership handover intact.
+
+    A bind of `<Mountpoint>/workspace/<run>` points at the same bytes the volume
+    holds, but Docker does not reset its ownership or mode — which is the only
+    reason a worker running as 10001 can write inside a root-launched stack.
+    """
+    root = tmp_path.resolve()
+    ws, sess = root / "workspace" / "run-b", root / "sessions" / "run-b"
+    ws.mkdir(parents=True)
+    sess.mkdir(parents=True)
+    monkeypatch.setenv("HARNESS_RUNS_VOLUME", "harness_runs")
+    monkeypatch.setenv("HARNESS_RUNS_ROOT", str(root))
+    monkeypatch.delenv("HARNESS_RUNS_BIND", raising=False)
+    monkeypatch.setattr(confine, "_MOUNTPOINT_CACHE", {"harness_runs": "/mnt/harness_runs"})
+    argv = confine.wrap_command(
+        ["python", "-m", "w"], mode="container", roots=[], workspace=str(ws),
+        session_dir=str(sess), tmp_dir=str(root), container_name="n", network="p",
+    )
+    mounts = [argv[i + 1] for i, a in enumerate(argv) if a == "--mount"]
+    assert mounts == [
+        f"type=bind,src=/mnt/harness_runs/workspace/run-b,dst={ws},readonly=false",
+        f"type=bind,src=/mnt/harness_runs/sessions/run-b,dst={sess},readonly=false",
+    ]
+    assert not any("volume-subpath" in m for m in mounts)
+
+
+def test_an_unresolvable_volume_mountpoint_falls_back_instead_of_failing(monkeypatch):
+    monkeypatch.setenv("HARNESS_RUNS_VOLUME", "absent-volume")
+    monkeypatch.delenv("HARNESS_RUNS_BIND", raising=False)
+    monkeypatch.setattr(confine, "_MOUNTPOINT_CACHE", {})
+    monkeypatch.setattr(
+        confine.subprocess,
+        "run",
+        lambda *a, **k: confine.subprocess.CompletedProcess(list(a), 1, stdout="", stderr="no"),
+    )
+    assert confine.volume_mountpoint("absent-volume") is None
+    # ... and the answer is cached: one Docker failure is not one call per mount.
+    def explode(*args, **kwargs):
+        raise AssertionError("volume_mountpoint must not ask Docker twice")
+
+    monkeypatch.setattr(confine.subprocess, "run", explode)
+    assert confine.volume_mountpoint("absent-volume") is None
 
 
 def test_a_root_launcher_runs_the_worker_as_the_workspace_owner(tmp_path, monkeypatch):

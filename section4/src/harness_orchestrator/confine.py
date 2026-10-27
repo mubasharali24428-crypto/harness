@@ -23,12 +23,16 @@ container or explicit off (seatbelt breaks its PTY).
 from __future__ import annotations
 
 import glob
+import logging
 import os
+import subprocess
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 
 SEATBELT_BIN = "/usr/bin/sandbox-exec"
 CONFINEMENT_ENV = "HARNESS_ENGINE_CONFINEMENT"
+logger = logging.getLogger(__name__)
 
 # Everything the worker + dsh runtime legitimately need; nothing else leaks in
 # (no database URLs, master keys, cloud credentials, tokens of other services).
@@ -233,6 +237,36 @@ def seatbelt_profile(
 
 RUNS_VOLUME_ENV = "HARNESS_RUNS_VOLUME"
 RUNS_ROOT_ENV = "HARNESS_RUNS_ROOT"
+#: Opt out of binding the volume's engine-host directory (see `_mount`).
+RUNS_BIND_ENV = "HARNESS_RUNS_BIND"
+_MOUNTPOINT_CACHE: dict[str, str | None] = {}
+
+
+def volume_mountpoint(volume: str) -> str | None:
+    """The engine-host directory behind a named volume, or None when unresolvable.
+
+    Cached: it is a Docker round trip, and the answer cannot change for a
+    running process. `HARNESS_RUNS_BIND=0` forces the volume-subpath form on a
+    deployment where the engine's own filesystem is not reachable this way.
+    """
+    if volume in _MOUNTPOINT_CACHE:
+        return _MOUNTPOINT_CACHE[volume]
+    resolved: str | None = None
+    if os.environ.get(RUNS_BIND_ENV, "1").strip() != "0":
+        try:
+            out = subprocess.run(
+                ["docker", "volume", "inspect", "-f", "{{.Mountpoint}}", volume],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            candidate = out.stdout.strip()
+            if out.returncode == 0 and candidate.startswith("/") and "," not in candidate:
+                resolved = candidate
+        except (OSError, subprocess.SubprocessError):
+            resolved = None
+    _MOUNTPOINT_CACHE[volume] = resolved
+    return resolved
 
 
 def _mount(path: str, readonly: str) -> str:
@@ -240,12 +274,26 @@ def _mount(path: str, readonly: str) -> str:
 
     A launcher on the host binds the path as is. The worker daemon (M07) runs in a container,
     and the Docker engine resolves a bind source on ITS host, where the daemon's paths do not
-    exist; so paths under ``HARNESS_RUNS_ROOT`` become a subpath of the shared named volume.
+    exist; so paths under ``HARNESS_RUNS_ROOT`` are re-expressed against the shared volume —
+    as a **bind of the volume's own engine-host directory** when that is resolvable, and only
+    as a `volume-subpath` when it is not.
+
+    The order is not cosmetic. Measured 2026-10-27: Docker re-creates a
+    ``volume-subpath`` directory at mount time as root:root 0755, *undoing the ownership
+    handover the launcher just performed* — a pre-set 0o2777 mode was reset to 0755 too. The
+    worker then runs as 10001 inside a directory it cannot write, every `write` returns EACCES,
+    and no container-mode run can produce a change at all. A bind of the same underlying
+    directory preserves both ownership and mode (verified: the agent wrote its file), which is
+    why this path is tried first. A missing subpath is not a problem here: the launcher creates
+    and hands over the directory before `docker run`.
     """
     volume = os.environ.get(RUNS_VOLUME_ENV, "").strip()
     root = os.path.realpath(os.environ.get(RUNS_ROOT_ENV, "") or "/nonexistent")
     if volume and path.startswith(root + os.sep):
         sub = os.path.relpath(path, root)
+        mount = volume_mountpoint(volume)
+        if mount:
+            return f"type=bind,src={os.path.join(mount, sub)},dst={path},{readonly}"
         return f"type=volume,src={volume},dst={path},volume-subpath={sub},{readonly}"
     return f"type=bind,src={path},dst={path},{readonly}"
 
@@ -257,6 +305,57 @@ def _worker_user(workspace: str) -> str:
         st = os.stat(workspace)
         return f"{st.st_uid}:{st.st_gid}" if st.st_uid else "10001:10001"
     return f"{os.getuid()}:{os.getgid() or 10001}"
+
+
+#: The uid/gid the engine worker image is built with, and the identity
+#: `_worker_user` falls back to for a root-owned run dir.
+WORKER_UID, WORKER_GID = 10001, 10001
+
+
+def claim_run_dirs_for_worker(paths: Iterable[str]) -> list[str]:
+    """Hand a root launcher's per-run directories to the uid the worker will drop to.
+
+    `_worker_user` refuses to run the worker as root, and when the run dir IS root-owned
+    it falls back to the image's own user (10001) — but a 10001 worker inside a
+    root:root 0755 directory cannot write a single file. Measured 2026-10-27 on the
+    compose stack, where the worker daemon runs as root: every `write` the agent
+    attempted failed with `EACCES … mkdir`, the run settled `blocked` with no changes,
+    and no container-mode run could ever produce a reviewable diff (the W8 concurrency
+    gate needs a change per run). Ownership and identity have to agree, so the
+    launcher chowns what it just provisioned before launching the worker.
+
+    A non-root launcher already owns what it creates, and a failed chown is not an
+    error here — the worker's own permission error is the honest signal. Returns the
+    paths actually changed, so the caller can record it in the run's audit.
+    """
+    if os.getuid() != 0:
+        return []
+    changed: list[str] = []
+    for top in paths:
+        if not os.path.isdir(top):
+            # Loud, because the common cause is a directory the launcher believes
+            # it created and did not: ownership then comes from whoever creates it
+            # later (Docker's volume-subpath creates it as root), and the worker's
+            # write fails with EACCES again.
+            logger.warning("run dir %s does not exist; nothing handed to the worker", top)
+            continue
+        try:
+            targets = [top]
+            for dirpath, dirnames, filenames in os.walk(top, followlinks=False):
+                for name in (*dirnames, *filenames):
+                    targets.append(os.path.join(dirpath, name))
+        except OSError:
+            continue  # missing/unreadable tree: nothing to claim
+        for target in targets:
+            try:
+                os.lchown(target, WORKER_UID, WORKER_GID)
+                changed.append(target)
+            except OSError:
+                break  # one unlinkable entry: leave the rest, the worker reports its own EACCES
+    if changed:
+        logger.info("handed %d run path(s) to uid %d before launching the worker",
+                    len(changed), WORKER_UID)
+    return changed
 
 
 def wrap_command(

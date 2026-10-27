@@ -551,6 +551,16 @@ class DeepSeekHarnessWrapper:
         shutil.rmtree(path, ignore_errors=True)
         return True
 
+    def live_boundary_run_ids(self) -> list[str]:
+        """Runs whose per-run network THIS process still holds.
+
+        The boundary sweeper's second "live" source, alongside the DB's running
+        claims: a run executing right now may not have landed its claim row yet
+        (or, in local mode, never has one), and its network must not be removed.
+        """
+        with self._proc_lock:
+            return list(self._containers)
+
     def cancel(self, session_id: str) -> bool:
         """Kill the container (or process group) and confirm it is gone.
 
@@ -664,7 +674,14 @@ class DeepSeekHarnessWrapper:
                 tmp,
             )
             if mode == "container":
-                boundary = ContainerBoundary(self.base_url)
+                # A root launcher (the worker daemon) must hand the run dirs to the
+                # uid it is about to drop the worker to, or nothing the agent writes
+                # is writable. See confine.claim_run_dirs_for_worker.
+                confine.claim_run_dirs_for_worker((workspace, sess, tmp))
+                # session_id is the run id: labelling the network with it is what
+                # lets `sweep_orphan_boundaries` tell this run's leftovers from a
+                # live run's equipment after a SIGKILL.
+                boundary = ContainerBoundary(self.base_url, run_id=session_id)
                 env["DEEPSEEK_BASE_URL"] = boundary.start()
             policy = self._shell_policies.get(session_id) or {}
             forbidden = policy.get("forbiddenPaths")

@@ -1,0 +1,122 @@
+{
+  "date": "2026-10-27",
+  "week": "W8",
+  "claim": "three concurrent runs in one repo: each isolated, each reviewable, none clobbering another's checkpoint",
+  "drive": "three live runs over HTTP on the compose stack (Postgres, container confinement)",
+  "projectId": "d5d4a4a5-c56a-4fde-9445-920036f7632b",
+  "model": "qwen-local:latest",
+  "capsInForce": {
+    "ENGINE_RUN_TIMEOUT_SECONDS": "2400",
+    "HARNESS_ENGINE_CONFINEMENT": "container"
+  },
+  "runs": {
+    "a": {
+      "runId": "w8-a-1793122243",
+      "planId": "plan-2c4bfac1",
+      "goal": "Create a file named w8_run_a.txt in the workspace root containing exactly: alpha",
+      "startStatus": 200,
+      "finalState": "blocked",
+      "doneSignal": {
+        "refused": "no product-computed diff for this run"
+      },
+      "changes": [],
+      "changesDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "checkpointManifests": 0,
+      "checkpointPaths": [],
+      "foreignCheckpointNames": [],
+      "ownCheckpointFileSeen": false
+    },
+    "b": {
+      "runId": "w8-b-1793122243",
+      "planId": "plan-be48a82a",
+      "goal": "Create a file named w8_run_b.txt in the workspace root containing exactly: beta",
+      "startStatus": 200,
+      "finalState": "blocked",
+      "doneSignal": {
+        "refused": "no product-computed diff for this run"
+      },
+      "changes": [],
+      "changesDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "checkpointManifests": 0,
+      "checkpointPaths": [],
+      "foreignCheckpointNames": [],
+      "ownCheckpointFileSeen": false
+    },
+    "c": {
+      "runId": "w8-c-1793122243",
+      "planId": "plan-fede4ccd",
+      "goal": "Create a file named w8_run_c.txt in the workspace root containing exactly: gamma",
+      "startStatus": 200,
+      "finalState": "blocked",
+      "doneSignal": {
+        "refused": "no product-computed diff for this run"
+      },
+      "changes": [],
+      "changesDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "checkpointManifests": 0,
+      "checkpointPaths": [],
+      "foreignCheckpointNames": [],
+      "ownCheckpointFileSeen": false
+    }
+  },
+  "maxConcurrentExecuting": 3,
+  "stateTimeline": [
+    "a=executing,b=executing,c=executing",
+    "a=blocked,b=blocked,c=blocked"
+  ],
+  "workerContainers": [
+    {
+      "name": "harness-28d32c8173cf47df9c4e462f28a4dbed",
+      "role": "worker",
+      "networks": [
+        "harness-28d32c8173cf47df9c4e462f28a4dbed-net"
+      ],
+      "mounts": [],
+      "started": "2026-10-27T17:30:46.609681752Z",
+      "mountTargets": [],
+      "runDirs": []
+    },
+    {
+      "name": "harness-2d5a5ccb38e74e278080df7d0eaac572",
+      "role": "worker",
+      "networks": [
+        "harness-2d5a5ccb38e74e278080df7d0eaac572-net"
+      ],
+      "mounts": [],
+      "started": "2026-10-27T17:30:46.563863502Z",
+      "mountTargets": [],
+      "runDirs": []
+    },
+    {
+      "name": "harness-95759fc723434242b1ae48d7e1b0111d",
+      "role": "worker",
+      "networks": [
+        "harness-95759fc723434242b1ae48d7e1b0111d-net"
+      ],
+      "mounts": [],
+      "started": "2026-10-27T17:30:46.367090294Z",
+      "mountTargets": [],
+      "runDirs": []
+    }
+  ],
+  "distinctWorkerNetworkSets": 3,
+  "runDirsPerWorker": {
+    "harness-28d32c8173cf47df9c4e462f28a4dbed": [],
+    "harness-2d5a5ccb38e74e278080df7d0eaac572": [],
+    "harness-95759fc723434242b1ae48d7e1b0111d": []
+  },
+  "sharedRunDirs": [],
+  "checks": {
+    "threeStarted": true,
+    "overlapObserved": true,
+    "threeWorkersSeen": true,
+    "networksDistinct": true,
+    "workspacesDistinct": false,
+    "eachReviewable": false,
+    "eachCheckpointed": false,
+    "ownFileInOwnCheckpoint": false,
+    "noClobbering": true,
+    "allSettled": true
+  },
+  "verdict": "FAIL"
+}

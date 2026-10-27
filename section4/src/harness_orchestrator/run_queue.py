@@ -368,6 +368,33 @@ async def reclaim_orphans(factory, stale_seconds: int = 90) -> list[str]:
         return [row[0] for row in rows]
 
 
+async def executing_run_ids(factory) -> set[str] | None:
+    """Runs with a ``running`` claim — the boundary sweeper's "live" set.
+
+    Only ``running`` counts. An ``orphaned`` row means its worker was detected
+    dead, and the resume path builds a **fresh** boundary (the network name is a
+    per-call uuid in :class:`ContainerBoundary`), so nothing will ever use the
+    dead run's network again — keeping it "live" would leak exactly the orphans
+    :func:`container_runtime.sweep_orphan_boundaries` exists to remove.
+
+    Returns ``None`` when the claim table cannot be read. That is *not* an empty
+    set: an empty set would tell the sweeper that every boundary is orphaned, so
+    the caller must skip the sweep instead of guessing (see
+    :meth:`HarnessOrchestratorService.recover_boundaries`).
+    """
+    from sqlalchemy import text
+
+    try:
+        async with factory() as db:
+            rows = (
+                await db.execute(text("SELECT run_id FROM run_claims WHERE state = 'running'"))
+            ).fetchall()
+    except Exception:  # noqa: BLE001 — no queue table (bare test DB): nothing is proven live
+        logger.info("run_claims unavailable; executing_run_ids returning None")
+        return None
+    return {row[0] for row in rows}
+
+
 async def get_queue_snapshot(factory) -> list[dict[str, Any]]:
     from sqlalchemy import text
 

@@ -27,10 +27,11 @@ import os
 import re
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-from harness_orchestrator import confine
+from harness_orchestrator import confine, container_runtime
 from harness_orchestrator.engine import DAEMON_TOKEN_ENV, DAEMON_URL_ENV, DeepSeekHarnessWrapper
 
 logger = logging.getLogger(__name__)
@@ -158,6 +159,40 @@ def serve(bind: str) -> ThreadingHTTPServer:
     return ThreadingHTTPServer((host or "0.0.0.0", int(port)), Handler)  # noqa: S104
 
 
+def _boundary_sweeper(interval: float, grace: float) -> None:
+    """Reclaim boundary networks this daemon no longer owns (W8 slice 2).
+
+    This process is the one that creates them and the one that holds the Docker
+    socket, so it is the only place the cleanup can run - and it runs without the
+    database, which is why it gets the WEAK proof only: ``settled_run_ids=None``
+    disables the rule that stops a still-running container. A network is removed
+    when this daemon holds no run for its label, it is older than the grace
+    window, and nothing attached to it is running.
+
+    That leaves the SIGKILLed-daemon case uncleaned on purpose: after the daemon
+    dies, its own worker container is still running and nothing local can tell
+    that apart from a live run. The daemon restarts, sweeps the quiet leftovers on
+    its first pass, and the durable-proof sweep in the service covers stacks where
+    one process holds both the socket and the DB.
+    """
+    while True:
+        time.sleep(interval)
+        try:
+            with _LOCK:
+                held = set(_RUNS)
+            report = container_runtime.sweep_orphan_boundaries(held, None, older_than_seconds=grace)
+            if report.get("error"):
+                logger.warning("boundary sweep could not list networks: %s", report["error"])
+            elif report["count"]:
+                logger.info(
+                    "boundary sweep removed %d orphan network(s): %s",
+                    report["count"],
+                    [entry["network"] for entry in report["removed"]],
+                )
+        except Exception:  # noqa: BLE001 — cleanup must never take the daemon down
+            logger.exception("boundary sweep pass failed")
+
+
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     if not os.environ.get(DAEMON_TOKEN_ENV):
@@ -167,6 +202,14 @@ def main() -> int:
     os.environ[confine.CONFINEMENT_ENV] = "container"
     for key in (DAEMON_URL_ENV, "HARNESS_ENGINE_WORKER_MODULE"):
         os.environ.pop(key, None)
+    interval = float(os.environ.get("HARNESS_BOUNDARY_SWEEP_SECONDS", "600") or 0)
+    if interval > 0:
+        threading.Thread(
+            target=_boundary_sweeper,
+            args=(interval, float(os.environ.get("BOUNDARY_SWEEP_GRACE_SECONDS", "300") or 300)),
+            daemon=True,
+            name="boundary-sweep",
+        ).start()
     server = serve(os.environ.get("HARNESS_WORKER_DAEMON_BIND", "0.0.0.0:8010"))
     logger.info("worker daemon listening on %s:%s", *server.server_address[:2])
     server.serve_forever()

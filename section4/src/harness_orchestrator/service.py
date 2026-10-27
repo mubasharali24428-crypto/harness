@@ -49,6 +49,7 @@ from harness_orchestrator.run_metering import record_engine_tool_calls, record_r
 from harness_orchestrator.run_queue import (
     claim_next_run,
     enqueue_run,
+    executing_run_ids,
     finish_run,
     heartbeat_age_seconds,
     heartbeat_run,
@@ -239,6 +240,14 @@ class OrchestratorService(Orchestrator):
         # env var overrides per deployment (resolved at construction so a
         # restart re-reads the deployment's current value).
         self.heartbeat_timeout_seconds = resolve_heartbeat_timeout_seconds()
+        # W8 slice 2: minimum age of a per-run network before the boundary
+        # sweeper may judge it. It is NOT the safety argument (only runs the
+        # durable lifecycle calls terminal are ever touched) — it is protection
+        # for the window between a peer creating a boundary and that peer's run
+        # row being readable. Env-tuned per deployment like the heartbeat knob.
+        self.boundary_sweep_grace_seconds = float(
+            os.environ.get("BOUNDARY_SWEEP_GRACE_SECONDS", "300") or 300
+        )
 
         # M17-B5 (PBC1 F2): engine calls leave the inherited default thread
         # pool for a DEDICATED bounded executor with a hard per-run deadline
@@ -2314,6 +2323,91 @@ class OrchestratorService(Orchestrator):
         if self.run_queue_factory is None:
             return []
         return await reclaim_orphans(self.run_queue_factory, stale_seconds=self.stale_seconds)
+
+    async def recover_boundaries(self) -> dict[str, Any]:
+        """W8 slice 2: reclaim the Docker equipment a killed process left behind.
+
+        ``ContainerBoundary.close()`` runs in a ``finally``, so exceptions,
+        timeouts and cancelled runs all clean up. SIGKILL does not: the network,
+        the relay and (because ``docker run`` detaches when its client dies) a
+        *running* worker container survive, and nothing else ever removes them.
+        W4 measured 17–20 such orphan networks on one dev stack until Docker
+        answered "all predefined address pools have been fully subnetted" and NO
+        run could start — a leak in the isolation machinery that eventually
+        denies service to every run.
+
+        Per network the sweep sees three states: held (a running claim, or a
+        boundary this process still owns), settled (the durable ``agent_events``
+        log shows the engine call ended), or unknown. Held is never touched.
+        Settled is removed
+        even if its worker container is still running - that is the detached
+        client's corpse, and only the DB proves the run it belongs to finished.
+        Unknown is removed only once nothing attached to it is running.
+
+        This is why it runs where the truth is reachable: the orchestrator holds
+        the DB and the claims, the worker daemon holds the Docker socket. When
+        this process has no socket the sweep reports its own failure instead of
+        reporting "no orphans".
+        """
+        from harness_orchestrator.container_runtime import (
+            labelled_boundary_runs,
+            sweep_orphan_boundaries,
+        )
+
+        held = await executing_run_ids(self.run_queue_factory or self.session_factory)
+        if held is None:
+            return {"skipped": "claim table unreadable", "removed": [], "kept": []}
+        held = set(held)
+        for boundary in getattr(self.engine, "live_boundary_run_ids", lambda: [])():
+            held.add(boundary)
+        candidates = set(labelled_boundary_runs().values())
+        settled = await self._settled_run_ids(candidates - held)
+        try:
+            return sweep_orphan_boundaries(
+                held, settled, older_than_seconds=self.boundary_sweep_grace_seconds
+            )
+        except OSError as exc:  # no Docker socket (bare test host): nothing to reclaim
+            return {"skipped": f"docker unavailable: {exc}", "removed": [], "kept": []}
+
+    async def _settled_run_ids(self, candidates: set[str]) -> set[str]:
+        """Which of ``candidates`` the durable event log says are past execution.
+
+        ``agent_runs.state`` is NOT the answer — the orchestrator does not write
+        that column per transition, and the states the API reports (blocked,
+        awaiting_done_signal, done) are replayed from ``agent_events``. So the
+        settlement proof is the event stream itself, using the same ordering
+        ``_run_started`` reads: any event at or after ENGINE_COMPLETED means the
+        engine call is over and no worker can be using the boundary any more.
+        """
+        from sqlalchemy import bindparam, text
+
+        if not candidates:
+            return set()
+        post_execution = {
+            EventType.ENGINE_COMPLETED.value,
+            EventType.ENGINE_FAILED.value,
+            EventType.DONE_SIGNAL_RECEIVED.value,
+            EventType.REVIEW_PASSED.value,
+            EventType.REVIEW_FAILED.value,
+            EventType.PR_OPENED.value,
+        }
+        try:
+            async with self.session_factory() as db:
+                rows = (
+                    await db.execute(
+                        text(
+                            "SELECT DISTINCT run_id FROM agent_events "
+                            "WHERE run_id IN :ids AND type IN :types"
+                        ).bindparams(
+                            bindparam("ids", expanding=True),
+                            bindparam("types", expanding=True),
+                        ),
+                        {"ids": sorted(candidates), "types": sorted(post_execution)},
+                    )
+                ).fetchall()
+        except Exception:  # noqa: BLE001 — unreadable lifecycle: nothing is provably finished
+            return set()
+        return {row[0] for row in rows}
 
     async def reap_zombies(self) -> list[str]:
         """M13-H1b zombie reaper: release timed-out running claims.

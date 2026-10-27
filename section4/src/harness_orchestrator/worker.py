@@ -53,6 +53,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 from typing import Any
 
 from harness_orchestrator.engine_runtime import resolve_engine_max_concurrency
@@ -70,6 +71,8 @@ _DEFAULT_CLAIM_BATCH_FALLBACK = 8
 # configured idle cadence (poll_interval) — no separate max knob needed.
 _DEFAULT_MIN_POLL_SECONDS = 0.01
 _DEFAULT_BACKOFF_FACTOR = 2.0
+#: W8 slice 2: how often the worker tries to reclaim abandoned boundary networks.
+_DEFAULT_BOUNDARY_SWEEP_SECONDS = 600.0
 
 
 def resolve_worker_claim_batch(environ=None) -> int:
@@ -143,6 +146,12 @@ class RunQueueWorker:
             else max(float(backoff_factor), 1.000001)
         )
         self._task: asyncio.Task | None = None
+        # W8 slice 2: the boundary sweep is housekeeping, not claim work — run it
+        # on its own slow cadence (first pass immediately after startup).
+        self.boundary_sweep_seconds = _float_knob(
+            env, "BOUNDARY_SWEEP_INTERVAL_SECONDS", _DEFAULT_BOUNDARY_SWEEP_SECONDS, minimum=1.0
+        )
+        self._last_boundary_sweep = 0.0
         # N2 slim-bus wake seam: created when the loop starts (needs a loop);
         # wake() before that is a harmless no-op.
         self._wake: asyncio.Event | None = None
@@ -182,6 +191,26 @@ class RunQueueWorker:
             except Exception:  # noqa: BLE001 — one bad sweep must never kill the worker
                 logger.exception("zombie reaper sweep failed")
             claimed = 0
+            try:
+                # W8 slice 2: reclaim boundary networks of runs the lifecycle says
+                # are over. Rate-limited, because in the split deployment the
+                # Docker socket lives on the worker daemon and this call cannot
+                # see it: a per-cycle failure is expected noise, not an incident.
+                if (
+                    hasattr(self.service, "recover_boundaries")
+                    and time.monotonic() - self._last_boundary_sweep >= self.boundary_sweep_seconds
+                ):
+                    self._last_boundary_sweep = time.monotonic()
+                    report = await self.service.recover_boundaries()
+                    if report.get("count"):
+                        logger.info("boundary sweep removed %s network(s)", report["count"])
+                    elif report.get("error") or report.get("skipped"):
+                        logger.debug(
+                            "boundary sweep did nothing: %s",
+                            report.get("error") or report.get("skipped"),
+                        )
+            except Exception:  # noqa: BLE001 — cleanup must never kill the worker
+                logger.debug("boundary sweep failed", exc_info=True)
             try:
                 # M20-T1: one cycle may admit a whole batch. Services predating
                 # the max_claims seam raise TypeError here; fall back to the

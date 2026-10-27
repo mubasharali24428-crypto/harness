@@ -1,0 +1,176 @@
+{
+  "date": "2026-10-27",
+  "week": "W8",
+  "claim": "three concurrent runs in one repo: each isolated, each reviewable, none clobbering another's checkpoint",
+  "drive": "three live runs over HTTP on the compose stack (Postgres, container confinement)",
+  "projectId": "c62c210d-80e5-485f-94c0-8aa2a6535eca",
+  "model": "qwen-local:latest",
+  "capsInForce": {
+    "ENGINE_RUN_TIMEOUT_SECONDS": "2400",
+    "HARNESS_ENGINE_CONFINEMENT": "container"
+  },
+  "runs": {
+    "a": {
+      "runId": "w8-a-1793121446",
+      "planId": "plan-b92b14e7",
+      "goal": "Create a file named w8_run_a.txt in the workspace root containing exactly: alpha",
+      "startStatus": 200,
+      "finalState": "blocked",
+      "doneSignal": {
+        "refused": "no product-computed diff for this run"
+      },
+      "changes": [],
+      "changesDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "checkpointManifests": 0,
+      "checkpointPaths": [],
+      "foreignCheckpointNames": [],
+      "ownCheckpointFileSeen": false
+    },
+    "b": {
+      "runId": "w8-b-1793121446",
+      "planId": "plan-53fdefbe",
+      "goal": "Create a file named w8_run_b.txt in the workspace root containing exactly: beta",
+      "startStatus": 200,
+      "finalState": "blocked",
+      "doneSignal": {
+        "refused": "no product-computed diff for this run"
+      },
+      "changes": [],
+      "changesDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "checkpointManifests": 0,
+      "checkpointPaths": [],
+      "foreignCheckpointNames": [],
+      "ownCheckpointFileSeen": false
+    },
+    "c": {
+      "runId": "w8-c-1793121446",
+      "planId": "plan-744f0fbf",
+      "goal": "Create a file named w8_run_c.txt in the workspace root containing exactly: gamma",
+      "startStatus": 200,
+      "finalState": "blocked",
+      "doneSignal": {
+        "refused": "no product-computed diff for this run"
+      },
+      "changes": [],
+      "changesDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "checkpointManifests": 0,
+      "checkpointPaths": [],
+      "foreignCheckpointNames": [],
+      "ownCheckpointFileSeen": false
+    }
+  },
+  "maxConcurrentExecuting": 3,
+  "stateTimeline": [
+    "a=executing,b=executing,c=executing",
+    "a=blocked,b=blocked,c=blocked"
+  ],
+  "workerContainers": [
+    {
+      "name": "harness-bafec76ff722463bab351a602f1fe73b",
+      "role": "worker",
+      "networks": [
+        "harness-bafec76ff722463bab351a602f1fe73b-net"
+      ],
+      "mounts": [
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data",
+          "dst": "/var/lib/harness-runs/workspace/w8-c-1793121446",
+          "rw": false
+        },
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data",
+          "dst": "/var/lib/harness-runs/sessions/w8-c-1793121446",
+          "rw": false
+        }
+      ],
+      "started": "2026-10-27T17:17:29.671174633Z",
+      "mountTargets": [
+        "/var/lib/harness-runs/sessions/w8-c-1793121446",
+        "/var/lib/harness-runs/workspace/w8-c-1793121446"
+      ],
+      "runDirs": [
+        "w8-c-1793121446"
+      ]
+    },
+    {
+      "name": "harness-013c1e9dd8704b71b9fc319dd3f839f5",
+      "role": "worker",
+      "networks": [
+        "harness-013c1e9dd8704b71b9fc319dd3f839f5-net"
+      ],
+      "mounts": [
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data",
+          "dst": "/var/lib/harness-runs/sessions/w8-b-1793121446",
+          "rw": false
+        },
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data",
+          "dst": "/var/lib/harness-runs/workspace/w8-b-1793121446",
+          "rw": false
+        }
+      ],
+      "started": "2026-10-27T17:17:29.4826048Z",
+      "mountTargets": [
+        "/var/lib/harness-runs/sessions/w8-b-1793121446",
+        "/var/lib/harness-runs/workspace/w8-b-1793121446"
+      ],
+      "runDirs": [
+        "w8-b-1793121446"
+      ]
+    },
+    {
+      "name": "harness-f5f82fdbebcd4ddf87f6715353594736",
+      "role": "worker",
+      "networks": [
+        "harness-f5f82fdbebcd4ddf87f6715353594736-net"
+      ],
+      "mounts": [
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data",
+          "dst": "/var/lib/harness-runs/workspace/w8-a-1793121446",
+          "rw": false
+        },
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data",
+          "dst": "/var/lib/harness-runs/sessions/w8-a-1793121446",
+          "rw": false
+        }
+      ],
+      "started": "2026-10-27T17:17:29.788440508Z",
+      "mountTargets": [
+        "/var/lib/harness-runs/sessions/w8-a-1793121446",
+        "/var/lib/harness-runs/workspace/w8-a-1793121446"
+      ],
+      "runDirs": [
+        "w8-a-1793121446"
+      ]
+    }
+  ],
+  "distinctWorkerNetworkSets": 3,
+  "runDirsPerWorker": {
+    "harness-bafec76ff722463bab351a602f1fe73b": [
+      "w8-c-1793121446"
+    ],
+    "harness-013c1e9dd8704b71b9fc319dd3f839f5": [
+      "w8-b-1793121446"
+    ],
+    "harness-f5f82fdbebcd4ddf87f6715353594736": [
+      "w8-a-1793121446"
+    ]
+  },
+  "sharedRunDirs": [],
+  "checks": {
+    "threeStarted": true,
+    "overlapObserved": true,
+    "threeWorkersSeen": true,
+    "networksDistinct": true,
+    "workspacesDistinct": true,
+    "eachReviewable": false,
+    "eachCheckpointed": false,
+    "ownFileInOwnCheckpoint": false,
+    "noClobbering": true,
+    "allSettled": true
+  },
+  "verdict": "FAIL"
+}
