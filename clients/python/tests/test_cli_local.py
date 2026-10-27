@@ -152,9 +152,24 @@ def test_apply_back_refuses_escaping_names(workspace, out_dirs):
 # ------------------------------------------------------------------ execute_run --local
 
 
+class _Http:
+    """The transport seam: local provenance uploads the patch as RAW bytes."""
+
+    def __init__(self, calls: list, fail: bool = False):
+        self.calls = calls
+        self.fail = fail
+
+    def request(self, base_url, method, path, *, params=None, content=None, **kw):
+        self.calls.append(("raw", method, path, dict(params or {}), content))
+        if self.fail:
+            raise RuntimeError("EMPTY_ARTIFACT (422)")
+        return {"artifact": {"id": "art-7"}}
+
+
 class _Orch:
     def __init__(self):
         self.calls: list[tuple] = []
+        self.base_url = "http://orch.test"
 
     def propose_plan(self, body):
         self.calls.append(("propose", body))
@@ -176,19 +191,16 @@ class _Orch:
         self.calls.append(("get", run_id))
         return {"runId": run_id, "state": "pending", "steps": []}
 
-    def upload_artifact(self, run_id, name=None, kind=None, **kw):
-        self.calls.append(("artifact", run_id, name, kind))
-        return {"artifactId": "art-1"}
-
     def run_comments_create(self, scope_id, body):
         self.calls.append(("comment", scope_id, body))
-        return {"id": "c-1"}
+        return {"comment": {"id": "c-1"}}
 
 
 class _Sdk:
-    def __init__(self):
+    def __init__(self, upload_fails=False):
         self.identity = type("I", (), {"list_projects": lambda self, limit=None: {"items": [{"id": "p1"}]}})()
         self.orchestrator = _Orch()
+        self.http = _Http(self.orchestrator.calls, fail=upload_fails)
 
 
 def _fake_launch(work, base, changed=("src/a.py",), deleted_name="gone.py"):
@@ -234,20 +246,45 @@ def test_local_run_gates_on_server_but_never_starts_server_execution(workspace, 
 
 
 def test_local_run_records_artifact_and_provenance_comment(workspace, tmp_path):
+    """The trace the plan promised, with the two shapes the server actually accepts:
+    an artifact whose BODY is the patch, and a comment that references an id."""
     sdk = _Sdk()
     work, base = tmp_path / "w", tmp_path / "b"
-    execute_run(
+    result = execute_run(
         sdk, "edit a", assume_yes=True,
         local_dir=str(workspace),
         local_launch=_fake_launch(work, base),
         local_apply=lambda *a: {"applied": ["src/a.py"], "deleted": []},
     )
-    artifact = [c for c in sdk.orchestrator.calls if c[0] == "artifact"]
-    assert artifact and artifact[0][3] == "diff"
+    raw = next(c for c in sdk.orchestrator.calls if c[0] == "raw")
+    assert raw[1] == "POST" and raw[2] == "/api/v1/orchestrator/runs/run-9/artifacts"
+    assert raw[3]["kind"] == "diff" and raw[3]["name"].endswith(".patch")
+    assert "+two" in raw[4]  # the boundary's own bytes, not a placeholder
     comment = next(c for c in sdk.orchestrator.calls if c[0] == "comment")
-    body = comment[2]["body"]
-    assert "executed" in body and '"local"' in body and "diffSha256" in body
-    assert comment[2]["refKind"] == "diff"
+    body = comment[2]
+    assert "executed" in body["body"] and "diffSha256" in body["body"]
+    assert body["refKind"] == "diff" and body["refId"] == "art-7"  # BAD_REF without refId
+    assert result["trace"]["artifact"] == "art-7"
+    assert result["trace"]["failures"] == []
+
+
+def test_local_run_with_no_diff_records_the_skipped_trace_honestly(workspace, tmp_path):
+    sdk = _Sdk()
+    work, base = tmp_path / "w", tmp_path / "b"
+
+    def no_diff(directory, goal, run_id, **kw):
+        out = _fake_launch(work, base)(directory, goal, run_id, **kw)
+        out["diff"] = ""
+        out["changed"] = []
+        return out
+
+    result = execute_run(
+        sdk, "edit a", assume_yes=True, local_dir=str(workspace),
+        local_launch=no_diff,
+        local_apply=lambda *a: {"applied": [], "deleted": []},
+    )
+    assert not [c for c in sdk.orchestrator.calls if c[0] == "raw"]  # EMPTY_ARTIFACT on the server
+    assert any("no diff" in f for f in result["trace"]["failures"])
 
 
 def test_local_refusal_is_actionable_and_leaves_no_server_execution(workspace, tmp_path):
@@ -309,3 +346,53 @@ def test_execute_run_helper_launchers_resolve_to_local_module(workspace):
 
     assert _default_launch() is local_mod.launch
     assert _default_apply() is local_mod.apply_back
+
+
+def test_failed_trace_is_reported_in_the_result_not_swallowed(workspace, tmp_path):
+    """A silent audit gap is the worst outcome: the failure must be in --json."""
+    sdk = _Sdk(upload_fails=True)
+    work, base = tmp_path / "w", tmp_path / "b"
+    result = execute_run(
+        sdk, "edit a", assume_yes=True, local_dir=str(workspace),
+        local_launch=_fake_launch(work, base),
+        local_apply=lambda *a: {"applied": ["src/a.py"], "deleted": []},
+    )
+    assert result["trace"]["artifact"] is None
+    assert any("EMPTY_ARTIFACT" in f for f in result["trace"]["failures"])
+    # the provenance comment still goes up, just unreferenced: losing the
+    # artifact must not also lose the record that the run executed locally
+    assert result["trace"]["comment"] == "c-1"
+    comment = next(c for c in sdk.orchestrator.calls if c[0] == "comment")
+    assert "refKind" not in comment[2] and "refId" not in comment[2]
+
+
+def test_launch_shows_the_workers_progress_events(tmp_path, monkeypatch, workspace):
+    """Off-host tool events cannot become server agent_events, so they must at
+    least reach the operator — the docstring promised never to drop them."""
+    ndjson = "\n".join(
+        [
+            json.dumps({"progress": {"tool": "bash", "command": "printf present > present.txt"}}),
+            json.dumps({"progress": {"tool": "read_file", "args": {"path": "present.txt"}}}),
+            json.dumps(
+                {
+                    "engine_result": {"status": "completed", "finalResponse": "ok",
+                                      "changed": [], "deleted": []},
+                    "diff": "",
+                }
+            ),
+        ]
+    )
+
+    class _Proc:
+        returncode = 0
+        stdout = ndjson
+        stderr = ""
+
+    monkeypatch.setattr(local_mod.subprocess, "run", lambda *a, **k: _Proc())
+    seen = []
+    out = local_mod.launch(str(workspace), "goal", "run-1", note=seen.append)
+    assert out["status"] == "completed"
+    progress = [s for s in seen if s.startswith("engine: ")]
+    assert len(progress) == 2
+    assert "bash" in progress[0] and "printf present" in progress[0]
+    assert "read_file" in progress[1]

@@ -138,6 +138,13 @@ Decision (both options confirmed with the operator 2026-10-27):
    false. Recorded openly: off-host event provenance is a contracts
    decision (1.0.0-rc6 candidate), not a CLI workaround. The CLI prints and
    the evidence file stores the worker's NDJSON so nothing is silently lost.
+   All three trace details were corrected by the first live run (2026-10-27),
+   each now pinned by a test: the artifact endpoint takes the RAW body as the
+   file (the generated stub posts none — `EMPTY_ARTIFACT`), a comment needs
+   `refId` alongside `refKind` (`BAD_REF` otherwise), and a drill must check
+   the status of the list it reads (a 404 was being reported as "no
+   comments"). Showing the worker's progress lines rather than parsing them
+   away is what made the looping turn visible instead of mysterious.
 4. **Fail closed, from the launcher's first line.** No docker binary, no
    daemon, no `harness-engine-worker:p0`, no live credentials, or
    `HARNESS_ENGINE_CONFINEMENT` resolving to anything but `container` →

@@ -336,3 +336,25 @@ def test_bracketed_no_proxy_does_not_break_the_client(monkeypatch):
     client = HarnessHTTP("tok", transport=httpx.MockTransport(handler))
     assert client.request("http://localhost:8001", "GET", "/x") == {"ok": True}
     assert os.environ["NO_PROXY"] == original
+
+
+def test_raw_content_body_reaches_the_wire_as_bytes():
+    """Artifact upload is a raw-body endpoint ("the body IS the file"); the
+    generated stubs cannot express that, so the transport must."""
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = request.content
+        captured["ctype"] = request.headers.get("content-type")
+        captured["url"] = str(request.url)
+        return httpx.Response(201, json={"artifact": {"id": "a1"}})
+
+    http = HarnessHTTP("tok", transport=httpx.MockTransport(handler))
+    out = http.request(
+        "http://orch.test", "POST", "/api/v1/orchestrator/runs/r1/artifacts",
+        params={"name": "x.patch", "kind": "diff"}, content="+++ b/a.py\n",
+    )
+    assert out["artifact"]["id"] == "a1"
+    assert captured["body"] == b"+++ b/a.py\n"
+    assert captured["ctype"].startswith("text/plain")
+    assert "name=x.patch" in captured["url"] and "kind=diff" in captured["url"]

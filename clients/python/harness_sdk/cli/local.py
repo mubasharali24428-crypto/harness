@@ -48,6 +48,16 @@ def launcher_python(environ: dict[str, str] | None = None) -> str:
     raise CliError("no interpreter found for the local launcher (set HARNESS_LOCAL_PYTHON)")
 
 
+def _describe_progress(record: Any) -> str:
+    """One compact line per worker tool event — enough to see what it is doing."""
+    if not isinstance(record, dict):
+        return str(record)[:160]
+    tool = record.get("tool") or record.get("name") or record.get("type") or "event"
+    detail = record.get("input") or record.get("command") or record.get("args") or ""
+    text = json.dumps(detail, default=str) if not isinstance(detail, str) else detail
+    return f"{tool} {text[:120]}"
+
+
 def launch(
     directory: str,
     goal: str,
@@ -89,11 +99,17 @@ def launch(
             os.unlink(policy_file)
     records = []
     for line in (proc.stdout or "").splitlines():
-        if line.strip():
-            try:
-                records.append(json.loads(line))
-            except ValueError:
-                note(f"launcher: {line}")  # never swallow unexpected output silently
+        if not line.strip():
+            continue
+        try:
+            records.append(json.loads(line))
+        except ValueError:
+            note(f"launcher: {line}")  # never swallow unexpected output silently
+    for record in records:
+        if "progress" in record:
+            # The worker's own tool events. They cannot become server agent_events
+            # from off-host, so they are at least shown, never silently dropped.
+            note(f"engine: {_describe_progress(record['progress'])}")
     refusal = next((r["refusal"] for r in records if "refusal" in r), None)
     if refusal:
         shutil.rmtree(work_out, ignore_errors=True)

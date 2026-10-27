@@ -77,11 +77,17 @@ def _engine_env() -> dict[str, str]:
 
 def main() -> int:
     timeout = 900.0
+    goal = (
+        "Create a file named present.txt in the workspace root containing "
+        "exactly the word present and nothing else."
+    )
     argv = sys.argv[1:]
     while argv:
         flag = argv.pop(0)
         if flag == "--timeout" and argv:
             timeout = float(argv.pop(0))
+        elif flag == "--goal" and argv:
+            goal = argv.pop(0)
         else:
             _fail(f"unknown argument {flag!r}")
     if not CLIENT_PY.exists():
@@ -102,10 +108,6 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="harness-local-drill-") as cfg, \
             tempfile.TemporaryDirectory(prefix="harness-ws-") as ws:
-        goal = (
-            "Create a file named present.txt in the workspace root containing "
-            "exactly the word present and nothing else."
-        )
         (Path(ws) / "untouched.txt").write_text("leave me alone\n")
         env = {
             **os.environ,
@@ -142,6 +144,9 @@ def main() -> int:
             _fail(f"no runId in result: {payload}")
         print(f"note  CLI exit {proc.returncode}; state={payload.get('state')} "
               f"local={payload.get('local')}")
+        print(f"note  answer: {(payload.get('answer') or '')[:160]!r}")
+        if proc.stderr.strip():
+            print("note  CLI stderr:\n   " + "\n   ".join(proc.stderr.strip().splitlines()[-8:]))
 
         # 1) the gate happened server-side, exactly as for a web run
         _, replay = journey.http(
@@ -165,14 +170,39 @@ def main() -> int:
             _fail("apply touched a file the diff never named")
         print("PASS  present.txt created locally; untouched.txt unmoved")
 
-        # 3) the trace: provenance comment (diff artifact registration is reported
-        #    by the CLI itself; a registration failure would have surfaced in notes)
-        _, comments = journey.http(
+        # 3) the trace: the patch is an artifact whose bytes are the diff, and a
+        #    run comment references it (a 404 here was once read as "no comments"
+        #    because the status was ignored — never check a list without its code)
+        st, arts = journey.http(
+            "GET",
+            f"{journey.ORCHESTRATOR}/api/v1/orchestrator/runs/{run_id}/artifacts?kind=diff",
+            token=token,
+        )
+        if st != 200:
+            _fail(f"artifact list answered {st}: {arts!r}")
+        items = (arts or {}).get("items") or (arts or {}).get("artifacts") or []
+        patch = next((a for a in items if str(a.get("name", "")).startswith("local-diff-")), None)
+        if patch is None:
+            _fail(f"no local diff artifact registered on run {run_id}: {items}")
+        st, fetched = journey.http(
+            "GET",
+            f"{journey.ORCHESTRATOR}/api/v1/orchestrator/runs/{run_id}"
+            f"/artifacts/{patch['id']}/content",
+            token=token,
+        )
+        stored_bytes = fetched if isinstance(fetched, str) else json.dumps(fetched)
+        if "present.txt" not in stored_bytes:
+            _fail(f"artifact content is not the patch (status {st}): {stored_bytes[:200]!r}")
+        print(f"PASS  diff artifact {patch['id']} holds the patch ({len(stored_bytes)} bytes)")
+
+        st, comments = journey.http(
             "GET",
             f"{journey.ORCHESTRATOR}/api/v1/orchestrator/runs/{run_id}/comments",
             token=token,
         )
-        bodies = [c.get("body", "") for c in (comments or {}).get("items", [])]
+        if st != 200:
+            _fail(f"comments answered {st}: {comments!r}")
+        bodies = [c.get("body", "") for c in (comments or {}).get("comments", [])]
         prov = next((b for b in bodies if "executed" in b and "local" in b), None)
         if prov is None:
             _fail(f"no local-provenance comment on run {run_id}: {bodies}")
@@ -187,6 +217,9 @@ def main() -> int:
             "goal": goal,
             "cliState": payload.get("state"),
             "cliExit": proc.returncode,
+            "cliAnswer": (payload.get("answer") or "")[:300],
+            "cliTrace": payload.get("trace"),
+            "diffArtifactId": patch["id"],
             "local": payload.get("local"),
             "serverEventTypes": sorted(set(types)),
             "presentFileCreated": created.is_file(),

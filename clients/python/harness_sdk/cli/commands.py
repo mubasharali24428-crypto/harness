@@ -58,26 +58,40 @@ def _record_local_provenance(
     applied: dict[str, Any],
     state: str,
     note: Callable[[str], None],
-) -> None:
+) -> dict[str, Any]:
     """Server-side trace of a LOCAL execution, existing endpoints only.
 
-    A diff artifact (the bytes are the boundary's own diff) plus a run comment
-    carrying the provenance: what ran, where, under what confinement, and what
-    the apply touched. Tool-call-level `agent_events` cannot be minted off-host
-    by any existing endpoint — saying so IS the audit story (docs/week-6-plan.md,
-    slice 4 decision 3). A failed trace is reported, never hidden.
+    The patch goes up as a `kind=diff` artifact through the raw-body endpoint
+    ("the request body IS the file") — the generated stub sends no body, which
+    the server rejects with EMPTY_ARTIFACT, so the transport's ``content`` is
+    used. The provenance comment then references that artifact: the server
+    refuses a refKind without a refId (BAD_REF), and the reference is what
+    makes the comment evidence rather than prose. Tool-call-level `agent_events`
+    cannot be minted off-host by any existing endpoint — saying so IS the audit
+    story (docs/week-6-plan.md, slice 4 decision 3). A failed write is reported
+    in the result, never hidden.
     """
     import hashlib
     import json as _json
 
     diff = engine.get("diff") or ""
     sha = hashlib.sha256(diff.encode()).hexdigest()[:16]
-    try:
-        sdk.orchestrator.upload_artifact(
-            run_id, name=_SAFE_NAME.sub("-", f"local-diff-{run_id}") + ".patch", kind="diff"
-        )
-    except Exception as exc:  # noqa: BLE001 - trace failure must not lose the local result
-        note(f"local: diff artifact could not be registered ({exc})")
+    trace: dict[str, Any] = {"artifact": None, "comment": None, "failures": []}
+    if diff.strip():
+        try:
+            created = sdk.http.request(
+                sdk.orchestrator.base_url,
+                "POST",
+                f"/api/v1/orchestrator/runs/{run_id}/artifacts",
+                params={"name": _SAFE_NAME.sub("-", f"local-diff-{run_id}") + ".patch",
+                        "kind": "diff"},
+                content=diff,
+            )
+            trace["artifact"] = (created or {}).get("artifact", {}).get("id")
+        except Exception as exc:  # noqa: BLE001 - a trace failure must not lose the local result
+            trace["failures"].append(f"artifact: {exc}")
+    else:
+        trace["failures"].append("artifact: skipped (the run produced no diff)")
     provenance = {
         "executed": "local",
         "confinement": (engine.get("local") or {}).get("confinement"),
@@ -90,13 +104,20 @@ def _record_local_provenance(
         "applied": applied.get("applied", []),
         "deleted": applied.get("deleted", []),
     }
+    body: dict[str, Any] = {
+        "body": "harness-cli local run: " + _json.dumps(provenance, sort_keys=True)
+    }
+    if trace["artifact"]:
+        body["refKind"] = "diff"
+        body["refId"] = trace["artifact"]
     try:
-        sdk.orchestrator.run_comments_create(
-            run_id, {"body": "harness-cli local run: " + _json.dumps(provenance, sort_keys=True),
-                     "refKind": "diff"}
-        )
+        posted = sdk.orchestrator.run_comments_create(run_id, body)
+        trace["comment"] = (posted or {}).get("id") or (posted or {}).get("comment", {}).get("id")
     except Exception as exc:  # noqa: BLE001
-        note(f"local: provenance comment could not be posted ({exc})")
+        trace["failures"].append(f"comment: {exc}")
+    for failure in trace["failures"]:
+        note(f"local trace failed — {failure}")
+    return trace
 
 
 def pick_project(sdk: Any, project_id: str | None) -> str:
@@ -225,7 +246,7 @@ def execute_run(
         )
     finally:
         shutil.rmtree(engine.get("workDir", ""), ignore_errors=True)
-    _record_local_provenance(sdk, run_id, engine, applied, state, note)
+    trace = _record_local_provenance(sdk, run_id, engine, applied, state, note)
     return {
         "runId": run_id,
         "planId": plan_id,
@@ -233,6 +254,7 @@ def execute_run(
         "answer": str(engine.get("finalResponse") or ""),
         "toolCalls": engine.get("toolCalls") or [],
         "steps": [],
+        "trace": trace,
         "local": {
             "workspace": local_dir,
             "applied": applied["applied"],

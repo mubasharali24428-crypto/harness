@@ -189,11 +189,16 @@ class HarnessHTTP:
         *,
         params: dict[str, Any] | None = None,
         json_body: Any = None,
+        content: bytes | str | None = None,
+        content_type: str = "text/plain; charset=utf-8",
         auth: bool = True,
         token: str | None = None,
     ) -> Any:
         """Send one call; return the decoded JSON body (or ``""``/text for
         empty/non-JSON responses). Raises :class:`ApiError` on any non-2xx.
+
+        ``content`` sends raw bytes instead of a JSON envelope, for endpoints
+        whose body IS the file (artifact upload); ``json_body`` is ignored then.
 
         Transient failures (connection errors, 429/502/503/504) are retried
         with exponential backoff + jitter on idempotent methods only.
@@ -206,6 +211,7 @@ class HarnessHTTP:
             try:
                 return self._send_once(base_url, method, path,
                                        params=params, json_body=json_body,
+                                       content=content, content_type=content_type,
                                        auth=auth, token=token)
             except ApiError as err:
                 status = err.status
@@ -248,6 +254,8 @@ class HarnessHTTP:
         *,
         params: dict[str, Any] | None,
         json_body: Any,
+        content: bytes | str | None = None,
+        content_type: str = "text/plain; charset=utf-8",
         auth: bool,
         token: str | None = None,
     ) -> Any:
@@ -257,12 +265,24 @@ class HarnessHTTP:
             headers["authorization"] = f"Bearer {effective_token}"
         # Drop unset optional query params (None sentinel from generated stubs).
         clean_params = {k: v for k, v in (params or {}).items() if v is not None}
-        resp = self._client.request(
-            method, f"{base_url.rstrip('/')}{path}",
-            params=clean_params or None,
-            json=json_body,
-            headers=headers,
-        )
+        if content is not None:
+            # Raw-body endpoints (artifact upload: "the request body IS the
+            # file") take bytes, not a JSON envelope — the generated stubs
+            # cannot express that, so the transport carries it instead.
+            headers["content-type"] = content_type
+            resp = self._client.request(
+                method, f"{base_url.rstrip('/')}{path}",
+                params=clean_params or None,
+                content=content,
+                headers=headers,
+            )
+        else:
+            resp = self._client.request(
+                method, f"{base_url.rstrip('/')}{path}",
+                params=clean_params or None,
+                json=json_body,
+                headers=headers,
+            )
         if resp.status_code < 200 or resp.status_code > 299:
             body: Any = None
             try:

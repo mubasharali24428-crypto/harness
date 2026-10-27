@@ -31,19 +31,29 @@ message and no spawn, when docker, the image, live credentials or the
 container mode are missing — it never degrades to `off` or seatbelt.
 
 Audit, stated honestly: the plan gate is the server's (identical events), the
-patch is registered as a `kind=diff` artifact, and a run comment carries
-`executed=local`, confinement, image and the diff digest. Tool-call-level
-events from an off-host engine cannot be minted into `agent_events` by any
-existing endpoint; that is a contracts decision, not a CLI workaround.
+patch is uploaded to the raw-body artifact endpoint and a run comment
+references it by id, carrying `executed=local`, confinement, image and the
+diff digest. Tool-call-level events from an off-host engine cannot be minted
+into `agent_events` by any existing endpoint; that is a contracts decision,
+not a CLI workaround — so the worker's own NDJSON progress lines are now shown
+to the operator instead of being parsed away, which is what let the next defect
+be seen at all.
 
-Status: unit-tested (15 tests, 63 green) and the live boundary is proven — a
+The live drill corrected three more claims from the first pass, each now pinned
+by a test: the generated `upload_artifact` stub sends **no body**, and the
+endpoint ("the request body IS the file") answers `EMPTY_ARTIFACT` — the trace
+had been failing silently; the transport grew a raw `content=` path and the
+patch bytes now actually land. A comment with `refKind` but no `refId` is
+rejected `BAD_REF` — the comment references the artifact id it just created.
+And the drill itself read a comments list without checking its status code and
+under the wrong key, so a 404 looked like an empty but valid list.
+
+Status: unit-tested (18 tests, 66 green) and the live boundary is proven — a
 real container turn created the file and its in-boundary diff. The full
-success drill is not yet green because the local model needed more than the
-drill's budget; the default is now 900 s. Building the drill found two real
-defects and fixed them: the applier treated "absent from the change list" as
-"deleted" (it would have deleted every untouched file — now only the diff's
-`+++ /dev/null` headers can delete), and the diff header normaliser sliced
-paths at a fixed offset, corrupting them.
+success drill is still not green because the local `qwen` turn never finished
+inside the budget (killed at 240 s with the file written, at 900 s without);
+the drill now takes `--goal` so the turn can be bounded, and reports the
+worker's tool events so a looping agent is visible rather than inferred.
 
 ### W6 (chat) — an interactive loop that says exactly what it remembers (2026-10-27)
 
