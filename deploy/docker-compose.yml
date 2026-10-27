@@ -45,6 +45,10 @@ x-backend-env: &backend-env
   # deploy/patches read-only at /opt/harness/patches; set for OpenRouter:
   # DSH_PATCH_FILES=/opt/harness/patches/openrouter.patch.yml
   DSH_PATCH_FILES: ${DSH_PATCH_FILES:-}
+  # W4 slice 3: operator-reviewed MCP servers, read by harness_orchestrator.mcp.
+  # The list ships inside the worker image (/opt/harness/mcp) so that changing it
+  # is a rebuild; unset means no MCP servers are mounted at all.
+  DSH_MCP_SERVERS: ${DSH_MCP_SERVERS:-}
   DSH_WORKSPACE: /tmp/harness-dsh/workspace
   DSH_SESSION_ROOT: /tmp/harness-dsh/sessions
   GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
@@ -443,6 +447,12 @@ services:
       HARNESS_RUNS_ROOT: /var/lib/harness-runs
       DSH_WORKSPACE: /var/lib/harness-runs/workspace
       DSH_SESSION_ROOT: /var/lib/harness-runs/sessions
+      # confine.wrap_command passes these to the worker by NAME only ("--env KEY"):
+      # Docker reads the VALUE from its own client environment, i.e. this daemon's.
+      # Set on the orchestrator alone, they would arrive empty in every worker —
+      # so the operator's patch files and reviewed MCP servers must be here too.
+      DSH_PATCH_FILES: ${DSH_PATCH_FILES:-}
+      DSH_MCP_SERVERS: ${DSH_MCP_SERVERS:-}
     volumes:
       - harness_runs:/var/lib/harness-runs
       - /var/run/docker.sock:/var/run/docker.sock

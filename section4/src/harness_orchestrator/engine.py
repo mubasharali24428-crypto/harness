@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import Any
 
 from harness_orchestrator import confine, domain_metrics
+from harness_orchestrator import mcp as mcp_config
 from harness_orchestrator.container_runtime import ContainerBoundary
 from harness_orchestrator.context_window import configured_context_window
 from harness_orchestrator.live_mode import (
@@ -190,6 +191,20 @@ def _execution_policy_patch(
         logger.warning(
             "web gate or plugin missing (%s); web_fetch is not mounted for this run", web_gate
         )
+    # W4 slice 3: MCP servers come only from the operator-reviewed DSH_MCP_SERVERS
+    # list — never from the plan, the intent, or the model. A declared-but-broken
+    # list raises, because a half-applied boundary is worse than a failed run.
+    mcp_block = ""
+    servers = mcp_config.reviewed_servers()
+    if servers:
+        lines = ["- insert:\n"]
+        for config in servers:
+            lines.append(f"    - id: mcp-{config['serverName']}\n")
+            lines.append(f"      name: '{mcp_config.PLUGIN}'\n")
+            lines.append(f"      config: {json.dumps(config)}\n")
+        mcp_block = "".join(lines)
+        logger.info("run %s: mounting %d reviewed MCP server(s)",
+                    Path(session_dir).name, len(servers))
     patch.write_text(
         "- id: sandbox-policy\n"
         "  name: '@deepseek-ai/dsh-sandbox-policy'\n"
@@ -223,7 +238,7 @@ def _execution_policy_patch(
         "- insert:\n"
         "    - id: harness-shell\n"
         f"      name: {json.dumps(str(_SHELL_PLUGIN))}\n"
-        f"      config: {json.dumps(shell)}\n" + web,
+        f"      config: {json.dumps(shell)}\n" + web + mcp_block,
         encoding="utf-8",
     )
     return str(patch)

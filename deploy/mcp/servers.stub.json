@@ -1,0 +1,13 @@
+{
+  "servers": [
+    {
+      "transport": "stdio",
+      "serverName": "harness-stub",
+      "command": "python",
+      "args": ["-m", "harness_orchestrator.mcp_stub"],
+      "cwd": "/tmp",
+      "toolCallTimeoutMs": 30000,
+      "maxInstructionBytes": 65536
+    }
+  ]
+}

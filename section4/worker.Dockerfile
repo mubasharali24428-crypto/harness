@@ -22,6 +22,11 @@ ENV HARNESS_WEB_GATE=/opt/harness-shell/web_gate.py
 # container receives DSH_PATCH_FILES through the engine's scrubbed env, so the
 # file must exist at the same path inside this image.
 COPY deploy/patches /opt/harness/patches
+# W4 slice 3: the reviewed MCP server list. Baked into the image on purpose —
+# changing which servers a run may talk to is a rebuild (a review event), not a
+# file a running service can swap. DSH_MCP_SERVERS names the path; the engine
+# refuses to start a run when a declared list is unreadable or malformed.
+COPY deploy/mcp /opt/harness/mcp
 USER 10001:10001
 WORKDIR /tmp
 ENTRYPOINT ["python", "-m", "harness_orchestrator.engine_worker"]
