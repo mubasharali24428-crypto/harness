@@ -1,0 +1,221 @@
+"""W6 CLI: credential storage, the plan gate, and scriptable output.
+
+No network: the SDK is replaced by a recorder. The point of these tests is the
+contract the CLI must not break — a refusal rejects the plan, `--json` is one
+object, and the token file is owner-only.
+"""
+
+from __future__ import annotations
+
+import io
+import json
+import stat
+
+import pytest
+from harness_sdk.cli import config
+from harness_sdk.cli.commands import CliError, execute_run, format_diff
+from harness_sdk.cli.main import main
+
+
+@pytest.fixture()
+def config_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("HARNESS_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.delenv("HARNESS_TOKEN", raising=False)
+    return tmp_path / "cfg"
+
+
+def test_credentials_are_owner_only_and_round_trip(config_dir):
+    path = config.save(config.Credentials("tok", "http://id", "http://orch"))
+    assert path == config_dir / "credentials.json"
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert stat.S_IMODE(config_dir.stat().st_mode) == 0o700
+    stored = config.load()
+    assert stored.token == "tok" and stored.identityUrl == "http://id"
+    assert config.clear() is True
+    assert config.load() is None
+    assert config.clear() is False
+
+
+def test_env_token_wins_over_the_file(config_dir):
+    config.save(config.Credentials("file-token"))
+    assert config.resolve_token({"HARNESS_TOKEN": "env-token"}) == "env-token"
+    assert config.resolve_token({}) == "file-token"
+
+
+class _Orch:
+    def __init__(self, states=("done",)):
+        self.calls: list[tuple] = []
+        self.states = list(states)
+
+    def propose_plan(self, body):
+        # Real wire shape: the plan id only. The run binding comes from approve.
+        self.calls.append(("propose", body))
+        return {"planId": "plan-1"}
+
+    def approve_plan(self, plan_id):
+        self.calls.append(("approve", plan_id))
+        return {"runId": "run-1"}
+
+    def reject_plan(self, plan_id):
+        self.calls.append(("reject", plan_id))
+        return {}
+
+    def start_run(self, run_id):
+        self.calls.append(("start", run_id))
+        return {}
+
+    def get_run(self, run_id):
+        self.calls.append(("get", run_id))
+        state = self.states[0] if len(self.states) == 1 else self.states.pop(0)
+        return {
+            "runId": run_id,
+            "state": state,
+            "steps": [{"seq": 1, "type": "plan_approved", "ts": "2026-01-01T00:00:00Z"}],
+        }
+
+    def get_engine_result(self, run_id):
+        return {"finalResponse": "fixed it", "toolCalls": [{"tool": "bash"}]}
+
+    def run_diff(self, run_id, limit=100):
+        return {
+            "runId": run_id,
+            "totalFiles": 1,
+            "files": [{"path": "a.py", "additions": 1, "deletions": 0, "patch": "+x"}],
+        }
+
+
+class _Identity:
+    def __init__(self, projects):
+        self.projects = projects
+
+    def list_projects(self, limit=None):
+        return {"items": self.projects}
+
+
+class _Sdk:
+    def __init__(self, projects=None, states=("done",)):
+        self.identity = _Identity(projects or [{"id": "proj-1", "name": "one"}])
+        self.orchestrator = _Orch(states)
+
+
+def test_approved_run_uses_the_plan_gate_and_reads_the_answer():
+    sdk = _Sdk()
+    result = execute_run(sdk, "fix it", assume_yes=True)
+    calls = [name for name, *_ in sdk.orchestrator.calls]
+    assert calls[:3] == ["propose", "approve", "start"]
+    assert "reject" not in calls
+    assert result["state"] == "done" and result["answer"] == "fixed it"
+    assert result["toolCalls"][0]["tool"] == "bash"
+
+
+def test_a_refused_prompt_rejects_and_starts_nothing():
+    sdk = _Sdk()
+    result = execute_run(sdk, "fix it", confirm=lambda _prompt: "n")
+    calls = [name for name, *_ in sdk.orchestrator.calls]
+    assert calls == ["propose", "reject"]
+    assert result["state"] == "rejected" and result["answer"] == ""
+
+
+def test_ambiguous_projects_are_refused_with_the_list():
+    sdk = _Sdk(projects=[{"id": "a", "name": "one"}, {"id": "b", "name": "two"}])
+    with pytest.raises(CliError) as exc:
+        execute_run(sdk, "fix it", assume_yes=True)
+    assert "a" in str(exc.value) and "b" in str(exc.value)
+    assert sdk.orchestrator.calls == []
+
+
+def test_json_mode_prints_exactly_one_object():
+    sdk = _Sdk()
+    stdout, stderr = io.StringIO(), io.StringIO()
+    code = main(["run", "fix it", "--yes", "--json"], sdk=sdk, stdout=stdout, stderr=stderr)
+    assert code == 0
+    payload = json.loads(stdout.getvalue())
+    assert payload["runId"] == "run-1" and payload["answer"] == "fixed it"
+    assert stdout.getvalue().count("\n{") == 0  # a single object, not JSONL
+    assert "plan plan-1" in stderr.getvalue()
+
+
+def test_missing_token_fails_with_an_actionable_message(config_dir):
+    stdout, stderr = io.StringIO(), io.StringIO()
+    code = main(["status", "run-1"], stdout=stdout, stderr=stderr)
+    assert code == 1 and "not logged in" in stderr.getvalue()
+
+
+def test_status_and_diff_render_the_server_view():
+    sdk = _Sdk()
+    stdout = io.StringIO()
+    assert main(["status", "run-1"], sdk=sdk, stdout=stdout) == 0
+    assert "run run-1: done" in stdout.getvalue()
+    assert "plan_approved" in stdout.getvalue()
+
+    stdout = io.StringIO()
+    assert main(["diff", "run-1"], sdk=sdk, stdout=stdout) == 0
+    assert "a.py" in stdout.getvalue() and "+x" in stdout.getvalue()
+
+
+def test_logout_removes_the_store(config_dir):
+    config.save(config.Credentials("tok"))
+    stderr = io.StringIO()
+    assert main(["logout"], stderr=stderr) == 0
+    assert config.load() is None and "removed" in stderr.getvalue()
+
+
+def test_diff_formatter_marks_omitted_patches():
+    text = format_diff(
+        {"totalFiles": 1, "files": [{"path": "big.bin", "additions": 0, "deletions": 0,
+                                    "patch": None, "patchOmitted": "binary"}]}
+    )
+    assert "big.bin" in text and "binary" in text
+
+
+def test_every_command_accepts_the_service_url_flags(config_dir, monkeypatch):
+    """Regression: only `login` used to define --identity-url/--orchestrator-url,
+    so `harness run` crashed with AttributeError before any request. The parity
+    drill found it because unit tests inject a client and never parse argv."""
+    from harness_sdk.cli.main import build_parser
+
+    parser = build_parser()
+    for argv in (
+        ["login", "--token", "t"],
+        ["logout"],
+        ["run", "goal", "--project", "p", "--yes", "--json"],
+        ["status", "r1", "--json"],
+        ["diff", "r1", "--json"],
+    ):
+        args = parser.parse_args([*argv, "--orchestrator-url", "http://orch"])
+        assert args.orchestrator_url == "http://orch", argv
+        assert args.identity_url is None
+
+
+def test_run_without_a_client_uses_the_stored_token_and_env_urls(config_dir, monkeypatch):
+    """The path the drill exercises: no injected sdk, a stored token, URLs from
+    the environment. It must build a client rather than raise."""
+    monkeypatch.setenv("HARNESS_ORCHESTRATOR_URL", "http://orch")
+    monkeypatch.setenv("HARNESS_IDENTITY_URL", "http://id")
+    config.save(config.Credentials("tok"))
+    seen = {}
+
+    class FakeHarness:
+        def __init__(self, token=None, **kwargs):
+            seen["token"] = token
+            seen["urls"] = (kwargs.get("identity_url"), kwargs.get("orchestrator_url"))
+            self.orchestrator = object()
+
+    # `harness_sdk.cli.main` the ATTRIBUTE is the function (re-exported by the
+    # package), so resolve the module object explicitly.
+    import importlib
+
+    main_module = importlib.import_module("harness_sdk.cli.main")
+    monkeypatch.setattr(main_module, "Harness", FakeHarness)
+    # main.py binds execute_run at import time, so patch it there.
+    monkeypatch.setattr(
+        main_module,
+        "execute_run",
+        lambda *a, **k: {"runId": "r1", "planId": "p1", "state": "done", "answer": "ok"},
+    )
+    out, err = io.StringIO(), io.StringIO()
+    code = main(["run", "goal", "--project", "p", "--yes", "--json"],
+                stdout=out, stderr=err, prompt=lambda _p: "y")
+    assert code == 0, err.getvalue()
+    assert seen["token"] == "tok"
+    assert json.loads(out.getvalue())["runId"] == "r1"

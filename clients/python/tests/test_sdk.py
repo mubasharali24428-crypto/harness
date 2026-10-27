@@ -319,3 +319,20 @@ def test_generated_call_shapes_over_mock_transport():
     assert captured["url"].startswith("http://identity.test/api/v1/projects?")
     assert "limit=10" in captured["url"]
     assert captured["body"] in (b"", b"null")
+
+
+def test_bracketed_no_proxy_does_not_break_the_client(monkeypatch):
+    # Docker Desktop ships NO_PROXY with `[::1]`; httpx 0.28 parses that as a URL
+    # and rejects the port. The client sanitizes the value around construction
+    # and restores the caller's environment immediately.
+    import os
+
+    original = "localhost,127.0.0.1,[::1],.example.com"
+    monkeypatch.setenv("NO_PROXY", original)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"ok": True})
+
+    client = HarnessHTTP("tok", transport=httpx.MockTransport(handler))
+    assert client.request("http://localhost:8001", "GET", "/x") == {"ok": True}
+    assert os.environ["NO_PROXY"] == original

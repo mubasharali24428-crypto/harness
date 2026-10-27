@@ -115,6 +115,35 @@ _RETRYABLE_STATUS = {429, 502, 503, 504}
 _IDEMPOTENT_METHODS = {"GET", "HEAD", "PUT", "DELETE"}
 
 
+def _bracketed(value: str) -> bool:
+    return "[" in value or "]" in value
+
+
+def _strip_brackets(value: str) -> str:
+    return ",".join(part for part in value.split(",") if part.strip() and not _bracketed(part))
+
+
+def _env_client(**kwargs: Any) -> httpx.Client:
+    """Build an httpx client even when NO_PROXY contains a bracketed IPv6 literal.
+
+    httpx 0.28 parses NO_PROXY as a URL list; Docker Desktop ships entries such
+    as ``[::1]``, which become ``Invalid port ':1]'`` on the next request. The
+    proxy mounts are computed during ``httpx.Client(...)``, so sanitising the
+    variables around construction is enough — the caller's environment is
+    restored immediately and no other client sees the change.
+    """
+    names = ("NO_PROXY", "no_proxy")
+    originals = {name: os.environ[name] for name in names if name in os.environ}
+    try:
+        for name, value in originals.items():
+            if _bracketed(value):
+                os.environ[name] = _strip_brackets(value)
+        return httpx.Client(**kwargs)
+    finally:
+        for name, value in originals.items():
+            os.environ[name] = value
+
+
 class HarnessHTTP:
     """Bearer-authenticated JSON transport shared by all section clients.
 
@@ -136,7 +165,7 @@ class HarnessHTTP:
         self.max_retries = max_retries
         self.backoff_base_s = backoff_base_s
         self.backoff_cap_s = backoff_cap_s
-        self._client = httpx.Client(
+        self._client = _env_client(
             timeout=httpx.Timeout(timeout, connect=min(timeout, 5.0)),
             transport=transport,
         )

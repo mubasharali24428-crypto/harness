@@ -237,6 +237,44 @@ def wait_containers_healthy(deadline: float) -> None:
     raise Failure("container health", "; ".join(problems))
 
 
+def _identity_log_text() -> str:
+    """Recent log text for the identity service, from the authoritative source.
+
+    ``docker compose logs`` is not always the container's own log under Docker
+    Desktop: measured 2026-10-27 on this stack, compose served a buffer ~17
+    hours behind while ``docker logs <cid>`` was current — which makes dev OTP
+    delivery look broken ("code not in identity logs") when it is working.
+    Resolve the container id and read that; fall back to compose so a plain
+    docker-compose setup still works.
+    """
+    ident = subprocess.run(
+        ["docker", "compose", "-f", COMPOSE_FILE, "ps", "-q", "identity"],
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    cid = (ident.stdout or "").strip().splitlines()
+    if cid and cid[0]:
+        direct = subprocess.run(
+            ["docker", "logs", "--tail", "2000", cid[0]],
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if direct.returncode == 0 and (direct.stdout or direct.stderr):
+            return direct.stdout + direct.stderr
+    proc = subprocess.run(
+        ["docker", "compose", "-f", COMPOSE_FILE, "logs", "--no-log-prefix", "identity"],
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    return (proc.stdout or "") + (proc.stderr or "")
+
+
 def fetch_otp(email: str) -> str:
     fixed = os.environ.get("E2E_OTP_CODE")
     if fixed:
@@ -245,19 +283,13 @@ def fetch_otp(email: str) -> str:
     deadline = time.time() + 30
     last_err = "no log line seen"
     while time.time() < deadline:
-        proc = subprocess.run(
-            ["docker", "compose", "-f", COMPOSE_FILE, "logs", "--no-log-prefix", "identity"],
-            cwd=str(ROOT),
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
+        text = _identity_log_text()
         match = None
-        for match in pattern.finditer(proc.stdout + proc.stderr):
+        for match in pattern.finditer(text):
             pass  # keep the LAST delivery
         if match:
             return match.group(1)
-        last_err = proc.stderr.strip()[-200:] or "no log line seen"
+        last_err = "log read ok, code absent" if text else "identity logs empty"
         time.sleep(2)
     raise Failure("OTP delivery", f"code for {email} not in identity logs ({last_err})")
 

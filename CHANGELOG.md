@@ -10,6 +10,41 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W6 (CLI) — the same task completes from a terminal, with the same audit trail (2026-10-27)
+
+Week-6 slices 1–2: `harness_sdk.cli` ships a `harness` console script with
+`login`/`logout`, `run`, `status`, `diff` — commands only, every call still goes
+through the SDK transport so the CLI cannot drift from the contracts.
+
+The plan's four claims, each with evidence:
+
+* **Same gate, same events.** `scripts/e2e/cli_parity.py` runs one goal through
+  `harness run` and the same goal over HTTP, then compares the persisted
+  `agent_events` types: identical sequences, identical settled states
+  (`w6-cli-parity-1793085128.json`, runs `run-0e4b25c7f895` /
+  `run-0f515e97495a`). Like the W4 drills, every run writes its own evidence
+  file, so a rerun cannot overwrite the record a claim was made from.
+* **`harness diff` is the server's diff**, read through `run_diff` — the CLI
+  formats it; it never recomputes one.
+* **Offline token storage**: `$XDG_CONFIG_HOME/harness/credentials.json`, dir
+  `0700`, file `0600`, atomic replace, `HARNESS_TOKEN` overriding; the OTP login
+  path reads the dev code from identity logs.
+* **`--json` is exactly one object** on stdout, progress to stderr — subprocess
+  tests, not a string dump.
+
+Building the drill found and fixed three real problems: `argparse` crashed every
+command but `login` because the service-url flags were only defined there (unit
+tests injecting a client could not see it); `POST /plans` returns only a
+`planId` — the run binding comes back from APPROVE, so assuming a runId failed
+against a live server while stubs passed; and Docker Desktop's compose log API
+served a ~17-hour-old buffer while `docker logs <cid>` was current, which made
+working OTP delivery look broken (`compose_journey.fetch_otp` now reads the
+container first). The bracketed-`NO_PROXY` sanitiser from contracts 1.0.0rc5 is
+mirrored in the SDK transport, since the CLI runs on the developer's machine
+with that variable set.
+
+Chat and local-workspace mode are not started: the gate stays open.
+
 ### W3 closed — an interrupted write, a rewind, and a second attempt (2026-10-26)
 
 The last open clause was "resume reconciles partial writes". A new drill
