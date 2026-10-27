@@ -560,6 +560,7 @@ def app_orchestrator():
         agent_tree,
         artifacts,
         control,
+        deployments,
         discussion,
         execution,
         exports,
@@ -583,7 +584,8 @@ def app_orchestrator():
     exports.configure_exports(service)
     for _r in (presence.router, participation.router, control.router, agent_tree.router,
                discussion.router, plans.router, execution.router, artifacts.router, search.router,
-               exports.router, retention_holds.router, shares.router):
+               exports.router, retention_holds.router, shares.router,
+               deployments.router):
         app.include_router(_r)
 
     # Part 38.005: org policy applies to every classified run/plan route of org-linked teams

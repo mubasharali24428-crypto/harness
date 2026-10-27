@@ -10,6 +10,32 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W9 slices 1–2 — share links that are capabilities, deployments bound to the reviewed revision (2026-10-27)
+
+* **Shares are capabilities, not signatures.** `POST /runs/{id}/artifacts/{artifactId}/shares`
+  mints a random token, stores only `sha256(token)`, and `GET /shares/{token}` — the
+  one anonymous route in the product — serves the bytes with
+  `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff` and
+  `Content-Security-Policy: sandbox; default-src 'none'`, always as
+  `application/octet-stream`. There is no signature to verify and no key to leak:
+  revocation is a row write, so a revoked token is indistinguishable from an
+  unknown one (404), an expired one is 410, and a deleted artifact is 410.
+  Uploads the classifier quarantines never get a link at all. Opening a link is
+  audited as the artifact's team, not the anonymous reader.
+  (`0063_artifact_shares.sql`, `shares.py`, 12 tests)
+* **A deployment approval names the revision a human reviewed, and stops being
+  valid when it moves.** `POST /runs/{id}/deployments` binds `changes_digest` +
+  `run_head_sha` + `plan_version` (+ `base_sha`) as they stand at request time;
+  approve re-reads the current revision and answers `409 DEPLOYMENT_STALE` with
+  `staleFields` when any part moved, or when the client echoes a different
+  digest than the request was bound to. No changes → `NOTHING_TO_DEPLOY`, no
+  recorded head → `REVISION_UNKNOWN`, a non-canonical environment name is
+  refused rather than silently rewritten (`ENVIRONMENT_INVALID`). Revocation is
+  final and idempotent: an approve after revoke is `DEPLOYMENT_REVOKED`, a second
+  approve is `DEPLOYMENT_DECIDED`. Every step writes the binding into `audit_log`.
+  Nothing here deploys anything; the record is the guarantee.
+  (`0064_deployments.sql`, `deployments.py`, 13 tests)
+
 ### W8 slice 2 — a container-mode run can finally write, and abandoned boundaries get a reaper (2026-10-27)
 
 Three defects, all found on the live stack, none visible in review:
