@@ -10,6 +10,28 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W4 (leak): every confined run leaked its network until Docker could not run anything (2026-10-27)
+
+Found while drilling MCP wiring: a run failed in two seconds with
+`docker network create --internal … returned non-zero exit status 1`, and running
+that command by hand answered **"all predefined address pools have been fully
+subnetted"**. The stack held 20 orphaned `harness-<id>-net` networks, the oldest
+eight days.
+
+The cause was W4's own egress work: `ContainerBoundary` connects the shared
+`harness-sandbox-egress` proxy to each run network so the worker has exactly one
+route out, but `close()` removed only the relay and the network — and a network
+with an attached container cannot be removed. So *every run that reached the
+proxy* leaked a network permanently, and nothing noticed until the pool was
+full. Two tests now pin the order (`disconnect` before `network rm`, and no
+disconnect when no proxy was attached); the 20 orphans were reclaimed by hand
+with the same operation, after confirming each held nothing but the proxy.
+
+The larger honesty note: no earlier drill caught this because nothing in the
+stack asks "did the boundary clean up?" — the failure surfaced weeks later as an
+unrelated-looking start error. A cleanup claim needs a reclaim check of its own,
+not just a `close()` that exists.
+
 ### W6 (local) — the same engine, confined by the container boundary, against a local directory (2026-10-27)
 
 Slice 4, designed from the audit before any code: seatbelt is not an option

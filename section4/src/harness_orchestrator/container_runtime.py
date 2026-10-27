@@ -50,6 +50,7 @@ class ContainerBoundary:
         self.relay = self.name + "-relay"
         self.image = os.environ.get("HARNESS_ENGINE_IMAGE", IMAGE)
         self.web_proxy_url: str | None = None
+        self.egress_proxy: str | None = None
 
     def _attach_egress_proxy(self) -> str | None:
         """Make the allow-list proxy the run network's only way out.
@@ -67,6 +68,7 @@ class ContainerBoundary:
         )
         if connected.returncode != 0:
             return None
+        self.egress_proxy = name
         return f"http://{EGRESS_PROXY_ALIAS}:{EGRESS_WEB_PORT}"
 
     def start(self) -> str:
@@ -157,6 +159,17 @@ class ContainerBoundary:
             time.sleep(0.05)
 
     def close(self) -> None:
+        # A network with any attached container cannot be removed, and W4 attaches the
+        # shared egress proxy to this run's network on purpose — so the proxy has to
+        # leave before the network can. Without this every run leaked its network:
+        # measured 2026-10-27 on one dev stack with 17 orphans, until Docker answered
+        # "all predefined address pools have been fully subnetted" and NO run could
+        # start at all.
+        if self.egress_proxy:
+            try:
+                docker("network", "disconnect", self.network, self.egress_proxy, check=False)
+            except (OSError, subprocess.SubprocessError):
+                pass  # best effort: the removals below still try, and a leak is loud
         for args in (("rm", "--force", self.relay), ("network", "rm", self.network)):
             try:
                 docker(*args, check=False)
