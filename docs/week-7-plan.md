@@ -251,3 +251,28 @@ part of the script.
 **Still unexercised here:** the `vscode`-bound adapter — tabs, modals,
 SecretStorage — is typechecked and built but no editor window was opened in this
 environment, which is what the evidence's `drive` field says.
+
+## Week 7 status — editor half closed, H3 half blocked on a prerequisite this repo does not contain
+
+The roadmap line is **"W7 / H3 IDE"**, and its exit evidence has three clauses.
+The first is now backed by live evidence; the other two are not, and the reason
+is not effort:
+
+| Clause | State | Why |
+|---|---|---|
+| *Review in editor passes through policy* | **closed** — `w7-ide-1793116802.json`, ten checks | the gate, the confined worker and the digest-bound review are all shown live |
+| *Hermes hover/definition/rename meet declared semantics* | **blocked** | H3 needs the Hermes corpus (`docs/roadmap-2026-10-25.md:320`), and **no `.hms` file, `hermesc` or language-server stub exists in this repo** — it is an external codebase the roadmap proposes to adopt |
+| *Second-language integration evaluated* | **blocked, same reason** | "add an adapter, not fork the extension" is a design rule that can only be *exercised* once a real language server exists to adapt |
+
+H3's own prerequisite row in `docs/marathon-execution-plan.md:156` is
+**H0–H2 Hermes demonstration**, gated on *"external rights/license evidence"* —
+an external gate, not repo work. So the honest statement is: W7's editor gate is
+closed; the LSP clause of the same roadmap row cannot be started here, and no
+number of VS Code work would make it closer.
+
+What remains on the editor side, and is *not* claimed as done: packaging the
+extension as an installable `.vsix` and publishing it, a real-window smoke test
+(modals, diff tabs, SecretStorage), and `@doc`/`@commit` context kinds. The
+`hermes-language-server` would plug into `pickSymbols`'s position — the
+extension's symbol source is currently VS Code's own `DocumentSymbolProvider`,
+which is exactly the seam an LSP is meant to replace.
