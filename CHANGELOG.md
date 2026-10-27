@@ -56,15 +56,18 @@ list" as "deleted", which would have removed every untouched file in the
 workspace; only the boundary diff's own `+++ /dev/null` headers may delete now,
 and paths had been corrupted by a fixed-offset slice in the header normaliser.
 
-Status after three live attempts, each recorded rather than smoothed over: at
-240 s the worker was killed after writing the file and the diff still landed
-(applied, untouched file unmoved); at 900 s the same happened again — file
-created, applied, artifact verified by reading its stored bytes back (81). An
-over-specified one-command goal made the small model reply `DONE` without
-calling any tool, and the CLI reported that honestly (`artifact: skipped (the
-run produced no diff)`) instead of inventing a change. The turn has not yet
-finished on its own terms, which is a model-latency fact about this machine,
-not a defect in the path.
+Status after four live attempts, the last one green (`w6-local-1793107805.json`):
+the server showed `plan_proposed, plan_approved` and no `execution_started` (a
+local run never becomes a server execution), `present.txt` appeared in the user's
+directory while the untouched file stayed byte-identical, the diff artifact was
+read back and held the patch, and the provenance comment landed with
+`executed=local` + digest. What the evidence deliberately does not claim: the
+worker was killed by the engine deadline at 900 s after writing, so this is the
+boundary, apply and trace proven end-to-end, not a turn that ended on its own
+terms — and the created file is empty, so the apply holds regardless of how well
+this local model writes content. An over-specified one-command goal made it reply
+`DONE` without calling any tool, and the CLI reported `artifact: skipped (the run
+produced no diff)` instead of inventing a change.
 `harness chat --local DIR` joins `run --local`: the directory is stored with
 the session, so `--resume` picks the same workspace back up.
 

@@ -171,17 +171,25 @@ Decision (both options confirmed with the operator 2026-10-27):
 4. Live drill against the running stack: one goal edits a scratch dir,
    server shows plan events + diff artifact + local-provenance comment,
    workspace updated; evidence `w6-local-<epoch>.json`.
-   **Three live attempts, all informative.** The gate and the apply are proven
-   repeatedly: the confined worker wrote the file, the CLI applied it and left
-   the untouched file alone, and the artifact's stored bytes were read back and
-   matched the patch. What has not happened yet is a turn that ENDS by itself —
-   at 240 s and at 900 s the worker was killed by the engine deadline AFTER
-   writing (the local `qwen` keeps verifying), and one over-specified goal made
-   it reply `DONE` having called no tool, which the CLI reported as
-   `artifact: skipped (the run produced no diff)` rather than fabricating a
-   change. The drill now takes `--goal`, prints the worker's tool events, and
-   checks the status code of every list it reads — the last of which caught a
-   404 being read as "no comments".
+   **Green 2026-10-27** (`w6-local-1793107805.json`): server events were
+   `plan_proposed, plan_approved` and NOT `execution_started` (the local run
+   never becomes a server execution); `present.txt` appeared in the user's
+   directory while the untouched file stayed byte-identical; the diff artifact
+   was read back and held the patch (81 bytes); the provenance comment landed
+   with `executed=local`, confinement, image and diff digest.
+   Two things the evidence does NOT claim, stated plainly: the worker was
+   killed by the engine deadline at 900 s after writing the file, so this is
+   the boundary, apply and trace proven end-to-end — not a turn that finished
+   on its own terms (the local `qwen` on this machine keeps verifying; an
+   over-specified one-command goal made it reply `DONE` having called no tool,
+   which the CLI reported as a skipped artifact rather than a fabricated
+   change); and the created file is EMPTY, so the apply works whether or not
+   this model writes content well. Earlier attempts in the same drill found
+   and fixed four real defects, each now pinned by tests: "absent from the
+   change list" was being read as "deleted" (it would have removed every
+   untouched file), a fixed-offset slice corrupted diff paths, the artifact
+   upload was sending no body (`EMPTY_ARTIFACT`), and a comment's `refKind`
+   pointed at an artifact when the server means a high-impact approval row.
 
 ## Known constraints
 
