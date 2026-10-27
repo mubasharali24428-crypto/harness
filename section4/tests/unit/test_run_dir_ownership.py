@@ -1,12 +1,16 @@
-"""W8: the root launcher must hand the run's directories to the uid the worker drops to.
+"""W8: the root launcher's ownership handover, and the ownership it must NOT take.
 
-`confine._worker_user` refuses to run the worker as root, and for a root-owned run
-dir it falls back to the image's own user (10001). A 10001 worker inside a
-root:root 0755 directory cannot write a single file — measured 2026-10-27 on the
-compose stack, where every `write` the agent attempted returned EACCES, the run
-settled `blocked` with no changes, and no container-mode run could produce a
-reviewable diff at all. These tests pin the ownership handshake without needing
-to be root.
+`confine._worker_user` refuses to run the worker as root, so it runs the container as
+the run directory's owner — and for a root-owned directory as the image's own user
+(10001), inside a root:root 0755 directory, where every `write` is answered
+`EACCES … mkdir` and no container-mode run can produce a reviewable diff at all
+(measured 2026-10-27 on the compose stack).
+
+Taking *every* directory is the opposite failure, also measured the same day: the
+orchestrator provisions these directories as its own uid and later stages, checkpoints
+and diffs what the agent wrote, so re-owning them to the worker's uid makes the next
+pass fail with `Permission denied` on the file the agent had just written. These tests
+pin both halves without needing to be root.
 """
 
 import os
@@ -22,13 +26,14 @@ def test_a_non_root_launcher_has_nothing_to_hand_over(monkeypatch, tmp_path):
     assert calls == []
 
 
-def test_a_root_launcher_chowns_the_whole_run_tree(monkeypatch, tmp_path):
+def test_a_root_owned_tree_is_handed_to_the_worker_uid(monkeypatch, tmp_path):
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "a.py").write_text("x")
     link = tmp_path / "link"
     link.symlink_to("src")  # lchown, not chown: a symlink target is not ours to take
 
     monkeypatch.setattr(confine.os, "getuid", lambda: 0)
+    monkeypatch.setattr(confine, "_owner_uid", lambda path: 0)
     done = []
     monkeypatch.setattr(
         confine.os,
@@ -43,6 +48,16 @@ def test_a_root_launcher_chowns_the_whole_run_tree(monkeypatch, tmp_path):
     assert os.path.basename(changed[0]) == tmp_path.name
 
 
+def test_a_directory_the_orchestrator_provisioned_is_left_alone(monkeypatch, tmp_path):
+    """The regression that cost a run: the staging pass runs as the provisioning uid."""
+    monkeypatch.setattr(confine.os, "getuid", lambda: 0)
+    monkeypatch.setattr(confine, "_owner_uid", lambda path: 999)
+    calls = []
+    monkeypatch.setattr(confine.os, "lchown", lambda *a: calls.append(a))
+    assert confine.claim_run_dirs_for_worker([str(tmp_path)]) == []
+    assert calls == []
+
+
 def test_a_denied_chown_stops_that_tree_and_not_the_next(monkeypatch, tmp_path):
     first, second = tmp_path / "one", tmp_path / "two"
     first.mkdir()
@@ -52,6 +67,7 @@ def test_a_denied_chown_stops_that_tree_and_not_the_next(monkeypatch, tmp_path):
         raise PermissionError(1, "Operation not permitted", path)
 
     monkeypatch.setattr(confine.os, "getuid", lambda: 0)
+    monkeypatch.setattr(confine, "_owner_uid", lambda path: 0)
     monkeypatch.setattr(confine.os, "lchown", refuse)
     # Not an exception out of the launcher: the worker's own EACCES is the honest
     # signal, and one unusable directory must not abandon the run's other dirs.

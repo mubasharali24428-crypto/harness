@@ -312,21 +312,31 @@ def _worker_user(workspace: str) -> str:
 WORKER_UID, WORKER_GID = 10001, 10001
 
 
+def _owner_uid(path: str) -> int:
+    """Owner of a path, in one place so the ownership handover is testable as root."""
+    return os.stat(path).st_uid
+
+
 def claim_run_dirs_for_worker(paths: Iterable[str]) -> list[str]:
-    """Hand a root launcher's per-run directories to the uid the worker will drop to.
+    """Take a ROOT-owned run directory away from root; leave every other owner alone.
 
-    `_worker_user` refuses to run the worker as root, and when the run dir IS root-owned
-    it falls back to the image's own user (10001) — but a 10001 worker inside a
-    root:root 0755 directory cannot write a single file. Measured 2026-10-27 on the
-    compose stack, where the worker daemon runs as root: every `write` the agent
-    attempted failed with `EACCES … mkdir`, the run settled `blocked` with no changes,
-    and no container-mode run could ever produce a reviewable diff (the W8 concurrency
-    gate needs a change per run). Ownership and identity have to agree, so the
-    launcher chowns what it just provisioned before launching the worker.
+    Two halves have to agree, or the run cannot do its job: `_worker_user` refuses to
+    run the worker as root, so it launches the container as the directory's owner (or,
+    for a root-owned directory, as the image's own user 10001). A directory owned by
+    root therefore produces a mismatch — 10001 inside a root:root 0755 directory, every
+    `write` answered `EACCES … mkdir`, the run settling `blocked` with no changes at all
+    (measured 2026-10-27 on the compose stack, and the reason no container-mode run had
+    ever produced a reviewable diff).
 
-    A non-root launcher already owns what it creates, and a failed chown is not an
-    error here — the worker's own permission error is the honest signal. Returns the
-    paths actually changed, so the caller can record it in the run's audit.
+    But taking *every* directory is just as wrong, in the other direction: normally the
+    ORCHESTRATOR provisions the run dirs as its own uid, and it is also the process that
+    stages, checkpoints and diffs the files afterwards. Re-owning them here moved them
+    out from under that process, and the next run failed in `staging` with
+    `Permission denied` on the very file the agent had just written.
+
+    So: only a root-owned directory is claimed, and only then is its tree handed to
+    `WORKER_UID`. A non-root launcher has nothing to do. Returns the paths actually
+    changed, so the caller can record the handover.
     """
     if os.getuid() != 0:
         return []
@@ -340,6 +350,8 @@ def claim_run_dirs_for_worker(paths: Iterable[str]) -> list[str]:
             logger.warning("run dir %s does not exist; nothing handed to the worker", top)
             continue
         try:
+            if _owner_uid(top) != 0:
+                continue  # provisioned by another uid: that uid is the one that must keep it
             targets = [top]
             for dirpath, dirnames, filenames in os.walk(top, followlinks=False):
                 for name in (*dirnames, *filenames):

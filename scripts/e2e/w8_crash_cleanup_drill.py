@@ -50,7 +50,13 @@ spec.loader.exec_module(tpl)
 
 GOALS = {
     "victim": "Create a file named w8_crash_victim.txt in the workspace root containing exactly: victim",
-    "neighbour": "Create a file named w8_crash_neighbour.txt in the workspace root containing exactly: neighbour",
+    # Deliberately longer than the victim's: the sweep must run while this one is
+    # still mid-flight, or "the neighbour was untouched" is untested.
+    "neighbour": (
+        "Create three files in the workspace root, one at a time: w8_crash_n1.txt containing one, "
+        "w8_crash_n2.txt containing two, and w8_crash_n3.txt containing three. After each file, "
+        "list the workspace with the bash tool to confirm it exists."
+    ),
 }
 
 
@@ -99,6 +105,50 @@ def daemon() -> str:
     if not cid:
         raise SystemExit("worker-daemon container not found (compose profile 'worker'?)")
     return cid[0]
+
+
+def make_orphan(docker_id: str, run_id: str) -> dict:
+    """Leave exactly the wreckage a SIGKILLed launcher leaves, with no cleanup path.
+
+    Killing a run's `docker run` client is not enough on its own: the launcher that
+    spawned it is still alive and runs its `close()` in a `finally`, so the network
+    goes away by itself (that half is what the victim run below proves, through the
+    product's own crash handling). The failure this sweep exists for is the LAUNCHER
+    dying: its container keeps running, and the network, relay and proxy alias stay
+    attached with nobody left to remove them.
+
+    So this builds the boundary with the product's own classes inside the daemon and
+    then SIGKILLs the process that made it. The container is started on a sleep so it
+    outlives its parent — exactly the "running corpse" the weak rule refuses to judge
+    and only the durable proof may stop.
+    """
+    script = (
+        "import json, os, signal, subprocess, time\n"
+        "from harness_orchestrator import confine, container_runtime\n"
+        "from harness_orchestrator.engine import DeepSeekHarnessWrapper\n"
+        f"rid = {run_id!r}\n"
+        "w = DeepSeekHarnessWrapper(api_key='x')\n"
+        "ws, ss, tmp = w.run_workspace(rid), w.run_session_dir(rid), w.run_tmp_dir(rid)\n"
+        "for d in (ws, ss, tmp):\n"
+        "    os.makedirs(d, exist_ok=True)\n"
+        "b = container_runtime.ContainerBoundary('https://api.deepseek.com', run_id=rid)\n"
+        "b.start()\n"
+        "argv = confine.wrap_command(\n"
+        "    ['python', '-m', 'harness_orchestrator.engine_worker'], mode='container',\n"
+        "    roots=[ws, ss], workspace=ws, session_dir=ss, tmp_dir=tmp,\n"
+        "    container_name=b.name, network=b.network, image=b.image, env={})[:-2]\n"
+        "argv += ['-c', 'import time; time.sleep(1800)']\n"
+        "subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,\n"
+        "                 stderr=subprocess.DEVNULL)\n"
+        "time.sleep(3)\n"
+        "print(json.dumps({'network': b.network, 'container': b.name}), flush=True)\n"
+        "os.kill(os.getpid(), signal.SIGKILL)\n"
+    )
+    proc = tpl.sh("docker", "exec", docker_id, "python", "-c", script, check=False)
+    for line in reversed(proc.stdout.splitlines()):
+        if line.startswith("{"):
+            return json.loads(line)
+    raise SystemExit(f"orphan setup printed nothing usable: {proc.stdout[:200]} {proc.stderr[:300]}")
 
 
 def sweep(docker_id: str, held: list[str], settled: list[str] | None) -> dict:
@@ -214,14 +264,9 @@ def main() -> int:
     victim_name = runs["victim"]["network"][: -len("-net")]
     killed = kill_client(docker_id, victim_name)
 
-    # The orphan must actually exist before anything cleans it up: the worker
-    # container is still running and its network is still attached.
-    time.sleep(3)
-    orphan_network = network_of(runs["victim"]["runId"])
-    orphan_containers = containers_on(orphan_network) if orphan_network else []
-
     # The product notices the crash on its own: the engine call fails, the run
-    # settles, the claim goes, the audit says why.
+    # settles, the claim goes, the audit says why. (Its own `close()` also cleans
+    # the boundary up, which is why the leak below is built separately.)
     victim_state = None
     victim_claim = None
     deadline2 = time.time() + args.timeout / 2
@@ -236,13 +281,28 @@ def main() -> int:
     reason = None
     if isinstance(audit, dict):
         reason = audit.get("finalResponse")
-    neighbour_state_now = (
+    # The wreckage a dead launcher leaves, labelled with the now-settled run: a
+    # network, a relay and a still-running worker container that no process owns.
+    orphan = make_orphan(docker_id, runs["victim"]["runId"])
+    time.sleep(2)
+    orphan_network = network_of(runs["victim"]["runId"])
+    orphan_containers = containers_on(orphan_network) if orphan_network else []
+
+    # Snapshot the neighbour AT THE MOMENT of the sweep. What the claim is about
+    # is what the sweep does — a neighbour that finishes its own run a second
+    # later and removes its own network through `close()` has not been touched by
+    # anything here, and must not be reported as if it had been.
+    neighbour_before = network_of(runs["neighbour"]["runId"])
+    neighbour_containers_before = containers_on(neighbour_before) if neighbour_before else []
+    neighbour_state_at_sweep = (
         tpl.http("GET", f"{runs['neighbour']['base']}/status", token=token)[1] or {}
     ).get("state")
 
     # Now the real sweep, with the durable proof for the victim only.
     report = sweep(docker_id, [runs["neighbour"]["runId"]], [runs["victim"]["runId"]])
     removed = [entry["network"] for entry in report.get("removed", [])]
+    kept = list(report.get("kept", []))
+    stopped_ids = {cid for entry in report.get("removed", []) for cid in entry.get("stopped", [])}
     after = labelled_networks()
     neighbour_network_after = network_of(runs["neighbour"]["runId"])
     neighbour_still_up = bool(neighbour_network_after) and any(
@@ -256,7 +316,13 @@ def main() -> int:
         "date": time.strftime("%Y-%m-%d"),
         "week": "W8",
         "claim": "a crashed run's boundary network and containers are reclaimed, while a live neighbour's are not",
-        "drive": "two live runs on the compose stack; the victim's docker-run client SIGKILLed inside the worker daemon; sweep executed inside the daemon (its socket)",
+        "drive": (
+            "two live runs on the compose stack; the victim's docker-run client SIGKILLed "
+            "inside the worker daemon (the product must settle the run and release the claim), "
+            "then a launcher-shaped orphan built with the product's own ContainerBoundary and "
+            "SIGKILLed mid-flight (network + relay + running container, no owner); sweep executed "
+            "inside the daemon, the only holder of the Docker socket"
+        ),
         "projectId": project["id"],
         "runs": {
             key: {"runId": entry["runId"], "network": entry["network"]}
@@ -274,10 +340,13 @@ def main() -> int:
         },
         "sweeps": {"heldRefusal": held_refusal, "real": report},
         "neighbour": {
-            "stateDuringSweep": neighbour_state_now,
+            "stateAtSweep": neighbour_state_at_sweep,
             "networkBefore": neighbour_network_before,
+            "containersBefore": neighbour_containers_before,
             "networkAfter": neighbour_network_after,
             "stillRunningAfterSweep": neighbour_still_up,
+            "networkKeptBySweep": neighbour_before in kept,
+            "stoppedBySweep": sorted(stopped_ids),
         },
         "networksAfterSweep": after,
     }
@@ -296,9 +365,15 @@ def main() -> int:
                      for e in held_refusal.get("removed", [])),
         "orphanNetworkRemoved": orphan_network in removed,
         "orphanContainersStopped": report.get("containersStopped", 0) >= 1,
+        # "Untouched" is about the sweep, at the moment it ran: the neighbour still
+        # had a boundary, the sweep put it in `kept`, and none of its containers
+        # were stopped. A neighbour that finishes afterwards and closes its own
+        # network is its own lifecycle, not the sweeper's doing.
         "neighbourUntouched": (
-            neighbour_network_after == neighbour_network_before
-            and neighbour_still_up
+            bool(neighbour_before)
+            and neighbour_before in kept
+            and neighbour_before not in removed
+            and not ({c["id"] for c in neighbour_containers_before} & stopped_ids)
         ),
         "victimNetworkGone": network_of(runs["victim"]["runId"]) is None,
     }

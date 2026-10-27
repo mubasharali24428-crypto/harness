@@ -87,10 +87,9 @@ def sample_workers(seen: dict, stop: threading.Event) -> None:
             except (ValueError, IndexError):
                 continue
             mounts = [
-                {"src": m.get("Source"), "dst": m.get("Target"), "rw": not m.get("ReadOnly")}
-                for m in (info["HostConfig"].get("Binds") or []) + 
-                [ {"Source": s.get("Source"), "Target": s.get("Destination"), "ReadOnly": s.get("RW")}
-                  for s in (info["Mounts"] or []) if s.get("Type") == "volume" ]
+                {"src": m.get("Source"), "dst": m.get("Destination"),
+                 "type": m.get("Type"), "rw": bool(m.get("RW"))}
+                for m in (info.get("Mounts") or [])
             ]
             seen[cid] = {
                 "name": name.strip(),
@@ -205,9 +204,15 @@ def main() -> int:
     # drill plays that human, and takes the bytes from the PRODUCT — the same
     # staging diff the withheld-approval surface uses (`staging._changes` against
     # the run's own baseline), never a diff this script assembled itself.
+    #
+    # It runs in the ORCHESTRATOR container, not the worker daemon: staging
+    # imports SQLAlchemy (the worker image deliberately does not ship it), and
+    # both containers see the same runs volume.
+    orch = tpl.sh("docker", "ps", "-q", "--filter",
+                  "label=com.docker.compose.service=orchestrator", check=False).stdout.split()
     for key, entry in runs.items():
         entry["doneSignal"] = None
-        if not daemon:
+        if not orch:
             continue
         rid = entry["runId"]
         script = (
@@ -219,7 +224,7 @@ def main() -> int:
             f"baseline, root / {rid!r})), end='')"
         )
         diff_text = tpl.sh(
-            "docker", "exec", daemon[0], "python", "-c", script, check=False
+            "docker", "exec", orch[0], "python", "-c", script, check=False
         ).stdout
         if not diff_text.strip():
             entry["doneSignal"] = {"refused": "no product-computed diff for this run"}
@@ -239,11 +244,18 @@ def main() -> int:
         entry["changesDigest"] = (changes or {}).get("changesDigest") if isinstance(changes, dict) else None
         listing = ""
         if daemon:
+            # One compact JSON object per manifest on its own line. `cat` alone
+            # is not enough: the product writes these manifests pretty-printed,
+            # and a per-line parser silently counted ZERO of them (the first read
+            # of this drill reported "0 checkpoints" for a run that had two).
+            reader = (
+                "import glob,json;"
+                "print(chr(10).join(json.dumps(json.load(open(p))) "
+                "for p in sorted(glob.glob("
+                f"'/var/lib/harness-runs/workspace/.checkpoints/'+{entry['runId']!r}+'/*.json'))))"
+            )
             listing = tpl.sh(
-                "docker", "exec", daemon[0], "sh", "-lc",
-                f"for f in /var/lib/harness-runs/workspace/.checkpoints/{entry['runId']}/*.json;"
-                f" do cat \"$f\" 2>/dev/null; echo; done",
-                check=False,
+                "docker", "exec", daemon[0], "python", "-c", reader, check=False
             ).stdout
         # A manifest is {id, files: {path: sha}, …}. The clobbering claim is
         # about the CONTENTS: run A's snapshot must not contain run B's file,

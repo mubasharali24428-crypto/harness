@@ -1,0 +1,112 @@
+{
+  "date": "2026-10-27",
+  "week": "W8",
+  "claim": "a crashed run's boundary network and containers are reclaimed, while a live neighbour's are not",
+  "drive": "two live runs on the compose stack; the victim's docker-run client SIGKILLed inside the worker daemon (the product must settle the run and release the claim), then a launcher-shaped orphan built with the product's own ContainerBoundary and SIGKILLed mid-flight (network + relay + running container, no owner); sweep executed inside the daemon, the only holder of the Docker socket",
+  "projectId": "09765cdf-dd3b-451f-beb9-db71ce2afe8c",
+  "runs": {
+    "victim": {
+      "runId": "w8crash-victim-1793123310",
+      "network": "harness-fcf0044c11ed4fe493cf7bea53f7e70e-net"
+    },
+    "neighbour": {
+      "runId": "w8crash-neighbour-1793123310",
+      "network": "harness-28dd27b59f734de2897f1d9b75962ebf-net"
+    }
+  },
+  "victim": {
+    "settledState": "blocked",
+    "claimRowAfterSettle": null,
+    "engineFinalResponse": "DeepSeek Harness run failed: DeepSeek Harness worker exited -9: ",
+    "orphanNetworkSurvivedCrash": true,
+    "orphanContainersRunning": [
+      {
+        "id": "05b06bca36cc51564bc2651239c16ffd9a9b9c06f2741350fc4f7c68588a48e1",
+        "name": "harness-3344df36018b494399df72007a61739e-relay",
+        "state": "running"
+      },
+      {
+        "id": "149c4176c64e7d053ddeabf2962f6fd6892fba7c3700e3d38b639997f7fe1a7d",
+        "name": "harness-3344df36018b494399df72007a61739e",
+        "state": "running"
+      },
+      {
+        "id": "ba242c41182ff7f52e2854c5587e0e6d24bf5eff6cd4c52539f94a9b64ad7ed8",
+        "name": "harness-sandbox-egress-1",
+        "state": "running"
+      }
+    ],
+    "killedClients": "1"
+  },
+  "sweeps": {
+    "heldRefusal": {
+      "removed": [],
+      "kept": [
+        "harness-28dd27b59f734de2897f1d9b75962ebf-net",
+        "harness-fcf0044c11ed4fe493cf7bea53f7e70e-net"
+      ],
+      "count": 0,
+      "containersStopped": 0
+    },
+    "real": {
+      "removed": [
+        {
+          "network": "harness-3344df36018b494399df72007a61739e-net",
+          "runId": "w8crash-victim-1793123310",
+          "stopped": [
+            "149c4176c64e7d053ddeabf2962f6fd6892fba7c3700e3d38b639997f7fe1a7d",
+            "05b06bca36cc51564bc2651239c16ffd9a9b9c06f2741350fc4f7c68588a48e1"
+          ]
+        }
+      ],
+      "kept": [
+        "harness-28dd27b59f734de2897f1d9b75962ebf-net"
+      ],
+      "count": 1,
+      "containersStopped": 2
+    }
+  },
+  "neighbour": {
+    "stateAtSweep": "executing",
+    "networkBefore": "harness-28dd27b59f734de2897f1d9b75962ebf-net",
+    "containersBefore": [
+      {
+        "id": "5703ff6c34b0afc1ed5b4117efc5fb51f19703e3d2ded092bdb0ec7b5b4e178a",
+        "name": "harness-28dd27b59f734de2897f1d9b75962ebf-relay",
+        "state": "running"
+      },
+      {
+        "id": "ba242c41182ff7f52e2854c5587e0e6d24bf5eff6cd4c52539f94a9b64ad7ed8",
+        "name": "harness-sandbox-egress-1",
+        "state": "running"
+      },
+      {
+        "id": "fba7f0f4987893e267e33ab162239b4367852612f3b9424b1dba3771a79d7a73",
+        "name": "harness-28dd27b59f734de2897f1d9b75962ebf",
+        "state": "running"
+      }
+    ],
+    "networkAfter": null,
+    "stillRunningAfterSweep": false,
+    "networkKeptBySweep": true,
+    "stoppedBySweep": [
+      "05b06bca36cc51564bc2651239c16ffd9a9b9c06f2741350fc4f7c68588a48e1",
+      "149c4176c64e7d053ddeabf2962f6fd6892fba7c3700e3d38b639997f7fe1a7d"
+    ]
+  },
+  "networksAfterSweep": {},
+  "checks": {
+    "bothStarted": true,
+    "crashObserved": true,
+    "orphanExisted": true,
+    "orphanContainerWasRunning": true,
+    "victimSettled": true,
+    "claimReleased": true,
+    "heldLiveRunRefused": true,
+    "orphanNetworkRemoved": true,
+    "orphanContainersStopped": true,
+    "neighbourUntouched": true,
+    "victimNetworkGone": true
+  },
+  "verdict": "PASS"
+}

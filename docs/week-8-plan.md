@@ -125,82 +125,85 @@ Expanded into claims that must be shown, not asserted:
 - SQLite claims rely on single-writer reality (`run_queue.py:170-173`); the
   concurrency proof is taken on Postgres, which is what the compose stack runs.
 
-## Slice 2 outcome (2026-10-27) — code landed, live gate blocked
 
-Three real defects were found while building the crash drill, and all three are
-fixed with tests. None of them was visible in the code review; each needed a
-live stack.
+## Slice 1 + 2 outcome (2026-10-27) — both live gates PASS
 
-**1. A container-mode run could not write anything at all.** Every `write` the
-agent attempted returned `EACCES: permission denied, mkdir '/var/lib/
-harness-runs/workspace/<run>'`, the run settled `blocked` with zero changes, and
-no drill could show a reviewable diff. Root cause, measured on the stack:
+`w8-concurrency-1793123190.json` (verdict PASS, 10/10 checks) and
+`w8-crash-cleanup-1793123310.json` (verdict PASS, 11/11 checks), both driven
+against the running compose stack with the model named in the evidence.
 
-| observation | evidence |
+| gate claim | how it is shown |
 |---|---|
-| worker launched as uid 10001, directory owned root:root 0755 | `ls -ln` in the daemon + the worker's own `os.stat` result in the audit |
-| `_worker_user()` falls back to `10001:10001` for a root-owned dir | `confine.py:256-259` — the fallback and the directory disagreed |
-| launcher chown fixed it while the dir was the *only* thing in play | after a manual `chown 10001` the same run's writes returned `ok=true` |
-| ... but Docker undoes it at mount time | `pre 10001 → during 0`, `pre 0o2777 → during 0o755`: a `volume-subpath` mount is re-created as root:root 0755 by the engine |
+| three runs claimed at the same time, same project | state timeline has one entry with all three `executing`; `maxConcurrentExecuting: 3` |
+| distinct writable state, observed during execution | three distinct boundary networks, one run directory per worker, no directory shared between two workers |
+| each reviewable | each run recorded exactly one change with its own digest (`dl/043/243…`), and a wrong-shaped review is what the W7 drill already pins as 409 |
+| none clobbering another's checkpoint | every run's manifests contain only its own file; `foreignCheckpointNames` empty for all three |
+| crash: claim released or reaped, never silently held | victim's client SIGKILLed mid-run → run `blocked`, `run_claims` row gone, `engine_failed` in the audit |
+| crash: boundary gone, neighbours untouched | a launcher-shaped orphan (network + relay + still-running container, no owner) removed by the sweep; the live neighbour was in `kept`, none of its containers stopped |
 
-So the durable fix is in `confine._mount()`: under `HARNESS_RUNS_ROOT` the mount
-becomes a **bind of the named volume's own engine-host directory**
-(`<Mountpoint>/workspace/<run>`), which Docker does not re-ownership, instead of
-`volume-subpath`. Verified before it went in: `WRITE OK`, file created as uid
-10001, directory left 10001:10001. `volume-subpath` stays as the fallback when
-the mountpoint is unresolvable, and `HARNESS_RUNS_BIND=0` forces it. The
-launcher still hands the directories over first
-(`confine.claim_run_dirs_for_worker`, with a warning when a path it should own
-is missing) so the two halves are observable in the daemon log:
-`handed 3 run path(s) to uid 10001 before launching the worker`.
+### What the proof actually cost: five defects, none visible in review
 
-**2. The boundary sweeper's "is it running?" check never fired.**
-`_running_containers` parsed `{{.ID}} {{.Names}} {{.State}}` looking for the
-substring `" running "`, which cannot match a line that *ends* with the state —
-so every container looked stopped. On a deletion path that is a licence to
-remove a live run's network. The format is now piped
-(`{{.ID}}|{{.Names}}|{{.State}}`), parsed positionally, and pinned by
-`test_a_running_container_is_recognised_even_with_a_spaced_name`.
+1. **A container-mode run could not write anything.** Every `write` returned
+   `EACCES: permission denied, mkdir '/var/lib/harness-runs/workspace/<run>'`,
+   the run settled `blocked` with zero changes, and no drain could show a diff.
+   The worker runs as the run directory's owner, and for a root-owned directory
+   as uid 10001 — inside a root:root 0755 directory. Handing the directories
+   over was necessary but not sufficient: **Docker re-creates a `volume-subpath`
+   mount as root:root at mount time** (`pre 10001 → during 0`; a pre-set
+   `0o2777` came back `0755`). Fixed by binding the named volume's own
+   engine-host directory instead (verified: `WRITE OK`, directory left
+   10001:10001), with `volume-subpath` kept as the fallback and
+   `HARNESS_RUNS_BIND=0` to force it.
+2. **Taking *every* directory was the opposite bug.** Once writes worked, the
+   orchestrator's staging pass — which runs as the provisioning uid and must read
+   what the agent wrote — failed with `Permission denied` on the file the agent
+   had just created, because the handover had moved the tree to 10001. The
+   handover now claims only root-owned directories and leaves a provisioned one
+   to the uid that provisioned it.
+3. **The sweeper could not see a running container.** `_running_containers`
+   matched `" running "` against a line that ends with the state, so on a
+   deletion path every container looked stopped. Listing is piped and parsed
+   positionally now.
+4. **`agent_runs.state` is not the durable lifecycle.** Settlement is decided
+   from `agent_events` (at or after `engine_completed`), not that column, which
+   only ever holds `idle`/`pr_opened`.
+5. **The drill measured itself wrong twice.** It looked for a mount destination
+   of `/workspace` (the real ones are `/var/lib/harness-runs/workspace/<run>`,
+   and a `volume-subpath` mount reports no `RW`), and its checkpoint reader
+   assumed one-line JSON while the product writes these manifests pretty-printed
+   — reporting "0 checkpoints" for a run that had two.
 
-**3. `agent_runs.state` is not the durable lifecycle.** The sweep initially asked
-that column for terminal runs; the table only ever holds `idle`/`pr_opened`,
-because the orchestrator's states are replayed from `agent_events`. Settlement
-now comes from the event log itself — any event at or after `engine_completed`
-means no worker can still hold the boundary (`service._settled_run_ids`),
-pinned against two replicas over one store.
+Sweeps are also given the rules the deletion deserves: a network is removed only
+when it is labelled, older than the grace window, not held by this process, and
+either durably settled or attached to nothing that is running. An unlabelled or
+unproven network is kept, and the shared egress proxy is disconnected, never
+stopped, because it serves the runs beside this one. Boundary networks are
+labelled `harness-run=<run id>` at creation, which is what makes an orphan
+traceable at all.
 
-The sweep's own rules (labelled, older than the grace window, not held) and its
-two proofs are in `container_runtime.sweep_orphan_boundaries`, with
-`test_boundary_sweep.py` (9 tests) refusing every deletion the code is not
-entitled to make: a held run, an unlabelled network, an unknown run whose
-container is still up, a young network, and the shared egress proxy — which is
-disconnected, never stopped, because it serves the other runs too.
-`worker.py` runs the DB-backed sweep on its own slow cadence
-(`BOUNDARY_SWEEP_INTERVAL_SECONDS`, default 600), and the socket-holding daemon
-runs the DB-free weak-rule pass (`HARNESS_BOUNDARY_SWEEP_SECONDS`,
-default 600) at the same time. Boundary networks are now labelled
-`harness-run=<run id>` at creation, which is what makes an orphan traceable at
-all.
+### The model, and why the evidence names it
 
-**Blocked, and not by this code.** The live gates for slices 1 and 2 need the
-stack's model, and `qwen-local:latest` is gone from the host's Ollama:
-`/api/tags` returns only `nomic-embed-text`, `engine_failed: model
-'qwen-local:latest' not found` ends every run in seconds, and the last four
-drill attempts (17:30) failed that way. The blobs (~6.4 GB) are still in
-`~/.ollama/models`, but the tag manifest is not, so the model cannot be
-re-created faithfully without its original Modelfile — and guessing a chat
-template would produce a different model than the one every earlier evidence
-file was taken against. **Resume point:** restore `qwen-local:latest` (same
-weights, same template), re-run `scripts/e2e/w8_concurrency_drill.py`
-(compose MUST be driven with `-f deploy/docker-compose.yml --env-file .env` from
-the repo root, or `HARNESS_MASTER_KEY` arrives empty and the orchestrator
-crash-loops), then `scripts/e2e/w8_crash_cleanup_drill.py`, which is written and
-compiles but has never been run.
+The stack's local `qwen-local:latest` disappeared from the host's Ollama
+(`/api/tags` listed only `nomic-embed-text`; ~6.4 GB of blobs remained, the tag
+manifest did not), so every run failed in seconds with
+`engine_failed: model 'qwen-local:latest' not found`. These two gates were taken
+against **`deepseek/deepseek-v4-flash` through OpenRouter** — a cheap,
+tool-capable model at $0.05/$0.09 per million tokens — wired exactly as the
+committed patch documents (`deploy/patches/openrouter.patch.yml`, baked into the
+worker image, `DEEPSEEK_BASE_URL=https://openrouter.ai/api/v1`,
+`DSH_MODEL` set, key in the gitignored `.env`). The provider is part of the
+evidence, not a footnote: a faster model changes timing, so it changes what the
+concurrency window looks like, and the whole drill loop now finishes in about a
+minute instead of half an hour.
 
-What the drills already prove without a verdict: three `executing` runs at once
-with three distinct boundary networks (`maxConcurrent: 3`, `nets: 3`,
-`distinctWorkerNetworkSets: 3` in `w8-concurrency-*.json`), one run dir per
-worker, and the crash path — killing the daemon released all three stale claims
-and moved each run to `blocked` honestly, with no boundary left behind this time
-(the daemon's own `close()` on SIGTERM cleaned up; the leaks in `1793119753`
-were pre-label images and were removed by hand).
+Compose must be driven with `-f deploy/docker-compose.yml --env-file .env` from
+the repo root; without the explicit file compose does not find the config, and
+without `--env-file` `HARNESS_MASTER_KEY` arrives empty and the orchestrator
+crash-loops.
+
+**Still open after this week** (recorded, not hidden): the worktree decision of
+slice 4 is answered by construction (per-run directories already isolate runs)
+and is written up in `docs/artifacts.md`; a queue-priority UI and wiring the
+agent tree to execution remain out of scope by decision 2; and the local Ollama
+model is gone until someone reinstates it, which no longer blocks the harness
+because the provider is configuration.

@@ -47,6 +47,18 @@ What exists in the system today, read from the code, not defined here:
 So the relation is: one project is connected to one repository; each run has its own branch (by convention) and its own workspace
 directory; a PR is opened from the run branch by section2; a human merges on GitHub.
 
+**Worktree decision (W8, 2026-10-27).** No worktree will be introduced for
+concurrency. The W8 gate was met and shown without one
+(`w8-concurrency-1793123190.json`: three concurrent runs, three distinct
+boundary networks, one run directory per worker, each run's change and
+checkpoint manifests containing only its own file). A worktree would have to be
+created inside the confined worker — the only process that writes the tree — and
+that changes the boundary the confinement tests pin; the isolation the gate asks
+for is already a property of the per-run directory, and adding a second
+mechanism for the same guarantee would widen the surface without removing the
+directory. Runs therefore continue to be one plain directory per run id, and a
+run that needs git history gets it from `HARNESS_WORKSPACE_SEED`.
+
 What Harness did **not** know before this lane and still cannot find out by itself: which commit the run branched from, the current tip
 of the base branch, the tip of the run branch. Those are **recorded by a caller** through `PUT git-state` (section 6) and are marked
 `"source": "recorded"` in the answer. Nothing in Harness polls GitHub for them. `repo.fullName` is the project's value when the project has one

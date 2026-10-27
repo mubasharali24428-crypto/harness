@@ -41,14 +41,29 @@ settlement, or nothing attached still running — never touching a held run, an
 unlabelled network, an unproven one, or the shared egress proxy (disconnected,
 not stopped: it serves the runs beside this one); `service.recover_boundaries`
 on the worker's own cadence, plus a DB-free pass in the socket-holding daemon.
-`scripts/e2e/w8_crash_cleanup_drill.py` is written but has **never run**: the
-host's Ollama no longer has `qwen-local:latest`, so every run now ends
-`engine_failed: model 'qwen-local:latest' not found` in seconds. The W8 live
-gates are blocked on restoring that model, and
-`w8-concurrency-1793122243.json` records the failure rather than hiding it.
-What those files already show: three runs `executing` at once over three
-distinct boundary networks and one run dir each; and the crash path itself —
-killing the daemon released all three stale claims and left no boundary behind.
+**Both live gates pass**, taken against `deepseek/deepseek-v4-flash` through
+OpenRouter ($0.05/$0.09 per M tokens) because the host's Ollama no longer has
+`qwen-local:latest` — the model is configuration, so this changes nothing but
+the provider named in the evidence:
+
+* `w8-concurrency-1793123190.json` — PASS, 10/10. Three runs `executing` at
+  once in one project, three distinct boundary networks, one run directory per
+  worker and none shared, each run recording exactly one change with its own
+  digest and checkpoint manifests containing only its own file.
+* `w8-crash-cleanup-1793123310.json` — PASS, 11/11. The victim's launch client
+  is SIGKILLed mid-run: the run settles `blocked`, its claim row is gone and the
+  audit says why. A launcher-shaped orphan (network + relay + still-running
+  container, no owner) is then built with the product's own boundary classes and
+  the process that made it is killed; the sweep — given durable proof for that
+  run only — stops the container and removes the network, while the live
+  neighbour stays in `kept` with none of its containers stopped.
+
+Two further defects surfaced only because the writes started working: re-owning
+*every* run directory broke the orchestrator's own staging pass (it must read
+what the agent wrote, as the uid that provisioned the tree), so the handover now
+claims root-owned directories only; and the drill measured itself wrong twice
+(mount destination `/workspace` instead of the real per-run path, and a
+one-line-JSON assumption that turned two checkpoint manifests into "0").
 
 ### W7 (IDE gate) — an in-editor edit round-trips through the gate, and the bytes reviewed are the bytes written (2026-10-27)
 

@@ -1,0 +1,124 @@
+{
+  "date": "2026-10-27",
+  "week": "W8",
+  "claim": "three concurrent runs in one repo: each isolated, each reviewable, none clobbering another's checkpoint",
+  "drive": "three live runs over HTTP on the compose stack (Postgres, container confinement)",
+  "projectId": "9e3c628a-32e5-4564-a8da-449f7f40a24e",
+  "model": "deepseek/deepseek-v4-flash",
+  "capsInForce": {
+    "HARNESS_ENGINE_CONFINEMENT": "container",
+    "ENGINE_RUN_TIMEOUT_SECONDS": "2400"
+  },
+  "runs": {
+    "a": {
+      "runId": "w8-a-1793123120",
+      "planId": "plan-6642b706",
+      "goal": "Create a file named w8_run_a.txt in the workspace root containing exactly: alpha",
+      "startStatus": 200,
+      "finalState": "awaiting_done_signal",
+      "doneSignal": {
+        "refused": "no product-computed diff for this run"
+      },
+      "changes": [],
+      "changesDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "checkpointManifests": 0,
+      "checkpointPaths": [],
+      "foreignCheckpointNames": [],
+      "ownCheckpointFileSeen": false
+    },
+    "b": {
+      "runId": "w8-b-1793123120",
+      "planId": "plan-7a38af83",
+      "goal": "Create a file named w8_run_b.txt in the workspace root containing exactly: beta",
+      "startStatus": 200,
+      "finalState": "awaiting_done_signal",
+      "doneSignal": {
+        "refused": "no product-computed diff for this run"
+      },
+      "changes": [],
+      "changesDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "checkpointManifests": 0,
+      "checkpointPaths": [],
+      "foreignCheckpointNames": [],
+      "ownCheckpointFileSeen": false
+    },
+    "c": {
+      "runId": "w8-c-1793123120",
+      "planId": "plan-458bab9f",
+      "goal": "Create a file named w8_run_c.txt in the workspace root containing exactly: gamma",
+      "startStatus": 200,
+      "finalState": "awaiting_done_signal",
+      "doneSignal": {
+        "refused": "no product-computed diff for this run"
+      },
+      "changes": [],
+      "changesDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "checkpointManifests": 0,
+      "checkpointPaths": [],
+      "foreignCheckpointNames": [],
+      "ownCheckpointFileSeen": false
+    }
+  },
+  "maxConcurrentExecuting": 3,
+  "stateTimeline": [
+    "a=executing,b=executing,c=executing",
+    "a=executing,b=awaiting_done_signal,c=executing",
+    "a=executing,b=awaiting_done_signal,c=awaiting_done_signal",
+    "a=awaiting_done_signal,b=awaiting_done_signal,c=awaiting_done_signal"
+  ],
+  "workerContainers": [
+    {
+      "name": "harness-4156ffba514c436690440cb3bfee53dc",
+      "role": "worker",
+      "networks": [
+        "harness-4156ffba514c436690440cb3bfee53dc-net"
+      ],
+      "mounts": [],
+      "started": "2026-10-27T17:45:23.681672547Z",
+      "mountTargets": [],
+      "runDirs": []
+    },
+    {
+      "name": "harness-4eb634c2680e4924953540ba6ee63ff8",
+      "role": "worker",
+      "networks": [
+        "harness-4eb634c2680e4924953540ba6ee63ff8-net"
+      ],
+      "mounts": [],
+      "started": "2026-10-27T17:45:23.447743505Z",
+      "mountTargets": [],
+      "runDirs": []
+    },
+    {
+      "name": "harness-eb110514341840779796b966ccadd319",
+      "role": "worker",
+      "networks": [
+        "harness-eb110514341840779796b966ccadd319-net"
+      ],
+      "mounts": [],
+      "started": "2026-10-27T17:45:23.428407547Z",
+      "mountTargets": [],
+      "runDirs": []
+    }
+  ],
+  "distinctWorkerNetworkSets": 3,
+  "runDirsPerWorker": {
+    "harness-4156ffba514c436690440cb3bfee53dc": [],
+    "harness-4eb634c2680e4924953540ba6ee63ff8": [],
+    "harness-eb110514341840779796b966ccadd319": []
+  },
+  "sharedRunDirs": [],
+  "checks": {
+    "threeStarted": true,
+    "overlapObserved": true,
+    "threeWorkersSeen": true,
+    "networksDistinct": true,
+    "workspacesDistinct": false,
+    "eachReviewable": false,
+    "eachCheckpointed": false,
+    "ownFileInOwnCheckpoint": false,
+    "noClobbering": true,
+    "allSettled": true
+  },
+  "verdict": "FAIL"
+}

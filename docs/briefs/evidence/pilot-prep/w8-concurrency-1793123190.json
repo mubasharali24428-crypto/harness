@@ -1,0 +1,210 @@
+{
+  "date": "2026-10-27",
+  "week": "W8",
+  "claim": "three concurrent runs in one repo: each isolated, each reviewable, none clobbering another's checkpoint",
+  "drive": "three live runs over HTTP on the compose stack (Postgres, container confinement)",
+  "projectId": "2e9d88fa-060a-40de-8c49-fa042c683e2a",
+  "model": "deepseek/deepseek-v4-flash",
+  "capsInForce": {
+    "HARNESS_ENGINE_CONFINEMENT": "container",
+    "ENGINE_RUN_TIMEOUT_SECONDS": "2400"
+  },
+  "runs": {
+    "a": {
+      "runId": "w8-a-1793123190",
+      "planId": "plan-d6a9c2c3",
+      "goal": "Create a file named w8_run_a.txt in the workspace root containing exactly: alpha",
+      "startStatus": 200,
+      "finalState": "awaiting_done_signal",
+      "doneSignal": {
+        "status": 200,
+        "diffChars": 58,
+        "detail": null
+      },
+      "changes": [
+        {
+          "path": "w8_run_a.txt",
+          "diffSha": "ddd13643db45"
+        }
+      ],
+      "changesDigest": "b6cc8cf52a3b272a9b64b93a503770c23d688f138c9f111b2daa9d30d77010f7",
+      "checkpointManifests": 2,
+      "checkpointPaths": [
+        "w8_run_a.txt"
+      ],
+      "foreignCheckpointNames": [],
+      "ownCheckpointFileSeen": true
+    },
+    "b": {
+      "runId": "w8-b-1793123190",
+      "planId": "plan-6da6bcdb",
+      "goal": "Create a file named w8_run_b.txt in the workspace root containing exactly: beta",
+      "startStatus": 200,
+      "finalState": "awaiting_done_signal",
+      "doneSignal": {
+        "status": 200,
+        "diffChars": 57,
+        "detail": null
+      },
+      "changes": [
+        {
+          "path": "w8_run_b.txt",
+          "diffSha": "043bfe338d74"
+        }
+      ],
+      "changesDigest": "899223ba623d359c01deebf3d7c51bf7abce0f83abdb57c48e8f68fb11be2c95",
+      "checkpointManifests": 2,
+      "checkpointPaths": [
+        "w8_run_b.txt"
+      ],
+      "foreignCheckpointNames": [],
+      "ownCheckpointFileSeen": true
+    },
+    "c": {
+      "runId": "w8-c-1793123190",
+      "planId": "plan-9d6b0575",
+      "goal": "Create a file named w8_run_c.txt in the workspace root containing exactly: gamma",
+      "startStatus": 200,
+      "finalState": "awaiting_done_signal",
+      "doneSignal": {
+        "status": 200,
+        "diffChars": 58,
+        "detail": null
+      },
+      "changes": [
+        {
+          "path": "w8_run_c.txt",
+          "diffSha": "243be17a4da7"
+        }
+      ],
+      "changesDigest": "05166b7ee4c9c94aed6f4c78c372ce02ce9c8cfb9e4358bb4f43fe3ea8e8e27a",
+      "checkpointManifests": 2,
+      "checkpointPaths": [
+        "w8_run_c.txt"
+      ],
+      "foreignCheckpointNames": [],
+      "ownCheckpointFileSeen": true
+    }
+  },
+  "maxConcurrentExecuting": 3,
+  "stateTimeline": [
+    "a=executing,b=executing,c=executing",
+    "a=executing,b=awaiting_done_signal,c=executing",
+    "a=awaiting_done_signal,b=awaiting_done_signal,c=awaiting_done_signal"
+  ],
+  "workerContainers": [
+    {
+      "name": "harness-bec3c3c066db4ac99fb31e22f14ed63d",
+      "role": "worker",
+      "networks": [
+        "harness-bec3c3c066db4ac99fb31e22f14ed63d-net"
+      ],
+      "mounts": [
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data/workspace/w8-c-1793123190",
+          "dst": "/var/lib/harness-runs/workspace/w8-c-1793123190",
+          "type": "bind",
+          "rw": true
+        },
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data/sessions/w8-c-1793123190",
+          "dst": "/var/lib/harness-runs/sessions/w8-c-1793123190",
+          "type": "bind",
+          "rw": true
+        }
+      ],
+      "started": "2026-10-27T17:46:33.623592968Z",
+      "mountTargets": [
+        "/var/lib/harness-runs/sessions/w8-c-1793123190",
+        "/var/lib/harness-runs/workspace/w8-c-1793123190"
+      ],
+      "runDirs": [
+        "w8-c-1793123190"
+      ]
+    },
+    {
+      "name": "harness-e1e5665787714e25ac76683244c018f4",
+      "role": "worker",
+      "networks": [
+        "harness-e1e5665787714e25ac76683244c018f4-net"
+      ],
+      "mounts": [
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data/workspace/w8-a-1793123190",
+          "dst": "/var/lib/harness-runs/workspace/w8-a-1793123190",
+          "type": "bind",
+          "rw": true
+        },
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data/sessions/w8-a-1793123190",
+          "dst": "/var/lib/harness-runs/sessions/w8-a-1793123190",
+          "type": "bind",
+          "rw": true
+        }
+      ],
+      "started": "2026-10-27T17:46:33.558486468Z",
+      "mountTargets": [
+        "/var/lib/harness-runs/sessions/w8-a-1793123190",
+        "/var/lib/harness-runs/workspace/w8-a-1793123190"
+      ],
+      "runDirs": [
+        "w8-a-1793123190"
+      ]
+    },
+    {
+      "name": "harness-067c2be0340a42e6805fa516d4cc71c4",
+      "role": "worker",
+      "networks": [
+        "harness-067c2be0340a42e6805fa516d4cc71c4-net"
+      ],
+      "mounts": [
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data/workspace/w8-b-1793123190",
+          "dst": "/var/lib/harness-runs/workspace/w8-b-1793123190",
+          "type": "bind",
+          "rw": true
+        },
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data/sessions/w8-b-1793123190",
+          "dst": "/var/lib/harness-runs/sessions/w8-b-1793123190",
+          "type": "bind",
+          "rw": true
+        }
+      ],
+      "started": "2026-10-27T17:46:33.469792427Z",
+      "mountTargets": [
+        "/var/lib/harness-runs/sessions/w8-b-1793123190",
+        "/var/lib/harness-runs/workspace/w8-b-1793123190"
+      ],
+      "runDirs": [
+        "w8-b-1793123190"
+      ]
+    }
+  ],
+  "distinctWorkerNetworkSets": 3,
+  "runDirsPerWorker": {
+    "harness-bec3c3c066db4ac99fb31e22f14ed63d": [
+      "w8-c-1793123190"
+    ],
+    "harness-e1e5665787714e25ac76683244c018f4": [
+      "w8-a-1793123190"
+    ],
+    "harness-067c2be0340a42e6805fa516d4cc71c4": [
+      "w8-b-1793123190"
+    ]
+  },
+  "sharedRunDirs": [],
+  "checks": {
+    "threeStarted": true,
+    "overlapObserved": true,
+    "threeWorkersSeen": true,
+    "networksDistinct": true,
+    "workspacesDistinct": true,
+    "eachReviewable": true,
+    "eachCheckpointed": true,
+    "ownFileInOwnCheckpoint": true,
+    "noClobbering": true,
+    "allSettled": true
+  },
+  "verdict": "PASS"
+}
