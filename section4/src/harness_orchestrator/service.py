@@ -78,6 +78,21 @@ from harness_orchestrator.workspace_gate import check_run_start, enforce_run_sta
 logger = logging.getLogger(__name__)
 
 
+def durable_event_text(value: Any) -> str:
+    """Text that can actually be stored as an event payload.
+
+    PostgreSQL's text/JSONB types cannot hold U+0000, and asyncpg raises
+    ``UntranslatableCharacterError`` — the *whole* event insert fails. Observed
+    in the W4 credential drill: a bash call whose result was
+    ``cat /proc/self/environ`` produced a NUL-separated dump, the tool_result
+    row was dropped, and the transcript showed a tool call with no result. A
+    lost result is worse than a lossy one, so NUL becomes U+FFFD (visible) and
+    lone surrogates are normalised; everything else is preserved verbatim.
+    """
+    text = str(value if value is not None else "").replace("\x00", "\ufffd")
+    return text.encode("utf-8", "replace").decode("utf-8")
+
+
 class PlanAlreadyDecidedError(Exception):
     """Optimistic-concurrency loss (M12-F2): the plan's version column moved
     under us, so a conditional decision UPDATE matched zero rows.
@@ -403,7 +418,7 @@ class OrchestratorService(Orchestrator):
         key = getattr(self.engine, "api_key", "") or ""
 
         def _clean(value: Any, limit: int = 4000) -> str:
-            return scrub_secrets(str(value or ""), key)[:limit]
+            return scrub_secrets(durable_event_text(value), key)[:limit]
 
         if record.get("phase") == "call":
             self._emit(

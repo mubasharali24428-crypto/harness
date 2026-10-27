@@ -387,6 +387,11 @@ services:
       # Run directories live on the volume the daemon's workers mount (volume-subpath).
       DSH_WORKSPACE: /var/lib/harness-runs/workspace
       DSH_SESSION_ROOT: /var/lib/harness-runs/sessions
+      # Per-run engine deadline (engine_runtime.resolve_engine_run_timeout_seconds).
+      # 600 s is the product default; drills against a slow LOCAL model raise it,
+      # because a deadline that kills the turn mid-proof makes the evidence
+      # ambiguous rather than the boundary weak.
+      ENGINE_RUN_TIMEOUT_SECONDS: ${ENGINE_RUN_TIMEOUT_SECONDS:-600}
     volumes:
       - harness_store:/var/lib/harness-store
       - harness_runs:/var/lib/harness-runs
