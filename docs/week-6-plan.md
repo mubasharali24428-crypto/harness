@@ -90,6 +90,93 @@ Four claims to show:
    `confine` rather than write a second executor; refuse to run when confinement
    is unavailable. No evidence, no feature.
 
+## Slice 4 design — decided 2026-10-27 after the audit
+
+The audit first, because it killed two tempting shapes:
+
+* **Seatbelt is not an option for the real runtime.** `engine.py:619-633`
+  refuses it outright (sandbox-exec breaks the dsh PTY, observed, not
+  assumed) and fails closed unless the mode is `container` or explicit `off`.
+  So "same engine under the same confinement" on a developer laptop means
+  the **container** boundary: `confine.wrap_command(mode="container")` +
+  `ContainerBoundary` (internal network, model relay, egress proxy) + the
+  same `harness-engine-worker:p0` image.
+* **The worker daemon's security law forbids caller-shaped paths.**
+  `worker_daemon.py:1-15`: paths come only from the daemon's own
+  `DSH_WORKSPACE`; the body deliberately carries no path, image or limits.
+  A CLI that "passes a local dir" through the daemon would break the design,
+  so local mode does NOT reuse the daemon's HTTP surface.
+
+Decision (both options confirmed with the operator 2026-10-27):
+
+1. **Execution site — local engine, server gate.** `harness run --local DIR`
+   proposes + approves the plan on the server exactly as before, and does NOT
+   call `start_run` (the queue only claims EXECUTING runs, so no phantom
+   server execution and no double-run). The actual turn executes on the
+   host via a thin launcher that constructs the SAME
+   `DeepSeekHarnessWrapper` with the container path (`isolated=True`,
+   `HARNESS_ENGINE_CONFINEMENT=container`) — one engine, one confine module,
+   one boundary class; the launcher is launch code, not a second executor.
+   It follows the established `deploy/runners/engine_boot.py` host-side
+   pattern (sys.path bootstrap of section4+contracts), not new section code.
+2. **The agent never touches the live workspace.** The launcher seeds a run
+   directory (copy of DIR, no `.git`), the confined worker runs there and
+   owns the diff (baseline `git init`+commit inside the worker, then
+   `git diff` — computed inside the boundary, not by a client-side
+   reimplementation); the CLI applies the recorded result back to DIR with
+   a file-level copy limited to what the diff names. Rationale: the wrapper's
+   run-workspace law (`<root>/<session_id>`, no symlinked or mounted-in user
+   dirs) plus keeping `.git` out of the agent's reach; a mount-in design
+   would need engine surgery that is a contracts conversation.
+3. **Audit story — existing APIs only, honestly bounded.** Server-side:
+   `plan_proposed`, `plan_approved`, audit rows for the plan gate (identical
+   to a web run up to the execution boundary), the run's patch uploaded as a
+   `kind=diff` artifact, and a run comment recording `executed=local`,
+   confinement mode, image, and diff sha. Tool-call-level events from an
+   off-host engine CANNOT be minted into `agent_events` by any existing
+   endpoint — claiming "identical audit events" for local mode would be
+   false. Recorded openly: off-host event provenance is a contracts
+   decision (1.0.0-rc6 candidate), not a CLI workaround. The CLI prints and
+   the evidence file stores the worker's NDJSON so nothing is silently lost.
+4. **Fail closed, from the launcher's first line.** No docker binary, no
+   daemon, no `harness-engine-worker:p0`, no live credentials, or
+   `HARNESS_ENGINE_CONFINEMENT` resolving to anything but `container` →
+   refuse with an actionable message; never degrade to `off` or seatbelt.
+   "No evidence, no feature" also applies downward: `--local` prints the
+   refusal path rather than attempting an unconfined spawn.
+
+## Slice 4 build order
+
+1. `deploy/runners/local_engine.py` — the launcher (seed dir, wrapper
+   construction, container confinement, in-worker diff, NDJSON out).
+   **Done 2026-10-27.** Also copies the changed engine output (and its
+   deletion list) out of scratch before cleanup, so the CLI applies bytes it
+   can actually read instead of a manifest it would have to infer.
+2. CLI `run --local` / `chat` turn path through it: seed, launch, apply
+   back, upload artifact, comment provenance, `--json` object.
+   **Done for `run`** (`executed_run(local_dir=…)`); chat-local is not wired
+   yet (the chat loop still calls the server path).
+3. Unit tests (no docker on the test path): fail-closed matrix, apply-back
+   touches only diff-named files, comment/artifact payloads shaped right.
+   **Done** — 15 tests, 63 total green.
+4. Live drill against the running stack: one goal edits a scratch dir,
+   server shows plan events + diff artifact + local-provenance comment,
+   workspace updated; evidence `w6-local-<epoch>.json`.
+   **Partially done — the boundary is proven, the full-success drill is not
+   yet green.** Measured 2026-10-27: a live turn inside the container
+   boundary created `present.txt` and the in-boundary diff at a 200 s
+   deadline (status `error`, `changed: ["present.txt"]` — the worker was
+   killed after writing, which is exactly the fail-closed budget behaviour);
+   at 240 s the CLI mapped that to `state=error`, the server showed only
+   plan events (no server execution), and nothing was applied to the
+   workspace because the engine's list was empty at kill time. The wiring
+   is exercised end-to-end; the missing piece is a model turn that finishes
+   inside the budget, so the drill's default is now 900 s. Two real defects
+   the live attempt found and fixed: the applier deleted every untouched
+   file (it inferred "deleted" from "absent from the change list") — now only
+   the diff's `+++ /dev/null` headers can delete; and the diff header
+   normaliser sliced file paths by a fixed offset.
+
 ## Known constraints
 
 - The CLI must never hold a service token — only the user's session token.

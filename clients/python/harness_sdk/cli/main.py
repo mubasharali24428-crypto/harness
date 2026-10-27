@@ -59,6 +59,9 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--yes", action="store_true", help="approve without asking")
     run.add_argument("--json", action="store_true", help="one machine-readable object on stdout")
     run.add_argument("--timeout", type=float, default=900.0)
+    run.add_argument("--local", metavar="DIR",
+                     help="execute the approved run against a local directory through the "
+                          "confined container engine (the gate and audit stay on the server)")
 
     status = subs.add_parser("status", parents=[common], help="state and recent events for a run")
     status.add_argument("run_id")
@@ -88,6 +91,17 @@ def _emit(stdout: TextIO, as_json: bool, payload: dict[str, Any], human: Callabl
         stdout.write("\n")
     else:
         stdout.write(human().rstrip("\n") + "\n")
+
+
+def _human_run(result: dict[str, Any]) -> str:
+    text = f"{result['answer']}\n[run {result['runId']}: {result['state']}]"
+    local = result.get("local")
+    if local:
+        text += (
+            f"\n[local {local['confinement']} on {local['workspace']}: "
+            f"{len(local['applied'])} file(s) applied, {len(local['deleted'])} deleted]"
+        )
+    return text
 
 
 def _sdk_from_credentials(args: argparse.Namespace) -> Harness:
@@ -158,6 +172,7 @@ def main(
                 confirm=prompt,
                 note=lambda message: err.write(message + "\n"),
                 timeout=args.timeout,
+                local_dir=args.local,
             )
             _emit(
                 out,
@@ -166,7 +181,7 @@ def main(
                 lambda: (
                     "plan rejected; nothing was started"
                     if result["state"] == "rejected"
-                    else f"{result['answer']}\n[run {result['runId']}: {result['state']}]"
+                    else _human_run(result)
                 ),
             )
             return 0 if result["state"] not in {"error", "failed", "timeout"} else 1

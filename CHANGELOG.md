@@ -10,6 +10,41 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W6 (local) — the same engine, confined by the container boundary, against a local directory (2026-10-27)
+
+Slice 4, designed from the audit before any code: seatbelt is not an option
+(the engine refuses it — sandbox-exec breaks the dsh PTY — and fails closed
+unless the mode is `container` or explicit `off`), and the worker daemon's
+security law forbids caller-shaped paths, so local mode reuses neither. The
+decision is recorded in `docs/week-6-plan.md`: **local engine, server gate**.
+
+`harness run --local DIR` proposes and approves on the server exactly as a web
+run does, deliberately does NOT call `start_run` (the queue only claims
+EXECUTING runs, so no phantom server execution and no double-run), then runs
+the turn through `deploy/runners/local_engine.py`: the orchestrator's own
+`DeepSeekHarnessWrapper` with `isolated=True`, launched by
+`confine.wrap_command(mode="container")` — same worker image, same internal
+network + model relay + egress proxy. The agent works on a seeded copy; the
+diff is produced INSIDE the boundary (read-only bind of baseline and run
+tree) and applied back file-by-file. The launcher refuses, with an actionable
+message and no spawn, when docker, the image, live credentials or the
+container mode are missing — it never degrades to `off` or seatbelt.
+
+Audit, stated honestly: the plan gate is the server's (identical events), the
+patch is registered as a `kind=diff` artifact, and a run comment carries
+`executed=local`, confinement, image and the diff digest. Tool-call-level
+events from an off-host engine cannot be minted into `agent_events` by any
+existing endpoint; that is a contracts decision, not a CLI workaround.
+
+Status: unit-tested (15 tests, 63 green) and the live boundary is proven — a
+real container turn created the file and its in-boundary diff. The full
+success drill is not yet green because the local model needed more than the
+drill's budget; the default is now 900 s. Building the drill found two real
+defects and fixed them: the applier treated "absent from the change list" as
+"deleted" (it would have deleted every untouched file — now only the diff's
+`+++ /dev/null` headers can delete), and the diff header normaliser sliced
+paths at a fixed offset, corrupting them.
+
 ### W6 (chat) — an interactive loop that says exactly what it remembers (2026-10-27)
 
 `harness chat` is slice 3: an interactive loop over the SAME run path — every

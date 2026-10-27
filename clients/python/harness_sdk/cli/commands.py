@@ -8,8 +8,11 @@ plan rather than leaving it pending.
 
 from __future__ import annotations
 
+import re
+import shutil
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 #: States after which the CLI stops following a run. ``awaiting_done_signal`` is
@@ -31,6 +34,69 @@ SETTLED = frozenset(
 
 class CliError(RuntimeError):
     """A refusal the user can act on (bad config, ambiguous project, no token)."""
+
+
+def _default_launch() -> Callable[..., dict[str, Any]]:
+    from .local import launch
+
+    return launch
+
+
+def _default_apply() -> Callable[..., dict[str, Any]]:
+    from .local import apply_back
+
+    return apply_back
+
+
+_SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _record_local_provenance(
+    sdk: Any,
+    run_id: str,
+    engine: dict[str, Any],
+    applied: dict[str, Any],
+    state: str,
+    note: Callable[[str], None],
+) -> None:
+    """Server-side trace of a LOCAL execution, existing endpoints only.
+
+    A diff artifact (the bytes are the boundary's own diff) plus a run comment
+    carrying the provenance: what ran, where, under what confinement, and what
+    the apply touched. Tool-call-level `agent_events` cannot be minted off-host
+    by any existing endpoint — saying so IS the audit story (docs/week-6-plan.md,
+    slice 4 decision 3). A failed trace is reported, never hidden.
+    """
+    import hashlib
+    import json as _json
+
+    diff = engine.get("diff") or ""
+    sha = hashlib.sha256(diff.encode()).hexdigest()[:16]
+    try:
+        sdk.orchestrator.upload_artifact(
+            run_id, name=_SAFE_NAME.sub("-", f"local-diff-{run_id}") + ".patch", kind="diff"
+        )
+    except Exception as exc:  # noqa: BLE001 - trace failure must not lose the local result
+        note(f"local: diff artifact could not be registered ({exc})")
+    provenance = {
+        "executed": "local",
+        "confinement": (engine.get("local") or {}).get("confinement"),
+        "image": (engine.get("local") or {}).get("image"),
+        "status": engine.get("status"),
+        "state": state,
+        "diffSha256": sha,
+        "diffChars": len(diff),
+        "diffOmitted": engine.get("diffOmitted"),
+        "applied": applied.get("applied", []),
+        "deleted": applied.get("deleted", []),
+    }
+    try:
+        sdk.orchestrator.run_comments_create(
+            run_id, {"body": "harness-cli local run: " + _json.dumps(provenance, sort_keys=True),
+                     "refKind": "diff"}
+        )
+    except Exception as exc:  # noqa: BLE001
+        note(f"local: provenance comment could not be posted ({exc})")
 
 
 def pick_project(sdk: Any, project_id: str | None) -> str:
@@ -59,8 +125,21 @@ def execute_run(
     timeout: float = 900.0,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
+    local_dir: str | None = None,
+    local_launch: Callable[..., dict[str, Any]] | None = None,
+    local_apply: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """One run through the same gate the web uses."""
+    """One run through the same gate the web uses.
+
+    ``local_dir`` switches the EXECUTION site, not the gate: propose → approve
+    happen on the server exactly as for a web run, ``start_run`` is deliberately
+    NOT called (the queue only claims EXECUTING runs, so an un-started approved
+    run never phantom-executes server-side and can never double-run with the
+    local engine). The turn then goes through the confined local launcher, the
+    result is applied back to the directory, and the diff + an `executed=local`
+    provenance comment are posted through existing APIs. No new endpoint, no
+    bypassed approval.
+    """
     if not goal.strip():
         raise CliError("goal must not be empty")
     resolved_project = pick_project(sdk, project_id)
@@ -91,33 +170,77 @@ def execute_run(
     run_id = approved.get("runId") if isinstance(approved, dict) else None
     if not run_id:
         raise CliError(f"approve response missing runId: {approved!r}")
-    note(f"approved; run {run_id}")
-    sdk.orchestrator.start_run(run_id)
 
-    started = clock()
-    state = "unknown"
-    steps: list[dict[str, Any]] = []
-    while True:
-        run = sdk.orchestrator.get_run(run_id)
-        state = str(run.get("state") or state)
-        steps = list(run.get("steps") or [])
-        if state in SETTLED:
-            break
-        if clock() - started > timeout:
-            state = "timeout"
-            break
-        sleep(poll_seconds)
+    if local_dir is None:
+        note(f"approved; run {run_id}")
+        sdk.orchestrator.start_run(run_id)
 
-    engine: dict[str, Any] = {}
-    if state != "timeout":
-        engine = sdk.orchestrator.get_engine_result(run_id) or {}
+        started = clock()
+        state = "unknown"
+        steps: list[dict[str, Any]] = []
+        while True:
+            run = sdk.orchestrator.get_run(run_id)
+            state = str(run.get("state") or state)
+            steps = list(run.get("steps") or [])
+            if state in SETTLED:
+                break
+            if clock() - started > timeout:
+                state = "timeout"
+                break
+            sleep(poll_seconds)
+
+        engine: dict[str, Any] = {}
+        if state != "timeout":
+            engine = sdk.orchestrator.get_engine_result(run_id) or {}
+        return {
+            "runId": run_id,
+            "planId": plan_id,
+            "state": state,
+            "answer": str(engine.get("finalResponse") or ""),
+            "toolCalls": engine.get("toolCalls") or [],
+            "steps": steps,
+        }
+
+    # ---- local-workspace mode (slice 4): same gate, confined local execution --
+    note(f"approved; run {run_id} executes LOCALLY in {local_dir}")
+    launch = local_launch or _default_launch()
+    apply_fn = local_apply or _default_apply()
+    policy: dict[str, Any] | None = None
+    try:
+        plan_state = sdk.orchestrator.get_plan(run_id) or {}
+        policy = plan_state.get("shellPolicy") or plan_state.get("policy") or None
+    except Exception:  # noqa: BLE001 - a plan without a readable policy still runs; boundary laws hold
+        note("local: plan policy not readable, running with the boundary defaults")
+    engine = launch(
+        local_dir, goal, run_id, shell_policy=policy, timeout=timeout, note=note
+    )
+    state = {"completed": "done", "error": "error"}.get(
+        str(engine.get("status") or ""), str(engine.get("status") or "error")
+    )
+    applied: dict[str, Any] = {"applied": [], "deleted": []}
+    try:
+        applied = apply_fn(
+            Path(local_dir), Path(engine["workDir"]),
+            list(engine.get("changed") or []), list(engine.get("deleted") or []),
+        )
+    finally:
+        shutil.rmtree(engine.get("workDir", ""), ignore_errors=True)
+    _record_local_provenance(sdk, run_id, engine, applied, state, note)
     return {
         "runId": run_id,
         "planId": plan_id,
         "state": state,
         "answer": str(engine.get("finalResponse") or ""),
         "toolCalls": engine.get("toolCalls") or [],
-        "steps": steps,
+        "steps": [],
+        "local": {
+            "workspace": local_dir,
+            "applied": applied["applied"],
+            "deleted": applied["deleted"],
+            "diffChars": len(engine.get("diff") or ""),
+            "confinement": (engine.get("local") or {}).get("confinement"),
+            "image": (engine.get("local") or {}).get("image"),
+        },
     }
 
 
