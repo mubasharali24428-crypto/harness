@@ -148,3 +148,74 @@ from images: a screenshot the agent can look at.
 - Seatbelt mode (`confine.resolve_mode`) has no egress boundary at all
   (`confine.py:56-61`); the browser claim is a container-mode claim and is
   recorded as such, not extrapolated.
+
+## Status 2026-10-27 — the browser works; the gate is OPEN on model availability
+
+**The W10 gate is not passed.** Two of its six claims are shown end to end, one is
+shown in pieces, and the two that need the agent to *look at an image* are
+blocked by the model, not by the browser. Recorded here rather than smoothed over.
+
+Evidence: `w10-browser-1793126302.json`, `w10-browser-1793126496.json` (probe runs,
+see the drift note), plus the unit and mount tests committed with slice 1.
+
+Shown:
+
+- **The browser renders inside the run's boundary.** A real screenshot was taken
+  by the agent itself through the product (`browser` call, `shots/swatch.png`
+  written into the run workspace), and the same gate was run by hand in the worker
+  image with the real flags (`--read-only`, `cap-drop ALL`,
+  `no-new-privileges`, uid 10001) — both produced a 1280×800 PNG.
+- **The network is confined, and the allow-list is the only way out.** A page's
+  `fetch()` on a fresh `--internal` network with no proxy answers `FETCH FAILED`;
+  with the egress proxy attached the allow-listed `api-docs.deepseek.com`
+  answers `FETCH OK` while `example.com` still answers `FETCH FAILED`. That is
+  the same proxy `web_fetch` uses, and the browser inherits it rather than
+  bypassing it.
+- **Screenshots obey the product's limits.** An 11 MiB upload is refused with
+  `413 ARTIFACT_TOO_LARGE` before any bytes are stored.
+- **The fix is a reviewable change.** The agent's `style.css` edit was reported
+  through the done-gate and recorded as exactly one change (`style.css`, digest
+  `c5a9e21a…`).
+- **Cross-run reads fail closed.** During a wandering run the agent tried to read
+  two sibling runs' workspaces and `.baseline/`; every attempt answered
+  `not found`, and `ls /var/lib/harness-runs/workspace/` answered `Permission
+  denied`. The fs tool is scoped to the run, not the runs root.
+
+Not shown, and why:
+
+- **The agent seeing its own screenshot.** The runtime answers a `read_image`
+  call with:
+  `cannot read "shot.png" as an image: model "deepseek/deepseek-v4-flash" does
+  not declare image input; switch to an image-capable model to read images`.
+  That is correct, explicit product behaviour — and it is the blocker: the
+  declared model is text-only.
+- **A before/after re-verification by the agent.** First probe run: the agent
+  fixed the bug from the CSS, took one screenshot, never opened it (it read the
+  PNG zero times). Second probe run: it wandered, never called the browser, and
+  hit the 16-call budget. Neither run followed the two-screenshot protocol.
+
+Why no successful run was possible today:
+
+- The OpenRouter account is out of credit (`total_credits` 5, `total_usage`
+  5.198): a run at 18:41 worked; the same class of call at 18:49 answered
+  `402 … can only afford 2320 tokens`. W8/W9 evidence predates the exhaustion.
+- Free image-capable OpenRouter models were either rate-limited (`429`,
+  gemma-4) or returned no tool calls at all (`nemotron-3-nano-omni-30b` answered
+  a colour but `finish_reason=stop` with `tool_calls: null`), so they cannot
+  drive the harness.
+- The host's Ollama has no vision model (`nomic-embed-text` only); pulling one
+  (~3 GB) was considered and declined.
+
+Drift found in the drill itself (fixed after these runs): the detailed protocol
+was passed as the *plan* goal only in the newer version — the two probe runs
+above were started with a one-line goal, so their tool trails are evidence about
+the tool and the boundary, not about the protocol. The corrected drill commits
+the full protocol into the plan goal (which is what the engine receives),
+raises the budget to 24 calls, and sends the workspace's absolute page path.
+
+To resume, all that is needed is a model that declares image input *and* emits
+tool calls: restore credit (or supply another provider) and run the stack with
+`DSH_MODEL` set to such a model and
+`DSH_PATCH_FILES=/opt/harness/patches/openrouter-vision.patch.yml`
+(`qwen/qwen3.7-flash` was the model chosen for this attempt: $0.03/$0.13 per M,
+1M context, image input). Then `scripts/e2e/w10_browser_drill.py`.

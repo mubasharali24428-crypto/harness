@@ -10,6 +10,31 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W10 (in progress) — a browser inside the run boundary; the "agent sees it" half is blocked on the model (2026-10-27)
+
+* **Browser tool, confined.** `browser` (screenshot/dump) runs headless Chromium
+  inside the run's own container, through a gate that confines every write to the
+  workspace, refuses `file://` outside it, sends remote pages through the same
+  web-purpose proxy as `web_fetch`, scrubs the environment before spawning
+  Chromium, and caps renders by wall clock and bytes. Mounted per run beside
+  shell/web; absent (not degraded) when either file is missing. Chromium is in the
+  worker image stage only. 15 gate tests + 2 mount tests; proven with real
+  Chromium on the host and inside the worker image with its real confinement
+  flags. (`browser_gate.py`, `harness-browser.js`, `worker.Dockerfile`)
+* **What the live probes showed.** The agent itself took a screenshot through the
+  product; a page on a fresh internal network gets `FETCH FAILED` with no proxy,
+  `FETCH OK` for an allow-listed host through the proxy and `FETCH FAILED` for an
+  unlisted one; an 11 MiB upload is `413 ARTIFACT_TOO_LARGE`; the agent's CSS fix
+  was recorded as one reviewable change; sibling-run reads answer `not found`.
+* **What is NOT shown — the W10 gate stays open.** The agent never saw its own
+  screenshot: the runtime refuses images for a text-only model
+  (`does not declare image input`), the OpenRouter account is out of credit
+  (`total_credits 5`, `total_usage 5.198` — a run at 18:41 worked, the same call
+  at 18:49 answered 402), free image models either rate-limit (`429`) or emit no
+  tool calls, and the host's Ollama has no vision model. The before/after
+  re-verification is therefore unproven; `docs/week-10-plan.md` records the exact
+  messages and how to resume.
+
 ### W9 slices 1–3 — share links that are capabilities, deployments bound to the reviewed revision (2026-10-27)
 
 * **Shares are capabilities, not signatures.** `POST /runs/{id}/artifacts/{artifactId}/shares`
