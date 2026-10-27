@@ -263,7 +263,11 @@ def test_local_run_records_artifact_and_provenance_comment(workspace, tmp_path):
     comment = next(c for c in sdk.orchestrator.calls if c[0] == "comment")
     body = comment[2]
     assert "executed" in body["body"] and "diffSha256" in body["body"]
-    assert body["refKind"] == "diff" and body["refId"] == "art-7"  # BAD_REF without refId
+    # the server's refKind "diff" means a high-impact APPROVAL row, so the
+    # comment references the plan that authorised the run; the artifact id is
+    # carried in the body instead.
+    assert body["refKind"] == "plan" and body["refId"] == "plan-1"
+    assert '"diffArtifact": "art-7"' in body["body"]
     assert result["trace"]["artifact"] == "art-7"
     assert result["trace"]["failures"] == []
 
@@ -363,7 +367,7 @@ def test_failed_trace_is_reported_in_the_result_not_swallowed(workspace, tmp_pat
     # artifact must not also lose the record that the run executed locally
     assert result["trace"]["comment"] == "c-1"
     comment = next(c for c in sdk.orchestrator.calls if c[0] == "comment")
-    assert "refKind" not in comment[2] and "refId" not in comment[2]
+    assert comment[2]["refKind"] == "plan"  # the plan reference survives an artifact failure
 
 
 def test_launch_shows_the_workers_progress_events(tmp_path, monkeypatch, workspace):

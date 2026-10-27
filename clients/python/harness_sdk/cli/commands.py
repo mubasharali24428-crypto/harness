@@ -54,6 +54,7 @@ _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 def _record_local_provenance(
     sdk: Any,
     run_id: str,
+    plan_id: str,
     engine: dict[str, Any],
     applied: dict[str, Any],
     state: str,
@@ -61,15 +62,16 @@ def _record_local_provenance(
 ) -> dict[str, Any]:
     """Server-side trace of a LOCAL execution, existing endpoints only.
 
-    The patch goes up as a `kind=diff` artifact through the raw-body endpoint
-    ("the request body IS the file") — the generated stub sends no body, which
-    the server rejects with EMPTY_ARTIFACT, so the transport's ``content`` is
-    used. The provenance comment then references that artifact: the server
-    refuses a refKind without a refId (BAD_REF), and the reference is what
-    makes the comment evidence rather than prose. Tool-call-level `agent_events`
-    cannot be minted off-host by any existing endpoint — saying so IS the audit
-    story (docs/week-6-plan.md, slice 4 decision 3). A failed write is reported
-    in the result, never hidden.
+    The patch goes up to the raw-body artifact endpoint ("the request body IS
+    the file") — the generated stub sends no body, which the server rejects with
+    EMPTY_ARTIFACT, so the transport's ``content`` is used. The provenance
+    comment then references the PLAN that authorised this execution: the server's
+    `refKind: diff` means a high-impact approval row, not an artifact id, so
+    pointing at the artifact was rejected as an unavailable reference. The
+    artifact id is carried in the comment body instead, and tool-call-level
+    `agent_events` cannot be minted off-host by any existing endpoint — saying
+    so IS the audit story (docs/week-6-plan.md, slice 4 decision 3). A failed
+    write is reported in the result, never hidden.
     """
     import hashlib
     import json as _json
@@ -101,15 +103,16 @@ def _record_local_provenance(
         "diffSha256": sha,
         "diffChars": len(diff),
         "diffOmitted": engine.get("diffOmitted"),
+        "diffArtifact": trace["artifact"],
         "applied": applied.get("applied", []),
         "deleted": applied.get("deleted", []),
     }
     body: dict[str, Any] = {
         "body": "harness-cli local run: " + _json.dumps(provenance, sort_keys=True)
     }
-    if trace["artifact"]:
-        body["refKind"] = "diff"
-        body["refId"] = trace["artifact"]
+    if plan_id:
+        body["refKind"] = "plan"
+        body["refId"] = plan_id
     try:
         posted = sdk.orchestrator.run_comments_create(run_id, body)
         trace["comment"] = (posted or {}).get("id") or (posted or {}).get("comment", {}).get("id")
@@ -246,7 +249,7 @@ def execute_run(
         )
     finally:
         shutil.rmtree(engine.get("workDir", ""), ignore_errors=True)
-    trace = _record_local_provenance(sdk, run_id, engine, applied, state, note)
+    trace = _record_local_provenance(sdk, run_id, plan_id, engine, applied, state, note)
     return {
         "runId": run_id,
         "planId": plan_id,
