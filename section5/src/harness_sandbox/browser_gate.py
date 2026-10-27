@@ -101,11 +101,24 @@ def resolve_target(workspace: str, path: str) -> Path:
 
 
 def check_url(url: str, workspace: str, proxy: str | None) -> str | None:
-    """Why ``url`` may not be loaded, or None when it may be."""
+    """Why ``url`` may not be loaded, or None when it may be.
+
+    A bare path (``index.html``, ``docs/page.html``) is the workspace-relative
+    form of a file URL: the agent should not have to know where the run's
+    workspace is mounted to look at a page it can already read.
+    """
     if not isinstance(url, str) or not url.strip():
         return "url must be a non-empty string"
     parsed = urlsplit(url)
     scheme = parsed.scheme.lower()
+    if scheme == "":
+        ws = os.path.realpath(workspace)
+        target = os.path.realpath(os.path.join(ws, url))
+        if os.path.commonpath([ws, target]) != ws:
+            return f"page {url!r} is outside the workspace"
+        if not os.path.isfile(target):
+            return f"page {url!r} does not exist in the workspace"
+        return None
     if scheme == "file":
         ws = os.path.realpath(workspace)
         target = os.path.realpath(unquote(parsed.path))
@@ -226,6 +239,8 @@ def _render(request: dict) -> dict:
     reason = check_url(url, workspace, proxy)
     if reason is not None:
         return {"denied": reason}
+    if urlsplit(url).scheme == "":
+        url = "file://" + os.path.realpath(os.path.join(workspace, url))
     target = resolve_target(workspace, str(request.get("path") or "")) if action == "screenshot" else None
     binary = _chromium()
 

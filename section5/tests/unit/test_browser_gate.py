@@ -258,3 +258,23 @@ def test_an_unknown_action_is_refused(tmp_path, monkeypatch):
 
     out = gate.render(_request(tmp_path, action="click"))
     assert "action must be" in out["denied"], out
+
+
+def test_a_workspace_relative_page_needs_no_absolute_path(tmp_path, monkeypatch):
+    """The agent knows the file, not the mount point: 'index.html' is the page."""
+    _ready(tmp_path)
+    script, _ = _fake_chromium(tmp_path)
+    monkeypatch.setenv("HARNESS_CHROMIUM", str(script))
+    gate = _gate()
+
+    out = gate.render(_request(tmp_path, url="page.html"))
+    assert out.get("ok") is True, out
+
+    listed = gate.render(_request(tmp_path, url="page.html", action="dump"))
+    assert "rendered" in listed["text"]
+
+    missing = gate.render(_request(tmp_path, url="nope.html"))
+    assert "does not exist" in missing["denied"], missing
+
+    escape = gate.render(_request(tmp_path, url="../outside.html"))
+    assert "outside the workspace" in escape["denied"], escape

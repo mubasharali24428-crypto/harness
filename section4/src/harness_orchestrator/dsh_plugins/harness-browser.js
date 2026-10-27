@@ -14,7 +14,7 @@ export const inject = ["tools"];
 const DESCRIPTION = `Render a page and look at it: headless Chromium inside this run's sandbox.
 * action "screenshot" writes a PNG inside the workspace and returns its path. Open that path with the read tool to actually see the image — the screenshot is evidence only if you look at it.
 * action "dump" returns the rendered DOM as text (about 200k characters, truncated).
-* Reachable pages: file:// URLs inside the workspace, and https:// hosts on the same allow-list web_fetch uses (provider docs and endpoints), through the run's egress proxy. Nothing else loads; a page that tries to fetch an unlisted host will show the failure rather than the content.
+* url: a workspace-relative page ("index.html", "docs/report.html") or a file:// URL inside the workspace, or an https:// host on the same allow-list web_fetch uses (provider docs and endpoints), through the run's egress proxy. Nothing else loads; a page that tries to fetch an unlisted host will show the failure rather than the content.
 * No credentials are given to the browser. If a page needs a session, it will render signed-out.
 * A screenshot larger than the byte cap is refused with the size; render smaller with width/height.`;
 
