@@ -10,6 +10,32 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W7 (IDE gate) — an in-editor edit round-trips through the gate, and the bytes reviewed are the bytes written (2026-10-27)
+
+Live evidence `w7-ide-1793116802.json`, verdict PASS on ten checks, driven by
+the extension's own core against the running stack: the stored plan goal
+carries the editor's selection (`@src/note.py:1-2` plus the line itself); the
+run executed in `harness-engine-worker:vdev-local` with a read-only root,
+`CapDrop: ALL` and only the run's **internal** network attached; both diff
+stages reached the editor; a review submitted against bytes other than the
+displayed patch came back **409 CHANGE_STALE from the server**; the approved
+change carries the digest the client verified before showing anything; and the
+file on disk is exactly the reviewed bytes.
+
+Two claims this does **not** make. The server's event list for the run is
+`plan_proposed, plan_approved, done_signal_received, review_passed` — no
+`execution_started`, no per-tool rows — because execution is off-host and no
+endpoint lets a client mint events it did not observe; confinement is evidenced
+by the container, not by an invented audit row. And the `vscode` adapter is
+typechecked and built, but no editor window was opened here; the evidence file
+says `drive: … vscode adapter typechecked, not opened`.
+
+Fixes found by building the drill: the launcher adapter discarded every complete
+NDJSON line it parsed, turning a refusal into "exit 2" with the reason thrown
+away; and the worker's network isolation was being read from the container's
+endpoint block, which never carries `Internal` — it reported an internal network
+as not internal. Isolation is now asserted against `docker network inspect`.
+
 ### W4 (credentials) — the worker's environment was dumped on purpose, and no secret is in the record (2026-10-27)
 
 `w4_credential_leak_drill.py` takes the deployment's real secret values (never

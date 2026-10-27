@@ -12,12 +12,15 @@ stores is a session token, in VS Code's SecretStorage.
    items were dropped or truncated, so what the model saw is readable from the
    audit rather than implied.
 2. **Run** — `Harness: Run on selection` proposes a plan, shows its text, and
-   only on approval starts the run. Execution happens in the server's confined
-   container; the extension host never runs agent code.
-3. **Result** — when the engine finishes, the run sits at
-   `awaiting_done_signal` with a *proposed* diff. The editor shows it and asks.
-   Confirming is the product's `done-signal`, and it is the only thing that
-   records a diff server-side.
+   only on approval does anything execute. Execution is W6's confined runner
+   (`deploy/runners/local_engine.py`, the same script the CLI spawns): read-only
+   root, dropped capabilities, internal network, `container` confinement or a
+   refusal. The extension host never runs agent code, and the run is not
+   started on the server's queue — it would double-execute work already done
+   on this machine.
+3. **Result** — the run produces a patch. The editor shows it labelled
+   *proposed* and asks. Confirming is the product's `done-signal`, and it is
+   the only thing that records a diff server-side.
 4. **Review** — each recorded file is shown as a *reviewed* diff computed from
    the server's own patch, and approve/reject is `review_change` bound to the
    `diffSha` that was displayed. A patch that does not hash to that digest is
@@ -41,6 +44,15 @@ src/extension.ts  activation and commands
 scripts/w7_ide_drill.ts  live gate drill (core + a directory-backed fake editor)
 test/          29 tests over the core
 ```
+
+## Configuration
+
+`harness.serverUrl` / `harness.identityUrl` point at the stack; `harness.repoRoot`
+is **required** to run — it is the checkout whose `deploy/runners/local_engine.py`
+executes the confined turn — and `harness.launcherPython` is the interpreter that
+can import `harness_orchestrator` (e.g. `section4/.venv/bin/python`).
+`harness.maxContextChars` bounds the context block; the goal itself reports any
+reduction.
 
 ## Develop
 

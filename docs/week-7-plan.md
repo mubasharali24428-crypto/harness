@@ -128,12 +128,14 @@ Slices 1–4 are built and tested; slice 5 (the live drill) has not been run yet
 | `src/extension.ts` | activation, `login`/`logout`/`run`/`status`, token in SecretStorage only, status bar. |
 | `scripts/w7_ide_drill.ts` | written; **not run yet**. Drives the core against the live stack with a directory-backed fake editor, observes the confined worker container, and proves a review bound to the wrong digest is refused (`CHANGE_STALE`). |
 
-Two things the flow had to learn from the product rather than assume:
+Three things the flow had to learn from the product rather than assume:
 
 * the server only records a run's diff when a human confirms it
   (`POST /runs/{id}/done-signal`, body `{diffText}`), and `/changes` +
   `review_change` bind to *that* text — so the editor has two approvals, the
   plan and the result, and the second one is what makes digests exist;
+* a server-side run has **no** proposed diff anywhere in its result (decision 6),
+  which is why execution is the confined local runner;
 * `clients/ts/dist` was 12 files stale against its own `src` (no `run_diff`,
   `list_changes`, `review_change`), which is why the extension did not compile
   at first. Rebuilt and committed with it.
@@ -190,3 +192,62 @@ truthfully mint.
 copies the run's changed files to a scratch dir; before writing, the controller
 compares the applier's output with that copy and refuses if they differ. The
 editor never writes bytes that only one of the two produced.
+
+### One consequence of decision 6 that deserves its own sentence
+
+`DONE_SIGNAL_STATES` is *every non-terminal state* and the state machine's
+`signal_done` agrees: the done-gate is a **role + evidence** check
+(`signals.py`: executor role, non-empty diff), not a proof that this machine
+executed anything. So an IDE run — approved on the server, executed on the
+operator's machine inside the container boundary — can legitimately be
+completed and reviewed there, which is exactly what the flow needs. It also
+means the completion row is not evidence of *where* work happened, so the
+evidence names the confinement instead: the drill observes the worker container
+(read-only root, dropped caps, internal network) while the run is live, and
+records `serverEventTypes` — `plan_proposed, plan_approved,
+done_signal_received, review_*` with no `execution_started` — rather than
+claiming a server-side tool audit it cannot produce (same limit W6 recorded for
+`harness run --local`).
+
+## Slice 5 outcome — the gate is shown, not asserted (2026-10-27)
+
+`clients/vscode/scripts/w7_ide_drill.ts` drives the extension's **own core**
+against the live stack with a directory-backed fake editor. Evidence
+`w7-ide-1793116802.json`, verdict **PASS**, ten checks:
+
+| Check | What it proves |
+|---|---|
+| `goalCarriedSelection` | the stored `agent_plans.goal` (279 chars) contains `@src/note.py:1-2` **and** the selected line — what the editor showed is what the run received |
+| `planApproved` | the plan was accepted through the server gate before anything ran |
+| `workerObserved` + `workerOnInternalNetwork` | the run executed in `harness-engine-worker:vdev-local` with `readOnlyRoot: true`, `CapDrop: ALL`, attached only to the run's **internal** network |
+| `confinementNamed` | the outcome reports `confinement: container`, so evidence says which boundary it was taken in |
+| `diffShown` | both stages reached the editor: `proposed:bide_note.txt`, then `reviewed:bide_note.txt` |
+| `wrongDigestRefused` | a review against bytes other than the displayed patch is refused **by the server**: `409 CHANGE_STALE` |
+| `reviewApprovedWithDigest` | the recorded change is `approved` at `51aceeca…`, the digest the editor verified before showing anything |
+| `appliedBytesMatch` | the file on disk is exactly the reviewed bytes: `reviewed in the editor` |
+| `noRefusals` | no file was quietly dropped from the round-trip |
+
+The run chose the filename (`bide_note.txt`, not the requested
+`ide_note.txt`) — irrelevant to the claim and left visible: the flow reviews
+whatever the confined run produced, bound to its digest, not a name the client
+assumed.
+
+**What the gate does NOT get, stated plainly.** `serverEventTypes` is
+`plan_proposed, plan_approved, done_signal_received, review_passed` — there is
+no `execution_started` and no per-tool `agent_events`, because execution is
+off-host (decision 6) and no existing endpoint lets a client mint tool rows it
+did not observe. Confinement is therefore evidenced by the container itself,
+and the audit by the gate + recorded diff + per-file decision. W6 recorded the
+same limit for `harness run --local`; it is not papered over here.
+
+**Two drill bugs, kept out of the evidence set.** The first two FAIL runs were
+the drill's fault, not the product's: `execFileSync` returns only stdout, so
+`docker logs` (where the login code is printed) looked like "no OTP"; and the
+goal lookup read `plan_versions` (queue-written) instead of `agent_plans`
+(gate-written), so a correct goal read as absent. Their evidence files were
+deleted rather than committed as product failures, and the corrected lookups are
+part of the script.
+
+**Still unexercised here:** the `vscode`-bound adapter — tabs, modals,
+SecretStorage — is typechecked and built but no editor window was opened in this
+environment, which is what the evidence's `drive` field says.

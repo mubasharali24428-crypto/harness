@@ -104,7 +104,7 @@ Effort in focused engineer-days. "Decision" = needs your call before code.
 |---|-----|-----------|-----------|----------------|--------|
 | B1 | Automatic repo context (tree, README, git status/log) | all five | **absent** — goal + plan text only, and runtime context is switched off in the prompt (`includeRuntimeContext:false`) | This is the single biggest quality lever after A1. Our own audit says the same (`docs/parity-assessment-2026-10-25.md:62`) | 3–5d for a baseline |
 | B2 | Codebase index / semantic search | Cursor (embeddings), Devin, Codex | section 6 has an index for user search/export; **the agent never queries it** | Without it, a big-repo agent is blind past ~20 files | 2–3wk |
-| B3 | `@`-symbol context picking (files, symbols, docs, commits) | Cursor | absent | Editor-surface feature; only lands with D2 | rides on D2 |
+| B3 | `@`-symbol context picking (files, symbols, docs, commits) | Cursor | **landed for files, symbols, selection and uncommitted hunks (W7)** — `clients/vscode/src/core/context.ts` renders them into the goal and states any reduction in the goal text itself; docs/commits not covered | The editor surface is what made this worth building; the reduction note is what makes it auditable | remaining: `@doc`, `@commit` |
 | B4 | `.git` history access | Claude Code, Codex | **stripped** from the seeded workspace (`engine.py:194-198`) | The agent cannot see who changed what or run `git log` meaningfully | 1d to reconsider |
 | B5 | Dependency/manifest awareness | Cursor, Claude Code | absent | Version-confusion errors the others avoid | part of B1 |
 | B6 | Context compaction / long-run memory | Claude Code (auto-compact) | **exists upstream, unexamined** — `compaction-basic` + `image-offload` are in the profile and the window defaults to 1M (`DSH_CONTEXT_WINDOW`); what is ours is the hardcoded `max_tokens=4096` output cap (`engine.py:602`) and surfacing none of it | We may be degrading runs we don't need to, and capping answers we shouldn't | 2–4d |
@@ -126,8 +126,8 @@ Effort in focused engineer-days. "Decision" = needs your call before code.
 
 | # | Gap | Who has it | Our state | Why it matters | Effort |
 |---|-----|-----------|-----------|----------------|--------|
-| D1 | Terminal-native CLI | Claude Code, Codex, OpenHands | absent — web only | The leaders' primary surface; devs won't open a browser to fix a bug | 2–3wk |
-| D2 | IDE extension | Cursor (is the IDE), Claude Code, Codex | absent | Inline diff at the point of work | 3–4wk |
+| D1 | Terminal-native CLI | Claude Code, Codex, OpenHands | **landed (W6)** — `harness run`/`chat`/`diff`, same gate and audit as the web, local-workspace mode under the same container boundary, offline 0600 token store | The leaders' primary surface; devs won't open a browser to fix a bug | done; IDE surface was D2 |
+| D2 | IDE extension | Cursor (is the IDE), Claude Code, Codex | **core + adapters landed (W7)** — inline *proposed*/*reviewed* diff at the point of work, context picking, status bar, plan approval and per-file approve/reject in the editor, token in SecretStorage; gate proven live (`w7-ide-1793116802.json`) | The diff the operator reviews is the diff that is written, digest-bound: a mismatched patch is never shown and `CHANGE_STALE` is the server's answer, not the client's | packaging/publishing and a real-window smoke test remain |
 | D3 | Share links / public run transcripts | Claude Code, Devin | absent | Adoption loop | 2–3d |
 | D4 | Slash commands / prompt shortcuts | Claude Code, Cursor | absent | Cheap, heavily used | 2–3d |
 | D5 | Hooks (run my script on tool-use / on-stop) | Claude Code | absent | Extensibility without us building every feature | 3–5d |

@@ -150,9 +150,21 @@ function startWorkerPoller(): { seen: Record<string, unknown>; stop: () => void 
         role: name.endsWith("-relay") ? "relay" : "worker",
         image: info.Config?.Image,
         networks: Object.keys(info.NetworkSettings?.Networks ?? {}),
-        internalNetworks: Object.values(info.NetworkSettings?.Networks ?? {}).filter(
-          (net) => (net as { Internal?: boolean }).Internal,
-        ).length,
+        // `Internal` is a property of the *network*, and the container's
+        // endpoint block does not carry it — reading it there reports false for
+        // a genuinely internal network. Ask the network itself.
+        internalNetworks: Object.keys(info.NetworkSettings?.Networks ?? {}).filter(
+          (name: string) => {
+            const netJson = sh(["docker", "network", "inspect", name]);
+            const at = netJson.indexOf("[");
+            if (at < 0) return false;
+            try {
+              return Boolean(JSON.parse(netJson.slice(at))[0]?.Internal);
+            } catch {
+              return false;
+            }
+          },
+        ),
         readOnlyRoot: Boolean(info.HostConfig?.ReadonlyRootfs),
         capDrop: info.HostConfig?.CapDrop,
         entrypoint: info.Config?.Entrypoint,
@@ -160,10 +172,6 @@ function startWorkerPoller(): { seen: Record<string, unknown>; stop: () => void 
     }
   }, 1000);
   return { seen, stop: () => clearInterval(timer) };
-}
-
-interface PlanContent {
-  goal?: string;
 }
 
 async function main(): Promise<number> {
@@ -261,17 +269,30 @@ async function main(): Promise<number> {
     }
   }
 
-  // The goal the model was given lives in the plan version the gate approved.
+  // The gate stores the approved plan in agent_plans (plan_versions is the
+  // per-run history the queue path writes); the goal the model was given lives
+  // here verbatim, which is what makes "what did it see" answerable.
   const planRow = sh([
     "docker",
     "exec",
     sh(["docker", "ps", "-q", "--filter", "label=com.docker.compose.service=db"]).trim(),
     "sh",
     "-lc",
-    `psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select content from plan_versions where run_id='${outcome.runId}' order by version limit 1"`,
+    `psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select goal from agent_plans where run_id='${outcome.runId}'"`,
   ]);
-  const planContent = (JSON.parse(planRow.trim() || "{}") ?? {}) as PlanContent;
-  const goal = planContent.goal ?? "";
+  const goal = planRow.trim();
+
+  const eventTypes = sh([
+    "docker",
+    "exec",
+    sh(["docker", "ps", "-q", "--filter", "label=com.docker.compose.service=db"]).trim(),
+    "sh",
+    "-lc",
+    `psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select type from agent_events where run_id='${outcome.runId}' order by seq"`,
+  ])
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 
   const workers = Object.values(poller.seen) as Array<Record<string, unknown>>;
   const worker = workers.find((w) => w.role === "worker");
@@ -292,6 +313,10 @@ async function main(): Promise<number> {
     proposedDiffSeen: proposed !== null,
     planTextPreview: trace.plans[0]?.text.slice(0, 300),
     statesSeen: [...new Set(trace.states)],
+    serverEventTypes: eventTypes,
+    // Recorded, not smoothed over: an IDE run executes off-host, so the server
+    // holds the plan gate and the completion, and no execution_started row.
+    auditShape: "plan_proposed + plan_approved + done_signal_received + review_* (no execution_started; off-host execution cannot mint tool events)",
     confinedWorker: worker ?? null,
     workerObserved: Boolean(worker),
     diffStages: trace.diffs.map((d) => `${d.stage}:${d.path}`),
@@ -312,6 +337,10 @@ async function main(): Promise<number> {
     goalCarriedSelection: evidence.goalCarriedSelection,
     planApproved: evidence.planApprovedInEditor,
     workerObserved: evidence.workerObserved && Boolean(worker?.readOnlyRoot),
+    workerOnInternalNetwork:
+      Boolean(worker) &&
+      Array.isArray((worker as Record<string, unknown>).internalNetworks) &&
+      ((worker as Record<string, unknown>).internalNetworks as unknown[]).length > 0,
     confinementNamed: outcome.confinement === "container",
     diffShown: evidence.diffShown !== null,
     wrongDigestRefused: wrongDigest.refused && wrongDigest.code === "CHANGE_STALE",
