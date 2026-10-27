@@ -171,20 +171,17 @@ Decision (both options confirmed with the operator 2026-10-27):
 4. Live drill against the running stack: one goal edits a scratch dir,
    server shows plan events + diff artifact + local-provenance comment,
    workspace updated; evidence `w6-local-<epoch>.json`.
-   **Partially done — the boundary is proven, the full-success drill is not
-   yet green.** Measured 2026-10-27: a live turn inside the container
-   boundary created `present.txt` and the in-boundary diff at a 200 s
-   deadline (status `error`, `changed: ["present.txt"]` — the worker was
-   killed after writing, which is exactly the fail-closed budget behaviour);
-   at 240 s the CLI mapped that to `state=error`, the server showed only
-   plan events (no server execution), and nothing was applied to the
-   workspace because the engine's list was empty at kill time. The wiring
-   is exercised end-to-end; the missing piece is a model turn that finishes
-   inside the budget, so the drill's default is now 900 s. Two real defects
-   the live attempt found and fixed: the applier deleted every untouched
-   file (it inferred "deleted" from "absent from the change list") — now only
-   the diff's `+++ /dev/null` headers can delete; and the diff header
-   normaliser sliced file paths by a fixed offset.
+   **Three live attempts, all informative.** The gate and the apply are proven
+   repeatedly: the confined worker wrote the file, the CLI applied it and left
+   the untouched file alone, and the artifact's stored bytes were read back and
+   matched the patch. What has not happened yet is a turn that ENDS by itself —
+   at 240 s and at 900 s the worker was killed by the engine deadline AFTER
+   writing (the local `qwen` keeps verifying), and one over-specified goal made
+   it reply `DONE` having called no tool, which the CLI reported as
+   `artifact: skipped (the run produced no diff)` rather than fabricating a
+   change. The drill now takes `--goal`, prints the worker's tool events, and
+   checks the status code of every list it reads — the last of which caught a
+   404 being read as "no comments".
 
 ## Known constraints
 

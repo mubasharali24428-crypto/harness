@@ -32,28 +32,39 @@ container mode are missing — it never degrades to `off` or seatbelt.
 
 Audit, stated honestly: the plan gate is the server's (identical events), the
 patch is uploaded to the raw-body artifact endpoint and a run comment
-references it by id, carrying `executed=local`, confinement, image and the
-diff digest. Tool-call-level events from an off-host engine cannot be minted
-into `agent_events` by any existing endpoint; that is a contracts decision,
-not a CLI workaround — so the worker's own NDJSON progress lines are now shown
-to the operator instead of being parsed away, which is what let the next defect
-be seen at all.
+references the plan that authorised the run — carrying `executed=local`,
+confinement, image, the diff digest and the artifact id in its body.
+Tool-call-level events from an off-host engine cannot be minted into
+`agent_events` by any existing endpoint; that is a contracts decision, not a CLI
+workaround — so the worker's own NDJSON progress lines are now shown to the
+operator instead of being parsed away, which is what let the next defect be seen
+at all.
 
 The live drill corrected three more claims from the first pass, each now pinned
 by a test: the generated `upload_artifact` stub sends **no body**, and the
 endpoint ("the request body IS the file") answers `EMPTY_ARTIFACT` — the trace
 had been failing silently; the transport grew a raw `content=` path and the
-patch bytes now actually land. A comment with `refKind` but no `refId` is
-rejected `BAD_REF` — the comment references the artifact id it just created.
-And the drill itself read a comments list without checking its status code and
-under the wrong key, so a 404 looked like an empty but valid list.
+patch bytes now actually land. A comment reference must resolve to something the
+discussion knows: `refKind: diff` means a high-impact *approval* row, not an
+artifact id, so pointing at the artifact was rejected as unavailable — the
+comment references the plan instead, verified `201` against the live API. And
+the drill itself read a comments list without checking its status code and under
+the wrong key, so a 404 looked like an empty but valid list.
 
-Status: unit-tested (22 tests, 69 green) and the live boundary is proven — a
-real container turn created the file and its in-boundary diff. The full
-success drill is still not green because the local `qwen` turn never finished
-inside the budget (killed at 240 s with the file written, at 900 s without);
-the drill now takes `--goal` so the turn can be bounded, and reports the
-worker's tool events so a looping agent is visible rather than inferred.
+Earlier in the same drill, the applier had treated "absent from the change
+list" as "deleted", which would have removed every untouched file in the
+workspace; only the boundary diff's own `+++ /dev/null` headers may delete now,
+and paths had been corrupted by a fixed-offset slice in the header normaliser.
+
+Status after three live attempts, each recorded rather than smoothed over: at
+240 s the worker was killed after writing the file and the diff still landed
+(applied, untouched file unmoved); at 900 s the same happened again — file
+created, applied, artifact verified by reading its stored bytes back (81). An
+over-specified one-command goal made the small model reply `DONE` without
+calling any tool, and the CLI reported that honestly (`artifact: skipped (the
+run produced no diff)`) instead of inventing a change. The turn has not yet
+finished on its own terms, which is a model-latency fact about this machine,
+not a defect in the path.
 `harness chat --local DIR` joins `run --local`: the directory is stored with
 the session, so `--resume` picks the same workspace back up.
 
