@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-27",
+  "week": "W4",
+  "claim": "a run uses an MCP tool and the audit records it; the server holds no credentials",
+  "runId": "w4mcp-1793109830",
+  "drive": "HTTP only",
+  "goalNamesTheMarker": false,
+  "reviewedListOnDaemon": "/opt/harness/mcp/servers.stub.json",
+  "credentialKeysChecked": [
+    "DEEPSEEK_API_KEY",
+    "HARNESS_MASTER_KEY",
+    "HARNESS_WORKER_DAEMON_TOKEN"
+  ],
+  "settledState": "awaiting_done_signal",
+  "toolEventNames": [
+    "mcp__harness-stub__env_probe",
+    "mcp__harness-stub__stub_echo"
+  ],
+  "toolResultCount": 2,
+  "markerInAudit": true,
+  "envProbeCalled": true,
+  "answerContainsMarker": true,
+  "credentialValuesFoundInTranscript": [],
+  "workerContainers": [
+    {
+      "name": "harness-ff3a663474f84b42883eb281cca6be7e",
+      "networks": [
+        "harness-ff3a663474f84b42883eb281cca6be7e-net"
+      ]
+    }
+  ],
+  "verdict": "PASS"
+}

@@ -222,3 +222,44 @@ from the plan or the model), keep `failOnStartupError: true`, and run the stub
 server in a live worker to prove tool calls land in `agent_events`. The
 **third-party** leg of the gate then depends on slice 4: the worker image has no
 installer today, so an `npx`-fetched server cannot be the reviewed first server.
+
+## Slice 3 outcome — reviewed MCP servers, live and audited (2026-10-27)
+
+**The reviewed list is configuration, not input.** `harness_orchestrator/mcp.py`
+reads `DSH_MCP_SERVERS`, a JSON file **baked into the worker image**
+(`/opt/harness/mcp`) so that admitting a server is a rebuild — a review event —
+rather than something a running service can swap. Validation is the boundary:
+`stdio` or `https` only, names pattern-checked, unknown keys refused,
+`failOnStartupError` forced to true, and **no `env` at all on a spawned server**
+(credential decision 3: servers get nothing; a call-time broker is the later
+design). A declared-but-malformed list fails the run — it does not degrade into
+"no servers", because a half-applied boundary reads exactly like an intact one.
+
+**Neither the plan nor the model has a channel to it.** `shell_policy` carries no
+MCP keys and nothing here reads the plan; a test asserts that a plan asking for
+`{"mcpServers": [{"command": "curl"}]}` mounts only the reviewed entry.
+
+**Live proof** (`scripts/e2e/w4_mcp_client_drill.py`,
+`w4-mcp-client-1793109830.json`): a real HTTP-driven run settled
+`awaiting_done_signal` with `agent_events` tool rows named
+`mcp__harness-stub__stub_echo` and `mcp__harness-stub__env_probe` — so the
+runtime registers MCP tools in the same registry, and **the audit names the
+server and the tool**, which is precisely what the gate asked. The marker
+`HARNESS-MCP-STUB:<text>` appears nowhere in the goal, so it can only be in the
+transcript if the call crossed the server process. The worker was observed on its
+own run network while executing.
+
+**What that drill cost: an eight-day leak.** The first attempt died in two
+seconds on `docker network create` — by hand, "all predefined address pools have
+been fully subnetted", with 20 orphaned run networks. W4's egress attach connects
+the shared proxy to every run network, and `close()` removed the network while
+the proxy was still attached — which Docker forbids — so every run that reached
+the proxy leaked one network. Fixed (`disconnect` before `rm`), two tests pin the
+order, and the orphans were reclaimed. It also exposed that the worker daemon
+never received `DSH_PATCH_FILES`/`DSH_MCP_SERVERS`: `confine.wrap_command` passes
+`--env KEY` by name and Docker resolves the value from *its own* client
+environment, so an orchestrator-only setting reached every worker empty.
+
+**Still open in the gate:** the **third-party** leg. The worker image has no
+installer, so an `npx`-fetched server cannot be the reviewed first server —
+that depends on slice 4, as planned.

@@ -10,6 +10,34 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W4 (MCP) — a run used an MCP tool, and the audit names the server and the tool (2026-10-27)
+
+The reviewed list is configuration, not input: `harness_orchestrator/mcp.py`
+reads `DSH_MCP_SERVERS`, a JSON file **baked into the worker image**, so admitting
+a server is a rebuild rather than something a running service can swap. Validation
+is the boundary — stdio or https only, pattern-checked names, unknown keys
+refused, `failOnStartupError` forced true, and **no `env` at all** on a spawned
+server (decision 3: servers get no credentials; a call-time broker is the later
+design). A declared-but-malformed list fails the run instead of degrading to
+"no servers", because a half-applied boundary looks exactly like an intact one.
+Neither the plan nor the model has a channel to it; a test asserts that a plan
+asking for `{"mcpServers": [{"command": "curl"}]}` still mounts only the
+reviewed entry.
+
+Live (`w4_mcp_client_drill.py`, `w4-mcp-client-1793109830.json`): an HTTP-driven
+run settled `awaiting_done_signal` with `agent_events` rows named
+`mcp__harness-stub__stub_echo` and `mcp__harness-stub__env_probe`. The returned
+marker appears nowhere in the goal, so it can only be in the transcript if the
+call actually crossed the server process. The first-party stub is deliberate:
+the mechanics are proven against a server whose behaviour we can read before any
+real third-party server is reviewed — and the third-party leg still waits on the
+install path, since the worker image has no installer.
+
+Building it also surfaced two shipped defects, each fixed with tests in the same
+change: the run-network leak below, and the fact that operator `DSH_*`
+configuration never reached a worker (`--env KEY` resolves its value from the
+Docker client's own environment — the daemon's, not the orchestrator's).
+
 ### W4 (leak): every confined run leaked its network until Docker could not run anything (2026-10-27)
 
 Found while drilling MCP wiring: a run failed in two seconds with
