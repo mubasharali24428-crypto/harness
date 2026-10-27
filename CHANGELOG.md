@@ -10,7 +10,7 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
-### W9 slices 1–2 — share links that are capabilities, deployments bound to the reviewed revision (2026-10-27)
+### W9 slices 1–3 — share links that are capabilities, deployments bound to the reviewed revision (2026-10-27)
 
 * **Shares are capabilities, not signatures.** `POST /runs/{id}/artifacts/{artifactId}/shares`
   mints a random token, stores only `sha256(token)`, and `GET /shares/{token}` — the
@@ -35,6 +35,17 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   approve is `DEPLOYMENT_DECIDED`. Every step writes the binding into `audit_log`.
   Nothing here deploys anything; the record is the guarantee.
   (`0064_deployments.sql`, `deployments.py`, 13 tests)
+* **Both gates pass on the live stack.** `scripts/e2e/w9_share_deploy_drill.py`
+  — PASS, 21/21 (`docs/briefs/evidence/pilot-prep/w9-share-deploy-1793124898.json`).
+  A token opened with no `Authorization` header serves the exact bytes as an
+  attachment with `nosniff` and a sandboxing CSP; a foreign team gets 404 from
+  mint/list/revoke while the token alone still opens it; revoke kills that same
+  token (404) and is idempotent; a 60s link answers `410 SHARE_EXPIRED` after a
+  real minute. A deployment request binds digest + head + plan version; a wrong
+  client digest and, after the head moves, a correctly-bound request are both
+  refused `409 DEPLOYMENT_STALE` (the second stays `requested`); revoke is final
+  (`DEPLOYMENT_REVOKED` on any later approve). All six actions are read back
+  from `audit_log`.
 
 ### W8 slice 2 — a container-mode run can finally write, and abandoned boundaries get a reaper (2026-10-27)
 

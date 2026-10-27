@@ -112,3 +112,58 @@ the merge-approval UI it would sit beside.
   `now()` defaults (the migration convention in `0049`).
 - The stack's model is now a hosted one (OpenRouter) for drills; nothing in W9
   needs a model, so the drills are deterministic and fast.
+
+## Outcome (2026-10-27)
+
+Evidence: `docs/briefs/evidence/pilot-prep/w9-share-deploy-1793124898.json` —
+**PASS, 21/21 checks** against the compose stack (`harness-backend:vdev-local`,
+migrations `0063`/`0064` applied by the `migrate` job).
+
+What the drill actually observed, per claim:
+
+1. **A link carries its own authority.** `GET /shares/{token}` with no
+   `Authorization` header returned the exact bytes (`sha256` equal to both the
+   artifact row and the `X-Artifact-Sha256` header). A second, independent user
+   in another team got `404 NOT_FOUND` from the mint, list and revoke routes —
+   and `200` from the token alone, which is the point of a capability: the link,
+   not the session, is the grant.
+2. **Served as data.** `application/octet-stream`, `attachment; filename=…`,
+   `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox;
+   default-src 'none'`, `Cache-Control: private, no-store`.
+3. **Revocation.** The same token answered `404` immediately after revoke; a
+   second revoke returned the identical `revokedAt`; the anonymous opens were
+   counted (`uses`), and a 60s-TTL link answered `410 SHARE_EXPIRED` after the
+   minute (checked by waiting, not by faking the clock).
+4. **The binding.** The request captured `changesDigest`, `runHeadSha`=`c…`,
+   `baseSha`, `planVersion`=1, all equal to the run's current revision. A client
+   echoing a different digest was refused (`DEPLOYMENT_STALE`,
+   `staleFields:["clientDigest"]`). After the head moved to `d…`, the approved
+   request was listed `stale:true` and a request made **before** the move
+   refused approval with `staleFields:["runHeadSha"]` while staying `requested`
+   — a refusal is not a decision.
+5. **Revocation is final.** Revoking the approved request left it `revoked`; a
+   further approve answered `409 DEPLOYMENT_REVOKED`; the second revoke kept the
+   first timestamp.
+6. **Audit.** `audit_log` for this drill's ids holds `artifact.shared|2`,
+   `share.opened|3`, `artifact.share_revoked|2`, `deployment.requested|2`,
+   `deployment.approved|1`, `deployment.revoked|1`.
+
+Deviations from the plan text, recorded rather than smoothed:
+
+- The plan sketched two tables (`deployments`, `deployment_approvals`). One
+  `deployments` row carries the request, the decision and the revocation: there
+  is exactly one approval per request, so a second table would have been a join
+  over a 1:1 relation with no independent history to add — the history is in
+  `audit_log`. The state CHECK is `requested|approved|revoked`, exactly what the
+  API can write; the sketched `rejected` state had no writer and was removed.
+- The drill creates its run through `POST /plan`, which spends one planner call;
+  everything after that is HTTP-only. W9's own code paths never call a model.
+
+Not claimed, still open:
+
+- No UI for minting links or requesting deployments (decision 4: API-first).
+- Nothing deploys. A deployment row is an approval record bound to a revision;
+  there is no runner, no target credentials and no artifact promotion here.
+- `NOTHING_TO_DEPLOY` / `REVISION_UNKNOWN` are unit-tested, not re-drilled live:
+  they need a second run without changes, and the gate is the binding, which the
+  drill does exercise end to end.
