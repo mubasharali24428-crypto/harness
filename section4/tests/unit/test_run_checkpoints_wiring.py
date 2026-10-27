@@ -14,10 +14,10 @@ import asyncio
 from pathlib import Path
 
 import pytest
+from unit.test_goal_image_execution import _started, run
 
 from harness_orchestrator import run_checkpoints as cp
 from harness_orchestrator.state_machine import InvalidStateTransitionError
-from unit.test_goal_image_execution import _started, run
 
 
 class WorkspaceEngine:
@@ -120,3 +120,26 @@ def test_rewind_is_refused_while_the_run_is_live(tmp_path):
                 await run_data["task"]
 
     run(go())
+
+
+def test_checkpoint_labels_continue_across_a_resume(tmp_path):
+    """A resumed run is a fresh `run_data`, so an in-RAM attempt counter starts
+    over and the history reads "before attempt 1" twice — exactly when someone is
+    reconstructing an interrupted attempt. The number comes from the store.
+    """
+    engine = WorkspaceEngine(tmp_path / "ws")
+    svc, run_data, _plan, _f, _read = _started(tmp_path, engine)
+    workspace = engine.run_workspace(run_data["runId"])
+
+    async def go():
+        await svc._checkpoint_run(run_data["runId"], "before")
+        await svc._checkpoint_run(run_data["runId"], "after")
+        # resume: no memory of the first pair
+        await svc._checkpoint_run(run_data["runId"], "before")
+        await svc._checkpoint_run(run_data["runId"], "after")
+
+    run(go())
+
+    labels = [c["label"] for c in cp.list_snapshots(workspace, run_data["runId"])]
+    assert labels == ["before-attempt-1", "after-attempt-1",
+                      "before-attempt-2", "after-attempt-2"]

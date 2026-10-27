@@ -10,6 +10,21 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W3 closed — an interrupted write, a rewind, and a second attempt (2026-10-26)
+
+The last open clause was "resume reconciles partial writes". A new drill
+(`scripts/e2e/w3_partial_write_drill.py`, `w3-partial-write.json`) pauses a run
+while `slow_writer.py` is provably writing, reads a genuinely torn file back
+(28 of 120 lines), rewinds to the before-attempt checkpoint — which removes the
+file, because it did not exist then — and resumes, producing a clean second
+attempt.
+
+Building it exposed a real defect: the attempt number lived in RAM, so a resumed
+run restarted the count and the checkpoint history read "before attempt 1" twice.
+It now comes from the checkpoint store, and a test pins `1 → 2` across a resume.
+Also fixed: the drill's `docker top -eo cmd` form fails without a PID column and
+still exits 0, which had the process check silently seeing nothing.
+
 ### Contracts 1.0.0rc5 — one outbound client factory, not four copies (2026-10-26)
 
 httpx 0.28 turns a bracketed IPv6 `NO_PROXY` entry (`[::1]`, which Docker Desktop

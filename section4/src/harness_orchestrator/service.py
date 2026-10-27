@@ -317,7 +317,7 @@ class OrchestratorService(Orchestrator):
             logger.warning("no workspace for checkpoint of %s", run_id, exc_info=True)
             return None
 
-    async def _checkpoint_run(self, run_id: str, label: str) -> None:
+    async def _checkpoint_run(self, run_id: str, phase: str) -> None:
         """Best-effort snapshot. A failure is logged, never raised into the run.
 
         Not raising is deliberate and it is not silent: a run with no checkpoints
@@ -329,6 +329,15 @@ class OrchestratorService(Orchestrator):
         if workspace is None:
             return
         try:
+            # The attempt number comes from what the STORE already holds, not from
+            # an in-RAM counter: a resumed run is a fresh run_data, so a counter
+            # restarts at 1 and labels collide ("before attempt 1" twice), which
+            # makes the history unreadable exactly when someone is trying to
+            # reconstruct an interrupted attempt.
+            existing = await asyncio.to_thread(
+                run_checkpoints.list_snapshots, workspace, run_id
+            )
+            label = f"{phase} attempt {len(existing) // 2 + 1}"
             snap = await asyncio.to_thread(
                 run_checkpoints.snapshot, workspace, run_id, label
             )
@@ -1462,9 +1471,7 @@ class OrchestratorService(Orchestrator):
                 # after it settles. Two snapshots per attempt are what make
                 # "rewind to the last checkpoint" and "undo this attempt"
                 # different, useful choices instead of the same one.
-                attempt = int(run_data.get("_attempts_started") or 0) + 1
-                run_data["_attempts_started"] = attempt
-                await self._checkpoint_run(run_id, f"before attempt {attempt}")
+                await self._checkpoint_run(run_id, "before")
                 try:
                     result = await self.engine_runtime.run(
                         self.engine,
@@ -1492,7 +1499,7 @@ class OrchestratorService(Orchestrator):
                     # The tree as the attempt actually left it — including a
                     # half-written one when the worker was killed, which is
                     # exactly the state a rewind may need to undo.
-                    await self._checkpoint_run(run_id, f"after attempt {attempt}")
+                    await self._checkpoint_run(run_id, "after")
                     if forwarder is not None:
                         forwarder.cancel()
                 if isinstance(result, dict) and images is not None and (

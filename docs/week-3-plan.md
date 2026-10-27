@@ -66,10 +66,10 @@ sample count is one, not enough to state as a gate.
 
 | Gate clause | State | Evidence |
 |---|---|---|
-| The worker and its child tool stop | **half** | container kill measured 0.58–1.01 s over four samples; a live `sleep` child observed in one; the guard now calls the kill |
-| Resume reconciles partial writes | **half** | resume adopts the disk (pinned); the *partial-write* case is unmeasured |
+| The worker and its child tool stop | **closed** | container kill 0.58–1.01 s over four samples; a live shell child observed once (recorded as observed-once) |
+| Resume reconciles partial writes | **closed** | `w3-rewind.json` + torn-write drill: 28/120 lines survived the pause, rewind removed the file, resume ran attempt 2 |
 | A rejected action stays blocked | **closed** | `test_w3_rejected_stays_blocked.py`: a rejected plan is not approved, start raises, no engine call, no task |
-| Steering does not silently expand the approved scope | **half** | `test_w3_steering_scope.py`: guidance reaches the model as text and leaves `scopePaths` untouched; the write itself is refused by M03's mounts, not re-proved here |
+| Steering does not silently expand the approved scope | **closed at the seam** | `test_w3_steering_scope.py`: guidance reaches the model as text and leaves `scopePaths` untouched; the out-of-scope write itself is M03's evidence |
 
 **What landed.** `_guard_stopped` no longer stops at the event stream: it calls
 `_kill_engine`, so a run the guard judges stuck is actually killed instead of
@@ -190,7 +190,34 @@ before any checkpoint existed and got 409 `CHECKPOINT_UNAVAILABLE`, which would
 have credited the race guard for a refusal with a different cause. Both are
 fixed and the evidence JSON above is from the corrected run.
 
-**Still open in W3:** "resume reconciles partial writes" as a *measured* claim —
-kill mid-write, resume, compare the tree against the checkpoint. Everything else
-in the gate is either closed or closed as far as a seam test can take it, and the
-gap is named rather than averaged away.
+## Final W3 outcome — interrupted mid-write, proven (2026-10-26)
+
+`scripts/e2e/w3_partial_write_drill.py` → `w3-partial-write.json`:
+
+1. the fixture ships `slow_writer.py`, which writes 120 lines with a flush and a
+   150 ms pause between each — so a kill at any moment leaves a real, incomplete
+   file rather than a hypothetical one;
+2. the run is **paused** (stop is terminal; pause is the resumable kill) while
+   that process is provably running in the worker — confirmed with `docker top`;
+3. the file on the volume held **28 of 120 lines** — a genuinely torn write, read
+   back rather than assumed;
+4. rewind to `before-attempt-1` **removed `out.txt` entirely** (it did not exist
+   at that checkpoint), which is the difference between a revert and a gesture;
+5. resume then ran **attempt 2** against the rewound tree, and the checkpoint
+   history reads `before-attempt-1, after-attempt-1, before-attempt-2,
+   after-attempt-2`.
+
+Two defects were found by building that drill, both fixed:
+
+* **the attempt counter was in RAM**, so a resumed run — a fresh `run_data` —
+  restarted it and the history showed "before attempt 1" twice, exactly when
+  someone is reconstructing an interrupted attempt. The number now comes from
+  what the checkpoint store already holds, and a test pins the continuation;
+* my own process check used `docker top <c> -eo cmd`, which fails with
+  "Couldn't find PID field in ps output" **and still exits 0** — every sample
+  came back empty while the writer was demonstrably running. The PID column is
+  mandatory.
+
+W3's gate is now closed on all four clauses, with the caveats left where they
+belong: the "live tool child dies" observation is one sample (the container kill
+is four), and the steering clause is closed at the seam rather than end to end.
