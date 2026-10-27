@@ -657,6 +657,9 @@ class DeepSeekHarnessWrapper:
                     # The worker's own write-capability check must see the boundary the
                     # parent chose; inside a container "auto" would otherwise read "none".
                     confine.CONFINEMENT_ENV: "off" if mode == "none" else mode,
+                    # W4 slice 4: installs are only routed through the egress proxy
+                    # when the operator flagged them AND the boundary is a container.
+                    **confine.install_env(mode),
                 },
                 tmp,
             )

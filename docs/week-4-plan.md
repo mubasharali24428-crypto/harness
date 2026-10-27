@@ -263,3 +263,53 @@ environment, so an orchestrator-only setting reached every worker empty.
 **Still open in the gate:** the **third-party** leg. The worker image has no
 installer, so an `npx`-fetched server cannot be the reviewed first server —
 that depends on slice 4, as planned.
+
+## Slice 4 outcome — installs run confined, and the proxy is the record (2026-10-27)
+
+**The verbs are no longer blanket-blocked; they are conditionally permitted.**
+`policy.install_permission()` grants installs only when `DSH_ALLOW_INSTALLS` is
+set **and** `HARNESS_ENGINE_CONFINEMENT == "container"` **and**
+`HTTPS_PROXY` names the egress sidecar. Anything less and the refusal carries its
+reason into the tool result (`… — installs: package installs are off by default;
+set DSH_ALLOW_INSTALLS=1 to permit them`). The engine reaches the proxy through
+`confine.install_env()`, which injects the proxy URL by value for exactly this
+case; `HTTP(S)_PROXY` are the only routing variables passed that way, because a
+proxy is a destination, not a secret.
+
+**The proxy now keeps the audit the gate asks for.** `egress_proxy._log_tunnel`
+prints one line per tunnel that actually opened
+(`CONNECT pypi.org:443 purpose=sandbox allowed`). Denials are deliberately not
+logged: the compose healthcheck probes with a denied CONNECT every 10s, so
+logging refusals would bury the record in noise while telling us nothing the
+caller did not already see. A unit test pins both halves.
+
+**Deterministic drill** (`scripts/e2e/w4_install_drill.py`,
+`w4-install-1793111223.json`) — `shell_gate.py` driven directly inside a
+throwaway container on a real run network, no model in the loop:
+
+| case | result |
+|---|---|
+| `pip install` with no flag | denied, reason names the flag |
+| `pip install six==1.16.0` with flag + container + proxy | exit 0, `Successfully installed six-1.16.0` |
+| same, `--index-url https://files.example.com/simple` | exit 1, `Tunnel connection failed: 403 Forbidden` |
+| proxy audit | `pypi.org:443` and `files.pythonhosted.org:443`, purpose `sandbox` |
+
+So the boundary bounds installs at the destination level, not just at the verb
+level, and the two hosts pip needed are exactly what the audit shows.
+
+**Known limitations, stated rather than hidden.**
+
+* Only the **pip** lane is drilled. The npm/npx patterns are permitted under the
+  same permission function, but the worker image has no node toolchain today, so
+  claiming the npm lane would be an assertion. It stays untested rather than
+  quietly assumed.
+* Installed code is unvetted executable content from a previous network
+  exchange. The flag trades that risk for the boundary; the boundary does not
+  remove it. There is no signature or integrity story beyond TLS plus the
+  derived registry list.
+* Per decision 5 the workspace cache is still absent: each permitted install
+  fetches fresh into a run-local `/tmp`, which is discarded with the run. The
+  gate's install clause is met by the drill; the caching clause was never part
+  of the gate text and is not claimed.
+* The audit line is the proxy's, so it records allowed egress only. A refused
+  install is visible in the tool result; it is not in the proxy log.

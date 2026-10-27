@@ -41,6 +41,17 @@ async def _deny(writer: asyncio.StreamWriter, status: str) -> None:
     writer.close()
 
 
+def _log_tunnel(host: str, purpose: str) -> None:
+    """One line per tunnel that actually opened — the proxy's audit trail.
+
+    Only *allowed* tunnels are logged: a refusal is already visible to the
+    caller, while this stream answers "what left the machine", which is what an
+    install or fetch drill has to show. Denials are deliberately not logged
+    because the compose healthcheck probes with a denied CONNECT every 10s.
+    """
+    print(f"CONNECT {host}:{_ALLOWED_PORT} purpose={purpose} allowed", flush=True)
+
+
 async def handle(
     reader: asyncio.StreamReader,
     writer: asyncio.StreamWriter,
@@ -64,6 +75,7 @@ async def handle(
             return await _deny(writer, "502 Bad Gateway")
         writer.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
         await writer.drain()
+        _log_tunnel(host, purpose)
         await asyncio.gather(_pipe(reader, up_writer), _pipe(up_reader, writer))
     except (TimeoutError, ConnectionError, OSError):
         writer.close()

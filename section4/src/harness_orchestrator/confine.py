@@ -38,6 +38,32 @@ ENV_ALLOW_EXACT = frozenset(
 ENV_ALLOW_PREFIX = ("DSH_",)
 _CRED_DIRS = (".ssh", ".aws", ".gnupg", ".config", ".kube", "Library/Keychains")
 
+#: Routing variables the worker is launched with by value (see wrap_command).
+ROUTING_ENV = frozenset({"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"})
+#: The run network's only way out, sandbox purpose (docs use 3129).
+EGRESS_SANDBOX_URL_ENV = "HARNESS_SANDBOX_PROXY_URL"
+EGRESS_SANDBOX_URL_DEFAULT = "http://harness-egress:3128"
+INSTALLS_ENV = "DSH_ALLOW_INSTALLS"
+
+
+def install_env(mode: str, environ: dict[str, str] | None = None) -> dict[str, str]:
+    """Env additions when the operator permits package installs (W4 slice 4).
+
+    Only the container boundary qualifies: the allow-list is enforced at the
+    egress proxy, and a seatbelt worker has no egress boundary at all. Returns
+    nothing otherwise, so the default stays "installs are blocked".
+    """
+    env = os.environ if environ is None else environ
+    if env.get(INSTALLS_ENV, "").strip() != "1" or mode != "container":
+        return {}
+    url = env.get(EGRESS_SANDBOX_URL_ENV, "").strip() or EGRESS_SANDBOX_URL_DEFAULT
+    return {
+        "HTTP_PROXY": url,
+        "HTTPS_PROXY": url,
+        "NO_PROXY": "localhost,127.0.0.1,model,harness-egress",
+        INSTALLS_ENV: "1",
+    }
+
 
 class ConfinementUnavailableError(RuntimeError):
     """Confinement was demanded but this host cannot provide it."""
@@ -298,8 +324,15 @@ def wrap_command(
                 raise ConfinementUnavailableError("forbidden paths must not contain commas")
             result += ["--mount", _mount(path, "readonly")]
         # Values are inherited by Docker from its scrubbed client environment, never argv.
+        # One documented exception: the egress routing variables. They are non-secret
+        # (an internal alias URL), and `--env KEY` would resolve to the DAEMON's own
+        # environment — which does not, and must not, carry the run's proxy config.
+        # Without them nothing inside the worker is bounded by the allow-list, so
+        # installs (W4 slice 4) would mean an unbounded fetch.
         for key in sorted(env or {}):
-            if key not in {"PATH", "PYTHONPATH", "TMPDIR", "HOME"}:
+            if key in ROUTING_ENV:
+                result += ["--env", f"{key}={env[key]}"]
+            elif key not in {"PATH", "PYTHONPATH", "TMPDIR", "HOME"}:
                 result += ["--env", key]
         result += [
             "--env",

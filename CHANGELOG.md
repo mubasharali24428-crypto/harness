@@ -10,6 +10,29 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W4 (installs) — permitted only under the boundary, and the proxy keeps the record (2026-10-27)
+
+`pip install` is no longer blocked by name alone. `policy.install_permission()`
+grants the install verbs only when the operator flag is set **and** the run is in
+`container` mode **and** `HTTPS_PROXY` names the egress sidecar; anything less
+returns a refusal that says why. The engine injects `HTTP(S)_PROXY` through
+`confine.install_env()`, passed by value because a proxy is a destination, not a
+secret.
+
+The gate asks for an audit, and the proxy did not have one: it now prints one
+line per tunnel that actually opened (`CONNECT pypi.org:443 purpose=sandbox
+allowed`). Denials are not logged — the compose healthcheck probes with a denied
+CONNECT every 10s — and a test pins both halves.
+
+Deterministic drill (`w4_install_drill.py`, `w4-install-1793111223.json`), the
+real gate inside a container on a gateway-less run network, no model: no flag →
+denied with the reason; flag + container + proxy → `Successfully installed
+six-1.16.0`; same with an off-list `--index-url` → `Tunnel connection failed:
+403 Forbidden`; proxy audit shows exactly `pypi.org` and
+`files.pythonhosted.org`. The npm/npx lane is permitted by the same function but
+undrilled (the worker image has no node toolchain), and a warm package cache is
+still absent — both stated rather than assumed.
+
 ### W4 (MCP) — a run used an MCP tool, and the audit names the server and the tool (2026-10-27)
 
 The reviewed list is configuration, not input: `harness_orchestrator/mcp.py`

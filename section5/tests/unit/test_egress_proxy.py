@@ -154,3 +154,29 @@ def test_healthcheck_fails_when_a_purpose_listener_is_dead():
         sock.bind(("127.0.0.1", 0))
         closed_port = sock.getsockname()[1]
     assert egress_proxy.healthcheck("127.0.0.1", (closed_port,)) == 1
+
+
+def test_an_opened_tunnel_is_logged_and_a_refusal_is_not(monkeypatch):
+    # W4 slice 4: "installs run confined and are audited" reads the proxy's own
+    # record of what left the machine. Only tunnels that actually opened are
+    # logged; healthcheck probes (denied CONNECTs every 10s) never spam it.
+    lines: list[str] = []
+    monkeypatch.setattr(egress_proxy, "_log_tunnel",
+                        lambda host, purpose: lines.append(f"{host}/{purpose}"))
+
+    real_open_connection = asyncio.open_connection
+
+    async def fake_open_connection(host, port):
+        if (host, port) != ("github.com", 443):
+            return await real_open_connection(host, port)
+        reader = asyncio.StreamReader()
+        reader.feed_eof()
+        return reader, _FakeWriter()
+
+    monkeypatch.setattr(egress_proxy.asyncio, "open_connection", fake_open_connection)
+
+    asyncio.run(_roundtrip(b"CONNECT example.com:443 HTTP/1.1\r\n\r\n"))
+    assert lines == []
+
+    asyncio.run(_roundtrip(b"CONNECT github.com:443 HTTP/1.1\r\n\r\n"))
+    assert lines == ["github.com/sandbox"]

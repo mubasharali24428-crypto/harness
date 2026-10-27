@@ -158,8 +158,17 @@ BLOCKED_PATTERNS = [
     # S1-R03a: find(1) can execute an arbitrary follower that first-token
     # validation never sees (`find . -exec curl ... \;`).
     re.compile(r"\bfind\b[^|;]*(-execdir|-exec|-okdir|-ok)\b", re.IGNORECASE),
-    # S1-R03b: package installers fetch and execute unvetted code; the
-    # pinned_registries config is not enforced at runtime, so block the verbs.
+]
+
+# S1-R03b: package installers fetch and execute unvetted code, so the verbs are
+# blocked by default. W4 slice 4 makes that a *decision* instead of a constant:
+# the reason they were blocked outright was "pinned_registries is not enforced at
+# runtime" — which is no longer true in container mode, where every outbound
+# CONNECT is bounded by the derived allow-list at the egress proxy. They are
+# still blocked whenever that boundary is not actually in place, so the verbs are
+# permitted only under `install_permission` below: an explicit operator flag,
+# the container boundary, and a proxy that points at the egress alias.
+INSTALL_PATTERNS = [
     re.compile(r"\b(pip|pip3)\s+install\b", re.IGNORECASE),
     re.compile(r"\bpython3?\s+-m\s+pip\s+install\b", re.IGNORECASE),
     re.compile(r"\bnpm\s+(install|i|ci)\b", re.IGNORECASE),
@@ -167,6 +176,36 @@ BLOCKED_PATTERNS = [
     re.compile(r"\bnpx\s+(-y|--yes)\b", re.IGNORECASE),
     re.compile(r"\b(yarn|pnpm)\s+dlx\b", re.IGNORECASE),
 ]
+
+INSTALLS_ENV = "DSH_ALLOW_INSTALLS"
+EGRESS_ALIAS = "harness-egress"
+INSTALL_BINARIES = frozenset({"pip", "pip3"})
+
+
+def install_permission(env: dict[str, str] | None = None) -> tuple[bool, str]:
+    """May this worker run package installs? Only under all three conditions.
+
+    Returns ``(allowed, reason)``; the reason goes into the denial so an agent
+    (and the human reading the transcript) sees why, rather than a bare refusal.
+    """
+    import os as _os
+
+    environ = _os.environ if env is None else env
+    if environ.get(INSTALLS_ENV, "").strip() != "1":
+        return False, f"package installs are off by default; set {INSTALLS_ENV}=1 to permit them"
+    mode = environ.get("HARNESS_ENGINE_CONFINEMENT", "").strip().lower()
+    if mode != "container":
+        return False, (
+            f"installs need the container boundary (the allow-list is enforced there); "
+            f"confinement is {mode or 'unset'!r}"
+        )
+    proxy = (environ.get("HTTPS_PROXY") or environ.get("https_proxy") or "").strip()
+    if EGRESS_ALIAS not in proxy:
+        return False, (
+            f"installs need the run's traffic to pass through the egress proxy "
+            f"(expected {EGRESS_ALIAS}://…), got {proxy or 'no proxy configured'}"
+        )
+    return True, "installs permitted: operator flag, container boundary, egress proxy"
 
 SECRET_PATTERNS = [
     ".env*",
@@ -274,12 +313,14 @@ def validate_command(
     command: str,
     forbidden_paths: list[str] | None = None,
     cwd: str | None = None,
+    allow_installs: bool = False,
 ) -> None:
     cmd_stripped = command.strip()
     if not cmd_stripped:
         raise SecurityPolicyViolationError("Empty command is not allowed.")
 
-    for pattern in BLOCKED_PATTERNS:
+    patterns = BLOCKED_PATTERNS if allow_installs else BLOCKED_PATTERNS + INSTALL_PATTERNS
+    for pattern in patterns:
         if pattern.search(cmd_stripped):
             raise SecurityPolicyViolationError(
                 f"Command contains forbidden pattern: '{pattern.pattern}'"
@@ -308,7 +349,10 @@ def validate_command(
 
     binary = Path(tokens[0]).name
 
-    if binary not in ALLOWLIST_BINARIES:
+    # pip was never a permitted binary at all (install patterns had to fire first
+    # to explain why), so permitting installs has to admit it explicitly.
+    binaries = ALLOWLIST_BINARIES | (INSTALL_BINARIES if allow_installs else frozenset())
+    if binary not in binaries:
         raise SecurityPolicyViolationError(
             f"Binary '{binary}' is not permitted in sandbox allow-list."
         )

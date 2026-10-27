@@ -102,9 +102,15 @@ def unprotected_forbidden(cwd: str, patterns: list[str]) -> str | None:
 
 def run(req: dict) -> dict:
     command, cwd = req["command"], req["cwd"]
+    install_ok, install_reason = policy.install_permission()
     try:
-        policy.validate_command(command, req.get("forbiddenPaths") or [], cwd=cwd)
+        policy.validate_command(command, req.get("forbiddenPaths") or [], cwd=cwd,
+                                allow_installs=install_ok)
     except policy.SecurityPolicyViolationError as exc:
+        if not install_ok and any(p.search(command) for p in policy.INSTALL_PATTERNS):
+            # say WHY: an agent (and the human reading the transcript) should see
+            # that installs are gated by the boundary, not merely forbidden
+            return {"denied": f"{exc} — installs: {install_reason}"}
         return {"denied": str(exc)}
     open_path = unprotected_forbidden(cwd, req.get("forbiddenPaths") or [])
     if open_path:

@@ -49,6 +49,12 @@ x-backend-env: &backend-env
   # The list ships inside the worker image (/opt/harness/mcp) so that changing it
   # is a rebuild; unset means no MCP servers are mounted at all.
   DSH_MCP_SERVERS: ${DSH_MCP_SERVERS:-}
+  # W4 slice 4: package installs. Off by default; permitted only under the
+  # container boundary, where the worker is launched with HTTP(S)_PROXY pointed
+  # at the egress allow-list proxy so an install can reach only the registries
+  # the derived list admits. Fetched code is still unvetted — the flag trades
+  # that risk for the boundary rather than removing it.
+  DSH_ALLOW_INSTALLS: ${DSH_ALLOW_INSTALLS:-}
   DSH_WORKSPACE: /tmp/harness-dsh/workspace
   DSH_SESSION_ROOT: /tmp/harness-dsh/sessions
   GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
@@ -453,6 +459,12 @@ services:
       # so the operator's patch files and reviewed MCP servers must be here too.
       DSH_PATCH_FILES: ${DSH_PATCH_FILES:-}
       DSH_MCP_SERVERS: ${DSH_MCP_SERVERS:-}
+      # W4 slice 4: package installs. Off by default; permitted only under the
+      # container boundary, where the worker is launched with HTTP(S)_PROXY pointed
+      # at the egress allow-list proxy so an install can reach only the registries
+      # the derived list admits. Fetched code is still unvetted — the flag trades
+      # that risk for the boundary rather than removing it.
+      DSH_ALLOW_INSTALLS: ${DSH_ALLOW_INSTALLS:-}
     volumes:
       - harness_runs:/var/lib/harness-runs
       - /var/run/docker.sock:/var/run/docker.sock
