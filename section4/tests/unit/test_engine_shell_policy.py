@@ -187,3 +187,42 @@ def test_tool_calls_are_folded_from_runtime_events():
         {"callId": "b", "tool": "read_image", "target": "", "outcome": "error"},
         {"callId": "c", "tool": "bash", "target": "curl x", "outcome": "error"},
     ]
+
+
+def test_policy_patch_mounts_the_browser_behind_its_gate(tmp_path, monkeypatch):
+    from .test_run_isolation_and_stop_truth import _fake_sdk
+
+    seen = []
+    _fake_sdk(monkeypatch, seen)
+    workspace = tmp_path / "ws"
+    wrapper = DeepSeekHarnessWrapper(workspace_dir=str(workspace),
+                                     session_root=str(tmp_path / "s"), isolated=False,
+                                     live_mode="dry")
+    _, status, *_ = wrapper._run_live_events("goal", "run-1")
+    assert status == "completed"
+    patch = Path(seen[0]["patches"][-1]).read_text(encoding="utf-8")
+    config = json.loads(_plugin_field(patch, "harness-browser", "config"))
+    assert config["gate"][-1].endswith("browser_gate.py")
+    assert Path(config["gate"][-1]).is_file()
+    # The gate confines every write to this tree, and the agent reads the PNG back
+    # through the fs tool: the two must name the same per-run directory.
+    assert config["workspace"] == str((workspace / "run-1").resolve())
+    assert Path(json.loads(_plugin_field(patch, "harness-browser", "name"))).is_file()
+    # The browser is mounted beside the other tools, not instead of them.
+    assert "harness-web" in patch and "harness-shell" in patch
+
+
+def test_a_missing_browser_gate_removes_the_tool_and_nothing_else(tmp_path, monkeypatch):
+    from .test_run_isolation_and_stop_truth import _fake_sdk
+
+    seen = []
+    _fake_sdk(monkeypatch, seen)
+    monkeypatch.setenv("HARNESS_BROWSER_GATE", str(tmp_path / "nope.py"))
+    wrapper = DeepSeekHarnessWrapper(workspace_dir=str(tmp_path / "ws"),
+                                     session_root=str(tmp_path / "s"), isolated=False,
+                                     live_mode="dry")
+    _, status, *_ = wrapper._run_live_events("goal", "run-1")
+    assert status == "completed"
+    patch = Path(seen[0]["patches"][-1]).read_text(encoding="utf-8")
+    assert "harness-browser" not in patch
+    assert "harness-web" in patch and "harness-shell" in patch

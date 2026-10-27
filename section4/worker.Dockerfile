@@ -15,9 +15,13 @@ COPY section5/src/harness_sandbox/shell_gate.py section5/src/harness_sandbox/pol
      section5/src/harness_sandbox/confinement.py /opt/harness-shell/
 ENV HARNESS_SHELL_GATE=/opt/harness-shell/shell_gate.py
 # W4: the web gate and the generated allow-list it reads (stdlib only as well).
+# W10 adds the browser gate beside them: it shares egress.py with web_fetch so
+# the two tools cannot disagree about what is reachable.
 COPY section5/src/harness_sandbox/web_gate.py section5/src/harness_sandbox/egress.py \
-     section5/src/harness_sandbox/egress_allowlist.json /opt/harness-shell/
+     section5/src/harness_sandbox/egress_allowlist.json \
+     section5/src/harness_sandbox/browser_gate.py /opt/harness-shell/
 ENV HARNESS_WEB_GATE=/opt/harness-shell/web_gate.py
+ENV HARNESS_BROWSER_GATE=/opt/harness-shell/browser_gate.py
 # Operator runtime patches (e.g. the OpenRouter transport patch). The worker
 # container receives DSH_PATCH_FILES through the engine's scrubbed env, so the
 # file must exist at the same path inside this image.
@@ -47,3 +51,12 @@ USER root
 ENTRYPOINT ["python", "-m", "harness_orchestrator.worker_daemon"]
 
 FROM base AS worker
+# W10: headless Chromium, in the worker stage only — the daemon never renders, so
+# it must not carry the ~300 MB. Debian's chromium is used rather than Node +
+# Playwright: the worker has no Node runtime and the tool is render-and-look.
+# fonts-dejavu-core so a text page renders glyphs instead of boxes.
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        chromium fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+USER 10001:10001

@@ -78,6 +78,13 @@ _WEB_PLUGIN = Path(__file__).with_name("dsh_plugins") / "harness-web.js"
 _REPO_WEB_GATE = (
     Path(__file__).resolve().parents[3] / "section5" / "src" / "harness_sandbox" / "web_gate.py"
 )
+# W10: the browser renders inside the run's own container. Its gate confines the
+# output to the workspace and sends remote URLs through the same web-purpose
+# proxy; the Chromium binary is baked into the worker image (worker.Dockerfile).
+_BROWSER_PLUGIN = Path(__file__).with_name("dsh_plugins") / "harness-browser.js"
+_REPO_BROWSER_GATE = (
+    Path(__file__).resolve().parents[3] / "section5" / "src" / "harness_sandbox" / "browser_gate.py"
+)
 
 
 def _read_only(path: str) -> bool:
@@ -191,6 +198,32 @@ def _execution_policy_patch(
         logger.warning(
             "web gate or plugin missing (%s); web_fetch is not mounted for this run", web_gate
         )
+    # W10: browser rendering is mounted the same way — a missing gate or plugin
+    # means the tool is absent, never a half-mounted one.
+    browser = ""
+    browser_gate = os.environ.get("HARNESS_BROWSER_GATE") or str(_REPO_BROWSER_GATE)
+    if os.path.isfile(browser_gate) and _BROWSER_PLUGIN.is_file():
+        browser_config = {
+            "gate": [sys.executable, "-I", browser_gate],
+            # The gate confines every write to this tree; the agent opens the PNG
+            # with the fs read tool, so it must be the same root.
+            "workspace": os.path.realpath(workspace_dir),
+            "timeoutSeconds": 30,
+            "maxBytes": 4_000_000,
+            "proxyUrl": os.environ.get("HARNESS_WEB_PROXY_URL")
+            or "http://harness-egress:3129",
+        }
+        browser = (
+            "- insert:\n"
+            "    - id: harness-browser\n"
+            f"      name: {json.dumps(str(_BROWSER_PLUGIN))}\n"
+            f"      config: {json.dumps(browser_config)}\n"
+        )
+    else:
+        logger.warning(
+            "browser gate or plugin missing (%s); the browser tool is not mounted for this run",
+            browser_gate,
+        )
     # W4 slice 3: MCP servers come only from the operator-reviewed DSH_MCP_SERVERS
     # list — never from the plan, the intent, or the model. A declared-but-broken
     # list raises, because a half-applied boundary is worse than a failed run.
@@ -238,7 +271,7 @@ def _execution_policy_patch(
         "- insert:\n"
         "    - id: harness-shell\n"
         f"      name: {json.dumps(str(_SHELL_PLUGIN))}\n"
-        f"      config: {json.dumps(shell)}\n" + web + mcp_block,
+        f"      config: {json.dumps(shell)}\n" + web + browser + mcp_block,
         encoding="utf-8",
     )
     return str(patch)
