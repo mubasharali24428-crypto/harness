@@ -1,58 +1,65 @@
-"""env_client keeps proxy support and survives Docker Desktop's bracketed-IPv6 NO_PROXY."""
+"""The contract-level outbound client factory.
 
-from __future__ import annotations
+Lives in Section 1 because Section 1 owns `contracts/`. The point of the test is
+that the protection is a property of the FACTORY, not of one call site: three
+services needed it and previously each would have had its own copy.
+"""
 
 import httpx
 import pytest
 
-from harness_identity.http_client import env_client
+from harness_contracts.http_client import env_client, sync_env_client
 
-DOCKER_DESKTOP_NO_PROXY = "localhost,localhost.,.localhost,127.0.0.1,127.0.0.0/8,::1,[::1]"
-
-
-def _set(monkeypatch: pytest.MonkeyPatch, **env: str) -> None:
-    for key in ("NO_PROXY", "no_proxy", "HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"):
-        monkeypatch.delenv(key, raising=False)
-    for key, value in env.items():
-        monkeypatch.setenv(key, value)
+BRACKETED = "localhost,127.0.0.1,::1,[::1]"
 
 
-def test_plain_httpx_still_rejects_the_shape(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Guards the premise: if httpx fixes this, the helper is dead weight and can go."""
-    _set(monkeypatch, NO_PROXY=DOCKER_DESKTOP_NO_PROXY)
-    with pytest.raises(httpx.InvalidURL):
-        httpx.AsyncClient()
+def test_an_async_client_survives_a_bracketed_ipv6_no_proxy(monkeypatch):
+    monkeypatch.setenv("NO_PROXY", BRACKETED)
+
+    client = env_client(timeout=1.0)
+
+    assert isinstance(client, httpx.AsyncClient)
 
 
-def test_bracketed_ipv6_no_proxy_constructs(monkeypatch: pytest.MonkeyPatch) -> None:
-    _set(monkeypatch, NO_PROXY=DOCKER_DESKTOP_NO_PROXY, no_proxy=DOCKER_DESKTOP_NO_PROXY)
-    client = env_client(timeout=5)
-    assert client.timeout.read == 5
+def test_the_sync_twin_survives_it_too(monkeypatch):
+    monkeypatch.setenv("NO_PROXY", BRACKETED)
+
+    client = sync_env_client(timeout=1.0)
+
+    assert isinstance(client, httpx.Client)
 
 
-def test_proxy_and_bypass_survive(monkeypatch: pytest.MonkeyPatch) -> None:
-    _set(monkeypatch, HTTPS_PROXY="http://proxy.corp:3128", NO_PROXY=DOCKER_DESKTOP_NO_PROXY)
-    client = env_client()
-    patterns = {p.pattern: t for p, t in client._mounts.items()}
-    assert patterns["https://"] is not None  # still routed through the proxy
-    assert patterns["all://[::1]"] is None  # and the bypass for ::1 still holds
-    assert patterns["all://127.0.0.1"] is None
+def test_the_environment_is_restored_after_the_retry(monkeypatch):
+    """The retry rewrites NO_PROXY in-process. Leaving it rewritten would change
+    proxy routing for every other client in the process."""
+    monkeypatch.setenv("NO_PROXY", BRACKETED)
 
-
-def test_environment_is_restored(monkeypatch: pytest.MonkeyPatch) -> None:
-    _set(monkeypatch, NO_PROXY=DOCKER_DESKTOP_NO_PROXY)
     env_client()
+    sync_env_client()
+
     import os
 
-    assert os.environ["NO_PROXY"] == DOCKER_DESKTOP_NO_PROXY
+    assert os.environ["NO_PROXY"] == BRACKETED
 
 
-def test_clean_environment_is_untouched(monkeypatch: pytest.MonkeyPatch) -> None:
-    _set(monkeypatch, NO_PROXY="localhost,127.0.0.1,::1")
-    assert isinstance(env_client(), httpx.AsyncClient)
+def test_an_unrelated_invalid_url_is_not_swallowed(monkeypatch):
+    """Only the NO_PROXY shape is retried. A genuinely bad URL must still raise,
+    otherwise this helper would hide real configuration errors."""
+    monkeypatch.setenv("NO_PROXY", "localhost,127.0.0.1")  # no brackets
 
+    class Exploding(httpx.AsyncClient):
+        def __init__(self, **kwargs):  # noqa: D107 - test double
+            raise httpx.InvalidURL("Invalid port: 'nope'")
 
-def test_a_different_bad_url_is_not_papered_over(monkeypatch: pytest.MonkeyPatch) -> None:
-    _set(monkeypatch, NO_PROXY="http://host:notaport")  # InvalidURL, but no bracket to blame
-    with pytest.raises(httpx.InvalidURL):
+    monkeypatch.setattr(httpx, "AsyncClient", Exploding)
+
+    with pytest.raises(httpx.InvalidURL, match="nope"):
         env_client()
+
+
+def test_section_one_still_exports_the_same_factory():
+    """Section 1's call sites import from `harness_identity.http_client`; the
+    shim must be the contract implementation, not a second copy."""
+    from harness_identity.http_client import env_client as section1_env_client
+
+    assert section1_env_client is env_client

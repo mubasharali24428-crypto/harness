@@ -447,7 +447,7 @@ stack-law tests; that was this branch's regression and it is fixed.
 
 ## From the whole-project test run (docs/test-report-2026-10-26.md)
 
-- [ ] **`env_client` belongs in `harness_contracts`, not in three more sections**
+- [x] **`env_client` belongs in `harness_contracts`, not in three more sections**
   (owner: S1 + affected sections). The bracketed-IPv6 `NO_PROXY` failure that
   turned SSO login into a 500 is reproduced in **section10 (4 tests), section11
   (1) and the MCP server (3 failed + 15 errors)** — all green with the variable
@@ -456,8 +456,17 @@ stack-law tests; that was this branch's regression and it is fixed.
   `NO_PROXY=[::1]` breaks the same way. Copying Section 1's helper into each
   service multiplies exactly the drift the isolation guard exists to prevent, so
   the fix is a contracts addition — which requires a version bump, regenerated
-  TS mirror and golden/mock conformance in the same change. Not done here: that
-  is a deliberate contract move, not a patch.
+  TS mirror and golden/mock conformance in the same change. **Done 2026-10-26**:
+  `harness_contracts.http_client` (async + sync), contracts `1.0.0rc5`, TS mirror
+  header regenerated, Section 1's module is a re-export, section10 and the MCP
+  client use it, and both suites pass with the bracketed variable still set.
+
+- [ ] **Section 11's index job can report one more chunk than it stored**
+  (owner: S11). `test_index_lifecycle_over_http` failed 1/5 with `assert 7 == 8`:
+  the job's `chunksIndexed` said 8 while `context_chunks` held 7 rows. Not caused
+  by `NO_PROXY` (0/5 failures with it unset is correlation on one sample, not a
+  cause) and not a flake to re-run until green: the race is between the async job
+  finishing and its own report reading the row count.
 
 - [ ] **`test_ws_replay_cap.py::test_resume_never_resends_at_or_below_afterseq_during_concurrent_publish`
   is load/order dependent** (owner: S1). Passes 5/5 in isolation; failed once in

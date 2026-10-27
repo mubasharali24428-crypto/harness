@@ -10,6 +10,28 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Contracts 1.0.0rc5 — one outbound client factory, not four copies (2026-10-26)
+
+httpx 0.28 turns a bracketed IPv6 `NO_PROXY` entry (`[::1]`, which Docker Desktop
+exports) into a mount pattern whose port parses as `:1]`, so *constructing* the
+client raises `InvalidURL`. Section 1 fixed it locally for SSO; the whole-project
+test run then showed onboarding (4 tests) and the MCP client (3 + 15 errors)
+failing the same way.
+
+`harness_contracts.http_client` now owns the factory (`env_client`, plus a
+`sync_env_client` twin) as an optional extra, since sections may import contracts
+but not each other — three copies of a security-relevant HTTP client is exactly
+the drift the isolation guard exists to prevent. The retry strips brackets only
+when the environment actually carries them, restores the environment afterwards,
+and re-raises any other `InvalidURL` untouched. Contracts bumped to `1.0.0rc5`
+with the TS mirror header regenerated in the same change; Section 1's module is a
+re-export shim. Onboarding 91 passed and MCP 18 passed **with the bracketed
+variable still set**.
+
+Also corrected in the test report: Section 11's failure is not this defect. Five
+repetitions each way gave 1/5 with `NO_PROXY` and 0/5 without, on a
+`chunksIndexed` 8-vs-7-rows race unrelated to httpx — recorded as its own item.
+
 ### W3 (rewind) — a run workspace can go back to a checkpoint (2026-10-26)
 
 "Revert to the last checkpoint" was a policy with nothing behind it: a run

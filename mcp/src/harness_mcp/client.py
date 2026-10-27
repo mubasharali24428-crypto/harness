@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
+from harness_contracts.http_client import env_client
 
 
 class UpstreamError(Exception):
@@ -40,7 +41,7 @@ class HarnessApiClient:
             if settings.service_token
             else {}
         )
-        self._client = httpx.AsyncClient(
+        self._client = env_client(
             timeout=httpx.Timeout(settings.upstream_timeout_s),
             headers=headers,
         )

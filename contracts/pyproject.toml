@@ -1,12 +1,15 @@
 [project]
 name = "harness-contracts"
-version = "1.0.0rc4"
+version = "1.0.0rc5"
 description = "Frozen shared contracts for the AI Engineering Harness. Owned by Section 1."
 requires-python = ">=3.11"
 dependencies = ["pydantic>=2.7", "cryptography>=42"]
 
 [project.optional-dependencies]
 fastapi-auth = ["fastapi>=0.100", "sqlalchemy[asyncio]>=2.0"]
+# Outbound HTTP helper (harness_contracts.http_client). Optional so consumers
+# that never make outbound calls are not handed a transport.
+http = ["httpx>=0.28"]
 
 [build-system]
 requires = ["setuptools>=68"]
