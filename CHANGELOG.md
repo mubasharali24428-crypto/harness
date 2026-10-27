@@ -10,6 +10,31 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W4 (credentials) — the worker's environment was dumped on purpose, and no secret is in the record (2026-10-27)
+
+`w4_credential_leak_drill.py` takes the deployment's real secret values (never
+printed, never written into evidence), runs a confined worker whose goal is to
+dump its own environment, and greps every stored surface: the folded engine
+result, the run's comments, the 600-char audit view and **the full
+`agent_events` payloads** — the truncation is exactly where a secret would sit.
+PASS (`w4-credential-leak-1793114924.json`): one real environment dump, three
+secret names searched, zero hits, because `sanitize_environment` strips them
+before the shell ever execs.
+
+Getting it to mean something cost two corrections. The drill used to pass on a
+run that never exercised the exposure path — "no hits" is not evidence if the
+tool never answered — so it now requires a completed turn whose tool result
+actually *is* the dump. And the first such run produced a `tool_call` with **no
+`tool_result` row**: NUL-separated output made the JSONB insert fail
+(`asyncpg … \u0000 cannot be converted to text`), `_publish_safe` logged it and
+dropped the event. That hole is fixed above (commit 4b2f300); the kept evidence
+file for the failing run records it.
+
+W4's four gate claims are now each backed by evidence. The honest remainder is
+named in the plan: the MCP leg is proven against a first-party stub, and a
+reviewed **third-party** server still waits on a node toolchain in the worker
+image, with the npm install lane permitted-but-undrilled for the same reason.
+
 ### W7 (IDE) — an in-editor edit goes through the plan gate, the done-signal and the change review, in that order (2026-10-27)
 
 `clients/vscode` is a client of the control path W6 built, not a second one:

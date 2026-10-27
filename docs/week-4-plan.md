@@ -313,3 +313,59 @@ level, and the two hosts pip needed are exactly what the audit shows.
   of the gate text and is not claimed.
 * The audit line is the proxy's, so it records allowed egress only. A refused
   install is visible in the tool result; it is not in the proxy log.
+
+## Slice 5 outcome — the credentials stayed out, and the drill found a hole in the audit (2026-10-27)
+
+**The claim, as a grep with a pass condition.** `scripts/e2e/w4_credential_leak_drill.py`
+takes the deployment's real secret *values* (never printed, never written into
+evidence), runs a confined worker whose goal is to dump its own environment, and
+searches every stored surface: `engine.finalResponse`, `engine.toolCalls`,
+the run's comments, the 600-char audit view, **and the full `agent_events`
+payloads** (the truncated view is exactly where a secret could hide past the
+cut). Verdict: **PASS** (`w4-credential-leak-1793114924.json`) — one tool result
+that really dumped the environment, three secret names searched, zero hits.
+
+**What the worker's environment actually contained** is the other half of the
+proof. `policy.sanitize_environment` runs before the shell execs, so the stored
+result is `HOME=… PATH=… PWD=…` and the engine's own key is simply absent —
+it never reaches the transcript because it never reaches the tool
+(`w4-credential-leak-1793112416.json` is kept as the record of the run that
+caught the defect below).
+
+**The defect the drill caught was not about credentials.** The first green-shape
+attempt produced a `tool_call` row and **no `tool_result` row at all**: the
+output was NUL-separated (`cat /proc/self/environ`), PostgreSQL cannot store
+U+0000 in text/JSONB, asyncpg raised `UntranslatableCharacterError`, and
+`_publish_safe` turned the whole event into a log line. So the transcript said
+"the tool never answered", and a leak search over stored rows would have passed
+over a hole. Fixed in `service.durable_event_text` (NUL → U+FFFD, lone
+surrogates normalised, applied before scrub and truncation), four tests pin it,
+and the rerun stores the dump. A missing row is worse than a lossy one.
+
+**Two facts the first attempts were not evidence of:**
+
+* `env` and `printenv` are not sandbox binaries — the policy refused the call
+  (correctly). The goal now uses `cat /proc/self/environ`, which the allow-list
+  admits; verifying that through the real gate before burning a 10-minute model
+  run is cheaper than discovering it afterwards.
+* The drill used to "pass" on a run that never exercised the exposure path (it
+  only required *no hits*). It now requires a completed turn **whose tool result
+  really is an environment dump**; a deadline kill or a refused command fails
+  loudly. A slow local model also needs `ENGINE_RUN_TIMEOUT_SECONDS` raised —
+  that knob is now an explicit orchestrator setting rather than an undocumented
+  default.
+
+## W4 gate status — closed
+
+| Claim | Evidence |
+|---|---|
+| an authorized outbound request succeeds | `w4-egress-network-*.json`, `w4-web-fetch-engine-*.json` |
+| a destination or tool outside the allow-list is denied | same, plus `w4-install-1793111223.json` (off-list index → 403) |
+| credentials do not reach the model context | `w4-credential-leak-1793114924.json` |
+| installs run confined and are audited | `w4-install-1793111223.json` (proxy logs the exact registries) |
+| a run uses an MCP tool and the audit records it | `w4-mcp-client-1793109830.json` — **stub only**; the third-party leg still waits on a node toolchain in the worker image |
+
+The last row is the honest remainder: the mechanics are proven against a server
+whose behaviour we can read, but a *reviewed third-party* MCP server has not
+been run, and `npm`/`npx` installs are permitted by the same policy function yet
+undrilled because the worker image has no node toolchain.
