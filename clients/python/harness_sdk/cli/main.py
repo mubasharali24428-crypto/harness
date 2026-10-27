@@ -77,6 +77,9 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument("--continue", dest="continue_last", action="store_true",
                       help="resume the most recently written session")
     chat.add_argument("--message", help="send exactly one turn and exit (scriptable)")
+    chat.add_argument("--local", metavar="DIR",
+                      help="run every turn of this chat against DIR through the confined "
+                           "local engine (stored with the session; the gate stays server-side)")
     chat.add_argument("--yes", action="store_true",
                       help="approve every turn without asking (an explicit operator decision)")
     chat.add_argument("--json", action="store_true",
@@ -214,8 +217,10 @@ def main(
                 chat_session = loaded
                 if args.project:
                     chat_session.project_id = args.project
+                if args.local:
+                    chat_session.local_dir = args.local
             else:
-                chat_session = session_store.new_session(args.project)
+                chat_session = session_store.new_session(args.project, args.local)
             note = lambda message: err.write(message + "\n")
             if args.message:
                 lines = iter([args.message, None])

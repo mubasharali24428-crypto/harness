@@ -48,12 +48,14 @@ rejected `BAD_REF` — the comment references the artifact id it just created.
 And the drill itself read a comments list without checking its status code and
 under the wrong key, so a 404 looked like an empty but valid list.
 
-Status: unit-tested (18 tests, 66 green) and the live boundary is proven — a
+Status: unit-tested (22 tests, 69 green) and the live boundary is proven — a
 real container turn created the file and its in-boundary diff. The full
 success drill is still not green because the local `qwen` turn never finished
 inside the budget (killed at 240 s with the file written, at 900 s without);
 the drill now takes `--goal` so the turn can be bounded, and reports the
 worker's tool events so a looping agent is visible rather than inferred.
+`harness chat --local DIR` joins `run --local`: the directory is stored with
+the session, so `--resume` picks the same workspace back up.
 
 ### W6 (chat) — an interactive loop that says exactly what it remembers (2026-10-27)
 

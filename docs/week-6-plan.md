@@ -161,11 +161,13 @@ Decision (both options confirmed with the operator 2026-10-27):
    can actually read instead of a manifest it would have to infer.
 2. CLI `run --local` / `chat` turn path through it: seed, launch, apply
    back, upload artifact, comment provenance, `--json` object.
-   **Done for `run`** (`executed_run(local_dir=…)`); chat-local is not wired
-   yet (the chat loop still calls the server path).
+   **Done 2026-10-27** for both: `run --local DIR` and `chat --local DIR`,
+   where the directory is a property of the chat session (stored in the
+   session file), so `--resume` picks the same workspace back up.
 3. Unit tests (no docker on the test path): fail-closed matrix, apply-back
    touches only diff-named files, comment/artifact payloads shaped right.
-   **Done** — 15 tests, 63 total green.
+   **Done** — 22 tests over the launcher, the applier, the trace shapes and
+   the chat-local session; 69 total green.
 4. Live drill against the running stack: one goal edits a scratch dir,
    server shows plan events + diff artifact + local-provenance comment,
    workspace updated; evidence `w6-local-<epoch>.json`.

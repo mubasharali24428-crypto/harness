@@ -277,6 +277,8 @@ def chat_loop(
     note: Callable[[str], None] = lambda _m: None,
     poll_seconds: float = 2.0,
     timeout: float = 900.0,
+    local_launch: Callable[..., dict[str, Any]] | None = None,
+    local_apply: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """`harness chat`: an interactive loop over the same run path.
 
@@ -309,6 +311,9 @@ def chat_loop(
             note=note,
             poll_seconds=poll_seconds,
             timeout=timeout,
+            local_dir=session.local_dir,
+            local_launch=local_launch,
+            local_apply=local_apply,
         )
         session.add(message, goal, result)
         session.save()
@@ -316,7 +321,14 @@ def chat_loop(
             emit("plan rejected; ending the chat — approve is a per-run decision, "
                  "use --yes to cover every turn")
             break
-        emit(f"{result['answer']}\n[run {result['runId']}: {result['state']}]")
+        line = f"{result['answer']}\n[run {result['runId']}: {result['state']}]"
+        local = result.get("local")
+        if local:
+            line += (
+                f" [local {local['confinement']}: {len(local['applied'])} file(s) applied"
+                f" in {local['workspace']}]"
+            )
+        emit(line)
     return {
         "sessionId": session.session_id,
         "exchanges": session.exchanges,

@@ -396,3 +396,39 @@ def test_launch_shows_the_workers_progress_events(tmp_path, monkeypatch, workspa
     assert len(progress) == 2
     assert "bash" in progress[0] and "printf present" in progress[0]
     assert "read_file" in progress[1]
+
+
+# ---------------------------------------------------------------- chat --local
+
+
+def test_a_local_chat_turn_gates_on_server_and_never_starts_it(config_dir, workspace, tmp_path):
+    from harness_sdk.cli import session as session_store
+    from harness_sdk.cli.commands import chat_loop
+
+    sdk = _Sdk()
+    session = session_store.new_session("p1", str(workspace))
+    work, base = tmp_path / "cw", tmp_path / "cb"
+    emitted = []
+    lines = iter(["touch present.txt", None])
+    out = chat_loop(
+        sdk, session,
+        read_line=lambda _p: next(lines),
+        emit=emitted.append,
+        assume_yes=True,
+        local_launch=_fake_launch(work, base),
+        local_apply=lambda *a: {"applied": ["src/a.py"], "deleted": []},
+    )
+    names = [c[0] for c in sdk.orchestrator.calls]
+    assert "propose" in names and "approve" in names and "start" not in names
+    assert out["exchanges"][0]["runId"] == "run-9"
+    assert "local container" in emitted[-1]  # the human line says where it ran
+
+
+def test_a_session_keeps_its_directory_across_resume(config_dir, workspace, tmp_path):
+    from harness_sdk.cli import session as session_store
+
+    session = session_store.new_session("p1", str(workspace))
+    session.add("hi", "hi", {"runId": "r1", "planId": "p1", "state": "done", "answer": "yo"})
+    session.save()
+    again = session_store.load_session(session.session_id)
+    assert again.local_dir == str(workspace)

@@ -45,10 +45,10 @@ def _sessions_dir() -> Path:
     return target
 
 
-def new_session(project_id: str | None = None) -> ChatSession:
+def new_session(project_id: str | None = None, local_dir: str | None = None) -> ChatSession:
     sid = f"chat-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:8]}"
     _sessions_dir()
-    created = ChatSession(session_id=sid, project_id=project_id)
+    created = ChatSession(session_id=sid, project_id=project_id, local_dir=local_dir)
     save_session(created)
     return created
 
@@ -63,10 +63,17 @@ def latest_session_id() -> str | None:
 
 @dataclass
 class ChatSession:
-    """The transcript, as stored. `exchanges` is the whole memory between turns."""
+    """The transcript, as stored. `exchanges` is the whole memory between turns.
+
+    `local_dir` makes a chat bound to a directory: every turn then executes
+    through the confined local engine against that directory (slice 4), which
+    is a property of the conversation, not of one invocation — resuming the
+    session resumes the same workspace.
+    """
 
     session_id: str
     project_id: str | None = None
+    local_dir: str | None = None
     created_ts: float = field(default_factory=time.time)
     exchanges: list[dict[str, Any]] = field(default_factory=list)
 
@@ -98,6 +105,7 @@ def save_session(session: ChatSession) -> Path:
     payload = {
         "sessionId": session.session_id,
         "projectId": session.project_id,
+        "localDir": session.local_dir,
         "createdTs": session.created_ts,
         "exchanges": session.exchanges,
     }
@@ -126,6 +134,7 @@ def load_session(session_id: str) -> ChatSession | None:
     return ChatSession(
         session_id=str(raw.get("sessionId") or session_id),
         project_id=raw.get("projectId"),
+        local_dir=raw.get("localDir"),
         created_ts=float(raw.get("createdTs") or 0.0),
         exchanges=list(raw.get("exchanges") or []),
     )
