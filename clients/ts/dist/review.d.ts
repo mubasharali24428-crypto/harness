@@ -119,4 +119,7 @@ export declare class ReviewClient {
     /** Health
      *  GET /health */
     health(): Promise<unknown>;
+    /** Ready
+     *  GET /ready */
+    ready_ready_get(): Promise<unknown>;
 }

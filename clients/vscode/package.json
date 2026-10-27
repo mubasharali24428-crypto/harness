@@ -1,0 +1,74 @@
+{
+  "name": "harness-vscode",
+  "displayName": "Harness",
+  "description": "Run the AI Engineering Harness from the editor: inline diff, context picking, status bar, approve/reject.",
+  "version": "0.1.0",
+  "publisher": "harness",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "vscode": "^1.90.0",
+    "node": ">=22"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:harness.run"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "harness.login",
+        "title": "Harness: Sign in"
+      },
+      {
+        "command": "harness.logout",
+        "title": "Harness: Sign out"
+      },
+      {
+        "command": "harness.run",
+        "title": "Harness: Run on selection"
+      },
+      {
+        "command": "harness.status",
+        "title": "Harness: Show run status"
+      }
+    ],
+    "configuration": {
+      "title": "Harness",
+      "properties": {
+        "harness.serverUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8004",
+          "description": "Orchestrator base URL. Identity is derived from harness.identityUrl."
+        },
+        "harness.identityUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8001",
+          "description": "Identity service base URL."
+        },
+        "harness.maxContextChars": {
+          "type": "number",
+          "default": 8000,
+          "minimum": 500,
+          "description": "Hard cap on the context block sent with a goal. Larger selections are reduced and the goal says so."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "harness-ts-sdk": "file:../ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.90.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

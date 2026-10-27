@@ -1,0 +1,326 @@
+/**
+ * One request, from the editor to reviewed bytes (W7 slice 3).
+ *
+ * This module is the whole policy round-trip and imports nothing from
+ * `vscode`: the transport is the SDK, the editor is an injected port, and the
+ * tests drive both with fakes. What it enforces, in order:
+ *
+ * 1. the goal is the rendered context plan, so the audit's goal *is* what the
+ *    editor showed;
+ * 2. a plan is approved or rejected through the server gate — the editor never
+ *    starts an unapproved run;
+ * 3. execution is the server's confined run; this code has no local executor;
+ * 4. the diff shown is the server patch whose digest the review will name;
+ * 5. only approved changes are written, and only to the bytes that were shown
+ *    (a file that moved since is refused, not overwritten).
+ */
+
+import type { ContextItem, ContextPlan } from "./context.js";
+import { ContextError, planContext, renderGoal } from "./context.js";
+import {
+  applyParsedPatch,
+  parseFilePatch,
+  PatchError,
+  planApply,
+  splitPatchByFile,
+  type ApplyPlan,
+  type RunDiffItem,
+} from "./diff.js";
+
+export const TERMINAL_STATES = new Set([
+  "done",
+  "error",
+  "failed",
+  "execution_failed",
+  "stopped",
+  "cancelled",
+  "blocked",
+  // The engine is finished and the run waits on a human: from the client's
+  // point of view this has settled, and it is where the done-gate lives.
+  "awaiting_done_signal",
+]);
+
+export class RunError extends Error {}
+
+export interface PlanOffer {
+  planId: string;
+  /** Human-readable plan text shown before approval. */
+  text: string;
+}
+
+export interface ChangeView {
+  id: string;
+  path: string;
+  changeKind: string;
+  diffSha: string;
+  reviewState: "pending" | "approved" | "rejected" | string;
+}
+
+export interface HarnessTransport {
+  proposePlan(goal: string): Promise<PlanOffer>;
+  /** Approving is what starts a run: the server returns its id. */
+  approvePlan(planId: string): Promise<{ runId: string }>;
+  rejectPlan(planId: string): Promise<void>;
+  startRun(runId: string): Promise<void>;
+  status(runId: string): Promise<{ state: string; detail?: string }>;
+  /** The diff the engine proposed, before the run has a recorded one. */
+  pendingDiff(runId: string): Promise<{ diff: string; omitted?: string | null }>;
+  /** The operator's done-signal; it is what records the diff server-side. */
+  confirmDone(runId: string, diffText: string): Promise<void>;
+  diff(runId: string): Promise<RunDiffItem[]>;
+  changes(runId: string): Promise<ChangeView[]>;
+  reviewChange(
+    runId: string,
+    changeId: string,
+    decision: "approved" | "rejected",
+    diffSha: string,
+    note?: string,
+  ): Promise<void>;
+}
+
+export interface EditorPort {
+  /** The operator's decision on the plan; the editor asks, this module obeys. */
+  showPlan(offer: PlanOffer): Promise<"approve" | "reject">;
+  /** Progress for the status bar and the output channel. */
+  report(state: string, detail?: string): void;
+  /**
+   * Render the inline diff for one file (null = file absent on that side).
+   * `stage` says which decision this diff is serving: `proposed` is the
+   * engine's result awaiting a done-signal, `reviewed` is the recorded change
+   * awaiting approve/reject. They are different promises, so they are labelled
+   * differently.
+   */
+  showDiff(
+    path: string,
+    before: string | null,
+    after: string | null,
+    stage: "proposed" | "reviewed",
+  ): Promise<void>;
+  /** Show a patch this editor cannot apply locally (drifted base, binary, …). */
+  showPatch(path: string, patch: string): Promise<void>;
+  /** The operator's done-signal decision, after seeing the proposed result. */
+  confirmResult(summary: { files: string[]; chars: number }): Promise<boolean>;
+  /** The operator's decision on one file, after seeing its diff. */
+  decide(change: ChangeView): Promise<"approve" | "reject">;
+  readFile(path: string): Promise<string | null>;
+  writeFile(path: string, content: string): Promise<void>;
+  deleteFile(path: string): Promise<void>;
+}
+
+export interface RunOptions {
+  task: string;
+  context?: ContextItem[];
+  cap?: number;
+  deadlineMs?: number;
+  pollMs?: number;
+}
+
+export interface Refusal {
+  path: string;
+  reason: string;
+}
+
+export interface RunOutcome {
+  runId: string;
+  goal: string;
+  state: string;
+  planned: boolean;
+  confirmed: boolean;
+  reviewed: Array<{ path: string; decision: "approved" | "rejected"; diffSha: string }>;
+  applied: string[];
+  deleted: string[];
+  refused: Refusal[];
+}
+
+function isSettled(state: string): boolean {
+  return TERMINAL_STATES.has(state);
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Run one request. Throws `RunError` when the gate itself fails (the plan was
+ * rejected, the run failed, the deadline expired); per-file problems are
+ * collected in `refused` so one bad file cannot hide the others.
+ */
+export async function runFromEditor(
+  transport: HarnessTransport,
+  editor: EditorPort,
+  options: RunOptions,
+): Promise<RunOutcome> {
+  const plan: ContextPlan = planContext(options.context ?? [], options.cap);
+  const goal = renderGoal(options.task, plan);
+  editor.report("planning", `${goal.length} chars, ${plan.items.length} context items`);
+
+  const offer = await transport.proposePlan(goal);
+  const decision = await editor.showPlan(offer);
+  if (decision === "reject") {
+    await transport.rejectPlan(offer.planId);
+    throw new RunError(`plan ${offer.planId} was rejected; nothing was executed`);
+  }
+  const { runId } = await transport.approvePlan(offer.planId);
+  await transport.startRun(runId);
+
+  const deadline = Date.now() + (options.deadlineMs ?? 15 * 60 * 1000);
+  const pollMs = options.pollMs ?? 2000;
+  let state = "executing";
+  for (;;) {
+    const status = await transport.status(runId);
+    state = status.state;
+    editor.report(state, status.detail);
+    if (isSettled(state)) break;
+    if (Date.now() >= deadline) {
+      throw new RunError(`run ${runId} did not settle before the deadline (last: ${state})`);
+    }
+    await sleep(pollMs);
+  }
+
+  const outcome: RunOutcome = {
+    runId: runId,
+    goal,
+    state,
+    planned: true,
+    confirmed: false,
+    reviewed: [],
+    applied: [],
+    deleted: [],
+    refused: [],
+  };
+
+  // The engine finishing is not the run finishing: the product records the
+  // diff when a human confirms it (`done-signal`). The editor shows that diff
+  // and asks; a refusal leaves the run awaiting, with nothing recorded.
+  if (state === "awaiting_done_signal") {
+    const pending = await transport.pendingDiff(runId);
+    const files = splitPatchByFile(pending.diff);
+    if (!pending.diff.trim() || !files.length) {
+      throw new RunError(
+        `run ${runId} finished without a diff to review${pending.omitted ? ` (${pending.omitted})` : ""}`,
+      );
+    }
+    editor.report("review", `${files.length} file(s), ${pending.diff.length} chars`);
+    for (const file of files) {
+      let before: string | null = null;
+      if (file.path) {
+        before = await editor.readFile(file.path).catch(() => null);
+      }
+      try {
+        const parsed = parseFilePatch(file.patch);
+        await editor.showDiff(file.path, before, applyParsedPatch(before, parsed), "proposed");
+      } catch (error) {
+        if (error instanceof PatchError || error instanceof ContextError) {
+          // The local file has drifted from the run's base (or the patch is not
+          // text): show the patch itself rather than a fabricated comparison.
+          await editor.showPatch(file.path, file.patch);
+          continue;
+        }
+        throw error;
+      }
+    }
+    const confirmed = await editor.confirmResult({
+      files: files.map((f) => f.path),
+      chars: pending.diff.length,
+    });
+    if (!confirmed) {
+      outcome.refused.push({
+        path: "(run)",
+        reason: "the result was not confirmed, so the run was left awaiting its done-signal",
+      });
+      return outcome;
+    }
+    await transport.confirmDone(runId, pending.diff);
+    const after = await transport.status(runId);
+    state = after.state;
+    outcome.state = state;
+    editor.report(state, after.detail);
+  }
+
+  if (state !== "done") {
+    throw new RunError(`run ${runId} ended in ${state}`);
+  }
+  outcome.confirmed = true;
+
+  const [diffItems, changes] = await Promise.all([
+    transport.diff(runId),
+    transport.changes(runId),
+  ]);
+  const byPath = new Map(diffItems.map((item) => [item.path, item]));
+
+  for (const change of changes) {
+    const item = byPath.get(change.path);
+    if (!item) {
+      outcome.refused.push({ path: change.path, reason: "the run's diff has no entry for this file" });
+      continue;
+    }
+    if (change.reviewState === "rejected") {
+      outcome.refused.push({ path: change.path, reason: "the change was already rejected" });
+      continue;
+    }
+    if (change.reviewState === "approved" && change.diffSha !== item.diffSha) {
+      outcome.refused.push({
+        path: change.path,
+        reason: "the approved digest is not the patch on offer; re-run to review it",
+      });
+      continue;
+    }
+
+    // Snapshot the file, compute the reviewed bytes, and show them *before*
+    // asking — the decision must be made against what is on screen.
+    let before: string | null;
+    let plan2: ApplyPlan;
+    try {
+      before = await editor.readFile(change.path);
+      plan2 = planApply(item, before);
+      await editor.showDiff(change.path, before, plan2.content, "reviewed");
+    } catch (error) {
+      if (error instanceof PatchError || error instanceof ContextError) {
+        outcome.refused.push({ path: change.path, reason: error.message });
+        continue;
+      }
+      throw error;
+    }
+
+    let verdict: "approve" | "reject";
+    if (change.reviewState === "approved") {
+      // A previous review already named these bytes; don't re-ask, but do
+      // verify they are still the bytes on disk.
+      verdict = "approve";
+    } else {
+      verdict = await editor.decide(change);
+      const decisionWord = verdict === "approve" ? "approved" : "rejected";
+      await transport.reviewChange(
+        runId,
+        change.id,
+        decisionWord,
+        item.diffSha,
+        "reviewed in the editor",
+      );
+      outcome.reviewed.push({ path: change.path, decision: decisionWord, diffSha: item.diffSha });
+    }
+    if (verdict === "reject") {
+      outcome.refused.push({ path: change.path, reason: "rejected during review" });
+      continue;
+    }
+
+    // Stale check: the file must still be what the diff was computed against.
+    const now = await editor.readFile(change.path);
+    if (now !== before) {
+      outcome.refused.push({
+        path: change.path,
+        reason: "the file changed after the diff was shown; re-run to review the new state",
+      });
+      continue;
+    }
+    if (plan2.content === null) {
+      await editor.deleteFile(change.path);
+      outcome.deleted.push(change.path);
+    } else {
+      await editor.writeFile(change.path, plan2.content);
+      outcome.applied.push(change.path);
+    }
+  }
+
+  return outcome;
+}
