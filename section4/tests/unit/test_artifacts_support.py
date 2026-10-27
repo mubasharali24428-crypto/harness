@@ -16,13 +16,13 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from harness_orchestrator import api as orch_api
-from harness_orchestrator import artifacts, collab
+from harness_orchestrator import artifacts, collab, shares
 from harness_orchestrator.api import get_principal
 from harness_orchestrator.api import router as orch_router
 from harness_orchestrator.service import OrchestratorService
 
 MIGRATIONS = Path(__file__).resolve().parents[3] / "section1" / "migrations"
-FILES = ("0049_artifacts.sql",)
+FILES = ("0049_artifacts.sql", "0063_artifact_shares.sql")
 P = "/api/v1/orchestrator"
 T0 = datetime(2030, 1, 1, 12, 0, 0, tzinfo=UTC)
 
@@ -300,6 +300,7 @@ def env(tmp_path, monkeypatch):
     app = FastAPI()
     app.include_router(orch_router)
     app.include_router(artifacts.router)
+    app.include_router(shares.router)
     who = {"u": "lead"}
     app.dependency_overrides[get_principal] = lambda: Principal(
         userId=who["u"], teamId=USERS[who["u"]][0], role=USERS[who["u"]][1]
