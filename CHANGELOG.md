@@ -10,6 +10,45 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Marathon 2.0 W1 — an evaluation protocol, a fixed corpus, and a current-revision baseline (2026-10-28)
+
+* **Protocol.** `docs/eval/PROTOCOL.md` fixes the task schema, the twelve
+  categories, the reproducibility record (git HEAD, image digest, model,
+  fixture, budget), the measures (verdict, safety, time, spend, calls,
+  recovery), the independent-verification rule, the promotion rule and the
+  evidence layout. The agent's own answer is never the verdict; a deferred,
+  blocked or fixture-owed task is never a pass.
+* **Corpus.** `docs/eval/corpus.json` holds 25 versioned tasks: 13 implemented
+  against existing drills, 6 blocked on a local chat model this host lacks, and
+  6 fixture-owed (stale edit, code search, multi-file refactor, written tests,
+  the broader tenant matrix, native-tool confinement/M01). Four are marked
+  held-out.
+* **Runner.** `scripts/eval/run_eval.py` executes a selected task with its
+  budget, records the independent verifier, normalizes the result, verifies the
+  deployed runtime files against the worktree by hash, and writes one evidence
+  file. `--list`, `--dry-run`, `--verify-only`, `--cost`, `--task`,
+  `--include-live` and `--repeats` are supported. Every corpus task appears in
+  the output with an explicit reason when it did not run.
+* **Baseline.** `docs/briefs/evidence/eval/baseline-20261028T111000Z.json` —
+  **3/3 executed PASS, `revisionVerified: true`**: the compose journey (13
+  checks), the egress policy probe, and a live vision-API run (26.5 s). 22 tasks
+  are deferred with their reasons and none are counted as passing.
+* **Revision drift found and closed for this round.** The deployed
+  `harness-images.js` predated the source nudge that tells a model to batch 64
+  sample points. The images were replaced with thin overlays over the previous
+  bases plus that file; `engine.py`, `image_gate.py` and `harness-images.js` now
+  hash-match HEAD in both the orchestrator container and the worker image. A
+  clean Dockerfile rebuild remains owed; the layer-order backlog entry is the
+  reason it is slow.
+* **Runner defects found at first contact, fixed.** A `None` dereference in
+  failure parsing masked a driver error, and the deferral classifier labelled
+  fixture-owed tasks as "not selected". Both were caught by a preflight before
+  the baseline file was written.
+* **M02/M05 checked, M01 still open.** `section1/tests/test_conformance.py`
+  passed 7 (contract and golden event fixtures); the seeded-history and
+  gitdir-pointer tests passed 2. The M01 confinement spike remains open and no
+  capability was widened this week.
+
 ### W11 — an image the agent can measure: diff, sample, and design-to-code from a mockup (2026-10-28)
 
 * **Image gate, confined.** `section5/src/harness_sandbox/image_gate.py` adds two
