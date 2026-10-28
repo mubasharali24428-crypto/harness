@@ -104,3 +104,72 @@ commissioning another index.
   waits for the fix rather than shipping around it.
 - Live code-search tasks spend model tokens; the first run is a small, budgeted
   sample.
+
+## Outcome (2026-10-28) — W2 gate PASSED for a bounded search task
+
+Evidence:
+`docs/briefs/evidence/eval/search-bench-20261028T111957Z.json` (component
+measurement) and `docs/briefs/evidence/eval/code-search-1793186496.json` (live
+agent task).
+
+### The measurement
+
+One synthetic fixture: 235 files, 685 chunks, five planted answers, ten queries
+(five lexical, five paraphrases). Same fixture and budgets for every path:
+
+| Path | Recall@5 lexical | Recall@5 paraphrase | MRR | Query p50 | Index |
+|---|---|---|---|---|---|
+| `rg -c` (keyword the agent would grep) | 1.0 | 1.0 | 0.867 | 13.6 ms | — |
+| Section 11, hashing embedding | 1.0 | **0.4** | 0.65 | 10.5 ms | 0.04 s |
+| Section 11, Ollama `nomic-embed-text` | 1.0 | **1.0** | 1.0 | 75.0 ms | 8.3 s |
+
+Exact cosine scaling (256 dims, pure Python): **24 ms / 1k chunks, 119 ms / 5k,
+240 ms / 10k, 1.2 s / 50k**, before the vector fetch.
+
+Reading it plainly: keyword search is fast and exact when the agent knows a
+word, but decoys can outrank the answer (MRR 0.867 — the rotation query put a
+report above the implementation). The lexical hashing backend is not a semantic
+fallback: it fails four of five paraphrases. The production Ollama backend
+solves all five paraphrases, at ~75 ms per query and 8.3 s to embed 685 chunks.
+Semantic retrieval has real value; it is also not deployed and its scan is
+linear.
+
+### The live task
+
+A 100-file repo, one wrong value (`RETRY_BACKOFF_SECONDS = 5`, must be 7), no
+path given. **PASS**:
+
+- duration **12.13 s**, **2 tool calls** (`bash`, `edit`);
+- **only** `pkg/billing/invoice_retry.py` changed; every other seeded file is
+  byte-identical; no files added or deleted;
+- the answer names the file (supplementary);
+- `usage` is `null` on this transport (M07 finding), recorded as unknown, not
+  as zero.
+
+### Decisions, updated by the measurement
+
+1. **Section 11 stays undeployed for W2.** The semantic path works on
+   paraphrases, but it is a separate service with a linear scan, and this
+   week's task passed with the tools already mounted. It becomes a candidate
+   when a harder, held-out task or a larger repo shows keyword search failing
+   — not before.
+2. **No repo map yet.** The agent found a unique symbol in two calls. A repo map
+   is a solution without a demonstrated problem; it stays a hypothesis until the
+   held-out task shows a gap.
+3. **Held-out search is the next increment.** `code-search-heldout` is recorded
+   as `fixture-owed`; the current driver hard-codes one target. Without a second
+   planted answer, "the agent finds code" is proven on one instance, not as a
+   capability.
+4. **No capability widened.** The task used the existing `bash` and `edit`
+   tools; M01 remains open.
+
+### Limitations
+
+- One synthetic fixture and one live run (n=1); a unique symbol is an easy
+  search.
+- The hashing numbers are not the production embedding path; the Ollama numbers
+  are, but on a small index.
+- `usage`/cost is unknown on this transport; only wall clock and call counts are
+  measured.
+- The held-out variant, a larger-repo run and the repo-map comparison remain
+  owed.

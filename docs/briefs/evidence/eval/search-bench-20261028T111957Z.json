@@ -1,0 +1,554 @@
+{
+  "schema": 1,
+  "kind": "w2-search-bench",
+  "takenAt": "2026-10-28T11:19:57.955779+00:00",
+  "note": "component benchmark; not an agent run. The fixture is synthetic.",
+  "results": {
+    "fixture": {
+      "root": "/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w2-search-u7n2pnc5",
+      "files": 235,
+      "targets": 5,
+      "decoys": 20,
+      "fillers": 210
+    },
+    "rg": {
+      "backend": "ripgrep 15",
+      "rows": [
+        {
+          "query": "where is the invoice retry backoff schedule defined?",
+          "class": "lexical",
+          "answer": "pkg/billing/invoice_retry.py",
+          "pattern": "retry",
+          "top5": [
+            "pkg/billing/invoice_retry.py",
+            "pkg/jobs/retry_queue.py",
+            "pkg/net/retry_policy.py",
+            "pkg/billing/charge_plan.py",
+            "pkg/billing/invoice_report.py"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 21.68
+        },
+        {
+          "query": "which module enforces the per-team widget quota?",
+          "class": "lexical",
+          "answer": "pkg/widgets/quota_store.py",
+          "pattern": "quota",
+          "top5": [
+            "pkg/widgets/quota_store.py",
+            "pkg/tenants/seat_quota.py",
+            "pkg/widgets/quota_report.py",
+            "pkg/billing/plan_limits.py",
+            "pkg/widgets/widget_ui.ts"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 14.12
+        },
+        {
+          "query": "where is the telemetry flush interval configured?",
+          "class": "lexical",
+          "answer": "pkg/telemetry/flush.py",
+          "pattern": "flush",
+          "top5": [
+            "pkg/telemetry/flush.py",
+            "pkg/cache/flush_job.py",
+            "pkg/logs/flush_buffer.py",
+            "pkg/telemetry/flush_report.py",
+            "pkg/telemetry/sink_http.py"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 12.61
+        },
+        {
+          "query": "where does session token rotation happen?",
+          "class": "lexical",
+          "answer": "pkg/auth/session_rotation.py",
+          "pattern": "rotation",
+          "top5": [
+            "pkg/auth/rotation_report.py",
+            "pkg/crypto/key_rotation.py",
+            "pkg/auth/session_rotation.py",
+            "pkg/auth/session_store.py",
+            "pkg/auth/session_ui.ts"
+          ],
+          "hit": 1,
+          "mrr": 0.333,
+          "latencyMs": 13.75
+        },
+        {
+          "query": "how do we verify a webhook signature?",
+          "class": "lexical",
+          "answer": "pkg/webhooks/signature_verify.py",
+          "pattern": "signature",
+          "top5": [
+            "pkg/webhooks/signature_verify.py",
+            "pkg/api/signature_ui.ts",
+            "pkg/crypto/signature_pad.py",
+            "pkg/webhooks/signature_report.py",
+            "pkg/webhooks/delivery.py"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 12.49
+        },
+        {
+          "query": "how long do we wait before charging a customer again?",
+          "class": "paraphrase",
+          "answer": "pkg/billing/invoice_retry.py",
+          "pattern": "retry",
+          "top5": [
+            "pkg/billing/invoice_retry.py",
+            "pkg/jobs/retry_queue.py",
+            "pkg/net/retry_policy.py",
+            "pkg/billing/charge_plan.py",
+            "pkg/billing/invoice_report.py"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 13.36
+        },
+        {
+          "query": "what stops a team from storing too many items?",
+          "class": "paraphrase",
+          "answer": "pkg/widgets/quota_store.py",
+          "pattern": "quota",
+          "top5": [
+            "pkg/widgets/quota_store.py",
+            "pkg/tenants/seat_quota.py",
+            "pkg/widgets/quota_report.py",
+            "pkg/billing/plan_limits.py",
+            "pkg/widgets/widget_ui.ts"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 13.96
+        },
+        {
+          "query": "when is buffered monitoring data sent out?",
+          "class": "paraphrase",
+          "answer": "pkg/telemetry/flush.py",
+          "pattern": "flush",
+          "top5": [
+            "pkg/telemetry/flush.py",
+            "pkg/cache/flush_job.py",
+            "pkg/logs/flush_buffer.py",
+            "pkg/telemetry/flush_report.py",
+            "pkg/telemetry/sink_http.py"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 13.52
+        },
+        {
+          "query": "how does a user's login credential get replaced?",
+          "class": "paraphrase",
+          "answer": "pkg/auth/session_rotation.py",
+          "pattern": "rotation",
+          "top5": [
+            "pkg/auth/rotation_report.py",
+            "pkg/crypto/key_rotation.py",
+            "pkg/auth/session_rotation.py",
+            "pkg/auth/session_store.py",
+            "pkg/auth/session_ui.ts"
+          ],
+          "hit": 1,
+          "mrr": 0.333,
+          "latencyMs": 13.62
+        },
+        {
+          "query": "how do we prove a webhook came from the sender?",
+          "class": "paraphrase",
+          "answer": "pkg/webhooks/signature_verify.py",
+          "pattern": "signature",
+          "top5": [
+            "pkg/webhooks/signature_verify.py",
+            "pkg/api/signature_ui.ts",
+            "pkg/crypto/signature_pad.py",
+            "pkg/webhooks/signature_report.py",
+            "pkg/webhooks/delivery.py"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 12.48
+        }
+      ],
+      "summary": {
+        "lexical": {
+          "recall@5": 1.0,
+          "mrr": 0.867,
+          "p50Ms": 13.75,
+          "p95Ms": 21.68
+        },
+        "paraphrase": {
+          "recall@5": 1.0,
+          "mrr": 0.867,
+          "p50Ms": 13.52,
+          "p95Ms": 13.96
+        },
+        "all": {
+          "recall@5": 1.0,
+          "mrr": 0.867,
+          "p50Ms": 13.62,
+          "p95Ms": 21.68
+        }
+      }
+    },
+    "hashing": {
+      "backend": "hashing",
+      "chunks": 685,
+      "indexSeconds": 0.036,
+      "rows": [
+        {
+          "query": "where is the invoice retry backoff schedule defined?",
+          "class": "lexical",
+          "answer": "pkg/billing/invoice_retry.py",
+          "top5": [
+            "pkg/billing/invoice_retry.py",
+            "pkg/billing/invoice_report.py",
+            "pkg/jobs/retry_queue.py",
+            "pkg/net/retry_policy.py",
+            "pkg/modules/module_009.py"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 10.8
+        },
+        {
+          "query": "which module enforces the per-team widget quota?",
+          "class": "lexical",
+          "answer": "pkg/widgets/quota_store.py",
+          "top5": [
+            "pkg/widgets/quota_store.py",
+            "pkg/modules/module_026.py",
+            "pkg/modules/module_095.py",
+            "pkg/modules/module_196.py",
+            "pkg/modules/module_035.py"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 13.09
+        },
+        {
+          "query": "where is the telemetry flush interval configured?",
+          "class": "lexical",
+          "answer": "pkg/telemetry/flush.py",
+          "top5": [
+            "pkg/telemetry/flush.py",
+            "pkg/cache/flush_job.py",
+            "pkg/logs/flush_buffer.py",
+            "pkg/telemetry/flush_report.py",
+            "pkg/telemetry/sink_http.py"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 10.34
+        },
+        {
+          "query": "where does session token rotation happen?",
+          "class": "lexical",
+          "answer": "pkg/auth/session_rotation.py",
+          "top5": [
+            "pkg/auth/session_rotation.py",
+            "pkg/auth/rotation_report.py",
+            "pkg/auth/session_store.py",
+            "pkg/crypto/key_rotation.py",
+            "pkg/auth/session_ui.ts"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 7.73
+        },
+        {
+          "query": "how do we verify a webhook signature?",
+          "class": "lexical",
+          "answer": "pkg/webhooks/signature_verify.py",
+          "top5": [
+            "pkg/webhooks/signature_verify.py",
+            "pkg/crypto/signature_pad.py",
+            "pkg/webhooks/signature_report.py",
+            "pkg/modules/module_042.py",
+            "pkg/modules/module_103.py"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 7.56
+        },
+        {
+          "query": "how long do we wait before charging a customer again?",
+          "class": "paraphrase",
+          "answer": "pkg/billing/invoice_retry.py",
+          "top5": [
+            "pkg/modules/module_042.py",
+            "pkg/modules/module_139.py",
+            "pkg/modules/module_145.py",
+            "pkg/modules/module_185.py",
+            "pkg/modules/module_097.py"
+          ],
+          "hit": 0,
+          "mrr": 0.0,
+          "latencyMs": 12.89
+        },
+        {
+          "query": "what stops a team from storing too many items?",
+          "class": "paraphrase",
+          "answer": "pkg/widgets/quota_store.py",
+          "top5": [
+            "pkg/modules/module_026.py",
+            "pkg/widgets/quota_store.py",
+            "pkg/modules/module_175.py",
+            "pkg/cache/flush_job.py",
+            "pkg/logs/flush_buffer.py"
+          ],
+          "hit": 1,
+          "mrr": 0.5,
+          "latencyMs": 7.77
+        },
+        {
+          "query": "when is buffered monitoring data sent out?",
+          "class": "paraphrase",
+          "answer": "pkg/telemetry/flush.py",
+          "top5": [
+            "pkg/modules/module_164.py",
+            "pkg/modules/module_206.py",
+            "pkg/modules/module_037.py",
+            "pkg/modules/module_017.py",
+            "pkg/modules/module_183.py"
+          ],
+          "hit": 0,
+          "mrr": 0.0,
+          "latencyMs": 10.53
+        },
+        {
+          "query": "how does a user's login credential get replaced?",
+          "class": "paraphrase",
+          "answer": "pkg/auth/session_rotation.py",
+          "top5": [
+            "pkg/modules/module_042.py",
+            "pkg/modules/module_041.py",
+            "pkg/modules/module_100.py",
+            "pkg/modules/module_142.py",
+            "pkg/modules/module_152.py"
+          ],
+          "hit": 0,
+          "mrr": 0.0,
+          "latencyMs": 8.79
+        },
+        {
+          "query": "how do we prove a webhook came from the sender?",
+          "class": "paraphrase",
+          "answer": "pkg/webhooks/signature_verify.py",
+          "top5": [
+            "pkg/webhooks/signature_verify.py",
+            "pkg/modules/module_042.py",
+            "pkg/modules/module_111.py",
+            "pkg/modules/module_207.py",
+            "pkg/modules/module_052.py"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 10.84
+        }
+      ],
+      "summary": {
+        "lexical": {
+          "recall@5": 1.0,
+          "mrr": 1.0,
+          "p50Ms": 10.34,
+          "p95Ms": 13.09
+        },
+        "paraphrase": {
+          "recall@5": 0.4,
+          "mrr": 0.3,
+          "p50Ms": 10.53,
+          "p95Ms": 12.89
+        },
+        "all": {
+          "recall@5": 0.7,
+          "mrr": 0.65,
+          "p50Ms": 10.53,
+          "p95Ms": 13.09
+        }
+      }
+    },
+    "ollama": {
+      "backend": "ollama",
+      "chunks": 685,
+      "indexSeconds": 8.341,
+      "rows": [
+        {
+          "query": "where is the invoice retry backoff schedule defined?",
+          "class": "lexical",
+          "answer": "pkg/billing/invoice_retry.py",
+          "top5": [
+            "pkg/billing/invoice_retry.py",
+            "pkg/jobs/retry_queue.py",
+            "pkg/net/retry_policy.py",
+            "pkg/billing/invoice_report.py",
+            "pkg/telemetry/flush.py"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 76.31
+        },
+        {
+          "query": "which module enforces the per-team widget quota?",
+          "class": "lexical",
+          "answer": "pkg/widgets/quota_store.py",
+          "top5": [
+            "pkg/widgets/quota_store.py",
+            "pkg/widgets/widget_ui.ts",
+            "pkg/tenants/seat_quota.py",
+            "pkg/modules/module_155.py",
+            "pkg/modules/module_143.py"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 60.84
+        },
+        {
+          "query": "where is the telemetry flush interval configured?",
+          "class": "lexical",
+          "answer": "pkg/telemetry/flush.py",
+          "top5": [
+            "pkg/telemetry/flush.py",
+            "pkg/telemetry/flush_report.py",
+            "pkg/logs/flush_buffer.py",
+            "pkg/cache/flush_job.py",
+            "pkg/telemetry/sink_http.py"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 59.96
+        },
+        {
+          "query": "where does session token rotation happen?",
+          "class": "lexical",
+          "answer": "pkg/auth/session_rotation.py",
+          "top5": [
+            "pkg/auth/session_rotation.py",
+            "pkg/auth/session_store.py",
+            "pkg/auth/session_ui.ts",
+            "pkg/auth/rotation_report.py",
+            "pkg/crypto/key_rotation.py"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 59.53
+        },
+        {
+          "query": "how do we verify a webhook signature?",
+          "class": "lexical",
+          "answer": "pkg/webhooks/signature_verify.py",
+          "top5": [
+            "pkg/webhooks/signature_verify.py",
+            "pkg/webhooks/signature_report.py",
+            "pkg/crypto/signature_pad.py",
+            "pkg/telemetry/sink_http.py",
+            "pkg/api/signature_ui.ts"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 68.85
+        },
+        {
+          "query": "how long do we wait before charging a customer again?",
+          "class": "paraphrase",
+          "answer": "pkg/billing/invoice_retry.py",
+          "top5": [
+            "pkg/billing/invoice_retry.py",
+            "pkg/billing/charge_plan.py",
+            "pkg/telemetry/flush.py",
+            "pkg/jobs/retry_queue.py",
+            "pkg/net/retry_policy.py"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 75.02
+        },
+        {
+          "query": "what stops a team from storing too many items?",
+          "class": "paraphrase",
+          "answer": "pkg/widgets/quota_store.py",
+          "top5": [
+            "pkg/widgets/quota_store.py",
+            "pkg/billing/plan_limits.py",
+            "pkg/tenants/seat_quota.py",
+            "pkg/auth/session_store.py",
+            "pkg/billing/invoice_retry.py"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 71.27
+        },
+        {
+          "query": "when is buffered monitoring data sent out?",
+          "class": "paraphrase",
+          "answer": "pkg/telemetry/flush.py",
+          "top5": [
+            "pkg/telemetry/flush.py",
+            "pkg/logs/flush_buffer.py",
+            "pkg/telemetry/flush_report.py",
+            "pkg/webhooks/signature_report.py",
+            "pkg/jobs/retry_queue.py"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 76.19
+        },
+        {
+          "query": "how does a user's login credential get replaced?",
+          "class": "paraphrase",
+          "answer": "pkg/auth/session_rotation.py",
+          "top5": [
+            "pkg/auth/session_rotation.py",
+            "pkg/webhooks/signature_verify.py",
+            "pkg/webhooks/signature_report.py",
+            "pkg/api/signature_ui.ts",
+            "pkg/modules/module_075.py"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 77.28
+        },
+        {
+          "query": "how do we prove a webhook came from the sender?",
+          "class": "paraphrase",
+          "answer": "pkg/webhooks/signature_verify.py",
+          "top5": [
+            "pkg/webhooks/signature_verify.py",
+            "pkg/telemetry/sink_http.py",
+            "pkg/webhooks/delivery.py",
+            "pkg/billing/invoice_retry.py",
+            "pkg/modules/module_112.py"
+          ],
+          "hit": 1,
+          "mrr": 1.0,
+          "latencyMs": 78.77
+        }
+      ],
+      "summary": {
+        "lexical": {
+          "recall@5": 1.0,
+          "mrr": 1.0,
+          "p50Ms": 60.84,
+          "p95Ms": 76.31
+        },
+        "paraphrase": {
+          "recall@5": 1.0,
+          "mrr": 1.0,
+          "p50Ms": 76.19,
+          "p95Ms": 78.77
+        },
+        "all": {
+          "recall@5": 1.0,
+          "mrr": 1.0,
+          "p50Ms": 75.02,
+          "p95Ms": 78.77
+        }
+      }
+    }
+  }
+}

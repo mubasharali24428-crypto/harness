@@ -10,6 +10,30 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Marathon 2.0 W2 — search measured, then a bounded code-search gate (2026-10-28)
+
+* **Section 11 assessed, not deployed.** It is a 1,312-line package with 11
+  passing search/chunking tests, but it is absent from the compose stack and not
+  installed in the backend, and its query path is exact cosine over every
+  project vector. Measured: 24 ms/1k chunks, 119 ms/5k, 240 ms/10k, 1.2 s/50k
+  in pure Python before the DB fetch.
+* **Search benchmark.** `scripts/eval/search_bench.py` builds a deterministic
+  235-file, 685-chunk repo with five planted answers and ten queries. On the
+  same fixture: `rg` recall@5 1.0 (MRR 0.867, p50 13.6 ms); Section 11 hashing
+  recall@5 1.0 lexical / **0.4 paraphrase** (p50 10.5 ms, index 0.04 s); Section
+  11 Ollama `nomic-embed-text` 1.0 / **1.0** (p50 75 ms, index 8.3 s). Semantic
+  retrieval is real value, but not wired and linearly scanned.
+* **Code-search gate.** `scripts/eval/tasks/code_search_task.py` seeds a
+  100-file repo with a wrong `RETRY_BACKOFF_SECONDS = 5` and no path. The agent
+  found and changed it: **PASS in 12.1 s with 2 tool calls** (`bash`, `edit`),
+  only the target file changed, no files added or deleted, answer names the
+  file. `usage` is null on this transport and recorded as unknown.
+* **Decisions.** Section 11 stays undeployed; no repo map without a measured
+  gap; the held-out search variant is recorded as `fixture-owed`; the task used
+  only existing tools and M01 remains open.
+* **Corpus.** `code-search` moves from `fixture-owed` to `implemented`; the
+  corpus is now 26 tasks (14 implemented, 6 blocked, 6 fixture-owed).
+
 ### Marathon 2.0 W1 — an evaluation protocol, a fixed corpus, and a current-revision baseline (2026-10-28)
 
 * **Protocol.** `docs/eval/PROTOCOL.md` fixes the task schema, the twelve

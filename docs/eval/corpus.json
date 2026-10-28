@@ -12,9 +12,22 @@
       "cost": "infra",
       "heldOut": false,
       "status": "implemented",
-      "driver": {"type": "script", "path": "scripts/e2e/compose_journey.py", "args": [], "env": {}},
-      "fixture": {"repo": null, "revision": null, "seed": []},
-      "budget": {"timeoutSeconds": 600, "maxToolCalls": null, "maxCostUsd": 0},
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/compose_journey.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 600,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
       "model": null,
       "verifier": "every compose container running/healthy; readiness; OTP login; idempotent demo seed; replay ordering; audit page; sandbox create/exec/destroy 404",
       "expected": "exit 0",
@@ -29,9 +42,22 @@
       "cost": "infra",
       "heldOut": false,
       "status": "implemented",
-      "driver": {"type": "script", "path": "scripts/e2e/w4_egress_network_drill.py", "args": [], "env": {}},
-      "fixture": {"repo": null, "revision": null, "seed": []},
-      "budget": {"timeoutSeconds": 300, "maxToolCalls": null, "maxCostUsd": 0},
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w4_egress_network_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 300,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
       "model": null,
       "verifier": "allow-listed host 200; unlisted host, non-443 port and non-CONNECT method 403; sandbox peer CONNECT denied",
       "expected": "exit 0",
@@ -46,9 +72,22 @@
       "cost": "none",
       "heldOut": false,
       "status": "blocked",
-      "driver": {"type": "script", "path": "scripts/e2e/m03_scope_drill.py", "args": [], "env": {}},
-      "fixture": {"repo": "generated fixture", "revision": "m03", "seed": []},
-      "budget": {"timeoutSeconds": 900, "maxToolCalls": 12, "maxCostUsd": 0},
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/m03_scope_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": "generated fixture",
+        "revision": "m03",
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 900,
+        "maxToolCalls": 12,
+        "maxCostUsd": 0
+      },
       "model": "qwen-local:latest",
       "verifier": "src/m03.txt exists; docs/m03.txt and m03.txt absent; nothing outside src/ changed",
       "expected": "exit 0 and the disk verdict",
@@ -63,9 +102,22 @@
       "cost": "none",
       "heldOut": false,
       "status": "blocked",
-      "driver": {"type": "script", "path": "scripts/e2e/m04_streaming_smoke.py", "args": [], "env": {}},
-      "fixture": {"repo": null, "revision": null, "seed": []},
-      "budget": {"timeoutSeconds": 900, "maxToolCalls": 12, "maxCostUsd": 0},
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/m04_streaming_smoke.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 900,
+        "maxToolCalls": 12,
+        "maxCostUsd": 0
+      },
       "model": "qwen-local:latest",
       "verifier": "tool_call/tool_result events with stable callId, bounded output, persisted before completion",
       "expected": "exit 0",
@@ -80,9 +132,22 @@
       "cost": "none",
       "heldOut": false,
       "status": "blocked",
-      "driver": {"type": "script", "path": "scripts/e2e/m07_api_run_drill.py", "args": [], "env": {}},
-      "fixture": {"repo": "m07 fixture", "revision": "m07", "seed": []},
-      "budget": {"timeoutSeconds": 900, "maxToolCalls": 20, "maxCostUsd": 0},
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/m07_api_run_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": "m07 fixture",
+        "revision": "m07",
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 900,
+        "maxToolCalls": 20,
+        "maxCostUsd": 0
+      },
       "model": "qwen-local:latest",
       "verifier": "read the fixture file from disk: the fix is present; worker ran at 999:999, read-only root, no capabilities",
       "expected": "exit 0",
@@ -97,9 +162,22 @@
       "cost": "none",
       "heldOut": false,
       "status": "blocked",
-      "driver": {"type": "script", "path": "scripts/e2e/m07_daemon_drill.py", "args": [], "env": {}},
-      "fixture": {"repo": null, "revision": null, "seed": []},
-      "budget": {"timeoutSeconds": 900, "maxToolCalls": 20, "maxCostUsd": 0},
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/m07_daemon_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 900,
+        "maxToolCalls": 20,
+        "maxCostUsd": 0
+      },
       "model": "qwen-local:latest",
       "verifier": "orchestrator has no docker socket; worker container is spawned by the daemon with expected uid/limits",
       "expected": "exit 0",
@@ -114,9 +192,24 @@
       "cost": "live",
       "heldOut": false,
       "status": "implemented",
-      "driver": {"type": "script", "path": "scripts/e2e/m07_vision_api_drill.py", "args": [], "env": {}},
-      "fixture": {"repo": null, "revision": null, "seed": ["solid-colour PNG"]},
-      "budget": {"timeoutSeconds": 420, "maxToolCalls": 4, "maxCostUsd": 0.05},
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/m07_vision_api_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": [
+          "solid-colour PNG"
+        ]
+      },
+      "budget": {
+        "timeoutSeconds": 420,
+        "maxToolCalls": 4,
+        "maxCostUsd": 0.05
+      },
       "model": "qwen/qwen3.7-flash (OpenRouter, vision patch)",
       "verifier": "artifact MIME/size checks; the model names the solid colour; two different fills produce two different answers",
       "expected": "exit 0 with the recorded model",
@@ -131,9 +224,22 @@
       "cost": "none",
       "heldOut": false,
       "status": "blocked",
-      "driver": {"type": "script", "path": "scripts/e2e/w3_rewind_drill.py", "args": [], "env": {}},
-      "fixture": {"repo": "generated fixture", "revision": "w3", "seed": []},
-      "budget": {"timeoutSeconds": 900, "maxToolCalls": 16, "maxCostUsd": 0},
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w3_rewind_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": "generated fixture",
+        "revision": "w3",
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 900,
+        "maxToolCalls": 16,
+        "maxCostUsd": 0
+      },
       "model": "qwen-local:latest",
       "verifier": "checkpoint pair listed; rewind restores the pre-edit bytes on disk",
       "expected": "exit 0",
@@ -148,9 +254,22 @@
       "cost": "none",
       "heldOut": false,
       "status": "blocked",
-      "driver": {"type": "script", "path": "scripts/e2e/w3_partial_write_drill.py", "args": [], "env": {}},
-      "fixture": {"repo": "generated fixture", "revision": "w3", "seed": []},
-      "budget": {"timeoutSeconds": 900, "maxToolCalls": 16, "maxCostUsd": 0},
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w3_partial_write_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": "generated fixture",
+        "revision": "w3",
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 900,
+        "maxToolCalls": 16,
+        "maxCostUsd": 0
+      },
       "model": "qwen-local:latest",
       "verifier": "paused mid-write with the script provably running; rewind restores; resume adopts disk",
       "expected": "exit 0",
@@ -165,9 +284,22 @@
       "cost": "live",
       "heldOut": false,
       "status": "implemented",
-      "driver": {"type": "script", "path": "scripts/e2e/w4_web_fetch_engine_drill.py", "args": [], "env": {}},
-      "fixture": {"repo": null, "revision": null, "seed": []},
-      "budget": {"timeoutSeconds": 420, "maxToolCalls": 12, "maxCostUsd": 0.05},
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w4_web_fetch_engine_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 420,
+        "maxToolCalls": 12,
+        "maxCostUsd": 0.05
+      },
       "model": "the stack DSH_MODEL",
       "verifier": "allow-listed fetch succeeds; unlisted host refused in the tool result; audit records both",
       "expected": "exit 0",
@@ -182,9 +314,22 @@
       "cost": "live",
       "heldOut": false,
       "status": "implemented",
-      "driver": {"type": "script", "path": "scripts/e2e/w4_install_drill.py", "args": [], "env": {}},
-      "fixture": {"repo": null, "revision": null, "seed": []},
-      "budget": {"timeoutSeconds": 600, "maxToolCalls": 12, "maxCostUsd": 0.05},
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w4_install_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 600,
+        "maxToolCalls": 12,
+        "maxCostUsd": 0.05
+      },
       "model": "the stack DSH_MODEL",
       "verifier": "allow-listed registry install succeeds; non-pinned destination denied; audit attribution",
       "expected": "exit 0",
@@ -199,9 +344,22 @@
       "cost": "live",
       "heldOut": false,
       "status": "implemented",
-      "driver": {"type": "script", "path": "scripts/e2e/w4_mcp_client_drill.py", "args": [], "env": {}},
-      "fixture": {"repo": null, "revision": null, "seed": []},
-      "budget": {"timeoutSeconds": 600, "maxToolCalls": 12, "maxCostUsd": 0.05},
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w4_mcp_client_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 600,
+        "maxToolCalls": 12,
+        "maxCostUsd": 0.05
+      },
       "model": "the stack DSH_MODEL",
       "verifier": "reviewed server tool call recorded; declared-but-broken list fails the run; no env passed to servers",
       "expected": "exit 0",
@@ -216,9 +374,22 @@
       "cost": "live",
       "heldOut": false,
       "status": "implemented",
-      "driver": {"type": "script", "path": "scripts/e2e/w4_credential_leak_drill.py", "args": [], "env": {}},
-      "fixture": {"repo": null, "revision": null, "seed": []},
-      "budget": {"timeoutSeconds": 600, "maxToolCalls": 12, "maxCostUsd": 0.05},
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w4_credential_leak_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 600,
+        "maxToolCalls": 12,
+        "maxCostUsd": 0.05
+      },
       "model": "the stack DSH_MODEL",
       "verifier": "scan stored agent_events, engine result and comments for the deployment's secret values",
       "expected": "exit 0 and no secret found",
@@ -233,9 +404,22 @@
       "cost": "live",
       "heldOut": false,
       "status": "implemented",
-      "driver": {"type": "script", "path": "scripts/e2e/w8_concurrency_drill.py", "args": [], "env": {}},
-      "fixture": {"repo": "one project, three goals", "revision": "w8", "seed": []},
-      "budget": {"timeoutSeconds": 1800, "maxToolCalls": 40, "maxCostUsd": 0.2},
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w8_concurrency_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": "one project, three goals",
+        "revision": "w8",
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 1800,
+        "maxToolCalls": 40,
+        "maxCostUsd": 0.2
+      },
       "model": "the stack DSH_MODEL",
       "verifier": "each run has its own workspace/container; no cross-read; each diff reviewable; neighbour unaffected",
       "expected": "exit 0",
@@ -250,9 +434,22 @@
       "cost": "live",
       "heldOut": true,
       "status": "implemented",
-      "driver": {"type": "script", "path": "scripts/e2e/w8_crash_cleanup_drill.py", "args": [], "env": {}},
-      "fixture": {"repo": null, "revision": null, "seed": []},
-      "budget": {"timeoutSeconds": 1200, "maxToolCalls": 20, "maxCostUsd": 0.1},
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w8_crash_cleanup_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 1200,
+        "maxToolCalls": 20,
+        "maxCostUsd": 0.1
+      },
       "model": "the stack DSH_MODEL",
       "verifier": "orphan boundary network removed; live neighbour's network and container untouched",
       "expected": "exit 0",
@@ -267,9 +464,22 @@
       "cost": "live",
       "heldOut": false,
       "status": "implemented",
-      "driver": {"type": "script", "path": "scripts/e2e/w9_share_deploy_drill.py", "args": [], "env": {}},
-      "fixture": {"repo": null, "revision": null, "seed": []},
-      "budget": {"timeoutSeconds": 600, "maxToolCalls": 20, "maxCostUsd": 0.1},
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w9_share_deploy_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 600,
+        "maxToolCalls": 20,
+        "maxCostUsd": 0.1
+      },
       "model": "the stack DSH_MODEL (plan step)",
       "verifier": "no-auth share serves bytes with download headers; revoke 404; expiry 410; foreign team 404; approval names the reviewed digest",
       "expected": "exit 0",
@@ -284,9 +494,25 @@
       "cost": "live",
       "heldOut": false,
       "status": "implemented",
-      "driver": {"type": "script", "path": "scripts/e2e/w10_browser_drill.py", "args": [], "env": {}},
-      "fixture": {"repo": "generated static page", "revision": "w10", "seed": ["index.html", "style.css"]},
-      "budget": {"timeoutSeconds": 900, "maxToolCalls": 30, "maxCostUsd": 0.1},
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w10_browser_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": "generated static page",
+        "revision": "w10",
+        "seed": [
+          "index.html",
+          "style.css"
+        ]
+      },
+      "budget": {
+        "timeoutSeconds": 900,
+        "maxToolCalls": 30,
+        "maxCostUsd": 0.1
+      },
       "model": "qwen/qwen3.7-flash (OpenRouter, vision patch)",
       "verifier": "drill decodes before/after PNGs itself; swatch white before, red after; one reviewable change; no-proxy leg FETCH FAILED",
       "expected": "exit 0 and 16/16 checks",
@@ -301,9 +527,25 @@
       "cost": "live",
       "heldOut": true,
       "status": "implemented",
-      "driver": {"type": "script", "path": "scripts/e2e/w11_vision_drill.py", "args": [], "env": {}},
-      "fixture": {"repo": "rendered mockup/dialog PNGs", "revision": "w11", "seed": ["mockup.png", "dialog.png"]},
-      "budget": {"timeoutSeconds": 1800, "maxToolCalls": 60, "maxCostUsd": 0.15},
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w11_vision_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": "rendered mockup/dialog PNGs",
+        "revision": "w11",
+        "seed": [
+          "mockup.png",
+          "dialog.png"
+        ]
+      },
+      "budget": {
+        "timeoutSeconds": 1800,
+        "maxToolCalls": 60,
+        "maxCostUsd": 0.15
+      },
       "model": "qwen/qwen3.7-flash (OpenRouter, vision patch)",
       "verifier": "independent re-render <=3% and flat colours exact; token only in pixels transcribed; dialog code/message exact; gate probe 100px/0.02; escape refused; no-network leg",
       "expected": "exit 0 and 22/22 checks",
@@ -318,9 +560,22 @@
       "cost": "live",
       "heldOut": false,
       "status": "implemented",
-      "driver": {"type": "script", "path": "scripts/e2e/cli_parity.py", "args": [], "env": {}},
-      "fixture": {"repo": null, "revision": null, "seed": []},
-      "budget": {"timeoutSeconds": 600, "maxToolCalls": 20, "maxCostUsd": 0.1},
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/cli_parity.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 600,
+        "maxToolCalls": 20,
+        "maxCostUsd": 0.1
+      },
       "model": "the stack DSH_MODEL",
       "verifier": "ordered event-type sequences equal; same terminal state; token file 0600 in 0700 dir; --json exactly one object",
       "expected": "exit 0",
@@ -335,9 +590,22 @@
       "cost": "infra",
       "heldOut": true,
       "status": "fixture-owed",
-      "driver": {"type": "builtin", "path": null, "args": [], "env": {}},
-      "fixture": {"repo": "to be built", "revision": null, "seed": []},
-      "budget": {"timeoutSeconds": 300, "maxToolCalls": null, "maxCostUsd": 0},
+      "driver": {
+        "type": "builtin",
+        "path": null,
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": "to be built",
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 300,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
       "model": null,
       "verifier": "apply an edit with a stale content hash/version: the API refuses and the file is unchanged",
       "expected": "refusal with a specific error; bytes on disk unchanged",
@@ -351,15 +619,32 @@
       "kind": "agent",
       "cost": "live",
       "heldOut": false,
-      "status": "fixture-owed",
-      "driver": {"type": "builtin", "path": null, "args": [], "env": {}},
-      "fixture": {"repo": "fixture repo to be built", "revision": null, "seed": []},
-      "budget": {"timeoutSeconds": 900, "maxToolCalls": 30, "maxCostUsd": 0.1},
+      "status": "implemented",
+      "driver": {
+        "type": "script",
+        "path": "scripts/eval/tasks/code_search_task.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": "synthetic 100-file repo",
+        "revision": "w2-code-search",
+        "seed": [
+          "pkg/billing/invoice_retry.py",
+          "5 decoys",
+          "94 fillers"
+        ]
+      },
+      "budget": {
+        "timeoutSeconds": 900,
+        "maxToolCalls": 20,
+        "maxCostUsd": 0.05
+      },
       "model": "the stack DSH_MODEL",
-      "verifier": "the files edited/touched include the known relevant file; no benchmark leakage (held-out variant)",
-      "expected": "relevant file found within budget",
-      "evidence": "to be created",
-      "notes": "owed: W2 builds the bounded search/repo map; Section 11 is audited first"
+      "verifier": "target file contains RETRY_BACKOFF_SECONDS = 7; every other seeded file is byte-identical; no seeded file deleted; answer names the target path (supplementary)",
+      "expected": "exit 0 and only pkg/billing/invoice_retry.py changed",
+      "evidence": "docs/briefs/evidence/eval/code-search-*.json",
+      "notes": "live model. W2 run: PASS in 12.1s, 2 tool calls (bash+edit), only the target changed, usage null on this transport."
     },
     {
       "id": "multi-file-refactor",
@@ -369,9 +654,22 @@
       "cost": "live",
       "heldOut": false,
       "status": "fixture-owed",
-      "driver": {"type": "builtin", "path": null, "args": [], "env": {}},
-      "fixture": {"repo": "fixture repo to be built", "revision": null, "seed": []},
-      "budget": {"timeoutSeconds": 1200, "maxToolCalls": 40, "maxCostUsd": 0.15},
+      "driver": {
+        "type": "builtin",
+        "path": null,
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": "fixture repo to be built",
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 1200,
+        "maxToolCalls": 40,
+        "maxCostUsd": 0.15
+      },
       "model": "the stack DSH_MODEL",
       "verifier": "the fixture's own test command passes on the agent's branch; no forbidden path changed",
       "expected": "tests pass and the refactor is reviewable",
@@ -386,9 +684,22 @@
       "cost": "live",
       "heldOut": false,
       "status": "fixture-owed",
-      "driver": {"type": "builtin", "path": null, "args": [], "env": {}},
-      "fixture": {"repo": "fixture repo to be built", "revision": null, "seed": []},
-      "budget": {"timeoutSeconds": 1200, "maxToolCalls": 40, "maxCostUsd": 0.15},
+      "driver": {
+        "type": "builtin",
+        "path": null,
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": "fixture repo to be built",
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 1200,
+        "maxToolCalls": 40,
+        "maxCostUsd": 0.15
+      },
       "model": "the stack DSH_MODEL",
       "verifier": "planted bug: the new test fails on the baseline and passes with the patch; differential check",
       "expected": "test added and both runs recorded",
@@ -403,9 +714,22 @@
       "cost": "infra",
       "heldOut": true,
       "status": "fixture-owed",
-      "driver": {"type": "builtin", "path": null, "args": [], "env": {}},
-      "fixture": {"repo": null, "revision": null, "seed": []},
-      "budget": {"timeoutSeconds": 300, "maxToolCalls": null, "maxCostUsd": 0},
+      "driver": {
+        "type": "builtin",
+        "path": null,
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 300,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
       "model": null,
       "verifier": "cross-team GETs answer 404/403 with no existence oracle; shares covered by w9",
       "expected": "all cross-team reads refused",
@@ -420,14 +744,57 @@
       "cost": "infra",
       "heldOut": false,
       "status": "fixture-owed",
-      "driver": {"type": "builtin", "path": null, "args": [], "env": {}},
-      "fixture": {"repo": "disposable fixture workspaces", "revision": null, "seed": []},
-      "budget": {"timeoutSeconds": 600, "maxToolCalls": null, "maxCostUsd": 0},
+      "driver": {
+        "type": "builtin",
+        "path": null,
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": "disposable fixture workspaces",
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 600,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
       "model": null,
       "verifier": "inside-workspace/outside-intent writes, forbidden files, symlinks and code-string paths tested per enforcement backend",
       "expected": "each escape refused; refusals recorded",
       "evidence": "to be created",
       "notes": "owed: this is M01, still open; no access is widened until it closes"
+    },
+    {
+      "id": "code-search-heldout",
+      "title": "A held-out repo task: locate a differently named symbol",
+      "category": "code_search",
+      "kind": "agent",
+      "cost": "live",
+      "heldOut": true,
+      "status": "fixture-owed",
+      "driver": {
+        "type": "builtin",
+        "path": null,
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": "second synthetic repo",
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 900,
+        "maxToolCalls": 20,
+        "maxCostUsd": 0.05
+      },
+      "model": "the stack DSH_MODEL",
+      "verifier": "the second planted answer is the only changed file; all other seeded bytes unchanged",
+      "expected": "only the planted file changes",
+      "evidence": "to be created",
+      "notes": "owed: the W2 driver hardcodes the invoice_retry target; a second planted answer is needed for the held-out split."
     }
   ]
 }
