@@ -187,6 +187,12 @@ completed through the stack after the overlay restart.
   `cli-parity`). They are declared with budgets and verifiers and are the next
   baseline increment.
 
+A current-revision re-run of `w11-vision` was started after the baseline. Its
+design leg reached a 27% first diff and kept sampling edges (24 calls) without
+converging; it was stopped rather than allowed to spend the full drill timeout.
+It is **not** counted as a pass. The W11 evidence named above remains evidence
+for its own (pre-overlay) revision; a current-revision W11 result stays owed.
+
 ### Findings, kept
 
 1. **Revision drift was real, not hypothetical.** The deployed plugin lacked the
