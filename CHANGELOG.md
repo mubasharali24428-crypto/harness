@@ -10,6 +10,41 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Marathon 2.0 W3 — stale edits refused, conflicts recorded, rewinds exact (2026-10-28)
+
+* **Conflict semantics defined once.** Staleness is defined on the product's two
+  versioned documents: run intent (`run_intent_versions`, CAS on
+  `(run_id, version)`) and plan content (`plan_versions`, `content_sha256`).
+  A stale intent edit whose fields moved is `409 INTENT_CONFLICT` with a conflict
+  record; one whose fields did not move is `409 STALE_INTENT_VERSION` with no
+  record; an `expectedVersion` ahead is `422 BAD_VERSION`. Stale plan writes are
+  `409 VERSION_CONFLICT`; a patch proposed on a superseded version is
+  `409 VERSION_NOT_OPEN`; accepting one after the plan moved is `409 STALE_EDIT`.
+* **Deterministic corpus task.** `scripts/eval/tasks/stale_edit_task.py` (18
+  checks, no model) drives project → plan → join → leader, then intent CAS,
+  conflict list/resolution, a `scope_change` redirect, plan versions, and a
+  checkpoint snapshot/mutate/rewind probe inside the orchestrator container.
+  **PASS in 0.89 s**; accepted intent and plan content byte-identical after every
+  refusal; rewind restored both files and removed the post-snapshot file.
+* **Steering cannot expand scope, at the seam.** `scope_change` and
+  `permission_change` redirects emit events and void approvals; they never write
+  the intent. The task asserts the intent version, goal, scope and permissions
+  are unchanged after one; `test_w3_steering_scope.py` covers the engine-facing
+  side.
+* **No file-level stale patch — declared, not implied.** The agent's file tools
+  are last-writer-wins inside one run's private workspace, and the SDK tool has no
+  content-hash precondition. A hash-anchored patch is deferred to W8 only if its
+  overlapping-run work finds silent overwrite.
+* **Tests.** 91 pass across `test_control`, `test_plans_edits`,
+  `test_w3_rejected_stays_blocked`, `test_w3_steering_scope`,
+  `test_run_checkpoints` and `test_checkpoint_blob_store`. Runner baseline
+  `docs/briefs/evidence/eval/baseline-20261028T133421Z.json`: 1/1 PASS,
+  `revisionVerified: true`.
+* **Corpus.** `stale-edit` moves to `implemented`; 26 tasks (16 implemented,
+  6 blocked, 4 fixture-owed). The stop and torn-write drills stay `blocked`
+  because re-running them needs a chat model; their 2026-10-26 evidence is
+  historical and is not claimed for this revision.
+
 ### Marathon 2.0 W2 — search measured, then a bounded code-search gate (2026-10-28)
 
 * **Section 11 assessed, not deployed.** It is a 1,312-line package with 11

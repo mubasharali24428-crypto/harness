@@ -584,20 +584,20 @@
     },
     {
       "id": "stale-edit",
-      "title": "An edit computed against an older file version is refused",
+      "title": "An edit computed against an older version is refused and rewinds exactly",
       "category": "stale_edit",
       "kind": "boundary",
       "cost": "infra",
       "heldOut": true,
-      "status": "fixture-owed",
+      "status": "implemented",
       "driver": {
-        "type": "builtin",
-        "path": null,
+        "type": "script",
+        "path": "scripts/eval/tasks/stale_edit_task.py",
         "args": [],
         "env": {}
       },
       "fixture": {
-        "repo": "to be built",
+        "repo": null,
         "revision": null,
         "seed": []
       },
@@ -607,10 +607,10 @@
         "maxCostUsd": 0
       },
       "model": null,
-      "verifier": "apply an edit with a stale content hash/version: the API refuses and the file is unchanged",
-      "expected": "refusal with a specific error; bytes on disk unchanged",
-      "evidence": "to be created",
-      "notes": "owed: no stale-edit fixture or API check exists yet (W3)"
+      "verifier": "stale intent write at an older version: 409 INTENT_CONFLICT with a conflict record when fields moved, 409 STALE_INTENT_VERSION when they did not, 422 BAD_VERSION when ahead; accepted intent and plan content byte-identical afterwards; scope_change redirect leaves intent unchanged; stale plan version write 409 VERSION_CONFLICT; stale plan patch proposal 409 VERSION_NOT_OPEN; checkpoint snapshot+mutate+rewind restores bytes and removes the post-snapshot file; rewind with no snapshots 409 CHECKPOINT_UNAVAILABLE",
+      "expected": "refusal with a specific error code; accepted state unchanged; rewind restores exactly",
+      "evidence": "docs/briefs/evidence/eval/w3-stale-edit-*.json",
+      "notes": "deterministic API + component check, no model; drills the run-intent and plan-version CAS (the versioned documents in this product) and the checkpoint store. The agent file-write tool has no content-hash precondition, so this is not a file-level stale patch."
     },
     {
       "id": "code-search",
