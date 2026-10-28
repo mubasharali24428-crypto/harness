@@ -226,3 +226,43 @@ def test_a_missing_browser_gate_removes_the_tool_and_nothing_else(tmp_path, monk
     patch = Path(seen[0]["patches"][-1]).read_text(encoding="utf-8")
     assert "harness-browser" not in patch
     assert "harness-web" in patch and "harness-shell" in patch
+
+
+def test_policy_patch_mounts_the_image_tool_over_the_same_workspace(tmp_path, monkeypatch):
+    from .test_run_isolation_and_stop_truth import _fake_sdk
+
+    seen = []
+    _fake_sdk(monkeypatch, seen)
+    workspace = tmp_path / "ws"
+    wrapper = DeepSeekHarnessWrapper(workspace_dir=str(workspace),
+                                     session_root=str(tmp_path / "s"), isolated=False,
+                                     live_mode="dry")
+    _, status, *_ = wrapper._run_live_events("goal", "run-1")
+    assert status == "completed"
+    patch = Path(seen[0]["patches"][-1]).read_text(encoding="utf-8")
+    config = json.loads(_plugin_field(patch, "harness-images", "config"))
+    assert config["gate"][-1].endswith("image_gate.py")
+    assert Path(config["gate"][-1]).is_file()
+    # The tool measures the files the browser writes: two roots would mean the
+    # agent diffs against something other than what it rendered.
+    assert config["workspace"] == str((workspace / "run-1").resolve())
+    assert config["workspace"] == json.loads(
+        _plugin_field(patch, "harness-browser", "config"))["workspace"]
+    assert Path(json.loads(_plugin_field(patch, "harness-images", "name"))).is_file()
+    assert "harness-web" in patch and "harness-shell" in patch and "harness-browser" in patch
+
+
+def test_a_missing_image_gate_removes_the_tool_and_nothing_else(tmp_path, monkeypatch):
+    from .test_run_isolation_and_stop_truth import _fake_sdk
+
+    seen = []
+    _fake_sdk(monkeypatch, seen)
+    monkeypatch.setenv("HARNESS_IMAGE_GATE", str(tmp_path / "nope.py"))
+    wrapper = DeepSeekHarnessWrapper(workspace_dir=str(tmp_path / "ws"),
+                                     session_root=str(tmp_path / "s"), isolated=False,
+                                     live_mode="dry")
+    _, status, *_ = wrapper._run_live_events("goal", "run-1")
+    assert status == "completed"
+    patch = Path(seen[0]["patches"][-1]).read_text(encoding="utf-8")
+    assert "harness-images" not in patch
+    assert "harness-browser" in patch and "harness-web" in patch

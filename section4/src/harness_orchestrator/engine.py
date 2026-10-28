@@ -85,6 +85,13 @@ _BROWSER_PLUGIN = Path(__file__).with_name("dsh_plugins") / "harness-browser.js"
 _REPO_BROWSER_GATE = (
     Path(__file__).resolve().parents[3] / "section5" / "src" / "harness_sandbox" / "browser_gate.py"
 )
+# W11: image comparison and pixel sampling. The gate reads files only — it spawns
+# nothing and dials nothing — but it is mounted the same way, over the same
+# workspace root the browser writes its screenshots into.
+_IMAGES_PLUGIN = Path(__file__).with_name("dsh_plugins") / "harness-images.js"
+_REPO_IMAGE_GATE = (
+    Path(__file__).resolve().parents[3] / "section5" / "src" / "harness_sandbox" / "image_gate.py"
+)
 
 
 def _read_only(path: str) -> bool:
@@ -157,6 +164,10 @@ def _execution_policy_patch(
     W4 adds ``dsh_plugins/harness-web.js`` when Section 5's web gate is present: ``web_fetch``
     asks that gate before dialing, so the allow-list (derived from the provider registry) is the
     only reachable set. A missing web gate disables the tool rather than opening an unfiltered one.
+
+    W11 adds ``dsh_plugins/harness-images.js`` (``image``: pixel diff and pixel sample) beside the
+    W10 browser tool, over the same workspace root: what the browser renders, the image tool can
+    measure. A missing gate means the tool is absent, never half-mounted.
     """
     gate = os.environ.get("HARNESS_SHELL_GATE") or str(_REPO_SHELL_GATE)
     if not os.path.isfile(gate):  # fail closed: never fall back to an unmediated shell
@@ -224,6 +235,28 @@ def _execution_policy_patch(
             "browser gate or plugin missing (%s); the browser tool is not mounted for this run",
             browser_gate,
         )
+    # W11: the image tool is mounted beside the browser it compares — same
+    # workspace root, same fail-closed rule.
+    images = ""
+    image_gate = os.environ.get("HARNESS_IMAGE_GATE") or str(_REPO_IMAGE_GATE)
+    if os.path.isfile(image_gate) and _IMAGES_PLUGIN.is_file():
+        image_config = {
+            "gate": [sys.executable, "-I", image_gate],
+            "workspace": os.path.realpath(workspace_dir),
+            "maxBytes": 10_000_000,  # the per-artifact cap: a diff image is an artifact
+            "maxPixels": 4_000_000,  # the comparison is O(pixels) in pure Python
+        }
+        images = (
+            "- insert:\n"
+            "    - id: harness-images\n"
+            f"      name: {json.dumps(str(_IMAGES_PLUGIN))}\n"
+            f"      config: {json.dumps(image_config)}\n"
+        )
+    else:
+        logger.warning(
+            "image gate or plugin missing (%s); the image tool is not mounted for this run",
+            image_gate,
+        )
     # W4 slice 3: MCP servers come only from the operator-reviewed DSH_MCP_SERVERS
     # list — never from the plan, the intent, or the model. A declared-but-broken
     # list raises, because a half-applied boundary is worse than a failed run.
@@ -271,7 +304,7 @@ def _execution_policy_patch(
         "- insert:\n"
         "    - id: harness-shell\n"
         f"      name: {json.dumps(str(_SHELL_PLUGIN))}\n"
-        f"      config: {json.dumps(shell)}\n" + web + browser + mcp_block,
+        f"      config: {json.dumps(shell)}\n" + web + browser + images + mcp_block,
         encoding="utf-8",
     )
     return str(patch)

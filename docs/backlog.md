@@ -474,3 +474,16 @@ stack-law tests; that was this branch's regression and it is fixed.
   flakes fixed today, and it sits in the reconnect/replay-dedup area W1 recorded
   as verified only in the reducer. Reproduce by widening its timing window rather
   than re-running, as with the Section 4 pair.
+
+- [ ] **Every gate edit rebuilds Chromium and every wheel** (owner: S4/deploy).
+  `section4/worker.Dockerfile` installs Chromium in the `worker` stage, which is
+  `FROM base` — and `base` ends with the `COPY` of `section4/src` and the Section 5
+  gates. So touching one gate line invalidates the apt layer: W11 measured a
+  40-minute re-download of ~200 Debian packages for a one-line plugin change, at
+  the same hour the backend image re-resolved every Python wheel because
+  `deploy/backend.Dockerfile` copies all eight sections before `pip install`.
+  The images are correct; the layer order makes the boundary files the most
+  expensive thing to change, which is the opposite of how often they should be
+  reviewed. Fix is layering, not caching: install Chromium and the wheels in
+  stages that depend only on lockfiles/`pyproject.toml`, and copy the sources and
+  gates last.

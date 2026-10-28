@@ -10,6 +10,47 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### W11 — an image the agent can measure: diff, sample, and design-to-code from a mockup (2026-10-28)
+
+* **Image gate, confined.** `section5/src/harness_sandbox/image_gate.py` adds two
+  actions the runtime does not ship: `diff` (changed pixels, ratio, bounding box,
+  max delta, mean colours of the changed pixels, and a diff PNG) and `sample`
+  (exact RGB at up to 64 points). Every input and the output must resolve under
+  the workspace (symlinks included); each PNG is capped by bytes (10 MiB, the
+  artifact cap) and pixels (4 MP), and the comparison is stdlib-only — 8-bit
+  RGB/RGBA non-interlaced PNGs decode, palette/16-bit/interlaced/truncated files
+  are refused by name. No Pillow in the worker image. 20 unit tests pin the
+  arithmetic (identical → 0, a known 100-pixel patch → exact box and ratio),
+  tolerance, format refusals, escapes and caps.
+* **Mounted like the browser it compares.** `dsh_plugins/harness-images.js`
+  registers `image`; `engine.py` mounts it over the same workspace root as
+  `browser` and fails closed (tool absent, never half-mounted) when either the
+  plugin or the gate is missing. `worker.Dockerfile` copies the gate into `base`
+  (it spawns nothing, so it needs no Chromium). 2 engine tests pin the mount and
+  the fail-closed path.
+* **The gate passes on the live stack.**
+  `docs/briefs/evidence/pilot-prep/w11-vision-1793183487.json` — PASS, 22/22,
+  one design run and one triage run with `qwen/qwen3.7-flash` and the vision
+  transport patch. The agent built a page from `mockup.png` alone (the fixture's
+  HTML was deleted before the run), screenshotted it and diffed it; the drill's
+  independent re-render measured **2,568/480,000 = 0.535%**, bbox over the title
+  line only, all five flat colours exact, and transcribed the token `ORBITAL-50`
+  that existed only in pixels. Triage reported `E_UPSTREAM_187` and
+  `Snapshot ceff could not be uploaded.` from `dialog.png` alone. The gate
+  reported a known 10×10 patch as exactly 100 px / ratio 0.02 / bbox
+  `[20,10,10,10]`, refused `../../etc/passwd`, and ran with no network routes;
+  W10's no-proxy leg still answers `FETCH FAILED`.
+* **The first attempt failed, and the fix is recorded.** The first live run
+  (`w11-vision-1793182630.json`) was stopped by the loop guard after 50 calls:
+  the model guessed geometry, ignored its diff and sampled pixel-by-pixel until
+  identical CSS rewrites tripped the repeated-call detector (measured ratio
+  4.04%). The fixture was simplified to sharp rectangles plus one small token
+  line and the goal now prescribes edge measurement and bbox-driven correction.
+  Goal (0.02) and gate (0.03) thresholds are unchanged.
+* **Known behaviour, not a claim.** The passing run used 25 `sample` calls
+  rather than the two the goal asks for; it converged under the run budget. That
+  is a model/prompt finding for W14 routing, recorded in the week plan.
+
 ### UI — desktop-app chrome and a denser dark palette (2026-10-28)
 
 * **Window chrome.** The workspace now reads like a desktop app: a 44px titlebar

@@ -22,6 +22,10 @@ COPY section5/src/harness_sandbox/web_gate.py section5/src/harness_sandbox/egres
      section5/src/harness_sandbox/browser_gate.py /opt/harness-shell/
 ENV HARNESS_WEB_GATE=/opt/harness-shell/web_gate.py
 ENV HARNESS_BROWSER_GATE=/opt/harness-shell/browser_gate.py
+# W11: the image gate (diff/sample). Stdlib file arithmetic — it spawns nothing,
+# so it lives in `base` with the other gates and needs no Chromium.
+COPY section5/src/harness_sandbox/image_gate.py /opt/harness-shell/
+ENV HARNESS_IMAGE_GATE=/opt/harness-shell/image_gate.py
 # Operator runtime patches (e.g. the OpenRouter transport patch). The worker
 # container receives DSH_PATCH_FILES through the engine's scrubbed env, so the
 # file must exist at the same path inside this image.
