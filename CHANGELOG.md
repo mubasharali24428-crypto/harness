@@ -10,6 +10,43 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Marathon 2.0 W11 — a model's click is executed and judged (2026-10-28)
+
+* **`browser_session.box`** (new action): AX role+name → `DOM.getBoxModel` →
+  centre, width, height and `backendNodeId`, audited like every other action.
+  It is the structured baseline the vision model is compared with.
+* **Fixture** `scripts/e2e/fixtures/w11_grounding.html`: two-column responsive
+  grid (700 px reflow), look-alike “Delete file” / “Delete folder” buttons, a
+  canvas switch (`role=img`, `#444b5a` → `#1a7f37`), an `Export CSV` div that is
+  a `StaticText` to the accessibility tree, and a `#log` the verifier reads.
+* **Drill** `scripts/e2e/w11_grounding_drill.py`: five grounding tasks in a
+  `--network none` container. Each asks a vision model for a target, the harness
+  clicks where it said, and the verdict comes from the re-rendered page (`#log`
+  text, canvas pixel) — never from the model. Deterministic legs prove the
+  harness: AX baseline, pixels-only canvas and div, the AX gap
+  (`operableByAx: false`), a false-click detector, the product's text-only
+  model refusal plus the provider's 404, and a before/after W9 visual pair on a
+  real run with its revision.
+* **Live result: 22/22 PASS** (`qwen/qwen3.7-flash`, $0.0026). Labels 4/4;
+  coordinates **2/5** — misses of (+65,+73) and (+21,+157) px recorded as false
+  clicks (one at confidence 1.0), and one task with two `finish=length` empty
+  answers recorded as **no answer**.
+* **Measured coordinate finding:** the model answered in pixels on a sparse
+  page and in a 0..1000 grid on dense ones; the drill states the normalized
+  contract and converts, and keeps the pixel contract as a recorded probe. A
+  contract makes an answer usable, not accurate.
+* **Vision drill re-run at HEAD (owed from W10): recorded as FAIL, not retried
+  to green.** Design-to-code stopped twice for model-side reasons —
+  `tool_budget_exhausted after 61 tool calls` (60 pixel samples, no write) and
+  `model … returned an empty response` — while triage (exact code and sentence)
+  and the deterministic gate legs passed in both runs. An earlier run of the
+  same drill at the earlier revision had already failed once on `loop_detected`
+  before passing. The design leg is left **open** for W12; evidence
+  `w11-vision-1793209063.json`, `w11-vision-1793209463.json`.
+* **Tests:** `box` geometry (centre, size, audit line, `clickAx` sharing the
+  same centre, an off-viewport centre refused) — `test_browser_session.py` now
+  23, all passing; the W10 policy and wire tests are unchanged.
+
 ### Marathon 2.0 W10 — a persistent, audited browser adapter (2026-10-28)
 
 * **`section5/.../browser_session.py`** keeps one Chromium open and drives it

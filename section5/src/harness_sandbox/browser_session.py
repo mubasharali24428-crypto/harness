@@ -87,7 +87,7 @@ MAX_SECONDS = 120.0
 DEFAULT_WIDTH = 1280
 DEFAULT_HEIGHT = 800
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
-_ACTIONS = ("navigate", "inspect", "clickAx", "click", "type", "scroll", "screenshot",
+_ACTIONS = ("navigate", "inspect", "clickAx", "click", "box", "type", "scroll", "screenshot",
             "clipboard", "requests", "wait", "close")
 
 
@@ -551,7 +551,8 @@ class BrowserSession:
                 return node
         raise CDPError(f"no AX node with role={role!r} name={name!r}")
 
-    def _box_centre(self, backend_node_id: int) -> tuple[int, int]:
+    def _box(self, backend_node_id: int) -> tuple[int, int, int, int]:
+        """(centre x, centre y, width, height) of an element's content box."""
         model = self._call("DOM.getBoxModel", {"backendNodeId": backend_node_id})
         quad = (model.get("model") or {}).get("content")
         if not quad or len(quad) < 8:
@@ -561,6 +562,10 @@ class BrowserSession:
         y = int(sum(ys) / len(ys))
         if not (0 <= x < self.width and 0 <= y < self.height):
             raise Refused(f"control centre ({x},{y}) is outside the viewport")
+        return x, y, max(xs) - min(xs), max(ys) - min(ys)
+
+    def _box_centre(self, backend_node_id: int) -> tuple[int, int]:
+        x, y, _w, _h = self._box(backend_node_id)
         return x, y
 
     def _mouse_click(self, x: int, y: int) -> None:
@@ -589,6 +594,17 @@ class BrowserSession:
             return True
         except CDPError:
             return False
+
+    def box(self, role: str, name: str) -> dict:
+        """The box of an AX node — what accessibility data offers a grounding step."""
+        started = time.time()
+        node = self._ax_node(role, name)
+        backend = node.get("backendDOMNodeId")
+        if not backend:
+            raise CDPError("AX node has no backendDOMNodeId")
+        x, y, width, height = self._box(int(backend))
+        return self._audit("box", f"{role}:{name}", started, x=x, y=y, width=width,
+                           height=height, backendNodeId=int(backend))
 
     def click(self, x: int, y: int) -> dict:
         started = time.time()
@@ -684,6 +700,8 @@ class BrowserSession:
             return self.click_ax(str(step.get("role") or ""), str(step.get("name") or ""))
         if action == "click":
             return self.click(int(step.get("x") or 0), int(step.get("y") or 0))
+        if action == "box":
+            return self.box(str(step.get("role") or ""), str(step.get("name") or ""))
         if action == "type":
             return self.type_text(str(step.get("text") or ""), step.get("selector"))
         if action == "scroll":

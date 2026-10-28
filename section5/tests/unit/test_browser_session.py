@@ -92,6 +92,49 @@ def test_action_caps_refuse_before_touching_the_browser(sess, tmp_path):
         browser.screenshot("../escape.png")
 
 
+# ------------------------------------------------------------------ geometry
+
+
+def _box_browser(sess, tmp_path, quad):
+    browser = sess.BrowserSession(str(tmp_path), chromium="/bin/true")
+    tree = {"nodes": [{"role": {"value": "button"}, "name": {"value": "Go"},
+                       "backendDOMNodeId": 7}]}
+
+    def call(method, params=None, **kwargs):
+        if method == "Accessibility.getFullAXTree":
+            return tree
+        if method == "DOM.getBoxModel":
+            assert params == {"backendNodeId": 7}
+            return {"model": {"content": quad}}
+        raise AssertionError(method)
+
+    browser._call = call
+    return browser
+
+
+def test_box_reports_the_ax_geometry_and_audits_it(sess, tmp_path):
+    quad = [100, 200, 300, 200, 300, 260, 100, 260]  # x1,y1,x2,y2,x3,y3,x4,y4
+    browser = _box_browser(sess, tmp_path, quad)
+    result = browser.box("button", "Go")
+    assert result["action"] == "box" and result["target"] == "button:Go"
+    assert (result["x"], result["y"]) == (200, 230)
+    assert (result["width"], result["height"]) == (200, 60)
+    assert result["backendNodeId"] == 7
+    assert browser._actions[-1]["action"] == "box"
+    # clickAx shares the geometry: same centre, same node.
+    assert browser._box_centre(7) == (200, 230)
+    routed = browser.dispatch({"action": "box", "role": "button", "name": "Go"})
+    assert routed["action"] == "box" and routed["backendNodeId"] == 7
+
+
+def test_box_refuses_a_centre_outside_the_viewport(sess, tmp_path):
+    edge = [-40, 10, 40, 10, 40, 50, -40, 50]  # centre x = 0: the first column
+    assert _box_browser(sess, tmp_path, edge).box("button", "Go")["x"] == 0
+    off = [-80, 10, -40, 10, -40, 50, -80, 50]  # centre x = -60
+    with pytest.raises(sess.Refused, match="outside the viewport"):
+        _box_browser(sess, tmp_path, off).box("button", "Go")
+
+
 # ------------------------------------------------------------------ wire
 
 

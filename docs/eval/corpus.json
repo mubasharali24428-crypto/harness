@@ -1045,6 +1045,38 @@
       "expected": "exit 0 and every check true",
       "evidence": "docs/briefs/evidence/pilot-prep/w10-browser-session-<stamp>.json",
       "notes": "no model; Chromium 156; prototype CLI not wired to the engine's browser tool yet; local fixtures only, no external site"
+    },
+    {
+      "id": "w11-grounding",
+      "title": "A vision model's click is executed, re-rendered and judged; AX gaps and misses are reported",
+      "category": "ui_screenshot",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "implemented",
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w11_grounding_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": "generated static page",
+        "revision": "w11-grounding",
+        "seed": [
+          "w11_grounding.html"
+        ]
+      },
+      "budget": {
+        "timeoutSeconds": 600,
+        "maxToolCalls": null,
+        "maxCostUsd": 0.02
+      },
+      "model": "qwen/qwen3.7-flash (OpenRouter, vision patch)",
+      "verifier": "five grounding tasks in a --network none, cap-dropped worker container; the model names a target from one screenshot, the harness clicks where it said through browser_session, and the verdict is read from a fresh render (#log text; canvas pixel #1a7f37 for the switch) \u2014 never from the model; misses recorded with pixel displacement, empty answers recorded as no answer; deterministic legs: AX box baseline lands both accessible buttons, pixels-only operations land the canvas switch and the Export CSV div, AX cannot address either (image / StaticText, no button node), a false-click detector flags Delete file when Delete folder was asked, HARNESS_VISION_MODELS refuses a text-only model before any image is sent and the provider 404s the image request, and a before/after pair of the canvas task is attached to the run as a W9 visual pair with its head, plan version and changes digest",
+      "expected": "exit 0 and every check true",
+      "evidence": "docs/briefs/evidence/pilot-prep/w11-grounding-<stamp>.json",
+      "notes": "live vision model; harness checks measure executing and judging, not model accuracy \u2014 the recorded run measured labels 4/4 and coordinates 2/5 amid 1 no answer, reported as such; local fixtures only"
     }
   ]
 }
