@@ -34,6 +34,7 @@ what is still not proven at the current revision.
 | Plan versions | `plan_versions` with `content_sha256`; writes require `expectedVersion == latest`; edits may only be proposed on the latest open version; accepting a stale edit is `STALE_EDIT` | `plans.py:887-928, 1207-1244, 1317-1370` | A file-like patch object exists at the plan level, with a real content digest. |
 | Checkpoints | Manifest + content-addressed blobs under `<workspace_root>/.checkpoints`, outside every run tree; `rewind` restores bytes, removes files created after the snapshot | `run_checkpoints.py:200-346` | Rewind is exact by construction; the store is not readable as ordinary workspace files. |
 | Checkpoint routes | `GET /runs/{id}/checkpoints`, `POST /runs/{id}/rewind`; rewind refused while the run's task is live | `execution.py:2345-2370`, `service.py:372-398` | Refusal is a product behaviour with a test, not a comment. |
+| Hunk review (sandbox) | `parse_unified_diff` → per-file/per-hunk units; `patch_for`/`build_reverse_patch` rebuild only the selected hunks; selections are a path plus an index into the diff of the same sha, never patch text | `section5/src/harness_sandbox/hunk_review.py` | The server decides what a hunk is, so a caller cannot inject paths or arbitrary patch text; malformed diffs raise instead of silently dropping a change. |
 | Steering | `redirect` is an event: `guidance` queues to the holder; `scope_change`/`permission_change` require the leader and invalidate approvals, but **never write the intent** | `collab.py:582-660`, `control.py:494-546` | Scope lives only in `run_intent_versions`; steering cannot widen it. |
 | Agent file write | Last-writer-wins inside one run's workspace; no content-hash precondition on the SDK fs tool | engine/SDK tool (not this repo) | There is no file-level stale patch to drill. The stale-patch clause is answered by the versioned documents (intent, plan), and cross-run isolation is W8's row. |
 | Historical W3 evidence | stop kill 0.58–1.01 s (4 samples); torn write 28/120 lines, rewind exact, resume attempt 2; steering-scope and rejected-plan tests | `docs/briefs/evidence/pilot-prep/`, `docs/week-3-plan.md` | Real, but from 2026-10-26; the corpus keeps those tasks `blocked` because re-running them needs a chat model. |
@@ -128,6 +129,14 @@ stale rejection, conflict record, simultaneous writers), `test_plans_edits.py`
 (stale edit, latest-open-version, self-approval), `test_w3_rejected_stays_blocked.py`,
 `test_w3_steering_scope.py`, `test_run_checkpoints.py`,
 `test_checkpoint_blob_store.py`.
+
+**Hunk workflow: 11 passed** (`section5/tests/unit/test_hunk_review.py`):
+parse/split, selective reverse patch, unknown selection refused, reverting one
+hunk leaves the other change, restore-to-snapshot, a second revert of the same
+sha is a conflict rather than a silent no-op, empty selection refused, and the
+API's writer/team, 422 and 409 paths. This is the sandbox's checkpoint diff
+workflow; it is a different store from the run-workspace rewind above and neither
+replaces the other.
 
 ### Gate position after this week
 

@@ -37,7 +37,10 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   overlapping-run work finds silent overwrite.
 * **Tests.** 91 pass across `test_control`, `test_plans_edits`,
   `test_w3_rejected_stays_blocked`, `test_w3_steering_scope`,
-  `test_run_checkpoints` and `test_checkpoint_blob_store`. Runner baseline
+  `test_run_checkpoints` and `test_checkpoint_blob_store`. The sandbox's hunk
+  workflow adds 11 (`test_hunk_review`): server-defined hunk selection, selective
+  reverse patches, one-hunk reverts, restore-to-snapshot and a double-revert
+  conflict. Runner baseline
   `docs/briefs/evidence/eval/baseline-20261028T133421Z.json`: 1/1 PASS,
   `revisionVerified: true`.
 * **Corpus.** `stale-edit` moves to `implemented`; 26 tasks (16 implemented,
