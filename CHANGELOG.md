@@ -10,6 +10,30 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Marathon 2.0 W6 — governed skills prototype, Hermes audit (2026-10-28)
+
+* **Skills are text, pinned and team-scoped.** `harness_orchestrator/skills.py`
+  is a file-backed prototype: a strict manifest allow-list (no command, script,
+  hook, env, tool or permission field), a `contentSha256` pin recorded at
+  review, one directory per team, and explicit enable/disable/remove. The loader
+  emits only an advisory prompt block; it has no code path that could execute or
+  change policy. Editing a reviewed bundle breaks the pin and excludes it;
+  symlinked skill directories are never followed.
+* **Evidence.** 11 unit tests and a 9/9 deterministic drill
+  (`w6-skills-1793197039.json`); corpus task `skills-governance` (infra). The
+  prototype is **not** wired into the engine; W12 ships the DB-backed catalog.
+* **Hermes H0–H2 audited, claims stay blocked.** H0 is partially cleared: the
+  licence is proprietary/all-rights-reserved (2026-10-25) and 45/45 commits are
+  single-author, but the university student-IP position and a written teammate
+  acknowledgment are absent. H1's `--json` contract is live while the
+  differential gate is still specified only; H2's toolchain is not in the sandbox.
+  No `.hms` support is claimed and no Hermes code was copied.
+* **CLI end-to-end re-proven.** `cli-parity` PASS in 21.3 s (same four-event
+  lifecycle, same state, token 0600/0700, one JSON object, diff-absence parity)
+  and `stack-compose-journey` 13/13. Reconnect is unchanged from W5 and remains
+  covered by its tests.
+* **Corpus.** 29 tasks (19 implemented, 6 blocked, 4 fixture-owed).
+
 ### Marathon 2.0 W5 — CLI diagnostics, capture, and parity re-proven (2026-10-28)
 
 * **Stable exit contract.** 0 ok, 1 failure, 2 usage, 3 auth, 4 policy refusal,

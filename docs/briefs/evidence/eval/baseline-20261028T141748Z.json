@@ -1,0 +1,324 @@
+{
+  "schema": 1,
+  "kind": "marathon2-baseline",
+  "corpusRevision": "m2-w1",
+  "startedAt": "2026-10-28T14:17:48.476190+00:00",
+  "finishedAt": "2026-10-28T14:18:13.537872+00:00",
+  "environment": {
+    "git": {
+      "head": "f2c781c2e8e74f59b35285e9b6012f6de2c64c47",
+      "branch": "w1-engine-tools",
+      "dirty": true
+    },
+    "revisionCheck": {
+      "orchestratorContainer": "harness-orchestrator-1",
+      "workerImage": "harness-engine-worker:vdev-local",
+      "backend": {
+        "engine.py": {
+          "host": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+          "deployed": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+          "match": true
+        },
+        "image_gate.py": {
+          "host": "a8c79fd8a8d6b92c140c59fadf2227af19d530d861d2b376c193436976da6cfb",
+          "deployed": "a8c79fd8a8d6b92c140c59fadf2227af19d530d861d2b376c193436976da6cfb",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "e14f0b0096f0ff6ce6427c24a2ecc370398fe9c7f08304230e3fe44353d34dd6",
+          "deployed": "e14f0b0096f0ff6ce6427c24a2ecc370398fe9c7f08304230e3fe44353d34dd6",
+          "match": true
+        }
+      },
+      "worker": {
+        "image_gate.py": {
+          "host": "a8c79fd8a8d6b92c140c59fadf2227af19d530d861d2b376c193436976da6cfb",
+          "deployed": "a8c79fd8a8d6b92c140c59fadf2227af19d530d861d2b376c193436976da6cfb",
+          "match": true
+        },
+        "engine.py": {
+          "host": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+          "deployed": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "e14f0b0096f0ff6ce6427c24a2ecc370398fe9c7f08304230e3fe44353d34dd6",
+          "deployed": "e14f0b0096f0ff6ce6427c24a2ecc370398fe9c7f08304230e3fe44353d34dd6",
+          "match": true
+        }
+      },
+      "verified": true
+    },
+    "images": {
+      "backend": "sha256:8fd637dc9a59567a9d49040b7b9581c1dbdddf64e8f6dc14e4d9ab607f53b9fb",
+      "engineWorker": "sha256:9c867f158d8569656784a48b582ec627b340e6033d8fbc62bc44206a516ea356"
+    },
+    "model": null,
+    "repeats": 1
+  },
+  "selection": {
+    "includeLive": true,
+    "costs": [],
+    "tasks": [
+      "cli-parity",
+      "stack-compose-journey"
+    ],
+    "categories": []
+  },
+  "summary": {
+    "executed": 2,
+    "passed": 2,
+    "failed": 0,
+    "errors": 0,
+    "deferred": 27,
+    "corpus": 29,
+    "revisionVerified": true
+  },
+  "results": [
+    {
+      "id": "stack-compose-journey",
+      "category": "stack_health",
+      "kind": "infra",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-28T14:17:50.989715+00:00",
+          "durationSec": 1.23,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": null,
+          "failedChecks": [],
+          "stdoutTail": "compose E2E journey against http://127.0.0.1:8001 (+orchestrator/sandbox/frontend)\n[ok] step 01 all 20 containers running/healthy\n[ok] step 02 stack ready: identity+orchestrator+sandbox /ready, frontend 200\n[ok] step 03 passwordless login A \u2192 solo team 0c7e13ef-84b9-4a9f-baa5-825e22a20e25 (admin)\n[ok] step 04 demo seed \u2192 project demo-proj-5fd50527fdb2, run demo-run-6f932a178474, replay=true, pr_opened\n[ok] step 05 demo re-seed idempotent (same project/run)\n[ok] step 06 run aggregate \u2192 pr_opened with 10 steps\n[ok] step 07 engine result truthfully reports 'replayed' (no live claim)\n[ok] step 08 event replay \u2192 10 marked events, 9 types, ordered\n[ok] step 09 audit page \u2192 1 team-scoped rows incl. ['invite.minted']\n[ok] step 10 sandbox create\u2192exec(passed)\u2192destroy\u2192post-destroy 404\n[ok] step 11 cross-tenant reads answer identical 404 NOT_FOUND (no oracle)\n[ok] step 12 metrics \u2192 17 harness_* families\n[ok] step 13 frontend serves HTML\n\nPASS: 13 checks green in 1.1s\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 1.23,
+      "budget": {
+        "timeoutSeconds": 600,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "exit 0",
+      "driver": "scripts/e2e/compose_journey.py",
+      "verifier": "every compose container running/healthy; readiness; OTP login; idempotent demo seed; replay ordering; audit page; sandbox create/exec/destroy 404"
+    },
+    {
+      "id": "cli-parity",
+      "category": "cli_parity",
+      "kind": "infra",
+      "cost": "live",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-28T14:17:52.222726+00:00",
+          "durationSec": 21.31,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": null,
+          "failedChecks": [],
+          "stdoutTail": "PASS  signed in, project demo-proj-2eb69733e962\nPASS  token stored 0600 in 0700 (/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/harness-parity-7m1fdjny/credentials.json)\nPASS  cli run run-f0f60ad7966c \u2192 awaiting_done_signal\nPASS  cli diff reports the server's absence (404 NOT_FOUND)\nPASS  http run run-1ccfd65d65da \u2192 awaiting_done_signal\nPASS  identical audit trail: 4 events, ['engine_completed', 'execution_started', 'plan_approved', 'plan_proposed']\nPASS  evidence \u2192 docs/briefs/evidence/pilot-prep/w6-cli-parity-1793197072.json\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 21.31,
+      "budget": {
+        "timeoutSeconds": 600,
+        "maxToolCalls": 20,
+        "maxCostUsd": 0.1
+      },
+      "model": "the stack DSH_MODEL",
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "exit 0",
+      "driver": "scripts/e2e/cli_parity.py",
+      "verifier": "ordered event-type sequences equal; same terminal state; token file 0600 in 0700 dir; --json exactly one object"
+    }
+  ],
+  "deferred": [
+    {
+      "id": "w4-egress-deny",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "m03-scope",
+      "category": "confinement",
+      "status": "blocked",
+      "reason": "blocked 2026-10-28: local Ollama has only nomic-embed-text, no chat model. Prerequisite: pull a local chat model or point the drill at a compatible endpoint."
+    },
+    {
+      "id": "m04-streaming",
+      "category": "streaming",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent (nomic-embed-text only)"
+    },
+    {
+      "id": "m07-api-run",
+      "category": "bug_fix",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "m07-daemon-topology",
+      "category": "confinement",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "m07-vision-api",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w3-rewind",
+      "category": "cancellation_recovery",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "w3-partial-write",
+      "category": "cancellation_recovery",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "w4-web-fetch",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-install",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-mcp-client",
+      "category": "mcp",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-credential-leak",
+      "category": "tenant_isolation",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-concurrency",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-crash-cleanup",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w9-share-deploy",
+      "category": "artifact_authz",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w10-browser-repro",
+      "category": "ui_screenshot",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w11-vision",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "cli-diagnostics",
+      "category": "cli_parity",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "skills-governance",
+      "category": "skills",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "stale-edit",
+      "category": "stale_edit",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "code-search",
+      "category": "code_search",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "multi-file-refactor",
+      "category": "refactor",
+      "status": "fixture-owed",
+      "reason": "owed: no refactor fixture"
+    },
+    {
+      "id": "tests-written",
+      "category": "tests",
+      "status": "fixture-owed",
+      "reason": "owed: needs the H1 differential pattern (W6/W14)"
+    },
+    {
+      "id": "tenant-isolation-api",
+      "category": "tenant_isolation",
+      "status": "fixture-owed",
+      "reason": "owed: w9 covers shares; compose_journey step 11 covers cross-tenant reads answering identical 404s. The broader API matrix (artifacts, events, runs, keys) is not yet a task."
+    },
+    {
+      "id": "native-tool-confinement",
+      "category": "confinement",
+      "status": "fixture-owed",
+      "reason": "owed: this is M01, still open; no access is widened until it closes"
+    },
+    {
+      "id": "ast-lsp-confinement",
+      "category": "confinement",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "code-search-heldout",
+      "category": "code_search",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    }
+  ],
+  "limitations": [
+    "n=1 unless --repeats was raised; a single pass is an existence proof, not a rate.",
+    "A task is deferred, blocked or fixture-owed is not a pass.",
+    "Revision verification compares runtime files inside the deployed containers/images with this worktree; a mismatch makes every result stale for HEAD."
+  ]
+}

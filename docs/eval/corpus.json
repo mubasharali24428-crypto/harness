@@ -613,6 +613,36 @@
       "notes": "no model; transport reconnect is covered by clients/python/tests/test_cli.py"
     },
     {
+      "id": "skills-governance",
+      "title": "Reviewed skills are pinned text, team-scoped, and cannot grant capability",
+      "category": "skills",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "implemented",
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w6_skills_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 120,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "verifier": "only reviewed+enabled skills load; post-review edits break the pin and are excluded; executable/policy manifest keys refused; team directories isolate; symlinked skill dirs never followed; rendering is advisory and mutates no policy; removal unloads; CLI list agrees with the loader",
+      "expected": "exit 0 with every check true",
+      "evidence": "docs/briefs/evidence/eval/w6-skills-*.json",
+      "notes": "prototype is file-backed and NOT wired into the engine; W12 ships a DB-backed catalog"
+    },
+    {
       "id": "stale-edit",
       "title": "An edit computed against an older version is refused and rewinds exactly",
       "category": "stale_edit",
