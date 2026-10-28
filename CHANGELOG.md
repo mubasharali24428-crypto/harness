@@ -28,11 +28,14 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   found and changed it: **PASS in 12.1 s with 2 tool calls** (`bash`, `edit`),
   only the target file changed, no files added or deleted, answer names the
   file. `usage` is null on this transport and recorded as unknown.
+* **Held-out search closed.** A second planted answer (`FLUSH_INTERVAL_SECONDS`
+  30 → 45) passed in 16.1 s with 3 calls, only the telemetry file changed. A
+  runner baseline increment executes both search tasks: 2/2 PASS,
+  `revisionVerified: true`.
 * **Decisions.** Section 11 stays undeployed; no repo map without a measured
-  gap; the held-out search variant is recorded as `fixture-owed`; the task used
-  only existing tools and M01 remains open.
-* **Corpus.** `code-search` moves from `fixture-owed` to `implemented`; the
-  corpus is now 26 tasks (14 implemented, 6 blocked, 6 fixture-owed).
+  gap; the task used only existing tools and M01 remains open.
+* **Corpus.** `code-search` and `code-search-heldout` are `implemented`; the
+  corpus is now 26 tasks (15 implemented, 6 blocked, 5 fixture-owed).
 
 ### Marathon 2.0 W1 — an evaluation protocol, a fixed corpus, and a current-revision baseline (2026-10-28)
 

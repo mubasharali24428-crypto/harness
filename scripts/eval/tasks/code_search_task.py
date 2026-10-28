@@ -25,7 +25,6 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
 OUT = REPO / "docs" / "briefs" / "evidence" / "eval"
-TARGET = "pkg/billing/invoice_retry.py"
 SEEDED_FILES = 100
 
 spec = importlib.util.spec_from_file_location(
@@ -35,13 +34,17 @@ assert spec and spec.loader
 spec.loader.exec_module(w11)
 w10 = w11.w10
 
-GOAL = """This repository has a wrong value: RETRY_BACKOFF_SECONDS is set to 5 and
-must be 7. Find the module that defines it and change only that value. Do not
+GOAL_TEMPLATE = """This repository has a wrong value: {symbol} is set to {old} and
+must be {new}. Find the module that defines it and change only that value. Do not
 modify any other file. Reply with exactly one line:
 FILE: <the path of the file you changed>
 """
 
-TARGET_BODY = '''"""Invoice retry policy."""
+VARIANTS = {
+    "default": {
+        "target": "pkg/billing/invoice_retry.py",
+        "symbol": "RETRY_BACKOFF_SECONDS", "old": 5, "new": 7,
+        "body": '''"""Invoice retry policy."""
 
 RETRY_BACKOFF_SECONDS = 5
 MAX_RETRIES = 4
@@ -55,7 +58,23 @@ def next_attempt_delay(attempt: int) -> int:
 def should_retry_invoice(attempt: int) -> bool:
     # invoice retry backoff schedule
     return attempt < MAX_RETRIES
-'''
+''',
+    },
+    "heldout": {
+        "target": "pkg/telemetry/flush.py",
+        "symbol": "FLUSH_INTERVAL_SECONDS", "old": 30, "new": 45,
+        "body": '''"""Telemetry flush interval."""
+
+FLUSH_INTERVAL_SECONDS = 30
+
+
+def flush_buffered_metrics(now: int) -> None:
+    """Send buffered monitoring data on the flush interval."""
+    if now % FLUSH_INTERVAL_SECONDS == 0:
+        pass
+''',
+    },
+}
 
 DECOYS = {
     "pkg/billing/invoice_report.py": (
@@ -68,12 +87,12 @@ DECOYS = {
     ),
     "pkg/net/retry_policy.py": '"""Network retry policy."""\n\nNETWORK_RETRY = 2\n',
     "pkg/auth/session_rotation.py": '"""Session rotation."""\n\nROTATE_AFTER = 3600\n',
-    "pkg/telemetry/flush.py": '"""Telemetry flush."""\n\nFLUSH_INTERVAL = 30\n',
+    "pkg/logs/flush_buffer.py": '"""Flush buffer."""\n\nBUFFER_LIMIT = 30\n',
 }
 
 
-def build_fixture() -> dict[str, bytes]:
-    files = {TARGET: TARGET_BODY.encode()}
+def build_fixture(variant: dict) -> dict[str, bytes]:
+    files = {variant["target"]: variant["body"].encode()}
     for rel, body in DECOYS.items():
         files[rel] = body.encode()
     for index in range(SEEDED_FILES - len(files)):
@@ -118,12 +137,16 @@ def tree_hashes(run_id: str) -> dict[str, str]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--timeout", type=float, default=900.0)
+    ap.add_argument("--variant", choices=sorted(VARIANTS), default="default")
     args = ap.parse_args()
     stamp = int(time.time())
-    run_id = f"w2-code-search-{stamp}"
+    variant = VARIANTS[args.variant]
+    run_id = f"w2-code-search-{args.variant}-{stamp}"
     email = f"w2-{stamp}@example.com"
-    files = build_fixture()
+    files = build_fixture(variant)
     seeded = {rel: hashlib.sha256(blob).hexdigest() for rel, blob in files.items()}
+    goal = GOAL_TEMPLATE.format(symbol=variant["symbol"], old=variant["old"],
+                                new=variant["new"])
 
     login = w11.tpl.login(email)
     status, project = w11.tpl.http("POST", f"{w11.tpl.IDENTITY}/api/v1/projects",
@@ -133,7 +156,7 @@ def main() -> int:
 
     seed_tree(run_id, files)
     started = time.monotonic()
-    result = w11.run_goal(run_id, login, project["id"], GOAL, max_tool_calls=20,
+    result = w11.run_goal(run_id, login, project["id"], goal, max_tool_calls=20,
                           timeout=args.timeout)
     duration = round(time.monotonic() - started, 2)
     calls = w11.tpl.audit_tool_events(run_id)
@@ -142,7 +165,8 @@ def main() -> int:
     _, engine_body = w11.api("GET", f"/runs/{run_id}/engine", token=login)
     engine = engine_body if isinstance(engine_body, dict) else {}
     after = tree_hashes(run_id)
-    target_text = w10.workspace_file(run_id, TARGET) or ""
+    target = variant["target"]
+    target_text = w10.workspace_file(run_id, target) or ""
     changed = sorted(rel for rel, digest in seeded.items()
                      if after.get(rel) != digest)
     added = sorted(rel for rel in after if rel not in seeded)
@@ -150,17 +174,19 @@ def main() -> int:
 
     checks = {
         "runSettled": result.get("state") in w10.SETTLED,
-        "targetHasNewValue": "RETRY_BACKOFF_SECONDS = 7" in target_text,
-        "onlyTargetChanged": changed == [TARGET],
-        "answerNamesTheFile": "invoice_retry.py" in answer,
+        "targetHasNewValue": f'{variant["symbol"]} = {variant["new"]}' in target_text,
+        "onlyTargetChanged": changed == [target],
+        "answerNamesTheFile": Path(target).name in answer,
         "noFilesDeleted": all(rel in after for rel in seeded),
     }
     evidence = {
         "schema": 1,
         "kind": "w2-code-search",
+        "variant": args.variant,
         "takenAt": datetime.now(UTC).isoformat(),
         "runId": run_id,
-        "goal": GOAL,
+        "goal": goal,
+        "target": target,
         "model": "the stack DSH_MODEL",
         "seededFiles": len(seeded),
         "changedFiles": changed,
@@ -179,7 +205,7 @@ def main() -> int:
         "failedChecks": [k for k, v in checks.items() if not v],
     }
     OUT.mkdir(parents=True, exist_ok=True)
-    path = OUT / f"code-search-{stamp}.json"
+    path = OUT / f"code-search-{args.variant}-{stamp}.json"
     path.write_text(json.dumps(evidence, indent=2, default=str) + "\n", encoding="utf-8")
     print(json.dumps({"verdict": evidence["verdict"],
                       "failed": evidence["failedChecks"],

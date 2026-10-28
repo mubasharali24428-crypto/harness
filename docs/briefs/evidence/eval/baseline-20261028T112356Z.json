@@ -1,0 +1,314 @@
+{
+  "schema": 1,
+  "kind": "marathon2-baseline",
+  "corpusRevision": "m2-w1",
+  "startedAt": "2026-10-28T11:23:56.444906+00:00",
+  "finishedAt": "2026-10-28T11:24:44.879160+00:00",
+  "environment": {
+    "git": {
+      "head": "88f32f08be4ba1785840e85e943c5f7672074641",
+      "branch": "w1-engine-tools",
+      "dirty": true
+    },
+    "revisionCheck": {
+      "orchestratorContainer": "harness-orchestrator-1",
+      "workerImage": "harness-engine-worker:vdev-local",
+      "backend": {
+        "engine.py": {
+          "host": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+          "deployed": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+          "match": true
+        },
+        "image_gate.py": {
+          "host": "a8c79fd8a8d6b92c140c59fadf2227af19d530d861d2b376c193436976da6cfb",
+          "deployed": "a8c79fd8a8d6b92c140c59fadf2227af19d530d861d2b376c193436976da6cfb",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "e14f0b0096f0ff6ce6427c24a2ecc370398fe9c7f08304230e3fe44353d34dd6",
+          "deployed": "e14f0b0096f0ff6ce6427c24a2ecc370398fe9c7f08304230e3fe44353d34dd6",
+          "match": true
+        }
+      },
+      "worker": {
+        "image_gate.py": {
+          "host": "a8c79fd8a8d6b92c140c59fadf2227af19d530d861d2b376c193436976da6cfb",
+          "deployed": "a8c79fd8a8d6b92c140c59fadf2227af19d530d861d2b376c193436976da6cfb",
+          "match": true
+        },
+        "engine.py": {
+          "host": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+          "deployed": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "e14f0b0096f0ff6ce6427c24a2ecc370398fe9c7f08304230e3fe44353d34dd6",
+          "deployed": "e14f0b0096f0ff6ce6427c24a2ecc370398fe9c7f08304230e3fe44353d34dd6",
+          "match": true
+        }
+      },
+      "verified": true
+    },
+    "images": {
+      "backend": "sha256:8fd637dc9a59567a9d49040b7b9581c1dbdddf64e8f6dc14e4d9ab607f53b9fb",
+      "engineWorker": "sha256:9c867f158d8569656784a48b582ec627b340e6033d8fbc62bc44206a516ea356"
+    },
+    "model": null,
+    "repeats": 1
+  },
+  "selection": {
+    "includeLive": true,
+    "costs": [],
+    "tasks": [
+      "code-search",
+      "code-search-heldout"
+    ],
+    "categories": []
+  },
+  "summary": {
+    "executed": 2,
+    "passed": 2,
+    "failed": 0,
+    "errors": 0,
+    "deferred": 24,
+    "corpus": 26,
+    "revisionVerified": true
+  },
+  "results": [
+    {
+      "id": "code-search",
+      "category": "code_search",
+      "kind": "agent",
+      "cost": "live",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-28T11:23:59.167128+00:00",
+          "durationSec": 24.89,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": "PASS",
+          "failedChecks": [],
+          "stdoutTail": "{\n  \"verdict\": \"PASS\",\n  \"failed\": [],\n  \"changed\": [\n    \"pkg/billing/invoice_retry.py\"\n  ],\n  \"added\": [],\n  \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/eval/code-search-default-1793186639.json\"\n}\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 24.89,
+      "budget": {
+        "timeoutSeconds": 900,
+        "maxToolCalls": 20,
+        "maxCostUsd": 0.05
+      },
+      "model": "the stack DSH_MODEL",
+      "fixture": {
+        "repo": "synthetic 100-file repo",
+        "revision": "w2-code-search",
+        "seed": [
+          "pkg/billing/invoice_retry.py",
+          "5 decoys",
+          "94 fillers"
+        ]
+      },
+      "expected": "exit 0 and only pkg/billing/invoice_retry.py changed",
+      "driver": "scripts/eval/tasks/code_search_task.py",
+      "verifier": "target file contains RETRY_BACKOFF_SECONDS = 7; every other seeded file is byte-identical; no seeded file deleted; answer names the target path (supplementary)"
+    },
+    {
+      "id": "code-search-heldout",
+      "category": "code_search",
+      "kind": "agent",
+      "cost": "live",
+      "heldOut": true,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-28T11:24:24.055316+00:00",
+          "durationSec": 20.82,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": "PASS",
+          "failedChecks": [],
+          "stdoutTail": "{\n  \"verdict\": \"PASS\",\n  \"failed\": [],\n  \"changed\": [\n    \"pkg/telemetry/flush.py\"\n  ],\n  \"added\": [],\n  \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/eval/code-search-heldout-1793186664.json\"\n}\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 20.82,
+      "budget": {
+        "timeoutSeconds": 900,
+        "maxToolCalls": 20,
+        "maxCostUsd": 0.05
+      },
+      "model": "the stack DSH_MODEL",
+      "fixture": {
+        "repo": "synthetic 100-file repo (held-out target)",
+        "revision": "w2-code-search-heldout",
+        "seed": [
+          "pkg/telemetry/flush.py",
+          "5 decoys",
+          "94 fillers"
+        ]
+      },
+      "expected": "exit 0 and only pkg/telemetry/flush.py changed",
+      "driver": "scripts/eval/tasks/code_search_task.py",
+      "verifier": "target file contains FLUSH_INTERVAL_SECONDS = 45; every other seeded file is byte-identical; no seeded file deleted; answer names the target path (supplementary)"
+    }
+  ],
+  "deferred": [
+    {
+      "id": "stack-compose-journey",
+      "category": "stack_health",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-egress-deny",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "m03-scope",
+      "category": "confinement",
+      "status": "blocked",
+      "reason": "blocked 2026-10-28: local Ollama has only nomic-embed-text, no chat model. Prerequisite: pull a local chat model or point the drill at a compatible endpoint."
+    },
+    {
+      "id": "m04-streaming",
+      "category": "streaming",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent (nomic-embed-text only)"
+    },
+    {
+      "id": "m07-api-run",
+      "category": "bug_fix",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "m07-daemon-topology",
+      "category": "confinement",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "m07-vision-api",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w3-rewind",
+      "category": "cancellation_recovery",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "w3-partial-write",
+      "category": "cancellation_recovery",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "w4-web-fetch",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-install",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-mcp-client",
+      "category": "mcp",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-credential-leak",
+      "category": "tenant_isolation",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-concurrency",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-crash-cleanup",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w9-share-deploy",
+      "category": "artifact_authz",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w10-browser-repro",
+      "category": "ui_screenshot",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w11-vision",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "cli-parity",
+      "category": "cli_parity",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "stale-edit",
+      "category": "stale_edit",
+      "status": "fixture-owed",
+      "reason": "owed: no stale-edit fixture or API check exists yet (W3)"
+    },
+    {
+      "id": "multi-file-refactor",
+      "category": "refactor",
+      "status": "fixture-owed",
+      "reason": "owed: no refactor fixture"
+    },
+    {
+      "id": "tests-written",
+      "category": "tests",
+      "status": "fixture-owed",
+      "reason": "owed: needs the H1 differential pattern (W6/W14)"
+    },
+    {
+      "id": "tenant-isolation-api",
+      "category": "tenant_isolation",
+      "status": "fixture-owed",
+      "reason": "owed: w9 covers shares; compose_journey step 11 covers cross-tenant reads answering identical 404s. The broader API matrix (artifacts, events, runs, keys) is not yet a task."
+    },
+    {
+      "id": "native-tool-confinement",
+      "category": "confinement",
+      "status": "fixture-owed",
+      "reason": "owed: this is M01, still open; no access is widened until it closes"
+    }
+  ],
+  "limitations": [
+    "n=1 unless --repeats was raised; a single pass is an existence proof, not a rate.",
+    "A task is deferred, blocked or fixture-owed is not a pass.",
+    "Revision verification compares runtime files inside the deployed containers/images with this worktree; a mismatch makes every result stale for HEAD."
+  ]
+}

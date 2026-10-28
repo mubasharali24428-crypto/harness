@@ -773,17 +773,24 @@
       "kind": "agent",
       "cost": "live",
       "heldOut": true,
-      "status": "fixture-owed",
+      "status": "implemented",
       "driver": {
-        "type": "builtin",
-        "path": null,
-        "args": [],
+        "type": "script",
+        "path": "scripts/eval/tasks/code_search_task.py",
+        "args": [
+          "--variant",
+          "heldout"
+        ],
         "env": {}
       },
       "fixture": {
-        "repo": "second synthetic repo",
-        "revision": null,
-        "seed": []
+        "repo": "synthetic 100-file repo (held-out target)",
+        "revision": "w2-code-search-heldout",
+        "seed": [
+          "pkg/telemetry/flush.py",
+          "5 decoys",
+          "94 fillers"
+        ]
       },
       "budget": {
         "timeoutSeconds": 900,
@@ -791,10 +798,10 @@
         "maxCostUsd": 0.05
       },
       "model": "the stack DSH_MODEL",
-      "verifier": "the second planted answer is the only changed file; all other seeded bytes unchanged",
-      "expected": "only the planted file changes",
-      "evidence": "to be created",
-      "notes": "owed: the W2 driver hardcodes the invoice_retry target; a second planted answer is needed for the held-out split."
+      "verifier": "target file contains FLUSH_INTERVAL_SECONDS = 45; every other seeded file is byte-identical; no seeded file deleted; answer names the target path (supplementary)",
+      "expected": "exit 0 and only pkg/telemetry/flush.py changed",
+      "evidence": "docs/briefs/evidence/eval/code-search-heldout-*.json",
+      "notes": "live model. W2 held-out run: PASS in 16.1s, 3 tool calls (bash, edit, read), only the target changed, usage null."
     }
   ]
 }

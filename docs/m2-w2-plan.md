@@ -156,10 +156,11 @@ path given. **PASS**:
 2. **No repo map yet.** The agent found a unique symbol in two calls. A repo map
    is a solution without a demonstrated problem; it stays a hypothesis until the
    held-out task shows a gap.
-3. **Held-out search is the next increment.** `code-search-heldout` is recorded
-   as `fixture-owed`; the current driver hard-codes one target. Without a second
-   planted answer, "the agent finds code" is proven on one instance, not as a
-   capability.
+3. **Held-out search is closed.** `code-search-heldout` uses a second planted
+   answer (`FLUSH_INTERVAL_SECONDS` 30 → 45): **PASS in 16.1 s with 3 calls**
+   (`bash`, `edit`, `read`), only `pkg/telemetry/flush.py` changed. A runner
+   baseline increment (`baseline-20261028T112356Z.json`) executes both search
+   tasks: **2/2 PASS, `revisionVerified: true`**.
 4. **No capability widened.** The task used the existing `bash` and `edit`
    tools; M01 remains open.
 
@@ -171,5 +172,5 @@ path given. **PASS**:
   are, but on a small index.
 - `usage`/cost is unknown on this transport; only wall clock and call counts are
   measured.
-- The held-out variant, a larger-repo run and the repo-map comparison remain
-  owed.
+- The held-out variant is now run (n=1); a larger-repo run and the repo-map
+  comparison remain owed, and are not gates until a task shows a gap.
