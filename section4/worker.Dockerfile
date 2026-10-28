@@ -19,7 +19,8 @@ ENV HARNESS_SHELL_GATE=/opt/harness-shell/shell_gate.py
 # the two tools cannot disagree about what is reachable.
 COPY section5/src/harness_sandbox/web_gate.py section5/src/harness_sandbox/egress.py \
      section5/src/harness_sandbox/egress_allowlist.json \
-     section5/src/harness_sandbox/browser_gate.py /opt/harness-shell/
+     section5/src/harness_sandbox/browser_gate.py \
+     section5/src/harness_sandbox/browser_session.py /opt/harness-shell/
 ENV HARNESS_WEB_GATE=/opt/harness-shell/web_gate.py
 ENV HARNESS_BROWSER_GATE=/opt/harness-shell/browser_gate.py
 # W11: the image gate (diff/sample). Stdlib file arithmetic — it spawns nothing,

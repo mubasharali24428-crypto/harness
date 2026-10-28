@@ -1012,6 +1012,39 @@
       "expected": "exit 0 and every check true",
       "evidence": "docs/briefs/evidence/pilot-prep/w9-visual-evidence-<stamp>.json",
       "notes": "no model; four confined renders; --skip-purge records the tombstone leg as skipped rather than pretending it passed"
+    },
+    {
+      "id": "w10-browser-session",
+      "title": "A persistent browser drives audited actions; AX data and pixels agree; refusals hold",
+      "category": "ui_screenshot",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "implemented",
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w10_browser_session_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": "generated static page",
+        "revision": "w10-session",
+        "seed": [
+          "w10_session.html",
+          "redirect.html"
+        ]
+      },
+      "budget": {
+        "timeoutSeconds": 300,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "verifier": "one Chromium driven over CDP in a detached --network none worker container: navigate, inspect (AX role/name), clickAx at the DOM box centre (aria-pressed flips, canvas pixel #b3261e -> #1a7f37), type, scroll, clipboard denied, only file:///ws requests; refusals for a file outside the workspace, https without proxy, plain http, a page-script redirect (refused and quarantined to about:blank) and an escaping screenshot path; download canceled with no file; no chromium process left; browser env PATH/HOME/LANG only; the two screenshots attached to the run as a W9 visual pair with provenance",
+      "expected": "exit 0 and every check true",
+      "evidence": "docs/briefs/evidence/pilot-prep/w10-browser-session-<stamp>.json",
+      "notes": "no model; Chromium 156; prototype CLI not wired to the engine's browser tool yet; local fixtures only, no external site"
     }
   ]
 }

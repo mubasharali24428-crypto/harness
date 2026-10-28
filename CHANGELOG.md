@@ -10,6 +10,36 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Marathon 2.0 W10 — a persistent, audited browser adapter (2026-10-28)
+
+* **`section5/.../browser_session.py`** keeps one Chromium open and drives it
+  over the DevTools protocol with a stdlib WebSocket client (handshake, masked
+  frames, ping/pong). Actions: `navigate`, `inspect` (Chromium accessibility
+  tree + text), `clickAx` (role+name → DOM box → real mouse click), `click`,
+  `type`, `scroll`, `screenshot`, `clipboard`, `requests`, `wait`. One audit
+  line per action; per-session step cap; capped text, nodes, typed text, scroll,
+  screenshot bytes and timeouts.
+* **Policy per action.** The gate's URL rules (file:// inside the workspace;
+  https only when allow-listed *and* proxied) plus literal private/loopback
+  refusal; the landing URL of a redirect is re-checked and the refused page is
+  **quarantined to about:blank** before the refusal; downloads are denied
+  (`Browser.downloadProgress: canceled`, no file); permission prompts are
+  denied as a class (clipboard read → `NotAllowedError`); the browser env holds
+  only PATH/HOME/LANG (+proxy); `close()` removes the profile and the process
+  group.
+* **Live drill** `scripts/e2e/w10_browser_session_drill.py`: **27/27 PASS** in a
+  detached `--network none`, read-only, cap-dropped worker container — AX button
+  clicked at (117,317), `aria-pressed` and the canvas pixel change together
+  (#b3261e → #1a7f37), typing and scrolling land, five destination refusals,
+  download canceled, no chromium process left, and the two screenshots attached
+  to a run as a W9 visual pair with the run's revision in their provenance.
+* **Tests:** `test_browser_session.py` 21 (policy, caps, WebSocket/CDP wire
+  against a fake server, step cap). `worker.Dockerfile` ships the module beside
+  the gate.
+* **Fixed while proving it:** a headless window is not the viewport (640×400
+  rendered 640×313 and a DOM-box click missed), and the gate's `Refused` class
+  is not the session's (the CLI crashed instead of refusing).
+
 ### Marathon 2.0 W9 — visual evidence is revision-bound; shares and deployments re-proven (2026-10-28)
 
 * **Visual artifacts (migration 0065 + `section4/.../visuals.py`).** A
