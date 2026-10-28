@@ -10,6 +10,31 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Marathon 2.0 W5 — CLI diagnostics, capture, and parity re-proven (2026-10-28)
+
+* **Stable exit contract.** 0 ok, 1 failure, 2 usage, 3 auth, 4 policy refusal,
+  5 timeout, 6 transport, 130 interrupted. Every `--json` invocation prints one
+  object; failures carry `error.code`/`message`/`retryable`/`status` and the same
+  `exitCode` the process returns.
+* **Evaluation capture.** `--capture PATH` writes the identical object atomically
+  (0600) for `run`, `status`, `diff` and `chat`, including failures; run/chat
+  payloads gain `durationSeconds`.
+* **Bounded reconnect.** A dropped poll (status 0/408/429/5xx) is retried at most
+  three times with jittered backoff while the deadline holds; `reconnects` and
+  `lastTransportError` are recorded. Policy/4xx refusals propagate immediately.
+* **Parity drill repaired.** It required a diff for a goal that edits nothing; a
+  run without a done-signal diff correctly 404s. The drill now requires both
+  paths to agree on the absence (`NOT_FOUND`), and the live parity run passes:
+  same four-event lifecycle, same terminal state, token 0600 in 0700, one JSON
+  object.
+* **Deterministic gate.** `scripts/e2e/w5_cli_diagnostics.py` — **10/10 PASS in
+  1.59 s**: auth/usage/unknown-run exits, capture equality and mode, token store
+  and secrecy, a real run read with exit 0. Corpus task `cli-diagnostics`
+  (infra); 28 tasks (18 implemented, 6 blocked, 4 fixture-owed).
+* **Tests.** 78 pass: `test_cli.py` 28, `test_sdk.py` 29, `test_cli_local.py` 21
+  (Section 4 venv). Runner baselines `baseline-20261028T141128Z.json` and
+  `...T141223Z.json`, both `revisionVerified: true`.
+
 ### Marathon 2.0 W4 — SDK inventory, a fixed MCP mount, and a confined AST/LSP spike (2026-10-28)
 
 * **SDK inventory.** Pinned `deepseek-harness-sdk==0.2.1rc2` and

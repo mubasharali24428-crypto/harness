@@ -15,6 +15,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from .diagnostics import CliError, reconnect_delay, retryable
+
 #: States after which the CLI stops following a run. ``awaiting_done_signal`` is
 #: where a successful engine turn settles in this stack, so it ends the follow
 #: loop even though a human may still signal completion in the web UI.
@@ -32,8 +34,15 @@ SETTLED = frozenset(
 )
 
 
-class CliError(RuntimeError):
-    """A refusal the user can act on (bad config, ambiguous project, no token)."""
+__all__ = [
+    "CliError",
+    "chat_loop",
+    "execute_run",
+    "format_diff",
+    "format_steps",
+    "run_diff",
+    "run_status",
+]
 
 
 def _default_launch() -> Callable[..., dict[str, Any]]:
@@ -152,6 +161,8 @@ def execute_run(
     local_dir: str | None = None,
     local_launch: Callable[..., dict[str, Any]] | None = None,
     local_apply: Callable[..., dict[str, Any]] | None = None,
+    max_reconnects: int = 3,
+    backoff: Callable[[int], float] | None = None,
 ) -> dict[str, Any]:
     """One run through the same gate the web uses.
 
@@ -202,8 +213,25 @@ def execute_run(
         started = clock()
         state = "unknown"
         steps: list[dict[str, Any]] = []
+        reconnects = 0
+        last_transport_error: str | None = None
+        delay = backoff or reconnect_delay
         while True:
-            run = sdk.orchestrator.get_run(run_id)
+            try:
+                run = sdk.orchestrator.get_run(run_id)
+            except Exception as exc:  # noqa: BLE001 - classified, not swallowed
+                # A dropped poll is not a failed run: retry the transport class
+                # (0/408/429/5xx) a bounded number of times while the deadline
+                # holds. Anything else is a real refusal and propagates.
+                if (not retryable(exc) or reconnects >= max_reconnects
+                        or clock() - started > timeout):
+                    raise
+                reconnects += 1
+                last_transport_error = getattr(exc, "code", type(exc).__name__)
+                note(f"transport error {last_transport_error}; "
+                     f"reconnecting ({reconnects}/{max_reconnects})")
+                sleep(delay(reconnects))
+                continue
             state = str(run.get("state") or state)
             steps = list(run.get("steps") or [])
             if state in SETTLED:
@@ -223,6 +251,8 @@ def execute_run(
             "answer": str(engine.get("finalResponse") or ""),
             "toolCalls": engine.get("toolCalls") or [],
             "steps": steps,
+            "reconnects": reconnects,
+            "lastTransportError": last_transport_error,
         }
 
     # ---- local-workspace mode (slice 4): same gate, confined local execution --

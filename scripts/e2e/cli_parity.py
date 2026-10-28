@@ -204,20 +204,34 @@ def main() -> int:
         print(f"PASS  cli run {cli_run['runId']} → {cli_run.get('state')}")
 
         # Claim 2: `harness diff` shows the run's real diff — the server's own
-        # payload, not a client-side reconstruction. Compared for equality.
+        # payload, not a client-side reconstruction. Compared for equality. A
+        # run with no done-signal diff has none to show; in that case both
+        # paths must agree on the absence with the same machine code, which is
+        # a parity claim too (and the honest one for a goal that edits nothing).
         code, out, err = _cli(env, "diff", cli_run["runId"], "--json")
-        if code != 0:
-            _fail(f"cli diff failed ({code}): {err.strip()[-400:]}")
         status, server_diff = journey.http(
             "GET",
             f"{journey.ORCHESTRATOR}/api/v1/orchestrator/runs/{cli_run['runId']}/diff",
             token=token,
         )
-        if status != 200:
-            _fail(f"diff endpoint answered {status}: {server_diff!r}")
-        if json.loads(out) != server_diff:
-            _fail("cli diff differs from the server payload")
-        print(f"PASS  cli diff == server payload ({len(server_diff.get('files') or [])} file(s))")
+        if status == 404:
+            try:
+                payload = json.loads(out)
+            except ValueError:
+                _fail(f"cli diff printed no JSON object on absence: {out[:300]!r}")
+            error = payload.get("error") or {}
+            if code != 1 or error.get("code") != "NOT_FOUND":
+                _fail(f"cli diff absence mismatch: exit {code}, error {error!r}")
+            print("PASS  cli diff reports the server's absence (404 NOT_FOUND)")
+        else:
+            if code != 0:
+                _fail(f"cli diff failed ({code}): {err.strip()[-400:]}")
+            if status != 200:
+                _fail(f"diff endpoint answered {status}: {server_diff!r}")
+            if json.loads(out) != server_diff:
+                _fail("cli diff differs from the server payload")
+            count = len(server_diff.get("files") or [])
+            print(f"PASS  cli diff == server payload ({count} file(s))")
 
     http_run = _http_run(journey, token, project_id, goal, deadline)
     print(f"PASS  http run {http_run['runId']} → {http_run['state']}")

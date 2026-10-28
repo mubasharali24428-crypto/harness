@@ -583,6 +583,36 @@
       "notes": "live model"
     },
     {
+      "id": "cli-diagnostics",
+      "title": "CLI exit codes, JSON error objects and capture are stable",
+      "category": "cli_parity",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "implemented",
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w5_cli_diagnostics.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 180,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "verifier": "no token exit 3 with NOT_LOGGED_IN; usage exit 2 with USAGE; unknown run exit 1 with the server 404 code; --capture equals stdout and is 0600; token store 0600/0700 and absent from output; a real run reads with exit 0",
+      "expected": "exit 0 with every check true",
+      "evidence": "docs/briefs/evidence/eval/w5-cli-diagnostics-*.json",
+      "notes": "no model; transport reconnect is covered by clients/python/tests/test_cli.py"
+    },
+    {
       "id": "stale-edit",
       "title": "An edit computed against an older version is refused and rewinds exactly",
       "category": "stale_edit",

@@ -8,6 +8,13 @@
 
 Output policy: human text by default; `--json` prints exactly one object to
 stdout (progress notes go to stderr), so `harness run --json | jq` is safe.
+`--capture PATH` writes that same object atomically (0600) for evaluation.
+
+Exit codes are part of the contract (`harness_sdk.cli.diagnostics`):
+0 ok, 1 failure, 2 usage, 3 auth (missing/rejected token), 4 policy refusal
+(approval/role/pilot gate), 5 timeout, 6 transport (the only retried class),
+130 interrupted. On failure the JSON object carries `error.code`,
+`error.retryable` and the same `exitCode` the process returns.
 """
 
 from __future__ import annotations
@@ -15,12 +22,15 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from collections.abc import Callable
 from typing import Any, TextIO
 
+import httpx
+
 from ..client import Harness
 from ..errors import ApiError
-from . import config
+from . import config, diagnostics
 from . import session as session_store
 from .commands import (
     CliError,
@@ -59,6 +69,8 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--yes", action="store_true", help="approve without asking")
     run.add_argument("--json", action="store_true", help="one machine-readable object on stdout")
     run.add_argument("--timeout", type=float, default=900.0)
+    run.add_argument("--capture", metavar="PATH",
+                     help="also write the JSON object to PATH (0600) for evaluation")
     run.add_argument("--local", metavar="DIR",
                      help="execute the approved run against a local directory through the "
                           "confined container engine (the gate and audit stay on the server)")
@@ -66,10 +78,14 @@ def build_parser() -> argparse.ArgumentParser:
     status = subs.add_parser("status", parents=[common], help="state and recent events for a run")
     status.add_argument("run_id")
     status.add_argument("--json", action="store_true")
+    status.add_argument("--capture", metavar="PATH",
+                        help="also write the JSON object to PATH (0600)")
 
     diff = subs.add_parser("diff", parents=[common], help="the run's recorded diff")
     diff.add_argument("run_id")
     diff.add_argument("--json", action="store_true")
+    diff.add_argument("--capture", metavar="PATH",
+                      help="also write the JSON object to PATH (0600)")
 
     chat = subs.add_parser("chat", parents=[common], help="interactive loop over the run path")
     chat.add_argument("--project", help="project id (required when you belong to several)")
@@ -84,6 +100,8 @@ def build_parser() -> argparse.ArgumentParser:
                       help="approve every turn without asking (an explicit operator decision)")
     chat.add_argument("--json", action="store_true",
                       help="one machine-readable object: the session with its turns")
+    chat.add_argument("--capture", metavar="PATH",
+                      help="also write the JSON object to PATH (0600)")
     chat.add_argument("--timeout", type=float, default=900.0)
     return parser
 
@@ -147,6 +165,18 @@ def _login(args: argparse.Namespace, prompt: Callable[[str], str], stderr: TextI
     return 0
 
 
+def _deliver(
+    out: TextIO,
+    as_json: bool,
+    payload: dict[str, Any],
+    human: Callable[[], str],
+    capture: str | None,
+) -> None:
+    _emit(out, as_json, payload, human)
+    if capture:
+        diagnostics.write_capture(capture, payload)
+
+
 def main(
     argv: list[str] | None = None,
     *,
@@ -155,18 +185,30 @@ def main(
     stderr: TextIO | None = None,
     prompt: Callable[[str], str] = input,
 ) -> int:
-    args = build_parser().parse_args(argv)
     out = stdout or sys.stdout
     err = stderr or sys.stderr
+    raw = list(sys.argv[1:] if argv is None else argv)
+    wants_json = "--json" in raw
     try:
-        if args.command == "login":
+        args = build_parser().parse_args(raw)
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else (0 if exc.code is None else 1)
+        if code != 0 and wants_json:
+            _emit(out, True, diagnostics.usage_payload(), lambda: "")
+        return code
+    as_json = bool(getattr(args, "json", False))
+    capture = getattr(args, "capture", None)
+    command = args.command
+    try:
+        if command == "login":
             return _login(args, prompt, err)
-        if args.command == "logout":
+        if command == "logout":
             removed = config.clear()
             err.write("credentials removed\n" if removed else "no stored credentials\n")
             return 0
         client = sdk if sdk is not None else _sdk_from_credentials(args)
-        if args.command == "run":
+        if command == "run":
+            started = time.monotonic()
             result = execute_run(
                 client,
                 args.goal,
@@ -177,31 +219,37 @@ def main(
                 timeout=args.timeout,
                 local_dir=args.local,
             )
-            _emit(
+            result["durationSeconds"] = round(time.monotonic() - started, 3)
+            exit_code = diagnostics.run_exit_code(result["state"])
+            payload = diagnostics.contract("run", result, exit_code)
+            _deliver(
                 out,
-                args.json,
-                result,
+                as_json,
+                payload,
                 lambda: (
                     "plan rejected; nothing was started"
                     if result["state"] == "rejected"
                     else _human_run(result)
                 ),
+                capture,
             )
-            return 0 if result["state"] not in {"error", "failed", "timeout"} else 1
-        if args.command == "status":
-            payload = run_status(client, args.run_id)
-            _emit(
+            return exit_code
+        if command == "status":
+            payload = diagnostics.contract("status", run_status(client, args.run_id), 0)
+            _deliver(
                 out,
-                args.json,
+                as_json,
                 payload,
-                lambda: f"run {payload['runId']}: {payload['state']}\n{format_steps(payload['steps'])}",
+                lambda: f"run {payload['runId']}: {payload['state']}\n"
+                        f"{format_steps(payload['steps'])}",
+                capture,
             )
             return 0
-        if args.command == "diff":
-            payload = run_diff(client, args.run_id)
-            _emit(out, args.json, payload, lambda: format_diff(payload))
+        if command == "diff":
+            payload = diagnostics.contract("diff", run_diff(client, args.run_id), 0)
+            _deliver(out, as_json, payload, lambda: format_diff(payload), capture)
             return 0
-        if args.command == "chat":
+        if command == "chat":
             if args.resume and args.continue_last:
                 raise CliError("pass either --resume or --continue, not both")
             if args.continue_last:
@@ -213,7 +261,8 @@ def main(
             if resume_id:
                 loaded = session_store.load_session(resume_id)
                 if loaded is None:
-                    raise CliError(f"no session {resume_id!r} in {session_store.session_path(resume_id)}")
+                    where = session_store.session_path(resume_id)
+                    raise CliError(f"no session {resume_id!r} in {where}")
                 chat_session = loaded
                 if args.project:
                     chat_session.project_id = args.project
@@ -221,12 +270,18 @@ def main(
                     chat_session.local_dir = args.local
             else:
                 chat_session = session_store.new_session(args.project, args.local)
-            note = lambda message: err.write(message + "\n")
-            if args.message:
-                lines = iter([args.message, None])
-                read_line: Callable[[str], str | None] = lambda _p: next(lines)
-            else:
-                read_line = lambda _p: input(_p)
+
+            def note(message: str) -> None:
+                err.write(message + "\n")
+
+            pending: list[str | None] | None = [args.message, None] if args.message else None
+
+            def read_line(prompt_text: str) -> str | None:
+                if pending is not None:
+                    return pending.pop(0) if pending else None
+                return input(prompt_text)
+
+            started = time.monotonic()
             result = chat_loop(
                 client,
                 chat_session,
@@ -239,16 +294,35 @@ def main(
                 note=note,
                 timeout=args.timeout,
             )
-            _emit(out, args.json, result, lambda: f"[session {result['sessionId']}]")
-            bad = [e for e in result["exchanges"] if e.get("state") in {"error", "failed", "timeout"}]
-            return 1 if bad else 0
-        raise CliError(f"unknown command {args.command!r}")
-    except CliError as exc:
+            result["durationSeconds"] = round(time.monotonic() - started, 3)
+            bad = [
+                e for e in result["exchanges"]
+                if e.get("state") in {"error", "failed", "timeout"}
+            ]
+            if any(e.get("state") == "timeout" for e in bad):
+                exit_code = diagnostics.TIMEOUT
+            else:
+                exit_code = diagnostics.FAILURE if bad else diagnostics.OK
+            payload = diagnostics.contract("chat", result, exit_code)
+            _deliver(out, as_json, payload, lambda: f"[session {result['sessionId']}]", capture)
+            return exit_code
+        raise CliError(f"unknown command {command!r}")
+    except KeyboardInterrupt:
+        payload = diagnostics.interrupt_payload(command)
+        err.write("error: interrupted\n")
+        if as_json:
+            _emit(out, True, payload, lambda: "")
+        if capture:
+            diagnostics.write_capture(capture, payload)
+        return diagnostics.INTERRUPTED
+    except (CliError, ApiError, TimeoutError, ConnectionError, httpx.TransportError) as exc:
+        payload = diagnostics.error_payload(command, exc)
         err.write(f"error: {exc}\n")
-        return 1
-    except ApiError as exc:
-        err.write(f"error: {exc.code} ({exc.status}): {exc}\n")
-        return 1
+        if as_json:
+            _emit(out, True, payload, lambda: "")
+        if capture:
+            diagnostics.write_capture(capture, payload)
+        return int(payload["exitCode"])
 
 
 def entry() -> None:

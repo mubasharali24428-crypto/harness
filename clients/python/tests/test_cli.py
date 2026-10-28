@@ -16,6 +16,7 @@ from harness_sdk.cli import config
 from harness_sdk.cli import session as session_store
 from harness_sdk.cli.commands import CliError, execute_run, format_diff
 from harness_sdk.cli.main import main
+from harness_sdk.errors import ApiError
 
 
 @pytest.fixture()
@@ -139,7 +140,7 @@ def test_json_mode_prints_exactly_one_object():
 def test_missing_token_fails_with_an_actionable_message(config_dir):
     stdout, stderr = io.StringIO(), io.StringIO()
     code = main(["status", "run-1"], stdout=stdout, stderr=stderr)
-    assert code == 1 and "not logged in" in stderr.getvalue()
+    assert code == 3 and "not logged in" in stderr.getvalue()
 
 
 def test_status_and_diff_render_the_server_view():
@@ -318,3 +319,126 @@ def test_chat_continue_picks_the_newest_session(config_dir):
     second.save()
     assert session_store.latest_session_id() == second.session_id
     assert first.session_id != second.session_id
+
+
+# ---------------------------------------------------------------- W5 diagnostics
+
+
+class _FlakyOrch(_Orch):
+    """Fails the first N polls with a transport-class error, then answers."""
+
+    def __init__(self, failures=2, status=503, code="UNAVAILABLE"):
+        super().__init__(states=("done",))
+        self.failures = failures
+        self.status = status
+        self.code = code
+
+    def get_run(self, run_id):
+        if self.failures:
+            self.failures -= 1
+            raise ApiError("temporarily unavailable", self.code, self.status)
+        return super().get_run(run_id)
+
+
+def _error_sdk(exc):
+    sdk = _Sdk()
+    orch = _Orch()
+
+    def boom(_run_id):
+        raise exc
+
+    orch.get_run = boom
+    sdk.orchestrator = orch
+    return sdk
+
+
+def test_missing_token_json_is_one_auth_object(config_dir):
+    out, err = io.StringIO(), io.StringIO()
+    code = main(["status", "r1", "--json"], stdout=out, stderr=err)
+    payload = json.loads(out.getvalue())
+    assert code == 3 and payload["exitCode"] == 3 and payload["ok"] is False
+    assert payload["error"] == {"code": "NOT_LOGGED_IN", "message":
+                                "not logged in; run `harness login --email …` or set "
+                                "HARNESS_TOKEN", "retryable": False}
+
+
+def test_policy_refusal_maps_to_policy_exit(config_dir):
+    config.save(config.Credentials("tok"))
+    sdk = _error_sdk(ApiError("blocked", "PLAN_NOT_APPROVED", 403))
+    out, err = io.StringIO(), io.StringIO()
+    code = main(["status", "r1", "--json"], sdk=sdk, stdout=out, stderr=err)
+    payload = json.loads(out.getvalue())
+    assert code == 4 and payload["error"]["code"] == "PLAN_NOT_APPROVED"
+    assert payload["error"]["status"] == 403 and payload["error"]["retryable"] is False
+
+
+def test_transport_failure_maps_to_transport_exit(config_dir):
+    config.save(config.Credentials("tok"))
+    sdk = _error_sdk(ApiError("down", "UNAVAILABLE", 503))
+    out, err = io.StringIO(), io.StringIO()
+    code = main(["status", "r1", "--json"], sdk=sdk, stdout=out, stderr=err)
+    payload = json.loads(out.getvalue())
+    assert code == 6 and payload["error"]["retryable"] is True
+
+
+def test_usage_error_is_two_and_json_when_requested(capsys):
+    out, err = io.StringIO(), io.StringIO()
+    code = main(["bogus", "--json"], stdout=out, stderr=err)
+    payload = json.loads(out.getvalue())
+    assert code == 2 and payload["error"]["code"] == "USAGE" and payload["exitCode"] == 2
+
+
+def test_capture_writes_the_same_object_owner_only(config_dir, tmp_path):
+    sdk = _Sdk()
+    out, err = io.StringIO(), io.StringIO()
+    target = tmp_path / "capture.json"
+    code = main(["run", "fix it", "--yes", "--json", "--capture", str(target)],
+                sdk=sdk, stdout=out, stderr=err)
+    assert code == 0
+    piped = json.loads(out.getvalue())
+    captured = json.loads(target.read_text())
+    assert captured == piped
+    assert captured["schemaVersion"] == 1 and captured["command"] == "run"
+    assert captured["ok"] is True and captured["exitCode"] == 0
+    assert captured["durationSeconds"] >= 0
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600
+
+
+def test_a_failure_is_captured_too(config_dir, tmp_path):
+    target = tmp_path / "capture.json"
+    code = main(["status", "r1", "--json", "--capture", str(target)],
+                stdout=io.StringIO(), stderr=io.StringIO())
+    captured = json.loads(target.read_text())
+    assert code == 3 and captured["ok"] is False and captured["error"]["code"] == "NOT_LOGGED_IN"
+
+
+def test_transport_reconnects_then_completes():
+    sdk = _Sdk()
+    sdk.orchestrator = _FlakyOrch(failures=2)
+    notes: list[str] = []
+    result = execute_run(sdk, "fix it", assume_yes=True, sleep=lambda _s: None,
+                         backoff=lambda _n: 0, note=notes.append)
+    assert result["state"] == "done" and result["reconnects"] == 2
+    assert result["lastTransportError"] == "UNAVAILABLE"
+    assert len([n for n in notes if "reconnecting" in n]) == 2
+
+
+def test_a_non_transport_refusal_is_not_retried():
+    sdk = _Sdk()
+    sdk.orchestrator = _FlakyOrch(failures=1, status=403, code="PLAN_NOT_APPROVED")
+    with pytest.raises(ApiError):
+        execute_run(sdk, "fix it", assume_yes=True, sleep=lambda _s: None,
+                    backoff=lambda _n: 0)
+    assert sdk.orchestrator.calls.count(("get", "run-1")) == 0
+
+
+def test_the_token_never_appears_in_output_or_capture(config_dir, tmp_path, monkeypatch):
+    monkeypatch.setenv("HARNESS_TOKEN", "tok-super-secret")
+    target = tmp_path / "capture.json"
+    out, err = io.StringIO(), io.StringIO()
+    code = main(["run", "fix it", "--yes", "--json", "--capture", str(target)],
+                sdk=_Sdk(), stdout=out, stderr=err)
+    assert code == 0
+    assert "tok-super-secret" not in out.getvalue()
+    assert "tok-super-secret" not in err.getvalue()
+    assert "tok-super-secret" not in target.read_text()
