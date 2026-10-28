@@ -767,6 +767,36 @@
       "notes": "owed: this is M01, still open; no access is widened until it closes"
     },
     {
+      "id": "ast-lsp-confinement",
+      "title": "Read-only AST search and a spawned language server stay inside worker policy",
+      "category": "confinement",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "implemented",
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w4_ast_lsp_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 300,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "verifier": "AST search finds the planted definitions and skips a symlink escape; the language server receives no credential-shaped env key, runs with cwd=workspace, cannot write a read-only workspace (EROFS) or reach the network (ENETUNREACH); a silent server is killed at the deadline; the source tree is byte-identical; the container has no route",
+      "expected": "exit 0 with all ten checks true",
+      "evidence": "docs/briefs/evidence/eval/w4-ast-lsp-*.json",
+      "notes": "no model; the spike tools are not mounted in the engine (W4)"
+    },
+    {
       "id": "code-search-heldout",
       "title": "A held-out repo task: locate a differently named symbol",
       "category": "code_search",

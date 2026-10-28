@@ -10,6 +10,41 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Marathon 2.0 W4 — SDK inventory, a fixed MCP mount, and a confined AST/LSP spike (2026-10-28)
+
+* **SDK inventory.** Pinned `deepseek-harness-sdk==0.2.1rc2` and
+  `deepseek-harness-runtime-bin==0.2.1rc2`, profile `sdk-minimal` with a per-run
+  overlay. The bundled runtime ships **342** `@deepseek-ai/dsh-*` plugin ids;
+  eight capability groups are configured (shell replacement, fs + fs-search,
+  web, browser, images, MCP client, sandbox policy) and the rest — skills,
+  hooks, LSP, package awareness, subagents, persistent bash — are available but
+  **not configured**. Available, configured and tested are recorded separately.
+* **MCP defect found and fixed.** `DSH_MCP_SERVERS` was set for the orchestrator,
+  but the reviewed list only shipped in the worker image, so
+  `reviewed_servers()` raised on every engine run after the last rebuild. The
+  orchestrator now mounts `deploy/mcp` read-only alongside `deploy/patches`;
+  verified in-container, then re-proven live.
+* **Boundaries re-proven at this revision (5/5).** Egress deny (1.2 s), MCP
+  client (16.7 s; both stub tools in `agent_events`, no credential value in any
+  result), live web fetch (14.6 s; real title, off-list host refused), install
+  (20.3 s; allowed registry succeeds, off-list index 403), credential leak
+  (16.7 s; none found). Runner baselines `baseline-20261028T134204Z.json`,
+  `...T134316Z.json`, `...T134402Z.json`, all `revisionVerified: true`.
+* **Read-only AST/LSP spike.** `section5/src/harness_sandbox/ast_search.py`
+  parses Python with `ast` under file/byte/result/time caps and never follows a
+  symlink out of the root. `section5/src/harness_sandbox/lsp_client.py` spawns a
+  server in its own session, passes only PATH/LANG/LC_ALL plus a fresh HOME,
+  refuses credential-shaped overrides, caps frames before buffering and kills
+  the process group on deadline or oversize. Fixture server plus **17 unit
+  tests**.
+* **Confinement drill.** `scripts/e2e/w4_ast_lsp_drill.py` runs both tools in the
+  worker image on `--network none`, uid 10001, read-only workspace: **10/10 PASS
+  in 3.95 s** — symlink escape skipped, tree byte-identical, `EROFS` on write,
+  `ENETUNREACH` on connect, timeout kills a silent server in 1.34 s, no route.
+  Neither tool is mounted in the engine; mounting waits for M01.
+* **Corpus.** New `ast-lsp-confinement` task (implemented, infra); 27 tasks
+  (17 implemented, 6 blocked, 4 fixture-owed).
+
 ### Marathon 2.0 W3 — stale edits refused, conflicts recorded, rewinds exact (2026-10-28)
 
 * **Conflict semantics defined once.** Staleness is defined on the product's two

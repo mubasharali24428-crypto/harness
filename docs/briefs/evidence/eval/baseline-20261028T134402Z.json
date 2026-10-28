@@ -1,0 +1,339 @@
+{
+  "schema": 1,
+  "kind": "marathon2-baseline",
+  "corpusRevision": "m2-w1",
+  "startedAt": "2026-10-28T13:44:02.557742+00:00",
+  "finishedAt": "2026-10-28T13:44:56.775786+00:00",
+  "environment": {
+    "git": {
+      "head": "c3db7536550a8664c3a9eed1128b94a5a26498ab",
+      "branch": "w1-engine-tools",
+      "dirty": true
+    },
+    "revisionCheck": {
+      "orchestratorContainer": "harness-orchestrator-1",
+      "workerImage": "harness-engine-worker:vdev-local",
+      "backend": {
+        "engine.py": {
+          "host": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+          "deployed": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+          "match": true
+        },
+        "image_gate.py": {
+          "host": "a8c79fd8a8d6b92c140c59fadf2227af19d530d861d2b376c193436976da6cfb",
+          "deployed": "a8c79fd8a8d6b92c140c59fadf2227af19d530d861d2b376c193436976da6cfb",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "e14f0b0096f0ff6ce6427c24a2ecc370398fe9c7f08304230e3fe44353d34dd6",
+          "deployed": "e14f0b0096f0ff6ce6427c24a2ecc370398fe9c7f08304230e3fe44353d34dd6",
+          "match": true
+        }
+      },
+      "worker": {
+        "image_gate.py": {
+          "host": "a8c79fd8a8d6b92c140c59fadf2227af19d530d861d2b376c193436976da6cfb",
+          "deployed": "a8c79fd8a8d6b92c140c59fadf2227af19d530d861d2b376c193436976da6cfb",
+          "match": true
+        },
+        "engine.py": {
+          "host": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+          "deployed": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "e14f0b0096f0ff6ce6427c24a2ecc370398fe9c7f08304230e3fe44353d34dd6",
+          "deployed": "e14f0b0096f0ff6ce6427c24a2ecc370398fe9c7f08304230e3fe44353d34dd6",
+          "match": true
+        }
+      },
+      "verified": true
+    },
+    "images": {
+      "backend": "sha256:8fd637dc9a59567a9d49040b7b9581c1dbdddf64e8f6dc14e4d9ab607f53b9fb",
+      "engineWorker": "sha256:9c867f158d8569656784a48b582ec627b340e6033d8fbc62bc44206a516ea356"
+    },
+    "model": null,
+    "repeats": 1
+  },
+  "selection": {
+    "includeLive": true,
+    "costs": [],
+    "tasks": [
+      "w4-install",
+      "w4-web-fetch",
+      "w4-credential-leak"
+    ],
+    "categories": []
+  },
+  "summary": {
+    "executed": 3,
+    "passed": 3,
+    "failed": 0,
+    "errors": 0,
+    "deferred": 23,
+    "corpus": 26,
+    "revisionVerified": true
+  },
+  "results": [
+    {
+      "id": "w4-web-fetch",
+      "category": "denied_network",
+      "kind": "agent",
+      "cost": "live",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-28T13:44:05.243512+00:00",
+          "durationSec": 14.57,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": null,
+          "failedChecks": [],
+          "stdoutTail": "{\n \"date\": \"2026-10-28\",\n \"week\": \"W4\",\n \"claim\": \"an agent answers from live docs; a denied destination is recorded\",\n \"runId\": \"w4web-1793195045\",\n \"drive\": \"HTTP only\",\n \"goalNamesTheTitle\": false,\n \"maxToolCalls\": 6,\n \"engine\": {\n  \"engine\": \"replayed\",\n  \"status\": \"completed\",\n  \"finalResponse\": \"TITLE: Your First API Call | DeepSeek API Docs\\nREFUSAL: Denied by the harness egress policy: example.com is not in the web allow-list\"\n },\n \"answer\": \"TITLE: Your First API Call | DeepSeek API Docs\\nREFUSAL: Denied by the harness egress policy: example.com is not in the web allow-list\",\n \"auditToolCalls\": [\n  {\n   \"type\": \"tool_call\",\n   \"tool\": \"web_fetch\",\n   \"callId\": \"call_c5a43ffab14f4c8ca61fa1ac\",\n   \"arguments\": \"{\\\"url\\\":\\\"https://api-docs.deepseek.com/\\\"}\",\n   \"ok\": null,\n   \"output\": \"\"\n  },\n  {\n   \"type\": \"tool_call\",\n   \"tool\": \"web_fetch\",\n   \"callId\": \"call_2d0e2c52a83849dc99a673c3\",\n   \"arguments\": \"{\\\"url\\\":\\\"https://example.com/\\\"}\",\n   \"ok\": null,\n   \"output\": \"\"\n  }\n ],\n \"auditedWebFetches\": [\n  {\n   \"url\": \"https://api-docs.deepseek.com/\",\n   \"ok\": true,\n   \"output\": \"fetched https://api-docs.deepseek.com/ (HTTP 200, text/html)\\n\\nYour First API Call | DeepSeek API Docs\\n\\nSkip to main content\\n\\nSearch / Fetch API is now available, powered by our in-house search engine and supporting web search and fetch. Click here to view the guide.\\n\\nDeepSeek API Docs\\n\\nResources\\n\\nIntegrations\\n\\nAPI Status\\n\\nFAQ\\n\\nEnglish\\n\\nEnglish\\n\\n\\u4e2d\\u6587\\uff08\\u4e2d\\u56fd\\uff09\\n\\nDeepSeek Platform\\u4e2d\\n\\nQuick StartAPI GuidesAPI ReferenceNewsChange Log\\n\\nYour First API Call\\n\\nModels & Pricing\\n\\nToken & Token Usage\\n\\nRate Limit & Isolation\\n\\nError Codes\\n\\nAgent Integrations\\n\\nDeepSeek Harness\\n\\nClaude Code\\n\\nCodex\\n\\nOpenCode\\n\\nOpenClaw\\n\\n\"\n  },\n  {\n   \"url\": \"https://example.com/\",\n   \"ok\": false,\n   \"output\": \"Error: Denied by the harness egress policy: example.com is not in the web allow-list\"\n  }\n ],\n \"answerHasTitle\": true,\n \"answerHasRefusal\": true,\n \"statePath\": [\n  \"executing\",\n  \"awaiting_done_signal\"\n ],\n \"workersObserved\": [\n  {\n   \"name\": \"harness-afa71906f98348b6b8f1465db7f82025-relay\",\n   \"role\": \"relay\",\n   \"networks\": [\n    \"bridge\",\n    \"harness-afa71906f98348b6b8f1465db7f82025-net\"\n   ],\n   \"mounts\": []\n  },\n  {\n   \"name\": \"harness-afa71906f98348b6b8f1465db7f82025\",\n   \"role\": \"worker\",\n   \"networks\": [\n    \"harness-afa71906f98348b6b8f1465db7f82025-net\"\n   ],\n   \"mounts\": [\n    {\n     \"dst\": \"/var/lib/harness-runs/workspace/w4web-1793195045\",\n     \"readOnly\": false\n    },\n    {\n     \"dst\": \"/var/lib/harness-runs/sessions/w4web-1793195045\",\n     \"readOnly\": false\n    }\n   ]\n  }\n ],\n \"elapsedSeconds\": 14.46,\n \"steps\": [\n  {\n   \"step\": \"login\",\n   \"ok\": true\n  },\n  {\n   \"step\": \"create project\",\n   \"ok\": \"5ffaa28d-5bb3-4de2-9845-186d97adad7f\",\n   \"status\": 201\n  },\n  {\n   \"step\": \"propose plan\",\n   \"ok\": \"plan-a03fce7d\",\n   \"status\": 201\n  },\n  {\n   \"step\": \"set tool budget\",\n   \"ok\": true,\n   \"status\": 200\n  },\n  {\n   \"step\": \"approve plan\",\n   \"ok\": true,\n   \"status\": 200\n  },\n  {\n   \"step\": \"start\",\n   \"ok\": true,\n   \"status\": 200\n  },\n  {\n   \"step\": \"settled\",\n   \"ok\": true,\n   \"state\": \"awaiting_done_signal\"\n  }\n ],\n \"ok\": true\n}\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 14.57,
+      "budget": {
+        "timeoutSeconds": 420,
+        "maxToolCalls": 12,
+        "maxCostUsd": 0.05
+      },
+      "model": "the stack DSH_MODEL",
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "exit 0",
+      "driver": "scripts/e2e/w4_web_fetch_engine_drill.py",
+      "verifier": "allow-listed fetch succeeds; unlisted host refused in the tool result; audit records both"
+    },
+    {
+      "id": "w4-install",
+      "category": "denied_network",
+      "kind": "agent",
+      "cost": "live",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-28T13:44:19.815774+00:00",
+          "durationSec": 20.28,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": "PASS",
+          "failedChecks": [],
+          "stdoutTail": "{\n \"defaultRefusal\": {\n  \"denied\": true,\n  \"reason\": \"Command contains forbidden pattern: '\\\\b(pip|pip3)\\\\s+install\\\\b' \\u2014 installs: package installs are off by default; set DSH_ALLOW_INSTALLS=1 to permit them\"\n },\n \"permitted\": {\n  \"ok\": true,\n  \"exitCode\": 0,\n  \"denied\": null,\n  \"snippet\": \"Defaulting to user installation because normal site-packages is not writeable\\nCollecting six==1.16.0\\n  Downloading six-1.16.0-py2.py3-none-any.whl.metadata (1.8 kB)\\nDownloading six-1.16.0-py2.py3-none-any.whl (11 kB)\\nInstalling collected packages: six\\nSuccessfully installed six-1.16.0\\n\"\n },\n \"offListRegistry\": {\n  \"ok\": false,\n  \"exitCode\": 1,\n  \"snippet\": \" status=None)) after connection broken by 'ProxyError('Cannot connect to proxy.', OSError('Tunnel connection failed: 403 Forbidden'))': /simple/six/\\nERROR: Could not find a version that satisfies the requirement six==1.16.0 (from versions: none)\\nERROR: No matching distribution found for six==1.16.0\\n\"\n },\n \"proxySawPypi\": true,\n \"verdict\": \"PASS\"\n}\nPASS  evidence -> docs/briefs/evidence/pilot-prep/w4-install-1793195080.json\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 20.28,
+      "budget": {
+        "timeoutSeconds": 600,
+        "maxToolCalls": 12,
+        "maxCostUsd": 0.05
+      },
+      "model": "the stack DSH_MODEL",
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "exit 0",
+      "driver": "scripts/e2e/w4_install_drill.py",
+      "verifier": "allow-listed registry install succeeds; non-pinned destination denied; audit attribution"
+    },
+    {
+      "id": "w4-credential-leak",
+      "category": "tenant_isolation",
+      "kind": "boundary",
+      "cost": "live",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-28T13:44:40.093305+00:00",
+          "durationSec": 16.68,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": null,
+          "failedChecks": [],
+          "stdoutTail": "state=awaiting_done_signal env dumped observed=True tool results=1 searched=3 credentials\nPASS  evidence -> docs/briefs/evidence/pilot-prep/w4-credential-leak-1793195080.json\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 16.68,
+      "budget": {
+        "timeoutSeconds": 600,
+        "maxToolCalls": 12,
+        "maxCostUsd": 0.05
+      },
+      "model": "the stack DSH_MODEL",
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "exit 0 and no secret found",
+      "driver": "scripts/e2e/w4_credential_leak_drill.py",
+      "verifier": "scan stored agent_events, engine result and comments for the deployment's secret values"
+    }
+  ],
+  "deferred": [
+    {
+      "id": "stack-compose-journey",
+      "category": "stack_health",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-egress-deny",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "m03-scope",
+      "category": "confinement",
+      "status": "blocked",
+      "reason": "blocked 2026-10-28: local Ollama has only nomic-embed-text, no chat model. Prerequisite: pull a local chat model or point the drill at a compatible endpoint."
+    },
+    {
+      "id": "m04-streaming",
+      "category": "streaming",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent (nomic-embed-text only)"
+    },
+    {
+      "id": "m07-api-run",
+      "category": "bug_fix",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "m07-daemon-topology",
+      "category": "confinement",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "m07-vision-api",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w3-rewind",
+      "category": "cancellation_recovery",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "w3-partial-write",
+      "category": "cancellation_recovery",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "w4-mcp-client",
+      "category": "mcp",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-concurrency",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-crash-cleanup",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w9-share-deploy",
+      "category": "artifact_authz",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w10-browser-repro",
+      "category": "ui_screenshot",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w11-vision",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "cli-parity",
+      "category": "cli_parity",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "stale-edit",
+      "category": "stale_edit",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "code-search",
+      "category": "code_search",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "multi-file-refactor",
+      "category": "refactor",
+      "status": "fixture-owed",
+      "reason": "owed: no refactor fixture"
+    },
+    {
+      "id": "tests-written",
+      "category": "tests",
+      "status": "fixture-owed",
+      "reason": "owed: needs the H1 differential pattern (W6/W14)"
+    },
+    {
+      "id": "tenant-isolation-api",
+      "category": "tenant_isolation",
+      "status": "fixture-owed",
+      "reason": "owed: w9 covers shares; compose_journey step 11 covers cross-tenant reads answering identical 404s. The broader API matrix (artifacts, events, runs, keys) is not yet a task."
+    },
+    {
+      "id": "native-tool-confinement",
+      "category": "confinement",
+      "status": "fixture-owed",
+      "reason": "owed: this is M01, still open; no access is widened until it closes"
+    },
+    {
+      "id": "code-search-heldout",
+      "category": "code_search",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    }
+  ],
+  "limitations": [
+    "n=1 unless --repeats was raised; a single pass is an existence proof, not a rate.",
+    "A task is deferred, blocked or fixture-owed is not a pass.",
+    "Revision verification compares runtime files inside the deployed containers/images with this worktree; a mismatch makes every result stale for HEAD."
+  ]
+}

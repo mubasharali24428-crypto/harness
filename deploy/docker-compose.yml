@@ -398,6 +398,13 @@ services:
       # Operator-supplied dsh runtime patches (see deploy/patches/README-free note
       # in openrouter.patch.yml). Read-only; the engine fails closed on a missing path.
       - ./patches:/opt/harness/patches:ro
+      # W4: the reviewed MCP list is read by THIS process
+      # (engine._execution_policy_patch -> harness_orchestrator.mcp), not by the
+      # worker that spawns the server. The worker image also ships a copy, which
+      # is why a run could be composed from inside a worker but not from here.
+      # Read-only, same file the image carries; a declared-but-missing list
+      # still fails the run closed.
+      - ./mcp:/opt/harness/mcp:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
