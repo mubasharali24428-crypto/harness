@@ -43,6 +43,7 @@ export function LoadingState({
         {Array.from({ length: rows }, (_, i) => (
           <div
             key={i}
+            className="skel"
             style={{
               height: 10,
               width: `${92 - i * 18}%`,

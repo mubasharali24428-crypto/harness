@@ -10,6 +10,26 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### UI — desktop-app chrome and a denser dark palette (2026-10-28)
+
+* **Window chrome.** The workspace now reads like a desktop app: a 44px titlebar
+  (traffic-light dots, section / project breadcrumb, clock) and a 30px statusbar
+  (role, project, section). Both are decorative (`aria-hidden`) because every
+  value they show is already exposed by the sidebar, and both are hidden below
+  900px where the off-canvas drawer takes over.
+* **Palette and spacing.** New dark tokens (ink `#0a0b0e`, panels `#12161e` /
+  `#191e28`, borders `#272c37`, accent `#8ba8ff`) with a subdued light counterpart,
+  a faint grid + glow on the page background, tighter card radii, and mono
+  metadata. `tokens.ts` mirrors the new values so the compile-time catalog and
+  `globals.css` cannot drift.
+* **Motion, reduced-motion safe.** Staggered `rise` on first paint, nav active
+  bar, card hover lift, skeleton shimmer, and a pulsing brand dot — all CSS-only,
+  all disabled under `prefers-reduced-motion` (delays forced to 0).
+* **Contrast kept.** `themeContrast.test.ts` still passes: muted/faint were
+  re-tuned (`--faint: #7c869b`, 5.28:1) and the primary button moved to the one
+  solid fill (`--accent-strong`, 4.86:1 under white). 1003 tests, typecheck and
+  production build green; dark, light and 390px drawer checked by screenshot.
+
 ### W10 — a browser inside the run boundary, and an agent that verifies its own UI fix by looking (2026-10-27)
 
 * **Browser tool, confined.** `browser` (screenshot/dump) runs headless Chromium

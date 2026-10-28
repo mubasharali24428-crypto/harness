@@ -55,7 +55,11 @@ describe("Button", () => {
   });
 
   it("primary/danger variants use soft-filled accent faces", () => {
-    expect(markup(<Button variant="primary">Save</Button>)).toContain("var(--accent)");
+    // primary is the one solid fill in the system: --accent-strong clears AA
+    // under white text, which the softer --accent does not.
+    const primary = markup(<Button variant="primary">Save</Button>);
+    expect(primary).toContain("var(--accent-strong)");
+    expect(primary).toContain("#ffffff");
     expect(markup(<Button variant="danger">Delete</Button>)).toContain("var(--red)");
   });
 
@@ -216,15 +220,15 @@ describe("Modal", () => {
 describe("tokens.ts integrity", () => {
   it("token palette matches globals.css :root exactly", async () => {
     const { colors } = await import("@/components/tokens");
-    expect(colors.bg).toBe("#1a1814");
-    expect(colors.panel).toBe("#1e1c18");
-    expect(colors.panel2).toBe("#252220");
-    expect(colors.border).toBe("#3d3930");
-    expect(colors.text).toBe("#faf9f6");
-    expect(colors.muted).toBe("#a8a296");
-    expect(colors.accent).toBe("#8ee5a1");
-    expect(colors.green).toBe("#5cb870");
-    expect(colors.red).toBe("#ff6b6b");
-    expect(colors.yellow).toBe("#e5a814");
+    expect(colors.bg).toBe("#0a0b0e");
+    expect(colors.panel).toBe("#12161e");
+    expect(colors.panel2).toBe("#191e28");
+    expect(colors.border).toBe("#272c37");
+    expect(colors.text).toBe("#e9edf6");
+    expect(colors.muted).toBe("#8d96a8");
+    expect(colors.accent).toBe("#8ba8ff");
+    expect(colors.green).toBe("#58cf8a");
+    expect(colors.red).toBe("#ff7b7b");
+    expect(colors.yellow).toBe("#e9b949");
   });
 });
