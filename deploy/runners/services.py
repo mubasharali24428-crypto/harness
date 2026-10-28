@@ -570,6 +570,7 @@ def app_orchestrator():
         retention_holds,
         search,
         shares,
+        visuals,
     )
 
     presence.configure_presence(service)
@@ -585,7 +586,7 @@ def app_orchestrator():
     for _r in (presence.router, participation.router, control.router, agent_tree.router,
                discussion.router, plans.router, execution.router, artifacts.router, search.router,
                exports.router, retention_holds.router, shares.router,
-               deployments.router):
+               deployments.router, visuals.router):
         app.include_router(_r)
 
     # Part 38.005: org policy applies to every classified run/plan route of org-linked teams

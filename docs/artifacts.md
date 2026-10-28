@@ -210,6 +210,8 @@ is listed in `missing`, never invented. Tables owned by other lanes (`task_specs
 `GIT_STATE_MISSING`, `BASE_STALE`, `CHANGES_NOT_RECORDED`, `CHANGES_REJECTED`, `CHANGES_NOT_REVIEWED` (409), `ARTIFACT_QUARANTINED`, `NOT_ARTIFACT_OWNER`, `AGENT_CANNOT_APPROVE_MERGE` (403),
 `ARTIFACT_DELETED`, `ARTIFACT_EXPIRED`, `ARTIFACT_CONTENT_MISSING` (410), `ARTIFACTS_UNAVAILABLE` (503). Request-shape errors (an unknown `kind`, a bad `limit`) are FastAPI's standard 422.
 
+Visual evidence (W9) adds: `VISUAL_TYPE_NOT_ALLOWED` (415), `VISUAL_TYPE_MISMATCH`, `VISUAL_DIMENSIONS`, `VISUAL_PAIR_INVALID` (422), `VISUAL_REVISION_UNBOUND`, `VISUAL_PAIR_UNAVAILABLE`, `VISUAL_PAIR_REVISION_MISMATCH`, `VISUAL_PAIR_TAKEN` (409).
+
 ## 13. Audit
 
 Rows are appended in the same transaction as the change, `actor_kind human`, detail = `userId`, `teamId` and ids / states / digests / counts only, passed through the secret-key scrub: no file content, no file names, no notes. Actions used (all in the reserved list):
@@ -230,3 +232,43 @@ Rows are appended in the same transaction as the change, `actor_kind human`, det
 - No malware scanning, no archive inspection, no secret scanning, no inline image/PDF preview (sections 2 and 10).
 - Postgres-only behaviour is mostly untested here (sqlite): since Session 11 `test_session6_live_pg.py` passes on PostgreSQL 18 for an upload and its request-id replay, but partial unique indexes, `begin_nested` savepoints around optional-table reads and the other unique-violation paths still have no PostgreSQL test of their own.
 - The UI (lane X) and the OpenAPI / SDK files are not part of this lane.
+
+## 15. Visual evidence (W9)
+
+A screenshot is not just another file: it is a claim about **which reviewed revision** it
+shows and **what changed**. `POST /runs/{runId}/visuals?name=&role=&pairOf=&capturedFrom=&retentionDays=&requestId=`
+stores one image as an artifact (`kind=upload`, so shares, content, retention and audit all
+behave as §3–§8) and records the visual semantics in `visual_artifacts` (migration 0065).
+
+* **Raster only, by magic bytes.** PNG, JPEG and WebP are accepted; the declared content type
+  is ignored. SVG, GIF (animated), PDF and anything else is refused with
+  `415 VISUAL_TYPE_NOT_ALLOWED` — a screenshot pipeline fails loudly instead of storing
+  something a reviewer cannot see. A suffix that disagrees with the bytes is
+  `422 VISUAL_TYPE_MISMATCH`.
+* **Bounded before storage.** Empty → `422 EMPTY_ARTIFACT`; over `HARNESS_VISUAL_MAX_BYTES`
+  (default 4 MiB) → `413 ARTIFACT_TOO_LARGE` on the declared length, before the body is read;
+  a side under 16 px or over 8192 px → `422 VISUAL_DIMENSIONS` with the parsed `width`/`height`.
+  Dimensions come from the header, not from the client.
+* **Bound to the reviewed revision.** Attach refuses when the run has no recorded head
+  (`409 VISUAL_REVISION_UNBOUND`); otherwise it snapshots `runHeadSha`, `baseSha`, `repo`,
+  the latest approved `planVersion`, the current `changesDigest` and `stale` into
+  `provenance`. Evidence with no revision is not evidence.
+* **Paired explicitly.** `role=before` takes no `pairOf`; `role=after` must name a `before` of
+  the same run that is available and carries the **same** provenance snapshot
+  (`409 VISUAL_PAIR_REVISION_MISMATCH`), and only one `after` per `before`
+  (`409 VISUAL_PAIR_TAKEN`, also enforced by a partial unique index; a losing race tombstones
+  its own artifact). `GET visuals` returns `items` plus resolved `pairs`.
+* **Same access as artifacts.** Reads are team- and run-scoped through the artifact store: a
+  foreign team gets `404`, exactly like an unknown run; sharing a visual uses the existing
+  share route (download-only: `application/octet-stream`, `Content-Disposition: attachment`,
+  `nosniff`, `CSP sandbox`, `X-Artifact-Sha256`). A retried `requestId` returns the visual it
+  already recorded (`200`, `replayed: true`) instead of colliding or tombstoning it.
+* **Retention applies.** `retentionDays` sets `retention_until`; an expired visual is listed
+  as `expired`, its content and share answer `410 ARTIFACT_EXPIRED`, and the same
+  `purge_expired` sweep tombstones the row and removes the blob.
+
+Honest limits: no OCR, no pixel-diff, no malware scan; the provenance binds to the run's
+*recorded* head (a caller who records a false head has evidence of a false revision), and
+`capturedFrom` is opaque text. The drill renders the fixture with the product's browser gate
+inside a `--network none`, cap-dropped, read-only container; it does not claim that every
+screenshot an engine produces went through this path.

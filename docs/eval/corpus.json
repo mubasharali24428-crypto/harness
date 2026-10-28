@@ -982,6 +982,36 @@
       "expected": "exit 0 and only pkg/telemetry/flush.py changed",
       "evidence": "docs/briefs/evidence/eval/code-search-heldout-*.json",
       "notes": "live model. W2 held-out run: PASS in 16.1s, 3 tool calls (bash, edit, read), only the target changed, usage null."
+    },
+    {
+      "id": "w9-visuals",
+      "title": "Visual evidence is sanitised, revision-bound, pairable, tenant-isolated and retained",
+      "category": "artifact_authz",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "implemented",
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w9_visual_evidence_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 600,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "verifier": "fixture page rendered twice in a --network none, cap-dropped container (canvas pixel before #b3261e / after #1a7f37, aria-pressed false/true); attach refuses a run with no head (409 VISUAL_REVISION_UNBOUND); provenance carries run head, base sha, approved plan version and changes digest on both halves; SVG/GIF/PDF 415, 9000px 422, oversized 413; after without before 422; second after 409 VISUAL_PAIR_TAKEN; pair across a moved head 409 VISUAL_PAIR_REVISION_MISMATCH; foreign team 404; PNG share downloads with octet-stream/attachment/nosniff/sandbox and matching sha, revoke 404; backdated retention expires it (410 on content and share) and purge tombstones the row and removes the blob",
+      "expected": "exit 0 and every check true",
+      "evidence": "docs/briefs/evidence/pilot-prep/w9-visual-evidence-<stamp>.json",
+      "notes": "no model; four confined renders; --skip-purge records the tombstone leg as skipped rather than pretending it passed"
     }
   ]
 }

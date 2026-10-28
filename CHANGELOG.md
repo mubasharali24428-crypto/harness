@@ -10,6 +10,36 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Marathon 2.0 W9 — visual evidence is revision-bound; shares and deployments re-proven (2026-10-28)
+
+* **Visual artifacts (migration 0065 + `section4/.../visuals.py`).** A
+  screenshot is stored as an artifact and gains the semantics an artifact
+  cannot carry: `POST /runs/{runId}/visuals` accepts PNG/JPEG/WebP **by magic
+  bytes only**, parses dimensions from the header (16..8192 px, ≤4 MiB), and
+  refuses SVG/GIF/PDF (`415`), wrong suffixes (`422`), bad dimensions (`422`)
+  and oversized bodies (`413`, on the declared length).
+* **Provenance is read, not claimed.** Attach snapshots `runHeadSha`, `baseSha`,
+  `repo`, the latest approved `planVersion`, the current `changesDigest` and
+  `stale`; a run with no recorded head is `409 VISUAL_REVISION_UNBOUND`.
+* **Explicit pairing.** `role=after` must name a same-run `before` with an
+  identical snapshot (`409 VISUAL_PAIR_REVISION_MISMATCH`) and only one after
+  per before (`409 VISUAL_PAIR_TAKEN`, partial unique index; a lost race
+  tombstones its own row). `GET visuals` returns items and resolved pairs.
+* **Same access, download-only shares.** Reads are team/run scoped (foreign
+  team 404); sharing a PNG serves `application/octet-stream` + `attachment` +
+  `nosniff` + `CSP sandbox` + `X-Artifact-Sha256`. Retried `requestId` returns
+  the recorded visual (`200 {replayed: true}`) instead of destroying it.
+* **Fixture + drills.** `scripts/e2e/fixtures/w9_app.html` (accessible
+  `aria-pressed` button, labelled canvas, `?state=before|after`) rendered
+  through the product's browser gate in a `--network none`, cap-dropped,
+  read-only container. `scripts/e2e/w9_visual_evidence_drill.py`: **33/33
+  checks PASS**; `w9_share_deploy_drill.py` re-run at HEAD: **21/21 PASS**
+  (expiry included). Tests: `test_visuals.py` 12 + `test_visuals_db.py` 11 on
+  the real migrations.
+* **Fixed while proving it:** the visual list query omitted `run_id` (500);
+  a replayed upload would have tombstoned the original artifact; the store's
+  `ARTIFACT_TOO_LARGE` leaked past the visual error envelope.
+
 ### Marathon 2.0 W8 — overlapping results cannot overwrite, cancellation and quotas proven (2026-10-28)
 
 * **Apply is hash-anchored.** The local engine now reports the base digest of
