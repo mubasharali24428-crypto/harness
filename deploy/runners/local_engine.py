@@ -47,8 +47,23 @@ for _src in (_SECTION4_SRC, _CONTRACTS_SRC):
 from harness_orchestrator import confine
 
 _IMAGE_ENV = "HARNESS_ENGINE_IMAGE"
-_DEFAULT_IMAGE = "harness-engine-worker:p0"
+_IMAGE_TAG_ENV = "HARNESS_IMAGE_TAG"
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+
+
+def default_image(env: dict[str, str] | None = None) -> str:
+    """The worker image a local run uses when the operator names none.
+
+    It tracks ``HARNESS_IMAGE_TAG`` — the same variable the compose stack uses —
+    rather than a frozen pilot tag. The frozen ``p0`` default predated the
+    W11 vision patch, so a shipped ``.env`` that sets ``DSH_PATCH_FILES`` to
+    ``/opt/harness/patches/openrouter-vision.patch.yml`` failed inside the
+    worker before any model call: the image was current-revision elsewhere,
+    the launcher was not.
+    """
+    env = os.environ if env is None else env
+    tag = env.get(_IMAGE_TAG_ENV, "").strip() or "dev-local"
+    return f"harness-engine-worker:v{tag}"
 
 
 class Refusal(RuntimeError):
@@ -76,7 +91,7 @@ def preflight(confinement_env: dict[str, str] | None = None) -> str:
     probe = _docker("info", "--format", "{{.ServerVersion}}")
     if probe.returncode != 0:
         raise Refusal(f"the docker daemon is not answering: {(probe.stderr or '').strip()[:200]}")
-    image = env.get(_IMAGE_ENV, "").strip() or _DEFAULT_IMAGE
+    image = env.get(_IMAGE_ENV, "").strip() or default_image(env)
     inspect = _docker("image", "inspect", "--format", "{{.Id}}", image)
     if inspect.returncode != 0:
         raise Refusal(
@@ -191,7 +206,14 @@ def deletions_from_diff(text: str) -> list[str]:
 
 
 def normalize_diff(text: str, run_dir: Path, baseline_dir: Path) -> tuple[str, str | None]:
-    text = text.replace(str(run_dir) + os.sep, "").replace(str(baseline_dir) + os.sep, "")
+    # git --no-index prints absolute paths under its conventional a/ b/ prefixes
+    # ("+++ b//abs/run/x"). Stripping only the absolute root leaves the prefix
+    # glued to the name — "+++ bide_note.txt" — so a local editor run applied
+    # its change under a wrong filename. Strip prefix+root together, keep "a/".
+    for root in (run_dir, baseline_dir):
+        absolute = str(root) + os.sep
+        text = text.replace("a" + absolute, "a/").replace("b" + absolute, "b/")
+        text = text.replace(absolute, "")
     omitted = None
     if len(text) > 400_000:
         omitted = "too-large"

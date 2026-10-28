@@ -10,6 +10,42 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Marathon 2.0 W7 — a real language server in the sandbox, editor re-verified (2026-10-28)
+
+* **The LSP client gained the operations, not just the limits.** `lsp_client.py`
+  now answers server-initiated requests (so real servers do not block), queues
+  notifications in a bounded, URI-matchable form, opens documents and runs
+  diagnostics, document symbols, definitions and references, with a CLI
+  scenario mode and a `pid` accessor for `/proc/<pid>/environ` auditing.
+* **One real language server, pinned.** `section4/worker-lsp.Dockerfile` overlays
+  `python-lsp-server[pyflakes,rope]==1.12.2` (pyflakes 3.2.0, rope 1.13.0) on the
+  current worker and bakes the client in. The default worker stays
+  language-neutral; adoption is a separate decision.
+* **Evidence.** A 16/16 drill on a `--network none`, read-only, uid-10001
+  container: diagnostics (unused import, undefined name), symbols, definition,
+  references, a clean file publishing `[]`, a scrubbed process environment, a
+  refused write (`EROFS`), unreachable network, a SIGSTOPped server killed at a
+  1 s deadline, an unchanged tree and no route. `w7-lsp-real-1793197850.json`;
+  corpus task `lsp-real-server` (infra).
+* **Editor re-verified at this revision.** Typecheck, build and 29/29 tests; the
+  live gate passes 11/11 (`w7-ide-1793198120.json`) including `409
+  CHANGE_STALE` for a wrong digest and an applied file matching the reviewed
+  post-image byte-for-byte.
+* **Two real defects fixed.** `normalize_diff()` left git's `a`/`b` prefix glued
+  to the filename after stripping the absolute root, so local editor runs
+  applied `bide_note.txt` instead of `ide_note.txt` (the historical PASS hid it
+  by comparing text, not path). The local launcher's default image was
+  `harness-engine-worker:p0`, which predates the W11 vision patch, so a shipped
+  `.env` with `DSH_PATCH_FILES` failed every host-side run before the model;
+  the default now tracks `HARNESS_IMAGE_TAG`.
+* **Gate honesty.** The drill's applied-bytes check now compares to the reviewed
+  post-image (a trailing period once failed a correct run), and the deadline
+  proof stops the server first because a cached answer can arrive inside 1 ms.
+* **Hermes H3 stays blocked.** Python LSP is not an `.hms` toolchain: no
+  corpus, no `hermesc`, and H0 paperwork is still absent. LSP is not wired into
+  the engine's tool roster.
+* **Corpus.** 30 tasks (20 implemented, 6 blocked, 4 fixture-owed).
+
 ### Marathon 2.0 W6 — governed skills prototype, Hermes audit (2026-10-28)
 
 * **Skills are text, pinned and team-scoped.** `harness_orchestrator/skills.py`

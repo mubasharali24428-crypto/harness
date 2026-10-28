@@ -93,6 +93,28 @@ def test_preflight_refuses_missing_image(monkeypatch, tmp_path):
     assert "image" in str(exc.value)
 
 
+def test_default_image_tracks_the_stack_tag():
+    # The frozen `p0` default predated the W11 vision patch, so a shipped .env
+    # that names that patch failed before any model call.
+    assert local_engine.default_image({}) == "harness-engine-worker:vdev-local"
+    assert local_engine.default_image(
+        {"HARNESS_IMAGE_TAG": "m07-1026"}) == "harness-engine-worker:vm07-1026"
+
+
+def test_preflight_uses_the_derived_default_and_honours_the_override(monkeypatch):
+    monkeypatch.setattr(local_engine.shutil, "which", lambda _x: "/usr/bin/docker")
+
+    def ok(*args):
+        return subprocess.CompletedProcess(args, 0, stdout="27", stderr="")
+
+    monkeypatch.setattr(local_engine, "_docker", ok)
+    base = {"HARNESS_ENGINE_CONFINEMENT": "container", "DEEPSEEK_API_KEY": "k"}
+    assert local_engine.preflight(base) == "harness-engine-worker:vdev-local"
+    assert local_engine.preflight({**base, "HARNESS_IMAGE_TAG": "m07-1026"}) == (
+        "harness-engine-worker:vm07-1026")
+    assert local_engine.preflight({**base, "HARNESS_ENGINE_IMAGE": "custom:1"}) == "custom:1"
+
+
 def test_run_local_refuses_unsafe_run_id(workspace):
     with pytest.raises(local_engine.Refusal):
         local_engine.run_local(workspace, "goal", "../escape")
@@ -118,6 +140,29 @@ def test_normalize_diff_strips_scratch_prefixes(tmp_path):
     text, omitted = local_engine.normalize_diff(raw, run_dir, base)
     assert text == "--- a.py\n+++ a.py\n@@\n-x\n+y\n"
     assert omitted is None
+
+
+def test_normalize_diff_keeps_the_ab_prefix_off_the_filename(tmp_path):
+    # The real git --no-index output puts the absolute root behind "a/"/"b/".
+    # Stripping only the root produced "+++ bide_note.txt" and the editor wrote
+    # the change under that name (caught by the W7 live drill).
+    run_dir = tmp_path / "ws" / "run-1"
+    base = tmp_path / "baseline"
+    raw = (
+        f"diff --git a{base}/x.py b{run_dir}/x.py\n"
+        f"--- a{base}/x.py\n+++ b{run_dir}/x.py\n@@ -1 +1 @@\n-x\n+y\n"
+        f"diff --git a{base}/ide_note.txt b{run_dir}/ide_note.txt\n"
+        "new file mode 100644\n"
+        "--- /dev/null\n"
+        f"+++ b{run_dir}/ide_note.txt\n@@ -0,0 +1 @@\n+reviewed in the editor.\n"
+    )
+    text, _ = local_engine.normalize_diff(raw, run_dir, base)
+    assert "diff --git a/x.py b/x.py" in text
+    assert "--- a/x.py" in text
+    assert "+++ b/x.py" in text
+    assert "+++ b/ide_note.txt" in text
+    assert "bide_note.txt" not in text
+    assert "+++ bx.py" not in text
 
 
 # ------------------------------------------------------------------ apply

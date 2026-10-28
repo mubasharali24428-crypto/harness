@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "kind": "w4-ast-lsp-confinement",
+  "takenAt": "2026-10-28T14:31:27.056709+00:00",
+  "image": "harness-engine-worker:vdev-local",
+  "network": "none",
+  "user": "10001:10001",
+  "workspaceMount": "read-only",
+  "checks": {
+    "astFindsDefinitions": true,
+    "astRefusesSymlinkEscape": true,
+    "astReadOnly": true,
+    "lspDefinition": true,
+    "lspEnvScrubbed": true,
+    "lspCwdConfined": true,
+    "lspCannotWriteWorkspace": true,
+    "lspCannotReachNetwork": true,
+    "lspDeadlineKillsServer": true,
+    "containerHasNoRoute": true
+  },
+  "verdict": "PASS",
+  "failedChecks": [],
+  "observations": {
+    "routes": "",
+    "ast": {
+      "exitCode": 0,
+      "scannedFiles": 1,
+      "skipped": [
+        "pkg/escape.py"
+      ],
+      "truncated": false,
+      "elapsedSeconds": 0.003
+    },
+    "astResults": [
+      "RETRY_BACKOFF_SECONDS",
+      "RetryPolicy.compute_backoff",
+      "flush_backoff_queue"
+    ],
+    "lspDefinition": {
+      "uri": "file:///work/pkg/retry.py",
+      "range": {
+        "start": {
+          "line": 0,
+          "character": 0
+        },
+        "end": {
+          "line": 0,
+          "character": 1
+        }
+      }
+    },
+    "lspEnvKeyCount": 4,
+    "lspCwd": "/work",
+    "lspWrite": {
+      "wrote": false,
+      "error": "OSError: [Errno 30] Read-only file system: 'escape.txt'"
+    },
+    "lspNetwork": {
+      "error": "OSError: [Errno 101] Network is unreachable",
+      "connected": false
+    },
+    "slowExit": 2,
+    "slowError": {
+      "code": "LspTimeout",
+      "message": "language server did not answer before the deadline"
+    },
+    "slowSeconds": 1.33
+  }
+}

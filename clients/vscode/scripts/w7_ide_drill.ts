@@ -345,7 +345,14 @@ async function main(): Promise<number> {
     diffShown: evidence.diffShown !== null,
     wrongDigestRefused: wrongDigest.refused && wrongDigest.code === "CHANGE_STALE",
     reviewApprovedWithDigest: change?.reviewState === "approved",
-    appliedBytesMatch: (appliedText ?? "").trimEnd() === "reviewed in the editor",
+    // The claim is "the bytes the editor reviewed are the bytes on disk", so
+    // compare against the reviewed post-image itself — not a phrase the model
+    // was asked to write (a trailing period once failed a correct run).
+    appliedBytesMatch:
+      shown !== null &&
+      appliedPath === shown.path &&
+      appliedText !== null &&
+      appliedText === shown.after,
     noRefusals: outcome.refused.length === 0,
   };
   const verdict = Object.values(checks).every(Boolean) ? "PASS" : "FAIL";

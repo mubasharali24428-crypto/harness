@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "m2-w1",
+  "revision": "m2-w7",
   "created": "2026-10-28",
   "notes": "Marathon 2.0 W1 fixed corpus. Implemented tasks cite an existing driver; fixture-owed tasks are recorded gaps and cannot pass. status=blocked means the driver exists but a prerequisite is unmet (recorded in notes).",
   "tasks": [
@@ -855,6 +855,36 @@
       "expected": "exit 0 with all ten checks true",
       "evidence": "docs/briefs/evidence/eval/w4-ast-lsp-*.json",
       "notes": "no model; the spike tools are not mounted in the engine (W4)"
+    },
+    {
+      "id": "lsp-real-server",
+      "title": "A real pinned language server answers diagnostics, symbols, definition and references in the sandbox",
+      "category": "confinement",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "implemented",
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w7_lsp_real_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 300,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "verifier": "the image's baked client is byte-identical to the worktree; pylsp is installed at a pinned version; diagnostics fire for a planted undefined name and unused import and a clean file publishes none; symbols, definition and references resolve to planted locations; the server process's /proc environment carries no credential-shaped key and HOME/TMPDIR are outside the workspace; the read-only workspace refuses a write (EROFS); the network is unreachable; a stopped server is killed at the deadline; the tree is byte-identical; the container has no route",
+      "expected": "exit 0 with every check true",
+      "evidence": "docs/briefs/evidence/eval/w7-lsp-real-*.json",
+      "notes": "no model; the pylsp overlay is a W7 proving image, not the default worker (which stays language-neutral)"
     },
     {
       "id": "code-search-heldout",

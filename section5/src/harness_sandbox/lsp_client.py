@@ -1,11 +1,9 @@
-"""A bounded LSP stdio client (W4 spike).
+"""A bounded LSP stdio client (W4 spike, extended in W7).
 
-The product does not speak LSP yet; W7 integrates real language servers. Before
-that is worth doing, the W4 question is narrower: **if we spawn a language
-server inside the worker, what stops it from outliving, out-writing or
-out-reading its policy?**
-
-This client is the answer's shape, not a full LSP implementation:
+The product did not speak LSP in W4; W7 integrates a real language server. The
+W4 question was narrower: **if we spawn a language server inside the worker,
+what stops it from outliving, out-writing or out-reading its policy?** This
+client is the answer's shape:
 
 * **Spawned, never imported.** The server is a child process in its own session
   (``start_new_session``), so a timeout kills the whole process group.
@@ -15,12 +13,21 @@ This client is the answer's shape, not a full LSP implementation:
 * **Bounded reads.** Every message is capped by ``max_bytes`` *before* the body
   is read, and a request has a wall-clock deadline; exceeding either kills the
   child instead of growing the buffer.
+* **Bounded notifications.** Server-to-client notifications (diagnostics,
+  progress) are queued for ``wait_notification``; past
+  ``MAX_PENDING_NOTIFICATIONS`` the server is treated as misbehaving and killed.
 * **Read-only by policy outside this class.** The client itself never writes;
   the drill mounts the workspace read-only, so a server that tries to write is
   refused by the mount, and the probe records the error.
 
-    python3 -I lsp_client.py --cwd <dir> --command '["python3","-I","srv.py"]' \\
-        --method textDocument/definition --params '{...}'
+W7 adds the four read-only operations the harness needs — diagnostics (via
+``textDocument/didOpen`` + ``textDocument/publishDiagnostics``), document
+symbols, definitions and references — as scenario methods and a CLI mode:
+
+    python3 -I lsp_client.py --cwd <dir> --command '["pylsp"]' \\
+        --scenario diagnostics --file <path>
+
+The old single-request form (``--method``/``--params``) still works.
 """
 
 from __future__ import annotations
@@ -35,15 +42,30 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections import deque
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, unquote, urlparse
 
 DEFAULT_TIMEOUT = 5.0
 MAX_MESSAGE_BYTES = 4_000_000
+MAX_PENDING_NOTIFICATIONS = 256
+_MAX_DOCUMENT_BYTES = 2_000_000
 _ENV_ALLOW = ("PATH", "LANG", "LC_ALL")
 _ENV_EXTRA_ALLOW = frozenset({"PYTHONPATH", "PYTHONUNBUFFERED"})
 _SECRET = re.compile(r"harness|deepseek|token|secret|password|api[-_]?key|credential", re.I)
+_LANGUAGE_BY_SUFFIX = {
+    ".py": "python",
+    ".pyi": "python",
+    ".ts": "typescript",
+    ".tsx": "typescriptreact",
+    ".js": "javascript",
+    ".jsx": "javascriptreact",
+    ".rs": "rust",
+    ".go": "go",
+    ".md": "markdown",
+    ".json": "json",
+}
 
 
 class LspError(RuntimeError):
@@ -72,6 +94,34 @@ def scrubbed_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     env["HOME"] = home
     env["TMPDIR"] = home
     return env
+
+
+def file_uri(path: str | Path) -> str:
+    """An absolute ``file://`` URI for a local path, with spaces escaped."""
+    return "file://" + quote(str(Path(path).resolve()))
+
+
+def path_from_uri(uri: str) -> Path | None:
+    """The local path behind a ``file://`` URI, or ``None`` for any other scheme."""
+    parsed = urlparse(uri)
+    if parsed.scheme != "file":
+        return None
+    return Path(unquote(parsed.path))
+
+
+def language_id_for(path: str | Path) -> str:
+    """The LSP language id for a path, by suffix; ``plaintext`` when unknown."""
+    return _LANGUAGE_BY_SUFFIX.get(Path(path).suffix.lower(), "plaintext")
+
+
+def _dig(data: Any, dotted: str) -> Any:
+    """Walk ``a.b.c`` through nested dicts, returning ``None`` on any gap."""
+    current = data
+    for part in dotted.split("."):
+        if not isinstance(current, dict) or part not in current:
+            return None
+        current = current[part]
+    return current
 
 
 class LspSession:
@@ -109,6 +159,9 @@ class LspSession:
         self._buffer = bytearray()
         self._next_id = 1
         self._closed = False
+        self._notifications: deque[dict[str, Any]] = deque()
+        self._documents: dict[str, str] = {}
+        self._next_version = 1
         self._selector = selectors.DefaultSelector()
         self._selector.register(self._proc.stdout, selectors.EVENT_READ)
 
@@ -175,6 +228,30 @@ class LspSession:
 
     # ------------------------------------------------------------------- protocol
 
+    def _answer_server_request(self, message: dict[str, Any]) -> None:
+        """Answer a server-initiated request with a null result.
+
+        We advertise no capabilities, so the only requests a well-behaved server
+        sends are housekeeping (``window/workDoneProgress/create``,
+        ``workspace/configuration``, ``client/registerCapability``). Leaving
+        them unanswered makes real servers block; answering ``None`` is the
+        documented way to say "nothing configured".
+        """
+        self._send({"jsonrpc": "2.0", "id": message["id"], "result": None})
+
+    def _dispatch(self, message: dict[str, Any]) -> None:
+        """Route a message that is not our pending response."""
+        if "method" in message and message.get("id") is not None:
+            self._answer_server_request(message)
+            return
+        if "method" in message:
+            if len(self._notifications) >= MAX_PENDING_NOTIFICATIONS:
+                self.kill()
+                raise LspError(
+                    f"more than {MAX_PENDING_NOTIFICATIONS} unread notifications queued;"
+                    " the language server is misbehaving")
+            self._notifications.append(message)
+
     def request(self, method: str, params: dict[str, Any] | None = None,
                 timeout: float | None = None) -> Any:
         request_id = self._next_id
@@ -186,7 +263,8 @@ class LspSession:
             while True:
                 message = self._read_message(deadline)
                 if message.get("id") != request_id:
-                    continue  # a notification or a server request: not our answer
+                    self._dispatch(message)
+                    continue
                 if "error" in message:
                     raise LspError(f"{method}: {message['error']}")
                 return message.get("result")
@@ -198,14 +276,131 @@ class LspSession:
         self._send({"jsonrpc": "2.0", "method": method, "params": params or {}})
 
     def initialize(self, root: str | Path | None = None) -> Any:
-        root_uri = "file://" + quote(str(Path(root or self.cwd).resolve()))
+        root_uri = file_uri(root or self.cwd)
         result = self.request("initialize", {
             "processId": os.getpid(),
             "rootUri": root_uri,
-            "capabilities": {},
+            "capabilities": {
+                "textDocument": {
+                    "publishDiagnostics": {"versionSupport": True},
+                    "documentSymbol": {"hierarchicalDocumentSymbolSupport": True},
+                },
+                "workspace": {"configuration": False, "workspaceFolders": True},
+            },
+            "workspaceFolders": [{"uri": root_uri, "name": Path(self.cwd).name or "workspace"}],
         })
         self.notify("initialized", {})
         return result
+
+    # --------------------------------------------------------------- notifications
+
+    def pending_notifications(self) -> list[dict[str, Any]]:
+        return list(self._notifications)
+
+    def _take_notification(self, method: str,
+                           match: dict[str, Any] | None = None) -> dict[str, Any] | None:
+        """Remove and return the first queued notification matching ``method``.
+
+        ``match`` compares dotted paths inside ``params``, e.g.
+        ``{"textDocument.uri": uri}``, so a diagnostics burst for another file
+        cannot satisfy a wait for this one.
+        """
+        for index, message in enumerate(self._notifications):
+            if message.get("method") != method:
+                continue
+            if match and not all(
+                    _dig(message.get("params") or {}, path) == want
+                    for path, want in match.items()):
+                continue
+            del self._notifications[index]
+            return message
+        return None
+
+    def wait_notification(self, method: str, *,
+                          match: dict[str, Any] | None = None,
+                          timeout: float | None = None) -> dict[str, Any]:
+        """Wait for a server notification, reading frames as needed."""
+        found = self._take_notification(method, match)
+        if found is not None:
+            return found
+        deadline = time.monotonic() + (self.timeout if timeout is None else timeout)
+        try:
+            while True:
+                message = self._read_message(deadline)
+                if message.get("method") and message.get("id") is None:
+                    if message["method"] == method and (
+                            not match or all(
+                                _dig(message.get("params") or {}, path) == want
+                                for path, want in match.items())):
+                        return message
+                self._dispatch(message)
+                found = self._take_notification(method, match)
+                if found is not None:
+                    return found
+        except (LspTimeout, LspOutputTooLarge):
+            self.kill()
+            raise
+
+    # ---------------------------------------------------------------- documents
+
+    def open_document(self, path: str | Path, text: str | None = None, *,
+                      language_id: str | None = None, uri: str | None = None) -> str:
+        """Send ``textDocument/didOpen``; returns the URI it was opened under.
+
+        ``text`` defaults to the file's current bytes. The client never writes:
+        an open document lives in the server's memory and the workspace mount
+        stays read-only.
+        """
+        path_p = Path(path)
+        uri = uri or file_uri(path_p)
+        if text is None:
+            if not path_p.is_file():
+                raise LspError(f"not a file: {path_p}")
+            raw = path_p.read_bytes()
+            if len(raw) > _MAX_DOCUMENT_BYTES:
+                raise LspError(f"document exceeds {_MAX_DOCUMENT_BYTES} bytes: {path_p}")
+            text = raw.decode("utf-8", "replace")
+        elif len(text.encode("utf-8")) > _MAX_DOCUMENT_BYTES:
+            raise LspError(f"document exceeds {_MAX_DOCUMENT_BYTES} bytes: {path_p}")
+        version = self._next_version
+        self._next_version += 1
+        self._documents[uri] = text
+        self.notify("textDocument/didOpen", {"textDocument": {
+            "uri": uri,
+            "languageId": language_id or language_id_for(path_p),
+            "version": version,
+            "text": text,
+        }})
+        return uri
+
+    def diagnostics(self, uri: str, *, timeout: float | None = None) -> list[dict[str, Any]]:
+        """The diagnostics the server publishes for ``uri`` after it is opened."""
+        message = self.wait_notification(
+            "textDocument/publishDiagnostics",
+            match={"uri": uri},
+            timeout=timeout,
+        )
+        return list((message.get("params") or {}).get("diagnostics") or [])
+
+    def document_symbols(self, uri: str, *, timeout: float | None = None) -> Any:
+        return self.request("textDocument/documentSymbol", {"textDocument": {"uri": uri}},
+                            timeout=timeout)
+
+    def definition(self, uri: str, line: int, character: int, *,
+                   timeout: float | None = None) -> Any:
+        return self.request("textDocument/definition", {
+            "textDocument": {"uri": uri},
+            "position": {"line": line, "character": character},
+        }, timeout=timeout)
+
+    def references(self, uri: str, line: int, character: int, *,
+                   include_declaration: bool = True,
+                   timeout: float | None = None) -> Any:
+        return self.request("textDocument/references", {
+            "textDocument": {"uri": uri},
+            "position": {"line": line, "character": character},
+            "context": {"includeDeclaration": include_declaration},
+        }, timeout=timeout)
 
     # -------------------------------------------------------------------- process
 
@@ -247,6 +442,11 @@ class LspSession:
     def returncode(self) -> int | None:
         return self._proc.poll()
 
+    @property
+    def pid(self) -> int:
+        """The child's pid — an auditor can read ``/proc/<pid>/environ``."""
+        return self._proc.pid
+
     def __enter__(self) -> LspSession:
         return self
 
@@ -254,15 +454,46 @@ class LspSession:
         self.close()
 
 
+def _scenario(session: LspSession, name: str, path: Path, line: int, character: int,
+              timeout: float | None) -> dict[str, Any]:
+    """Run one read-only language-server scenario against one file."""
+    if name == "diagnostics":
+        uri = session.open_document(path)
+        return {"uri": uri, "diagnostics": session.diagnostics(uri, timeout=timeout)}
+    uri = session.open_document(path)
+    if name == "documentSymbol":
+        return {"uri": uri, "symbols": session.document_symbols(uri, timeout=timeout)}
+    if name == "definition":
+        return {"uri": uri, "locations": session.definition(uri, line, character,
+                                                            timeout=timeout)}
+    if name == "references":
+        return {"uri": uri, "locations": session.references(uri, line, character,
+                                                            timeout=timeout)}
+    raise LspError(f"unknown scenario {name!r}")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="bounded stdio LSP client")
     ap.add_argument("--cwd", required=True)
     ap.add_argument("--command", required=True, help="JSON array of argv strings")
-    ap.add_argument("--method", required=True)
+    ap.add_argument("--scenario", choices=("diagnostics", "documentSymbol",
+                                           "definition", "references"))
+    ap.add_argument("--file", help="workspace file the scenario opens")
+    ap.add_argument("--line", type=int, default=0)
+    ap.add_argument("--character", type=int, default=0)
+    ap.add_argument("--method", help="single raw request (legacy form)")
     ap.add_argument("--params", default="{}", help="JSON object")
     ap.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
     ap.add_argument("--max-bytes", type=int, default=MAX_MESSAGE_BYTES)
     args = ap.parse_args(argv)
+    if bool(args.scenario) == bool(args.method):
+        print(json.dumps({"error": {
+            "code": "Usage", "message": "pass exactly one of --scenario or --method"}}))
+        return 2
+    if args.scenario and not args.file:
+        print(json.dumps({"error": {
+            "code": "Usage", "message": "--scenario requires --file"}}))
+        return 2
     try:
         command = json.loads(args.command)
         params = json.loads(args.params)
@@ -271,7 +502,11 @@ def main(argv: list[str] | None = None) -> int:
         with LspSession(command, cwd=args.cwd, timeout=args.timeout,
                         max_bytes=args.max_bytes) as session:
             initialized = session.initialize()
-            result = session.request(args.method, params)
+            if args.scenario:
+                result = _scenario(session, args.scenario, Path(args.file),
+                                   args.line, args.character, args.timeout)
+            else:
+                result = session.request(args.method, params)
             print(json.dumps({"initialize": initialized, "result": result}))
         return 0
     except (LspError, OSError, ValueError) as exc:
