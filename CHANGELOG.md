@@ -10,6 +10,35 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Marathon 2.0 W8 — overlapping results cannot overwrite, cancellation and quotas proven (2026-10-28)
+
+* **Apply is hash-anchored.** The local engine now reports the base digest of
+  every named path, and `apply_back` refuses with `APPLY_CONFLICT`
+  (`error.conflicts[]` naming expected vs actual) instead of overwriting a file
+  that moved since the run copied it. The check is all-or-nothing and runs
+  before any write. Tests cover the matching case, a moved base, a new-file
+  collision and a stale deletion.
+* **Live concurrency, expanded.** Three runs, two of them producing the same
+  path, plus a fourth run stopped mid-flight: 22/22 checks. Distinct
+  workspaces/networks, distinct digests and checkpoint bytes for the shared
+  path, a digest from one run refused for another's change (`409
+  CHANGE_STALE`), cancellation confirmed in 6.7 s with the claim released and
+  the boundary network removed while three neighbours kept executing.
+* **Subagent quotas proven at the API.** Depth, live-children and
+  parent-scope inheritance refusals, cancel cascade and pool roll-back — with a
+  second admin approving the definition (`SELF_APPROVAL` refused the author).
+  `agent_tree.py` still records that the engine does not call these endpoints.
+* **Findings recorded, not smoothed.** A stopped run's `/status.state` is
+  `done`; only `lifecycle.phase`/`cancelConfirmed` says stopped. Cancellation
+  is observable as `stopping` for seconds, so a single read can see a live
+  claim and network mid-unwind — the drill now waits, bounded, for confirmation.
+* **Evidence.** `w8-concurrency-1793200473.json` (22/22),
+  `w8-crash-cleanup-1793200243.json` (11/11), `w8-overlap-1793198798.json`
+  (14/14), `w8-agent-quotas-1793200199.json` (9/9); runner subset 2/2 with
+  `revisionVerified: true`. Corpus is 33 tasks (23 implemented).
+* **Not claimed:** universal parallel isolation, same-file hunk merging, or any
+  engine-driven subagent lifecycle.
+
 ### Marathon 2.0 W7 — a real language server in the sandbox, editor re-verified (2026-10-28)
 
 * **The LSP client gained the operations, not just the limits.** `lsp_client.py`

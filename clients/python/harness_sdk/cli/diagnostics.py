@@ -86,7 +86,7 @@ def classify(exc: BaseException) -> tuple[str, int, bool]:
     if isinstance(exc, CliError):
         if _auth_message(str(exc)):
             return "NOT_LOGGED_IN", AUTH, False
-        return "CLI_ERROR", FAILURE, False
+        return str(getattr(exc, "code", "") or "CLI_ERROR"), FAILURE, False
     if isinstance(exc, (TimeoutError, httpx.TimeoutException)):
         return "TIMEOUT", TIMEOUT, True
     if isinstance(exc, (ConnectionError, httpx.TransportError)):
@@ -123,6 +123,11 @@ def error_payload(command: str, exc: BaseException) -> dict[str, Any]:
     status = getattr(exc, "status", None)
     if isinstance(status, int) and status:
         error["status"] = status
+    conflicts = getattr(exc, "conflicts", None)
+    if conflicts:
+        # Which files moved, and the digest each was reviewed against — enough
+        # for a caller to re-review instead of guessing why the write stopped.
+        error["conflicts"] = list(conflicts)[:20]
     return {
         "schemaVersion": SCHEMA_VERSION,
         "command": command,

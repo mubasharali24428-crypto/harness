@@ -8,6 +8,7 @@ apply touches only what the boundary's diff named, and refusals are actionable.
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import subprocess
@@ -15,7 +16,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from harness_sdk.cli import config
+from harness_sdk.cli import config, diagnostics
 from harness_sdk.cli import local as local_mod
 from harness_sdk.cli.commands import CliError, execute_run
 
@@ -194,6 +195,75 @@ def test_apply_back_refuses_escaping_names(workspace, out_dirs):
         local_mod.apply_back(workspace, work, [], [".git/config"])
 
 
+# ------------------------------------------------- W8: hash-anchored apply
+
+
+def _sha(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def test_apply_back_with_matching_hashes_writes(workspace, out_dirs):
+    work, _base = out_dirs
+    (work / "src").mkdir(parents=True)
+    (work / "src" / "a.py").write_text("two\n")
+    expected = {"src/a.py": _sha("one\n")}
+    result = local_mod.apply_back(workspace, work, ["src/a.py"], [], expected)
+    assert result["applied"] == ["src/a.py"]
+    assert (workspace / "src" / "a.py").read_text() == "two\n"
+
+
+def test_apply_back_refuses_when_the_base_moved_and_writes_nothing(workspace, out_dirs):
+    # A second run's result (or an editor save) landed after the copy was made.
+    work, _base = out_dirs
+    (work / "src").mkdir(parents=True)
+    (work / "src" / "a.py").write_text("engine a\n")
+    (work / "keep.txt").write_text("engine keep\n")
+    (workspace / "src" / "a.py").write_text("someone else\n")
+    expected = {"src/a.py": _sha("one\n"), "keep.txt": _sha("unchanged\n")}
+    with pytest.raises(local_mod.ApplyConflict) as exc:
+        local_mod.apply_back(workspace, work, ["src/a.py", "keep.txt"], [], expected)
+    assert [c["path"] for c in exc.value.conflicts] == ["src/a.py"]
+    assert exc.value.conflicts[0]["expected"] == _sha("one\n")
+    assert exc.value.conflicts[0]["actual"] == _sha("someone else\n")
+    # All-or-nothing: the file that DID match was not written either.
+    assert (workspace / "src" / "a.py").read_text() == "someone else\n"
+    assert (workspace / "keep.txt").read_text() == "unchanged\n"
+
+
+def test_apply_back_refuses_a_new_file_collision(workspace, out_dirs):
+    # Both runs created the same path; the first apply already wrote it.
+    work, _base = out_dirs
+    (work / "created.txt").write_text("from run b\n")
+    (workspace / "created.txt").write_text("from run a\n")
+    with pytest.raises(local_mod.ApplyConflict) as exc:
+        local_mod.apply_back(workspace, work, ["created.txt"], [], {"created.txt": None})
+    assert exc.value.conflicts[0]["expected"] is None
+    assert (workspace / "created.txt").read_text() == "from run a\n"
+
+
+def test_apply_back_refuses_a_stale_deletion(workspace, out_dirs):
+    work, _base = out_dirs
+    (workspace / "src" / "gone.py").write_text("edited since\n")
+    with pytest.raises(local_mod.ApplyConflict):
+        local_mod.apply_back(workspace, work, [], ["src/gone.py"], {"src/gone.py": _sha("x\n")})
+    assert (workspace / "src" / "gone.py").read_text() == "edited since\n"
+
+
+def test_apply_conflict_is_a_structured_failure():
+    exc = local_mod.ApplyConflict([{"path": "a.py", "expected": "x", "actual": "y"}])
+    payload = diagnostics.error_payload("run", exc)
+    assert payload["exitCode"] == diagnostics.FAILURE
+    assert payload["error"]["code"] == "APPLY_CONFLICT"
+    assert payload["error"]["conflicts"] == [{"path": "a.py", "expected": "x", "actual": "y"}]
+    assert diagnostics.classify(exc) == ("APPLY_CONFLICT", diagnostics.FAILURE, False)
+
+
+def test_base_hashes_are_null_for_files_that_did_not_exist(tmp_path):
+    (tmp_path / "a.py").write_text("one\n")
+    assert local_engine.base_hashes(tmp_path, ["a.py", "new.py", "a.py"]) == {
+        "a.py": _sha("one\n"), "new.py": None}
+
+
 # ------------------------------------------------------------------ execute_run --local
 
 
@@ -288,6 +358,28 @@ def test_local_run_gates_on_server_but_never_starts_server_execution(workspace, 
     assert result["state"] == "done"
     assert result["local"]["applied"] == ["src/a.py"]
     assert result["local"]["confinement"] == "container"
+
+
+def test_local_run_hands_base_hashes_to_the_apply(workspace, tmp_path):
+    sdk = _Sdk()
+    work, base = tmp_path / "w", tmp_path / "b"
+    inner = _fake_launch(work, base)
+    seen: dict[str, object] = {}
+
+    def launch(*args, **kwargs):
+        result = inner(*args, **kwargs)
+        result["baseHashes"] = {"src/a.py": _sha("one\n"), "gone.py": _sha("bye\n")}
+        return result
+
+    def apply(ws, work_dir, changed, deleted, expected):
+        seen["expected"] = expected
+        return {"applied": [], "deleted": []}
+
+    execute_run(
+        sdk, "edit a", assume_yes=True, local_dir=str(workspace),
+        local_launch=launch, local_apply=apply,
+    )
+    assert seen["expected"] == {"src/a.py": _sha("one\n"), "gone.py": _sha("bye\n")}
 
 
 def test_local_run_records_artifact_and_provenance_comment(workspace, tmp_path):

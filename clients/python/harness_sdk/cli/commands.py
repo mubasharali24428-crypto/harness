@@ -219,7 +219,7 @@ def execute_run(
         while True:
             try:
                 run = sdk.orchestrator.get_run(run_id)
-            except Exception as exc:  # noqa: BLE001 - classified, not swallowed
+            except Exception as exc:
                 # A dropped poll is not a failed run: retry the transport class
                 # (0/408/429/5xx) a bounded number of times while the deadline
                 # holds. Anything else is a real refusal and propagates.
@@ -276,6 +276,10 @@ def execute_run(
         applied = apply_fn(
             Path(local_dir), Path(engine["workDir"]),
             list(engine.get("changed") or []), list(engine.get("deleted") or []),
+            # The digest each file had when the run copied the workspace. The
+            # apply refuses if any of them moved — a second concurrent result
+            # must conflict, not overwrite.
+            engine.get("baseHashes"),
         )
     finally:
         shutil.rmtree(engine.get("workDir", ""), ignore_errors=True)

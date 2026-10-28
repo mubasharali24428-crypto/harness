@@ -18,6 +18,7 @@ kept and reported, never silently dropped.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -32,6 +33,29 @@ from .commands import CliError
 
 _ROOT = Path(__file__).resolve().parents[4]
 LAUNCHER = _ROOT / "deploy" / "runners" / "local_engine.py"
+
+
+class ApplyConflict(CliError):
+    """The workspace moved since these bytes were reviewed; nothing was written.
+
+    The engine's diff is computed against a copy of the directory at launch. If
+    the file on disk no longer hashes to that copy's base digest, writing the
+    run's bytes would be a silent overwrite of someone else's edit — a second
+    run's result, an editor save, a rebase. The apply is all-or-nothing.
+    """
+
+    code = "APPLY_CONFLICT"
+
+    def __init__(self, conflicts: list[dict[str, Any]]) -> None:
+        self.conflicts = conflicts
+        names = ", ".join(str(c["path"]) for c in conflicts[:5])
+        more = "" if len(conflicts) <= 5 else f" (+{len(conflicts) - 5} more)"
+        super().__init__(f"the workspace changed since review; refusing to overwrite: "
+                         f"{names}{more}")
+
+
+def _sha256(path: Path) -> str | None:
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
 
 
 def launcher_python(environ: dict[str, str] | None = None) -> str:
@@ -136,6 +160,7 @@ def apply_back(
     work_dir: Path,
     changed: list[str],
     deleted: list[str] | None = None,
+    expected: dict[str, str | None] | None = None,
 ) -> dict[str, Any]:
     """Copy exactly the diff-named engine outputs into DIR; remove proven deletions.
 
@@ -144,11 +169,32 @@ def apply_back(
     delete every untouched file. A name that would resolve outside the
     workspace is a refusal: the diff is engine output, but the apply is the
     client's promise not to be walked out of the sandbox.
+
+    `expected` maps each path to the sha256 it had when the run copied the
+    workspace (``None`` for "did not exist"). When given, every named path is
+    checked BEFORE anything is written; any mismatch raises ``ApplyConflict``
+    and no file is touched. This is the hash anchor that makes a second
+    concurrent result refuse instead of silently overwriting the first.
     """
     workspace = workspace.resolve()
     work_dir = work_dir.resolve()
+    changed = [_safe_rel(r, "change") for r in changed]
+    deleted = [_safe_rel(r, "delete") for r in (deleted or [])]
+    if expected is not None:
+        conflicts = []
+        for rel in dict.fromkeys([*changed, *deleted]):
+            if rel not in expected:
+                continue
+            target = (workspace / rel).resolve()
+            if workspace not in target.parents:
+                raise CliError(f"refusing to touch outside the workspace: {rel}")
+            actual = _sha256(target)
+            if actual != expected[rel]:
+                conflicts.append({"path": rel, "expected": expected[rel], "actual": actual})
+        if conflicts:
+            raise ApplyConflict(conflicts)
     applied = []
-    for rel in [_safe_rel(r, "change") for r in changed]:
+    for rel in changed:
         src = (work_dir / rel).resolve()
         if work_dir not in src.parents and src != work_dir:
             raise CliError(f"engine output names a path outside the work dir: {rel}")
@@ -161,7 +207,7 @@ def apply_back(
         shutil.copy2(src, dst)
         applied.append(rel)
     removed = []
-    for rel in [_safe_rel(r, "delete") for r in (deleted or [])]:
+    for rel in deleted:
         target = (workspace / rel).resolve()
         if workspace not in target.parents:
             raise CliError(f"refusing to delete outside the workspace: {rel}")

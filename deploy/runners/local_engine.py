@@ -27,6 +27,7 @@ message and no spawn.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -167,6 +168,22 @@ def _changed_names(run_dir: Path, baseline_dir: Path, image: str) -> list[str]:
     return out
 
 
+def base_hashes(root: Path, names: list[str]) -> dict[str, str | None]:
+    """The sha256 each named path had in ``root``; ``None`` when it did not exist.
+
+    This is the hash anchor the apply checks: a path whose live bytes no longer
+    match was moved by someone else, and the reviewed result must conflict.
+    """
+    out: dict[str, str | None] = {}
+    for rel in dict.fromkeys(names):
+        candidate = root / rel
+        out[rel] = (
+            hashlib.sha256(candidate.read_bytes()).hexdigest()
+            if candidate.is_file() else None
+        )
+    return out
+
+
 def copy_out_changed(run_dir: Path, work_out: Path, names: list[str]) -> None:
     """The engine's OUTPUT files leave the scratch under the CLI's control.
 
@@ -283,8 +300,13 @@ def run_local(
         ]
         if work_out is not None:
             copy_out_changed(run_dir, Path(work_out), names)
+        # The hash each named path had in the pristine copy. The CLI checks it
+        # before writing anything: if the live workspace moved while the run was
+        # in flight, the reviewed bytes are stale and the apply must refuse
+        # rather than silently overwrite another result or an editor save.
         result["changed"] = names
         result["deleted"] = deleted
+        result["baseHashes"] = base_hashes(baseline_dir, [*names, *deleted])
         result["diff"] = diff_text
         if omitted:
             result["diffOmitted"] = omitted

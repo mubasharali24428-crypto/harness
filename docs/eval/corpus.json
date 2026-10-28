@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "m2-w7",
+  "revision": "m2-w8",
   "created": "2026-10-28",
   "notes": "Marathon 2.0 W1 fixed corpus. Implemented tasks cite an existing driver; fixture-owed tasks are recorded gaps and cannot pass. status=blocked means the driver exists but a prerequisite is unmet (recorded in notes).",
   "tasks": [
@@ -421,10 +421,10 @@
         "maxCostUsd": 0.2
       },
       "model": "the stack DSH_MODEL",
-      "verifier": "each run has its own workspace/container; no cross-read; each diff reviewable; neighbour unaffected",
+      "verifier": "each run has its own workspace/container; no cross-read; each diff reviewable; two runs produce the same path with distinct digests and distinct checkpoint bytes; a digest from one run is refused (409 CHANGE_STALE) for the other's change; a fourth run stopped mid-flight settles, releases its claim and its boundary, and the three neighbours finish with their changes intact",
       "expected": "exit 0",
       "evidence": "driver-native evidence JSON",
-      "notes": "live model; three runs"
+      "notes": "live model; four runs (three concurrent + one cancelled mid-flight)"
     },
     {
       "id": "w8-crash-cleanup",
@@ -455,6 +455,66 @@
       "expected": "exit 0",
       "evidence": "driver-native evidence JSON",
       "notes": "held out: not used for tuning"
+    },
+    {
+      "id": "w8-apply-conflict",
+      "title": "A second overlapping result refuses instead of silently overwriting",
+      "category": "concurrency",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "implemented",
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w8_overlap_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 180,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "verifier": "apply_back is hash-anchored: the first result lands byte-for-byte; a second result for the same path is refused with the expected base digest and the actual digest; the refusal writes nothing else (all-or-nothing); a re-apply is refused; a new-file collision and a stale deletion are refused and the file survives",
+      "expected": "exit 0 with every check true",
+      "evidence": "docs/briefs/evidence/eval/w8-overlap-*.json",
+      "notes": "no model; deterministic files; the editor path already refused stale files (W7)"
+    },
+    {
+      "id": "w8-agent-quotas",
+      "title": "Subagent depth, live-children and scope quotas refuse before any spawn",
+      "category": "concurrency",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "implemented",
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w8_agents_quota_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 180,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "verifier": "an approved definition (second admin, never self-approved) spawns a root and one child; a second child is refused SPAWN_CHILDREN_EXCEEDED; a grandchild is refused SPAWN_DEPTH_EXCEEDED; a child asking for a parent's missing tool is refused SCOPE_EXCEEDS_PARENT; cancel cascades and the run pool reservation returns to zero",
+      "expected": "exit 0 with every check true",
+      "evidence": "docs/briefs/evidence/eval/w8-agent-quotas-*.json",
+      "notes": "no model; the engine does not call these endpoints yet (agent_tree.py states it)"
     },
     {
       "id": "w9-share-deploy",
