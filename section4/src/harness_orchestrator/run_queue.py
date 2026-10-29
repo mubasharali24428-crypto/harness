@@ -260,7 +260,15 @@ WHERE run_id = (
            FROM run_claims r2
            JOIN projects p2 ON r2.project_id = p2.id
            WHERE p2.team_id = p.team_id AND r2.state = 'running') < :max_per_team
-    ORDER BY rc.claimed_at ASC
+    -- W15 slice 1: a team holding fewer running claims goes first, so one
+    -- team's long queue cannot occupy every worker slot while another team
+    -- waits. Fairness is ordering only — the COUNT(*) guard above stays the
+    -- hard per-team cap, and a saturated team is skipped, never preempted.
+    ORDER BY (SELECT COUNT(*)
+              FROM run_claims r3
+              JOIN projects p3 ON r3.project_id = p3.id
+              WHERE p3.team_id = p.team_id AND r3.state = 'running') ASC,
+             rc.claimed_at ASC
     LIMIT 1
 )
 RETURNING run_id, project_id

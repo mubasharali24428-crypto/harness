@@ -686,6 +686,41 @@ async def reject_plan(runId: str, req: PlanActionRequest, actor: PlanApprover) -
     return {"runId": runId, "planId": req.planId, "status": "rejected"}
 
 
+async def _enforce_team_budget(run_id: str) -> None:
+    """Consume the run's TEAM budget for a spend surface, or answer 429.
+
+    Imported lazily so this module keeps importing without the limiter's
+    dependencies in bare unit contexts. A missing factory or an unresolvable
+    team skips the guard: the ownership gate has already run, and a lookup
+    failure must not become an outage. The bucket itself lives in the same
+    ``rate_buckets`` store as the IP limiter, under a ``team:`` namespace.
+    """
+    from harness_contracts.ratelimit import (
+        RUN_START_TEMPLATE,
+        consume_team_budget,
+    )
+
+    factory = getattr(_service, "run_queue_factory", None) or getattr(
+        _service, "session_factory", None
+    )
+    if factory is None:
+        return
+    team_id = await _service._team_for_run({"runId": run_id})
+    allowed, retry_after = await consume_team_budget(factory, team_id, RUN_START_TEMPLATE)
+    if allowed:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail={
+            "error": {
+                "code": "RATE_LIMITED",
+                "message": "team run-start budget exhausted; retry shortly",
+            }
+        },
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
 @router.post(
     "/runs/{runId}/start",
     status_code=status.HTTP_200_OK,
@@ -694,9 +729,14 @@ async def reject_plan(runId: str, req: PlanActionRequest, actor: PlanApprover) -
         400: {"model": ErrorEnvelope, "description": "INVALID_STATE"},
         403: {"model": ErrorEnvelope, "description": "PLAN_NOT_APPROVED / role denial"},
         404: {"model": ErrorEnvelope, "description": "unknown or foreign run (no-oracle)"},
+        429: {"model": ErrorEnvelope, "description": "RATE_LIMITED (team budget)"},
     },
 )
 async def start_execution(runId: str, actor: RunWriter) -> dict[str, str]:
+    # W15 slice 2: spawn cost is limited per team, not only per IP. The team
+    # is resolved from the run after authorization; an over-budget team is
+    # answered before any engine work starts.
+    await _enforce_team_budget(runId)
     try:
         await _service.start_execution(runId)
         # S1-R05e: durable lifecycle record — "who started what, when".

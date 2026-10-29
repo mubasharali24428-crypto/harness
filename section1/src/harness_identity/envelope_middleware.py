@@ -108,7 +108,11 @@ def install_error_envelope(app: FastAPI) -> None:
             content = _envelope(code, message)
             content["detail"].update(extra)
             content.update(extra)
-            return JSONResponse(status_code=exc.status_code, content=content)
+            return JSONResponse(
+                status_code=exc.status_code,
+                content=content,
+                headers=exc.headers,
+            )
         elif isinstance(detail, dict):
             code = "REQUEST_ERROR"
             message = json.dumps(detail)
@@ -116,7 +120,14 @@ def install_error_envelope(app: FastAPI) -> None:
             # Legacy string details never carried machine-readable codes.
             code = "REQUEST_ERROR"
             message = str(detail)
-        return JSONResponse(status_code=exc.status_code, content=_envelope(code, message))
+        # W15: headers a route attached (Retry-After on a 429,
+        # WWW-Authenticate on a 401) are part of the contract — normalizing
+        # the body must not drop them.
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=_envelope(code, message),
+            headers=exc.headers,
+        )
 
     @app.exception_handler(Exception)
     async def _unhandled_envelope(  # noqa: RUF029 — FastAPI handler protocol

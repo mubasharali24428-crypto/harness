@@ -298,7 +298,35 @@ def _with_reasoning(opts: ModelCallOpts | None, effort: str, model: str) -> Mode
 
 
 @router.post("/call", response_model=ModelResult, status_code=status.HTTP_200_OK)
-async def call_model(req: CallModelRequest, principal: Writer) -> ModelResult:
+async def call_model(
+    req: CallModelRequest, principal: Writer, request: Request = None  # noqa: RUF013
+) -> ModelResult:
+    # W15 slice 2: provider spend is limited per TEAM as well as per IP. The
+    # middleware runs before authentication, so the team bucket is consumed
+    # here, after the principal is known and before any provider work.
+    from harness_contracts.ratelimit import (
+        MODEL_CALL_TEMPLATE,
+        consume_team_budget,
+    )
+
+    team_factory = (
+        getattr(request.app.state, "session_factory", None) if request is not None else None
+    )
+    if team_factory is not None:
+        allowed, retry_after = await consume_team_budget(
+            team_factory, principal.teamId, MODEL_CALL_TEMPLATE
+        )
+        if not allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "team model-call budget exhausted; retry shortly",
+                    }
+                },
+                headers={"Retry-After": str(retry_after)},
+            )
     pool = get_ledger_pool()
     if req.runId and pool is not None and hasattr(pool, "fetchrow"):
         row = await pool.fetchrow(

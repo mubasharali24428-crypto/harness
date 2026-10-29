@@ -270,6 +270,35 @@ async def test_contract_shaped_detail_passes_through_unchanged(env_client):
     assert body["detail"]["error"]["code"] == "OWNERSHIP_REQUIRED"
 
 
+async def test_http_exception_keeps_response_headers(f1_factory):
+    """W15: a 429 raised with Retry-After must keep it through the envelope.
+
+    The limiter's own 429 is a raw ASGI response, but route-level budgets
+    raise HTTPException with headers; normalizing the body must not drop the
+    header a client needs to back off.
+    """
+    from fastapi import HTTPException
+    from harness_contracts import error_body
+
+    app = make_app(f1_factory, Settings(master_key=TEST_MASTER_KEY, cors_origins=[]))
+    install_error_envelope(app)
+
+    @app.get("/api/v1/__f1_429")
+    async def limited():
+        raise HTTPException(
+            status_code=429,
+            detail=error_body("RATE_LIMITED", "slow down"),
+            headers={"Retry-After": "17"},
+        )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        r = await c.get("/api/v1/__f1_429")
+    assert r.status_code == 429
+    assert r.headers["retry-after"] == "17"
+    assert r.json()["error"]["code"] == "RATE_LIMITED"
+
+
 async def test_unhandled_exception_becomes_envelope_500(f1_factory):
     """A raising route must answer an envelope, never a stack trace."""
     app = make_app(f1_factory, Settings(master_key=TEST_MASTER_KEY, cors_origins=[]))

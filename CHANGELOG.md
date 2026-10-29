@@ -10,6 +10,40 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Marathon 2.0 W15 — multi-tenant hardening (2026-10-29)
+
+* **Fair admission.** The claim statement now orders candidates by the running
+  count their team already holds, then by queue age, so a team with a long queue
+  cannot occupy every worker slot while another team waits. The per-team cap
+  stays the hard ceiling (a saturated team is skipped, never preempted). Two
+  SQLite variants, a PostgreSQL-gated test, and `scripts/e2e/w15_fairness_drill.py`
+  (PASS on PG 18.6: `busy-1, idle-1, busy-2, busy-3`, busy 3 slots / idle 1,
+  saturated team skipped) prove it.
+* **Per-surface rate limits, and per-team budgets.** `app_models()` and
+  `app_meeting()` now install the limiter hooks that had shipped unused, so
+  `/models/call` and `/meetings/{id}/brief` are throttled in the deployed stack.
+  Run start and model call also consume a TEAM bucket in `rate_buckets`
+  (`team:<id>|<route>`, `HARNESS_TEAM_RUN_START_LIMIT` /
+  `HARNESS_TEAM_MODEL_CALL_LIMIT`), answered 429 `RATE_LIMITED` with
+  `Retry-After`. Live burst: exactly 3 allowed then 429, second team unaffected
+  (`w15-rate-limit-1793281659.json`).
+* **Envelope fix.** Normalizing an `HTTPException` body dropped its headers, so
+  a 429's `Retry-After` (and any `WWW-Authenticate`) never reached the client.
+  The envelope now preserves them; regression test added.
+* **Master-key rotation.** `rotate_master_key` re-wraps every encrypted column
+  (`api_keys`, `integration_webhooks`, `github_connections`,
+  `team_sso_configs`) from the old key's read set to the new key, verifies each
+  read-back, and leaves unreadable rows counted and untouched;
+  `section1/scripts/rotate_master_key.py` adds `--dry-run` and reads keys only
+  from env vars. Runbook `docs/runbooks/secret-rotation.md` covers the master
+  key, runner/webhook/daemon tokens and provider keys. Four offline tests.
+* **Scheduled restore drill.** A QoderWake automation
+  (`tr_a4315e8e62b81c7819aca10d`, next run 2026-11-01T12:00Z) runs the PITR
+  drill monthly with dated evidence. Its `run-now` was refused by the account
+  credit limit before starting; the exact command passed manually
+  (`pitr-drill-20261029T140816Z.json`: rows `1,2` at target, `1` after disaster,
+  promoted, 4 s restore). The trigger leg stays open.
+
 ### Marathon 2.0 W14 — the eval corpus becomes a contract (2026-10-29)
 
 * **Corpus contract gate.** `python3 scripts/eval/run_eval.py --check` (wired

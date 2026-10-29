@@ -325,6 +325,14 @@ def app_models():
     )
 
     app = simple_app(router, "harness-router")
+    # W15 slice 2: the model-call spend surface was never limited in the
+    # deployed stack — the hook existed but no factory installed it. The
+    # counter store lives in rate_buckets, so the app needs a SQLAlchemy
+    # session factory (the ledger pool below is asyncpg and not a substitute).
+    from harness_router.ratelimit_hooks import install_router_rate_limit
+
+    app.state.session_factory = get_factory()
+    install_router_rate_limit(app, session_factory=app.state.session_factory)
     # M20-T3: /ready gates on db + migrations (models, port 8003).
     _install_probes(app, 8003)
 
@@ -758,6 +766,11 @@ def app_meeting():
     from harness_identity.envelope_middleware import install_error_envelope
 
     install_error_envelope(app)
+    # W15 slice 2: brief generation is LLM work and was unthrottled in the
+    # deployed stack; the hook existed but app_meeting never installed it.
+    from harness_meeting.ratelimit_hooks import install_meeting_rate_limit
+
+    install_meeting_rate_limit(app, session_factory=factory)
     app.include_router(router)
     # M20-T2: request ids + JSON logs + /metrics (meeting, port 8006).
     _wire_observability(app)

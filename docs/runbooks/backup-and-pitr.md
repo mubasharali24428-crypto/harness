@@ -60,6 +60,29 @@ timing, catch-up semantics, failures surface in cron mail.)
 macOS launchd equivalent: `StartCalendarInterval` agents running the same
 commands.
 
+### Scheduled restore drill (W15)
+
+The PITR drill is not a memory any more. A QoderWake automation named
+"Monthly PITR restore drill" (`tr_a4315e8e62b81c7819aca10d`, owner
+`9e6efca6ff1e`) runs on the 1st of each month at 04:00 host time and executes:
+
+```sh
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+PITR_DRILL_OUT=docs/briefs/evidence/pilot-prep/pitr-drill-$STAMP.json \
+PITR_DRILL_LOG=docs/briefs/evidence/pilot-prep/pitr-drill-$STAMP.log \
+  ./scripts/pitr_drill.sh
+```
+
+Each run keeps its own dated evidence pair, so histories never overwrite each
+other. The automation's run status is the failure signal; the script exits
+non-zero on a failed drill and the automation reports the failing step without
+retrying into a pass.
+
+Operators who do not run QoderWake automations can schedule the same command
+with host cron (monthly, `0 4 1 * *`) — the command is the contract, the
+scheduler is not. Do not run it inside a container sleep loop: a missed run
+would be invisible.
+
 **Ordering vs vacuum (M15-W5-D2):** schedule base backups AFTER the
 maintenance window — VACUUM first, then the base backup — so restores start
 from a compact state with a short replay chain. The companion
