@@ -291,6 +291,13 @@ export interface OwnerTransferBody {
   toUserId: string;
 }
 
+/** PatchOp. */
+export interface PatchOp {
+  op?: string;  // optional
+  path?: string | null;  // optional
+  value?: unknown;  // optional
+}
+
 /** PlanUpdateBody. */
 export interface PlanUpdateBody {
   budgetAlertPercent?: number | string | null;  // optional
@@ -341,6 +348,15 @@ export interface ProjectOut {
   id: string;
   name: string;
   repoFullName?: string | null;  // optional
+}
+
+/** PutBody. */
+export interface PutBody {
+  active?: boolean;  // optional
+  externalId?: string | null;  // optional
+  name?: { [key: string]: unknown } | null;  // optional
+  schemas?: string[];  // optional
+  userName?: string;  // optional
 }
 
 /** ReadAllBody. */
@@ -472,6 +488,11 @@ export interface ThresholdsBody {
   thresholds: { [key: string]: unknown };
 }
 
+/** TokenBody. */
+export interface TokenBody {
+  label?: string;  // optional
+}
+
 /** UnsubscribeBody. Required keys: token. */
 export interface UnsubscribeBody {
   token: string;
@@ -571,6 +592,12 @@ export interface harness_identity__policy__RoleBody {
 /** harness_identity__runner_api__AssignBody. Required keys: runId. */
 export interface harness_identity__runner_api__AssignBody {
   runId: string;
+}
+
+/** harness_identity__scim__PatchBody. */
+export interface harness_identity__scim__PatchBody {
+  Operations?: PatchOp[];  // optional
+  schemas?: string[];  // optional
 }
 
 /** harness_identity__sessions__CreateBody. Required keys: title. */
@@ -1536,6 +1563,27 @@ export class IdentityClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PATCH", body);
   }
 
+  /** List Scim Tokens
+   *  GET /api/v1/teams/{team_id}/scim/tokens */
+  list_scim_tokens(team_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/scim/tokens`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Create Scim Token
+   *  POST /api/v1/teams/{team_id}/scim/tokens */
+  create_scim_token(team_id: string, body: TokenBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/scim/tokens`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Revoke Scim Token
+   *  DELETE /api/v1/teams/{team_id}/scim/tokens/{token_id} */
+  revoke_scim_token(team_id: string, token_id: string): Promise<unknown> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/scim/tokens/${encodeURIComponent(token_id)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
   /** Add Agent Seat
    *  POST /api/v1/teams/{team_id}/seats/agent */
   add_agent_seat(team_id: string): Promise<Record<string, unknown>> {
@@ -1908,6 +1956,35 @@ export class IdentityClient {
     const _path = `/ready`;
     return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined);
   }
+
+  /** List Users
+   *  GET /scim/v2/Users */
+  list_users_scim_v2_users_get(filter?: string | null, start_index?: number, count?: number): Promise<Record<string, unknown>> {
+    const _path = `/scim/v2/Users`;
+    const params: Record<string, unknown> = {"filter": filter, "startIndex": start_index, "count": count};
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** Get User
+   *  GET /scim/v2/Users/{user_id} */
+  get_user_scim_v2_users_user_id_get(user_id: string): Promise<Record<string, unknown>> {
+    const _path = `/scim/v2/Users/${encodeURIComponent(user_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Put User
+   *  PUT /scim/v2/Users/{user_id} */
+  put_user_scim_v2_users_user_id_put(user_id: string, body: PutBody): Promise<Record<string, unknown>> {
+    const _path = `/scim/v2/Users/${encodeURIComponent(user_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
+  /** Patch User
+   *  PATCH /scim/v2/Users/{user_id} */
+  patch_user_scim_v2_users_user_id_patch(user_id: string, body: harness_identity__scim__PatchBody): Promise<Record<string, unknown>> {
+    const _path = `/scim/v2/Users/${encodeURIComponent(user_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PATCH", body);
+  }
 }
 
 /* Module surface (mirrors __all__ in clients/python):
@@ -1953,6 +2030,7 @@ export class IdentityClient {
  * export interface/type OrgCreateBody
  * export interface/type OrgPatchBody
  * export interface/type OwnerTransferBody
+ * export interface/type PatchOp
  * export interface/type PlanUpdateBody
  * export interface/type PolicyDoc
  * export interface/type PreviewBody
@@ -1960,6 +2038,7 @@ export class IdentityClient {
  * export interface/type ProjectCreatedResponse
  * export interface/type ProjectListResponse
  * export interface/type ProjectOut
+ * export interface/type PutBody
  * export interface/type ReadAllBody
  * export interface/type RevertBody
  * export interface/type RoutingBody
@@ -1979,6 +2058,7 @@ export class IdentityClient {
  * export interface/type StepUpBody
  * export interface/type TemplateBody
  * export interface/type ThresholdsBody
+ * export interface/type TokenBody
  * export interface/type UnsubscribeBody
  * export interface/type ValidationError
  * export interface/type VerifyOtpRequest
@@ -1994,6 +2074,7 @@ export class IdentityClient {
  * export interface/type harness_identity__policy__AssignBody
  * export interface/type harness_identity__policy__RoleBody
  * export interface/type harness_identity__runner_api__AssignBody
+ * export interface/type harness_identity__scim__PatchBody
  * export interface/type harness_identity__sessions__CreateBody
  * export interface/type harness_identity__sessions__MemberBody
  * export interface/type harness_identity__sessions__PatchBody

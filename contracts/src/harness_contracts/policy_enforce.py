@@ -96,6 +96,14 @@ IDENTITY_RULES: tuple[tuple[str, str, str], ...] = (
     ("*", r"/api/v1/teams/[^/]+/(members/.*|invites.*|seats/agent|settings/.*)",
      "administer"),
     ("*", r"/api/v1/teams/[^/]+/sso/config", "administer"),
+    # Marathon 2.0 W16: SCIM. Minting/revoking a directory credential is an
+    # admin act; the /scim/v2 protocol itself authenticates a MACHINE token, so
+    # there is no Principal for the gate to evaluate - it is EXEMPT and the
+    # route's own token check is the authority (same posture as /runner/*, whose
+    # entries exist to keep the classification law total).
+    ("GET", r"/api/v1/teams/[^/]+/scim/tokens", "read"),
+    ("*", r"/api/v1/teams/[^/]+/scim/tokens(/.*)?", "administer"),
+    ("*", r"/scim/v2(/.*)?", EXEMPT),
     ("GET", r"/api/v1/workspaces(/.*)?", "read"),
     ("*", r"/api/v1/workspaces/(allowlist.*|templates|[^/]+/delete)", "administer"),
     ("*", r"/api/v1/workspaces(/.*)?", "steer"),

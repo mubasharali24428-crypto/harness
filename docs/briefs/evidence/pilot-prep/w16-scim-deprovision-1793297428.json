@@ -1,0 +1,235 @@
+{
+  "date": "2026-10-29T18:10:29Z",
+  "milestone": "W16 slice 3 \u2014 a SCIM deprovision reaches every door",
+  "teamId": "6c55b8ec-ae55-47fb-a827-60e5fe84e4b6",
+  "memberEmail": "w16-scim-member-1793297428@example.com",
+  "checks": [
+    {
+      "check": "admin login is admin",
+      "got": "admin",
+      "want": "admin",
+      "ok": true
+    },
+    {
+      "check": "team tier raised for the drill",
+      "got": 200,
+      "want": 200,
+      "ok": true
+    },
+    {
+      "check": "member invited",
+      "got": 201,
+      "want": 201,
+      "ok": true
+    },
+    {
+      "check": "invite redeemed",
+      "got": 200,
+      "want": 200,
+      "ok": true
+    },
+    {
+      "check": "SCIM token minted",
+      "got": 201,
+      "want": 201,
+      "ok": true
+    },
+    {
+      "check": "the raw token is shown once",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "and the list carries no secret",
+      "got": false,
+      "want": false,
+      "ok": true
+    },
+    {
+      "check": "a user session token does not open the SCIM door",
+      "got": 401,
+      "want": 401,
+      "ok": true
+    },
+    {
+      "check": "SCIM list answers",
+      "got": 200,
+      "want": 200,
+      "ok": true
+    },
+    {
+      "check": "both seats are visible",
+      "got": 2,
+      "want": 2,
+      "ok": true
+    },
+    {
+      "check": "the member is active before the drill writes",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "meta.location points at this surface",
+      "got": "http://127.0.0.1:8001/scim/v2/Users/acf18db7-bb8d-469f-b5a1-177f92af6ffa",
+      "want": "http://127.0.0.1:8001/scim/v2/Users/acf18db7-bb8d-469f-b5a1-177f92af6ffa",
+      "ok": true
+    },
+    {
+      "check": "the userName filter finds one seat",
+      "got": 1,
+      "want": 1,
+      "ok": true
+    },
+    {
+      "check": "a stale If-Match is refused with 412",
+      "got": 412,
+      "want": 412,
+      "ok": true
+    },
+    {
+      "check": "and nothing changed behind it",
+      "got": "t",
+      "want": "t",
+      "ok": true
+    },
+    {
+      "check": "deprovision accepted",
+      "got": 200,
+      "want": 200,
+      "ok": true
+    },
+    {
+      "check": "and the resource says so",
+      "got": false,
+      "want": false,
+      "ok": true
+    },
+    {
+      "check": "the etag moved",
+      "got": false,
+      "want": false,
+      "ok": true
+    },
+    {
+      "check": "identity /me refuses the deprovisioned member",
+      "got": 401,
+      "want": 401,
+      "ok": true
+    },
+    {
+      "check": "the shared dependency refuses it too (401, not 404)",
+      "got": 401,
+      "want": 401,
+      "ok": true
+    },
+    {
+      "check": "the store shows the seat disabled",
+      "got": "f",
+      "want": "f",
+      "ok": true
+    },
+    {
+      "check": "a fresh login is refused too",
+      "got": 403,
+      "want": 403,
+      "ok": true
+    },
+    {
+      "check": "and the refusal names the seat, not the password",
+      "got": "ACCOUNT_DISABLED",
+      "want": "ACCOUNT_DISABLED",
+      "ok": true
+    },
+    {
+      "check": "and this team's session rows are gone (teams_api convention)",
+      "got": "0",
+      "want": "0",
+      "ok": true
+    },
+    {
+      "check": "the mutation is audited as a deprovision by the token, not a person",
+      "got": "deprovision",
+      "want": "deprovision",
+      "ok": true
+    },
+    {
+      "check": "and the audit row names the credential that wrote it",
+      "got": "t",
+      "want": "t",
+      "ok": true
+    },
+    {
+      "check": "reactivation accepted",
+      "got": 200,
+      "want": 200,
+      "ok": true
+    },
+    {
+      "check": "and the seat is live again",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "a new session can be minted again",
+      "got": 200,
+      "want": 200,
+      "ok": true
+    },
+    {
+      "check": "and it works at the shared door",
+      "got": 404,
+      "want": 404,
+      "ok": true
+    },
+    {
+      "check": "the last admin cannot be deprovisioned",
+      "got": 403,
+      "want": 403,
+      "ok": true
+    },
+    {
+      "check": "and the refusal is a SCIM error object, not our envelope",
+      "got": [
+        "urn:ietf:params:scim:api:messages:2.0:Error"
+      ],
+      "want": [
+        "urn:ietf:params:scim:api:messages:2.0:Error"
+      ],
+      "ok": true
+    },
+    {
+      "check": "the admin seat is untouched",
+      "got": "t",
+      "want": "t",
+      "ok": true
+    },
+    {
+      "check": "an attribute this service does not own is refused, not ignored",
+      "got": 400,
+      "want": 400,
+      "ok": true
+    },
+    {
+      "check": "the SCIM token is revoked",
+      "got": 204,
+      "want": 204,
+      "ok": true
+    },
+    {
+      "check": "and a revoked credential writes nothing",
+      "got": 401,
+      "want": 401,
+      "ok": true
+    }
+  ],
+  "verdict": "PASS",
+  "notes": [
+    "no secret appears in this file: the SCIM token is shown once in the mint",
+    "response and never stored, only its SHA-256 is.",
+    "the member's session token was issued BEFORE the PATCH; nothing else",
+    "was changed by hand between acceptance and the 401s."
+  ]
+}

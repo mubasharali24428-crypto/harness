@@ -648,6 +648,87 @@ async def emit_sso_config_deleted(
     )
 
 
+async def emit_scim_token_created(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """scim.token_created — W16 slice 3: a team minted a SCIM bearer credential.
+    detail carries {label, refId} and NEVER the token (the raw value exists
+    only in the response body; _scrub would drop a secret-shaped key anyway)."""
+    return await _emit(
+        session,
+        "scim.token_created",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="scim_token",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_scim_token_revoked(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """scim.token_revoked — W16 slice 3: a SCIM credential is dead on the next
+    request. Emitted only when a live row actually existed."""
+    return await _emit(
+        session,
+        "scim.token_revoked",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="scim_token",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_scim_user_changed(
+    session: AsyncSession,
+    *,
+    actor_user_id: str | None,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "system",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """scim.user_changed — W16 slice 3: a directory mutation reached a seat.
+
+    The actor is the SCIM TOKEN, not a person, so actor_user_id may be None and
+    detail carries {refId, kind, before, after} — `refId` because _scrub drops
+    any key shaped like a secret, and a credential id is one spelling away from a
+    credential. Call AFTER the change commits.
+    """
+    return await _emit(
+        session,
+        "scim.user_changed",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="member",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
 async def emit_audit_exported(
     session: AsyncSession,
     *,

@@ -770,6 +770,24 @@ export class IdentityClient {
         const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/members/${encodeURIComponent(user_id)}`;
         return this.http.request(this.baseUrl, _path, "PATCH", body);
     }
+    /** List Scim Tokens
+     *  GET /api/v1/teams/{team_id}/scim/tokens */
+    list_scim_tokens(team_id) {
+        const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/scim/tokens`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
+    /** Create Scim Token
+     *  POST /api/v1/teams/{team_id}/scim/tokens */
+    create_scim_token(team_id, body) {
+        const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/scim/tokens`;
+        return this.http.request(this.baseUrl, _path, "POST", body);
+    }
+    /** Revoke Scim Token
+     *  DELETE /api/v1/teams/{team_id}/scim/tokens/{token_id} */
+    revoke_scim_token(team_id, token_id) {
+        const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/scim/tokens/${encodeURIComponent(token_id)}`;
+        return this.http.request(this.baseUrl, _path, "DELETE", undefined);
+    }
     /** Add Agent Seat
      *  POST /api/v1/teams/{team_id}/seats/agent */
     add_agent_seat(team_id) {
@@ -1090,6 +1108,31 @@ export class IdentityClient {
         const _path = `/ready`;
         return this.http.request(this.baseUrl, _path, "GET", undefined);
     }
+    /** List Users
+     *  GET /scim/v2/Users */
+    list_users_scim_v2_users_get(filter, start_index, count) {
+        const _path = `/scim/v2/Users`;
+        const params = { "filter": filter, "startIndex": start_index, "count": count };
+        return this.http.request(this.baseUrl, _path, "GET", undefined, params);
+    }
+    /** Get User
+     *  GET /scim/v2/Users/{user_id} */
+    get_user_scim_v2_users_user_id_get(user_id) {
+        const _path = `/scim/v2/Users/${encodeURIComponent(user_id)}`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
+    /** Put User
+     *  PUT /scim/v2/Users/{user_id} */
+    put_user_scim_v2_users_user_id_put(user_id, body) {
+        const _path = `/scim/v2/Users/${encodeURIComponent(user_id)}`;
+        return this.http.request(this.baseUrl, _path, "PUT", body);
+    }
+    /** Patch User
+     *  PATCH /scim/v2/Users/{user_id} */
+    patch_user_scim_v2_users_user_id_patch(user_id, body) {
+        const _path = `/scim/v2/Users/${encodeURIComponent(user_id)}`;
+        return this.http.request(this.baseUrl, _path, "PATCH", body);
+    }
 }
 /* Module surface (mirrors __all__ in clients/python):
  * export class IdentityClient
@@ -1134,6 +1177,7 @@ export class IdentityClient {
  * export interface/type OrgCreateBody
  * export interface/type OrgPatchBody
  * export interface/type OwnerTransferBody
+ * export interface/type PatchOp
  * export interface/type PlanUpdateBody
  * export interface/type PolicyDoc
  * export interface/type PreviewBody
@@ -1141,6 +1185,7 @@ export class IdentityClient {
  * export interface/type ProjectCreatedResponse
  * export interface/type ProjectListResponse
  * export interface/type ProjectOut
+ * export interface/type PutBody
  * export interface/type ReadAllBody
  * export interface/type RevertBody
  * export interface/type RoutingBody
@@ -1160,6 +1205,7 @@ export class IdentityClient {
  * export interface/type StepUpBody
  * export interface/type TemplateBody
  * export interface/type ThresholdsBody
+ * export interface/type TokenBody
  * export interface/type UnsubscribeBody
  * export interface/type ValidationError
  * export interface/type VerifyOtpRequest
@@ -1175,6 +1221,7 @@ export class IdentityClient {
  * export interface/type harness_identity__policy__AssignBody
  * export interface/type harness_identity__policy__RoleBody
  * export interface/type harness_identity__runner_api__AssignBody
+ * export interface/type harness_identity__scim__PatchBody
  * export interface/type harness_identity__sessions__CreateBody
  * export interface/type harness_identity__sessions__MemberBody
  * export interface/type harness_identity__sessions__PatchBody

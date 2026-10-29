@@ -14,7 +14,8 @@ An enterprise buyer asks four questions of this codebase. Three of the four have
 honest answers today; one does not, and two of the honest answers are weaker than
 their documentation implies.
 
-1. **"Can my IdP take a seat away?"** Not yet. There is no SCIM surface, and
+1. **"Can my IdP take a seat away?"** Not yet *(as audited; closed by slices 1
+   and 3)*. There was no SCIM surface, and
    `is_active=false` is advisory: it changes what notifications target, not what
    a principal may do.
 2. **"Does SSO honour my directory's groups?"** Only email *(as audited;
@@ -34,7 +35,7 @@ their documentation implies.
 | OIDC SSO | discovery + auth-code-with-PKCE, RS256 raw JWS verify; team-tier gated writes | `section1/src/harness_identity/sso.py:13,92-129,331` |
 | Claims mapping | **email only** *(as audited; group claims shipped in slice 2)* — `email = str(claims.get("email") or "")`; role came from stored membership, never from a claim | `sso.py:741,761,789` |
 | Provisioning | deliberately mapping-only: a stranger IdP subject is refused `SSO_EMAIL_NOT_MEMBER`; OTP login *does* create users | `sso.py:26,753`; `auth.py:37-41` |
-| SCIM | **absent.** No endpoint, schema, table, client or token anywhere (`scim`, `/scim/v2`, `patchOp`, `externalId`, `deprovision`) | repo-wide search (2026-10-29) |
+| SCIM | **absent** *(as audited; shipped in slice 3)*. No endpoint, schema, table, client or token anywhere (`scim`, `/scim/v2`, `patchOp`, `externalId`, `deprovision`) | repo-wide search (2026-10-29) |
 | Deactivation | `users.is_active` written false by self-deletion and erasure | `orgs.py:498`, `erasure.py:121` |
 | Deactivation enforcement | **none at auth** *(as audited; closed by slice 1 below)*. `get_principal` checked session expiry + membership only; `login_or_register` selected `User` by email with no `is_active` term, so a deactivated account could request an OTP and mint a fresh session; the SSO member query did not filter `is_active` although its docstring promised "an ACTIVE human member" | `auth.py:92-117,37`, `sso.py:24,770-787` |
 | Session kill on revoke | `_revoke_access` is called by the org-removal paths and self-deletion, not by erasure (erasure survives because it nulls `team_members.user_id` and rewrites the email) | `orgs.py:104,158,496,777,918` |
@@ -156,21 +157,64 @@ gives `role=engineer, source=claim` and `/audit` answers 403
 ## Slice 3 — SCIM 2.0 subset for the seat lifecycle
 
 Full SCIM is not the ask; the two operations an IdP actually needs are, and they
-must land on slice 1's enforcement rather than beside it:
+must land on slice 1's enforcement rather than beside it. Shipped as:
 
-* `GET /scim/v2/Users` (+`?$filter=externalId eq …`), `GET/PATCH/PUT
-  /scim/v2/Users/{id}` implementing `active` and `userName` — the minimum that
-  makes "deprovision in Okta/Entra" real;
-* a SCIM bearer token (team-scoped, stored encrypted, revocable) — never a user
-  session token;
-* `externalId` mapping onto the existing user identity, with the response shape
-  SCIM clients require (`schemas`, `meta`, `id`, `externalId`,
-  `userName`, `active`);
-* every mutation audited, and `meta.location`/`etags` honest rather than
-  decorative.
+* `GET /scim/v2/Users` (+`?$filter=userName|externalId|id eq "…"` — the only
+  filter forms connectors send, bounded by `startIndex`/`count`), `GET/PATCH/PUT
+  /scim/v2/Users/{id}` implementing `active`, `userName` and `externalId`. There
+  is **no `POST /Users`**: an IdP cannot create a Harness account by pushing at
+  it. Joins stay invite-only, exactly like SSO's mapping-only rule.
+* A SCIM bearer token, minted by a team admin on the normal API
+  (`POST/GET/DELETE /api/v1/teams/{id}/scim/tokens`): team-scoped, ≤10 live per
+  team, shown once, **stored as a SHA-256 hash** — the plan said "encrypted" and
+  hashing is the stronger choice for a credential the server never needs to read
+  back, matching the runner tokens (0068) rather than the Fernet secrets that
+  must stay decryptable. Revocation is a row update, dead on the next request,
+  and revoked/unknown answer byte-identically. A user session token gets 401 at
+  this door, and the SCIM token gets nothing else.
+* `externalId` is stored per team (`scim_user_links`, migration 0070) because it
+  is the *directory's* id for the person, not ours; reads resolve through
+  `team_members` first, so a stale link can never serve a seat that is gone.
+* Erasure reaches it too: `scim_user_links` joined `erasure.PURGE_BY_USER`,
+  because an erased account that still carries a resolvable directory handle is
+  not erased. The erasure lane's coverage test is what forced that decision.
+* Every mutation is audited (`scim.user_changed`: `kind`, `refId`, `before`,
+  `after`, `fields`; `actor_kind=system` — the actor is a credential, not a
+  person) and `meta` is honest: `location` from the request's own base URL, a
+  content-hash `etag` with `If-Match` enforced (412), and `lastModified`
+  deliberately ABSENT because `team_members` has no modified column and deriving
+  one from `created_at` would be a lie.
+* Two refusals a connector must be able to read: the team's **last admin**
+  cannot be deprovisioned (403 — same invariant the membership API enforces), and
+  an attribute this service does not own is `400 invalidPath` rather than
+  silently dropped. A multi-op PATCH is validated whole and applied in one
+  transaction, so a bad second op leaves nothing behind.
+* `active=false` sets `users.is_active` (slice 1's five doors do the rest) and
+  deletes that team's `auth_sessions` rows. Because `users` describes a human,
+  the disable is account-wide — stated in `ops.md` §3.9 rather than discovered
+  by a customer; a single-seat removal is the membership API's job.
+* The error contract needed a real fix: the product envelope stringified the RFC
+  7644 body into `REQUEST_ERROR.message`, which no connector can parse. The
+  envelope now passes a body carrying the SCIM error URI untouched and answers
+  a malformed `/scim/v2` body with `400 invalidSyntax` instead of 422. The
+  predicate keys on the schema URI only, pinned by a unit test, so no `/api/v1`
+  route's wire format changes. `deploy/Caddyfile` routes `/scim/v2*` to identity;
+  without that the proxy's catch-all answers 204 and the IdP sees a working
+  endpoint that never deprovisions.
 
-This is a contract-level surface: OpenAPI spec, both SDKs, `make check-ts-dist`
-and the drift gate all move together, as `model_routed` did in W15.
+Evidence: 11 token-lifecycle tests (`section1/tests/test_scim_tokens.py`,
+including the schema-parity pin for migration 0070), 20 user-surface tests
+(`test_scim_users.py`: read/filter/pagination, deprovision → `get_principal`
+refuses, reactivation, last-admin refusal, rename collision → `uniqueness`,
+`invalidValue`/`invalidPath`/`invalidSyntax`, multi-op atomicity, `If-Match`
+412, externalId uniqueness), 6 envelope tests run through the REAL app factory
+(`test_scim_envelope.py`), and `make drill-scim` against the deployed containers
+— 36 checks, evidence
+`docs/briefs/evidence/pilot-prep/w16-scim-deprovision-1793297428.json`: the
+member's own token 200 → 401 on identity and 404 → 401 on the shared dependency
+after one PATCH, the refusal body still SCIM-shaped, then reactivation, the
+last-admin refusal, and a revoked credential writing nothing. Spec, both SDKs and
+`clients/ts/dist` moved with it (185 identity operations).
 
 ## Slice 4 — audit export a SIEM can actually consume
 
@@ -209,6 +253,6 @@ and the drift gate all move together, as `model_routed` did in W15.
 |---|---|---|
 | A deactivated user cannot authenticate or act | unit per surface + live drill (old token 401, fresh login 403) | **shipped 2026-10-29** |
 | SSO can map an IdP group to a role, only through an admin-written rule | mapping tests + Keycloak live drill (promote, demote, audit source) | **shipped 2026-10-29** |
-| An IdP deprovisioning reaches Harness | SCIM subset + live PATCH drill | pending (slice 3) |
+| An IdP deprovisioning reaches Harness | SCIM subset (11+20+6 tests) + live drill (36 checks, 200→401 at both doors) | **shipped 2026-10-29** |
 | A SIEM can ingest and verify the audit trail | NDJSON + push sink + verify endpoint, live proof | pending (slice 4) |
 | No doc claims key or residency management the code lacks | doc diff + the audit table above | pending |

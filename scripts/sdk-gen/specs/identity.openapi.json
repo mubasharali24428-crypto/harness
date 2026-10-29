@@ -213,7 +213,6 @@
         "type": "number"
        },
        {
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
         "type": "string"
        }
       ],
@@ -1313,6 +1312,32 @@
     "title": "OwnerTransferBody",
     "type": "object"
    },
+   "PatchOp": {
+    "description": "One RFC 7644 \u00a73.5.2 operation. `path` may be omitted, in which case\n`value` is an attribute map \u2014 the shape Okta's deprovisioning patch uses.",
+    "properties": {
+     "op": {
+      "default": "",
+      "title": "Op",
+      "type": "string"
+     },
+     "path": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Path"
+     },
+     "value": {
+      "title": "Value"
+     }
+    },
+    "title": "PatchOp",
+    "type": "object"
+   },
    "PlanUpdateBody": {
     "properties": {
      "budgetAlertPercent": {
@@ -1323,7 +1348,6 @@
         "type": "number"
        },
        {
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
         "type": "string"
        },
        {
@@ -1353,7 +1377,6 @@
         "type": "number"
        },
        {
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
         "type": "string"
        },
        {
@@ -1595,6 +1618,52 @@
      "name"
     ],
     "title": "ProjectOut",
+    "type": "object"
+   },
+   "PutBody": {
+    "properties": {
+     "active": {
+      "default": true,
+      "title": "Active",
+      "type": "boolean"
+     },
+     "externalId": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Externalid"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "schemas": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Schemas",
+      "type": "array"
+     },
+     "userName": {
+      "default": "",
+      "title": "Username",
+      "type": "string"
+     }
+    },
+    "title": "PutBody",
     "type": "object"
    },
    "ReadAllBody": {
@@ -2097,7 +2166,6 @@
       "type": "boolean"
      },
      "groupRoles": {
-      "default": [],
       "items": {
        "additionalProperties": true,
        "type": "object"
@@ -2202,6 +2270,17 @@
      "thresholds"
     ],
     "title": "ThresholdsBody",
+    "type": "object"
+   },
+   "TokenBody": {
+    "properties": {
+     "label": {
+      "default": "",
+      "title": "Label",
+      "type": "string"
+     }
+    },
+    "title": "TokenBody",
     "type": "object"
    },
    "UnsubscribeBody": {
@@ -2617,6 +2696,26 @@
      "runId"
     ],
     "title": "AssignBody",
+    "type": "object"
+   },
+   "harness_identity__scim__PatchBody": {
+    "properties": {
+     "Operations": {
+      "items": {
+       "$ref": "#/components/schemas/PatchOp"
+      },
+      "title": "Operations",
+      "type": "array"
+     },
+     "schemas": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Schemas",
+      "type": "array"
+     }
+    },
+    "title": "PatchBody",
     "type": "object"
    },
    "harness_identity__sessions__CreateBody": {
@@ -8768,6 +8867,140 @@
     "summary": "Change Member Role"
    }
   },
+  "/api/v1/teams/{team_id}/scim/tokens": {
+   "get": {
+    "description": "List the team's SCIM tokens \u2014 hints only, no credential material.",
+    "operationId": "list_scim_tokens_api_v1_teams__team_id__scim_tokens_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Scim Tokens Api V1 Teams  Team Id  Scim Tokens Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Scim Tokens"
+   },
+   "post": {
+    "description": "Mint a SCIM bearer token (admin + Team tier). The raw token is returned\nexactly once; only its SHA-256 is stored.",
+    "operationId": "create_scim_token_api_v1_teams__team_id__scim_tokens_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TokenBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Scim Token Api V1 Teams  Team Id  Scim Tokens Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Scim Token"
+   }
+  },
+  "/api/v1/teams/{team_id}/scim/tokens/{token_id}": {
+   "delete": {
+    "description": "Revoke a SCIM token. Idempotent: an already-revoked or unknown id answers\n204 and writes nothing, exactly like the runner revoke.",
+    "operationId": "revoke_scim_token_api_v1_teams__team_id__scim_tokens__token_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "token_id",
+      "required": true,
+      "schema": {
+       "title": "Token Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Revoke Scim Token"
+   }
+  },
   "/api/v1/teams/{team_id}/seats/agent": {
    "post": {
     "operationId": "add_agent_seat_api_v1_teams__team_id__seats_agent_post",
@@ -11151,6 +11384,220 @@
      }
     },
     "summary": "Ready"
+   }
+  },
+  "/scim/v2/Users": {
+   "get": {
+    "description": "SCIM list, bounded, filtered only by the equality forms connectors send.",
+    "operationId": "list_users_scim_v2_Users_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "filter",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Filter"
+      }
+     },
+     {
+      "in": "query",
+      "name": "startIndex",
+      "required": false,
+      "schema": {
+       "default": 1,
+       "minimum": 1,
+       "title": "Startindex",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "count",
+      "required": false,
+      "schema": {
+       "default": 100,
+       "maximum": 200,
+       "minimum": 1,
+       "title": "Count",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Users Scim V2 Users Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Users"
+   }
+  },
+  "/scim/v2/Users/{user_id}": {
+   "get": {
+    "description": "Read one seat. A member of another team answers exactly what no member\nanswers \u2014 this surface must not confirm that an id exists elsewhere.",
+    "operationId": "get_user_scim_v2_Users__user_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get User Scim V2 Users  User Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get User"
+   },
+   "patch": {
+    "description": "PATCH \u2014 the verb every deprovisioning connector actually sends.",
+    "operationId": "patch_user_scim_v2_Users__user_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/harness_identity__scim__PatchBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Patch User Scim V2 Users  User Id  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Patch User"
+   },
+   "put": {
+    "description": "PUT \u2014 replace the attributes this service models.\n\nA full replace means `userName` must be present (SCIM requires it of a User)\nand an omitted `active` means true. An omitted `externalId` leaves the\nexisting directory link in place rather than guessing that absent meant\ndelete \u2014 clearing it takes `\"externalId\": null`. Fields we do not model\n(name, emails,\ngroups) are accepted and IGNORED: they are not stored anywhere, so a\nconnector that sends them gets a resource back without them rather than an\nerror about a field this service never had.",
+    "operationId": "put_user_scim_v2_Users__user_id__put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PutBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Put User Scim V2 Users  User Id  Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put User"
    }
   }
  }

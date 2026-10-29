@@ -70,6 +70,39 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   door, leave → baseline rule gives `engineer`/`source=claim` and `/audit`
   answers 403 (`oidc-keycloak-drill.json`). Spec, both SDKs and
   `clients/ts/dist` moved together; operator text is `ops.md` §3.8.
+* **An IdP deprovisioning now reaches Harness.** SCIM 2.0 subset on the
+  `/scim/v2` surface: `GET /Users` with the three equality filters connectors
+  actually send (`userName`, `externalId`, `id`), `GET/PATCH/PUT /Users/{id}`
+  over `active`, `userName` and `externalId`, and nothing else — there is no
+  `POST /Users`, because a directory push must not be able to create an account.
+  The credential is its own thing: an admin mints a `hsc_…` token on the normal
+  API (Team tier, ≤10 live per team, shown once, **SHA-256 at rest** — the plan
+  said "encrypted", and hashing is stronger for a secret the server never reads
+  back, matching runner tokens rather than Fernet secrets), it opens exactly this
+  door and nothing else, and a user session token is 401 here. `active=false`
+  sets `users.is_active`, which slice 1's five doors already consult, and deletes
+  that team's session rows, so one PATCH is a revocation rather than a flag
+  beside the door; the account-wide consequence is stated in the runbook instead
+  of being discovered by a customer. Refusals a connector can read: the last
+  admin cannot be deprovisioned (403), an attribute this service does not own is
+  `400 invalidPath` instead of being quietly dropped, a multi-op PATCH validates
+  whole and applies in one transaction, and `If-Match` is enforced against a
+  content etag (412) while `meta.lastModified` stays ABSENT because
+  `team_members` tracks no modification time. `externalId` lives per team
+  (migration 0070) because it is the directory's id, not ours.
+  Two integration bugs the live drill found and the unit lane could not: the
+  product envelope was stringifying the RFC 7644 error body into
+  `REQUEST_ERROR.message` (no connector parses that), now passed through
+  untouched with malformed `/scim/v2` bodies answered `400 invalidSyntax` — the
+  carve-out keys on the SCIM schema URI alone, pinned so no `/api/v1` wire format
+  changes — and `deploy/Caddyfile` had no rule for `/scim/v2`, so the proxy's
+  catch-all returned 204 and Okta would have reported a healthy endpoint that
+  never deprovisioned. Evidence: 11 + 20 + 6 tests (the envelope ones run the real
+  app factory) and `make drill-scim`, 36 checks, where the member's own token goes
+  200 → 401 on identity and 404 → 401 on the shared dependency after a single
+  PATCH, then reactivates, with the last-admin refusal and revoked-credential
+  refusals in the same run. Spec, both SDKs and `clients/ts/dist` moved with it.
+  Operator text: `docs/runbooks/ops.md` §3.9.
 * **W16 opened with an audit, not an assumption.** `docs/m2-w16-plan.md` records
   what exists today with file:line for each claim: OIDC auth-code+PKCE exists but
   mapped email only (no group→role — closed by the slice above); SCIM does not exist at all (no endpoint,

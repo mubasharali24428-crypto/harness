@@ -239,6 +239,16 @@ def make_app(session_factory, settings: Settings):
 
     app.include_router(sso_router)
 
+    # Marathon 2.0 W16 slice 3: SCIM 2.0 subset. Two mounts, because the protocol
+    # path is not ours to rename — `router` is the admin-facing token CRUD under
+    # /api/v1, `scim_router` is the RFC-pinned /scim/v2 surface an external IdP
+    # calls (deploy/Caddyfile routes it to this service).
+    from .scim import router as scim_router
+    from .scim import scim_router as scim_protocol_router
+
+    app.include_router(scim_router)
+    app.include_router(scim_protocol_router)
+
     # Mission12-E3a merge wiring: roster removal/role-change (W2-C1 server).
     from .teams_api import router as teams_api_router
 

@@ -261,6 +261,12 @@ class OwnerTransferBody(typing.TypedDict, total=False):
     expectedOwnerUserId: str  # required
     toUserId: str  # required
 
+class PatchOp(typing.TypedDict, total=False):
+    """PatchOp."""
+    op: str
+    path: str | None
+    value: typing.Any
+
 class PlanUpdateBody(typing.TypedDict, total=False):
     """PlanUpdateBody."""
     budgetAlertPercent: float | str | None
@@ -305,6 +311,14 @@ class ProjectOut(typing.TypedDict, total=False):
     id: str  # required
     name: str  # required
     repoFullName: str | None
+
+class PutBody(typing.TypedDict, total=False):
+    """PutBody."""
+    active: bool
+    externalId: str | None
+    name: dict[str, typing.Any] | None
+    schemas: list[str]
+    userName: str
 
 class ReadAllBody(typing.TypedDict, total=False):
     """ReadAllBody."""
@@ -416,6 +430,10 @@ class ThresholdsBody(typing.TypedDict, total=False):
     """ThresholdsBody. Required keys: thresholds."""
     thresholds: dict[str, typing.Any]  # required
 
+class TokenBody(typing.TypedDict, total=False):
+    """TokenBody."""
+    label: str
+
 class UnsubscribeBody(typing.TypedDict, total=False):
     """UnsubscribeBody. Required keys: token."""
     token: str  # required
@@ -501,6 +519,11 @@ class harness_identity__policy__RoleBody(typing.TypedDict, total=False):
 class harness_identity__runner_api__AssignBody(typing.TypedDict, total=False):
     """harness_identity__runner_api__AssignBody. Required keys: runId."""
     runId: str  # required
+
+class harness_identity__scim__PatchBody(typing.TypedDict, total=False):
+    """harness_identity__scim__PatchBody."""
+    Operations: list[PatchOp]
+    schemas: list[str]
 
 class harness_identity__sessions__CreateBody(typing.TypedDict, total=False):
     """harness_identity__sessions__CreateBody. Required keys: title."""
@@ -1581,6 +1604,30 @@ class IdentityClient:
         _path = f"/api/v1/teams/{team_id}/members/{user_id}"
         return self._http.request(self.base_url, "PATCH", _path, json_body=body)
 
+    def list_scim_tokens(self, team_id: str) -> dict[str, typing.Any]:
+        """List Scim Tokens
+
+        GET /api/v1/teams/{team_id}/scim/tokens
+        """
+        _path = f"/api/v1/teams/{team_id}/scim/tokens"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def create_scim_token(self, team_id: str, body: TokenBody) -> dict[str, typing.Any]:
+        """Create Scim Token
+
+        POST /api/v1/teams/{team_id}/scim/tokens
+        """
+        _path = f"/api/v1/teams/{team_id}/scim/tokens"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def revoke_scim_token(self, team_id: str, token_id: str) -> typing.Any:
+        """Revoke Scim Token
+
+        DELETE /api/v1/teams/{team_id}/scim/tokens/{token_id}
+        """
+        _path = f"/api/v1/teams/{team_id}/scim/tokens/{token_id}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
     def add_agent_seat(self, team_id: str) -> dict[str, typing.Any]:
         """Add Agent Seat
 
@@ -2007,5 +2054,38 @@ class IdentityClient:
         _path = "/ready"
         return self._http.request(self.base_url, "GET", _path)
 
+    def list_users_scim_v2_users_get(self, filter: str | None = None, start_index: int | None = None, count: int | None = None) -> dict[str, typing.Any]:
+        """List Users
 
-__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AttestBody", "BindingBody", "ChainNode", "CheckBody", "CreateProjectBody", "DefBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErasureBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "ExecutionControlBody", "FinishBody", "GlobalPrefsBody", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkRunBody", "LinkTeamBody", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "MemoryBody", "MuteBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "OwnerTransferBody", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "ReadAllBody", "RevertBody", "RoutingBody", "Rule", "RulesBody", "RunnerBody", "ScopePrefsBody", "SelectBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SkillBody", "SnoozeBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "UnsubscribeBody", "ValidationError", "VerifyOtpRequest", "WebhookCreateBody", "WebhookCreated", "WebhookPatchBody", "WsTicketRequest", "WsTicketResponse", "_DigestBody", "_QuietBody", "harness_identity__agents__ReasonBody", "harness_identity__orgs__RoleBody", "harness_identity__policy__AssignBody", "harness_identity__policy__RoleBody", "harness_identity__runner_api__AssignBody", "harness_identity__sessions__CreateBody", "harness_identity__sessions__MemberBody", "harness_identity__sessions__PatchBody", "harness_identity__sessions__ReasonBody", "harness_identity__sessions__RoleBody", "harness_identity__workspaces__CreateBody", "harness_identity__workspaces__MemberBody", "harness_identity__workspaces__PatchBody", "harness_identity__workspaces__ReasonBody"]
+        GET /scim/v2/Users
+        """
+        _path = "/scim/v2/Users"
+        _params: dict[str, typing.Any] = {"filter": filter, "startIndex": start_index, "count": count}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
+
+    def get_user_scim_v2_users_user_id_get(self, user_id: str) -> dict[str, typing.Any]:
+        """Get User
+
+        GET /scim/v2/Users/{user_id}
+        """
+        _path = f"/scim/v2/Users/{user_id}"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def put_user_scim_v2_users_user_id_put(self, user_id: str, body: PutBody) -> dict[str, typing.Any]:
+        """Put User
+
+        PUT /scim/v2/Users/{user_id}
+        """
+        _path = f"/scim/v2/Users/{user_id}"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
+
+    def patch_user_scim_v2_users_user_id_patch(self, user_id: str, body: harness_identity__scim__PatchBody) -> dict[str, typing.Any]:
+        """Patch User
+
+        PATCH /scim/v2/Users/{user_id}
+        """
+        _path = f"/scim/v2/Users/{user_id}"
+        return self._http.request(self.base_url, "PATCH", _path, json_body=body)
+
+
+__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AttestBody", "BindingBody", "ChainNode", "CheckBody", "CreateProjectBody", "DefBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErasureBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "ExecutionControlBody", "FinishBody", "GlobalPrefsBody", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkRunBody", "LinkTeamBody", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "MemoryBody", "MuteBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "OwnerTransferBody", "PatchOp", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "PutBody", "ReadAllBody", "RevertBody", "RoutingBody", "Rule", "RulesBody", "RunnerBody", "ScopePrefsBody", "SelectBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SkillBody", "SnoozeBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "TokenBody", "UnsubscribeBody", "ValidationError", "VerifyOtpRequest", "WebhookCreateBody", "WebhookCreated", "WebhookPatchBody", "WsTicketRequest", "WsTicketResponse", "_DigestBody", "_QuietBody", "harness_identity__agents__ReasonBody", "harness_identity__orgs__RoleBody", "harness_identity__policy__AssignBody", "harness_identity__policy__RoleBody", "harness_identity__runner_api__AssignBody", "harness_identity__scim__PatchBody", "harness_identity__sessions__CreateBody", "harness_identity__sessions__MemberBody", "harness_identity__sessions__PatchBody", "harness_identity__sessions__ReasonBody", "harness_identity__sessions__RoleBody", "harness_identity__workspaces__CreateBody", "harness_identity__workspaces__MemberBody", "harness_identity__workspaces__PatchBody", "harness_identity__workspaces__ReasonBody"]

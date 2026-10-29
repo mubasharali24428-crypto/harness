@@ -258,6 +258,12 @@ export interface OwnerTransferBody {
     expectedOwnerUserId: string;
     toUserId: string;
 }
+/** PatchOp. */
+export interface PatchOp {
+    op?: string;
+    path?: string | null;
+    value?: unknown;
+}
 /** PlanUpdateBody. */
 export interface PlanUpdateBody {
     budgetAlertPercent?: number | string | null;
@@ -304,6 +310,16 @@ export interface ProjectOut {
     id: string;
     name: string;
     repoFullName?: string | null;
+}
+/** PutBody. */
+export interface PutBody {
+    active?: boolean;
+    externalId?: string | null;
+    name?: {
+        [key: string]: unknown;
+    } | null;
+    schemas?: string[];
+    userName?: string;
 }
 /** ReadAllBody. */
 export interface ReadAllBody {
@@ -427,6 +443,10 @@ export interface ThresholdsBody {
         [key: string]: unknown;
     };
 }
+/** TokenBody. */
+export interface TokenBody {
+    label?: string;
+}
 /** UnsubscribeBody. Required keys: token. */
 export interface UnsubscribeBody {
     token: string;
@@ -514,6 +534,11 @@ export interface harness_identity__policy__RoleBody {
 /** harness_identity__runner_api__AssignBody. Required keys: runId. */
 export interface harness_identity__runner_api__AssignBody {
     runId: string;
+}
+/** harness_identity__scim__PatchBody. */
+export interface harness_identity__scim__PatchBody {
+    Operations?: PatchOp[];
+    schemas?: string[];
 }
 /** harness_identity__sessions__CreateBody. Required keys: title. */
 export interface harness_identity__sessions__CreateBody {
@@ -954,6 +979,15 @@ export declare class IdentityClient {
     /** Change Member Role
      *  PATCH /api/v1/teams/{team_id}/members/{user_id} */
     change_member_role(team_id: string, user_id: string, body: MemberRoleBody): Promise<Record<string, unknown>>;
+    /** List Scim Tokens
+     *  GET /api/v1/teams/{team_id}/scim/tokens */
+    list_scim_tokens(team_id: string): Promise<Record<string, unknown>>;
+    /** Create Scim Token
+     *  POST /api/v1/teams/{team_id}/scim/tokens */
+    create_scim_token(team_id: string, body: TokenBody): Promise<Record<string, unknown>>;
+    /** Revoke Scim Token
+     *  DELETE /api/v1/teams/{team_id}/scim/tokens/{token_id} */
+    revoke_scim_token(team_id: string, token_id: string): Promise<unknown>;
     /** Add Agent Seat
      *  POST /api/v1/teams/{team_id}/seats/agent */
     add_agent_seat(team_id: string): Promise<Record<string, unknown>>;
@@ -1113,4 +1147,16 @@ export declare class IdentityClient {
     /** Ready
      *  GET /ready */
     ready_ready_get(): Promise<unknown>;
+    /** List Users
+     *  GET /scim/v2/Users */
+    list_users_scim_v2_users_get(filter?: string | null, start_index?: number, count?: number): Promise<Record<string, unknown>>;
+    /** Get User
+     *  GET /scim/v2/Users/{user_id} */
+    get_user_scim_v2_users_user_id_get(user_id: string): Promise<Record<string, unknown>>;
+    /** Put User
+     *  PUT /scim/v2/Users/{user_id} */
+    put_user_scim_v2_users_user_id_put(user_id: string, body: PutBody): Promise<Record<string, unknown>>;
+    /** Patch User
+     *  PATCH /scim/v2/Users/{user_id} */
+    patch_user_scim_v2_users_user_id_patch(user_id: string, body: harness_identity__scim__PatchBody): Promise<Record<string, unknown>>;
 }

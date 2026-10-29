@@ -35,7 +35,7 @@ PG_URL ?= postgresql+asyncpg://harness:harness@localhost:5499/harness
         lint test lint-mcp test-mcp frontend frontend-tsc frontend-vitest check-ts-dist static-gates e2e e2e-compose \
         pg-probe pg-probe-integration pg-probe-s1 pg-probe-migrate pg-up pip-audit \
         guard-routes guard-isolation guard-route-law \
-        drill-oidc drill-pitr drill-native drill-fairness drill-rate-limit drill-routing drill-seat-revocation
+        drill-oidc drill-pitr drill-native drill-fairness drill-rate-limit drill-routing drill-seat-revocation drill-scim
 
 help:
 	@echo "Harness gates — single source of truth shared by CI (.github/workflows/ci.yml):"
@@ -53,6 +53,7 @@ help:
 	@echo "  make drill-rate-limit W15 per-team budget; needs a small deployed team limit"
 	@echo "  make drill-routing    W15 routing decision is durable + readable (no spend)"
 	@echo "  make drill-seat-revocation W16 revoked seat refused on every live door"
+	@echo "  make drill-scim         W16 SCIM deprovision reaches every live door"
 	@echo "  make guard-routes    app/**/page.tsx default-export-only law (W4 carryover)"
 	@echo "  make guard-isolation sections import ONLY contracts/ (M13 isolation law)"
 	@echo "  make e2e             section7 Playwright suite (specs land via lane H3a)"
@@ -266,6 +267,11 @@ drill-routing:
 # the throwaway drill user it creates.
 drill-seat-revocation:
 	python3 scripts/e2e/w16_seat_revocation_drill.py
+
+# W16 slice 3: an IdP-side deprovisioning, proven against the deployed
+# containers and a real Postgres (needs the stack up + migration 0070).
+drill-scim:
+	python3 scripts/e2e/w16_scim_deprovision_drill.py
 
 # -------------------------------------------------------------------- pg-probe
 # Nightly-pg-probe job parity. Guarded: silently skipping would fake parity.

@@ -223,6 +223,12 @@ APPEND_ONLY_ACTIONS = frozenset(
         # Marathon 2.0 W16: an OIDC login minted a session; detail records the
         # role used and whether a group claim or the stored membership chose it.
         "sso.login",
+        # Marathon 2.0 W16: SCIM 2.0 subset — a directory credential's lifecycle
+        # and the seat changes it made. scim.user_changed carries the token id,
+        # never a secret.
+        "scim.token_created",
+        "scim.token_revoked",
+        "scim.user_changed",
         # Multiplayer pilot S2: shared-run collaboration + high-impact approvals
         # (raw-SQL writer in section4 collab.py; canonical allowlist is here).
         "participant.joined",

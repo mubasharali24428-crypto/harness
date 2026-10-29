@@ -424,6 +424,63 @@ is `admin` with `source=claim` and the minted token passes the admin-only
 `source=claim` and `/audit` answers 403 (`scripts/oidc_drill.py`, evidence in
 `docs/briefs/evidence/pilot-prep/oidc-keycloak-drill.json`).
 
+## 3.9 "We deprovisioned them in Okta and they are still in Harness" (W16)
+
+SCIM is opt-in per team and reaches the product through two separate surfaces:
+
+| Surface | Path | Credential |
+|---|---|---|
+| Token management (our API) | `POST/GET/DELETE /api/v1/teams/{id}/scim/tokens[/{tid}]` | an admin's session bearer, Team tier |
+| The directory protocol | `GET /scim/v2/Users[/{id}]`, `PATCH`, `PUT` | a `hsc_…` SCIM token, nothing else |
+
+Work the failure from the connector inward:
+
+1. **Is the connector talking to the right URL?** The path is `/scim/v2/Users`,
+   not `/api/v1/scim/...`; `deploy/Caddyfile` routes it to identity. A 204 from
+   the proxy's catch-all means the request never reached the service.
+2. **Is the credential alive?** `GET /api/v1/teams/{id}/scim/tokens` lists live
+   and revoked tokens with `lastUsedAt`. A token that never shows a use means the
+   connector is authenticating somewhere else. Revoked and unknown answer the
+   same 401 — the service does not say which.
+3. **Did the write land on a seat this team has?** SCIM here reads and narrows
+   seats; it never creates one. An `id` the team does not contain answers
+   `404 user not found`, the same bytes as a nonsense id.
+4. **Was it refused rather than ignored?** The two refusals worth reading in the
+   log: `403` "cannot deprovision the team's last admin", and `400 invalidPath`
+   for an attribute this service does not own (`name.givenName`, `groups`, …) —
+   refused on purpose, because a connector that believes it wrote a field it did
+   not is worse informed than one that got an error.
+5. **What did the mutation actually do?** `active=false` sets `users.is_active`
+   and deletes that team's `auth_sessions` rows:
+
+```sh
+docker exec harness-db-1 psql -U harness -d harness -c \
+  "select ts, action, detail from audit_log
+    where action in ('scim.user_changed','scim.token_created','scim.token_revoked')
+    order by seq desc limit 10;"
+```
+
+`detail.kind` is `deprovision` / `reactivate` / `rename` / `link`, `detail.refId`
+is the SCIM token id (the actor is a credential, so `actor_kind` is `system` and
+there is no human actor), and `before`/`after` carry the changed attributes.
+
+**Scope of `active=false`, stated plainly:** `users` describes a human, not a
+seat, so disabling through one team's directory disables that human at every
+door of every team — which is what "the source of truth says they left the
+company" means. Row cleanup (`auth_sessions`) is scoped to the team the
+credential belongs to. If a person must lose only one team's seat, use the
+membership API (`DELETE /api/v1/teams/{id}/members/{uid}`), not SCIM.
+
+**Error bodies are SCIM, not ours.** `/scim/v2` failures return the RFC 7644
+object (`schemas`/`status`/`detail`, `scimType` where defined) and a malformed
+body answers `400 invalidSyntax` rather than our 422 envelope. The envelope
+middleware keeps normalizing everything else — the carve-out keys on the SCIM
+schema URI only (`envelope_middleware.py:_is_scim_error`).
+
+Prove it end to end with `make drill-scim`: 36 checks including the seat's own
+session token going 200 → 401 on identity and 404 → 401 on the shared
+dependency after a single PATCH, with no admin touching Harness in between.
+
 ## 4. Prevention checklist
 
 - [ ] No service removed from compose while its container runs (Cause A rule).
