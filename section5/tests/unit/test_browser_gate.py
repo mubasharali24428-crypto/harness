@@ -203,13 +203,21 @@ def test_output_that_is_not_a_png_is_refused(tmp_path, monkeypatch):
     assert not (tmp_path / "shots" / "before.png").exists()
 
 
+#: Deadline used by the two timeout tests. It must stay well above the cost of
+#: forking the stand-in browser: a 1-second budget passed on an idle machine and
+#: failed under parallel load, because the child had not even started its `cp`
+#: when the gate gave up (the render never got to write anything). The sleep in
+#: the fake (30 s) still guarantees the deadline is what ends the render.
+_TIMEOUT_TEST_SECONDS = 5
+
+
 def test_a_hung_render_is_killed(tmp_path, monkeypatch):
     _ready(tmp_path)
     script, _ = _fake_chromium(tmp_path, body='rm -f "$out"; sleep 30')
     monkeypatch.setenv("HARNESS_CHROMIUM", str(script))
     gate = _gate()
 
-    out = gate.render(_request(tmp_path, timeoutSeconds=1))
+    out = gate.render(_request(tmp_path, timeoutSeconds=_TIMEOUT_TEST_SECONDS))
     assert "timed out" in out["error"], out
     assert not (tmp_path / "shots" / "before.png").exists()
 
@@ -219,13 +227,17 @@ def test_a_slow_render_that_finished_is_still_evidence(tmp_path, monkeypatch):
 
     Killing it and reporting a timeout would delete a perfectly good screenshot and
     teach the model to retry; the gate hands over the valid image and says it was slow.
+
+    The deadline is the module-level `_TIMEOUT_TEST_SECONDS`, not 1 s: with 1 s the
+    child's screenshot `cp` sometimes had not even run before the gate gave up, and
+    the test failed on a busy machine while passing on an idle one.
     """
     _ready(tmp_path)
     script, _ = _fake_chromium(tmp_path, body="sleep 30")
     monkeypatch.setenv("HARNESS_CHROMIUM", str(script))
     gate = _gate()
 
-    out = gate.render(_request(tmp_path, timeoutSeconds=1))
+    out = gate.render(_request(tmp_path, timeoutSeconds=_TIMEOUT_TEST_SECONDS))
     assert out.get("ok") is True and out["slowRender"] is True, out
     assert (tmp_path / "shots" / "before.png").read_bytes() == PNG_1X1
 
