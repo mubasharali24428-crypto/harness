@@ -1,3 +1,4 @@
+# ruff: noqa: F811 — `env` is a pytest fixture imported for discovery; test args shadow it.
 """W9: an artifact share link is a capability that can be revoked.
 
 The gate text is "preview and share URLs enforce access", so these tests are about
@@ -7,7 +8,7 @@ run's list. The token never comes back from the API twice, and the row keeps onl
 its hash.
 """
 
-from .test_artifacts_support import err, env, sha  # noqa: F401 - env is the fixture
+from .test_artifacts_support import env, err, sha  # noqa: F401 - env is the fixture
 
 P = "/api/v1/orchestrator"
 

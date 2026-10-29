@@ -7,7 +7,6 @@ services needed it and previously each would have had its own copy.
 
 import httpx
 import pytest
-
 from harness_contracts.http_client import env_client, sync_env_client
 
 BRACKETED = "localhost,127.0.0.1,::1,[::1]"

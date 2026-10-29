@@ -1,3 +1,4 @@
+# ruff: noqa: F811 — `env` is a pytest fixture imported for discovery; test args shadow it.
 """W9: a deployment approval names the reviewed revision, and revocation is final.
 
 The gate text is "deployment approval binds reviewed revision; revocation works", so
@@ -6,7 +7,7 @@ patch that arrived, a plan version that changed, or a client that echoes a diffe
 digest than the one the request was bound to. None of those may produce an approval.
 """
 
-from .test_artifacts_support import SHA_B, SHA_C, err, env, git_diff  # noqa: F401
+from .test_artifacts_support import SHA_B, SHA_C, env, err, git_diff  # noqa: F401
 
 P = "/api/v1/orchestrator"
 
@@ -128,7 +129,10 @@ def test_a_decided_request_cannot_be_decided_again(env):
     data = _approved_ready_run(env)
     dep = _request(env).json()["deployment"]
     body = {"changesDigest": data["changesDigest"]}
-    assert env.as_("lead").post(env.url("r1", f"/deployments/{dep['id']}/approve"), json=body).status_code == 200
+    approve = env.as_("lead").post(
+        env.url("r1", f"/deployments/{dep['id']}/approve"), json=body
+    )
+    assert approve.status_code == 200
     err(
         env.as_("lead").post(env.url("r1", f"/deployments/{dep['id']}/approve"), json=body),
         409,

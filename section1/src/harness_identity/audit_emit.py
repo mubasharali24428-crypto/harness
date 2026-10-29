@@ -831,3 +831,126 @@ async def emit_memory_deleted(
         actor_kind=actor_kind,
         session_owner=session_owner,
     )
+
+
+async def emit_runner_registered(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """runner.registered — M2-W13: an admin minted a runner token (shown once).
+
+    Detail carries the name, confinement expectation and token hint only; the
+    token and its derivative never appear in audit content.
+    """
+    return await _emit(
+        session,
+        "runner.registered",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_runner",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_runner_revoked(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """runner.revoked — M2-W13: a runner's token is dead from this instant."""
+    return await _emit(
+        session,
+        "runner.revoked",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_runner",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_runner_attested(
+    session: AsyncSession,
+    *,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """runner.attested — M2-W13: a signed confinement claim was verified.
+
+    Emitted only when the attestation digest CHANGES, so a steady heartbeat
+    does not flood the audit log. actor_kind is ``system``: the runner acted,
+    not a person.
+    """
+    return await _emit(
+        session,
+        "runner.attested",
+        team_id=team_id,
+        target_type="team_runner",
+        target_id=target_id,
+        detail=detail,
+        actor_kind="system",
+        session_owner=session_owner,
+    )
+
+
+async def emit_runner_job_assigned(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """runner.job_assigned — M2-W13: an admin offered a queued run to a runner."""
+    return await _emit(
+        session,
+        "runner.job_assigned",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="runner_job",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_runner_job_completed(
+    session: AsyncSession,
+    *,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """runner.job_completed — M2-W13: the runner reported the leased run finished."""
+    return await _emit(
+        session,
+        "runner.job_completed",
+        team_id=team_id,
+        target_type="runner_job",
+        target_id=target_id,
+        detail=detail,
+        actor_kind="system",
+        session_owner=session_owner,
+    )

@@ -17,8 +17,6 @@ import sys
 import textwrap
 from pathlib import Path
 
-import pytest
-
 GATE = Path(__file__).resolve().parents[2] / "src" / "harness_sandbox" / "browser_gate.py"
 # 1x1 PNG: enough for the gate to read an IHDR, small enough to be deterministic.
 PNG_1X1 = (

@@ -119,6 +119,16 @@ DELETION_MAP: dict[tuple[str, str], tuple[str, str]] = {
     ("project_memory", "project_id"): ("projects.id", "CASCADE"),
     ("project_memory", "created_by"): ("users.id", "SET NULL"),
     ("project_memory", "reviewed_by"): ("users.id", "SET NULL"),
+    # M2-W13 (0068): a runner belongs to its team and dies with it; its nonces
+    # and job offers die with the runner. Authorship/revocation back-references
+    # survive account deletion as "unknown". runner_jobs pins project_id (the
+    # run claim is lazy by design, so there is deliberately no run FK).
+    ("team_runners", "team_id"): ("teams.id", "CASCADE"),
+    ("team_runners", "created_by"): ("users.id", "SET NULL"),
+    ("team_runners", "revoked_by"): ("users.id", "SET NULL"),
+    ("runner_nonces", "runner_id"): ("team_runners.id", "CASCADE"),
+    ("runner_jobs", "runner_id"): ("team_runners.id", "CASCADE"),
+    ("runner_jobs", "project_id"): ("projects.id", "CASCADE"),
     # owned children of users
     ("github_connections", "user_id"): ("users.id", "CASCADE"),
     ("auth_sessions", "user_id"): ("users.id", "CASCADE"),
@@ -247,10 +257,12 @@ def test_fk_inventory_size_is_pinned():
     change must touch this suite. (35 -> 36: M22-M3's stripe_webhook_events;
     36 -> 38: M22-M4's team_sso_configs + sso_login_states; 38 -> 43: Session 7's
     integration_webhooks + integration_webhook_deliveries; 43 -> 49: M2-W12's
-    team_skills + project_memory. The out-of-models
-    mirrors live in stripe_adapter.py / sso.py and are imported HERE for their
-    metadata side effect so enumeration is collection-order independent.)"""
-    assert len(_metadata_fks()) == 49
+    team_skills + project_memory; 49 -> 55: M2-W13's team_runners (team +
+    author/revoker), runner_nonces, runner_jobs (runner + project). The
+    out-of-models mirrors live in stripe_adapter.py / sso.py and are imported
+    HERE for their metadata side effect so enumeration is collection-order
+    independent.)"""
+    assert len(_metadata_fks()) == 55
 
 
 # --------------------------------------------------------------------------

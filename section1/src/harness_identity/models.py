@@ -359,6 +359,89 @@ class ProjectMemory(Base, TimestampMixin):
     )
 
 
+class TeamRunner(Base, TimestampMixin):
+    """M2-W13: a customer-controlled host, never a capability (migration 0068).
+
+    The bearer token is shown once and only its sha256 is stored. The
+    attestation key is the one-way derivative HMAC-SHA256(token, label) the
+    server uses to verify signed confinement claims; it proves the claim came
+    from the token holder, not that the host is honest. A runner brings a host:
+    there is no column for a command, tool, path or permission.
+    """
+
+    __tablename__ = "team_runners"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    team_id: Mapped[str] = mapped_column(
+        ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(40), nullable=False)
+    description: Mapped[str] = mapped_column(String(500), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
+    token_sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    token_hint: Mapped[str] = mapped_column(String(8), nullable=False)
+    attestation_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    confinement: Mapped[str] = mapped_column(String(16), nullable=False, default="none")
+    attestation_json: Mapped[str | None] = mapped_column(Text)
+    attestation_sha256: Mapped[str | None] = mapped_column(String(64))
+    attestation_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    revoked_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class RunnerNonce(Base):
+    """M2-W13: single-use request nonces per runner (replay protection).
+
+    The composite primary key is the atomic arbiter: a replayed nonce loses
+    the INSERT race and the request is refused before any job state is read.
+    Rows older than the accepted skew window are pruned on the auth path.
+    """
+
+    __tablename__ = "runner_nonces"
+
+    runner_id: Mapped[str] = mapped_column(
+        ForeignKey("team_runners.id", ondelete="CASCADE"), primary_key=True
+    )
+    nonce: Mapped[str] = mapped_column(String(64), primary_key=True)
+    seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class RunnerJob(Base, TimestampMixin):
+    """M2-W13: a run offered to, leased by and completed on a BYO runner.
+
+    No FK to run_claims/agent_runs: the durable queue creates claims lazily
+    (0006), so an offer can exist before the run's first persisted event.
+    Ownership is runner_id + project_id + the run_claims row the lease holds.
+    """
+
+    __tablename__ = "runner_jobs"
+
+    run_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    runner_id: Mapped[str] = mapped_column(
+        ForeignKey("team_runners.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    state: Mapped[str] = mapped_column(String(16), nullable=False, default="offered")
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    result_digest: Mapped[str | None] = mapped_column(String(64))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
 class ModelConfig(Base, TimestampMixin):
     __tablename__ = "model_configs"
 

@@ -12,7 +12,7 @@ import asyncio
 
 from sqlalchemy import text
 
-from harness_orchestrator import container_runtime, service as service_mod
+from harness_orchestrator import container_runtime
 from tests.test_stateless_orchestrator_n1 import replica_pair  # noqa: F401
 
 NET = {"net-a": "run-a", "net-b": "run-b", "net-c": "run-c"}

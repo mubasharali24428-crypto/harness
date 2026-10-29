@@ -517,6 +517,36 @@
       "notes": "no model; the engine does not call these endpoints yet (agent_tree.py states it)"
     },
     {
+      "id": "w8-quotas-isolation",
+      "title": "Concurrent runs keep their bytes and checkpoints, quotas hold, cancellation spares the neighbour",
+      "category": "concurrency",
+      "kind": "infra",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "implemented",
+      "driver": {
+        "type": "script",
+        "path": "scripts/eval/tasks/concurrency_task.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 300,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "verifier": "two-principal intent race (200 + 202 queued, leader stale 409 with a conflict record); per-run staging diffs contain only their own bytes at the same relative path; per-run checkpoint manifests and rewind do not cross; stop preserves both workspaces; five concurrent child spawns against maxChildren=3 yield 3+2; depth/budget/scope refusals; cascade cancel; cross-team 404",
+      "expected": "exit 0 and the task's own verdict is PASS",
+      "evidence": "driver stdout + docs/briefs/evidence/eval/w8-concurrency-<stamp>.json",
+      "notes": "no model; the second admin session is minted through the local dev login route because OTP verify cannot select a team"
+    },
+    {
       "id": "w9-share-deploy",
       "title": "Share links are capabilities and deployment approval binds the reviewed revision",
       "category": "artifact_authz",
@@ -1109,6 +1139,36 @@
       "expected": "exit 0 and every check true",
       "evidence": "docs/briefs/evidence/eval/w12-skills-memory-<stamp>.json",
       "notes": "no model; Section 11 assessed first and rejected as a memory store (it is a code index), so memory follows the project_rules pattern; review and removal are admin-only, authoring is engineer+, viewers/guests read; no UI and no content editing (a reviewed bundle is immutable: change means remove and re-author)"
+    },
+    {
+      "id": "w13-byo-runner",
+      "title": "A customer-host runner token is team-scoped, revocable and replay-proof",
+      "category": "tenant_isolation",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "implemented",
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w13_runner_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "budget": {
+        "timeoutSeconds": 300,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "verifier": "registration returns the token once and stores only its sha256 plus a derived attestation key; a signed confinement attestation verifies and its digest matches the stored row; a tampered signature, a confinement mismatch, an unknown key, a replayed nonce and a stale timestamp are each refused; a second team's token lists nothing, and claim/finish/assign/revoke of the first team's ids answer the same 404 as unknown ids; claiming holds the run_claims lease as runner:<id>, a second claim is refused, heartbeat renews, finish deletes only the runner's own claim; an expired lease releases the job and orphans (never re-queues) the run; revocation is idempotent and kills the token on the next request; revoked runners take no jobs; every lifecycle action leaves an audit row",
+      "expected": "exit 0 and the task's own verdict is PASS",
+      "evidence": "docs/briefs/evidence/eval/w13-runner-<stamp>.json",
+      "notes": "no model; control plane only: the runner holds and completes a lease but does not yet execute the approved plan (execution leg OPEN, docs/m2-w13-plan.md). The queued run_claims row is seeded directly because no BYO dispatch endpoint exists; the second admin session uses the local dev login route"
     }
   ]
 }

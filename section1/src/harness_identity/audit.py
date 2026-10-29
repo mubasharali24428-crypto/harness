@@ -202,6 +202,14 @@ APPEND_ONLY_ACTIONS = frozenset(
         "memory.created",
         "memory.reviewed",
         "memory.deleted",
+        # Marathon 2.0 W13: bring-your-own runner lifecycle. A runner registers,
+        # attests its confinement, is assigned an already-approved run, completes
+        # it, or is revoked. None of these actions grants capability.
+        "runner.registered",
+        "runner.revoked",
+        "runner.attested",
+        "runner.job_assigned",
+        "runner.job_completed",
         # M15-G6b: per-team reviewer-threshold tuning lifecycle.
         "reviewer_thresholds.saved",
         "reviewer_thresholds.deleted",

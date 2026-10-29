@@ -27,7 +27,7 @@ import logging
 import os
 import secrets
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 from fastapi import APIRouter, Request, Response

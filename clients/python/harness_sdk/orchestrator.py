@@ -379,6 +379,10 @@ class RevokeBody(typing.TypedDict, total=False):
     """RevokeBody. Required keys: reason."""
     reason: str  # required
 
+class RewindBody(typing.TypedDict, total=False):
+    """RewindBody."""
+    checkpoint: str | None
+
 class RunAggregateResponse(typing.TypedDict, total=False):
     """RunAggregateResponse. Required keys: runId, state."""
     budget: BudgetDegradedOut
@@ -912,6 +916,14 @@ class OrchestratorClient:
         _path = f"/api/v1/orchestrator/runs/{run_id}/changes/{change_id}/review"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
+    def run_checkpoints_list(self, run_id: str) -> dict[str, typing.Any]:
+        """Run Checkpoints List
+
+        GET /api/v1/orchestrator/runs/{runId}/checkpoints
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/checkpoints"
+        return self._http.request(self.base_url, "GET", _path)
+
     def collab_history(self, run_id: str, after: int | None = None, limit: int | None = None, schema_version: int | None = None) -> dict[str, typing.Any]:
         """Collab History
 
@@ -1421,6 +1433,14 @@ class OrchestratorClient:
         _path = f"/api/v1/orchestrator/runs/{run_id}/retry"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
+    def run_rewind(self, run_id: str, body: RewindBody) -> dict[str, typing.Any]:
+        """Run Rewind
+
+        POST /api/v1/orchestrator/runs/{runId}/rewind
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/rewind"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
     def collab_staged_approvals(self, run_id: str) -> dict[str, typing.Any]:
         """Collab Staged Approvals
 
@@ -1690,4 +1710,4 @@ class OrchestratorClient:
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
 
-__all__ = ["OrchestratorClient", "AbandonBody", "AggregateStepOut", "ApprovalDecision", "ApprovalDigest", "ApprovalOutcome", "ApprovalRequest", "BlockBody", "BudgetDegradedOut", "CommentBody", "CompleteBody", "CreateBody", "DecisionBody", "DeletionBody", "DemoSeedResponse", "DoneSignalRequest", "DoneSignalResponse", "EditBody", "ErrorDetail", "ErrorEnvelope", "EvidenceBody", "ExportBody", "GitStateBody", "HTTPValidationError", "HandoffDecision", "HandoffRequest", "HeartbeatRequest", "HumanEditRequest", "IntentBody", "LeaseBody", "LeaveRequest", "LimitsBody", "MergeBody", "MergedIntent", "ModerateBody", "OutputRef", "PatchOp", "PlanActionRequest", "PlanActionResponse", "PlanContent", "PlanDecisionResponse", "PlanOut", "PlanProposedResponse", "PlanRejectedResponse", "PrefsRequest", "ProgressBody", "PromoteBody", "ProposeBody", "ProposePlanGateRequest", "ProposePlanRequest", "ProposePlanResponse", "ReactBody", "ReasonBody", "ReassignBody", "RedirectRequest", "RejectBody", "ReportBody", "ResolveBody", "RetryBody", "ReviewBody", "ReviewFindingsOut", "RevokeBody", "RunAggregateResponse", "RunIdStatusResponse", "RunItem", "RunStateResponse", "RunStatusResponse", "RunsPage", "ScopeBody", "SettingsBody", "SettingsRequest", "SpawnBody", "StartRunResponse", "SubtaskCreate", "SubtaskPatch", "TaskBody", "ToolCallBody", "TransferBody", "UnblockBody", "UpgradeCtaOut", "ValidationError", "VersionBody", "_ErrorDetail", "_ErrorEnvelope", "harness_orchestrator__control__DecideBody", "harness_orchestrator__execution__DecideBody", "harness_orchestrator__plans__DecideBody"]
+__all__ = ["OrchestratorClient", "AbandonBody", "AggregateStepOut", "ApprovalDecision", "ApprovalDigest", "ApprovalOutcome", "ApprovalRequest", "BlockBody", "BudgetDegradedOut", "CommentBody", "CompleteBody", "CreateBody", "DecisionBody", "DeletionBody", "DemoSeedResponse", "DoneSignalRequest", "DoneSignalResponse", "EditBody", "ErrorDetail", "ErrorEnvelope", "EvidenceBody", "ExportBody", "GitStateBody", "HTTPValidationError", "HandoffDecision", "HandoffRequest", "HeartbeatRequest", "HumanEditRequest", "IntentBody", "LeaseBody", "LeaveRequest", "LimitsBody", "MergeBody", "MergedIntent", "ModerateBody", "OutputRef", "PatchOp", "PlanActionRequest", "PlanActionResponse", "PlanContent", "PlanDecisionResponse", "PlanOut", "PlanProposedResponse", "PlanRejectedResponse", "PrefsRequest", "ProgressBody", "PromoteBody", "ProposeBody", "ProposePlanGateRequest", "ProposePlanRequest", "ProposePlanResponse", "ReactBody", "ReasonBody", "ReassignBody", "RedirectRequest", "RejectBody", "ReportBody", "ResolveBody", "RetryBody", "ReviewBody", "ReviewFindingsOut", "RevokeBody", "RewindBody", "RunAggregateResponse", "RunIdStatusResponse", "RunItem", "RunStateResponse", "RunStatusResponse", "RunsPage", "ScopeBody", "SettingsBody", "SettingsRequest", "SpawnBody", "StartRunResponse", "SubtaskCreate", "SubtaskPatch", "TaskBody", "ToolCallBody", "TransferBody", "UnblockBody", "UpgradeCtaOut", "ValidationError", "VersionBody", "_ErrorDetail", "_ErrorEnvelope", "harness_orchestrator__control__DecideBody", "harness_orchestrator__execution__DecideBody", "harness_orchestrator__plans__DecideBody"]

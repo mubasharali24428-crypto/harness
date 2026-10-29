@@ -171,7 +171,9 @@ def _chromium() -> str:
     return found
 
 
-def _run_chromium(argv: list[str], timeout: float, proxy: str | None) -> tuple[int, bytes, str, bool]:
+def _run_chromium(
+    argv: list[str], timeout: float, proxy: str | None
+) -> tuple[int, bytes, str, bool]:
     """(exit code, stdout, stderr tail, timed out). A timeout kills the whole renderer tree."""
     proc = subprocess.Popen(
         argv,
@@ -245,7 +247,11 @@ def _render(request: dict) -> dict:
         return {"denied": reason}
     if urlsplit(url).scheme == "":
         url = "file://" + os.path.realpath(os.path.join(workspace, url))
-    target = resolve_target(workspace, str(request.get("path") or "")) if action == "screenshot" else None
+    target = (
+        resolve_target(workspace, str(request.get("path") or ""))
+        if action == "screenshot"
+        else None
+    )
     binary = _chromium()
 
     with tempfile.TemporaryDirectory(prefix="harness-browser-") as tmp:

@@ -9,7 +9,7 @@ fails while any endpoint (the shared egress proxy alias among them) is attached.
 
 import json
 import subprocess
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from harness_orchestrator import container_runtime
 
@@ -23,7 +23,7 @@ class FakeDocker:
         self.calls = []
         self.listing_fails = listing_fails
         self.created_ago = created_ago
-        self.now = datetime.now(timezone.utc)
+        self.now = datetime.now(UTC)
         self.net = {
             name: {"run": spec.get("run", ""), "containers": dict(spec.get("containers", {}))}
             for name, spec in networks.items()
@@ -51,7 +51,11 @@ class FakeDocker:
                 return done(stdout=(self.now - timedelta(seconds=self.created_ago)).isoformat())
             # Real Docker lists only running endpoints here — the reason the
             # sweeper cannot rely on inspect alone and must disconnect by name.
-            running = {cid: {"Name": cid} for cid, st in info["containers"].items() if st == "running"}
+            running = {
+                cid: {"Name": cid}
+                for cid, st in info["containers"].items()
+                if st == "running"
+            }
             return done(stdout=json.dumps([{"Containers": running}]))
         if argv[0] == "ps":
             lines = []
@@ -132,7 +136,9 @@ def test_a_running_container_is_recognised_even_with_a_spaced_name(monkeypatch):
         )
 
     monkeypatch.setattr(container_runtime, "docker", ps)
-    assert container_runtime._running_containers(["c1", "c2"]) == [("c1", "worker name with spaces")]
+    assert container_runtime._running_containers(["c1", "c2"]) == [
+        ("c1", "worker name with spaces")
+    ]
 
 
 def test_a_settled_runs_boundary_is_reclaimed_end_to_end(monkeypatch):

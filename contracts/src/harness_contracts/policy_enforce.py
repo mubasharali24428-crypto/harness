@@ -78,6 +78,20 @@ IDENTITY_RULES: tuple[tuple[str, str, str], ...] = (
     ("GET", r"/api/v1/projects/[^/]+/memory", "read"),
     ("POST", r"/api/v1/projects/[^/]+/memory/[^/]+/review", "administer"),
     ("*", r"/api/v1/projects/[^/]+/memory(/.*)?", "steer"),
+    # Marathon 2.0 W13: bring-your-own runners. Admin surface follows the
+    # catalog posture (read to list, administer to mint/revoke/assign). The
+    # /runner/* routes authenticate a machine token instead of a Principal;
+    # with no principal the gate passes through to the route's own check, and
+    # these entries keep the route-classification law total.
+    ("GET", r"/api/v1/team-runners", "read"),
+    ("POST", r"/api/v1/team-runners/[^/]+/revoke", "administer"),
+    ("POST", r"/api/v1/team-runners/[^/]+/jobs", "administer"),
+    ("*", r"/api/v1/team-runners(/.*)?", "administer"),
+    ("GET", r"/api/v1/runner/jobs", "read"),
+    ("POST", r"/api/v1/runner/heartbeat", "read"),
+    ("POST", r"/api/v1/runner/jobs/[^/]+/claim", "steer"),
+    ("POST", r"/api/v1/runner/jobs/[^/]+/heartbeat", "steer"),
+    ("POST", r"/api/v1/runner/jobs/[^/]+/finish", "steer"),
     ("GET", r"/api/v1/teams/[^/]+/(members|invites|settings/.*)", "read"),
     ("*", r"/api/v1/teams/[^/]+/(members/.*|invites.*|seats/agent|settings/.*)",
      "administer"),

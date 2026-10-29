@@ -258,6 +258,13 @@ def make_app(session_factory, settings: Settings):
     app.include_router(skills_router)
     app.include_router(memory_router)
 
+    # Marathon 2.0 W13: bring-your-own runner control plane (migration 0068).
+    # Admin registration/revocation/assignment; token-authenticated runner
+    # heartbeat, job claim, lease heartbeat and finish with nonce replay proof.
+    from .runner_api import router as runner_router
+
+    app.include_router(runner_router)
+
     # M15-G6b: per-team settings CRUD (reviewer thresholds, admin-gated).
     from .settings_api import router as settings_api_router
 

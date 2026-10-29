@@ -10,6 +10,30 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Marathon 2.0 W13 — a runner control plane for customer-controlled hosts (2026-10-28)
+
+* **Migration 0068 (Section 1).** `team_runners` (one row per `(team_id,
+  name)`, `token_sha256` + hint only, a token-derived `attestation_key`,
+  `docker|process|none` confinement, signed-attestation digest, revocation
+  author/time), `runner_nonces` (composite PK = the atomic replay arbiter) and
+  `runner_jobs` (offer → lease → finish, deliberate no-FK to the lazily created
+  run claim). No column exists for a command, tool, path or permission.
+* **Control-plane API.** Admins mint a runner and see the token **once**;
+  revocation is a row update checked before anything else. Runner requests carry
+  a single-use `X-Runner-Nonce` and a ±300 s `X-Runner-Timestamp`; signed
+  confinement claims are verified with the derived key and refused on tamper,
+  mismatch or unknown keys. Offers require a **queued** run of the caller's own
+  team; claiming holds the `run_claims` lease as `runner:<id>`; finish deletes
+  only that runner's claim; an expired lease releases the job and **orphans**
+  (never re-queues) the run. Foreign and unknown ids answer the same 404.
+  Five audit actions added; nine routes classified in `IDENTITY_RULES`.
+* **Tests and evidence.** `test_runner_api.py` (10 offline tests) plus the FK law
+  (inventory 49 → 55); live drill `scripts/e2e/w13_runner_drill.py` proves
+  revocation, replay resistance, attestation verification, lease expiry and
+  cross-team isolation on the compose stack. **Execution leg OPEN:** a runner
+  can hold and complete a lease but does not yet execute the approved plan or
+  stream tool events into the orchestrator (`docs/m2-w13-plan.md`).
+
 ### Marathon 2.0 W12 — a governed skill catalog and project-scoped memory (2026-10-28)
 
 * **Migrations 0066/0067 (Section 1).** `team_skills` (one row per
