@@ -592,6 +592,56 @@ def test_env_knobs_pass_through_compose():
     assert env_anchor.get("HARNESS_METRICS_DB_POLL_SECONDS") is not None
 
 
+def test_every_backend_service_inherits_the_pricing_and_budget_knobs():
+    """Operator env drift must not split one deployment into two price sets.
+
+    2026-10-29: a backend was recreated with a different ``--env-file``, so it
+    booted without ``HARNESS_RATE_CARD_JSON``. The router quoted the frozen
+    catalog while Section 4's metering booked the operator card for the same
+    call — a ~16x divergence on the money path, invisible in the code. The
+    guard is structural: every backend service that runs the shared API runner
+    (``deploy/runners/services.py``, i.e. the image default entrypoint) must
+    merge the env anchor, and may not redefine these knobs with a private
+    value. The only way to opt out is to run a different process by
+    overriding entrypoint/command.
+    """
+    compose = yaml.safe_load(_COMPOSE.read_text())
+    anchor = compose["x-backend-env"]
+    shared = (
+        "HARNESS_RATE_CARD_JSON",
+        "HARNESS_TEAM_RUN_START_LIMIT",
+        "HARNESS_TEAM_MODEL_CALL_LIMIT",
+    )
+    for key in shared:
+        assert key in anchor, f"x-backend-env no longer carries {key}"
+
+    backend_services = [
+        (name, svc)
+        for name, svc in compose["services"].items()
+        if str((svc.get("build") or {}).get("dockerfile", "")).endswith("backend.Dockerfile")
+    ]
+    assert backend_services, "compose no longer builds any backend service"
+
+    api_runners = [
+        (name, svc)
+        for name, svc in backend_services
+        if not svc.get("entrypoint") and not svc.get("command")
+    ]
+    assert len(api_runners) >= 5, f"only {len(api_runners)} services run the shared runner"
+
+    for name, svc in api_runners:
+        env = svc.get("environment") or {}
+        for key in shared:
+            assert key in env, (
+                f"{name} runs the shared API runner but does not receive {key}; "
+                f"it would resolve prices/budgets differently from its peers"
+            )
+            assert env[key] == anchor[key], (
+                f"{name} redefines {key} privately; pricing and team budgets must "
+                f"resolve identically across the deployment"
+            )
+
+
 async def test_orchestrator_domain_poll_works_over_deployed_async_factory(
     obs, monkeypatch, tmp_path
 ):

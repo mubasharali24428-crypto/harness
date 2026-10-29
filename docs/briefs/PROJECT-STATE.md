@@ -86,6 +86,9 @@ Not a gap: a paused workspace only blocks new starts, by design (`workspace_gate
 - Prometheus scrapes the **root `/metrics`**; sandbox `confinement=off` has no OS boundary; Alertmanager emails `HARNESS_ALERT_EMAIL_TO` (and posts to `HARNESS_ALERT_WEBHOOK_URL` if set; `scripts/test-alerts.sh` runs the promtool alert tests) (`docs/runbooks/alerting.md` §7).
 - `--env-file .env` makes compose skip `deploy/.env`, so the root `.env` must also set `WALG_FILE_PREFIX` or the live `db` archives
   nothing (`evidence/s12/part28-55.md` §4). Run the `walg` backup with `--no-deps` against `db`, or `walg-db` archives into the live prefix.
+  The same trap applies to money: a backend recreated against an env file without `HARNESS_RATE_CARD_JSON` boots pricing from the frozen
+  catalog while its peers price from the card (observed 2026-10-29 — router quote vs ledger booking, ~16x). Keep every shared knob in the
+  root `.env`; `test_every_backend_service_inherits_the_pricing_and_budget_knobs` guards the compose side.
 - `ruff check --fix` deletes imported pytest fixtures. Never use it broadly (`--select I001 --fix` on one new file is fine).
 - SQLite tests with spawned engine tasks must await the tasks before `engine.dispose()`, or teardown stalls.
 - SQLite hides PostgreSQL typing errors: an untyped empty `IN` list failed only on PostgreSQL (`evidence/s11/live-pg-search-export.md`).

@@ -46,6 +46,17 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   and a fallback logs a warning naming the model. Live: run
   `w2-code-search-default-1793287437` booked $0.000721 at the card rate for
   22,240/417 tokens where the fallback had booked $0.011746.
+* **Card drift across the deployment is now guarded.** One hour after the
+  unified resolution shipped, `models` was recreated against a different
+  `--env-file` and booted without `HARNESS_RATE_CARD_JSON`: the router quoted
+  the frozen catalog while the orchestrator booked the card — the same 16x
+  divergence, caused by the operator rather than the code. The card moved into
+  the root `.env` that the stack boots from,
+  `test_every_backend_service_inherits_the_pricing_and_budget_knobs` rejects a
+  backend API service that omits (or privately redefines) a shared
+  pricing/budget knob, and `.env.example` + `PROJECT-STATE.md` record the
+  `--env-file` trap. Both processes now report `pricingSource: operator` for
+  the card-priced model.
 * **Browser-gate timeout tests are no longer load-sensitive.** A 1 s deadline made
   `test_a_slow_render_that_finished_is_still_evidence` fail on a busy machine and
   pass on an idle one (the stand-in browser had not started its screenshot copy
