@@ -28,11 +28,28 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   (never re-queues) the run. Foreign and unknown ids answer the same 404.
   Five audit actions added; nine routes classified in `IDENTITY_RULES`.
 * **Tests and evidence.** `test_runner_api.py` (10 offline tests) plus the FK law
-  (inventory 49 → 55); live drill `scripts/e2e/w13_runner_drill.py` proves
-  revocation, replay resistance, attestation verification, lease expiry and
-  cross-team isolation on the compose stack. **Execution leg OPEN:** a runner
-  can hold and complete a lease but does not yet execute the approved plan or
-  stream tool events into the orchestrator (`docs/m2-w13-plan.md`).
+  (inventory 49 → 55). Live drill `scripts/e2e/w13_runner_drill.py`: **37/37
+  PASS** (`docs/briefs/evidence/eval/w13-runner-1793258985.json`) on the compose
+  stack with real Postgres and no model call — revocation kills the token on the
+  next request without burning a nonce, a replayed nonce and a stale timestamp
+  are refused, a tampered/mismatched/unknown-key attestation is refused, a second
+  team's token gets byte-identical 404s for foreign ids, the claim is read back
+  from `run_claims` as `runner:<id>`, finish deletes exactly that claim, and an
+  expired lease releases the job and **orphans** the run rather than re-queueing
+  it. Section 1 1009 passed / 54 skipped; sections 2–11 and the MCP server pass;
+  `make lint` and `make static-gates` green after regenerating
+  `identity.openapi.json` and the Python SDK.
+* **Repo health found and fixed on the way.** `docs/eval/corpus.json` had been
+  edited from a stale copy and was missing the W11/W12 gate entries (restored);
+  the uncommitted W8 concurrency drill was adopted and re-passed
+  (`w8-concurrency-1793254624.json`); `make lint` was red on HEAD in three
+  sections (unused imports, import order, E501, and the intentional pytest
+  fixture import shadowed by test args); the Python orchestrator SDK had drifted
+  from its recorded spec; five backend services were running a pre-W12 image and
+  reporting `schema-drift` at `/ready`.
+* **Execution leg OPEN:** a runner can hold and complete a lease but does not yet
+  execute the approved plan or stream tool events into the orchestrator
+  (`docs/m2-w13-plan.md` §Remaining).
 
 ### Marathon 2.0 W12 — a governed skill catalog and project-scoped memory (2026-10-28)
 

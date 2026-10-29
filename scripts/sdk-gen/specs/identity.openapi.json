@@ -42,46 +42,25 @@
     "title": "ApplyBody",
     "type": "object"
    },
-   "AssignBody": {
+   "AttestBody": {
     "properties": {
-     "expiresAt": {
-      "anyOf": [
-       {
-        "format": "date-time",
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Expiresat"
+     "attestation": {
+      "additionalProperties": true,
+      "title": "Attestation",
+      "type": "object"
      },
-     "level": {
-      "title": "Level",
-      "type": "string"
-     },
-     "role": {
-      "title": "Role",
-      "type": "string"
-     },
-     "scopeId": {
+     "signature": {
       "maxLength": 64,
-      "minLength": 1,
-      "title": "Scopeid",
-      "type": "string"
-     },
-     "userId": {
-      "title": "Userid",
+      "minLength": 64,
+      "title": "Signature",
       "type": "string"
      }
     },
     "required": [
-     "userId",
-     "level",
-     "scopeId",
-     "role"
+     "attestation",
+     "signature"
     ],
-    "title": "AssignBody",
+    "title": "AttestBody",
     "type": "object"
    },
    "BindingBody": {
@@ -234,7 +213,6 @@
         "type": "number"
        },
        {
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
         "type": "string"
        }
       ],
@@ -574,6 +552,31 @@
      "reason"
     ],
     "title": "ExecutionControlBody",
+    "type": "object"
+   },
+   "FinishBody": {
+    "properties": {
+     "resultDigest": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Resultdigest"
+     },
+     "status": {
+      "title": "Status",
+      "type": "string"
+     }
+    },
+    "required": [
+     "status"
+    ],
+    "title": "FinishBody",
     "type": "object"
    },
    "GlobalPrefsBody": {
@@ -1319,7 +1322,6 @@
         "type": "number"
        },
        {
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
         "type": "string"
        },
        {
@@ -1349,7 +1351,6 @@
         "type": "number"
        },
        {
-        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
         "type": "string"
        },
        {
@@ -1697,6 +1698,33 @@
      "rulesText"
     ],
     "title": "RulesBody",
+    "type": "object"
+   },
+   "RunnerBody": {
+    "properties": {
+     "confinement": {
+      "default": "none",
+      "title": "Confinement",
+      "type": "string"
+     },
+     "description": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+     },
+     "name": {
+      "maxLength": 40,
+      "minLength": 2,
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name",
+     "description"
+    ],
+    "title": "RunnerBody",
     "type": "object"
    },
    "ScopePrefsBody": {
@@ -2484,6 +2512,48 @@
     "title": "RoleBody",
     "type": "object"
    },
+   "harness_identity__policy__AssignBody": {
+    "properties": {
+     "expiresAt": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expiresat"
+     },
+     "level": {
+      "title": "Level",
+      "type": "string"
+     },
+     "role": {
+      "title": "Role",
+      "type": "string"
+     },
+     "scopeId": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Scopeid",
+      "type": "string"
+     },
+     "userId": {
+      "title": "Userid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "userId",
+     "level",
+     "scopeId",
+     "role"
+    ],
+    "title": "AssignBody",
+    "type": "object"
+   },
    "harness_identity__policy__RoleBody": {
     "properties": {
      "permissions": {
@@ -2498,6 +2568,21 @@
      "permissions"
     ],
     "title": "RoleBody",
+    "type": "object"
+   },
+   "harness_identity__runner_api__AssignBody": {
+    "properties": {
+     "runId": {
+      "maxLength": 36,
+      "minLength": 36,
+      "title": "Runid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "runId"
+    ],
+    "title": "AssignBody",
     "type": "object"
    },
    "harness_identity__sessions__CreateBody": {
@@ -5464,7 +5549,7 @@
      "content": {
       "application/json": {
        "schema": {
-        "$ref": "#/components/schemas/AssignBody"
+        "$ref": "#/components/schemas/harness_identity__policy__AssignBody"
        }
       }
      },
@@ -6748,6 +6833,199 @@
     "summary": "Save Rules"
    }
   },
+  "/api/v1/runner/heartbeat": {
+   "post": {
+    "operationId": "runner_heartbeat_api_v1_runner_heartbeat_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AttestBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Runner Heartbeat Api V1 Runner Heartbeat Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Runner Heartbeat"
+   }
+  },
+  "/api/v1/runner/jobs": {
+   "get": {
+    "operationId": "list_my_jobs_api_v1_runner_jobs_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List My Jobs Api V1 Runner Jobs Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "List My Jobs"
+   }
+  },
+  "/api/v1/runner/jobs/{run_id}/claim": {
+   "post": {
+    "operationId": "claim_job_api_v1_runner_jobs__run_id__claim_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "run_id",
+      "required": true,
+      "schema": {
+       "title": "Run Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Claim Job Api V1 Runner Jobs  Run Id  Claim Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Claim Job"
+   }
+  },
+  "/api/v1/runner/jobs/{run_id}/finish": {
+   "post": {
+    "operationId": "finish_job_api_v1_runner_jobs__run_id__finish_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "run_id",
+      "required": true,
+      "schema": {
+       "title": "Run Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/FinishBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Finish Job Api V1 Runner Jobs  Run Id  Finish Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Finish Job"
+   }
+  },
+  "/api/v1/runner/jobs/{run_id}/heartbeat": {
+   "post": {
+    "operationId": "heartbeat_job_api_v1_runner_jobs__run_id__heartbeat_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "run_id",
+      "required": true,
+      "schema": {
+       "title": "Run Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Heartbeat Job Api V1 Runner Jobs  Run Id  Heartbeat Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Heartbeat Job"
+   }
+  },
   "/api/v1/sessions": {
    "get": {
     "operationId": "list_sessions_api_v1_sessions_get",
@@ -7912,6 +8190,149 @@
      }
     },
     "summary": "Stepup Verify"
+   }
+  },
+  "/api/v1/team-runners": {
+   "get": {
+    "operationId": "list_runners_api_v1_team_runners_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Runners Api V1 Team Runners Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "List Runners"
+   },
+   "post": {
+    "description": "Mint a runner. The token is returned ONCE and never stored in clear.",
+    "operationId": "register_runner_api_v1_team_runners_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RunnerBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Register Runner Api V1 Team Runners Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Register Runner"
+   }
+  },
+  "/api/v1/team-runners/{runner_id}/jobs": {
+   "post": {
+    "description": "Offer a QUEUED run of the caller's team to one of its runners.",
+    "operationId": "assign_job_api_v1_team_runners__runner_id__jobs_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runner_id",
+      "required": true,
+      "schema": {
+       "title": "Runner Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/harness_identity__runner_api__AssignBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Assign Job Api V1 Team Runners  Runner Id  Jobs Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Assign Job"
+   }
+  },
+  "/api/v1/team-runners/{runner_id}/revoke": {
+   "post": {
+    "operationId": "revoke_runner_api_v1_team_runners__runner_id__revoke_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runner_id",
+      "required": true,
+      "schema": {
+       "title": "Runner Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Revoke Runner"
    }
   },
   "/api/v1/teams/{team_id}/invites": {

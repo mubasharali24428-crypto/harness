@@ -1,155 +1,70 @@
-# M2 W13 checkpoint — BYO runner control plane (2026-10-29, paused)
+# M2 W13 status — BYO runner control plane shipped, execution leg open (2026-10-29)
 
-Resume guide for the next session. Read this first, then `docs/m2-w13-plan.md`.
-The repository is the source of truth; re-verify every claim before relying on
-it. Nothing here is a release claim.
+Supersedes the paused checkpoint of the same name. Read `docs/m2-w13-plan.md`
+for the threat model, trust assumptions and gate position. The repository is the
+source of truth: re-verify any number before relying on it.
 
-## Where the work stands
+## Done (this slice)
 
 | Item | State |
 |---|---|
-| W12 verification (Section 1/4 suites, static gates) | **pass** — S1 999→1009 passed, S4 1858 passed, static gates green before W13 edits |
-| Issues found and fixed (see below) | **done** |
-| W13 control plane (migration, API, audit, policy, tests, drill, docs) | **implemented, unit-verified** |
-| Backend image rebuilt with W13 code | **in progress at pause** (`/tmp/w13-build.log`); daemon was re-downloading pinned wheels |
-| Migration 0068 applied to live DB | **not yet** (the old migrate image cannot see 0068) |
-| identity OpenAPI + Python SDK regenerated | **not yet** — must be fetched from the rebuilt service |
-| `make static-gates` | **RED** only on `identity.openapi.json missing: [9 runner routes]` — expected until the spec is regenerated |
-| Live drill `w13_runner_drill.py` | **not run yet** |
-| W13 execution leg (runner executes the approved plan) | **OPEN by design** — see plan §Remaining |
+| Migration 0068 (`team_runners`, `runner_nonces`, `runner_jobs`) | shipped, applied to the live DB by the rebuilt migrate image |
+| Runner registry + one-time token + revocation | shipped |
+| Replay guard (single-use nonce + ±300 s window) | shipped |
+| Signed, digest-bound confinement attestation | shipped |
+| Team-scoped offer → claim → lease heartbeat → finish | shipped |
+| Lease expiry → job `released`, run `orphaned` (never re-queued) | shipped |
+| Audit actions (5) + route classification (9) + FK law (49 → 55) | shipped |
+| Offline tests | `test_runner_api.py` 10 |
+| Live drill | **37/37 PASS** — `docs/briefs/evidence/eval/w13-runner-1793258985.json` |
+| `identity.openapi.json` (133 paths) + Python SDK (9 operations) | regenerated from the live service |
+| Full suites | S1 1009/54 skipped · S2 48 · S3 128 · S4 1858 · S5 436 · S6 123 · S8 91 · S10 91 · S11 50 · MCP 18 |
+| `make lint` (all nine sections), `make static-gates` | green |
 
-## Issues found and resolved this session
+## Also repaired on the way (were red on HEAD)
 
-1. **Corpus regression (working tree).** `docs/eval/corpus.json` had been edited
-   from a stale copy: it dropped `w11-grounding` and `w12-skills-memory` and
-   reverted the w11-vision verifier. Rebuilt from HEAD + the new W8 entry.
-   Corpus is now 37 tasks (was 36 + 1 new), then 38 with `w13-byo-runner`.
-2. **Uncommitted W8 gate.** `scripts/eval/tasks/concurrency_task.py`,
-   four `w8-concurrency-*.json` evidence files and a corpus entry existed only
-   in the working tree. Re-ran the drill against current code: **PASS**
-   (`w8-concurrency-1793254624.json`). Fixed 5 lint errors (unused var, three
-   ISC004 concatenations, missing +x) and committed the work.
-3. **Five services on a stale image** (github, meeting, models, review, sandbox)
-   reported `/ready` 503 `schema-drift` after W12's migrations. Recreated on the
-   current tag; all report `{"ok":true,"db":"ok","migrations":"ok"}`.
-4. **`AGENTS.md` working-tree noise** (claude-mem timestamp only) reverted.
-5. **Pre-existing lint failures that made `make lint` red on HEAD:**
-   `tests/test_http_client.py` (I001), section4 (38 errors: unused imports,
-   I001, UP017, E501, F811 on the intentional pytest fixture import in
-   `test_deployments.py`/`test_shares.py` — silenced with a file-level
-   `# ruff: noqa: F811` explaining the pattern), section5 (2 E501 in
-   `browser_gate.py`, unused `pytest`). `make lint` is now green for all nine
-   sections.
-6. **Stale Python SDK.** `clients/python/harness_sdk/orchestrator.py` was
-   missing already-shipped operations (run checkpoints list, rewind body). The
-   generator was re-run; this diff is legitimate drift repair.
+- `docs/eval/corpus.json` had been edited from a stale copy and dropped the
+  W11/W12 gate entries; restored, then `w8-quotas-isolation` and
+  `w13-byo-runner` added (38 tasks).
+- The W8 concurrency drill existed only uncommitted; re-ran against current code
+  (**PASS**, `w8-concurrency-1793254624.json`) and committed it with its
+  evidence, after fixing 5 lint errors in the script.
+- `make lint` was failing in section1 (`test_http_client.py` I001), section4
+  (38 errors) and section5 (2 × E501 + unused `pytest`).
+- `clients/python/harness_sdk/orchestrator.py` was stale against its recorded
+  spec (run-checkpoints list, rewind body).
+- Five backend services (github, models, meeting, review, sandbox) were running a
+  pre-W12 image and reporting `/ready` 503 `schema-drift`; recreated.
 
-## W13 files added / changed
+## Known-open items
 
-Added:
-- `section1/migrations/0068_team_runners.sql` — `team_runners`,
-  `runner_nonces`, `runner_jobs` (see plan for semantics; deliberately no
-  command/tool/permission columns).
-- `section1/src/harness_identity/runner_api.py` — admin registration (token
-  shown once, sha256 + derived attestation key stored), idempotent revocation,
-  signed-attestation verification, nonce+timestamp replay guard, team-scoped
-  job offer/claim/lease-heartbeat/finish, expiry → `released` + run `orphaned`.
-- `section1/tests/test_runner_api.py` — 10 offline tests (all passing).
-- `scripts/e2e/w13_runner_drill.py` — live drill (not yet run).
-- `docs/m2-w13-plan.md` — threat model, trust assumptions, gate position,
-  remaining work.
+1. **Execution leg (blocks the roadmap gate).** A runner can hold and complete a
+   lease; it does not yet execute the approved plan or stream bounded, scrubbed
+   tool events into the orchestrator's state machine. Seam:
+   `start_execution` in `section4/src/harness_orchestrator/service.py` must be
+   able to dispatch to a runner instead of the local spawner, and the runner's
+   `finish` must drive the run to a terminal state. The drill currently works
+   around the missing seam by saturating the team's run cap so the 0.5 s queue
+   poll cannot grab the seeded claim.
+2. **Auth should precede body parsing on `/runner/*`.** FastAPI answers 422 for
+   an anonymous POST today; make the runner token a route dependency.
+3. **Token rotation, mTLS/request signing, per-runner rate limits, nonce purge
+   job, `runner_jobs` retention, and any UI** are not shipped.
+4. W11 design-to-code leg remains open (fidelity + provider empty response).
 
-Changed:
-- `section1/src/harness_identity/models.py` — `TeamRunner`, `RunnerNonce`, `RunnerJob`.
-- `section1/src/harness_identity/app.py` — router mounted.
-- `section1/src/harness_identity/audit.py` + `audit_emit.py` — five actions
-  (`runner.registered|revoked|attested|job_assigned|job_completed`).
-- `contracts/src/harness_contracts/policy_enforce.py` — nine routes classified.
-- `section1/tests/test_fk_deletion_story.py` — six FKs pinned, inventory 49 → 55.
-- `docs/eval/corpus.json`, `CHANGELOG.md` — W13 entries.
-- Lint-only repairs in section1/section4/section5 as listed above.
-
-## Verified before the pause
+## Reproducing the evidence
 
 ```
-cd section1 && ./.venv/bin/python -m pytest tests/ -q      # 1009 passed, 54 skipped
-cd section4 && ./.venv/bin/python -m pytest tests/ -q      # 1858 passed, 58 skipped (one spec-drift fail is expected: identity spec not regenerated yet)
-make lint                                                  # all nine sections green
-cd section5 && ./.venv/bin/python -m pytest tests -q       # 436 passed, 8 skipped
+cd "/Users/user/untitled folder 2/harness"
+docker compose --env-file .env -f deploy/docker-compose.yml build identity   # slow: re-downloads the pinned wheels
+docker compose --env-file .env -f deploy/docker-compose.yml run --rm migrate
+docker compose --env-file .env -f deploy/docker-compose.yml up -d --no-deps \
+  identity orchestrator github models meeting review sandbox
+python3 scripts/e2e/w13_runner_drill.py
+cd section1 && ./.venv/bin/python -m pytest tests/ -q
 ```
 
-## Resume steps (in order)
-
-1. **Finish or restart the image build.** It was launched with visible progress:
-   ```
-   cd "/Users/user/untitled folder 2/harness"
-   docker compose --env-file .env -f deploy/docker-compose.yml build --progress=plain identity
-   ```
-   The slow step is `pip install` re-downloading the 60 MB pinned
-   `deepseek-harness-runtime-bin` wheel (this link measured ~35–100 KB/s).
-   Fallback if the network stays this slow: build from the existing image by
-   copying `contracts/` + `section1/` into a container and running
-   `pip install --no-deps -e ./contracts -e ./section1`, then `docker commit`
-   as `harness-backend:vdev-local`; record that provenance in the evidence.
-2. **Apply 0068 with the NEW image** (the old migrate image cannot see it):
-   ```
-   docker compose --env-file .env -f deploy/docker-compose.yml run --rm migrate
-   docker exec harness-db-1 psql -U harness -d harness -tAc \
-     "select version from schema_migrations order by version desc limit 2"   # expect 0068
-   ```
-3. **Recreate the backend services** on the new tag so no service runs stale
-   code against the new schema:
-   ```
-   docker compose --env-file .env -f deploy/docker-compose.yml up -d --no-deps \
-     identity orchestrator github models meeting review sandbox
-   for p in 8001 8002 8003 8004 8005 8006 8008; do curl -s localhost:$p/ready; echo; done
-   ```
-4. **Regenerate the identity spec from the live service, then the SDKs:**
-   ```
-   python3 scripts/sdk-gen/fetch_specs.py
-   python3 scripts/sdk-gen/generate.py
-   make static-gates                                       # must go green
-   ```
-   (Do not generate the spec in-process: the live app mounts `/ready`, the bare
-   `make_app` does not, and the gate checks that path.)
-5. **Run the drill and keep the evidence:**
-   ```
-   python3 scripts/e2e/w13_runner_drill.py
-   cat docs/briefs/evidence/eval/w13-runner-*.json
-   ```
-   Expected: `verdict: PASS`, evidence at
-   `docs/briefs/evidence/eval/w13-runner-<stamp>.json`, residual live claims 0.
-6. **Re-run the spec-drift test** now that the identity spec is current:
-   ```
-   cd section4 && ./.venv/bin/python -m pytest tests/unit/test_spec_drift.py -q
-   ```
-7. **Fill in** `docs/m2-w13-plan.md` §Outcome with the drill result and the real
-   check count; adjust the gate table (execution leg stays OPEN).
-8. **Final gates:** `make static-gates && make lint && make test-section1 &&
-   make test-section4`, then commit as `M2 W13: …`. Do not push without the
-   owner's go-ahead.
-
-## Notes and traps
-
-- The drill **saturates team A's run cap** (8 synthetic `running` claims owned by
-  `w13-saturate`) *before* seeding queued rows: the orchestrator polls
-  `run_claims` every 0.5 s and would otherwise requeue the partially seeded run
-  mid-flight. The runner's claim is a direct UPDATE and is not cap-bound.
-- Run ids passed to `POST /team-runners/{id}/jobs` must be exactly 36 chars
-  (`AssignBody`), matching the queue column. The drill pads with `ljust(36,"0")`.
-- The drill seeds `run_claims` with `psql` because there is still no BYO
-  dispatch endpoint; recorded as a limitation in the evidence.
-- `runner_nonces` are pruned inline on the auth path (2× the ±300 s window);
-  there is no standalone purge job yet.
-- Revocation kills the token on the very next request; an in-flight lease is
-  handled by expiry (job `released`, run `orphaned`, never re-queued).
-- The image may have been built from the tree **before two comment-only edits**
-  to `AssignBody`/drill ids; behaviour is identical (36/36 constraint kept).
-- Never commit `.qoder/` (session context) or `__pycache__`.
-
-## Carried from W12 (unchanged)
-
-- W11 design-to-code leg is still **OPEN** (fidelity + provider empty response).
-- W13 execution leg is **OPEN**: the runner holds and completes a lease; it does
-  not yet execute the approved plan or stream tool events into the orchestrator.
-  The seam is `start_execution` in `section4/src/harness_orchestrator/service.py`.
+Spec regeneration: `fetch_specs.py` refreshes `identity` correctly but overwrites
+`orchestrator.openapi.json` with the live superset (`/health`, `/ready`, and the
+W9 routes that the recorded router fragment does not list) — revert that file, or
+use `python scripts/spec_drift.py --write`, before running `generate.py`.

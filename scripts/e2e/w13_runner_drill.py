@@ -389,6 +389,10 @@ def main() -> int:
     revoke_b = ident("POST", f"/api/v1/team-runners/{runner_b}/revoke", token_b)
     checks["secondTeamRevokeWorks"] = revoke_b["status"] == 204
 
+    # Remove the cap-saturating rows so the residual count reflects only the
+    # lifecycle work this drill actually performed.
+    psql(f"DELETE FROM run_claims WHERE worker_id = 'w13-saturate' AND project_id = '{project_a}'")
+
     evidence["checks"] = checks
     evidence["verdict"] = "PASS" if all(checks.values()) else "FAIL"
     evidence["failedChecks"] = [key for key, ok in checks.items() if not ok]

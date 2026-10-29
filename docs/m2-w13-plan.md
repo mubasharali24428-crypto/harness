@@ -137,7 +137,67 @@ registration, signed attestation, tamper/mismatch/unknown-key refusals,
 replay and staleness, cross-team 404 equivalence, claim/heartbeat/finish with
 the lease read back from `run_claims`, expiry orphaning, and revocation.
 
-## Outcome (fill after the live run)
+## Outcome (2026-10-29)
+
+**Live drill `scripts/e2e/w13_runner_drill.py`: 37/37 checks PASS.**
+`docs/briefs/evidence/eval/w13-runner-1793258985.json` — live compose stack on
+PostgreSQL, backend images built from this tree, migration 0068 applied by the
+new migrate image, no model call.
+
+Judged from the durable rows the API wrote, not from the runner's own echo:
+
+* **one-time secret:** the minted `hrn_…` token appears in exactly one response;
+  the stored row keeps `sha256(token)` and the derived attestation key, and the
+  list projection has no token field;
+* **attestation verifies:** the signed claim is accepted, its digest equals the
+  sha256 of the canonical JSON and matches the stored column; a forged signature,
+  a confinement that differs from registration, and an unknown key are refused;
+* **replay resistance:** the same nonce twice answers 409 `REPLAY_REJECTED`; a
+  timestamp one hour old answers 401 `STALE_REQUEST`;
+* **team isolation:** team B's token lists nothing and its claim/finish/assign/
+  revoke of team A's ids produce 404 bodies **byte-identical** to an unknown id;
+* **lease lifecycle:** the offer is accepted only for a queued run; the claim
+  flips `run_claims` to `running` with `worker_id = runner:<id>`; a second claim
+  is refused; the lease heartbeat renews; finish deletes exactly that runner's
+  claim (row gone) and marks the job completed;
+* **expiry:** a lease backdated an hour releases the job and orphans the run —
+  never re-queues it, so the server cannot execute work the host may still hold;
+* **revocation:** idempotent 204, and the very next request with the old token is
+  401 **without burning a nonce**; a revoked runner accepts no further offers.
+  Residual live claims for the drill's projects: 0.
+
+**Tests.** `test_runner_api.py` 10 (Section 1, offline). **Full Section 1 suite:
+1009 passed, 54 skipped** — including `test_policy_gate.py` (all nine new routes
+classified) and `test_fk_deletion_story.py` (six new FKs pinned, inventory
+49 → 55). Sections 2/3/4/5/6/8/10/11 and the MCP server all pass
+(1858 / 436 / 123 / 91 / 91 / 50 / 18, 48). `make lint` is green for all nine
+sections and `make static-gates` passes after regenerating
+`identity.openapi.json` (133 paths) and the Python SDK client (9 operations).
+
+## Findings
+
+1. **An unauthenticated request can still learn the attestation body shape.**
+   FastAPI validates the JSON body before the handler's token check, so
+   `POST /api/v1/runner/heartbeat` answers 422 with no credentials. The refusals
+   that matter (401/409/404) are all correct and ordered after auth, but the
+   route should take authentication as a dependency so the body is never parsed
+   for an anonymous caller. Recorded rather than patched around a live gate.
+2. **The queue needs a real BYO dispatch seam.** The orchestrator polls
+   `run_claims` every 0.5 s and would claim (then requeue) a seeded row mid-drill;
+   the drill therefore saturates the team's cap first. That workaround is exactly
+   the missing product seam named in §Remaining.
+3. **Nonce burn after the status check is the right order.** A revoked token
+   cannot grow `runner_nonces` (verified: one nonce row after the accepted
+   heartbeat, none added by the post-revocation attempt).
+4. **"Verifiable attestation" has a precise limit.** The derived key proves the
+   token holder made these claims and the digest freezes them; it cannot prove
+   the host is honest. The evidence therefore reports verification of a
+   *configuration claim*, never of a *machine*.
+5. **Spec regeneration has two different sources.** `identity.openapi.json` must
+   come from the live service (its `/ready` route exists only with a DB
+   factory), while `orchestrator.openapi.json` is the router fragment
+   `spec_drift.py` compares against the app — running `fetch_specs.py` blindly
+   overwrites the latter with the live superset and reddens the gate.
 
 ## Gate position
 

@@ -27,13 +27,10 @@ class ApplyBody(typing.TypedDict, total=False):
     name: str  # required
     version: int | None
 
-class AssignBody(typing.TypedDict, total=False):
-    """AssignBody. Required keys: userId, level, scopeId, role."""
-    expiresAt: str | None
-    level: str  # required
-    role: str  # required
-    scopeId: str  # required
-    userId: str  # required
+class AttestBody(typing.TypedDict, total=False):
+    """AttestBody. Required keys: attestation, signature."""
+    attestation: dict[str, typing.Any]  # required
+    signature: str  # required
 
 class BindingBody(typing.TypedDict, total=False):
     """BindingBody. Required keys: kind, value."""
@@ -129,6 +126,11 @@ class ExecutionControlBody(typing.TypedDict, total=False):
     """ExecutionControlBody. Required keys: disabled, reason."""
     disabled: bool  # required
     reason: str  # required
+
+class FinishBody(typing.TypedDict, total=False):
+    """FinishBody. Required keys: status."""
+    resultDigest: str | None
+    status: str  # required
 
 class GlobalPrefsBody(typing.TypedDict, total=False):
     """GlobalPrefsBody."""
@@ -325,6 +327,12 @@ class RulesBody(typing.TypedDict, total=False):
     """RulesBody. Required keys: rulesText."""
     rulesText: str  # required
 
+class RunnerBody(typing.TypedDict, total=False):
+    """RunnerBody. Required keys: name, description."""
+    confinement: str
+    description: str  # required
+    name: str  # required
+
 class ScopePrefsBody(typing.TypedDict, total=False):
     """ScopePrefsBody."""
     email: str | None
@@ -472,9 +480,21 @@ class harness_identity__orgs__RoleBody(typing.TypedDict, total=False):
     guestDays: int | None
     role: str  # required
 
+class harness_identity__policy__AssignBody(typing.TypedDict, total=False):
+    """harness_identity__policy__AssignBody. Required keys: userId, level, scopeId, role."""
+    expiresAt: str | None
+    level: str  # required
+    role: str  # required
+    scopeId: str  # required
+    userId: str  # required
+
 class harness_identity__policy__RoleBody(typing.TypedDict, total=False):
     """harness_identity__policy__RoleBody. Required keys: permissions."""
     permissions: list[str]  # required
+
+class harness_identity__runner_api__AssignBody(typing.TypedDict, total=False):
+    """harness_identity__runner_api__AssignBody. Required keys: runId."""
+    runId: str  # required
 
 class harness_identity__sessions__CreateBody(typing.TypedDict, total=False):
     """harness_identity__sessions__CreateBody. Required keys: title."""
@@ -1028,7 +1048,7 @@ class IdentityClient:
         _path = f"/api/v1/orgs/{org_id}/teams/{team_id}/members/{user_id}"
         return self._http.request(self.base_url, "DELETE", _path)
 
-    def assign_role(self, org_id: str, body: AssignBody) -> dict[str, typing.Any]:
+    def assign_role(self, org_id: str, body: harness_identity__policy__AssignBody) -> dict[str, typing.Any]:
         """Assign Role
 
         POST /api/v1/policy/orgs/{org_id}/assignments
@@ -1231,6 +1251,46 @@ class IdentityClient:
         _path = f"/api/v1/projects/{project_id}/rules"
         return self._http.request(self.base_url, "DELETE", _path)
 
+    def runner_heartbeat(self, body: AttestBody) -> dict[str, typing.Any]:
+        """Runner Heartbeat
+
+        POST /api/v1/runner/heartbeat
+        """
+        _path = "/api/v1/runner/heartbeat"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def list_my_jobs(self) -> dict[str, typing.Any]:
+        """List My Jobs
+
+        GET /api/v1/runner/jobs
+        """
+        _path = "/api/v1/runner/jobs"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def claim_job(self, run_id: str) -> dict[str, typing.Any]:
+        """Claim Job
+
+        POST /api/v1/runner/jobs/{run_id}/claim
+        """
+        _path = f"/api/v1/runner/jobs/{run_id}/claim"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def finish_job(self, run_id: str, body: FinishBody) -> dict[str, typing.Any]:
+        """Finish Job
+
+        POST /api/v1/runner/jobs/{run_id}/finish
+        """
+        _path = f"/api/v1/runner/jobs/{run_id}/finish"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def heartbeat_job(self, run_id: str) -> dict[str, typing.Any]:
+        """Heartbeat Job
+
+        POST /api/v1/runner/jobs/{run_id}/heartbeat
+        """
+        _path = f"/api/v1/runner/jobs/{run_id}/heartbeat"
+        return self._http.request(self.base_url, "POST", _path)
+
     def list_sessions(self, q: str | None = None, state: str | None = None, workspace_id: str | None = None, run_id: str | None = None, limit: int | None = None, cursor: str | None = None) -> dict[str, typing.Any]:
         """List Sessions
 
@@ -1417,6 +1477,38 @@ class IdentityClient:
         """
         _path = "/api/v1/stepup/verify"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def list_runners(self) -> dict[str, typing.Any]:
+        """List Runners
+
+        GET /api/v1/team-runners
+        """
+        _path = "/api/v1/team-runners"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def register_runner(self, body: RunnerBody) -> dict[str, typing.Any]:
+        """Register Runner
+
+        POST /api/v1/team-runners
+        """
+        _path = "/api/v1/team-runners"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def assign_job(self, runner_id: str, body: harness_identity__runner_api__AssignBody) -> dict[str, typing.Any]:
+        """Assign Job
+
+        POST /api/v1/team-runners/{runner_id}/jobs
+        """
+        _path = f"/api/v1/team-runners/{runner_id}/jobs"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def revoke_runner(self, runner_id: str) -> typing.Any:
+        """Revoke Runner
+
+        POST /api/v1/team-runners/{runner_id}/revoke
+        """
+        _path = f"/api/v1/team-runners/{runner_id}/revoke"
+        return self._http.request(self.base_url, "POST", _path)
 
     def list_invites_2(self, team_id: str, status: str | None = None) -> dict[str, typing.Any]:
         """List Invites
@@ -1878,4 +1970,4 @@ class IdentityClient:
         return self._http.request(self.base_url, "GET", _path)
 
 
-__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AssignBody", "BindingBody", "ChainNode", "CheckBody", "CreateProjectBody", "DefBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErasureBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "ExecutionControlBody", "GlobalPrefsBody", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkRunBody", "LinkTeamBody", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "MemoryBody", "MuteBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "OwnerTransferBody", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "ReadAllBody", "RevertBody", "Rule", "RulesBody", "ScopePrefsBody", "SelectBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SkillBody", "SnoozeBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "UnsubscribeBody", "ValidationError", "VerifyOtpRequest", "WebhookCreateBody", "WebhookCreated", "WebhookPatchBody", "WsTicketRequest", "WsTicketResponse", "_DigestBody", "_QuietBody", "harness_identity__agents__ReasonBody", "harness_identity__orgs__RoleBody", "harness_identity__policy__RoleBody", "harness_identity__sessions__CreateBody", "harness_identity__sessions__MemberBody", "harness_identity__sessions__PatchBody", "harness_identity__sessions__ReasonBody", "harness_identity__sessions__RoleBody", "harness_identity__workspaces__CreateBody", "harness_identity__workspaces__MemberBody", "harness_identity__workspaces__PatchBody", "harness_identity__workspaces__ReasonBody"]
+__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AttestBody", "BindingBody", "ChainNode", "CheckBody", "CreateProjectBody", "DefBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErasureBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "ExecutionControlBody", "FinishBody", "GlobalPrefsBody", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkRunBody", "LinkTeamBody", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "MemoryBody", "MuteBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "OwnerTransferBody", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "ReadAllBody", "RevertBody", "Rule", "RulesBody", "RunnerBody", "ScopePrefsBody", "SelectBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SkillBody", "SnoozeBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "UnsubscribeBody", "ValidationError", "VerifyOtpRequest", "WebhookCreateBody", "WebhookCreated", "WebhookPatchBody", "WsTicketRequest", "WsTicketResponse", "_DigestBody", "_QuietBody", "harness_identity__agents__ReasonBody", "harness_identity__orgs__RoleBody", "harness_identity__policy__AssignBody", "harness_identity__policy__RoleBody", "harness_identity__runner_api__AssignBody", "harness_identity__sessions__CreateBody", "harness_identity__sessions__MemberBody", "harness_identity__sessions__PatchBody", "harness_identity__sessions__ReasonBody", "harness_identity__sessions__RoleBody", "harness_identity__workspaces__CreateBody", "harness_identity__workspaces__MemberBody", "harness_identity__workspaces__PatchBody", "harness_identity__workspaces__ReasonBody"]
