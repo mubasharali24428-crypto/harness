@@ -298,12 +298,15 @@ made the real cause easy to find once the environment was inspected.
   mount config for type "bind": bind source path does not exist` against
   `/host_mnt/private/var/folders/...`. Reproduce with a stable path
   (`~/.harness-m04`-style) until it is understood.
-- [ ] **`compose_journey.py` check 0 races the daemon on a stop** (owner: S10).
-  The first trip attempt PASSED with `sandbox-egress` stopped because `ps -a`
-  was read before the exit was reflected; three seconds later it reported
-  `[FAIL] container health`. Detection works; the trip test should settle or
-  poll before asserting so a documented drill never has to be re-run to be
-  believed.
+- [x] **`compose_journey.py` check 0 races the daemon on a stop** (owner: S10).
+  **Closed 2026-10-29 (W15)**: `stable_health()` now requires a clean read to
+  survive a 1.5 s settle (two consecutive clean reads) before the gate passes,
+  and `wait_containers_healthy()` uses it. Live trip re-run on this stack:
+  with `sandbox-egress` stopped the gate fails with
+  `container health: sandbox-egress: exited`; after restoring it the same gate
+  passes. Pinned by `section1/tests/test_compose_journey_settle.py`, which also
+  pins the deadline's time base (the first implementation compared a
+  `time.time()` deadline against a monotonic clock and looped forever).
 - [x] **The status panel reports a context window the model does not have**
   (owner: S4+S7). `state_machine._context_window()` returned `DSH_CONTEXT_WINDOW`
   (default 1,000,000) while the OpenRouter transport patch declares

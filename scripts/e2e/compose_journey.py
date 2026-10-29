@@ -65,6 +65,9 @@ RUN_TAG = str(int(time.time()))
 EMAIL_A = f"e2e-a-{RUN_TAG}@example.com"
 EMAIL_B = f"e2e-b-{RUN_TAG}@example.com"
 
+#: A clean health read must survive this long before the gate believes it.
+HEALTH_SETTLE_SECONDS = 1.5
+
 STEP = {"n": 0}
 
 
@@ -220,21 +223,46 @@ def container_rows() -> list[dict]:
     return rows
 
 
+def stable_health(
+    rows_reader,
+    services_reader,
+    *,
+    deadline: float,
+    settle_seconds: float = HEALTH_SETTLE_SECONDS,
+    clock=time.time,
+    sleep=time.sleep,
+):
+    """Return the container rows once the stack looks healthy AND stays that way.
+
+    ``docker compose ps -a`` can report a container as running for a second or
+    two after its exit is already decided, so a single clean read is not
+    evidence — that is how a journey passed with ``sandbox-egress`` stopped and
+    then failed the same stack moments later. A clean read is therefore
+    re-checked after ``settle_seconds``; only two consecutive clean reads pass.
+    Polls until ``deadline`` so a stack still inside its start_period is not
+    failed early.
+    """
+    problems: list[str] = []
+    while clock() < deadline:
+        problems = _problems_from_rows(rows_reader(), services_reader())
+        if problems:
+            sleep(2)
+            continue
+        sleep(settle_seconds)
+        rows = rows_reader()
+        problems = _problems_from_rows(rows, services_reader())
+        if not problems:
+            return rows
+        sleep(2)
+    raise Failure("container health", "; ".join(problems))
+
+
 def wait_containers_healthy(deadline: float) -> None:
     """Wait for every enabled service to be up (and healthy where probed).
 
-    Polls until the deadline so a stack that is still inside its start_period
-    is not failed early; an unhealthy or exited container is reported with the
-    whole list, because the fix is usually one service and the message should
-    say which.
+    See ``stable_health`` for why one clean read is not enough.
     """
-    problems: list[str] = []
-    while time.time() < deadline:
-        problems = _problems_from_rows(container_rows(), enabled_services())
-        if not problems:
-            return
-        time.sleep(2)
-    raise Failure("container health", "; ".join(problems))
+    stable_health(container_rows, enabled_services, deadline=deadline)
 
 
 def _identity_log_text() -> str:
