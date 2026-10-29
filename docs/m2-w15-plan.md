@@ -180,9 +180,10 @@ status), plus the existing manual drill artifact as the baseline.
   `qwen/qwen3.7-flash` (0.03/0.13 per million, read from OpenRouter's `/models`),
   run `w2-code-search-default-1793287437` booked $0.000721 for 22,240/417 tokens
   — the card rate; the same row before the change booked $0.011746 at the
-  fallback. An earlier attempt with a malformed card was refused loudly
-  (`operator rate card is malformed; pricing from the catalog only`), which is
-  the intended posture.
+  fallback (`code-search-default-1793287217.json`). An earlier attempt with a
+  malformed card was refused loudly (`1793287359.json`:
+  `operator rate card is malformed; pricing from the catalog only` plus the
+  named-model fallback warning), which is the intended posture.
 
 ## Gate position
 
