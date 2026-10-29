@@ -18,6 +18,8 @@ import logging
 import re
 from typing import Any
 
+from harness_contracts.http_client import env_client
+
 AI_INVOKE_PATTERN = re.compile(
     r"(^@ai\b|/ask-ai\b|^/research\b|^/summary\b|^/brief\b)", re.IGNORECASE
 )
@@ -98,7 +100,7 @@ class TeamAIClient:
         # test transports bypass that, so the deadline is enforced HERE for
         # every path (prod included) with the same honest outcome.
         try:
-            async with httpx.AsyncClient(
+            async with env_client(
                 timeout=self.timeout_seconds, transport=self._transport
             ) as client:
                 resp = await asyncio.wait_for(

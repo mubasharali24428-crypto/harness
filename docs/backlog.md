@@ -209,9 +209,12 @@ quietly amended, because a phantom blocker was gating the W1 branch.
   newest httpx — and `test_plain_httpx_still_rejects_the_shape` fails the day it
   is, so the helper can be deleted then. Used by both SSO clients and the Stripe
   adapter (same exposure). `test_sso_oidc.py` 24/24 with and without the Docker
-  Desktop `NO_PROXY`; Section 1 992 passed. Not fixed here: the other sections'
-  env-trusting clients (S2 GitHub, S4 context resolver, S6 meeting, S10
-  onboarding, `mcp`) carry the same latent shape. `tests/test_sso_oidc.py` fails 11 / passes 13 **only when this
+  Desktop `NO_PROXY`; Section 1 992 passed. **The remaining sections were closed
+  in W15**: S2 GitHub (client + OAuth exchange), S4 context resolver and S6
+  meeting now use the same `harness_contracts.http_client.env_client`, and
+  `section1/tests/test_outbound_client_wiring.py` fails on any direct
+  `httpx.AsyncClient`/`httpx.Client` construction under those src trees.
+  S10 onboarding and `mcp` already used the contract factory. `tests/test_sso_oidc.py` fails 11 / passes 13 **only when this
   host's `NO_PROXY` is present**, and passes `24/24` under
   `env -u NO_PROXY -u no_proxy`. The raise is not in the app's request and not
   in URL building — it is in **httpx client construction**:

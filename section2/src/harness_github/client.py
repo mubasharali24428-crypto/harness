@@ -1,4 +1,5 @@
 import httpx
+from harness_contracts.http_client import env_client
 
 GITHUB_API = "https://api.github.com"
 GITHUB_WEB = "https://github.com"
@@ -45,7 +46,7 @@ class GitHubClient:
         headers = dict(self._headers)
         if accept:
             headers["Accept"] = accept
-        async with httpx.AsyncClient(
+        async with env_client(
             base_url=GITHUB_API, headers=headers, transport=self._transport, timeout=30
         ) as client:
             resp = await client.request(method, url, json=json_body)
@@ -132,7 +133,7 @@ class GitHubClient:
         path = f"/repos/{repo}/git/refs/heads/{branch}"
         url = GITHUB_API + path
         _guard("PATCH", url, None)
-        async with httpx.AsyncClient(
+        async with env_client(
             base_url=GITHUB_API, headers=self._headers, transport=self._transport, timeout=30
         ) as client:
             resp = await client.patch(url, json={"sha": new_sha})
