@@ -2,7 +2,7 @@ import secrets
 from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, HTTPException, Request
-from harness_contracts import Principal
+from harness_contracts import Principal, error_body
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -35,6 +35,19 @@ async def login_or_register(
     """
     email = email.lower().strip()
     user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
+    if user is not None and not user.is_active:
+        # W16: a revoked seat is revoked. `is_active` used to steer only
+        # notification targeting, so a deactivated account could simply request a
+        # fresh code and mint a new session. The message is deliberately
+        # actionable — unlike the no-oracle 401 in `get_principal`, the person
+        # holding this response has already proven they control the inbox.
+        raise HTTPException(
+            status_code=403,
+            detail=error_body(
+                "ACCOUNT_DISABLED",
+                "this account is deactivated; ask a team admin to restore your seat",
+            ),
+        )
     if user is None:
         user = User(email=email, name=email.split("@")[0])
         session.add(user)
@@ -113,6 +126,17 @@ async def get_principal(request: Request) -> Principal:
             # Membership revoked after the session was minted: the token is
             # dead, not a server error. Same 401 as an invalid session so a
             # removed member can never keep acting in the old team.
+            raise HTTPException(status_code=401, detail="invalid or expired session")
+        account = (
+            await db.execute(select(User).where(User.id == row.user_id))
+        ).scalar_one_or_none()
+        if account is None or not account.is_active:
+            # W16: the seat itself is the authority, not the session row.
+            # `_revoke_access` deletes sessions when an org removes a person, but
+            # that is a courtesy: a token that survives it — minted before the
+            # revocation, or written by a path that forgot to revoke — still must
+            # not act. Deliberately the SAME 401 and message as an expired
+            # session: this is a bearer surface, so it gets no oracle about why.
             raise HTTPException(status_code=401, detail="invalid or expired session")
         return Principal(userId=row.user_id, teamId=row.team_id, role=DbRole(member.role))
 

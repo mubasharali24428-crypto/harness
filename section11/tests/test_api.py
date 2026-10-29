@@ -50,6 +50,34 @@ async def test_healthz_requires_auth_too(client):
     assert res.status_code == 200 and res.json() == {"ok": True}
 
 
+async def test_a_deactivated_seat_is_refused_by_the_shared_dependency(client, db):
+    """W16: `make_bearer_dep` is the code EVERY section runs to turn a bearer
+    token into a principal, and it now joins `users.is_active`.
+
+    This is the proof that a deactivation is not a Section-1-only rule: the very
+    same token that answered 200 a moment ago answers 401 here, on a service that
+    knows nothing about identity's own auth module. Sections 2, 8, 11, the
+    deployed runners and the extensions server all resolve principals through
+    this one function.
+    """
+    from conftest import TEST_PRINCIPAL
+
+    healthy = await client.get("/api/v1/healthz", headers=AUTH_HEADERS)
+    assert healthy.status_code == 200
+
+    async with db() as session:
+        await session.execute(
+            text("UPDATE users SET is_active = 0 WHERE id = :u"),
+            {"u": TEST_PRINCIPAL["userId"]},
+        )
+        await session.commit()
+
+    revoked = await client.get("/api/v1/healthz", headers=AUTH_HEADERS)
+    assert revoked.status_code == 401
+    # no oracle about why: the same answer an expired session gets
+    assert "invalid or expired session" in revoked.text
+
+
 async def test_root_health_is_liveness_only(client):
     """Compose healthchecks hit /health unauthenticated (repo convention)."""
     res = await client.get("/health")

@@ -47,7 +47,7 @@ from .limits import (
     PROJECT_REPO_FULL_NAME_MAX,
     WS_TICKET_PROJECT_ID_MAX,
 )
-from .models import AuthSession, TeamMember
+from .models import AuthSession, TeamMember, User
 from .models import Role as DbRole
 from .ratelimit import effective_client_ip
 from .webhooks import router as webhooks_router
@@ -344,6 +344,15 @@ async def _principal_from_token(
             )
         ).scalar_one_or_none()
         if member is None:
+            return None
+        account = (
+            await db.execute(select(User).where(User.id == row.user_id))
+        ).scalar_one_or_none()
+        if account is None or not account.is_active:
+            # W16: the socket is a fourth door, and it obeys the same rule as
+            # `get_principal` and the shared bearer dependency — the seat decides,
+            # not the session row. A deactivated user must not keep streaming a
+            # project's events on a connection minted while they still had one.
             return None
         return ContractsPrincipal(
             userId=row.user_id, teamId=row.team_id, role=DbRole(member.role)

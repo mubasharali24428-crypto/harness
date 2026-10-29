@@ -23,6 +23,8 @@ Flow (authorization code + PKCE, OIDC Core 1.0 §3.1 / RFC 7636):
     exp/iss/aud/nonce), then map to an existing member BY EMAIL:
       - email matches an active human member of THIS team -> session minted
         (AuthSession row; principal role = membership role).
+      - member exists but is deactivated -> 403 ACCOUNT_DISABLED (W16: the word
+        "active" in this contract is now enforced, it used to be aspirational).
       - no match -> 403 SSO_EMAIL_NOT_MEMBER. Provisioning is deliberately
         mapping-only: a stranger at the IdP can never create an account or
         join a team by logging in. Joining stays invite-only.
@@ -745,7 +747,15 @@ async def sso_complete(body: SsoCompleteBody, request: Request) -> dict[str, Any
             detail=error_body("SSO_EMAIL_MISSING", "ID token carries no email claim"),
         )
 
-    principal = await _map_email_to_member(factory, body.team_id, email)
+    outcome, principal = await _map_email_to_member(factory, body.team_id, email)
+    if outcome == MAP_DISABLED:
+        raise HTTPException(
+            status_code=403,
+            detail=error_body(
+                "ACCOUNT_DISABLED",
+                "this account is deactivated; ask a team admin to restore your seat",
+            ),
+        )
     if principal is None:
         raise HTTPException(
             status_code=403,
@@ -758,21 +768,34 @@ async def sso_complete(body: SsoCompleteBody, request: Request) -> dict[str, Any
     return {"token": token, "principal": principal.model_dump()}
 
 
-async def _map_email_to_member(factory, team_id: str, email: str) -> Principal | None:
-    """Email-match provisioning rule (the documented contract):
+MAP_OK = "ok"
+MAP_NO_MEMBER = "no_member"
+MAP_DISABLED = "disabled"
 
-    The ID-token email must equal (case-insensitive, stripped) users.email of
-    an EXISTING member OF THIS TEAM. Match -> Principal carrying that
-    membership's role. No match -> None (caller answers 403; nothing is
-    provisioned). Strangers at the IdP gain nothing — no user row, no team
-    seat, no session. Joining remains the audited invite-token flow.
+
+async def _map_email_to_member(
+    factory, team_id: str, email: str
+) -> tuple[str, Principal | None]:
+    """Email-match provisioning rule (the documented contract).
+
+    The ID-token email must equal (case-insensitive, stripped) users.email of an
+    existing, ACTIVE member OF THIS TEAM. Returns an outcome plus, on success,
+    the Principal carrying that membership's role.
+
+    Three outcomes, not one, because the two refusals mean different things to
+    different people: `no_member` is an invite problem ("ask an admin to add
+    you"), `disabled` is a seat problem ("your access was revoked"). Collapsing
+    them sent users to the wrong queue — and the docstring had promised an
+    ACTIVE member while the query never asked (W16 fixed the query).
     """
     async with factory() as db:
         user = (
             await db.execute(select(User).where(User.email == email))
         ).scalar_one_or_none()
         if user is None:
-            return None
+            return MAP_NO_MEMBER, None
+        if not user.is_active:
+            return MAP_DISABLED, None
         from .models import TeamMember
 
         member = (
@@ -784,8 +807,8 @@ async def _map_email_to_member(factory, team_id: str, email: str) -> Principal |
             )
         ).scalar_one_or_none()
         if member is None:
-            return None
-        return Principal(
+            return MAP_NO_MEMBER, None
+        return MAP_OK, Principal(
             userId=user.id, teamId=team_id, role=_role_value_to_contracts(member.role)
         )
 

@@ -341,6 +341,39 @@ Reproduce the whole check with `make drill-routing` — it uses probe model ids
 that exist in no catalog, so no provider call can succeed and no money can be
 spent, while still proving the decision is recorded before the attempt dies.
 
+## 3.7 A seat was revoked and the person still got in (W16)
+
+`users.is_active` is the authority. Until W16 it was a hint — it steered
+notification targeting only — so a deactivated account could request a fresh
+login code and keep acting. Five doors resolve a principal in this codebase and
+all five now consult the seat:
+
+| Door | Code | Behaviour on a revoked seat |
+|---|---|---|
+| Section 1 HTTP bearer | `harness_identity/auth.py get_principal` | 401 `invalid or expired session` (no oracle: a bearer surface must not reveal why) |
+| Every other service | `harness_contracts/fastapi_auth.py make_bearer_dep` (sections 2/8/11, the deployed runners, the extensions server) | same 401, via the `JOIN users … is_active` term |
+| Interactive OTP / legacy login | `auth.py login_or_register` | 403 `ACCOUNT_DISABLED` — deliberately actionable, the caller already proved inbox control |
+| OIDC SSO | `sso.py _map_email_to_member` | 403 `ACCOUNT_DISABLED` vs 403 `SSO_EMAIL_NOT_MEMBER` (invite problem and seat problem are different queues) |
+| WebSocket + its ticket | `app.py _principal_from_token`, `ephemeral.py redeem_ws_ticket` | socket close 4401 / ticket returns nothing |
+
+Diagnose in one line — the store, not the app, is the witness:
+
+```sh
+docker exec harness-db-1 psql -U harness -d harness -c \
+  "select id, email, is_active from users where email = 'someone@example.com';"
+```
+
+If `is_active` is true and the person should be out, the revocation never
+happened: check whether the caller removed the `team_members` row (that also
+kills the token, by membership) or the account itself. `_revoke_access` deletes
+session rows on org removals; the seat rule is the backstop for any path that
+forgets to.
+
+Prove all of it on a live stack with `make drill-seat-revocation` — it uses a
+throwaway user, never deletes a session row, and shows the SAME token go 200 →
+401 on identity and 404 → 401 on a service using the shared dependency, then
+200 again after re-enabling the seat.
+
 ## 4. Prevention checklist
 
 - [ ] No service removed from compose while its container runs (Cause A rule).

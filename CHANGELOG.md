@@ -10,6 +10,46 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Marathon 2.0 W16 — enterprise readiness (2026-10-29)
+
+* **A revoked seat is revoked everywhere.** `users.is_active` was a hint — it
+  steered notification targeting and nothing else — while this codebase resolves
+  a bearer token through FIVE doors: Section 1's `get_principal`, the shared
+  `harness_contracts.make_bearer_dep` (sections 2/8/11, the deployed runners, the
+  extensions server), the WebSocket handshake, the WS ticket redemption, and the
+  OIDC email mapping. Fixing any one of them would have fixed nothing. Now all
+  five consult the seat: bearer doors answer the same no-oracle
+  `401 invalid or expired session` (the shared dependency gained the
+  `JOIN users … is_active` term, so every service gets it without new code),
+  interactive login answers `403 ACCOUNT_DISABLED` with an actionable message
+  because the caller already proved inbox control, and the SSO mapping — whose
+  docstring had promised an "ACTIVE human member" for months while the query
+  never asked — distinguishes `no_member` (an invite problem) from `disabled`
+  (a seat problem). `issue_otp` was deliberately NOT changed: it stays
+  enumeration-safe, writes the code, and answers 200 either way; the refusal
+  belongs at verification.
+  Evidence: 8 tests in `section1/tests/test_account_deactivation.py` (each door,
+  plus one that proves the rule is the seat and not the clock — a session
+  extended to 2099 still dies), a new `section11` test that runs the REAL shared
+  contract dependency on a non-identity service, and `make drill-seat-revocation`
+  against the deployed containers (`w16-seat-revocation-1793292990.json`, 9
+  checks: the same token 200→401 on identity and 404→401 on a shared-dependency
+  service, no session row deleted at any point, then 200 again after re-enabling).
+  Three test fixtures (section11 conftest, section4 runs-index, section4
+  context-resolver driver) had to gain the `users` table they never created — a
+  fixture that omits it was proving a token works where the real schema would
+  refuse it. Operator text: `docs/runbooks/ops.md` §3.7.
+* **W16 opened with an audit, not an assumption.** `docs/m2-w16-plan.md` records
+  what exists today with file:line for each claim: OIDC auth-code+PKCE exists but
+  maps email only (no group→role); SCIM does not exist at all (no endpoint,
+  schema, table or token anywhere); `GET /api/v1/audit/export` is real, admin +
+  step-up gated and chain-carrying, but there is no SIEM push sink, no NDJSON
+  shape and no customer-facing chain verification; encryption is one install-wide
+  master key with no KEK/DEK split and no KMS seam; `data_residency` is a
+  per-workspace label consulted nowhere else. The plan says plainly that
+  customer-managed keys and geographic placement are NOT shippable as honest
+  features this week, rather than shipping a column nothing consults.
+
 ### Marathon 2.0 W15 — multi-tenant hardening (2026-10-29)
 
 * **Fair admission.** The claim statement now orders candidates by the running

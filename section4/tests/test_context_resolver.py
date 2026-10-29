@@ -379,6 +379,11 @@ async def main(spec: dict) -> dict:
         await conn.execute(text(
             "CREATE TABLE team_members (user_id VARCHAR(36) NOT NULL,"
             " team_id VARCHAR(36) NOT NULL, role VARCHAR(20) NOT NULL)"))
+        # W16: the shared bearer dependency joins users.is_active, so this
+        # embedded driver needs the third table a principal depends on.
+        await conn.execute(text(
+            "CREATE TABLE users (id VARCHAR(36) PRIMARY KEY, email VARCHAR(200),"
+            " name VARCHAR(200), is_active BOOLEAN NOT NULL DEFAULT 1)"))
         await conn.execute(text(
             "INSERT INTO auth_sessions VALUES (:h, :u, :t, :e)"),
             {"h": hashlib.sha256(TOKEN.encode()).hexdigest(), "u": "u-x2",
@@ -386,6 +391,9 @@ async def main(spec: dict) -> dict:
         await conn.execute(text(
             "INSERT INTO team_members VALUES (:u, :t, :r)"),
             {"u": "u-x2", "t": "team-x2", "r": "ADMIN"})
+        await conn.execute(text(
+            "INSERT INTO users VALUES (:u, :e, :n, 1)"),
+            {"u": "u-x2", "e": "ctx@example.com", "n": "Ctx"})
     factory = async_sessionmaker(engine, expire_on_commit=False)
     app = make_app(factory, Settings(embedding_backend="hashing", cors_origins=[]),
                    backend=HashingEmbedding(dims=256))

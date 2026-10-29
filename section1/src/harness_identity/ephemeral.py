@@ -129,6 +129,19 @@ async def redeem_ws_ticket(factory: async_sessionmaker, token: str, project_id: 
         await db.commit()
     if row is None:
         return None
+    # W16: a ticket is a PRE-AUTHORIZED handle — it carries a role snapshot from
+    # the moment it was minted. Its short TTL is not a revocation: a seat revoked
+    # after the mint must not be able to open the socket with the ticket it
+    # already holds. The seat decides, exactly as in `get_principal` and the
+    # shared bearer dependency.
+    async with factory() as db:
+        active = (
+            await db.execute(
+                text("SELECT is_active FROM users WHERE id = :u"), {"u": row.user_id}
+            )
+        ).scalar_one_or_none()
+    if active is None or not active:
+        return None
     from harness_contracts.roles import Role
 
     try:

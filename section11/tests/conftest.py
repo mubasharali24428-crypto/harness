@@ -46,6 +46,19 @@ CREATE TABLE team_members (
 );
 """
 
+# W16: `make_bearer_dep` also joins `users` on is_active, so the fixture has to
+# carry the third table the frozen schema says a principal depends on. A fixture
+# that omits it is not "simpler" — it proves a token resolves when the real
+# schema would have refused it.
+_AUTH_DDL_USERS = """
+CREATE TABLE users (
+    id VARCHAR(36) PRIMARY KEY,
+    email VARCHAR(200) NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT 1
+);
+"""
+
 
 @pytest.fixture
 async def db():
@@ -56,6 +69,17 @@ async def db():
         await conn.execute(text(DDL_SQLITE))
         await conn.execute(text(_AUTH_DDL_SESSIONS))
         await conn.execute(text(_AUTH_DDL_MEMBERS))
+        await conn.execute(text(_AUTH_DDL_USERS))
+        await conn.execute(
+            text(
+                "INSERT INTO users (id, email, name, is_active) VALUES (:u, :e, :n, 1)"
+            ),
+            {
+                "u": TEST_PRINCIPAL["userId"],
+                "e": "context@example.com",
+                "n": "Context Tester",
+            },
+        )
         await conn.execute(
             text(
                 "INSERT INTO auth_sessions (token_hash, user_id, team_id, expires_at) "
