@@ -27,6 +27,12 @@ x-backend-env: &backend-env
   # EXPLICITLY via HARNESS_ALLOW_DEV_MASTER_KEY=1.
   HARNESS_MASTER_KEY: ${HARNESS_MASTER_KEY:-}
   HARNESS_ALLOW_DEV_MASTER_KEY: ${HARNESS_ALLOW_DEV_MASTER_KEY:-}
+  # W14/W15: operator rate card (inline JSON or a path inside the container).
+  # It is a BACKEND value, not a models-only one: Section 4's engine metering
+  # resolves the same rates through harness_contracts.rate_card, so an
+  # operator-priced model is quoted and booked at ONE price. Unset keeps the
+  # built-in catalog; a model neither prices is metered at the logged fallback.
+  HARNESS_RATE_CARD_JSON: ${HARNESS_RATE_CARD_JSON:-}
   # W15 slice 2: per-TEAM budgets on the two spend surfaces (per minute).
   # Unset/blank keeps the shipped defaults (60 run-starts, 300 model calls).
   HARNESS_TEAM_RUN_START_LIMIT: ${HARNESS_TEAM_RUN_START_LIMIT:-}
@@ -347,10 +353,8 @@ services:
     environment:
       <<: *backend-env
       HARNESS_SERVICE: models
-      # M2-W14: operator rate card (inline JSON or a path inside the container).
-      # Unset keeps the built-in catalog; an unpriced model bills zero and is
-      # reported as `unpriced`, never silently priced at a neighbour's rate.
-      HARNESS_RATE_CARD_JSON: ${HARNESS_RATE_CARD_JSON:-}
+      # (HARNESS_RATE_CARD_JSON comes from x-backend-env: every backend service
+      # must resolve the same rates, not just the router.)
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

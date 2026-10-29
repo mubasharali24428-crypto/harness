@@ -8,6 +8,11 @@ for the current pilot (owner direction) and does not cap the local billing and q
 
 The displayed monthly spend limit and run-start budget check share
 `harness_contracts.budget.resolve_cap`: team override, then plan limit, then the configured default.
+Resolution order for a rate is the operator card, then the frozen catalog, then
+a logged fallback (`harness_contracts.rate_card` / `PricingEngine.get_pricing`), and the SAME
+function answers for the router's quote and for the engine metering row — W15 moved the card
+into the contract package because Section 4 had been pricing from the catalog only, so an
+operator-priced model was quoted its real rate and booked at the invented fallback.
 Usage is attributed to the team through the project/run ownership chain. Section 4 checks the tier's
 daily run limit and estimated call cost before run start. Agent run pools reserve child budgets with
 conditional database updates; work that exceeds an allocated pool is refused.

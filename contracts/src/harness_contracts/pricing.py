@@ -17,11 +17,18 @@ from __future__ import annotations
 from decimal import ROUND_HALF_EVEN, Decimal
 from typing import Union
 
+import logging
+
 from pydantic import BaseModel
 
 from harness_contracts.signatures import ModelRole
 
 Number = Union[int, float, str, "Decimal"]
+
+logger = logging.getLogger(__name__)
+
+#: Models already warned about (the warning is per-process, per-model).
+_warned_unpriced: set[str] = set()
 
 # NUMERIC(12,6) quantum.
 _MONEY_Q = Decimal("0.000001")
@@ -114,12 +121,40 @@ def _dec(value: Number) -> Decimal:
 class PricingEngine:
     """Calculates token costs and USD metering for model invocations."""
 
+    #: Fallback used ONLY for a model neither the catalog nor the operator card
+    #: prices. A rough-but-bounded estimate beats an unfunded runaway, and the
+    #: choice is logged (once per model) rather than silent.
+    FALLBACK_PRICING = ModelPricing(
+        input_cost_per_million=0.50,
+        output_cost_per_million=1.50,
+    )
+
     @staticmethod
     def get_pricing(model: str) -> ModelPricing:
+        """Resolve a model's rate: operator card, then catalog, then fallback.
+
+        W15: the overlay lookup comes first so engine metering books the SAME
+        rate the router quotes for an operator-priced model. Before that the
+        ledger silently used the fallback for any model absent from the frozen
+        catalog, even when the deployment had declared its price.
+        """
+        from .rate_card import overlay_pricing
+
+        overlay = overlay_pricing(model)
+        if overlay is not None:
+            return overlay
         if model in MODEL_PRICING_CATALOG:
             return MODEL_PRICING_CATALOG[model]
-        # Default fallback pricing if custom model used
-        return ModelPricing(input_cost_per_million=0.50, output_cost_per_million=1.50)
+        if model not in _warned_unpriced:
+            _warned_unpriced.add(model)
+            logger.warning(
+                "model %r is priced by neither the catalog nor the operator rate card; "
+                "metering it at the fallback rate (%s in / %s out per million tokens)",
+                model,
+                PricingEngine.FALLBACK_PRICING.input_cost_per_million,
+                PricingEngine.FALLBACK_PRICING.output_cost_per_million,
+            )
+        return PricingEngine.FALLBACK_PRICING
 
     @classmethod
     def calculate_cost(cls, model: str, input_tokens: int, output_tokens: int) -> Decimal:

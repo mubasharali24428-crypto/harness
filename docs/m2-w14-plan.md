@@ -216,10 +216,12 @@ the final run — it had treated the reader's blank line as content.
   Live proof on the rebuilt image: run `w2-code-search-default-1793277111`
   booked 22,032 input / 333 output tokens in `cost_ledger`, exactly the
   deduplicated transcript totals, where the old code booked ~61/7 from the
-  goal. One caveat stands: the deployment's `DSH_MODEL` (`qwen/qwen3.7-flash`)
-  is not in the catalog, so that row bills at the `PricingEngine` fallback
-  ($0.50 / $1.50 per million) — price it through `HARNESS_RATE_CARD_JSON`
-  before trusting the absolute number.
+  goal. The caveat recorded here at the time — the deployment's `DSH_MODEL`
+  (`qwen/qwen3.7-flash`) is not in the catalog, so the row billed at the
+  `PricingEngine` fallback — is closed in W15: the operator rate card moved
+  into the contract package, the ledger resolves card → catalog → logged
+  fallback, and this stack now carries a card with the model's live OpenRouter
+  prices (0.03 / 0.13 per million).
 * **A drill bug hid a failure.** `workspace_text` prints a blank line for a
   missing file, and `"\n"` is truthy, so an unwritten page counted as written.
   Fixed in the W14 drill with `.strip()`; `run 3`'s record keeps the original

@@ -242,6 +242,44 @@ def test_engine_completion_writes_one_exact_decimal_row(db_factory):
     assert stored == expected, "stored cost must be NUMERIC-exact vs PricingEngine"
 
 
+def test_operator_rate_card_prices_the_ledger_row(db_factory):
+    """W15: the ledger must book the operator's rate, not an invented fallback.
+
+    The engine's model can be priced only through ``HARNESS_RATE_CARD_JSON``.
+    Pricing that row from the frozen catalog alone silently used the
+    0.50/1.50 fallback while the router quoted the operator's real rate for the
+    same model — two answers for one call.
+    """
+    from harness_contracts.rate_card import RateCard, parse_overlay, set_active
+
+    f = db_factory
+
+    class CardOnlyEngine(StubEngine):
+        def execute_goal(self, goal=None, session_id=None):
+            result = super().execute_goal(goal=goal, session_id=session_id)
+            result["engine"] = "deepseek-harness-sdk:lab/gpt-card"
+            result["usage"] = {"inputTokens": 1_000, "outputTokens": 1_000}
+            return result
+
+    set_active(
+        RateCard(parse_overlay({"models": {"lab/gpt-card": {"input": 1.25, "output": 10}}}))
+    )
+    try:
+        svc, _events = _wire_service(f, CardOnlyEngine())
+        _approve(svc, "m-card")
+        run(svc.start_execution("m-card"))
+        run(asyncio.wait_for(svc.runs["m-card"]["task"], timeout=5))
+    finally:
+        set_active(None)
+
+    rows = run(_ledger_rows(f))
+    assert [r["model"] for r in rows] == ["lab/gpt-card"]
+    expected = Decimal("0.011250")  # (1.25 + 10) * 1000 / 1e6
+    assert _to_money(rows[0]["cost_usd"]) == expected, (
+        "an operator-priced model books the card rate, not the fallback (which would be 0.002000)"
+    )
+
+
 def test_estimated_tokens_when_engine_reports_no_usage(db_factory):
     f = db_factory
 

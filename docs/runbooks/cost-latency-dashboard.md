@@ -79,10 +79,12 @@ not double-count. A run that fails, times out or is cancelled books the usage it
 provably spent; it never books a goal-text estimate. A run whose transcript is
 unreadable books nothing and logs that it skipped metering.
 
-A model id absent from the catalog bills at the `PricingEngine` fallback
-($0.50 / $1.50 per million), not at zero. If a deployment's `DSH_MODEL` is not
-in the catalog (for example `qwen/qwen3.7-flash`), the spend is real but the
-absolute number is a placeholder until `HARNESS_RATE_CARD_JSON` prices it.
+Resolution order is the operator card, then the catalog, then the
+`PricingEngine` fallback ($0.50 / $1.50 per million). A model that reaches the
+fallback logs a warning naming it, so a placeholder rate is visible in the
+service log instead of only in this paragraph. Price a deployment's own model
+(for example a `DSH_MODEL` the catalog does not carry) through
+`HARNESS_RATE_CARD_JSON`; the ledger and the router resolve it the same way.
 
 ## Cost is not a billing statement
 

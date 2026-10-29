@@ -170,6 +170,20 @@ status), plus the existing manual drill artifact as the baseline.
   (rows at target `1,2`, after disaster `1`, promoted, 4 s restore). The
   scheduled trigger itself is not yet observed; that leg stays open below.
 
+* **Ledger and router now price from one card (gap found while auditing).** The
+  operator rate card lived in Section 3, so Section 4's engine metering resolved
+  rates from the frozen catalog only: an operator-priced model was quoted its
+  card rate and booked at the invented 0.50/1.50 fallback. `rate_card` moved to
+  `harness_contracts` (Section 3 keeps a re-export shim), `PricingEngine`
+  resolves card → catalog → fallback, and a fallback logs a warning naming the
+  model. Live proof on the deployed stack: with a card for
+  `qwen/qwen3.7-flash` (0.03/0.13 per million, read from OpenRouter's `/models`),
+  run `w2-code-search-default-1793287437` booked $0.000721 for 22,240/417 tokens
+  — the card rate; the same row before the change booked $0.011746 at the
+  fallback. An earlier attempt with a malformed card was refused loudly
+  (`operator rate card is malformed; pricing from the catalog only`), which is
+  the intended posture.
+
 ## Gate position
 
 | W15 exit claim | Evidence required |

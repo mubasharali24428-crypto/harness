@@ -37,6 +37,35 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   `section1/scripts/rotate_master_key.py` adds `--dry-run` and reads keys only
   from env vars. Runbook `docs/runbooks/secret-rotation.md` covers the master
   key, runner/webhook/daemon tokens and provider keys. Four offline tests.
+* **One rate card for both money paths (gap found in the W15 audit).** The
+  operator rate card lived in Section 3, so engine metering in Section 4 resolved
+  prices from the frozen catalog only: a model priced by `HARNESS_RATE_CARD_JSON`
+  was quoted its card rate by the router and booked at the invented 0.50/1.50
+  fallback in `cost_ledger`. `harness_contracts.rate_card` is now canonical
+  (Section 3 re-exports it), `PricingEngine` resolves card → catalog → fallback,
+  and a fallback logs a warning naming the model. Live: run
+  `w2-code-search-default-1793287437` booked $0.000721 at the card rate for
+  22,240/417 tokens where the fallback had booked $0.011746.
+* **Browser-gate timeout tests are no longer load-sensitive.** A 1 s deadline made
+  `test_a_slow_render_that_finished_is_still_evidence` fail on a busy machine and
+  pass on an idle one (the stand-in browser had not started its screenshot copy
+  before the gate gave up); the deadline is now 5 s with the reason recorded.
+* **Journey health gate settles.** `stable_health()` requires a clean read to
+  survive a 1.5 s settle, so `docker compose ps -a` lag can no longer pass a
+  stopped sidecar (live trip: `sandbox-egress: exited` detected; restored stack
+  passes).
+* **Outbound clients are proxy-safe everywhere.** S2 GitHub (client + OAuth
+  exchange), S4 context resolver and S6 meeting AI now use
+  `harness_contracts.http_client.env_client`; a guard test rejects direct
+  `httpx.AsyncClient` construction in those trees.
+* **Engine refusal names the host's boundary.** The confinement refusal no longer
+  blames macOS seatbelt on a Linux host that resolved no boundary at all.
+* **Docs and build gaps.** `deploy/backend.Dockerfile` pins the ~60 MB SDK wheel
+  in a layer above every source copy (build step 3/16, verified `CACHED` on
+  rebuild) and takes `--build-arg PIP_FIND_LINKS` for offline builds; the W14
+  cost-metrics window and the W15 team budgets are documented in `.env.example`;
+  three stale backlog entries (stuck-run tool budget, null usage, image build)
+  are closed against the code that actually resolved them.
 * **Scheduled restore drill.** A QoderWake automation
   (`tr_a4315e8e62b81c7819aca10d`, next run 2026-11-01T12:00Z) runs the PITR
   drill monthly with dated evidence. Its `run-now` was refused by the account
