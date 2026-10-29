@@ -13,7 +13,11 @@ daily run limit and estimated call cost before run start. Agent run pools reserv
 conditional database updates; work that exceeds an allocated pool is refused.
 
 Billing administrators can set a hard team monthly cap, concurrent-run limit, and warning
-threshold. Concurrent queue claims apply the configured limit under the queue's serialized claim
+threshold. Two HTTP budgets also apply per team at request time (W15): run start 60/min and model
+call 300/min, stored in `rate_buckets` and answered 429 `RATE_LIMITED` with `Retry-After`. They are
+abuse guards against a runaway script, not usage quotas: they do not consume the monthly cap and a
+store outage fails open, exactly like the per-IP limiter. Tune them with
+`HARNESS_TEAM_RUN_START_LIMIT` / `HARNESS_TEAM_MODEL_CALL_LIMIT`. Concurrent queue claims apply the configured limit under the queue's serialized claim
 transaction. Daily run reservations are idempotent by run id and use a team-scoped transaction lock
 to serialize cap decisions. Per-run tool-call limits count durable tool-call records and gate start,
 claim, and running sweeps. The monthly spend check still uses recorded usage plus an estimate; it
