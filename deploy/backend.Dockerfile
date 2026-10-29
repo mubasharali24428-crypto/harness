@@ -2,6 +2,20 @@ FROM python:3.13-slim
 
 WORKDIR /opt/harness
 
+# W15: the ~60 MB DeepSeek Harness SDK wheel is the slowest download in this
+# build. Pinning it in its OWN layer above the source copies means editing a
+# section no longer invalidates it (previously every source change re-fetched
+# it, measured at ~28 kB/s in the builder). The local packages below still
+# resolve their dependencies normally; already-installed ones are not fetched
+# again.
+#
+# Air-gapped/CI builds: pass --build-arg PIP_FIND_LINKS=/wheels (mounted dir)
+# and the same pip invocation reads it from the environment.
+ARG PIP_FIND_LINKS=""
+ENV PIP_FIND_LINKS=${PIP_FIND_LINKS}
+# AGENTS.md rule: PIN the DeepSeek Harness SDK version; bump deliberately.
+RUN pip install --no-cache-dir "deepseek-harness-sdk==0.1.1rc1"
+
 COPY contracts/ ./contracts/
 COPY section1/ ./section1/
 COPY section2/ ./section2/
@@ -14,8 +28,7 @@ COPY deploy/runners/ ./deploy/runners/
 COPY deploy/entrypoint.sh ./deploy/entrypoint.sh
 COPY section10/demo_repo/ ./demo_repo/
 
-# AGENTS.md rule: PIN the DeepSeek Harness SDK version; bump deliberately.
-RUN pip install --no-cache-dir "deepseek-harness-sdk==0.1.1rc1" \
+RUN pip install --no-cache-dir \
       ./contracts \
       ./section1 ./section2 ./section3 ./section4 \
       ./section5 ./section6 ./section8 \

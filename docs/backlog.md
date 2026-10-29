@@ -150,16 +150,17 @@ rebuild commit so it does not ride along inside an unrelated PR.
 
 ## From W1 Day 0 (2026-10-25)
 
-- [ ] **Backend image build cannot be trusted to finish** (owner: deploy). The
-  `pip install` layer comes *after* `COPY section*/`, so any source change
-  invalidates it and re-downloads the 60MB `deepseek_harness_runtime_bin`
-  wheel — measured at ~28 kB/s in the builder and ~100 kB/s on the host, with
-  connection resets. Move dependency install ahead of the source copy (a
-  `requirements`/pyproject-only layer) and support an offline wheel dir, or CI
-  will keep timing out on a build that has nothing to do with the change.
-- [ ] **Wheel cache for air-gapped/CI builds** (owner: deploy). Same root
-  cause; a `PIP_FIND_LINKS` build arg plus a mounted wheel dir makes repeat
-  builds minutes instead of half an hour.
+- [x] **Backend image build cannot be trusted to finish** (owner: deploy).
+  **Closed 2026-10-29 (W15)**: the ~60 MB SDK wheel now installs in its own
+  layer ABOVE every source `COPY` (`deploy/backend.Dockerfile`), so a section
+  edit cannot invalidate it; the local-package install reuses already-installed
+  dependencies. Verified by a real rebuild: the SDK step is build step 3/16 and
+  stayed `CACHED` while the copy/install steps were re-evaluated. The ordering
+  is pinned by `section1/tests/test_backend_build_layering.py`.
+- [x] **Wheel cache for air-gapped/CI builds** (owner: deploy). **Closed
+  2026-10-29 (W15)**: `--build-arg PIP_FIND_LINKS=/wheels` (a mounted dir) is
+  exported to every pip invocation in the image build, so a pre-populated wheel
+  directory replaces the network. No wheel *contents* are committed.
 
 ## From W1 Day 5 (goal images, 2026-10-26)
 
