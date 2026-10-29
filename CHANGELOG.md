@@ -72,6 +72,25 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   the frontend job) that rebuilds to a scratch directory and diffs against git;
   it exits 2 rather than silently passing when `clients/ts` deps are absent.
   Verified by mutation: restoring one stale `dist` file trips it (exit 1).
+* **The operator knob catalogue went from 17 entries to complete.** `.env.example`
+  documented 17 of the 56 `HARNESS_*` variables the deployed code reads, and the
+  missing ones included security and money switches —
+  `HARNESS_SANDBOX_ALLOW_UNCONFINED` (the confinement escape hatch),
+  `HARNESS_ALLOW_SELF_APPROVAL` (fail-closed approval policy),
+  `HARNESS_VISION_MODELS`, `HARNESS_TEAM_BUDGET_WARN_PCT`,
+  `HARNESS_WEBHOOK_ALLOWED_HOSTS` (outbound SSRF allow-list),
+  `HARNESS_TLS_ENABLED`, `HARNESS_SDK_MAX_TOKENS`. All 56 are documented now with
+  the default read from the code and what changing it does, grouped by area, and
+  `scripts/check_env_knobs.py` (in `make static-gates` + the CI static-gates job)
+  fails with the `file:line` of every runtime read that is not in the catalogue.
+  The reverse direction is deliberately not checked: compose and
+  `alertmanager.yml` consume entries through `${…}` interpolation, so "no
+  `os.environ` read" would not mean a stale entry.
+* **Two CI truth gaps found on the way.** The corpus-contract gate
+  (`run_eval.py --check`) had never had a CI step, and `docs/ci-gates.md` still
+  described `make static-gates` as three commands; both are corrected, and the
+  one recipe line genuinely absent from CI (`spec_drift.py`, needs a section
+  venv) is now named as a known gap instead of being glossed over.
 * **Browser-gate timeout tests are no longer load-sensitive.** A 1 s deadline made
   `test_a_slow_render_that_finished_is_still_evidence` fail on a busy machine and
   pass on an idle one (the stand-in browser had not started its screenshot copy

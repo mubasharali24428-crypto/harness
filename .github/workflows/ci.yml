@@ -37,9 +37,16 @@ jobs:
         run: sh -n deploy/entrypoint.sh
       - name: compose file valid [make static-gates]
         run: docker compose -f deploy/docker-compose.yml config -q
-      # Kept stepwise instead of one `make static-gates` line only because the
-      # runner's preinstalled docker/python differ per action image; the three
-      # commands are verbatim the Makefile recipe. See docs/ci-gates.md.
+      # Each step below is verbatim a line of the `make static-gates` recipe
+      # (kept stepwise because the runner's preinstalled docker/python differ
+      # per action image — see docs/ci-gates.md). The recipe's `spec_drift.py`
+      # line has NO CI step: it imports the FastAPI apps, so it needs a section
+      # venv this job does not build. That is a known coverage gap, not an
+      # oversight of the two stdlib gates added here.
+      - name: eval corpus contract holds (W14 gate) [make static-gates]
+        run: python3 scripts/eval/run_eval.py --check
+      - name: every runtime env knob is documented (W15 gate) [make static-gates]
+        run: python3 scripts/check_env_knobs.py
       - name: TS contract mirror is current (E-codegen drift guard) [make static-gates]
         run: python3 contracts/ts/generate.py --check
       # M15-G6a (W4 carryover #4 + M13 isolation law): route modules export

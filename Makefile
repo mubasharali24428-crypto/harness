@@ -108,6 +108,7 @@ static-gates: guard-route-law
 	python3 contracts/ts/generate.py --check
 	section4/.venv/bin/python scripts/spec_drift.py
 	python3 scripts/eval/run_eval.py --check
+	python3 scripts/check_env_knobs.py
 
 # ------------------------------------------------------------------------ lint
 # Sections WITH a scripts/ tree get the three-path check; sections without
