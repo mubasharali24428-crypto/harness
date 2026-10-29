@@ -444,6 +444,8 @@ export interface SsoConfigBody {
   clientId: string;
   clientSecret?: string | null;  // optional
   enabled?: boolean;  // optional
+  groupRoles?: { [key: string]: unknown }[];  // optional
+  groupsClaim?: string;  // optional
   idpDisplayName?: string;  // optional
   issuerUrl: string;
 }

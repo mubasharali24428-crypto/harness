@@ -398,6 +398,10 @@ export interface SsoConfigBody {
     clientId: string;
     clientSecret?: string | null;
     enabled?: boolean;
+    groupRoles?: {
+        [key: string]: unknown;
+    }[];
+    groupsClaim?: string;
     idpDisplayName?: string;
     issuerUrl: string;
 }

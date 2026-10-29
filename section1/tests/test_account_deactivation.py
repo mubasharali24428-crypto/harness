@@ -307,12 +307,12 @@ def test_sso_mapping_distinguishes_disabled_from_stranger(stack):
     async def _map(email: str):
         return await _map_email_to_member(factory, team_id, email)
 
-    outcome, principal = _run(loop, _map("sso@example.com"))
-    assert outcome == MAP_OK and principal is not None and principal.userId == user_id
+    mapping = _run(loop, _map("sso@example.com"))
+    assert mapping.outcome == MAP_OK and mapping.principal.userId == user_id
 
     _deactivate(loop, factory, user_id)
-    outcome, principal = _run(loop, _map("sso@example.com"))
-    assert outcome == MAP_DISABLED and principal is None
+    mapping = _run(loop, _map("sso@example.com"))
+    assert mapping.outcome == MAP_DISABLED and mapping.principal is None
 
     async def _active_stranger():
         async with factory() as db:
@@ -320,5 +320,5 @@ def test_sso_mapping_distinguishes_disabled_from_stranger(stack):
             await db.commit()
 
     _run(loop, _active_stranger())
-    outcome, principal = _run(loop, _map("stranger@example.com"))
-    assert outcome == MAP_NO_MEMBER and principal is None
+    mapping = _run(loop, _map("stranger@example.com"))
+    assert mapping.outcome == MAP_NO_MEMBER and mapping.principal is None

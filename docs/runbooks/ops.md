@@ -374,6 +374,56 @@ throwaway user, never deletes a session row, and shows the SAME token go 200 →
 401 on identity and 404 → 401 on a service using the shared dependency, then
 200 again after re-enabling the seat.
 
+## 3.8 An IdP group changed and the person's role did not (W16)
+
+Group-mapped SSO is opt-in per team. A login consults the map ONLY when the
+team has both `groupsClaim` and at least one `groupRoles` rule; otherwise the
+role on the `team_members` row is used exactly as before. When a mapping does
+exist, every group pattern that matches the claim is considered and the
+STRONGEST role wins (`guest < viewer < engineer < admin`), so a person in both
+`harness-viewers` and `harness-admins` is an admin. A claim that matches nothing
+leaves the stored role alone — silence is not demotion, because a broken claim
+mapper at the IdP must not lock a whole team out.
+
+"Which rule won, and did it fire?" is answered by the login's audit row, not by
+the IdP:
+
+```sh
+docker exec harness-db-1 psql -U harness -d harness -c \
+  "select ts, detail from audit_log where action = 'sso.login'
+   order by seq desc limit 5;"
+```
+
+`detail.source` is `claim` when a group decided the role, `membership` when
+the stored role stood, and `membership_last_admin` when the claim lost to the
+last-admin invariant; `detail.role` is the role actually used; `detail.matched`
+lists the group names that matched (names only — no token, no email). A role
+that actually changed also leaves a `member.role_changed` row with
+`source: sso_claim`.
+
+Diagnose in order:
+
+1. **Is the mapping configured?** `GET /api/v1/teams/{team}/sso/config` must
+   show non-empty `groupsClaim` and `groupRoles`. A PUT with rules but no claim
+   name is refused (`422 VALIDATION_ERROR`) rather than stored as dead config.
+2. **Does the ID token carry the claim?** Keycloak only emits groups when the
+   client has a group-membership mapper (`deploy/keycloak/harness-realm.json`,
+   claim name `groups`). The drill adds it idempotently if a long-lived IdP
+   predates the realm file.
+3. **Does the group name match?** Patterns are case-sensitive `fnmatch`
+   globs (`*`/`?` allowed); `harness-admins` does not match `Harness-Admins`.
+4. **Was the person in the group at login time?** Membership is read from the
+   token minted for THAT login; a seat is not retroactively re-roled when the
+   directory changes. The next login applies the new map.
+5. **Is the seat disabled?** A deactivated account is refused before any role
+   mapping (§3.7), regardless of group membership.
+
+The live proof is the Keycloak drill's group leg: join the admin group → login
+is `admin` with `source=claim` and the minted token passes the admin-only
+`/audit` door; leave it → the baseline group gives `engineer` with
+`source=claim` and `/audit` answers 403 (`scripts/oidc_drill.py`, evidence in
+`docs/briefs/evidence/pilot-prep/oidc-keycloak-drill.json`).
+
 ## 4. Prevention checklist
 
 - [ ] No service removed from compose while its container runs (Cause A rule).

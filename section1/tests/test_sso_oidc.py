@@ -668,6 +668,205 @@ async def test_full_pkce_flow_against_mock_idp(factory, client, mock_idp):
     assert me.json()["userId"] == body["principal"]["userId"]
 
 
+async def test_group_claim_promotes_role_and_lands_in_the_audit_row(
+    factory, client, mock_idp
+):
+    """W16 slice 2 gate: a configured group claim decides the session role and
+    the login row says WHERE that role came from."""
+    admin = await _seed_team_admin(factory, plan="team")
+    await _seed_member(factory, admin["teamId"], "eng@x.com", role="engineer")
+    cfg = await _configure_sso(
+        client,
+        admin,
+        mock_idp.issuer_url,
+        groupsClaim="groups",
+        groupRoles=[{"group": "harness-admins", "role": "admin"}],
+    )
+    assert cfg["groupsClaim"] == "groups"
+    assert cfg["groupRoles"] == [{"group": "harness-admins", "role": "admin"}]
+
+    query = await _start_login(client, admin["teamId"])
+    mock_idp.pending_id_token = make_id_token(
+        _claims(
+            idp=mock_idp,
+            nonce=query["nonce"],
+            email="eng@x.com",
+            groups=["harness-admins", "everyone"],
+        )
+    )
+    r = await _complete(client, admin["teamId"], query["state"], "auth-code-2")
+    assert r.status_code == 200, r.text
+    assert r.json()["principal"]["role"] == "admin"
+
+    rows = await _audit_rows(factory, "sso.login")
+    assert len(rows) == 1
+    detail = rows[0].detail or {}
+    assert detail["role"] == "admin"
+    assert detail["source"] == "claim"
+    assert "harness-admins" in detail["matched"]
+
+
+async def test_claim_role_survives_into_the_session(factory, client, mock_idp):
+    """The login RESPONSE saying admin is worthless if every later request
+    re-reads the old membership role. The claim-derived role must be what the
+    bearer token resolves to."""
+    admin = await _seed_team_admin(factory, plan="team")
+    await _seed_member(factory, admin["teamId"], "eng@x.com", role="engineer")
+    await _configure_sso(
+        client,
+        admin,
+        mock_idp.issuer_url,
+        groupsClaim="groups",
+        groupRoles=[{"group": "harness-admins", "role": "admin"}],
+    )
+
+    query = await _start_login(client, admin["teamId"])
+    mock_idp.pending_id_token = make_id_token(
+        _claims(
+            idp=mock_idp,
+            nonce=query["nonce"],
+            email="eng@x.com",
+            groups=["harness-admins"],
+        )
+    )
+    r = await _complete(client, admin["teamId"], query["state"], "auth-code-4")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["principal"]["role"] == "admin"
+
+    me_app = FastAPI()
+
+    @me_app.get("/whoami")
+    async def whoami(principal=Depends(get_principal)):  # noqa: B008, ANN001
+        return principal.model_dump()
+
+    me_app.state.session_factory = factory
+    async with AsyncClient(transport=ASGITransport(app=me_app), base_url="http://test") as mc:
+        me = await mc.get("/whoami", headers=_bearer(body["token"]))
+    assert me.status_code == 200
+    assert me.json()["role"] == "admin"
+
+    # The stored membership moved too, and the change carries its own row.
+    async with factory() as db:
+        member = (
+            await db.execute(
+                select(TeamMember).where(
+                    TeamMember.team_id == admin["teamId"],
+                    TeamMember.user_id == body["principal"]["userId"],
+                )
+            )
+        ).scalar_one()
+        assert getattr(member.role, "value", member.role).lower() == "admin"
+    changed = await _audit_rows(factory, "member.role_changed")
+    assert len(changed) == 1
+    assert changed[0].detail["toRole"] == "admin"
+    assert changed[0].detail["source"] == "sso_claim"
+
+
+async def test_claim_never_demotes_the_last_admin(factory, client, mock_idp):
+    """A group map must not be able to leave a team with zero admins. The login
+    succeeds as the stored admin and the audit row says why the claim lost."""
+    admin = await _seed_team_admin(factory, plan="team")
+    await _configure_sso(
+        client,
+        admin,
+        mock_idp.issuer_url,
+        groupsClaim="groups",
+        groupRoles=[{"group": "harness-viewers", "role": "viewer"}],
+    )
+
+    query = await _start_login(client, admin["teamId"])
+    mock_idp.pending_id_token = make_id_token(
+        _claims(
+            idp=mock_idp,
+            nonce=query["nonce"],
+            email="admin@x.com",
+            groups=["harness-viewers"],
+        )
+    )
+    r = await _complete(client, admin["teamId"], query["state"], "auth-code-5")
+    assert r.status_code == 200, r.text
+    assert r.json()["principal"]["role"] == "admin"
+
+    rows = await _audit_rows(factory, "sso.login")
+    assert rows[0].detail["source"] == "membership_last_admin"
+    async with factory() as db:
+        member = (
+            await db.execute(
+                select(TeamMember).where(
+                    TeamMember.team_id == admin["teamId"],
+                    TeamMember.user_id == admin["userId"],
+                )
+            )
+        ).scalar_one()
+        assert getattr(member.role, "value", member.role).lower() == "admin"
+
+
+async def test_group_claim_absent_keeps_the_membership_role(
+    factory, client, mock_idp
+):
+    """Opt-in, not opt-out: the same config with no matching group leaves the
+    stored role alone and says so in the audit row."""
+    admin = await _seed_team_admin(factory, plan="team")
+    await _seed_member(factory, admin["teamId"], "eng@x.com", role="engineer")
+    await _configure_sso(
+        client,
+        admin,
+        mock_idp.issuer_url,
+        groupsClaim="groups",
+        groupRoles=[{"group": "harness-admins", "role": "admin"}],
+    )
+
+    query = await _start_login(client, admin["teamId"])
+    mock_idp.pending_id_token = make_id_token(
+        _claims(idp=mock_idp, nonce=query["nonce"], email="eng@x.com")
+    )
+    r = await _complete(client, admin["teamId"], query["state"], "auth-code-3")
+    assert r.status_code == 200, r.text
+    assert r.json()["principal"]["role"] == "engineer"
+
+    rows = await _audit_rows(factory, "sso.login")
+    assert len(rows) == 1
+    detail = rows[0].detail or {}
+    assert detail["role"] == "engineer"
+    assert detail["source"] == "membership"
+
+
+async def test_group_role_config_rejects_unknown_roles(factory, client, mock_idp):
+    admin = await _seed_team_admin(factory, plan="team")
+    r = await client.put(
+        f"/api/v1/teams/{admin['teamId']}/sso/config",
+        json={
+            "issuerUrl": mock_idp.issuer_url,
+            "clientId": CLIENT_ID,
+            "clientSecret": CLIENT_SECRET,
+            "groupsClaim": "groups",
+            "groupRoles": [{"group": "x", "role": "superuser"}],
+        },
+        headers=_bearer(admin["token"]),
+    )
+    assert r.status_code == 422
+    assert _error_code(r) == "VALIDATION_ERROR"
+
+
+async def test_group_role_config_requires_a_claim_name(factory, client, mock_idp):
+    """A mapping with no claim name could never fire; refuse it at PUT time
+    instead of storing dead config that looks configured."""
+    admin = await _seed_team_admin(factory, plan="team")
+    r = await client.put(
+        f"/api/v1/teams/{admin['teamId']}/sso/config",
+        json={
+            "issuerUrl": mock_idp.issuer_url,
+            "clientId": CLIENT_ID,
+            "clientSecret": CLIENT_SECRET,
+            "groupRoles": [{"group": "x", "role": "admin"}],
+        },
+        headers=_bearer(admin["token"]),
+    )
+    assert r.status_code == 422
+    assert _error_code(r) == "VALIDATION_ERROR"
+
+
 async def test_state_is_single_use(factory, client, mock_idp):
     admin = await _seed_team_admin(factory, plan="team")
     await _seed_member(factory, admin["teamId"], "eng@x.com")
@@ -924,7 +1123,17 @@ def test_migration_0033_matches_model_shape():
         "enabled",
         "idp_display_name",
         "created_at",
+        # W16 slice 2 (migration 0069): opt-in group -> role mapping.
+        "groups_claim",
+        "group_roles",
     }
+    alter = (
+        Path(__file__).resolve().parents[1]
+        .joinpath("migrations", "0069_team_sso_group_mapping.sql")
+        .read_text()
+    )
+    assert "ADD COLUMN groups_claim" in alter
+    assert "ADD COLUMN group_roles" in alter
     state_cols = {c.name for c in SsoLoginState.__table__.columns}
     assert state_cols == {
         "state_hash",

@@ -1,16 +1,16 @@
 {
   "drill": "oidc-keycloak",
-  "executedAt": "2026-10-25T09:42:03Z",
+  "executedAt": "2026-10-29T17:42:18Z",
   "identity": "http://127.0.0.1:8001",
   "issuer": "http://sso-idp:8080/realms/harness",
   "clientId": "harness-drill",
   "redirectUri": "http://localhost:3000/auth/sso/callback",
-  "memberEmail": "sso-drill-20261025t094200z@harness.dev",
-  "teamId": "7a3478aa-d6d2-438d-8565-3d99be8ffda1",
+  "memberEmail": "sso-drill-20261029t174214z@harness.dev",
+  "teamId": "c9d07fc9-ddf0-404f-9321-a3f86fe4eee7",
   "timingsMs": {
     "discovery": 24,
-    "idpFormRoundTrip": 76,
-    "total": 2015
+    "idpFormRoundTrip": 220,
+    "total": 4095
   },
   "checks": [
     {
@@ -21,12 +21,12 @@
     {
       "check": "drill member exists at the IdP",
       "ok": true,
-      "detail": "sso-drill-20261025t094200z@harness.dev (created)"
+      "detail": "sso-drill-20261029t174214z@harness.dev (created)"
     },
     {
       "check": "admin dev login",
       "ok": true,
-      "detail": "team=7a3478aa-d6d2-438d-8565-3d99be8ffda1"
+      "detail": "team=c9d07fc9-ddf0-404f-9321-a3f86fe4eee7"
     },
     {
       "check": "SSO config refused on free plan",
@@ -36,17 +36,17 @@
     {
       "check": "SSO config stored with secret hint only",
       "ok": true,
-      "detail": "hint=\u2026\u2026awI="
+      "detail": "hint=\u2026\u2026_W8="
     },
     {
       "check": "GET config never returns the secret",
       "ok": true,
-      "detail": "keys=['clientId', 'configured', 'createdAt', 'enabled', 'idpDisplayName', 'issuerUrl', 'secretHint', 'teamId']"
+      "detail": "keys=['clientId', 'configured', 'createdAt', 'enabled', 'groupRoles', 'groupsClaim', 'idpDisplayName', 'issuerUrl', 'secretHint', 'teamId']"
     },
     {
       "check": "member joined the team by invite",
       "ok": true,
-      "detail": "member user=ef8ba4ed-99d9-4667-9d3b-e6bac2584ce5 role=engineer"
+      "detail": "member user=ce74ddea-4612-49a6-b9d7-926c1d8628b8 role=engineer"
     },
     {
       "check": "authorization URL uses S256 PKCE + nonce",
@@ -61,12 +61,52 @@
     {
       "check": "session minted for the matching member",
       "ok": true,
-      "detail": "team=7a3478aa-d6d2-438d-8565-3d99be8ffda1 role=engineer"
+      "detail": "team=c9d07fc9-ddf0-404f-9321-a3f86fe4eee7 role=engineer"
     },
     {
       "check": "minted session authenticates",
       "ok": true,
       "detail": ""
+    },
+    {
+      "check": "drill groups exist at the IdP",
+      "ok": true,
+      "detail": "harness-admins, harness-everyone"
+    },
+    {
+      "check": "group mapping stored and projected back",
+      "ok": true,
+      "detail": "claim=groups rules=[{'group': 'harness-admins', 'role': 'admin'}, {'group': 'harness-everyone', 'role': 'engineer'}]"
+    },
+    {
+      "check": "IdP group promoted the session role",
+      "ok": true,
+      "detail": "role=admin via group harness-admins"
+    },
+    {
+      "check": "promoted session passes the admin-only audit door",
+      "ok": true,
+      "detail": "1 row(s) visible"
+    },
+    {
+      "check": "login audit says a claim chose the role",
+      "ok": true,
+      "detail": "role=admin source=claim matched=['harness-admins', 'harness-everyone']"
+    },
+    {
+      "check": "leaving the admin group demotes on the next login",
+      "ok": true,
+      "detail": "role=engineer via harness-everyone"
+    },
+    {
+      "check": "demoted session is refused at the admin-only door",
+      "ok": true,
+      "detail": "HTTP 403"
+    },
+    {
+      "check": "second login audit says the baseline group chose the role",
+      "ok": true,
+      "detail": "role=engineer source=claim matched=['harness-everyone']"
     },
     {
       "check": "replayed state refused",

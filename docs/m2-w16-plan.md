@@ -17,8 +17,9 @@ their documentation implies.
 1. **"Can my IdP take a seat away?"** Not yet. There is no SCIM surface, and
    `is_active=false` is advisory: it changes what notifications target, not what
    a principal may do.
-2. **"Does SSO honour my directory's groups?"** Only email. A group change in
-   the IdP changes nothing in Harness.
+2. **"Does SSO honour my directory's groups?"** Only email *(as audited;
+   closed by slice 2 below)*. A group change in the IdP changed nothing in
+   Harness.
 3. **"Can I ship your audit trail into my SIEM?"** Pull-only. `GET
    /api/v1/audit/export` streams JSON the customer must poll, and chain
    verification is an operator CLI on PostgreSQL.
@@ -31,7 +32,7 @@ their documentation implies.
 | Area | Observation | Where |
 |---|---|---|
 | OIDC SSO | discovery + auth-code-with-PKCE, RS256 raw JWS verify; team-tier gated writes | `section1/src/harness_identity/sso.py:13,92-129,331` |
-| Claims mapping | **email only** — `email = str(claims.get("email") or "")`; role comes from stored membership, never from a claim | `sso.py:741,761,789` |
+| Claims mapping | **email only** *(as audited; group claims shipped in slice 2)* — `email = str(claims.get("email") or "")`; role came from stored membership, never from a claim | `sso.py:741,761,789` |
 | Provisioning | deliberately mapping-only: a stranger IdP subject is refused `SSO_EMAIL_NOT_MEMBER`; OTP login *does* create users | `sso.py:26,753`; `auth.py:37-41` |
 | SCIM | **absent.** No endpoint, schema, table, client or token anywhere (`scim`, `/scim/v2`, `patchOp`, `externalId`, `deprovision`) | repo-wide search (2026-10-29) |
 | Deactivation | `users.is_active` written false by self-deletion and erasure | `orgs.py:498`, `erasure.py:121` |
@@ -97,21 +98,60 @@ diagnose "I revoked them and they still got in").
 
 ## Slice 2 — group-mapped SSO (opt-in, never wider than the map)
 
-`team_sso_configs` gains a claim mapping (JSON, stored encrypted like every other
-SSO secret): `groupsClaim` plus a list of `{groupPattern → role}`. Rules:
+`team_sso_configs` gains `groups_claim` plus `group_roles` (JSON list of
+`{group, role}`, migration 0069). They are ordinary config columns — group names
+are not secrets; the client secret stays Fernet-encrypted as before. Rules as
+shipped:
 
-* off unless the team configures it, so existing teams keep email-only behaviour;
-* a claim maps to a role **at most** as strong as the stored membership allows —
-  an IdP group can never promote a member beyond the role the team granted, and
-  the `owner` seat is never granted by a claim;
-* the decision is recorded on login (`role` used, `source`: `claim` or
-  `membership`) so a customer can audit *why* someone had a role;
-* an unmatched member keeps the stored role — silence is not demotion, because a
-  misconfigured claim must not lock a whole team out.
+* **off unless configured.** No claim name or no rules → the login is exactly
+  the old email-match flow, and existing teams cannot change behaviour by
+  upgrading.
+* **the map is the ceiling, but it can promote.** Every matching `fnmatch`
+  pattern is considered and the strongest role wins
+  (`guest < viewer < engineer < admin`). An IdP group can move a member up or
+  down the role ladder, but only through a rule a team admin wrote; there is no
+  implicit mapping by group-name convention. `admin` is the top of the enum;
+  team *ownership* transfer is a separate flow that SSO never touches.
+* **a claim never creates access.** It cannot add a member (no JIT
+  provisioning), cannot reactivate a deactivated seat (that check runs before
+  mapping), and an email that matches no member still gets
+  `SSO_EMAIL_NOT_MEMBER`.
+* **the decided role is persisted to the membership.** Every later request
+  resolves its role from `team_members`, so a login that only *answered* admin
+  would be a lie. When the claim disagrees with the stored role, the login
+  updates the row and writes a `member.role_changed` row (`source: sso_claim`,
+  system actor). One exception: a demotion that would leave the team with ZERO
+  admins is refused — the login succeeds with the stored admin role and the
+  `sso.login` row says `membership_last_admin`, because the last-admin invariant
+  predates SSO.
+* **an unmatched member keeps the stored role.** Silence is not demotion,
+  because a broken claim mapper at the IdP must not lock a whole team out. The
+  corollary is explicit: once a claim has promoted someone, removing that group
+  at the IdP does NOT demote them by itself, because the map says nothing about
+  the base role. The directory-driven pattern is a baseline rule — map a group
+  everyone carries (`everyone → engineer`) alongside the privileged group — and
+  the live drill exercises exactly that (admin group removed → baseline rule →
+  engineer on the next login). Manual role changes and SCIM (slice 3) remain the
+  revocation path.
+* **the decision is recorded on login.** A `sso.login` audit row carries
+  `role`, `source` (`claim` | `membership`) and the matched group names — so
+  "why is this person an admin?" has an answer that is not "ask the IdP".
+  Audit failure never denies a valid login (same law as every audit helper).
+* **the config API refuses dead config.** Rules whose role is not in the enum,
+  an empty/whitespace group, more than 50 rules, or rules without a claim name
+  are `422 VALIDATION_ERROR` at PUT time rather than silent no-ops at login.
 
-Evidence: mapping unit tests (including the never-promote and owner-exclusion
-rules), a live Keycloak drill issuing a real token with groups, and the routing
-pattern from W14/W15 reused for the audit record.
+Evidence: 16 tests in `section1/tests/test_sso_group_mapping.py` (opt-in
+default, exact/glob match, strongest wins, unmatched keeps the role, claim-shape
+tolerance, validation bounds, the seam's `source`/`matched`), 6 end-to-end tests
+in `section1/tests/test_sso_oidc.py` (promotion + audit row, the promoted role
+surviving into a real `get_principal` lookup, last-admin demotion refused,
+absence keeps the role, unknown role refused, rules-without-claim refused), and
+a live Keycloak drill: join the admin group → `role=admin, source=claim` and the
+minted token passes the admin-only `/audit` door; leave it → the baseline rule
+gives `role=engineer, source=claim` and `/audit` answers 403
+(`scripts/oidc_drill.sh`, evidence in
+`docs/briefs/evidence/pilot-prep/oidc-keycloak-drill.json`, 22 checks).
 
 ## Slice 3 — SCIM 2.0 subset for the seat lifecycle
 
@@ -168,7 +208,7 @@ and the drift gate all move together, as `model_routed` did in W15.
 | W16 exit claim | Evidence required | State |
 |---|---|---|
 | A deactivated user cannot authenticate or act | unit per surface + live drill (old token 401, fresh login 403) | **shipped 2026-10-29** |
-| SSO can grant a role from an IdP group, never beyond the team's grant | mapping tests + Keycloak live drill | pending (slice 2) |
+| SSO can map an IdP group to a role, only through an admin-written rule | mapping tests + Keycloak live drill (promote, demote, audit source) | **shipped 2026-10-29** |
 | An IdP deprovisioning reaches Harness | SCIM subset + live PATCH drill | pending (slice 3) |
 | A SIEM can ingest and verify the audit trail | NDJSON + push sink + verify endpoint, live proof | pending (slice 4) |
 | No doc claims key or residency management the code lacks | doc diff + the audit table above | pending |

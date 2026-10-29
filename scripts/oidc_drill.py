@@ -50,6 +50,8 @@ MEMBER_EMAIL = os.environ.get(
 )
 MEMBER_PASSWORD = os.environ.get("DRILL_MEMBER_PASSWORD", "harness-drill-password")
 OUTSIDER_EMAIL = os.environ.get("DRILL_OUTSIDER_EMAIL", "sso-outsider@harness.dev")
+DRILL_GROUP = os.environ.get("DRILL_GROUP", "harness-admins")
+DRILL_BASE_GROUP = os.environ.get("DRILL_BASE_GROUP", "harness-everyone")
 IDP_ADMIN_USER = os.environ.get("DRILL_IDP_ADMIN_USER", "drill-admin")
 IDP_ADMIN_PASSWORD = os.environ.get("DRILL_IDP_ADMIN_PASSWORD", "drill-admin-password")
 
@@ -136,6 +138,101 @@ def idp_login(auth_url: str, username: str, password: str) -> str:
         return code
 
 
+def _admin_token(client: httpx.Client) -> str:
+    """Realm-admin access token (drill credentials only)."""
+    token_response = client.post(
+        f"{ISSUER.rsplit('/realms/', 1)[0]}/realms/master/protocol/openid-connect/token",
+        data={
+            "grant_type": "password",
+            "client_id": "admin-cli",
+            "username": IDP_ADMIN_USER,
+            "password": IDP_ADMIN_PASSWORD,
+        },
+    )
+    if token_response.status_code != 200:
+        raise SystemExit(
+            f"IdP admin login failed ({token_response.status_code}); "
+            "check DRILL_IDP_ADMIN_* against KC_BOOTSTRAP_ADMIN_*"
+        )
+    return token_response.json()["access_token"]
+
+
+def _idp_user_id(client: httpx.Client, headers: dict, email: str) -> str:
+    base = f"{ISSUER.rsplit('/realms/', 1)[0]}/admin/realms/harness/users"
+    found = client.get(base, headers=headers, params={"email": email, "exact": "true"})
+    if found.status_code != 200 or not found.json():
+        raise SystemExit(f"IdP user {email} not found")
+    return found.json()[0]["id"]
+
+
+def _ensure_idp_group(client: httpx.Client, headers: dict, name: str) -> str:
+    """Create the drill group if needed; return its id."""
+    base = f"{ISSUER.rsplit('/realms/', 1)[0]}/admin/realms/harness/groups"
+    found = client.get(base, headers=headers, params={"search": name, "exact": "true"})
+    for group in found.json() if found.status_code == 200 else []:
+        if group.get("name") == name:
+            return group["id"]
+    created = client.post(base, headers=headers, json={"name": name})
+    if created.status_code not in (201, 204):
+        raise SystemExit(
+            f"IdP group creation failed: {created.status_code} {created.text[:200]}"
+        )
+    return _ensure_idp_group(client, headers, name)
+
+
+def _ensure_group_mapper(client: httpx.Client, headers: dict) -> None:
+    """Guarantee the drill client emits a `groups` claim.
+
+    The realm import carries the mapper for fresh boots; this makes the drill
+    idempotent on an IdP that is already running (a long-lived container never
+    re-imports the realm file), so the check never depends on container age.
+    """
+    core = ISSUER.rsplit("/realms/", 1)[0]
+    base = f"{core}/admin/realms/harness/clients"
+    found = client.get(base, headers=headers, params={"clientId": CLIENT_ID})
+    entries = found.json() if found.status_code == 200 else []
+    if not entries:
+        raise SystemExit(f"IdP client {CLIENT_ID} not found")
+    client_uuid = entries[0]["id"]
+    mappers_url = f"{base}/{client_uuid}/protocol-mappers/models"
+    mappers = client.get(mappers_url, headers=headers).json()
+    if any(m.get("protocolMapper") == "oidc-group-membership-mapper" for m in mappers):
+        return
+    created = client.post(
+        mappers_url,
+        headers=headers,
+        json={
+            "name": "groups",
+            "protocol": "openid-connect",
+            "protocolMapper": "oidc-group-membership-mapper",
+            "config": {
+                "full.path": "false",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "userinfo.token.claim": "false",
+                "claim.name": "groups",
+            },
+        },
+    )
+    if created.status_code not in (201, 204):
+        raise SystemExit(
+            f"IdP group mapper creation failed: {created.status_code} {created.text[:200]}"
+        )
+
+
+def _set_group_membership(
+    client: httpx.Client, headers: dict, email: str, group_id: str, *, present: bool
+) -> None:
+    base = f"{ISSUER.rsplit('/realms/', 1)[0]}/admin/realms/harness"
+    user_id = _idp_user_id(client, headers, email)
+    url = f"{base}/users/{user_id}/groups/{group_id}"
+    response = client.put(url, headers=headers) if present else client.delete(url, headers=headers)
+    if response.status_code not in (204, 201):
+        raise SystemExit(
+            f"IdP group membership update failed: {response.status_code} {response.text[:200]}"
+        )
+
+
 def ensure_idp_user(email: str, password: str) -> str:
     """Create the drill member at the IdP via the admin API (idempotent).
 
@@ -144,22 +241,7 @@ def ensure_idp_user(email: str, password: str) -> str:
     prompt can appear on re-runs.
     """
     with httpx.Client(timeout=20.0) as client:
-        token_response = client.post(
-            f"{ISSUER.rsplit('/realms/', 1)[0]}/realms/master/protocol/openid-connect/token",
-            data={
-                "grant_type": "password",
-                "client_id": "admin-cli",
-                "username": IDP_ADMIN_USER,
-                "password": IDP_ADMIN_PASSWORD,
-            },
-        )
-        if token_response.status_code != 200:
-            raise SystemExit(
-                f"IdP admin login failed ({token_response.status_code}); "
-                "check DRILL_IDP_ADMIN_* against KC_BOOTSTRAP_ADMIN_*"
-            )
-        admin_token = token_response.json()["access_token"]
-        headers = {"authorization": f"Bearer {admin_token}"}
+        headers = {"authorization": f"Bearer {_admin_token(client)}"}
         base = f"{ISSUER.rsplit('/realms/', 1)[0]}/admin/realms/harness/users"
         existing = client.get(
             base, headers=headers, params={"email": email, "exact": "true"}
@@ -333,6 +415,135 @@ def main() -> int:
     )
     _, me = api("GET", "/api/v1/me", token=session["token"])
     record("minted session authenticates", me.get("userId") == member_principal["userId"])
+
+    # ------------------------------------------ group-mapped role (W16 s2)
+    # The IdP must be the authority on group membership; the harness may only
+    # translate configured groups into roles. Both directions are exercised with
+    # a realistic two-group layout: everyone carries the baseline group, admins
+    # additionally carry the admin group. Removing the admin group therefore
+    # demotes on the next login -- a directory-driven change, not a sticky one.
+    with httpx.Client(timeout=20.0) as admin_client:
+        admin_headers = {"authorization": f"Bearer {_admin_token(admin_client)}"}
+        _ensure_group_mapper(admin_client, admin_headers)
+        group_id = _ensure_idp_group(admin_client, admin_headers, DRILL_GROUP)
+        base_group_id = _ensure_idp_group(admin_client, admin_headers, DRILL_BASE_GROUP)
+        record(
+            "drill groups exist at the IdP",
+            bool(group_id) and bool(base_group_id),
+            f"{DRILL_GROUP}, {DRILL_BASE_GROUP}",
+        )
+
+        _, mapped_config = api(
+            "PUT",
+            f"/api/v1/teams/{team_id}/sso/config",
+            token=admin_token,
+            body={
+                "issuerUrl": ISSUER,
+                "clientId": CLIENT_ID,
+                "clientSecret": CLIENT_SECRET,
+                "idpDisplayName": "Keycloak drill",
+                "groupsClaim": "groups",
+                "groupRoles": [
+                    {"group": DRILL_GROUP, "role": "admin"},
+                    {"group": DRILL_BASE_GROUP, "role": "engineer"},
+                ],
+            },
+        )
+        expected_rules = [
+            {"group": DRILL_GROUP, "role": "admin"},
+            {"group": DRILL_BASE_GROUP, "role": "engineer"},
+        ]
+        record(
+            "group mapping stored and projected back",
+            mapped_config.get("groupsClaim") == "groups"
+            and mapped_config.get("groupRoles") == expected_rules,
+            f"claim={mapped_config.get('groupsClaim')} rules={mapped_config.get('groupRoles')}",
+        )
+
+        _set_group_membership(
+            admin_client, admin_headers, MEMBER_EMAIL, base_group_id, present=True
+        )
+        _set_group_membership(
+            admin_client, admin_headers, MEMBER_EMAIL, group_id, present=True
+        )
+        auth_url_g, state_g = sso_start(team_id)
+        code_g = idp_login(auth_url_g, MEMBER_EMAIL, MEMBER_PASSWORD)
+        _, session_g = api(
+            "POST",
+            "/api/v1/auth/sso/complete",
+            body={
+                "teamId": team_id,
+                "code": code_g,
+                "state": state_g,
+                "redirectUri": REDIRECT_URI,
+            },
+        )
+        record(
+            "IdP group promoted the session role",
+            session_g["principal"]["role"] == "admin",
+            f"role={session_g['principal']['role']} via group {DRILL_GROUP}",
+        )
+        # A login answer is not authority: the minted token itself must pass an
+        # admin-only door, which reads the role from the membership row.
+        _, me_admin = api("GET", "/api/v1/audit?limit=1", token=session_g["token"])
+        record(
+            "promoted session passes the admin-only audit door",
+            isinstance(me_admin.get("items"), list),
+            f"{len(me_admin.get('items') or [])} row(s) visible",
+        )
+
+        _, audit = api("GET", "/api/v1/audit?limit=50", token=admin_token)
+        login_rows = [row for row in audit["items"] if row["action"] == "sso.login"]
+        latest = login_rows[0] if login_rows else {}
+        detail = latest.get("detail") or {}
+        record(
+            "login audit says a claim chose the role",
+            detail.get("role") == "admin"
+            and detail.get("source") == "claim"
+            and DRILL_GROUP in (detail.get("matched") or []),
+            f"role={detail.get('role')} source={detail.get('source')} "
+            f"matched={detail.get('matched')}",
+        )
+
+        _set_group_membership(
+            admin_client, admin_headers, MEMBER_EMAIL, group_id, present=False
+        )
+        auth_url_u, state_u = sso_start(team_id)
+        code_u = idp_login(auth_url_u, MEMBER_EMAIL, MEMBER_PASSWORD)
+        _, session_u = api(
+            "POST",
+            "/api/v1/auth/sso/complete",
+            body={
+                "teamId": team_id,
+                "code": code_u,
+                "state": state_u,
+                "redirectUri": REDIRECT_URI,
+            },
+        )
+        record(
+            "leaving the admin group demotes on the next login",
+            session_u["principal"]["role"] == "engineer",
+            f"role={session_u['principal']['role']} via {DRILL_BASE_GROUP}",
+        )
+        status_u, _ = api(
+            "GET", "/api/v1/audit?limit=1", token=session_u["token"], expect=(403,)
+        )
+        record(
+            "demoted session is refused at the admin-only door",
+            status_u == 403,
+            f"HTTP {status_u}",
+        )
+        _, audit_after = api("GET", "/api/v1/audit?limit=50", token=admin_token)
+        after_rows = [row for row in audit_after["items"] if row["action"] == "sso.login"]
+        after_detail = (after_rows[0].get("detail") or {}) if after_rows else {}
+        record(
+            "second login audit says the baseline group chose the role",
+            after_detail.get("role") == "engineer"
+            and after_detail.get("source") == "claim"
+            and DRILL_BASE_GROUP in (after_detail.get("matched") or []),
+            f"role={after_detail.get('role')} source={after_detail.get('source')} "
+            f"matched={after_detail.get('matched')}",
+        )
 
     # ------------------------------------------------------------- replay
     status, payload = api(

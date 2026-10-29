@@ -39,9 +39,40 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   context-resolver driver) had to gain the `users` table they never created — a
   fixture that omits it was proving a token works where the real schema would
   refuse it. Operator text: `docs/runbooks/ops.md` §3.7.
+* **SSO learns what directory groups mean — only because an admin said so.**
+  OIDC login mapped email to an existing member and took the role from the
+  `team_members` row; a group change at the IdP changed nothing here. A team
+  config now carries `groupsClaim` + `groupRoles` (`[{group, role}]`, migration
+  0069), and a login consults the token's claim: every matching `fnmatch` pattern
+  is considered, the strongest role wins (`guest < viewer < engineer < admin`),
+  and a claim that matches nothing leaves the stored role alone — so a broken
+  IdP mapper cannot lock a team out. A claim can never create access (no JIT),
+  never reactivates a disabled seat (slice 1's check runs first), and is confined
+  to rules an admin wrote; `admin` is the top of the role enum and ownership
+  transfer is untouched. The decided role is PERSISTED to the membership (every
+  later request resolves its role from `team_members`, so a login answer alone
+  would be theatre) with its own `member.role_changed` row (`source: sso_claim`);
+  a demotion that would leave a team with zero admins is refused and logged as
+  `membership_last_admin`. Because an unmatched claim keeps the stored role, a
+  promotion is not undone merely by removing the group — the directory-driven
+  pattern is a baseline rule for a group everyone carries, which the drill
+  exercises. Every login writes a `sso.login` audit row with
+  `role`, `source` (`claim` | `membership`) and the matched group names, so
+  "why did this person have admin?" is answerable from the log. The config API
+  refuses dead config up front — unknown role, empty group, more than 50 rules,
+  or rules without a claim name are `422 VALIDATION_ERROR` at PUT time.
+  Evidence: 16 rule/seam tests (`section1/tests/test_sso_group_mapping.py`),
+  6 end-to-end OIDC tests with the real mock-IdP harness (promotion + audit,
+  the promoted role surviving into a real `get_principal` lookup, last-admin
+  demotion refused, absence keeps the role, both refusals), and the live
+  Keycloak drill now includes the group leg: 22 checks, join →
+  `admin`/`source=claim` and the minted token passes the admin-only `/audit`
+  door, leave → baseline rule gives `engineer`/`source=claim` and `/audit`
+  answers 403 (`oidc-keycloak-drill.json`). Spec, both SDKs and
+  `clients/ts/dist` moved together; operator text is `ops.md` §3.8.
 * **W16 opened with an audit, not an assumption.** `docs/m2-w16-plan.md` records
   what exists today with file:line for each claim: OIDC auth-code+PKCE exists but
-  maps email only (no group→role); SCIM does not exist at all (no endpoint,
+  mapped email only (no group→role — closed by the slice above); SCIM does not exist at all (no endpoint,
   schema, table or token anywhere); `GET /api/v1/audit/export` is real, admin +
   step-up gated and chain-carrying, but there is no SIEM push sink, no NDJSON
   shape and no customer-facing chain verification; encryption is one install-wide

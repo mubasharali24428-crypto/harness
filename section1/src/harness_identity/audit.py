@@ -220,6 +220,9 @@ APPEND_ONLY_ACTIONS = frozenset(
         # Mission 22 M4: team OIDC IdP configuration lifecycle.
         "sso.config_saved",
         "sso.config_deleted",
+        # Marathon 2.0 W16: an OIDC login minted a session; detail records the
+        # role used and whether a group claim or the stored membership chose it.
+        "sso.login",
         # Multiplayer pilot S2: shared-run collaboration + high-impact approvals
         # (raw-SQL writer in section4 collab.py; canonical allowlist is here).
         "participant.joined",

@@ -393,6 +393,8 @@ class SsoConfigBody(typing.TypedDict, total=False):
     clientId: str  # required
     clientSecret: str | None
     enabled: bool
+    groupRoles: list[dict[str, typing.Any]]
+    groupsClaim: str
     idpDisplayName: str
     issuerUrl: str  # required
 

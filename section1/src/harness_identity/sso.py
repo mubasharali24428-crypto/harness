@@ -46,18 +46,21 @@ Security posture:
 from __future__ import annotations
 
 import base64
+import fnmatch
 import hashlib
+import json
+import logging
 import secrets
 import urllib.parse
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, Any
+from typing import Annotated, Any, NamedTuple
 
 import httpx
 from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, Depends, HTTPException, Request
 from harness_contracts import Principal, error_body
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import DateTime, ForeignKey, select
+from sqlalchemy import DateTime, ForeignKey, func, select, text
 from sqlalchemy import delete as sa_delete
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Mapped, mapped_column
@@ -67,8 +70,11 @@ from .auth import SESSION_TTL_HOURS, get_principal, hash_token
 from .billing import BillingPlan
 from .crypto import ensure_kdf_params, load_kdf_params
 from .http_client import env_client
-from .models import AuthSession, Base, User
+from .models import AuthSession, Base, TeamMember, User
+from .models import Role as DbRole
 from .orgs import mark_session_assurance
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1")
 
@@ -105,6 +111,14 @@ class TeamSsoConfig(Base):
     client_secret_encrypted: Mapped[str] = mapped_column(nullable=False)
     enabled: Mapped[bool] = mapped_column(default=True, nullable=False)
     idp_display_name: Mapped[str] = mapped_column(default="", nullable=False)
+    # W16 slice 2 (migration 0069): group-mapped SSO, off by default. Empty
+    # claim name = not configured; empty map = nothing can be granted.
+    groups_claim: Mapped[str] = mapped_column(
+        default="", server_default=text("''"), nullable=False
+    )
+    group_roles: Mapped[str] = mapped_column(
+        default="[]", server_default=text("'[]'"), nullable=False
+    )
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -370,6 +384,11 @@ def _secret_hint(encrypted_token: str) -> str:
 
 def _config_public(row: TeamSsoConfig) -> dict[str, Any]:
     """camelCase projection. Only the ciphertext hint of the secret leaves."""
+    try:
+        group_roles = json.loads(row.group_roles or "[]")
+    except ValueError:  # corrupt stored JSON must not 500 a read
+        logger.warning("team %s has unparseable group_roles; projecting []", row.team_id)
+        group_roles = []
     return {
         "teamId": row.team_id,
         "issuerUrl": row.issuer_url,
@@ -377,6 +396,8 @@ def _config_public(row: TeamSsoConfig) -> dict[str, Any]:
         "enabled": bool(row.enabled),
         "idpDisplayName": row.idp_display_name,
         "secretHint": _secret_hint(row.client_secret_encrypted),
+        "groupsClaim": row.groups_claim or "",
+        "groupRoles": group_roles,
         "createdAt": row.created_at.isoformat() if row.created_at else None,
     }
 
@@ -390,10 +411,15 @@ class SsoConfigBody(BaseModel):
     )
     enabled: bool = True
     idp_display_name: str = Field(alias="idpDisplayName", default="", max_length=200)
+    # W16 slice 2: opt-in group -> role mapping. Claim absent/empty => no
+    # promotion; shapes are validated in the handler so the error is the
+    # product's VALIDATION_ERROR envelope, not FastAPI's 422 list.
+    groups_claim: str = Field(alias="groupsClaim", default="", max_length=120)
+    group_roles: list[dict[str, Any]] = Field(alias="groupRoles", default_factory=list)
 
     model_config = {"populate_by_name": True}
 
-    @field_validator("issuer_url", "client_id", mode="before")
+    @field_validator("issuer_url", "client_id", "groups_claim", mode="before")
     @classmethod
     def _strip(cls, v: object) -> object:
         return v.strip() if isinstance(v, str) else v
@@ -434,6 +460,23 @@ async def put_sso_config(
         raise HTTPException(status_code=404, detail=error_body("NOT_FOUND", "team not found"))
     await _require_team_tier(request, team_id)
 
+    # Validate the opt-in mapping BEFORE any DB work: the API's error envelope,
+    # not a raw pydantic list. A mapping without a claim name is dead config and
+    # refused rather than silently ignored at login time.
+    try:
+        group_roles = normalize_group_roles(body.group_roles)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422, detail=error_body("VALIDATION_ERROR", str(exc))
+        ) from exc
+    if group_roles and not body.groups_claim:
+        raise HTTPException(
+            status_code=422,
+            detail=error_body(
+                "VALIDATION_ERROR", "groupsClaim is required when groupRoles is set"
+            ),
+        )
+
     vault = request.app.state.vault
     async with request.app.state.session_factory() as db:
         # Encrypt FIRST (ensure_kdf_params may flush; a half-built ORM row
@@ -465,6 +508,8 @@ async def put_sso_config(
         row.client_id = client_id
         row.enabled = enabled
         row.idp_display_name = display_name
+        row.groups_claim = body.groups_claim
+        row.group_roles = json.dumps(group_roles, separators=(",", ":"))
         if row.created_at is None:
             row.created_at = datetime.now(UTC)
         await db.commit()
@@ -747,8 +792,8 @@ async def sso_complete(body: SsoCompleteBody, request: Request) -> dict[str, Any
             detail=error_body("SSO_EMAIL_MISSING", "ID token carries no email claim"),
         )
 
-    outcome, principal = await _map_email_to_member(factory, body.team_id, email)
-    if outcome == MAP_DISABLED:
+    mapping = await _map_email_to_member(factory, body.team_id, email, claims)
+    if mapping.outcome == MAP_DISABLED:
         raise HTTPException(
             status_code=403,
             detail=error_body(
@@ -756,7 +801,7 @@ async def sso_complete(body: SsoCompleteBody, request: Request) -> dict[str, Any
                 "this account is deactivated; ask a team admin to restore your seat",
             ),
         )
-    if principal is None:
+    if mapping.principal is None:
         raise HTTPException(
             status_code=403,
             detail=error_body(
@@ -764,39 +809,156 @@ async def sso_complete(body: SsoCompleteBody, request: Request) -> dict[str, Any
                 "this account is not a member of the team; ask an admin for an invite",
             ),
         )
-    token = await _mint_session(factory, principal)
-    return {"token": token, "principal": principal.model_dump()}
+    token = await _mint_session(factory, mapping.principal)
+    # W16 slice 2: "why did this person have admin?" must have an answer that is
+    # not "ask the IdP". The row records the role that was used and whether a
+    # claim or the stored membership chose it — group NAMES only, no token, no
+    # email (the user id is enough to join against).
+    try:
+        from .audit_emit import emit_sso_login
+
+        async with factory() as db:
+            await emit_sso_login(
+                db,
+                actor_user_id=mapping.principal.userId,
+                team_id=body.team_id,
+                target_id=mapping.principal.userId,
+                detail={
+                    "role": _role_value(mapping.principal.role),
+                    "source": mapping.role_source,
+                    "matched": list(mapping.matched),
+                },
+            )
+            await db.commit()
+    except Exception:  # noqa: BLE001 — an audit failure must not deny a valid login
+        logger.exception("sso login audit failed for team %s", body.team_id)
+    return {"token": token, "principal": mapping.principal.model_dump()}
 
 
 MAP_OK = "ok"
 MAP_NO_MEMBER = "no_member"
 MAP_DISABLED = "disabled"
 
+# W16 slice 2: the roles a claim may map to. Exactly the four team roles —
+# nothing here can invent a privilege the membership API cannot grant.
+GROUP_ROLE_VALUES = ("admin", "engineer", "viewer", "guest")
+GROUP_ROLE_RANK = {"guest": 0, "viewer": 1, "engineer": 2, "admin": 3}
+MAX_GROUP_ROLES = 50
+
+
+def normalize_group_roles(raw: Any) -> list[dict[str, str]]:
+    """Canonical claim→role map, or ValueError.
+
+    Validated at WRITE time on purpose: a typo in a role name must fail when an
+    admin saves the configuration, not silently at the next person's login.
+    """
+    if not isinstance(raw, list):
+        raise ValueError("groupRoles must be a list")
+    if len(raw) > MAX_GROUP_ROLES:
+        raise ValueError(f"groupRoles is bounded to {MAX_GROUP_ROLES} entries")
+    out: list[dict[str, str]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            raise ValueError("each groupRoles entry must be an object")
+        extra = set(item) - {"group", "role"}
+        if extra:
+            raise ValueError(f"unknown groupRoles key(s): {', '.join(sorted(extra))}")
+        group = item.get("group")
+        role = item.get("role")
+        if not isinstance(group, str) or not group.strip():
+            raise ValueError("group must be a non-empty string")
+        if len(group.strip()) > 200:
+            raise ValueError("group is bounded to 200 characters")
+        if not isinstance(role, str):
+            raise ValueError("role must be a string")
+        cleaned = role.strip().lower()
+        if cleaned not in GROUP_ROLE_VALUES:
+            raise ValueError(
+                f"role must be one of {', '.join(GROUP_ROLE_VALUES)} (got {role!r})"
+            )
+        out.append({"group": group.strip(), "role": cleaned})
+    return out
+
+
+def resolve_claim_role(
+    membership_role: str,
+    groups_claim: str,
+    group_roles: list[dict[str, str]],
+    claims: dict[str, Any],
+) -> tuple[str, str, tuple[str, ...]]:
+    """The role an SSO login should carry, and where it came from.
+
+    Returns ``(role, source, matched_groups)`` where source is ``"claim"`` when
+    the IdP decided and ``"membership"`` otherwise. Opt-in by construction: with
+    no claim name or no map, this is exactly the previous behaviour. An unmatched
+    member keeps the stored role — a group removed at the IdP is not how a team
+    revokes access (the membership API and SCIM are), and a claim outage must not
+    empty a team's permissions.
+    """
+    if not groups_claim or not group_roles:
+        return membership_role, "membership", ()
+    raw = claims.get(groups_claim)
+    if isinstance(raw, str):
+        values = [raw]
+    elif isinstance(raw, list):
+        values = [v for v in raw if isinstance(v, str)]
+    else:
+        values = []
+    values = [v.strip() for v in values if v.strip()]
+    if not values:
+        return membership_role, "membership", ()
+
+    best: tuple[int, str] | None = None
+    matched: set[str] = set()
+    for entry in group_roles:
+        pattern = entry["group"]
+        hits = [v for v in values if v == pattern or fnmatch.fnmatchcase(v, pattern)]
+        if not hits:
+            continue
+        matched.update(hits)
+        rank = GROUP_ROLE_RANK.get(entry["role"], -1)
+        if best is None or rank > best[0]:
+            best = (rank, entry["role"])
+    if best is None:
+        return membership_role, "membership", ()
+    return best[1], "claim", tuple(sorted(matched))
+
+
+class SsoMapping(NamedTuple):
+    """What the email-match rule decided, and why — the caller audits `source`."""
+
+    outcome: str
+    principal: Principal | None
+    role_source: str  # "claim" | "membership"
+    matched: tuple[str, ...]
+
 
 async def _map_email_to_member(
-    factory, team_id: str, email: str
-) -> tuple[str, Principal | None]:
-    """Email-match provisioning rule (the documented contract).
+    factory, team_id: str, email: str, claims: dict[str, Any] | None = None
+) -> SsoMapping:
+    """Email-match provisioning rule, plus the optional claim→role map.
 
     The ID-token email must equal (case-insensitive, stripped) users.email of an
-    existing, ACTIVE member OF THIS TEAM. Returns an outcome plus, on success,
-    the Principal carrying that membership's role.
+    existing, ACTIVE member OF THIS TEAM. Three outcomes, not one, because the
+    two refusals mean different things to different people: `no_member` is an
+    invite problem ("ask an admin to add you"), `disabled` is a seat problem
+    ("your access was revoked"). Collapsing them sent users to the wrong queue.
 
-    Three outcomes, not one, because the two refusals mean different things to
-    different people: `no_member` is an invite problem ("ask an admin to add
-    you"), `disabled` is a seat problem ("your access was revoked"). Collapsing
-    them sent users to the wrong queue — and the docstring had promised an
-    ACTIVE member while the query never asked (W16 fixed the query).
+    The ROLE comes from the team's configured group map when one matches, and
+    from the stored membership otherwise. Login is mapping-only (a claim can
+    never create a seat), the map is admin-authored and validated at write time,
+    and an unmatched member keeps the stored role — a group removed at the IdP
+    is not how a team revokes access, and a claim outage must not empty a
+    team's permissions.
     """
     async with factory() as db:
         user = (
             await db.execute(select(User).where(User.email == email))
         ).scalar_one_or_none()
         if user is None:
-            return MAP_NO_MEMBER, None
+            return SsoMapping(MAP_NO_MEMBER, None, "membership", ())
         if not user.is_active:
-            return MAP_DISABLED, None
-        from .models import TeamMember
+            return SsoMapping(MAP_DISABLED, None, "membership", ())
 
         member = (
             await db.execute(
@@ -807,10 +969,91 @@ async def _map_email_to_member(
             )
         ).scalar_one_or_none()
         if member is None:
-            return MAP_NO_MEMBER, None
-        return MAP_OK, Principal(
-            userId=user.id, teamId=team_id, role=_role_value_to_contracts(member.role)
+            return SsoMapping(MAP_NO_MEMBER, None, "membership", ())
+
+        config = await db.get(TeamSsoConfig, team_id)
+        claim_name = (config.groups_claim or "") if config is not None else ""
+        roles: list[dict[str, str]] = []
+        if config is not None and config.group_roles:
+            try:
+                roles = normalize_group_roles(json.loads(config.group_roles))
+            except (TypeError, ValueError):
+                # Stored maps are validated on write; a value that fails here was
+                # edited outside the API. Refusing the login would lock a team
+                # out over a config bug, so fall back to membership and say so.
+                logger.warning(
+                    "team %s has an unreadable group map; using membership roles", team_id
+                )
+                roles = []
+
+        role_value, source, matched = resolve_claim_role(
+            _role_value(member.role), claim_name, roles, claims or {}
         )
+        stored_role = _role_value(member.role)
+        if source == "claim" and role_value != stored_role:
+            # Persist, because every later request resolves its role from
+            # team_members — a login answer that only LOOKS right would be a
+            # lie. One exception: a demotion that would leave the team with no
+            # admin is refused (the last-admin invariant is older than SSO), and
+            # the audit row says the claim lost.
+            if role_value != "admin" and await _is_last_admin(db, member):
+                source = "membership_last_admin"
+                role_value = stored_role
+            else:
+                member.role = DbRole(role_value)
+                await _record_claim_role_change(db, member, stored_role, role_value)
+        return SsoMapping(
+            MAP_OK,
+            Principal(
+                userId=user.id,
+                teamId=team_id,
+                role=_role_value_to_contracts(role_value),
+            ),
+            source,
+            matched,
+        )
+
+
+async def _is_last_admin(db, member) -> bool:
+    """True when demoting `member` would leave the team with no admin."""
+    if _role_value(member.role) != "admin":
+        return False
+    others = (
+        await db.execute(
+            select(func.count())
+            .select_from(TeamMember)
+            .where(
+                TeamMember.team_id == member.team_id,
+                TeamMember.role == DbRole.ADMIN,
+                TeamMember.id != member.id,
+            )
+        )
+    ).scalar_one()
+    return int(others) == 0
+
+
+async def _record_claim_role_change(db, member, from_role: str, to_role: str) -> None:
+    """Commit the claim-derived role + its own audit row (never fails the login)."""
+    from .audit_emit import emit_member_role_changed
+
+    try:
+        await db.commit()
+        await emit_member_role_changed(
+            db,
+            actor_user_id=member.user_id,
+            team_id=member.team_id,
+            target_id=str(member.id),
+            actor_kind="system",
+            detail={
+                "targetUserId": member.user_id,
+                "fromRole": from_role,
+                "toRole": to_role,
+                "source": "sso_claim",
+            },
+        )
+        await db.commit()
+    except Exception:  # noqa: BLE001 — a broken audit sink must not deny a login
+        logger.exception("sso claim role change could not be recorded for team %s", member.team_id)
 
 
 def _role_value_to_contracts(role: object):

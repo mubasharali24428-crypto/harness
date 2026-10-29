@@ -595,6 +595,33 @@ async def emit_sso_config_saved(
     )
 
 
+async def emit_sso_login(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """sso.login — W16 slice 2: an OIDC login minted a session. Call AFTER the
+    session row commits; target_id is the member's userId, detail carries
+    {role, source, matched} so "why is this person an admin?" is answerable
+    from the log alone (source is "claim" | "membership")."""
+    return await _emit(
+        session,
+        "sso.login",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="member",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
 async def emit_sso_config_deleted(
     session: AsyncSession,
     *,
