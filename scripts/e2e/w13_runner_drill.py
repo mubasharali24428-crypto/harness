@@ -115,15 +115,18 @@ def attestation(confinement: str = "docker") -> dict:
     }
 
 
-def runner_headers(token: str, nonce: str | None = None, ts: int | None = None) -> dict:
-    return {
-        "authorization": f"Bearer {token}",
+def runner_headers(token: str | None, nonce: str | None = None,
+                   ts: int | None = None) -> dict:
+    headers = {
         "x-runner-nonce": nonce or secrets.token_hex(12),
         "x-runner-timestamp": str(int(time.time()) if ts is None else ts),
     }
+    if token is not None:
+        headers["authorization"] = f"Bearer {token}"
+    return headers
 
 
-def runner_http(method: str, path: str, token: str, body: dict | None = None,
+def runner_http(method: str, path: str, token: str | None, body: dict | None = None,
                 nonce: str | None = None, ts: int | None = None) -> dict:
     url = f"{IDENTITY}{path}"
     headers = runner_headers(token, nonce, ts)
@@ -237,6 +240,9 @@ def main() -> int:
     queue_run(run_c, project_a)
 
     checks: dict[str, bool] = {}
+    anonymous = runner_http("POST", "/api/v1/runner/heartbeat", None,
+                            {"attestation": {}, "signature": "x"})
+    checks["anonymousMalformedBodyIs401"] = anonymous["status"] == 401
     evidence: dict = {
         "schema": 1,
         "kind": "w13-runner",
@@ -377,7 +383,23 @@ def main() -> int:
         f"SELECT state FROM runner_jobs WHERE run_id = '{run_c}'"
     ) == "released"
 
-    # ---- 7. revocation is instant and idempotent
+    # ---- 7. rotation: new token works, the old token and key die immediately
+    rotated = ident("POST", f"/api/v1/team-runners/{runner_id}/rotate", token_a)
+    new_token = rotated["body"].get("token", "") if rotated["status"] == 200 else ""
+    checks["rotateReturnsNewToken"] = rotated["status"] == 200 and new_token.startswith("hrn_")
+    old_dead = runner_http("POST", "/api/v1/runner/heartbeat", token_r,
+                           {"attestation": att, "signature": sign(att, token_r)})
+    checks["rotatedOldTokenDead"] = old_dead["status"] == 401
+    new_alive = runner_http("POST", "/api/v1/runner/heartbeat", new_token,
+                            {"attestation": att, "signature": sign(att, new_token)})
+    checks["rotatedNewTokenWorks"] = new_alive["status"] == 200
+    checks["rotateAuditRow"] = psql(
+        f"SELECT COUNT(*) FROM audit_log WHERE action = 'runner.rotated' "
+        f"AND detail->>'teamId' = '{team_a}'"
+    ) != "0"
+    token_r = new_token
+
+    # ---- 8. revocation is instant and idempotent
     revoked = ident("POST", f"/api/v1/team-runners/{runner_id}/revoke", token_a)
     again = ident("POST", f"/api/v1/team-runners/{runner_id}/revoke", token_a)
     checks["revokeIsIdempotent"] = revoked["status"] == 204 and again["status"] == 204

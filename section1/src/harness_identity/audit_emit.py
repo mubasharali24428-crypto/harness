@@ -954,3 +954,31 @@ async def emit_runner_job_completed(
         actor_kind="system",
         session_owner=session_owner,
     )
+
+
+async def emit_runner_rotated(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """runner.rotated — M2-W13: the token (and attestation key) were replaced.
+
+    Detail carries only the name and the old/new last-4 hints; neither token
+    nor derivative ever reaches the audit log.
+    """
+    return await _emit(
+        session,
+        "runner.rotated",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_runner",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )

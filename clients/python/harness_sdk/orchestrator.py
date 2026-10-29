@@ -81,6 +81,10 @@ class CreateBody(typing.TypedDict, total=False):
     refPos: int | None
     requestId: str | None
 
+class DecisionBody(typing.TypedDict, total=False):
+    """DecisionBody."""
+    note: str | None
+
 class DeletionBody(typing.TypedDict, total=False):
     """DeletionBody."""
     reason: str | None
@@ -98,12 +102,6 @@ class DemoSeedResponse(typing.TypedDict, total=False):
     repoFullName: str | None
     runId: str  # required
     state: str  # required
-
-class DeployBody(typing.TypedDict, total=False):
-    """DeployBody. Required keys: environment."""
-    environment: str  # required
-    note: str | None
-    requestId: str | None
 
 class DoneSignalRequest(typing.TypedDict, total=False):
     """DoneSignalRequest."""
@@ -170,10 +168,6 @@ class HeartbeatRequest(typing.TypedDict, total=False):
     """HeartbeatRequest. Required keys: deviceId."""
     deviceId: str  # required
     state: typing.Literal['online', 'idle']
-
-class HoldRequest(typing.TypedDict, total=False):
-    """HoldRequest. Required keys: reason."""
-    reason: str  # required
 
 class HumanEditRequest(typing.TypedDict, total=False):
     """HumanEditRequest. Required keys: path, content."""
@@ -381,6 +375,10 @@ class ReviewFindingsOut(typing.TypedDict, total=False):
     summary: str
     syntaxOk: bool
 
+class RevokeBody(typing.TypedDict, total=False):
+    """RevokeBody. Required keys: reason."""
+    reason: str  # required
+
 class RewindBody(typing.TypedDict, total=False):
     """RewindBody."""
     checkpoint: str | None
@@ -459,10 +457,6 @@ class SettingsRequest(typing.TypedDict, total=False):
     maxParticipants: int | None
     mode: typing.Literal['full', 'limited', 'off'] | None
     staleSeconds: int | None
-
-class ShareBody(typing.TypedDict, total=False):
-    """ShareBody."""
-    ttlSeconds: int | None
 
 class SpawnBody(typing.TypedDict, total=False):
     """SpawnBody. Required keys: agentId, title."""
@@ -561,27 +555,10 @@ class harness_orchestrator__control__DecideBody(typing.TypedDict, total=False):
     reason: str | None
     requestId: str | None
 
-class harness_orchestrator__control__RevokeBody(typing.TypedDict, total=False):
-    """harness_orchestrator__control__RevokeBody. Required keys: reason."""
-    reason: str  # required
-
-class harness_orchestrator__deployments__DecisionBody(typing.TypedDict, total=False):
-    """harness_orchestrator__deployments__DecisionBody. Required keys: changesDigest."""
-    changesDigest: str  # required
-    note: str | None
-
-class harness_orchestrator__deployments__RevokeBody(typing.TypedDict, total=False):
-    """harness_orchestrator__deployments__RevokeBody."""
-    note: str | None
-
 class harness_orchestrator__execution__DecideBody(typing.TypedDict, total=False):
     """harness_orchestrator__execution__DecideBody. Required keys: reportDigest."""
     reason: str | None
     reportDigest: str  # required
-
-class harness_orchestrator__exports__DecisionBody(typing.TypedDict, total=False):
-    """harness_orchestrator__exports__DecisionBody."""
-    note: str | None
 
 class harness_orchestrator__plans__DecideBody(typing.TypedDict, total=False):
     """harness_orchestrator__plans__DecideBody. Required keys: decision."""
@@ -614,7 +591,7 @@ class OrchestratorClient:
         _path = "/api/v1/orchestrator/deletion-requests"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
-    def deletion_approve(self, request_id: str, body: harness_orchestrator__exports__DecisionBody | None = None) -> dict[str, typing.Any]:
+    def deletion_approve(self, request_id: str, body: DecisionBody | None = None) -> dict[str, typing.Any]:
         """Deletion Approve
 
         POST /api/v1/orchestrator/deletion-requests/{requestId}/approve
@@ -622,7 +599,7 @@ class OrchestratorClient:
         _path = f"/api/v1/orchestrator/deletion-requests/{request_id}/approve"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
-    def deletion_reject(self, request_id: str, body: harness_orchestrator__exports__DecisionBody | None = None) -> dict[str, typing.Any]:
+    def deletion_reject(self, request_id: str, body: DecisionBody | None = None) -> dict[str, typing.Any]:
         """Deletion Reject
 
         POST /api/v1/orchestrator/deletion-requests/{requestId}/reject
@@ -923,14 +900,6 @@ class OrchestratorClient:
         _path = f"/api/v1/orchestrator/runs/{run_id}/artifacts/{artifact_id}/preview"
         return self._http.request(self.base_url, "GET", _path)
 
-    def create_share(self, run_id: str, artifact_id: str, body: ShareBody) -> typing.Any:
-        """Create Share
-
-        POST /api/v1/orchestrator/runs/{runId}/artifacts/{artifactId}/share
-        """
-        _path = f"/api/v1/orchestrator/runs/{run_id}/artifacts/{artifact_id}/share"
-        return self._http.request(self.base_url, "POST", _path, json_body=body)
-
     def list_changes(self, run_id: str) -> typing.Any:
         """List Changes
 
@@ -1044,7 +1013,7 @@ class OrchestratorClient:
         _path = f"/api/v1/orchestrator/runs/{run_id}/control/request"
         return self._http.request(self.base_url, "POST", _path)
 
-    def control_revoke(self, run_id: str, body: harness_orchestrator__control__RevokeBody) -> dict[str, typing.Any]:
+    def control_revoke(self, run_id: str, body: RevokeBody) -> dict[str, typing.Any]:
         """Control Revoke
 
         POST /api/v1/orchestrator/runs/{runId}/control/revoke
@@ -1058,38 +1027,6 @@ class OrchestratorClient:
         POST /api/v1/orchestrator/runs/{runId}/control/transfer
         """
         _path = f"/api/v1/orchestrator/runs/{run_id}/control/transfer"
-        return self._http.request(self.base_url, "POST", _path, json_body=body)
-
-    def list_deployments(self, run_id: str) -> typing.Any:
-        """List Deployments
-
-        GET /api/v1/orchestrator/runs/{runId}/deployments
-        """
-        _path = f"/api/v1/orchestrator/runs/{run_id}/deployments"
-        return self._http.request(self.base_url, "GET", _path)
-
-    def request_deployment(self, run_id: str, body: DeployBody) -> typing.Any:
-        """Request Deployment
-
-        POST /api/v1/orchestrator/runs/{runId}/deployments
-        """
-        _path = f"/api/v1/orchestrator/runs/{run_id}/deployments"
-        return self._http.request(self.base_url, "POST", _path, json_body=body)
-
-    def approve_deployment(self, run_id: str, deployment_id: str, body: harness_orchestrator__deployments__DecisionBody) -> typing.Any:
-        """Approve Deployment
-
-        POST /api/v1/orchestrator/runs/{runId}/deployments/{deploymentId}/approve
-        """
-        _path = f"/api/v1/orchestrator/runs/{run_id}/deployments/{deployment_id}/approve"
-        return self._http.request(self.base_url, "POST", _path, json_body=body)
-
-    def revoke_deployment(self, run_id: str, deployment_id: str, body: harness_orchestrator__deployments__RevokeBody) -> typing.Any:
-        """Revoke Deployment
-
-        POST /api/v1/orchestrator/runs/{runId}/deployments/{deploymentId}/revoke
-        """
-        _path = f"/api/v1/orchestrator/runs/{run_id}/deployments/{deployment_id}/revoke"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
     def run_diff(self, run_id: str, limit: int | None = None, offset: int | None = None) -> typing.Any:
@@ -1488,30 +1425,6 @@ class OrchestratorClient:
         _path = f"/api/v1/orchestrator/runs/{run_id}/resume"
         return self._http.request(self.base_url, "POST", _path)
 
-    def get_hold(self, run_id: str) -> dict[str, typing.Any]:
-        """Get Hold
-
-        GET /api/v1/orchestrator/runs/{runId}/retention-hold
-        """
-        _path = f"/api/v1/orchestrator/runs/{run_id}/retention-hold"
-        return self._http.request(self.base_url, "GET", _path)
-
-    def create_hold(self, run_id: str, body: HoldRequest) -> dict[str, typing.Any]:
-        """Create Hold
-
-        PUT /api/v1/orchestrator/runs/{runId}/retention-hold
-        """
-        _path = f"/api/v1/orchestrator/runs/{run_id}/retention-hold"
-        return self._http.request(self.base_url, "PUT", _path, json_body=body)
-
-    def release_hold(self, run_id: str) -> typing.Any:
-        """Release Hold
-
-        DELETE /api/v1/orchestrator/runs/{runId}/retention-hold
-        """
-        _path = f"/api/v1/orchestrator/runs/{run_id}/retention-hold"
-        return self._http.request(self.base_url, "DELETE", _path)
-
     def retry_route(self, run_id: str, body: RetryBody) -> typing.Any:
         """Retry Route
 
@@ -1527,22 +1440,6 @@ class OrchestratorClient:
         """
         _path = f"/api/v1/orchestrator/runs/{run_id}/rewind"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
-
-    def list_shares(self, run_id: str) -> typing.Any:
-        """List Shares
-
-        GET /api/v1/orchestrator/runs/{runId}/shares
-        """
-        _path = f"/api/v1/orchestrator/runs/{run_id}/shares"
-        return self._http.request(self.base_url, "GET", _path)
-
-    def revoke_share(self, run_id: str, share_id: str) -> typing.Any:
-        """Revoke Share
-
-        POST /api/v1/orchestrator/runs/{runId}/shares/{shareId}/revoke
-        """
-        _path = f"/api/v1/orchestrator/runs/{run_id}/shares/{share_id}/revoke"
-        return self._http.request(self.base_url, "POST", _path)
 
     def collab_staged_approvals(self, run_id: str) -> dict[str, typing.Any]:
         """Collab Staged Approvals
@@ -1648,31 +1545,6 @@ class OrchestratorClient:
         """
         _path = f"/api/v1/orchestrator/runs/{run_id}/task"
         return self._http.request(self.base_url, "PUT", _path, json_body=body)
-
-    def list_visuals(self, run_id: str) -> typing.Any:
-        """List Visuals
-
-        GET /api/v1/orchestrator/runs/{runId}/visuals
-        """
-        _path = f"/api/v1/orchestrator/runs/{run_id}/visuals"
-        return self._http.request(self.base_url, "GET", _path)
-
-    def attach_visual(self, run_id: str, role: typing.Literal['before', 'after'] | None = None, name: str | None = None, pair_of: str | None = None, captured_from: str | None = None, retention_days: int | None = None, request_id: str | None = None) -> typing.Any:
-        """Attach Visual
-
-        POST /api/v1/orchestrator/runs/{runId}/visuals
-        """
-        _path = f"/api/v1/orchestrator/runs/{run_id}/visuals"
-        _params: dict[str, typing.Any] = {"role": role, "name": name, "pairOf": pair_of, "capturedFrom": captured_from, "retentionDays": retention_days, "requestId": request_id}
-        return self._http.request(self.base_url, "POST", _path, params=_params)
-
-    def get_visual(self, run_id: str, artifact_id: str) -> typing.Any:
-        """Get Visual
-
-        GET /api/v1/orchestrator/runs/{runId}/visuals/{artifactId}
-        """
-        _path = f"/api/v1/orchestrator/runs/{run_id}/visuals/{artifact_id}"
-        return self._http.request(self.base_url, "GET", _path)
 
     def run_comments_list(self, scope_id: str, limit: int | None = None, after: str | None = None) -> dict[str, typing.Any]:
         """Run Comments List
@@ -1837,29 +1709,5 @@ class OrchestratorClient:
         _path = f"/api/v1/orchestrator/sessions/{scope_id}/comments/{comment_id}/reactions"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
-    def open_share(self, token: str) -> typing.Any:
-        """Open Share
 
-        GET /api/v1/orchestrator/shares/{token}
-        """
-        _path = f"/api/v1/orchestrator/shares/{token}"
-        return self._http.request(self.base_url, "GET", _path)
-
-    def health(self) -> typing.Any:
-        """Health
-
-        GET /health
-        """
-        _path = "/health"
-        return self._http.request(self.base_url, "GET", _path)
-
-    def ready_ready_get(self) -> typing.Any:
-        """Ready
-
-        GET /ready
-        """
-        _path = "/ready"
-        return self._http.request(self.base_url, "GET", _path)
-
-
-__all__ = ["OrchestratorClient", "AbandonBody", "AggregateStepOut", "ApprovalDecision", "ApprovalDigest", "ApprovalOutcome", "ApprovalRequest", "BlockBody", "BudgetDegradedOut", "CommentBody", "CompleteBody", "CreateBody", "DeletionBody", "DemoSeedResponse", "DeployBody", "DoneSignalRequest", "DoneSignalResponse", "EditBody", "ErrorDetail", "ErrorEnvelope", "EvidenceBody", "ExportBody", "GitStateBody", "HTTPValidationError", "HandoffDecision", "HandoffRequest", "HeartbeatRequest", "HoldRequest", "HumanEditRequest", "IntentBody", "LeaseBody", "LeaveRequest", "LimitsBody", "MergeBody", "MergedIntent", "ModerateBody", "OutputRef", "PatchOp", "PlanActionRequest", "PlanActionResponse", "PlanContent", "PlanDecisionResponse", "PlanOut", "PlanProposedResponse", "PlanRejectedResponse", "PrefsRequest", "ProgressBody", "PromoteBody", "ProposeBody", "ProposePlanGateRequest", "ProposePlanRequest", "ProposePlanResponse", "ReactBody", "ReasonBody", "ReassignBody", "RedirectRequest", "RejectBody", "ReportBody", "ResolveBody", "RetryBody", "ReviewBody", "ReviewFindingsOut", "RewindBody", "RunAggregateResponse", "RunIdStatusResponse", "RunItem", "RunStateResponse", "RunStatusResponse", "RunsPage", "ScopeBody", "SettingsBody", "SettingsRequest", "ShareBody", "SpawnBody", "StartRunResponse", "SubtaskCreate", "SubtaskPatch", "TaskBody", "ToolCallBody", "TransferBody", "UnblockBody", "UpgradeCtaOut", "ValidationError", "VersionBody", "_ErrorDetail", "_ErrorEnvelope", "harness_orchestrator__control__DecideBody", "harness_orchestrator__control__RevokeBody", "harness_orchestrator__deployments__DecisionBody", "harness_orchestrator__deployments__RevokeBody", "harness_orchestrator__execution__DecideBody", "harness_orchestrator__exports__DecisionBody", "harness_orchestrator__plans__DecideBody"]
+__all__ = ["OrchestratorClient", "AbandonBody", "AggregateStepOut", "ApprovalDecision", "ApprovalDigest", "ApprovalOutcome", "ApprovalRequest", "BlockBody", "BudgetDegradedOut", "CommentBody", "CompleteBody", "CreateBody", "DecisionBody", "DeletionBody", "DemoSeedResponse", "DoneSignalRequest", "DoneSignalResponse", "EditBody", "ErrorDetail", "ErrorEnvelope", "EvidenceBody", "ExportBody", "GitStateBody", "HTTPValidationError", "HandoffDecision", "HandoffRequest", "HeartbeatRequest", "HumanEditRequest", "IntentBody", "LeaseBody", "LeaveRequest", "LimitsBody", "MergeBody", "MergedIntent", "ModerateBody", "OutputRef", "PatchOp", "PlanActionRequest", "PlanActionResponse", "PlanContent", "PlanDecisionResponse", "PlanOut", "PlanProposedResponse", "PlanRejectedResponse", "PrefsRequest", "ProgressBody", "PromoteBody", "ProposeBody", "ProposePlanGateRequest", "ProposePlanRequest", "ProposePlanResponse", "ReactBody", "ReasonBody", "ReassignBody", "RedirectRequest", "RejectBody", "ReportBody", "ResolveBody", "RetryBody", "ReviewBody", "ReviewFindingsOut", "RevokeBody", "RewindBody", "RunAggregateResponse", "RunIdStatusResponse", "RunItem", "RunStateResponse", "RunStatusResponse", "RunsPage", "ScopeBody", "SettingsBody", "SettingsRequest", "SpawnBody", "StartRunResponse", "SubtaskCreate", "SubtaskPatch", "TaskBody", "ToolCallBody", "TransferBody", "UnblockBody", "UpgradeCtaOut", "ValidationError", "VersionBody", "_ErrorDetail", "_ErrorEnvelope", "harness_orchestrator__control__DecideBody", "harness_orchestrator__execution__DecideBody", "harness_orchestrator__plans__DecideBody"]

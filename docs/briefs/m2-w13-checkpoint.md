@@ -10,15 +10,16 @@ source of truth: re-verify any number before relying on it.
 |---|---|
 | Migration 0068 (`team_runners`, `runner_nonces`, `runner_jobs`) | shipped, applied to the live DB by the rebuilt migrate image |
 | Runner registry + one-time token + revocation | shipped |
+| Auth-before-body (dependency), token rotation, nonce purge sweep | shipped (hardening pass) |
 | Replay guard (single-use nonce + ±300 s window) | shipped |
 | Signed, digest-bound confinement attestation | shipped |
 | Team-scoped offer → claim → lease heartbeat → finish | shipped |
 | Lease expiry → job `released`, run `orphaned` (never re-queued) | shipped |
 | Audit actions (5) + route classification (9) + FK law (49 → 55) | shipped |
 | Offline tests | `test_runner_api.py` 10 |
-| Live drill | **37/37 PASS** — `docs/briefs/evidence/eval/w13-runner-1793258985.json` |
+| Live drill | **42/42 PASS** — `docs/briefs/evidence/eval/w13-runner-1793260362.json` |
 | `identity.openapi.json` (133 paths) + Python SDK (9 operations) | regenerated from the live service |
-| Full suites | S1 1009/54 skipped · S2 48 · S3 128 · S4 1858 · S5 436 · S6 123 · S8 91 · S10 91 · S11 50 · MCP 18 |
+| Full suites | S1 1012/54 skipped · S2 48 · S3 128 · S4 1858 · S5 436 · S6 123 · S8 91 · S10 91 · S11 50 · MCP 18 |
 | `make lint` (all nine sections), `make static-gates` | green |
 
 ## Also repaired on the way (were red on HEAD)
@@ -46,10 +47,9 @@ source of truth: re-verify any number before relying on it.
    `finish` must drive the run to a terminal state. The drill currently works
    around the missing seam by saturating the team's run cap so the 0.5 s queue
    poll cannot grab the seeded claim.
-2. **Auth should precede body parsing on `/runner/*`.** FastAPI answers 422 for
-   an anonymous POST today; make the runner token a route dependency.
-3. **Token rotation, mTLS/request signing, per-runner rate limits, nonce purge
-   job, `runner_jobs` retention, and any UI** are not shipped.
+2. **mTLS/request signing, per-runner rate limits, `runner_jobs` retention, and
+   any UI** are not shipped. Token rotation and the nonce purge sweep are now
+   shipped (auth is a dependency, so anonymous malformed bodies are 401).
 4. W11 design-to-code leg remains open (fidelity + provider empty response).
 
 ## Reproducing the evidence

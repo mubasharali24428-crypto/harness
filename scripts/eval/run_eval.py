@@ -259,6 +259,84 @@ def execute(task: dict, *, repeats: int, keep_output: bool) -> list[dict]:
 # ---------------------------------------------------------------------- main
 
 
+
+# ---------------------------------------------------------------- corpus gate
+
+_CATEGORIES = {
+    "agent_run", "artifact_authz", "bug_fix", "cancellation_recovery", "cli_parity",
+    "code_search", "concurrency", "confinement", "denied_network", "mcp", "refactor",
+    "skills", "stack_health", "stale_edit", "streaming", "tenant_isolation", "tests",
+    "ui_screenshot", "visual_interaction",
+}
+_KINDS = {"agent", "boundary", "infra"}
+_COSTS = {"none", "infra", "live"}
+_STATUSES = {"implemented", "fixture-owed", "blocked"}
+
+
+def check_corpus(doc: dict) -> list[str]:
+    """W14 gate: the corpus is a contract, so malformed entries fail CI.
+
+    Fixed expected outputs only mean something if every task declares one, has a
+    real driver, and cannot silently lose its held-out flag. This validates
+    structure, not results — running the tasks is the eval harness's job.
+    """
+    problems: list[str] = []
+    tasks = doc.get("tasks")
+    if not isinstance(tasks, list) or not tasks:
+        return ["corpus has no tasks list"]
+    seen: set[str] = set()
+    for index, task in enumerate(tasks):
+        where = f"tasks[{index}]"
+        if not isinstance(task, dict):
+            problems.append(f"{where}: not an object")
+            continue
+        task_id = task.get("id")
+        if not isinstance(task_id, str) or not task_id:
+            problems.append(f"{where}: missing id")
+            continue
+        where = task_id
+        if task_id in seen:
+            problems.append(f"{where}: duplicate id")
+        seen.add(task_id)
+        if task.get("category") not in _CATEGORIES:
+            problems.append(f"{where}: unknown category {task.get('category')!r}")
+        if task.get("kind") not in _KINDS:
+            problems.append(f"{where}: unknown kind {task.get('kind')!r}")
+        if task.get("cost") not in _COSTS:
+            problems.append(f"{where}: unknown cost {task.get('cost')!r}")
+        if task.get("status") not in _STATUSES:
+            problems.append(f"{where}: unknown status {task.get('status')!r}")
+        if not isinstance(task.get("heldOut"), bool):
+            problems.append(f"{where}: heldOut must be a boolean")
+        for field in ("title", "verifier", "expected", "evidence"):
+            value = task.get(field)
+            if not isinstance(value, str) or not value.strip():
+                problems.append(f"{where}: {field} must be non-empty text")
+        driver = task.get("driver") or {}
+        driver_path = driver.get("path")
+        if driver.get("type") not in ("script", "http", "builtin", "none"):
+            problems.append(f"{where}: driver.type {driver.get('type')!r} unsupported")
+        if driver.get("type") == "script":
+            if not isinstance(driver_path, str) or not driver_path:
+                problems.append(f"{where}: script driver has no path")
+            elif not (REPO / driver_path).is_file():
+                problems.append(f"{where}: driver path {driver_path!r} does not exist")
+        budget = task.get("budget") or {}
+        timeout = budget.get("timeoutSeconds")
+        if not isinstance(timeout, int) or timeout <= 0:
+            problems.append(f"{where}: budget.timeoutSeconds must be a positive int")
+        if task.get("cost") == "live" and not (task.get("model") or "").strip():
+            problems.append(f"{where}: a live task must name its model")
+        if task.get("cost") == "live" and task.get("heldOut") and "tuning" in (
+            task.get("notes") or ""
+        ).lower() and "not used for tuning" not in (task.get("notes") or "").lower():
+            problems.append(f"{where}: a held-out task must not record tuning use")
+    held_out = sum(1 for task in tasks if task.get("heldOut") is True)
+    if held_out < 5:
+        problems.append(f"only {held_out} held-out task(s); the corpus needs a real hold-out split")
+    return problems
+
+
 def select(corpus: list[dict], args) -> tuple[list[dict], list[tuple[dict, str]]]:
     selected, skipped = [], []
     for task in corpus:
@@ -306,12 +384,24 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--verify-only", action="store_true",
                     help="print the deployed-vs-worktree revision check and exit")
+    ap.add_argument("--check", action="store_true",
+                    help="validate the corpus contract (fixed outputs, drivers, hold-out) and exit")
     ap.add_argument("--no-output", action="store_true",
                     help="do not keep driver stdout/stderr tails in evidence")
     args = ap.parse_args()
 
     doc = json.loads(Path(args.corpus).read_text(encoding="utf-8"))
     corpus = doc["tasks"]
+    if args.check:
+        problems = check_corpus(doc)
+        if problems:
+            print(json.dumps({"ok": False, "problems": problems}, indent=2))
+            return 1
+        held_out = sum(1 for task in corpus if task.get("heldOut") is True)
+        print(json.dumps({"ok": True, "tasks": len(corpus), "heldOut": held_out,
+                          "implemented": sum(
+                              1 for task in corpus if task.get("status") == "implemented")}))
+        return 0
     if args.list:
         for t in corpus:
             print(f"{t['id']:28s} {t['category']:20s} {t['kind']:8s} "

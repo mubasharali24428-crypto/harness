@@ -8335,6 +8335,48 @@
     "summary": "Revoke Runner"
    }
   },
+  "/api/v1/team-runners/{runner_id}/rotate": {
+   "post": {
+    "description": "Mint a fresh token for an active runner; the old token dies immediately.\n\nRotation rewrites the token hash AND the derived attestation key, so the\nrunner must re-attest with the new token before its claims verify again.\nThere is no overlap window: a leaked token is worthless the moment the\nadmin rotates, and a runner holding work keeps its lease until expiry.",
+    "operationId": "rotate_runner_api_v1_team_runners__runner_id__rotate_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runner_id",
+      "required": true,
+      "schema": {
+       "title": "Runner Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Rotate Runner Api V1 Team Runners  Runner Id  Rotate Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Rotate Runner"
+   }
+  },
   "/api/v1/teams/{team_id}/invites": {
    "get": {
     "description": "M14-F2a \u2014 full invite lifecycle list for the admin UI.\n\nEvery status is returned (draft/sent/redeemed/expired/revoked derived per\ninvite via _invite_status); ``?status=<s>`` narrows to one bucket. The old\npending-only behavior stays available as ``?status=sent``.\n\nAdmin-only: any other caller (foreign OR in-team non-admin) gets 404/403\nwithout leaking whether any invites exist (enumeration guard, M13-G5a).",

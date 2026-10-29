@@ -46,9 +46,10 @@ from .audit_emit import (
     emit_runner_job_completed,
     emit_runner_registered,
     emit_runner_revoked,
+    emit_runner_rotated,
 )
 from .auth import get_principal
-from .models import Project, RunnerJob, TeamRunner
+from .models import Project, RunnerJob, RunnerNonce, TeamRunner
 
 router = APIRouter(prefix="/api/v1")
 
@@ -207,8 +208,6 @@ async def _authenticate(db, request: Request) -> RunnerAuth:
             detail=error_body("STALE_REQUEST", f"timestamp outside +/-{CLOCK_SKEW_SECONDS}s"),
         )
 
-    from .models import RunnerNonce
-
     # Prune only what can no longer be replayed (twice the accepted window).
     cutoff = now - timedelta(seconds=2 * CLOCK_SKEW_SECONDS)
     await db.execute(delete(RunnerNonce).where(RunnerNonce.seen_at < cutoff))
@@ -232,6 +231,16 @@ async def _authenticate(db, request: Request) -> RunnerAuth:
         confinement=row.confinement,
         attestation_key=row.attestation_key,
     )
+
+
+async def runner_auth(request: Request) -> RunnerAuth:
+    """FastAPI dependency: authenticate BEFORE the request body is parsed.
+
+    Declared as a dependency so an anonymous caller with a malformed body gets
+    401 rather than 422 plus the schema. The nonce is committed by the auth path.
+    """
+    async with request.app.state.session_factory() as db:
+        return await _authenticate(db, request)
 
 
 def _validate_attestation(attestation: dict[str, Any], expected: str) -> None:
@@ -417,6 +426,60 @@ async def revoke_runner(
         )
 
 
+@router.post("/team-runners/{runner_id}/rotate")
+async def rotate_runner(
+    runner_id: str,
+    request: Request,
+    principal: Annotated[Principal, Depends(get_principal)],
+) -> dict:
+    """Mint a fresh token for an active runner; the old token dies immediately.
+
+    Rotation rewrites the token hash AND the derived attestation key, so the
+    runner must re-attest with the new token before its claims verify again.
+    There is no overlap window: a leaked token is worthless the moment the
+    admin rotates, and a runner holding work keeps its lease until expiry.
+    """
+    _require_admin(principal)
+    async with request.app.state.session_factory() as db:
+        row = (
+            await db.execute(
+                select(TeamRunner).where(
+                    TeamRunner.id == runner_id, TeamRunner.team_id == principal.teamId
+                )
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            raise HTTPException(
+                status_code=404, detail=error_body("NOT_FOUND", "runner not found")
+            )
+        if row.status != "active":
+            raise HTTPException(
+                status_code=409,
+                detail=error_body("RUNNER_REVOKED", "a revoked runner cannot be rotated"),
+            )
+        old_hint = row.token_hint
+        token = TOKEN_PREFIX + secrets.token_urlsafe(32)
+        row.token_sha256 = _hash_token(token)
+        row.token_hint = token[-4:]
+        row.attestation_key = derive_attestation_key(token)
+        row.updated_at = _now()
+        await db.commit()
+        await db.refresh(row)
+        await emit_runner_rotated(
+            db,
+            actor_user_id=principal.userId,
+            team_id=row.team_id,
+            target_id=row.id,
+            detail={"name": row.name, "oldHint": old_hint, "hint": row.token_hint},
+        )
+        return {
+            "runner": _runner_public(row),
+            "token": token,
+            "attestationKeyLabel": ATTESTATION_KEY_LABEL.decode(),
+            "note": "token is shown once; the previous token and attestation key are dead",
+        }
+
+
 @router.post("/team-runners/{runner_id}/jobs", status_code=201)
 async def assign_job(
     runner_id: str,
@@ -550,9 +613,12 @@ async def _own_job_or_404(db, runner_id: str, run_id: str) -> RunnerJob:
 
 
 @router.post("/runner/heartbeat")
-async def runner_heartbeat(body: AttestBody, request: Request) -> dict:
+async def runner_heartbeat(
+    body: AttestBody,
+    request: Request,
+    auth: Annotated[RunnerAuth, Depends(runner_auth)],
+) -> dict:
     async with request.app.state.session_factory() as db:
-        auth = await _authenticate(db, request)
         _validate_attestation(body.attestation, auth.confinement)
         canonical = canonical_attestation(body.attestation)
         key = bytes.fromhex(auth.attestation_key)
@@ -596,9 +662,11 @@ async def runner_heartbeat(body: AttestBody, request: Request) -> dict:
 
 
 @router.get("/runner/jobs")
-async def list_my_jobs(request: Request) -> dict:
+async def list_my_jobs(
+    request: Request,
+    auth: Annotated[RunnerAuth, Depends(runner_auth)],
+) -> dict:
     async with request.app.state.session_factory() as db:
-        auth = await _authenticate(db, request)
         await _expire_leases(db, auth.id)
         jobs = (
             await db.execute(
@@ -615,9 +683,12 @@ async def list_my_jobs(request: Request) -> dict:
 
 
 @router.post("/runner/jobs/{run_id}/claim")
-async def claim_job(run_id: str, request: Request) -> dict:
+async def claim_job(
+    run_id: str,
+    request: Request,
+    auth: Annotated[RunnerAuth, Depends(runner_auth)],
+) -> dict:
     async with request.app.state.session_factory() as db:
-        auth = await _authenticate(db, request)
         await _expire_leases(db, auth.id)
         job = await _own_job_or_404(db, auth.id, run_id)
         if job.state != "offered":
@@ -661,9 +732,12 @@ async def claim_job(run_id: str, request: Request) -> dict:
 
 
 @router.post("/runner/jobs/{run_id}/heartbeat")
-async def heartbeat_job(run_id: str, request: Request) -> dict:
+async def heartbeat_job(
+    run_id: str,
+    request: Request,
+    auth: Annotated[RunnerAuth, Depends(runner_auth)],
+) -> dict:
     async with request.app.state.session_factory() as db:
-        auth = await _authenticate(db, request)
         await _expire_leases(db, auth.id)
         job = await _own_job_or_404(db, auth.id, run_id)
         if job.state not in ("leased", "running"):
@@ -699,9 +773,13 @@ async def heartbeat_job(run_id: str, request: Request) -> dict:
 
 
 @router.post("/runner/jobs/{run_id}/finish")
-async def finish_job(run_id: str, body: FinishBody, request: Request) -> dict:
+async def finish_job(
+    run_id: str,
+    body: FinishBody,
+    request: Request,
+    auth: Annotated[RunnerAuth, Depends(runner_auth)],
+) -> dict:
     async with request.app.state.session_factory() as db:
-        auth = await _authenticate(db, request)
         job = await _own_job_or_404(db, auth.id, run_id)
         if job.state not in ("leased", "running"):
             raise HTTPException(
@@ -752,3 +830,37 @@ async def finish_job(run_id: str, body: FinishBody, request: Request) -> dict:
             },
         )
         return {"runId": job.run_id, "state": job.state}
+
+
+async def purge_runner_nonces(
+    factory, older_than_seconds: int = 2 * CLOCK_SKEW_SECONDS
+) -> int:
+    """Delete nonces that can no longer be replayed. Returns the row count.
+
+    The auth path prunes inline so the table stays bounded under load; this
+    sweep is the backstop for quiet runners and restarted processes.
+    """
+    cutoff = _now() - timedelta(seconds=older_than_seconds)
+    async with factory() as db:
+        result = await db.execute(delete(RunnerNonce).where(RunnerNonce.seen_at < cutoff))
+        await db.commit()
+        return int(result.rowcount or 0)
+
+
+async def run_nonce_sweeper(factory, interval_seconds: float) -> None:
+    """Background backstop: purge expired nonces every ``interval_seconds``."""
+    import asyncio
+    import logging
+
+    logger = logging.getLogger(__name__)
+    while True:
+        await asyncio.sleep(interval_seconds)
+        try:
+            removed = await purge_runner_nonces(factory)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 — housekeeping must never kill the service
+            logger.exception("runner nonce sweep failed")
+            continue
+        if removed:
+            logger.info("runner nonce sweep removed %d expired nonce(s)", removed)

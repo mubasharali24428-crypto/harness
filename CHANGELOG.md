@@ -10,6 +10,20 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Marathon 2.0 W14 — the eval corpus becomes a contract (2026-10-29)
+
+* **Corpus contract gate.** `python3 scripts/eval/run_eval.py --check` (wired
+  into `make static-gates`) validates every task's fixed `expected` output,
+  verifier and evidence fields, unique ids, the category/kind/cost/status sets,
+  a boolean `heldOut` with at least five held-out tasks, driver existence for
+  script tasks, a positive timeout, a named model for live tasks, and that a
+  held-out task does not record tuning use. Current corpus: 38 tasks, 5 held
+  out, 28 implemented.
+* **W14 scope recorded** in `docs/m2-w14-plan.md`: pricing coverage for models
+  absent from the rate card, opt-in per-step routing that never downgrades on
+  failure, a comparison runner with a fixed pass rule, cost/latency panels, and
+  a fresh held-out design set.
+
 ### Marathon 2.0 W13 — a runner control plane for customer-controlled hosts (2026-10-28)
 
 * **Migration 0068 (Section 1).** `team_runners` (one row per `(team_id,
@@ -28,8 +42,8 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   (never re-queues) the run. Foreign and unknown ids answer the same 404.
   Five audit actions added; nine routes classified in `IDENTITY_RULES`.
 * **Tests and evidence.** `test_runner_api.py` (10 offline tests) plus the FK law
-  (inventory 49 → 55). Live drill `scripts/e2e/w13_runner_drill.py`: **37/37
-  PASS** (`docs/briefs/evidence/eval/w13-runner-1793258985.json`) on the compose
+  (inventory 49 → 55). Live drill `scripts/e2e/w13_runner_drill.py`: **42/42
+  PASS** (`docs/briefs/evidence/eval/w13-runner-1793260362.json`) on the compose
   stack with real Postgres and no model call — revocation kills the token on the
   next request without burning a nonce, a replayed nonce and a stale timestamp
   are refused, a tampered/mismatched/unknown-key attestation is refused, a second
@@ -47,6 +61,14 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   fixture import shadowed by test args); the Python orchestrator SDK had drifted
   from its recorded spec; five backend services were running a pre-W12 image and
   reporting `schema-drift` at `/ready`.
+* **Hardening pass (same day).** Runner authentication is a route dependency, so
+  it runs before body validation (anonymous malformed body → 401, not 422).
+  `POST /team-runners/{id}/rotate` mints a new token ***and*** a new derived
+  attestation key with no overlap window (audited as `runner.rotated`; revoked
+  runners refuse rotation), and expired nonces are swept by a background job
+  (`HARNESS_RUNNER_NONCE_PURGE_SECONDS`, default 600) on top of the inline prune.
+  `fetch_specs.py --only <service>` stops the live-superset overwrite that
+  reddened `orchestrator.openapi.json`.
 * **Execution leg OPEN:** a runner can hold and complete a lease but does not yet
   execute the approved plan or stream tool events into the orchestrator
   (`docs/m2-w13-plan.md` §Remaining).

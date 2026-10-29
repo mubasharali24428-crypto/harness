@@ -139,8 +139,8 @@ the lease read back from `run_claims`, expiry orphaning, and revocation.
 
 ## Outcome (2026-10-29)
 
-**Live drill `scripts/e2e/w13_runner_drill.py`: 37/37 checks PASS.**
-`docs/briefs/evidence/eval/w13-runner-1793258985.json` — live compose stack on
+**Live drill `scripts/e2e/w13_runner_drill.py`: 42/42 checks PASS.**
+`docs/briefs/evidence/eval/w13-runner-1793260362.json` — live compose stack on
 PostgreSQL, backend images built from this tree, migration 0068 applied by the
 new migrate image, no model call.
 
@@ -162,8 +162,12 @@ Judged from the durable rows the API wrote, not from the runner's own echo:
   claim (row gone) and marks the job completed;
 * **expiry:** a lease backdated an hour releases the job and orphans the run —
   never re-queues it, so the server cannot execute work the host may still hold;
-* **revocation:** idempotent 204, and the very next request with the old token is
-  401 **without burning a nonce**; a revoked runner accepts no further offers.
+* **revocation and rotation:** revocation is idempotent 204 and the very next
+  request with the old token is 401 **without burning a nonce**; a revoked runner
+  accepts no further offers. Rotation returns a new one-time token, kills the old
+  token on the next request, and its new attestation key verifies;
+* **anonymous body:** a request with no credentials and a malformed body answers
+  401, never 422 — authentication runs before body validation.
   Residual live claims for the drill's projects: 0.
 
 **Tests.** `test_runner_api.py` 10 (Section 1, offline). **Full Section 1 suite:
@@ -176,12 +180,11 @@ sections and `make static-gates` passes after regenerating
 
 ## Findings
 
-1. **An unauthenticated request can still learn the attestation body shape.**
-   FastAPI validates the JSON body before the handler's token check, so
-   `POST /api/v1/runner/heartbeat` answers 422 with no credentials. The refusals
-   that matter (401/409/404) are all correct and ordered after auth, but the
-   route should take authentication as a dependency so the body is never parsed
-   for an anonymous caller. Recorded rather than patched around a live gate.
+1. **Auth order is a design decision, not a detail.** The first cut checked the
+   token inside the handler, so an anonymous caller with a malformed body got
+   422 plus the schema. Authentication is now a FastAPI **dependency**, which
+   runs before body validation: an anonymous malformed request answers 401 and
+   the body is never parsed (test: `test_anonymous_malformed_body_is_401_not_422`).
 2. **The queue needs a real BYO dispatch seam.** The orchestrator polls
    `run_claims` every 0.5 s and would claim (then requeue) a seeded row mid-drill;
    the drill therefore saturates the team's cap first. That workaround is exactly
@@ -212,7 +215,28 @@ sections and `make static-gates` passes after regenerating
 | Worker lifecycle verified | **pass** — live drill |
 | Trust assumptions documented | **pass** — this document |
 | A run executes on a customer-controlled host | **OPEN** — the control plane and lease are real; the runner does not yet execute the approved plan or stream tool events into the orchestrator (`docs/m2-w13-plan.md` §Remaining) |
-| Runner UI / token rotation / mTLS | **not shipped** |
+| Runner UI / mTLS / rate limits | **not shipped** |
+
+## Hardening pass (2026-10-29, same day)
+
+Closed after the first live gate:
+
+* **Auth before body.** The runner token is a route dependency, so the token,
+  revocation and nonce checks run before Pydantic sees the body. New test:
+  anonymous `POST /runner/heartbeat` with `{}` → 401 `UNAUTHORIZED`; an
+  authenticated malformed body still gets 422 with detail.
+* **Token rotation.** `POST /team-runners/{id}/rotate` (admin, active runners
+  only) rewrites `token_sha256`, `token_hint` **and** the derived attestation
+  key, is audited as `runner.rotated`, and returns the new token once. No
+  overlap window: the old token and its signatures are dead immediately; an
+  in-flight lease survives until expiry. Rotation then revocation is the
+  offboarding path; rotating a revoked runner answers 409 `RUNNER_REVOKED`.
+* **Nonce purge.** The auth path prunes inline; `purge_runner_nonces()` plus a
+  background sweep (`HARNESS_RUNNER_NONCE_PURGE_SECONDS`, default 600, 0 off)
+  is the backstop for quiet runners. Test proves only expired rows go.
+* **Spec-fetch footgun.** `fetch_specs.py --only identity` scopes the refresh;
+  the docstring states that `orchestrator.openapi.json` is a router fragment and
+  must not be overwritten with the live superset.
 
 ## Remaining (explicitly open)
 
@@ -222,13 +246,9 @@ sections and `make static-gates` passes after regenerating
   (`section4/.../service.py`): a BYO dispatch must skip the local spawner and
   let the runner's `finish` drive the run to a terminal state. Until that lands,
   a BYO runner can *hold and complete a lease*, not *execute the work*.
-* **Token rotation.** Revoke-and-re-mint is the only path today; a rotation
-  endpoint with an overlap window is the next step.
 * **Transport hardening.** mTLS or request signing on top of the token, plus
   per-runner rate limits (the identity rate limiter is not yet wired here).
-* **Nonce retention as a job.** Pruning happens inline on the auth path; a purge
-  job is the right home if the table ever grows beyond the skew window.
-* **UI.** Registration, revocation and lease status are API/SDK only.
+* **UI.** Registration, revocation, rotation and lease status are API/SDK only.
 
 ## Limitations
 

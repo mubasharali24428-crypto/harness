@@ -1510,6 +1510,14 @@ class IdentityClient:
         _path = f"/api/v1/team-runners/{runner_id}/revoke"
         return self._http.request(self.base_url, "POST", _path)
 
+    def rotate_runner(self, runner_id: str) -> dict[str, typing.Any]:
+        """Rotate Runner
+
+        POST /api/v1/team-runners/{runner_id}/rotate
+        """
+        _path = f"/api/v1/team-runners/{runner_id}/rotate"
+        return self._http.request(self.base_url, "POST", _path)
+
     def list_invites_2(self, team_id: str, status: str | None = None) -> dict[str, typing.Any]:
         """List Invites
 

@@ -207,6 +207,7 @@ APPEND_ONLY_ACTIONS = frozenset(
         # it, or is revoked. None of these actions grants capability.
         "runner.registered",
         "runner.revoked",
+        "runner.rotated",
         "runner.attested",
         "runner.job_assigned",
         "runner.job_completed",

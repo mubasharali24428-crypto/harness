@@ -284,6 +284,22 @@ def app_identity():
     # M20-T3: /ready gates on db + migrations; compose healthcheck hits it.
     _install_probes(app, 8001)
 
+    # M2-W13: expired runner nonces can never be replayed. The auth path prunes
+    # inline; this sweep is the backstop for quiet runners (0 turns it off).
+    nonce_every = float(os.environ.get("HARNESS_RUNNER_NONCE_PURGE_SECONDS", "600"))
+    if nonce_every > 0:
+        from harness_identity.runner_api import run_nonce_sweeper
+
+        @app.on_event("startup")
+        async def _start_runner_nonce_sweeper() -> None:
+            app.state.runner_nonce_sweeper = asyncio.create_task(
+                run_nonce_sweeper(get_factory(), nonce_every)
+            )
+
+        @app.on_event("shutdown")
+        async def _stop_runner_nonce_sweeper() -> None:
+            app.state.runner_nonce_sweeper.cancel()
+
     return app
 
 

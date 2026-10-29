@@ -548,3 +548,104 @@ async def test_expired_lease_is_released_and_the_run_is_orphaned(runner_client, 
             )
         ).scalar_one()
         assert job_state == "released"
+
+
+async def test_anonymous_malformed_body_is_401_not_422(runner_client, runner_factory):
+    """Auth is a dependency, so it runs before the body is validated."""
+    env = await _seed(runner_factory)
+    anonymous = await runner_client.post("/api/v1/runner/heartbeat", json={})
+    assert anonymous.status_code == 401
+    assert anonymous.json()["detail"]["error"]["code"] == "UNAUTHORIZED"
+
+    created = await _register(runner_client, env["admin"]["token"], name="rot")
+    bad = await runner_client.post(
+        "/api/v1/runner/heartbeat",
+        json={"attestation": {}, "signature": "x"},
+        headers=_runner_headers(created["token"]),
+    )
+    assert bad.status_code == 422  # authenticated callers do get validation detail
+
+
+async def test_rotation_mints_a_new_token_and_kills_the_old_one(runner_client, runner_factory):
+    env = await _seed(runner_factory)
+    created = await _register(runner_client, env["admin"]["token"])
+    runner_id, old = created["runner"]["id"], created["token"]
+    body = {"attestation": _attestation(), "signature": sign_attestation(_attestation(), old)}
+    assert (
+        await runner_client.post(
+            "/api/v1/runner/heartbeat", json=body, headers=_runner_headers(old)
+        )
+    ).status_code == 200
+
+    rotated = await runner_client.post(
+        f"/api/v1/team-runners/{runner_id}/rotate", headers=_bearer(env["admin"]["token"])
+    )
+    assert rotated.status_code == 200, rotated.text
+    new = rotated.json()["token"]
+    assert new.startswith("hrn_") and new != old
+    assert rotated.json()["runner"]["tokenHint"] == new[-4:]
+
+    dead = await runner_client.post(
+        "/api/v1/runner/heartbeat", json=body, headers=_runner_headers(old)
+    )
+    assert dead.status_code == 401
+
+    fresh_att = _attestation()
+    alive = await runner_client.post(
+        "/api/v1/runner/heartbeat",
+        json={"attestation": fresh_att, "signature": sign_attestation(fresh_att, new)},
+        headers=_runner_headers(new),
+    )
+    assert alive.status_code == 200, alive.text
+
+    # The old token's attestation key is dead too: old signatures fail with the
+    # new token until the runner re-signs (it just did above with `new`).
+    stale_sig = await runner_client.post(
+        "/api/v1/runner/heartbeat",
+        json={"attestation": fresh_att, "signature": sign_attestation(fresh_att, old)},
+        headers=_runner_headers(new),
+    )
+    assert stale_sig.status_code == 409
+
+    assert len(await _audit_actions(runner_factory, "runner.rotated")) == 1
+
+    revoked = await runner_client.post(
+        f"/api/v1/team-runners/{runner_id}/revoke", headers=_bearer(env["admin"]["token"])
+    )
+    assert revoked.status_code == 204
+    refused = await runner_client.post(
+        f"/api/v1/team-runners/{runner_id}/rotate", headers=_bearer(env["admin"]["token"])
+    )
+    assert refused.status_code == 409
+
+
+async def test_nonce_purge_removes_only_expired_rows(runner_client, runner_factory):
+    from harness_identity.runner_api import purge_runner_nonces
+
+    env = await _seed(runner_factory)
+    created = await _register(runner_client, env["admin"]["token"])
+    runner_id = created["runner"]["id"]
+    from harness_identity.models import RunnerNonce
+
+    async with runner_factory() as db:
+        db.add_all(
+            [
+                RunnerNonce(
+                    runner_id=runner_id,
+                    nonce="old-nonce-value-000",
+                    seen_at=datetime.now(UTC) - timedelta(hours=1),
+                ),
+                RunnerNonce(
+                    runner_id=runner_id,
+                    nonce="new-nonce-value-000",
+                    seen_at=datetime.now(UTC),
+                ),
+            ]
+        )
+        await db.commit()
+
+    removed = await purge_runner_nonces(runner_factory)
+    assert removed == 1
+    async with runner_factory() as db:
+        left = (await db.execute(text("SELECT nonce FROM runner_nonces"))).scalars().all()
+    assert left == ["new-nonce-value-000"]
