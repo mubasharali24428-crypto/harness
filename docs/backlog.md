@@ -259,10 +259,16 @@ made the real cause easy to find once the environment was inspected.
 
 ## From W1 M07 (confined vision attempt failed, 2026-10-26)
 
-- [ ] **A stuck run has no budget but the wall clock** (owner: S4, W2). The
-  confined vision attempt made 37 `bash` calls over 516.75 s and ended in an empty
-  model response at the deadline. W2's "loop fixture stops within explicit budget"
-  is now a prerequisite for trusting any live run, not a feature.
+- [x] **A stuck run has no budget but the wall clock** (owner: S4, W2). **Closed
+  in `44191b8`**, and re-proven in W14: the run's own engine tool calls are
+  written to `agent_tool_calls` (`record_engine_tool_calls`), and
+  `execution.usage_of()` counts them, so `maxToolCalls` is enforced at run start,
+  queue claim and the running sweep for engine work too — the 37-`bash`-call
+  attempt would be stopped by its budget, not only by the deadline. Pinned by
+  `section4/tests/unit/test_engine_shell_policy.py::test_policy_reaches_the_engine_and_its_calls_count_toward_the_cap`
+  and `::test_engine_calls_use_up_the_limit_for_the_next_start`.
+  Original entry: The confined vision attempt made 37 `bash` calls over 516.75 s
+  and ended in an empty model response at the deadline.
 - [ ] **The metering gap made a runaway unpriceable** (owner: S4+S3). `usage` is
   `null` on the openai-completions transport, so after 37 paid calls the cost
   cannot be stated from evidence. This turns "actual usage distinguished from
@@ -320,10 +326,18 @@ made the real cause easy to find once the environment was inspected.
   and the durable `context_compacted` rows cannot drift.
   Still not done: reading the window the *selected model* actually declares, so a
   configured value is still operator-asserted rather than provider-verified.
-- [ ] **`usage` is `null` on the openai-completions transport** (owner: S4).
-  Carried over from the OpenRouter drill: without usage, `cost_ledger` accrual
-  on that path is unproven, so the cost footer and per-run spend are both
-  unfunded there.
+- [x] **`usage` is `null` on the openai-completions transport** (owner: S4).
+  **Closed 2026-10-29 (W14, `fa59fd7`)**: the transport still reports no usage,
+  but accrual no longer depends on it — `engine.session_usage()` folds the run's
+  session transcript (deduplicated per-step tuples, cache reads billed as input)
+  and `run_metering` books the unbilled delta into `cost_ledger`, including on
+  failure paths. Live proof: run `w2-code-search-default-1793277111` booked
+  22,032 input / 333 output tokens, exactly the transcript totals, and
+  `execution.usage_of()` reads per-run `modelCalls`/`costMicrousd` from those
+  rows, so the run's cost cap is funded on this path too.
+  Still true and separately tracked: a TERMINAL run's `/runs/{id}/engine` replay
+  carries no `usage` (it comes from the ENGINE_COMPLETED event), so the run page
+  shows the ledger-backed cost, not an engine usage block.
 
 ## From W1 M01 (confinement spike, 2026-10-26)
 
