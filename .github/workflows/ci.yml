@@ -104,7 +104,7 @@ jobs:
         working-directory: ${{ github.workspace }}
 
   frontend:
-    name: vitest + tsc (section7)
+    name: vitest + tsc (section7) + published TS dist
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -113,13 +113,22 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: section7/package-lock.json
+          cache-dependency-path: |
+            section7/package-lock.json
+            clients/ts/package-lock.json
       - run: npm ci --no-audit --no-fund
         working-directory: section7
       - name: tsc [make frontend-tsc]
         run: make --no-print-directory frontend-tsc
       - name: vitest [make frontend-vitest]
         run: make --no-print-directory frontend-vitest
+      # The compiled client in git IS the published artifact; src changes that
+      # never rebuild it silently ship a stale API surface (found 2026-10-29).
+      - name: npm ci (clients/ts)
+        run: npm ci --no-audit --no-fund
+        working-directory: clients/ts
+      - name: published TS dist is current [make check-ts-dist]
+        run: make --no-print-directory check-ts-dist
 
   # OPS-20: the release gate that boots the REAL stack and runs the whole
   # product journey with zero provider keys (recorded-replay demo seed).

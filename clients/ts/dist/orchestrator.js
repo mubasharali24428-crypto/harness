@@ -265,6 +265,12 @@ export class OrchestratorClient {
         const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/changes/${encodeURIComponent(change_id)}/review`;
         return this.http.request(this.baseUrl, _path, "POST", body);
     }
+    /** Run Checkpoints List
+     *  GET /api/v1/orchestrator/runs/{runId}/checkpoints */
+    run_checkpoints_list(run_id) {
+        const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/checkpoints`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
     /** Collab History
      *  GET /api/v1/orchestrator/runs/{runId}/collab-history */
     collab_history(run_id, after, limit, schema_version) {
@@ -648,6 +654,12 @@ export class OrchestratorClient {
         const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/retry`;
         return this.http.request(this.baseUrl, _path, "POST", body);
     }
+    /** Run Rewind
+     *  POST /api/v1/orchestrator/runs/{runId}/rewind */
+    run_rewind(run_id, body) {
+        const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/rewind`;
+        return this.http.request(this.baseUrl, _path, "POST", body);
+    }
     /** Collab Staged Approvals
      *  POST /api/v1/orchestrator/runs/{runId}/staged/approvals */
     collab_staged_approvals(run_id) {
@@ -914,6 +926,7 @@ export class OrchestratorClient {
  * export interface/type ReviewBody
  * export interface/type ReviewFindingsOut
  * export interface/type RevokeBody
+ * export interface/type RewindBody
  * export interface/type RunAggregateResponse
  * export interface/type RunIdStatusResponse
  * export interface/type RunItem

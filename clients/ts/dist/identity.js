@@ -484,6 +484,30 @@ export class IdentityClient {
         const params = { "after_seq": after_seq, "limit": limit };
         return this.http.request(this.baseUrl, _path, "GET", undefined, params);
     }
+    /** List Memory
+     *  GET /api/v1/projects/{project_id}/memory */
+    list_memory(project_id) {
+        const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/memory`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
+    /** Create Memory
+     *  POST /api/v1/projects/{project_id}/memory */
+    create_memory(project_id, body) {
+        const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/memory`;
+        return this.http.request(this.baseUrl, _path, "POST", body);
+    }
+    /** Delete Memory
+     *  DELETE /api/v1/projects/{project_id}/memory/{entry_id} */
+    delete_memory(project_id, entry_id) {
+        const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/memory/${encodeURIComponent(entry_id)}`;
+        return this.http.request(this.baseUrl, _path, "DELETE", undefined);
+    }
+    /** Review Memory
+     *  POST /api/v1/projects/{project_id}/memory/{entry_id}/review */
+    review_memory(project_id, entry_id) {
+        const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/memory/${encodeURIComponent(entry_id)}/review`;
+        return this.http.request(this.baseUrl, _path, "POST", undefined);
+    }
     /** Get Rules
      *  GET /api/v1/projects/{project_id}/rules */
     get_rules(project_id) {
@@ -501,6 +525,36 @@ export class IdentityClient {
     delete_rules(project_id) {
         const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/rules`;
         return this.http.request(this.baseUrl, _path, "DELETE", undefined);
+    }
+    /** Runner Heartbeat
+     *  POST /api/v1/runner/heartbeat */
+    runner_heartbeat(body) {
+        const _path = `/api/v1/runner/heartbeat`;
+        return this.http.request(this.baseUrl, _path, "POST", body);
+    }
+    /** List My Jobs
+     *  GET /api/v1/runner/jobs */
+    list_my_jobs() {
+        const _path = `/api/v1/runner/jobs`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
+    /** Claim Job
+     *  POST /api/v1/runner/jobs/{run_id}/claim */
+    claim_job(run_id) {
+        const _path = `/api/v1/runner/jobs/${encodeURIComponent(run_id)}/claim`;
+        return this.http.request(this.baseUrl, _path, "POST", undefined);
+    }
+    /** Finish Job
+     *  POST /api/v1/runner/jobs/{run_id}/finish */
+    finish_job(run_id, body) {
+        const _path = `/api/v1/runner/jobs/${encodeURIComponent(run_id)}/finish`;
+        return this.http.request(this.baseUrl, _path, "POST", body);
+    }
+    /** Heartbeat Job
+     *  POST /api/v1/runner/jobs/{run_id}/heartbeat */
+    heartbeat_job(run_id) {
+        const _path = `/api/v1/runner/jobs/${encodeURIComponent(run_id)}/heartbeat`;
+        return this.http.request(this.baseUrl, _path, "POST", undefined);
     }
     /** List Sessions
      *  GET /api/v1/sessions */
@@ -643,6 +697,36 @@ export class IdentityClient {
         const _path = `/api/v1/stepup/verify`;
         return this.http.request(this.baseUrl, _path, "POST", body);
     }
+    /** List Runners
+     *  GET /api/v1/team-runners */
+    list_runners() {
+        const _path = `/api/v1/team-runners`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
+    /** Register Runner
+     *  POST /api/v1/team-runners */
+    register_runner(body) {
+        const _path = `/api/v1/team-runners`;
+        return this.http.request(this.baseUrl, _path, "POST", body);
+    }
+    /** Assign Job
+     *  POST /api/v1/team-runners/{runner_id}/jobs */
+    assign_job(runner_id, body) {
+        const _path = `/api/v1/team-runners/${encodeURIComponent(runner_id)}/jobs`;
+        return this.http.request(this.baseUrl, _path, "POST", body);
+    }
+    /** Revoke Runner
+     *  POST /api/v1/team-runners/{runner_id}/revoke */
+    revoke_runner(runner_id) {
+        const _path = `/api/v1/team-runners/${encodeURIComponent(runner_id)}/revoke`;
+        return this.http.request(this.baseUrl, _path, "POST", undefined);
+    }
+    /** Rotate Runner
+     *  POST /api/v1/team-runners/{runner_id}/rotate */
+    rotate_runner(runner_id) {
+        const _path = `/api/v1/team-runners/${encodeURIComponent(runner_id)}/rotate`;
+        return this.http.request(this.baseUrl, _path, "POST", undefined);
+    }
     /** List Invites
      *  GET /api/v1/teams/{team_id}/invites */
     list_invites_2(team_id, status) {
@@ -734,6 +818,24 @@ export class IdentityClient {
         const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/integrations/v1/webhooks/${encodeURIComponent(webhook_id)}/rotate-secret`;
         return this.http.request(this.baseUrl, _path, "POST", undefined);
     }
+    /** Get Model Routing
+     *  GET /api/v1/teams/{team_id}/settings/model-routing */
+    get_model_routing(team_id) {
+        const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/model-routing`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
+    /** Put Model Routing
+     *  PUT /api/v1/teams/{team_id}/settings/model-routing */
+    put_model_routing(team_id, body) {
+        const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/model-routing`;
+        return this.http.request(this.baseUrl, _path, "PUT", body);
+    }
+    /** Delete Model Routing
+     *  DELETE /api/v1/teams/{team_id}/settings/model-routing */
+    delete_model_routing(team_id) {
+        const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/model-routing`;
+        return this.http.request(this.baseUrl, _path, "DELETE", undefined);
+    }
     /** Get Reviewer Thresholds
      *  GET /api/v1/teams/{team_id}/settings/reviewer-thresholds */
     get_reviewer_thresholds(team_id) {
@@ -751,6 +853,42 @@ export class IdentityClient {
     delete_reviewer_thresholds(team_id) {
         const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/reviewer-thresholds`;
         return this.http.request(this.baseUrl, _path, "DELETE", undefined);
+    }
+    /** List Skills
+     *  GET /api/v1/teams/{team_id}/skills */
+    list_skills(team_id) {
+        const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/skills`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
+    /** Create Skill
+     *  POST /api/v1/teams/{team_id}/skills */
+    create_skill(team_id, body) {
+        const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/skills`;
+        return this.http.request(this.baseUrl, _path, "POST", body);
+    }
+    /** Remove Skill
+     *  DELETE /api/v1/teams/{team_id}/skills/{name} */
+    remove_skill(team_id, name) {
+        const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/skills/${encodeURIComponent(name)}`;
+        return this.http.request(this.baseUrl, _path, "DELETE", undefined);
+    }
+    /** Disable Skill
+     *  POST /api/v1/teams/{team_id}/skills/{name}/disable */
+    disable_skill(team_id, name) {
+        const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/skills/${encodeURIComponent(name)}/disable`;
+        return this.http.request(this.baseUrl, _path, "POST", undefined);
+    }
+    /** Enable Skill
+     *  POST /api/v1/teams/{team_id}/skills/{name}/enable */
+    enable_skill(team_id, name) {
+        const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/skills/${encodeURIComponent(name)}/enable`;
+        return this.http.request(this.baseUrl, _path, "POST", undefined);
+    }
+    /** Review Skill
+     *  POST /api/v1/teams/{team_id}/skills/{name}/review */
+    review_skill(team_id, name) {
+        const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/skills/${encodeURIComponent(name)}/review`;
+        return this.http.request(this.baseUrl, _path, "POST", undefined);
     }
     /** Get Sso Config
      *  GET /api/v1/teams/{team_id}/sso/config */
@@ -957,7 +1095,7 @@ export class IdentityClient {
  * export class IdentityClient
  * export interface/type AcceptBody
  * export interface/type ApplyBody
- * export interface/type AssignBody
+ * export interface/type AttestBody
  * export interface/type BindingBody
  * export interface/type ChainNode
  * export interface/type CheckBody
@@ -973,6 +1111,7 @@ export class IdentityClient {
  * export interface/type EventEnvelopeOut
  * export interface/type EventReplayResponse
  * export interface/type ExecutionControlBody
+ * export interface/type FinishBody
  * export interface/type GlobalPrefsBody
  * export interface/type HTTPValidationError
  * export interface/type InviteBody
@@ -989,6 +1128,7 @@ export class IdentityClient {
  * export interface/type MemberItem
  * export interface/type MemberListResponse
  * export interface/type MemberRoleBody
+ * export interface/type MemoryBody
  * export interface/type MuteBody
  * export interface/type OkResponse
  * export interface/type OrgCreateBody
@@ -1003,13 +1143,16 @@ export class IdentityClient {
  * export interface/type ProjectOut
  * export interface/type ReadAllBody
  * export interface/type RevertBody
+ * export interface/type RoutingBody
  * export interface/type Rule
  * export interface/type RulesBody
+ * export interface/type RunnerBody
  * export interface/type ScopePrefsBody
  * export interface/type SelectBody
  * export interface/type ServiceIdentityBody
  * export interface/type SessionResponse
  * export interface/type SettingsBody
+ * export interface/type SkillBody
  * export interface/type SnoozeBody
  * export interface/type SsoCompleteBody
  * export interface/type SsoConfigBody
@@ -1029,7 +1172,9 @@ export class IdentityClient {
  * export interface/type _QuietBody
  * export interface/type harness_identity__agents__ReasonBody
  * export interface/type harness_identity__orgs__RoleBody
+ * export interface/type harness_identity__policy__AssignBody
  * export interface/type harness_identity__policy__RoleBody
+ * export interface/type harness_identity__runner_api__AssignBody
  * export interface/type harness_identity__sessions__CreateBody
  * export interface/type harness_identity__sessions__MemberBody
  * export interface/type harness_identity__sessions__PatchBody

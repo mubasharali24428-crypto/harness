@@ -368,6 +368,10 @@ export interface ReviewFindingsOut {
 export interface RevokeBody {
     reason: string;
 }
+/** RewindBody. */
+export interface RewindBody {
+    checkpoint?: string | null;
+}
 /** RunAggregateResponse. Required keys: runId, state. */
 export interface RunAggregateResponse {
     budget?: BudgetDegradedOut;
@@ -695,6 +699,9 @@ export declare class OrchestratorClient {
     /** Review Change
      *  POST /api/v1/orchestrator/runs/{runId}/changes/{changeId}/review */
     review_change(run_id: string, change_id: string, body: ReviewBody): Promise<unknown>;
+    /** Run Checkpoints List
+     *  GET /api/v1/orchestrator/runs/{runId}/checkpoints */
+    run_checkpoints_list(run_id: string): Promise<Record<string, unknown>>;
     /** Collab History
      *  GET /api/v1/orchestrator/runs/{runId}/collab-history */
     collab_history(run_id: string, after?: number, limit?: number, schema_version?: number): Promise<Record<string, unknown>>;
@@ -884,6 +891,9 @@ export declare class OrchestratorClient {
     /** Retry Route
      *  POST /api/v1/orchestrator/runs/{runId}/retry */
     retry_route(run_id: string, body: RetryBody): Promise<unknown>;
+    /** Run Rewind
+     *  POST /api/v1/orchestrator/runs/{runId}/rewind */
+    run_rewind(run_id: string, body: RewindBody): Promise<Record<string, unknown>>;
     /** Collab Staged Approvals
      *  POST /api/v1/orchestrator/runs/{runId}/staged/approvals */
     collab_staged_approvals(run_id: string): Promise<Record<string, unknown>>;

@@ -32,7 +32,7 @@ PG_URL ?= postgresql+asyncpg://harness:harness@localhost:5499/harness
 
 .PHONY: help bootstrap clean-venvs guard-script-check \
         gate $(foreach s,$(SECTIONS),lint-$(s) test-$(s)) \
-        lint test lint-mcp test-mcp frontend frontend-tsc frontend-vitest static-gates e2e e2e-compose \
+        lint test lint-mcp test-mcp frontend frontend-tsc frontend-vitest check-ts-dist static-gates e2e e2e-compose \
         pg-probe pg-probe-integration pg-probe-s1 pg-probe-migrate pg-up pip-audit \
         guard-routes guard-isolation guard-route-law \
         drill-oidc drill-pitr drill-native drill-fairness drill-rate-limit
@@ -43,6 +43,7 @@ help:
 	@echo "  make lint            ruff across: $(SECTIONS)"
 	@echo "  make test            pytest matrix (same sections, CI order)"
 	@echo "  make frontend        section7: tsc --noEmit + vitest run"
+	@echo "  make check-ts-dist   clients/ts/dist matches a fresh build (needs npm ci)"
 	@echo "  make static-gates    sh -n entrypoint.sh; compose config; TS mirror --check"
 	@echo "                       + route/isolation law guards (M15-G6a)"
 	@echo "  make drill-oidc      OIDC SSO against a disposable Keycloak (evidence JSON)"
@@ -191,6 +192,12 @@ frontend-vitest:
 	cd $(FRONTEND) && npx vitest run
 
 frontend: frontend-tsc frontend-vitest
+
+# The compiled client shipped in git (clients/ts/dist) is the published
+# artifact, so it must be rebuilt whenever its sources change. Requires
+# `npm ci -C clients/ts`; exits 2 (loudly, never a silent pass) without it.
+check-ts-dist:
+	./scripts/sdk-gen/check_ts_dist.sh
 
 # ------------------------------------------------------------------------- e2e
 # Pair contract H-P2: H3b defines the target, H3a consumes it. Until H3a lands

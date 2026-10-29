@@ -63,6 +63,15 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   deployed `HARNESS_TEAM_MODEL_CALL_LIMIT`; the shipped 300/min would require
   301 live calls to trip). Re-run at defaults after the drift fix: PASS
   (`w15-rate-limit-1793288031.json`).
+* **The published TypeScript dist was two generations stale.** `clients/ts/dist`
+  is committed (it is what an installer gets), but nothing rebuilt it: after the
+  W15 spec-drift regeneration the sources carried the routing, attestation and
+  finish surfaces while the compiled client still exported the older shapes —
+  289 lines of API missing from the artifact. Rebuilt and committed, with
+  `scripts/sdk-gen/check_ts_dist.sh` (+ `make check-ts-dist`, now a CI step in
+  the frontend job) that rebuilds to a scratch directory and diffs against git;
+  it exits 2 rather than silently passing when `clients/ts` deps are absent.
+  Verified by mutation: restoring one stale `dist` file trips it (exit 1).
 * **Browser-gate timeout tests are no longer load-sensitive.** A 1 s deadline made
   `test_a_slow_render_that_finished_is_still_evidence` fail on a busy machine and
   pass on an idle one (the stand-in browser had not started its screenshot copy

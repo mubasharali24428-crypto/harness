@@ -16,13 +16,12 @@ export interface ApplyBody {
     name: string;
     version?: number | null;
 }
-/** AssignBody. Required keys: level, role, scopeId, userId. */
-export interface AssignBody {
-    expiresAt?: string | null;
-    level: string;
-    role: string;
-    scopeId: string;
-    userId: string;
+/** AttestBody. Required keys: attestation, signature. */
+export interface AttestBody {
+    attestation: {
+        [key: string]: unknown;
+    };
+    signature: string;
 }
 /** BindingBody. Required keys: kind, value. */
 export interface BindingBody {
@@ -123,6 +122,11 @@ export interface ExecutionControlBody {
     disabled: boolean;
     reason: string;
 }
+/** FinishBody. Required keys: status. */
+export interface FinishBody {
+    resultDigest?: string | null;
+    status: string;
+}
 /** GlobalPrefsBody. */
 export interface GlobalPrefsBody {
     digest?: _DigestBody | null;
@@ -218,6 +222,11 @@ export interface MemberListResponse {
 export interface MemberRoleBody {
     role: string;
 }
+/** MemoryBody. Required keys: memoryText. */
+export interface MemoryBody {
+    expiresAt?: string | null;
+    memoryText: string;
+}
 /** MuteBody. Required keys: scopeId, scopeKind. */
 export interface MuteBody {
     minutes?: number | null;
@@ -305,6 +314,12 @@ export interface RevertBody {
     expectedVersion?: number | null;
     toVersion: number;
 }
+/** RoutingBody. Required keys: routing. */
+export interface RoutingBody {
+    routing: {
+        [key: string]: unknown;
+    };
+}
 /** Rule. Required keys: effect, id, permissions. */
 export interface Rule {
     effect: string;
@@ -316,6 +331,12 @@ export interface Rule {
 /** RulesBody. Required keys: rulesText. */
 export interface RulesBody {
     rulesText: string;
+}
+/** RunnerBody. Required keys: description, name. */
+export interface RunnerBody {
+    confinement?: string;
+    description: string;
+    name: string;
 }
 /** ScopePrefsBody. */
 export interface ScopePrefsBody {
@@ -349,6 +370,16 @@ export interface SettingsBody {
     settings: {
         [key: string]: unknown;
     };
+}
+/** SkillBody. Required keys: description, instructions, name, version. */
+export interface SkillBody {
+    author?: string | null;
+    description: string;
+    expiresAt?: string | null;
+    instructions: string;
+    name: string;
+    source?: string;
+    version: string;
 }
 /** SnoozeBody. */
 export interface SnoozeBody {
@@ -464,9 +495,21 @@ export interface harness_identity__orgs__RoleBody {
     guestDays?: number | null;
     role: string;
 }
+/** harness_identity__policy__AssignBody. Required keys: level, role, scopeId, userId. */
+export interface harness_identity__policy__AssignBody {
+    expiresAt?: string | null;
+    level: string;
+    role: string;
+    scopeId: string;
+    userId: string;
+}
 /** harness_identity__policy__RoleBody. Required keys: permissions. */
 export interface harness_identity__policy__RoleBody {
     permissions: string[];
+}
+/** harness_identity__runner_api__AssignBody. Required keys: runId. */
+export interface harness_identity__runner_api__AssignBody {
+    runId: string;
 }
 /** harness_identity__sessions__CreateBody. Required keys: title. */
 export interface harness_identity__sessions__CreateBody {
@@ -714,7 +757,7 @@ export declare class IdentityClient {
     remove_from_team(org_id: string, team_id: string, user_id: string): Promise<unknown>;
     /** Assign Role
      *  POST /api/v1/policy/orgs/{org_id}/assignments */
-    assign_role(org_id: string, body: AssignBody): Promise<Record<string, unknown>>;
+    assign_role(org_id: string, body: harness_identity__policy__AssignBody): Promise<Record<string, unknown>>;
     /** List Policy Change Requests
      *  GET /api/v1/policy/orgs/{org_id}/change-requests */
     list_policy_change_requests(org_id: string): Promise<Record<string, unknown>>;
@@ -766,6 +809,18 @@ export declare class IdentityClient {
     /** Replay Events
      *  GET /api/v1/projects/{project_id}/events/replay */
     replay_events(project_id: string, after_seq?: number, limit?: number): Promise<EventReplayResponse>;
+    /** List Memory
+     *  GET /api/v1/projects/{project_id}/memory */
+    list_memory(project_id: string): Promise<Record<string, unknown>>;
+    /** Create Memory
+     *  POST /api/v1/projects/{project_id}/memory */
+    create_memory(project_id: string, body: MemoryBody): Promise<Record<string, unknown>>;
+    /** Delete Memory
+     *  DELETE /api/v1/projects/{project_id}/memory/{entry_id} */
+    delete_memory(project_id: string, entry_id: string): Promise<unknown>;
+    /** Review Memory
+     *  POST /api/v1/projects/{project_id}/memory/{entry_id}/review */
+    review_memory(project_id: string, entry_id: string): Promise<Record<string, unknown>>;
     /** Get Rules
      *  GET /api/v1/projects/{project_id}/rules */
     get_rules(project_id: string): Promise<Record<string, unknown>>;
@@ -775,6 +830,21 @@ export declare class IdentityClient {
     /** Delete Rules
      *  DELETE /api/v1/projects/{project_id}/rules */
     delete_rules(project_id: string): Promise<unknown>;
+    /** Runner Heartbeat
+     *  POST /api/v1/runner/heartbeat */
+    runner_heartbeat(body: AttestBody): Promise<Record<string, unknown>>;
+    /** List My Jobs
+     *  GET /api/v1/runner/jobs */
+    list_my_jobs(): Promise<Record<string, unknown>>;
+    /** Claim Job
+     *  POST /api/v1/runner/jobs/{run_id}/claim */
+    claim_job(run_id: string): Promise<Record<string, unknown>>;
+    /** Finish Job
+     *  POST /api/v1/runner/jobs/{run_id}/finish */
+    finish_job(run_id: string, body: FinishBody): Promise<Record<string, unknown>>;
+    /** Heartbeat Job
+     *  POST /api/v1/runner/jobs/{run_id}/heartbeat */
+    heartbeat_job(run_id: string): Promise<Record<string, unknown>>;
     /** List Sessions
      *  GET /api/v1/sessions */
     list_sessions(q?: string | null, state?: string | null, workspace_id?: string | null, run_id?: string | null, limit?: number, cursor?: string | null): Promise<Record<string, unknown>>;
@@ -844,6 +914,21 @@ export declare class IdentityClient {
     /** Stepup Verify
      *  POST /api/v1/stepup/verify */
     stepup_verify(body: StepUpBody): Promise<Record<string, unknown>>;
+    /** List Runners
+     *  GET /api/v1/team-runners */
+    list_runners(): Promise<Record<string, unknown>>;
+    /** Register Runner
+     *  POST /api/v1/team-runners */
+    register_runner(body: RunnerBody): Promise<Record<string, unknown>>;
+    /** Assign Job
+     *  POST /api/v1/team-runners/{runner_id}/jobs */
+    assign_job(runner_id: string, body: harness_identity__runner_api__AssignBody): Promise<Record<string, unknown>>;
+    /** Revoke Runner
+     *  POST /api/v1/team-runners/{runner_id}/revoke */
+    revoke_runner(runner_id: string): Promise<unknown>;
+    /** Rotate Runner
+     *  POST /api/v1/team-runners/{runner_id}/rotate */
+    rotate_runner(runner_id: string): Promise<Record<string, unknown>>;
     /** List Invites
      *  GET /api/v1/teams/{team_id}/invites */
     list_invites_2(team_id: string, status?: string | null): Promise<Record<string, unknown>>;
@@ -889,6 +974,15 @@ export declare class IdentityClient {
     /** Rotate Secret
      *  POST /api/v1/teams/{team_id}/settings/integrations/v1/webhooks/{webhook_id}/rotate-secret */
     rotate_secret(team_id: string, webhook_id: string): Promise<Record<string, unknown>>;
+    /** Get Model Routing
+     *  GET /api/v1/teams/{team_id}/settings/model-routing */
+    get_model_routing(team_id: string): Promise<Record<string, unknown>>;
+    /** Put Model Routing
+     *  PUT /api/v1/teams/{team_id}/settings/model-routing */
+    put_model_routing(team_id: string, body: RoutingBody): Promise<Record<string, unknown>>;
+    /** Delete Model Routing
+     *  DELETE /api/v1/teams/{team_id}/settings/model-routing */
+    delete_model_routing(team_id: string): Promise<unknown>;
     /** Get Reviewer Thresholds
      *  GET /api/v1/teams/{team_id}/settings/reviewer-thresholds */
     get_reviewer_thresholds(team_id: string): Promise<Record<string, unknown>>;
@@ -898,6 +992,24 @@ export declare class IdentityClient {
     /** Delete Reviewer Thresholds
      *  DELETE /api/v1/teams/{team_id}/settings/reviewer-thresholds */
     delete_reviewer_thresholds(team_id: string): Promise<unknown>;
+    /** List Skills
+     *  GET /api/v1/teams/{team_id}/skills */
+    list_skills(team_id: string): Promise<Record<string, unknown>>;
+    /** Create Skill
+     *  POST /api/v1/teams/{team_id}/skills */
+    create_skill(team_id: string, body: SkillBody): Promise<Record<string, unknown>>;
+    /** Remove Skill
+     *  DELETE /api/v1/teams/{team_id}/skills/{name} */
+    remove_skill(team_id: string, name: string): Promise<unknown>;
+    /** Disable Skill
+     *  POST /api/v1/teams/{team_id}/skills/{name}/disable */
+    disable_skill(team_id: string, name: string): Promise<Record<string, unknown>>;
+    /** Enable Skill
+     *  POST /api/v1/teams/{team_id}/skills/{name}/enable */
+    enable_skill(team_id: string, name: string): Promise<Record<string, unknown>>;
+    /** Review Skill
+     *  POST /api/v1/teams/{team_id}/skills/{name}/review */
+    review_skill(team_id: string, name: string): Promise<Record<string, unknown>>;
     /** Get Sso Config
      *  GET /api/v1/teams/{team_id}/sso/config */
     get_sso_config(team_id: string): Promise<Record<string, unknown>>;

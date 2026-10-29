@@ -8,6 +8,11 @@ events off the live bus.
 cd clients/ts && npm install && npm run build   # zero runtime dependencies
 ```
 
+`dist/` is committed because it is the published artifact: any change under
+`src/` must be followed by `npm run build` and a commit of `dist/`.
+`make check-ts-dist` (CI: the frontend job) rebuilds to a scratch directory and
+fails when the committed `dist/` no longer matches the sources.
+
 - **Generated surface** — `src/<service>.ts` is produced from each section's
   OpenAPI spec by `scripts/sdk-gen/generate.py --target ts` — the SAME specs
   that drive `clients/python` (104 operations across identity, github, router,
