@@ -11,7 +11,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Teams whose month-to-date ledger spend has reached the resolved monthly cap. Both series carry team_id, so the comparison matches on it.",
+      "description": "Teams that have spent this month and reached the resolved monthly cap. A zero cap with no spend is not 'at cap' \u2014 that would make every freshly provisioned team show up here.",
       "fieldConfig": {
         "defaults": {
           "min": 0,
@@ -53,7 +53,7 @@
       },
       "targets": [
         {
-          "expr": "count(harness_team_spend_usd_month >= harness_team_budget_usd)",
+          "expr": "count((harness_team_spend_usd_month > 0) and (harness_team_spend_usd_month >= harness_team_budget_usd)) or vector(0)",
           "legendFormat": "teams at or over cap",
           "refId": "A"
         }
@@ -66,7 +66,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Month-to-date ledger spend per team against the resolved cap (teams.budget_usd > billing_plans.monthly_budget_usd > env). A team with no cap has no budget series.",
+      "description": "Top 10 spenders this month against the resolved cap (teams.budget_usd > billing_plans.monthly_budget_usd > env). A team with no cap has no budget series. Zero-spend teams are omitted to keep the legend readable.",
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
@@ -93,12 +93,12 @@
       },
       "targets": [
         {
-          "expr": "harness_team_spend_usd_month",
+          "expr": "topk(10, harness_team_spend_usd_month > 0)",
           "legendFormat": "{{team_id}} spend",
           "refId": "A"
         },
         {
-          "expr": "harness_team_budget_usd",
+          "expr": "harness_team_budget_usd > 0",
           "legendFormat": "{{team_id}} cap",
           "refId": "B"
         }
@@ -111,7 +111,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Spend divided by the resolved cap. clamp_min keeps an unlimited or zero cap from producing +Inf; those teams show 0 here and simply have no budget series above.",
+      "description": "Spend divided by the resolved cap, restricted to teams with a POSITIVE cap. A zero cap cannot be turned into a percentage (the naive ratio reports 10000% against the clamp), so those teams appear only in the 'at or over cap' count.",
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
@@ -155,7 +155,7 @@
       },
       "targets": [
         {
-          "expr": "harness_team_spend_usd_month / clamp_min(harness_team_budget_usd, 0.000001)",
+          "expr": "(harness_team_spend_usd_month / harness_team_budget_usd) and on(team_id) (harness_team_budget_usd > 0)",
           "legendFormat": "{{team_id}}",
           "refId": "A"
         }
@@ -195,7 +195,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (harness_model_cost_usd)",
+          "expr": "sum by (model) (harness_model_cost_usd) > 0",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -208,7 +208,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
-      "description": "Metered model calls by model and agent role. A model that stops appearing is either unused or not being metered — check pricingSource on /estimate-cost before assuming the former.",
+      "description": "Metered model calls by model and agent role. A model that stops appearing is either unused or not being metered \u2014 check pricingSource on /estimate-cost before assuming the former.",
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -235,8 +235,8 @@
       },
       "targets": [
         {
-          "expr": "sum by (model, role) (harness_model_calls)",
-          "legendFormat": "{{model}} · {{role}}",
+          "expr": "sum by (model, role) (harness_model_calls) > 0",
+          "legendFormat": "{{model}} \u00b7 {{role}}",
           "refId": "A"
         }
       ],
@@ -320,7 +320,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (model) (harness_model_cost_usd) / clamp_min(sum by (model) (harness_model_calls), 1)",
+          "expr": "(sum by (model) (harness_model_cost_usd) / clamp_min(sum by (model) (harness_model_calls), 1)) > 0",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -341,7 +341,7 @@
       },
       "id": 8,
       "options": {
-        "content": "## How these series are produced\n\nSix gauges are refreshed by the orchestrator's DB poller (default 15s) from the frozen `cost_ledger`:\n\n- `harness_team_spend_usd_month` — DB-clock month-to-date spend, per team.\n- `harness_team_budget_usd` — resolved cap (team override > plan > env); absent means unlimited.\n- `harness_model_cost_usd` / `harness_model_calls` — whole-ledger spend and call counts per team/model (and role for calls).\n- `harness_model_latency_p50_seconds` / `harness_model_latency_p95_seconds` — rolling window, PostgreSQL only.\n\nRows whose `run_id` does not resolve through `agent_runs → projects → teams` are reported under `team_id=\"unattributed\"` rather than dropped. **These panels are defined and structurally checked, but have not been visually verified against a live Grafana here.** The dashboard is not a billing statement: it reads the same ledger the budget gate enforces against.",
+        "content": "## How these series are produced\n\nSix gauges are refreshed by the orchestrator's DB poller (default 15s) from the frozen `cost_ledger`:\n\n- `harness_team_spend_usd_month` \u2014 DB-clock month-to-date spend, per team.\n- `harness_team_budget_usd` \u2014 resolved cap (team override > plan > env); absent means unlimited.\n- `harness_model_cost_usd` / `harness_model_calls` \u2014 whole-ledger spend and call counts per team/model (and role for calls).\n- `harness_model_latency_p50_seconds` / `harness_model_latency_p95_seconds` \u2014 rolling window, PostgreSQL only.\n\nRows whose `run_id` does not resolve through `agent_runs \u2192 projects \u2192 teams` are reported under `team_id=\"unattributed\"` rather than dropped. **These panels are defined and structurally checked, but have not been visually verified against a live Grafana here.** The dashboard is not a billing statement: it reads the same ledger the budget gate enforces against.",
         "mode": "markdown"
       },
       "title": "Metering notes",

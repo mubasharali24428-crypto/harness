@@ -869,8 +869,8 @@ def test_cost_latency_dashboard_covers_metering():
         "harness_model_latency_p95_seconds",
     ):
         assert metric in expressions, f"dashboard does not cover {metric}"
-    assert "clamp_min(harness_team_budget_usd" in expressions, (
-        "utilisation must not divide by a zero cap"
+    assert "and on(team_id) (harness_team_budget_usd > 0)" in expressions, (
+        "utilisation must be restricted to positive caps, not clamped to a fake 10000%"
     )
 
 

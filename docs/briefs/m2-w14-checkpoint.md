@@ -12,7 +12,7 @@ number before relying on it.
 | Operator rate card + `/estimate-cost` fix | shipped (HEAD `6afebdc`) | S3 144 passed; live check in `docs/m2-w14-plan.md` |
 | Opt-in model routing (S1 API + S4 resolver) | shipped, live-smoked | S1 1019 passed; S4 1867 passed; 9 routing tests |
 | Comparison runner (`--compare-model`) | shipped **with live runs** | `comparison-1793275608.json` — both models FAIL, no winner |
-| Cost/latency gauges + dashboard | shipped, live series verified | S1 26 observability tests; PG-gated test 2 passed |
+| Cost/latency gauges + dashboard | shipped, live series + Grafana render verified | S1 26 observability tests; PG-gated test 2 passed; `w14-dashboard-grafana.png` |
 | Fresh held-out design set | **fixture + live leg PASS** (attempt 4/4) | `w14-design-fixture-1793271851.json`, `w14-design-1793274853.json` |
 
 Live checks on the rebuilt image (2026-10-29): identity `/ready` 200 and
@@ -29,11 +29,9 @@ because the patch declares one model per deployment.
 
 ## Owed (not defects)
 
-1. Opening `harness-cost-latency.json` in a live Grafana — this stack runs
-   Prometheus only.
-2. Metering engine model calls: `cost_ledger` has no rows for engine spend, so
+1. Metering engine model calls: `cost_ledger` has no rows for engine spend, so
    the spend panels see router-metered spend only.
-3. Four catalog ids are dead on OpenRouter (`deepseek/deepseek-coder`,
+2. Four catalog ids are dead on OpenRouter (`deepseek/deepseek-coder`,
    `qwen/qwen-2.5-coder-32b`, `qwen/qwen-2.5-72b`, `mistral/codestral`).
 
 ## Fixed during this slice

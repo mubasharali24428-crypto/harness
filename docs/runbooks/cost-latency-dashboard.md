@@ -5,12 +5,15 @@ Dashboard JSON: `deploy/observability/dashboards/harness-cost-latency.json`
 overview — import it in Grafana and bind the `DS_PROMETHEUS` template variable
 at import time.
 
-**Verification status:** the dashboard is structurally checked in
+**Verification status:** structurally checked in
 `section1/tests/test_deploy_observability.py`
-(`test_cost_latency_dashboard_covers_metering`) and its series are covered by a
-SQLite test plus a PostgreSQL-gated test. It has **not** been rendered against a
-live Grafana in this environment — treat panel layout and legends as unverified
-until someone opens it.
+(`test_cost_latency_dashboard_covers_metering`), with series covered by a SQLite
+test and a PostgreSQL-gated test. Visually verified on 2026-10-29 in a throwaway
+Grafana 11.2.0 wired to this stack's Prometheus: the dashboard imported, every
+panel query returned data, and the screenshot is
+`docs/briefs/evidence/eval/w14-dashboard-grafana.png`. That run also exposed two
+panel bugs, now fixed: zero-cap teams were counted as "at or over cap", and the
+utilisation panel divided by a clamped zero cap (fake 10000%).
 
 ## Series it reads
 
@@ -53,9 +56,12 @@ teams or aggregate with `sum without (team_id)`.
 
 - **Spend vs cap** only shows teams that have a resolved cap. A team missing
   from the cap series is unlimited, not free.
-- **Budget utilisation** clamps the divisor at 0.000001 so a zero cap cannot
-  produce `+Inf`; a zero cap should still be treated as "blocked now" when
-  reading the gate, not just the panel.
+- **Budget utilisation** only plots teams with a POSITIVE cap; a zero cap is a
+  blocking gate, not a percentage, so those teams show in the "at or over cap"
+  count instead. In a dev database where every cap is zero, the panel honestly
+  reads "No data".
+- **Spend vs cap** shows the top 10 spenders; idle teams are omitted from the
+  legend but still counted by the cap panels.
 - **Latency p50/p95** absent on a non-PostgreSQL deployment is expected: the
   rollup uses `percentile_cont`.
 - **Spend by model** includes unpriced models at their ledger cost (zero).

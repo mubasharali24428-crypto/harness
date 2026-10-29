@@ -55,7 +55,10 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   team/model, p50/p95 latency on PostgreSQL), unattributable rows surface as
   `unattributed`, and `harness-cost-latency.json` adds eight panels with a
   runbook (`docs/runbooks/cost-latency-dashboard.md`). Verified live on
-  `/metrics`; panels structurally checked, not visually verified.
+  `/metrics`, imported into a throwaway Grafana 11.2.0 where every panel returned
+  data (`docs/briefs/evidence/eval/w14-dashboard-grafana.png`). The render exposed
+  and fixed two panel bugs: zero-cap teams counted as "at or over cap", and
+  utilisation dividing by a clamped zero cap into a fake 10000%.
 * **Fresh held-out design set.** `w14-design-heldout` + a 960x640 sidebar-led
   mockup rendered by its own driver. Fixture leg PASS
   (`w14-design-fixture-1793271851.json`); live leg PASS on attempt 4/4

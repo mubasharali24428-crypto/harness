@@ -143,7 +143,11 @@ They are gauges, not counters: releasing a reservation deletes ledger rows.
 `docs/runbooks/cost-latency-dashboard.md` carries the reading guide. All six
 series were confirmed live on the orchestrator `/metrics`
 (125 cost, 347 spend, 6 cap, 25+25 latency samples at the time of the check).
-The dashboard itself is structurally checked, **not visually verified**.
+The dashboard is structurally checked **and visually verified**: it was imported
+into a throwaway Grafana 11.2.0 pointed at this stack's Prometheus, every panel
+query returned data, and `docs/briefs/evidence/eval/w14-dashboard-grafana.png`
+is the render. That pass exposed and fixed two panel bugs (zero-cap teams counted
+as over cap; utilisation dividing by a clamped zero cap into a fake 10000%).
 
 **Fresh held-out design set.** `w14-design-heldout` (heldOut, 960x640,
 sidebar-led, never tuned) with `scripts/e2e/w14_design_heldout_drill.py`. Its
@@ -188,11 +192,9 @@ the final run — it had treated the reader's blank line as content.
 
 ## Remaining
 
-1. Open the dashboard in a live Grafana and confirm the panels render — this
-   stack runs Prometheus only, so it stays structurally verified.
-2. Meter engine model calls (above) or state the dashboard's blind spot next to
+1. Meter engine model calls (above) or state the dashboard's blind spot next to
    every spend panel.
-3. Clean the four dead catalog ids, or replace them via `HARNESS_RATE_CARD_JSON`.
+2. Clean the four dead catalog ids, or replace them via `HARNESS_RATE_CARD_JSON`.
 
 ## Gate position
 
@@ -203,7 +205,7 @@ the final run — it had treated the reader's blank line as content.
 | Routing requires opt-in | **pass** — default off, policy read from `team_settings`, live-verified GET/PUT/DELETE |
 | Failure never forces a downgrade | **pass (offline)** — resolver never crosses classes; missing class model keeps the primary; partial plans keep the primary |
 | Unpriced models stop billing zero silently | **pass (visibility + overlay)** — a named unpriced model reports `priced: false`, `pricingSource: "unpriced"`, cost 0; operators price it via `HARNESS_RATE_CARD_JSON`; malformed cards fail loudly |
-| Cost/latency dashboards | **pass (series + panels + tests), visually unverified** — six live gauges, eight panels, SQLite and PostgreSQL-gated tests; no Grafana in this stack. Engine-side model calls are not in the ledger (finding above), so spend panels show router-metered spend only |
+| Cost/latency dashboards | **pass (series + panels + tests + Grafana render)** — six live gauges, eight panels, SQLite and PostgreSQL-gated tests, and a real Grafana 11.2.0 render (`w14-dashboard-grafana.png`). Engine-side model calls are not in the ledger (finding above), so spend panels show router-metered spend only |
 
 ## Limitations
 
