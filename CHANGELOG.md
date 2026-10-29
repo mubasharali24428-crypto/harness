@@ -106,6 +106,14 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   §3.6 is the operator answer for "which model did this run use, and why".
   Specs, SDKs (Python + TS) and the compiled TS dist were regenerated for the
   new field.
+* **A stale twin of the contract package was committed.** `git rm -r
+  contracts/build` removed 17 tracked setuptools artifacts — a duplicate
+  `harness_contracts` still stamped `1.0.0rc1` while the source was at rc6 — so
+  every version/enum grep hit dead copies, and the 4-way rot detector could not
+  see them because it checks named files, not stray ones. `.gitignore` already
+  ignored `build/`, so this had arrived through `git add -f`; the new
+  `test_contracts_ships_no_committed_build_copy` fails if any artifact under
+  `contracts/build` is tracked again (mutation-checked with a planted file).
 * **Browser-gate timeout tests are no longer load-sensitive.** A 1 s deadline made
   `test_a_slow_render_that_finished_is_still_evidence` fail on a busy machine and
   pass on an idle one (the stand-in browser had not started its screenshot copy

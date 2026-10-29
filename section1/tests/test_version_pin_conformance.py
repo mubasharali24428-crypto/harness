@@ -42,9 +42,12 @@ from __future__ import annotations
 import importlib.metadata
 import json
 import re
+import subprocess
 import warnings
 from pathlib import Path
 from urllib.parse import unquote, urlparse
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -148,6 +151,31 @@ def _collect_source_versions() -> dict[str, str | None]:
 def _canonical_source_version(sources: dict[str, str | None]) -> str | None:
     values = {ver for ver in sources.values() if ver is not None}
     return next(iter(values)) if len(values) == 1 else None
+
+
+def test_contracts_ships_no_committed_build_copy():
+    """Build output is not source, and a copy of it in git is a second, lazier
+    version of the package. 2026-10-29: `contracts/build/lib/harness_contracts/`
+    was committed (17 files, stamped `1.0.0rc1`) while the real source was at
+    rc6 — every version/enum search hit the stale twin, and the rot detector
+    above could not see it because it checks named files, not stray copies.
+    `.gitignore` already ignores `build/`, so this can only regress through an
+    explicit `git add -f`."""
+    proc = subprocess.run(
+        ["git", "ls-files", "contracts/build"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        pytest.skip("git is unavailable in this checkout")
+    tracked = [line for line in proc.stdout.splitlines() if line.strip()]
+    assert not tracked, (
+        f"{len(tracked)} build artifacts are committed under contracts/build; "
+        "remove them with `git rm -r contracts/build` and let setuptools "
+        "regenerate them on build. First five: " + ", ".join(tracked[:5])
+    )
 
 
 def test_contracts_version_pinned_across_all_four_sources():
