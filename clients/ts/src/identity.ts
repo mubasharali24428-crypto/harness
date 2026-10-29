@@ -18,13 +18,10 @@ export interface ApplyBody {
   version?: number | null;  // optional
 }
 
-/** AssignBody. Required keys: level, role, scopeId, userId. */
-export interface AssignBody {
-  expiresAt?: string | null;  // optional
-  level: string;
-  role: string;
-  scopeId: string;
-  userId: string;
+/** AttestBody. Required keys: attestation, signature. */
+export interface AttestBody {
+  attestation: { [key: string]: unknown };
+  signature: string;
 }
 
 /** BindingBody. Required keys: kind, value. */
@@ -137,6 +134,12 @@ export interface ExecutionControlBody {
   reason: string;
 }
 
+/** FinishBody. Required keys: status. */
+export interface FinishBody {
+  resultDigest?: string | null;  // optional
+  status: string;
+}
+
 /** GlobalPrefsBody. */
 export interface GlobalPrefsBody {
   digest?: _DigestBody | null;  // optional
@@ -246,6 +249,12 @@ export interface MemberRoleBody {
   role: string;
 }
 
+/** MemoryBody. Required keys: memoryText. */
+export interface MemoryBody {
+  expiresAt?: string | null;  // optional
+  memoryText: string;
+}
+
 /** MuteBody. Required keys: scopeId, scopeKind. */
 export interface MuteBody {
   minutes?: number | null;  // optional
@@ -345,6 +354,11 @@ export interface RevertBody {
   toVersion: number;
 }
 
+/** RoutingBody. Required keys: routing. */
+export interface RoutingBody {
+  routing: { [key: string]: unknown };
+}
+
 /** Rule. Required keys: effect, id, permissions. */
 export interface Rule {
   effect: string;
@@ -357,6 +371,13 @@ export interface Rule {
 /** RulesBody. Required keys: rulesText. */
 export interface RulesBody {
   rulesText: string;
+}
+
+/** RunnerBody. Required keys: description, name. */
+export interface RunnerBody {
+  confinement?: string;  // optional
+  description: string;
+  name: string;
 }
 
 /** ScopePrefsBody. */
@@ -391,6 +412,17 @@ export interface SessionResponse {
 export interface SettingsBody {
   expectedVersion?: number | null;  // optional
   settings: { [key: string]: unknown };
+}
+
+/** SkillBody. Required keys: description, instructions, name, version. */
+export interface SkillBody {
+  author?: string | null;  // optional
+  description: string;
+  expiresAt?: string | null;  // optional
+  instructions: string;
+  name: string;
+  source?: string;  // optional
+  version: string;
 }
 
 /** SnoozeBody. */
@@ -520,9 +552,23 @@ export interface harness_identity__orgs__RoleBody {
   role: string;
 }
 
+/** harness_identity__policy__AssignBody. Required keys: level, role, scopeId, userId. */
+export interface harness_identity__policy__AssignBody {
+  expiresAt?: string | null;  // optional
+  level: string;
+  role: string;
+  scopeId: string;
+  userId: string;
+}
+
 /** harness_identity__policy__RoleBody. Required keys: permissions. */
 export interface harness_identity__policy__RoleBody {
   permissions: string[];
+}
+
+/** harness_identity__runner_api__AssignBody. Required keys: runId. */
+export interface harness_identity__runner_api__AssignBody {
+  runId: string;
 }
 
 /** harness_identity__sessions__CreateBody. Required keys: title. */
@@ -1028,7 +1074,7 @@ export class IdentityClient {
 
   /** Assign Role
    *  POST /api/v1/policy/orgs/{org_id}/assignments */
-  assign_role(org_id: string, body: AssignBody): Promise<Record<string, unknown>> {
+  assign_role(org_id: string, body: harness_identity__policy__AssignBody): Promise<Record<string, unknown>> {
     const _path = `/api/v1/policy/orgs/${encodeURIComponent(org_id)}/assignments`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
   }
@@ -1155,6 +1201,34 @@ export class IdentityClient {
     return this.http.request<EventReplayResponse>(this.baseUrl, _path, "GET", undefined, params);
   }
 
+  /** List Memory
+   *  GET /api/v1/projects/{project_id}/memory */
+  list_memory(project_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/memory`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Create Memory
+   *  POST /api/v1/projects/{project_id}/memory */
+  create_memory(project_id: string, body: MemoryBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/memory`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Delete Memory
+   *  DELETE /api/v1/projects/{project_id}/memory/{entry_id} */
+  delete_memory(project_id: string, entry_id: string): Promise<unknown> {
+    const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/memory/${encodeURIComponent(entry_id)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** Review Memory
+   *  POST /api/v1/projects/{project_id}/memory/{entry_id}/review */
+  review_memory(project_id: string, entry_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/memory/${encodeURIComponent(entry_id)}/review`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
   /** Get Rules
    *  GET /api/v1/projects/{project_id}/rules */
   get_rules(project_id: string): Promise<Record<string, unknown>> {
@@ -1174,6 +1248,41 @@ export class IdentityClient {
   delete_rules(project_id: string): Promise<unknown> {
     const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/rules`;
     return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** Runner Heartbeat
+   *  POST /api/v1/runner/heartbeat */
+  runner_heartbeat(body: AttestBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/runner/heartbeat`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** List My Jobs
+   *  GET /api/v1/runner/jobs */
+  list_my_jobs(): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/runner/jobs`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Claim Job
+   *  POST /api/v1/runner/jobs/{run_id}/claim */
+  claim_job(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/runner/jobs/${encodeURIComponent(run_id)}/claim`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Finish Job
+   *  POST /api/v1/runner/jobs/{run_id}/finish */
+  finish_job(run_id: string, body: FinishBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/runner/jobs/${encodeURIComponent(run_id)}/finish`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Heartbeat Job
+   *  POST /api/v1/runner/jobs/{run_id}/heartbeat */
+  heartbeat_job(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/runner/jobs/${encodeURIComponent(run_id)}/heartbeat`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
   }
 
   /** List Sessions
@@ -1340,6 +1449,41 @@ export class IdentityClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
   }
 
+  /** List Runners
+   *  GET /api/v1/team-runners */
+  list_runners(): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/team-runners`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Register Runner
+   *  POST /api/v1/team-runners */
+  register_runner(body: RunnerBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/team-runners`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Assign Job
+   *  POST /api/v1/team-runners/{runner_id}/jobs */
+  assign_job(runner_id: string, body: harness_identity__runner_api__AssignBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/team-runners/${encodeURIComponent(runner_id)}/jobs`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Revoke Runner
+   *  POST /api/v1/team-runners/{runner_id}/revoke */
+  revoke_runner(runner_id: string): Promise<unknown> {
+    const _path = `/api/v1/team-runners/${encodeURIComponent(runner_id)}/revoke`;
+    return this.http.request<unknown>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Rotate Runner
+   *  POST /api/v1/team-runners/{runner_id}/rotate */
+  rotate_runner(runner_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/team-runners/${encodeURIComponent(runner_id)}/rotate`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
   /** List Invites
    *  GET /api/v1/teams/{team_id}/invites */
   list_invites_2(team_id: string, status?: string | null): Promise<Record<string, unknown>> {
@@ -1446,6 +1590,27 @@ export class IdentityClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
   }
 
+  /** Get Model Routing
+   *  GET /api/v1/teams/{team_id}/settings/model-routing */
+  get_model_routing(team_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/model-routing`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Put Model Routing
+   *  PUT /api/v1/teams/{team_id}/settings/model-routing */
+  put_model_routing(team_id: string, body: RoutingBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/model-routing`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
+  /** Delete Model Routing
+   *  DELETE /api/v1/teams/{team_id}/settings/model-routing */
+  delete_model_routing(team_id: string): Promise<unknown> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/model-routing`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
   /** Get Reviewer Thresholds
    *  GET /api/v1/teams/{team_id}/settings/reviewer-thresholds */
   get_reviewer_thresholds(team_id: string): Promise<Record<string, unknown>> {
@@ -1465,6 +1630,48 @@ export class IdentityClient {
   delete_reviewer_thresholds(team_id: string): Promise<unknown> {
     const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/reviewer-thresholds`;
     return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** List Skills
+   *  GET /api/v1/teams/{team_id}/skills */
+  list_skills(team_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/skills`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Create Skill
+   *  POST /api/v1/teams/{team_id}/skills */
+  create_skill(team_id: string, body: SkillBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/skills`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Remove Skill
+   *  DELETE /api/v1/teams/{team_id}/skills/{name} */
+  remove_skill(team_id: string, name: string): Promise<unknown> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/skills/${encodeURIComponent(name)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** Disable Skill
+   *  POST /api/v1/teams/{team_id}/skills/{name}/disable */
+  disable_skill(team_id: string, name: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/skills/${encodeURIComponent(name)}/disable`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Enable Skill
+   *  POST /api/v1/teams/{team_id}/skills/{name}/enable */
+  enable_skill(team_id: string, name: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/skills/${encodeURIComponent(name)}/enable`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Review Skill
+   *  POST /api/v1/teams/{team_id}/skills/{name}/review */
+  review_skill(team_id: string, name: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/skills/${encodeURIComponent(name)}/review`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
   }
 
   /** Get Sso Config
@@ -1705,7 +1912,7 @@ export class IdentityClient {
  * export class IdentityClient
  * export interface/type AcceptBody
  * export interface/type ApplyBody
- * export interface/type AssignBody
+ * export interface/type AttestBody
  * export interface/type BindingBody
  * export interface/type ChainNode
  * export interface/type CheckBody
@@ -1721,6 +1928,7 @@ export class IdentityClient {
  * export interface/type EventEnvelopeOut
  * export interface/type EventReplayResponse
  * export interface/type ExecutionControlBody
+ * export interface/type FinishBody
  * export interface/type GlobalPrefsBody
  * export interface/type HTTPValidationError
  * export interface/type InviteBody
@@ -1737,6 +1945,7 @@ export class IdentityClient {
  * export interface/type MemberItem
  * export interface/type MemberListResponse
  * export interface/type MemberRoleBody
+ * export interface/type MemoryBody
  * export interface/type MuteBody
  * export interface/type OkResponse
  * export interface/type OrgCreateBody
@@ -1751,13 +1960,16 @@ export class IdentityClient {
  * export interface/type ProjectOut
  * export interface/type ReadAllBody
  * export interface/type RevertBody
+ * export interface/type RoutingBody
  * export interface/type Rule
  * export interface/type RulesBody
+ * export interface/type RunnerBody
  * export interface/type ScopePrefsBody
  * export interface/type SelectBody
  * export interface/type ServiceIdentityBody
  * export interface/type SessionResponse
  * export interface/type SettingsBody
+ * export interface/type SkillBody
  * export interface/type SnoozeBody
  * export interface/type SsoCompleteBody
  * export interface/type SsoConfigBody
@@ -1777,7 +1989,9 @@ export class IdentityClient {
  * export interface/type _QuietBody
  * export interface/type harness_identity__agents__ReasonBody
  * export interface/type harness_identity__orgs__RoleBody
+ * export interface/type harness_identity__policy__AssignBody
  * export interface/type harness_identity__policy__RoleBody
+ * export interface/type harness_identity__runner_api__AssignBody
  * export interface/type harness_identity__sessions__CreateBody
  * export interface/type harness_identity__sessions__MemberBody
  * export interface/type harness_identity__sessions__PatchBody

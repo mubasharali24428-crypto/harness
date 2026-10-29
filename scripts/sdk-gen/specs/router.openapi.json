@@ -590,6 +590,7 @@
   },
   "/api/v1/models/estimate-cost": {
    "post": {
+    "description": "Cost for the NAMED model, or the role's model when none is named.\n\nW14: a named model that no rate covers answers its own id with cost 0,\n``priced: false`` and ``pricingSource: \"unpriced\"`` \u2014 it is never silently\nswapped for the team's default model, which used to estimate a different\nmodel's price under the requested name.",
     "operationId": "estimate_cost_api_v1_models_estimate_cost_post",
     "requestBody": {
      "content": {

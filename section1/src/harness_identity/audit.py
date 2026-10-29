@@ -211,6 +211,9 @@ APPEND_ONLY_ACTIONS = frozenset(
         "runner.attested",
         "runner.job_assigned",
         "runner.job_completed",
+        # Marathon 2.0 W14: opt-in per-team model routing policy lifecycle.
+        "routing.saved",
+        "routing.deleted",
         # M15-G6b: per-team reviewer-threshold tuning lifecycle.
         "reviewer_thresholds.saved",
         "reviewer_thresholds.deleted",

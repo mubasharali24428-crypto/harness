@@ -40,7 +40,12 @@ from harness_contracts import Principal, error_body
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import select
 
-from .audit_emit import emit_reviewer_thresholds_deleted, emit_reviewer_thresholds_saved
+from .audit_emit import (
+    emit_reviewer_thresholds_deleted,
+    emit_reviewer_thresholds_saved,
+    emit_routing_deleted,
+    emit_routing_saved,
+)
 from .auth import get_principal
 from .models import TeamSetting
 
@@ -52,6 +57,90 @@ router = APIRouter(prefix="/api/v1")
 # the s1→s8 reverse isolation edge). The parity check below keeps writer
 # (this module) and reader (S8) on one key.
 SETTINGS_KEY_REVIEWER_THRESHOLDS = "reviewer_thresholds"
+
+# M2-W14: per-team model routing policy (opt-in). Same KV row shape and the
+# same admin-gated writer; the reader is Section 4's run model resolution.
+SETTINGS_KEY_MODEL_ROUTING = "model_routing"
+ROUTING_KEYS = {"enabled", "mechanicalModel", "reasoningModel"}
+_ROUTING_DEFAULTS: dict[str, Any] = {
+    "enabled": False,
+    "mechanicalModel": None,
+    "reasoningModel": None,
+}
+
+
+class RoutingBody(BaseModel):
+    """Raw PUT payload; the document is validated before any write."""
+
+    routing: dict[str, Any]
+
+    model_config = {"extra": "forbid"}
+
+
+def _validate_routing_document(raw: dict[str, Any]) -> dict[str, Any]:
+    """Canonical routing document or ValueError.
+
+    Opt-in is explicit (``enabled`` must be a boolean); unknown keys are
+    rejected so a typo cannot look enabled. Turning it on requires at least one
+    model, otherwise the switch would be a no-op that reads as policy.
+    """
+    unknown = sorted(set(raw) - ROUTING_KEYS)
+    if unknown:
+        raise ValueError(f"unknown routing key(s): {', '.join(unknown)}")
+    enabled = raw.get("enabled")
+    if not isinstance(enabled, bool):
+        raise ValueError("enabled must be a boolean")
+    document = dict(_ROUTING_DEFAULTS)
+    document["enabled"] = enabled
+    for key in ("mechanicalModel", "reasoningModel"):
+        value = raw.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            raise ValueError(f"{key} must be a string or null")
+        cleaned = value.strip()
+        if not cleaned or len(cleaned) > 120:
+            raise ValueError(f"{key} must be 1-120 characters")
+        document[key] = cleaned
+    if enabled and not (document["mechanicalModel"] or document["reasoningModel"]):
+        raise ValueError("enabled routing requires mechanicalModel or reasoningModel")
+    return document
+
+
+def _routing_public(row: TeamSetting | None, team_id: str) -> dict[str, Any]:
+    """camelCase projection; a corrupt stored row reads as the disabled defaults."""
+    if row is None or not row.value:
+        return {
+            "teamId": team_id,
+            "key": SETTINGS_KEY_MODEL_ROUTING,
+            "routingSource": "defaults",
+            "routing": dict(_ROUTING_DEFAULTS),
+            "updatedAt": None,
+            "updatedBy": None,
+        }
+    try:
+        stored = json.loads(row.value)
+    except Exception:  # noqa: BLE001 — a corrupt row still reads, as defaults
+        stored = None
+    if not isinstance(stored, dict):
+        return {
+            "teamId": team_id,
+            "key": SETTINGS_KEY_MODEL_ROUTING,
+            "routingSource": "defaults",
+            "routing": dict(_ROUTING_DEFAULTS),
+            "updatedAt": row.updated_at.isoformat() if row.updated_at else None,
+            "updatedBy": row.updated_by,
+        }
+    document = dict(_ROUTING_DEFAULTS)
+    document.update({k: stored.get(k) for k in _ROUTING_DEFAULTS})
+    return {
+        "teamId": team_id,
+        "key": SETTINGS_KEY_MODEL_ROUTING,
+        "routingSource": "team",
+        "routing": document,
+        "updatedAt": row.updated_at.isoformat() if row.updated_at else None,
+        "updatedBy": row.updated_by,
+    }
 
 
 class ThresholdsBody(BaseModel):
@@ -163,14 +252,12 @@ def _role_value(role: object) -> str:
     return str(value)
 
 
-def _admin_gate(principal: Principal) -> None:
-    """Only admins tune reviewer thresholds (M15-G6b contract)."""
+def _admin_gate(principal: Principal, what: str = "reviewer thresholds") -> None:
+    """Only admins tune team-wide behaviour (M15-G6b / M2-W14 contract)."""
     if _role_value(principal.role) != "admin":
         raise HTTPException(
             status_code=403,
-            detail=error_body(
-                "FORBIDDEN", "only team admins may change reviewer thresholds"
-            ),
+            detail=error_body("FORBIDDEN", f"only team admins may change {what}"),
         )
 
 
@@ -279,3 +366,100 @@ async def delete_reviewer_thresholds(
                 target_id=team_id,
             )
     # No row stored: fall through — DELETE of defaults stays 204 (idempotent).
+
+
+# --------------------------------------------------------------- model routing
+
+
+async def _routing_row(db, team_id: str) -> TeamSetting | None:
+    return (
+        await db.execute(
+            select(TeamSetting).where(
+                TeamSetting.team_id == team_id,
+                TeamSetting.key == SETTINGS_KEY_MODEL_ROUTING,
+            )
+        )
+    ).scalar_one_or_none()
+
+
+@router.get("/teams/{team_id}/settings/model-routing")
+async def get_model_routing(
+    team_id: str,
+    request: Request,
+    principal: Annotated[Principal, Depends(get_principal)],
+) -> dict[str, Any]:
+    """Read the team's routing policy (absent = disabled defaults)."""
+    async with request.app.state.session_factory() as db:
+        denied = await _owned_team_setting(db, team_id, principal)
+        if denied:
+            raise denied
+        return _routing_public(await _routing_row(db, team_id), team_id)
+
+
+@router.put("/teams/{team_id}/settings/model-routing")
+async def put_model_routing(
+    team_id: str,
+    body: RoutingBody,
+    request: Request,
+    principal: Annotated[Principal, Depends(get_principal)],
+) -> dict[str, Any]:
+    """Upsert the routing policy (admin-only). Validation precedes any write."""
+    _admin_gate(principal, "model routing")
+    try:
+        canonical = _validate_routing_document(body.routing)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=error_body("VALIDATION_ERROR", f"invalid model routing: {exc}"),
+        ) from exc
+    async with request.app.state.session_factory() as db:
+        denied = await _owned_team_setting(db, team_id, principal)
+        if denied:
+            raise denied
+        row = await _routing_row(db, team_id)
+        created = row is None
+        if row is None:
+            row = TeamSetting(team_id=team_id, key=SETTINGS_KEY_MODEL_ROUTING)
+            db.add(row)
+        row.value = json.dumps(canonical)
+        row.updated_by = principal.userId
+        row.updated_at = datetime.now(UTC)
+        await db.commit()
+        await db.refresh(row)
+        await emit_routing_saved(
+            db,
+            actor_user_id=principal.userId,
+            team_id=principal.teamId,
+            target_id=team_id,
+            detail={
+                "created": created,
+                "enabled": canonical["enabled"],
+                "mechanicalModel": canonical["mechanicalModel"],
+                "reasoningModel": canonical["reasoningModel"],
+            },
+        )
+        return _routing_public(row, team_id)
+
+
+@router.delete("/teams/{team_id}/settings/model-routing", status_code=204)
+async def delete_model_routing(
+    team_id: str,
+    request: Request,
+    principal: Annotated[Principal, Depends(get_principal)],
+) -> None:
+    """Disable routing by removing the document. Idempotent."""
+    _admin_gate(principal, "model routing")
+    async with request.app.state.session_factory() as db:
+        denied = await _owned_team_setting(db, team_id, principal)
+        if denied:
+            raise denied
+        row = await _routing_row(db, team_id)
+        if row is not None:
+            await db.delete(row)
+            await db.commit()
+            await emit_routing_deleted(
+                db,
+                actor_user_id=principal.userId,
+                team_id=principal.teamId,
+                target_id=team_id,
+            )

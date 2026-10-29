@@ -1327,6 +1327,50 @@ class OrchestratorService(Orchestrator):
             return None
         return str(row[0]) if row and row[0] else None
 
+    async def _routed_model_for_run(
+        self, run_id: str, plan: AgentPlan
+    ) -> tuple[str | None, dict[str, Any]]:
+        """The model for this run: opt-in routing, else the team's primary.
+
+        W14: the policy lives in ``team_settings.key='model_routing'`` (admin
+        written). A missing/corrupt/disabled policy is the status quo; an
+        enabled policy with no model for the plan's class keeps the primary
+        model rather than silently switching classes. The decision is logged and
+        returned for the caller to keep on the run.
+        """
+        from harness_orchestrator.model_routing import classify_plan, parse_policy, resolve
+
+        primary = await self._team_model_for_run(run_id)
+        policy = None
+        if self.session_factory is not None:
+            try:
+                async with self.session_factory() as db:
+                    row = (
+                        await db.execute(
+                            text(
+                                "SELECT s.value FROM agent_runs r "
+                                "JOIN projects p ON p.id = r.project_id "
+                                "JOIN team_settings s ON s.team_id = p.team_id "
+                                "AND s.key = 'model_routing' "
+                                "WHERE r.id = :rid"
+                            ),
+                            {"rid": run_id},
+                        )
+                    ).first()
+                policy = parse_policy(row[0] if row else None)
+            except Exception:  # noqa: BLE001 — routing must never block a run
+                logger.warning("routing policy lookup failed for run %s", run_id, exc_info=True)
+        # Defensive attribute reads: callers/tests may hand a partial plan
+        # object. Routing is opt-in telemetry, so a shape surprise must fall
+        # back to the primary model, never abort the run.
+        steps = getattr(plan, "steps", None) or []
+        files = getattr(plan, "filesLikelyToChange", None) or []
+        plan_class = classify_plan(len(steps), len(files))
+        model, decision = resolve(primary, policy, plan_class)
+        if decision["enabled"]:
+            logger.info("run %s routed: %s", run_id, decision)
+        return model, decision
+
     async def _execute(self, run_data: dict[str, Any], plan: AgentPlan) -> None:
         run_id = run_data["runId"]
         sm: AgentStateMachine = run_data["state_machine"]
@@ -1477,7 +1521,8 @@ class OrchestratorService(Orchestrator):
                 # M06: the goal may carry screenshots. Resolution reads only
                 # artifacts this run owns and reports everything it declines;
                 # an engine that cannot take images never has them resolved.
-                run_model = await self._team_model_for_run(run_id)
+                run_model, routing_decision = await self._routed_model_for_run(run_id, plan)
+                run_data["routing"] = routing_decision
                 if accepts_keyword(getattr(self.engine, "execute_goal", None), "images"):
                     # teamId is this process's stamp and is not a durable
                     # column: a replica that never saw the bind, or a resume

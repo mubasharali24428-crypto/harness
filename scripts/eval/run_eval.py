@@ -69,8 +69,8 @@ def sha256_file(path: Path) -> str:
 def container_python_site(container: str) -> str | None:
     try:
         proc = run(["docker", "exec", container, "python", "-c",
-                    "import harness_orchestrator,os;print(os.path.dirname(os.path.dirname("
-                    "harness_orchestrator.__file__)))"], timeout=30)
+                    ("import harness_orchestrator,os;print(os.path.dirname(os.path.dirname("
+                     "harness_orchestrator.__file__)))")], timeout=30)
     except subprocess.TimeoutExpired:
         return None
     return (proc.stdout or "").strip() or None
@@ -145,8 +145,8 @@ def revision_check() -> dict:
                                "match": bool(gate_host and gate_deployed
                                              and gate_host == gate_deployed)}
     site_proc = run(["docker", "run", "--rm", "--entrypoint", "python", image, "-c",
-                     "import harness_orchestrator,os;print(os.path.dirname(os.path.dirname("
-                     "harness_orchestrator.__file__)))"], timeout=120)
+                     ("import harness_orchestrator,os;print(os.path.dirname(os.path.dirname("
+                      "harness_orchestrator.__file__)))")], timeout=120)
     wsite = (site_proc.stdout or "").strip() or None
     for label, host_rel, rel in RUNTIME_FILES:
         if label == "image_gate.py":
@@ -190,7 +190,9 @@ def parse_json_tail(text: str) -> dict | None:
 # ------------------------------------------------------------------ execution
 
 
-def execute(task: dict, *, repeats: int, keep_output: bool) -> list[dict]:
+def execute(
+    task: dict, *, repeats: int, keep_output: bool, model: str | None = None
+) -> list[dict]:
     driver = task.get("driver") or {}
     if driver.get("type") != "script" or not driver.get("path"):
         raise ValueError(f"{task['id']}: no executable script driver")
@@ -201,6 +203,11 @@ def execute(task: dict, *, repeats: int, keep_output: bool) -> list[dict]:
     timeout = float((task.get("budget") or {}).get("timeoutSeconds") or 900)
     env = os.environ.copy()
     env.update({k: str(v) for k, v in (driver.get("env") or {}).items()})
+    if model:
+        # W14 comparison: the driver/engine reads DSH_MODEL; the second name is
+        # the documented seam for a driver that wants to record it explicitly.
+        env["DSH_MODEL"] = model
+        env["HARNESS_EVAL_MODEL"] = model
     results = []
     for attempt in range(1, repeats + 1):
         started = datetime.now(UTC)
@@ -388,6 +395,9 @@ def main() -> int:
                     help="validate the corpus contract (fixed outputs, drivers, hold-out) and exit")
     ap.add_argument("--no-output", action="store_true",
                     help="do not keep driver stdout/stderr tails in evidence")
+    ap.add_argument("--compare-model", action="append", default=[], metavar="MODEL",
+                    help="run the selection once per model and write a comparison "
+                         "evidence file (requires --include-live; repeat the flag)")
     args = ap.parse_args()
 
     doc = json.loads(Path(args.corpus).read_text(encoding="utf-8"))
@@ -413,6 +423,66 @@ def main() -> int:
         return 0
 
     selected, skipped = select(corpus, args)
+    if args.compare_model:
+        models = list(dict.fromkeys(args.compare_model))
+        if not args.include_live:
+            ap.error("--compare-model requires --include-live (model spend is opt-in)")
+        if len(models) < 2:
+            ap.error("--compare-model needs at least two distinct models")
+        if not selected:
+            ap.error("--compare-model selected no tasks")
+        started = datetime.now(UTC)
+        comparison: dict = {
+            "kind": "comparison",
+            "startedAt": started.isoformat(),
+            "git": git_revision(),
+            "revisionCheck": revision_check(),
+            "models": models,
+            "passRule": "each task's own verifier, judged per model; never a relative win",
+            "budget": {
+                "repeats": args.repeats,
+                "timeoutScale": args.timeout_scale,
+            },
+            "tasks": {},
+        }
+        failures = 0
+        for task in selected:
+            per_model: dict = {}
+            for model in models:
+                try:
+                    runs = execute(
+                        task,
+                        repeats=args.repeats,
+                        keep_output=not args.no_output,
+                        model=model,
+                    )
+                    last = runs[-1]
+                    per_model[model] = {
+                        "verdict": last["verdict"],
+                        "driverVerdict": last.get("driverVerdict"),
+                        "durationSec": last.get("durationSec"),
+                        "exitCode": last.get("exitCode"),
+                        "attempts": len(runs),
+                        "failedChecks": last.get("failedChecks") or [],
+                    }
+                    if last["verdict"] != "PASS":
+                        failures += 1
+                except Exception as exc:  # noqa: BLE001 - recorded per model
+                    per_model[model] = {"verdict": "ERROR", "error": str(exc)}
+                    failures += 1
+            comparison["tasks"][task["id"]] = per_model
+        OUT.mkdir(parents=True, exist_ok=True)
+        stamp = int(started.timestamp())
+        path = OUT / f"comparison-{stamp}.json"
+        comparison["finishedAt"] = datetime.now(UTC).isoformat()
+        path.write_text(json.dumps(comparison, indent=2, default=str) + "\n", encoding="utf-8")
+        print(json.dumps({
+            "models": models,
+            "tasks": len(selected),
+            "failures": failures,
+            "evidence": str(path),
+        }))
+        return 0 if failures == 0 else 1
     if args.dry_run:
         print(json.dumps({"selected": [t["id"] for t in selected],
                           "skipped": [{"id": t["id"], "reason": r} for t, r in skipped]},
@@ -494,9 +564,9 @@ def main() -> int:
         "limitations": [
             "n=1 unless --repeats was raised; a single pass is an existence proof, not a rate.",
             "A task is deferred, blocked or fixture-owed is not a pass.",
-            "Revision verification compares runtime files inside the deployed "
-            "containers/images with this worktree; a mismatch makes every result "
-            "stale for HEAD.",
+            ("Revision verification compares runtime files inside the deployed "
+             "containers/images with this worktree; a mismatch makes every result "
+             "stale for HEAD."),
         ],
     }
 

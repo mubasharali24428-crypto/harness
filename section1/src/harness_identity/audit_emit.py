@@ -982,3 +982,51 @@ async def emit_runner_rotated(
         actor_kind=actor_kind,
         session_owner=session_owner,
     )
+
+
+async def emit_routing_saved(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """routing.saved — M2-W14: the team's opt-in model routing policy was stored."""
+    return await _emit(
+        session,
+        "routing.saved",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_setting",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_routing_deleted(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """routing.deleted — M2-W14: routing was switched back to disabled defaults."""
+    return await _emit(
+        session,
+        "routing.deleted",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_setting",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )

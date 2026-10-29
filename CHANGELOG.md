@@ -17,7 +17,7 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   verifier and evidence fields, unique ids, the category/kind/cost/status sets,
   a boolean `heldOut` with at least five held-out tasks, driver existence for
   script tasks, a positive timeout, a named model for live tasks, and that a
-  held-out task does not record tuning use. Current corpus: 38 tasks, 5 held
+  held-out task does not record tuning use. Current corpus: 39 tasks, 6 held
   out, 28 implemented.
 * **Operator rate card (models service).** `HARNESS_RATE_CARD_JSON` (inline or a
   container path) merges over the frozen catalog, validated at load — a
@@ -31,6 +31,34 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 * **W14 scope recorded** in `docs/m2-w14-plan.md`: opt-in per-step routing that
   never downgrades on failure, a comparison runner with a fixed pass rule,
   cost/latency panels, and a fresh held-out design set.
+* **Opt-in model routing (Section 1 + Section 4).** New admin-gated
+  `/teams/{team_id}/settings/model-routing` GET/PUT/DELETE over
+  `team_settings.key='model_routing'`; unknown keys, non-boolean `enabled` and
+  `enabled` with no models answer 422, delete restores defaults by absence.
+  `harness_orchestrator.model_routing` classifies the plan and resolves the run
+  model; missing, corrupt or disabled policy keeps the configured primary, and a
+  missing class model never borrows the other class. Audit `routing.saved` /
+  `routing.deleted`; live GET/PUT/422/DELETE verified on the rebuilt image.
+  9 routing tests (including a partial-plan regression).
+* **Comparison runner.** `run_eval.py --compare-model A --compare-model B`
+  repeats one selection per model and writes
+  `comparison-<stamp>.json` with the fixed pass rule "each task's own verifier,
+  judged per model; never a relative win". Requires `--include-live`, two
+  distinct models and a non-empty selection. No live comparison was run (no
+  spend authorized).
+* **Cost/latency dashboard.** Six orchestrator gauges roll up the frozen
+  `cost_ledger` (spend per team/month, resolved cap, cost and calls per
+  team/model, p50/p95 latency on PostgreSQL), unattributable rows surface as
+  `unattributed`, and `harness-cost-latency.json` adds eight panels with a
+  runbook (`docs/runbooks/cost-latency-dashboard.md`). Verified live on
+  `/metrics`; panels structurally checked, not visually verified.
+* **Fresh held-out design set.** `w14-design-heldout` + a 960x640 sidebar-led
+  mockup rendered by its own driver. The deterministic fixture leg passes and is
+  recorded (`w14-design-fixture-1793271851.json`); the live leg is owed (no
+  vision key, no spend authorization). Thresholds were pre-registered.
+* **Regression fixed.** Routing must never abort a run: classification now reads
+  `steps`/`filesLikelyToChange` defensively, so a partial plan object keeps the
+  primary model (6 Section 4 tests had failed before this fix).
 
 ### Marathon 2.0 W13 — a runner control plane for customer-controlled hosts (2026-10-28)
 

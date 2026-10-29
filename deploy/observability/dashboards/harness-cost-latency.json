@@ -1,0 +1,369 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Teams whose month-to-date ledger spend has reached the resolved monthly cap. Both series carry team_id, so the comparison matches on it.",
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "expr": "count(harness_team_spend_usd_month >= harness_team_budget_usd)",
+          "legendFormat": "teams at or over cap",
+          "refId": "A"
+        }
+      ],
+      "title": "Teams at or over cap",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Month-to-date ledger spend per team against the resolved cap (teams.budget_usd > billing_plans.monthly_budget_usd > env). A team with no cap has no budget series.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 18,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "harness_team_spend_usd_month",
+          "legendFormat": "{{team_id}} spend",
+          "refId": "A"
+        },
+        {
+          "expr": "harness_team_budget_usd",
+          "legendFormat": "{{team_id}} cap",
+          "refId": "B"
+        }
+      ],
+      "title": "Spend this month vs cap (per team)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Spend divided by the resolved cap. clamp_min keeps an unlimited or zero cap from producing +Inf; those teams show 0 here and simply have no budget series above.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.8
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 5
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "harness_team_spend_usd_month / clamp_min(harness_team_budget_usd, 0.000001)",
+          "legendFormat": "{{team_id}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Budget utilisation",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Whole-ledger spend grouped by model id. Values are gauges, not counters: releasing a reservation deletes ledger rows, so a fall is real.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 5
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (model) (harness_model_cost_usd)",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Spend by model",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Metered model calls by model and agent role. A model that stops appearing is either unused or not being metered — check pricingSource on /estimate-cost before assuming the former.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 5
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (model, role) (harness_model_calls)",
+          "legendFormat": "{{model}} · {{role}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Metered calls by model and role",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Rolling-window model latency quantiles per team and model. The window defaults to 24h (HARNESS_COST_METRICS_WINDOW_HOURS); these two series are PostgreSQL-only because the rollup uses percentile_cont.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "harness_model_latency_p50_seconds",
+          "legendFormat": "{{team_id}} {{model}} p50",
+          "refId": "A"
+        },
+        {
+          "expr": "harness_model_latency_p95_seconds",
+          "legendFormat": "{{team_id}} {{model}} p95",
+          "refId": "B"
+        }
+      ],
+      "title": "Model latency p50 / p95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "description": "Whole-ledger spend per metered call. A sudden jump with flat call volume means a rate change or a more expensive routed model, not more work.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (model) (harness_model_cost_usd) / clamp_min(sum by (model) (harness_model_calls), 1)",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Average cost per call",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "id": 8,
+      "options": {
+        "content": "## How these series are produced\n\nSix gauges are refreshed by the orchestrator's DB poller (default 15s) from the frozen `cost_ledger`:\n\n- `harness_team_spend_usd_month` — DB-clock month-to-date spend, per team.\n- `harness_team_budget_usd` — resolved cap (team override > plan > env); absent means unlimited.\n- `harness_model_cost_usd` / `harness_model_calls` — whole-ledger spend and call counts per team/model (and role for calls).\n- `harness_model_latency_p50_seconds` / `harness_model_latency_p95_seconds` — rolling window, PostgreSQL only.\n\nRows whose `run_id` does not resolve through `agent_runs → projects → teams` are reported under `team_id=\"unattributed\"` rather than dropped. **These panels are defined and structurally checked, but have not been visually verified against a live Grafana here.** The dashboard is not a billing statement: it reads the same ledger the budget gate enforces against.",
+        "mode": "markdown"
+      },
+      "title": "Metering notes",
+      "type": "text"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "harness",
+    "cost",
+    "latency",
+    "metering"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "title": "Harness Cost and Latency",
+  "uid": "harness-cost-latency",
+  "version": 1
+}

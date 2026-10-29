@@ -315,6 +315,10 @@ class RevertBody(typing.TypedDict, total=False):
     expectedVersion: int | None
     toVersion: int  # required
 
+class RoutingBody(typing.TypedDict, total=False):
+    """RoutingBody. Required keys: routing."""
+    routing: dict[str, typing.Any]  # required
+
 class Rule(typing.TypedDict, total=False):
     """Rule. Required keys: id, effect, permissions."""
     effect: str  # required
@@ -1639,6 +1643,30 @@ class IdentityClient:
         _path = f"/api/v1/teams/{team_id}/settings/integrations/v1/webhooks/{webhook_id}/rotate-secret"
         return self._http.request(self.base_url, "POST", _path)
 
+    def get_model_routing(self, team_id: str) -> dict[str, typing.Any]:
+        """Get Model Routing
+
+        GET /api/v1/teams/{team_id}/settings/model-routing
+        """
+        _path = f"/api/v1/teams/{team_id}/settings/model-routing"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def put_model_routing(self, team_id: str, body: RoutingBody) -> dict[str, typing.Any]:
+        """Put Model Routing
+
+        PUT /api/v1/teams/{team_id}/settings/model-routing
+        """
+        _path = f"/api/v1/teams/{team_id}/settings/model-routing"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
+
+    def delete_model_routing(self, team_id: str) -> typing.Any:
+        """Delete Model Routing
+
+        DELETE /api/v1/teams/{team_id}/settings/model-routing
+        """
+        _path = f"/api/v1/teams/{team_id}/settings/model-routing"
+        return self._http.request(self.base_url, "DELETE", _path)
+
     def get_reviewer_thresholds(self, team_id: str) -> dict[str, typing.Any]:
         """Get Reviewer Thresholds
 
@@ -1978,4 +2006,4 @@ class IdentityClient:
         return self._http.request(self.base_url, "GET", _path)
 
 
-__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AttestBody", "BindingBody", "ChainNode", "CheckBody", "CreateProjectBody", "DefBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErasureBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "ExecutionControlBody", "FinishBody", "GlobalPrefsBody", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkRunBody", "LinkTeamBody", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "MemoryBody", "MuteBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "OwnerTransferBody", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "ReadAllBody", "RevertBody", "Rule", "RulesBody", "RunnerBody", "ScopePrefsBody", "SelectBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SkillBody", "SnoozeBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "UnsubscribeBody", "ValidationError", "VerifyOtpRequest", "WebhookCreateBody", "WebhookCreated", "WebhookPatchBody", "WsTicketRequest", "WsTicketResponse", "_DigestBody", "_QuietBody", "harness_identity__agents__ReasonBody", "harness_identity__orgs__RoleBody", "harness_identity__policy__AssignBody", "harness_identity__policy__RoleBody", "harness_identity__runner_api__AssignBody", "harness_identity__sessions__CreateBody", "harness_identity__sessions__MemberBody", "harness_identity__sessions__PatchBody", "harness_identity__sessions__ReasonBody", "harness_identity__sessions__RoleBody", "harness_identity__workspaces__CreateBody", "harness_identity__workspaces__MemberBody", "harness_identity__workspaces__PatchBody", "harness_identity__workspaces__ReasonBody"]
+__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AttestBody", "BindingBody", "ChainNode", "CheckBody", "CreateProjectBody", "DefBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErasureBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "ExecutionControlBody", "FinishBody", "GlobalPrefsBody", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkRunBody", "LinkTeamBody", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "MemoryBody", "MuteBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "OwnerTransferBody", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "ReadAllBody", "RevertBody", "RoutingBody", "Rule", "RulesBody", "RunnerBody", "ScopePrefsBody", "SelectBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SkillBody", "SnoozeBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "UnsubscribeBody", "ValidationError", "VerifyOtpRequest", "WebhookCreateBody", "WebhookCreated", "WebhookPatchBody", "WsTicketRequest", "WsTicketResponse", "_DigestBody", "_QuietBody", "harness_identity__agents__ReasonBody", "harness_identity__orgs__RoleBody", "harness_identity__policy__AssignBody", "harness_identity__policy__RoleBody", "harness_identity__runner_api__AssignBody", "harness_identity__sessions__CreateBody", "harness_identity__sessions__MemberBody", "harness_identity__sessions__PatchBody", "harness_identity__sessions__ReasonBody", "harness_identity__sessions__RoleBody", "harness_identity__workspaces__CreateBody", "harness_identity__workspaces__MemberBody", "harness_identity__workspaces__PatchBody", "harness_identity__workspaces__ReasonBody"]

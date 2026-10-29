@@ -82,33 +82,86 @@ id echoed** (no substitution); a one-off container with
 `HARNESS_RATE_CARD_JSON={"models":{"lab/container-priced":{"input":2,"output":4}}}`
 reports `operator` and `$2.000000` for 1 M input tokens.
 
-## Next slices (in order)
+## Shipped in this session (second slice)
 
-1. **Per-step routing, opt-in.** A team setting (default off) enabling
-   mechanical/reasoning step classes; the engine resolves each step's model from
-   that policy; any resolution failure falls back to the **team's configured
-   primary**, never to a cheaper model, and the fallback is recorded on the run.
-2. **Comparison runner.** `run_eval.py --model A --model B --task …` with the
-   same budget and fixture, writing one comparison evidence file; live tasks
-   require `--include-live` and a named model, and the pass rule is the task's
-   own verifier, not a relative win.
-3. **Cost/latency dashboard.** Panels over the existing ledgers (per team, per
-   model, p50/p95 latency, spend vs cap) with a runbook note; no new metric
-   names unless a panel needs them.
-4. **Held-out hygiene.** The W11 vision task's prompt was adjusted at W12 and
-   its purity is disclosed; W14 should add a fresh, never-tuned mockup set so at
-   least one design task is genuinely held out.
+**Opt-in model routing (off by default).** Policy lives at
+`team_settings.key='model_routing'` with three fields
+(`enabled`, `mechanicalModel`, `reasoningModel`). `GET/PUT/DELETE
+/api/v1/teams/{team_id}/settings/model-routing`; PUT/DELETE are admin-only,
+unknown keys and `enabled` with no models are rejected with 422, delete restores
+defaults by absence. `section4/.../model_routing.py` classifies a plan
+(≤3 steps AND ≤3 files = mechanical; everything else, including an empty or
+partial plan, is reasoning) and resolves the run's model. The decision recorded
+on the run has `enabled`, `class`, `model`, `source ∈ primary|policy|
+policy-fallback` and, for a fallback, a `reason`. No branch can select the other
+class's model, so a missing reasoning model never downgrades to the cheap one.
+
+Live smoke on the rebuilt image (2026-10-29): GET defaults → 200
+`routingSource: "defaults"`, `enabled: false`; PUT
+`{"routing":{...}}` → 200 `routingSource: "team"` with `updatedAt/updatedBy`;
+a typo'd key → 422 `VALIDATION_ERROR`; `{"routing":{"enabled":true}}` → 422;
+DELETE → 204 and the next GET is back to defaults. The admin-only 403 is proven
+offline (`test_settings_api.py`); the dev team-bound login route refused a
+second principal live, so that leg is not re-proven over HTTP here.
+
+**Comparison runner.** `run_eval.py --compare-model A --compare-model B` runs
+each selected task once per model with the same budget/fixture and writes one
+`docs/briefs/evidence/eval/comparison-<stamp>.json` with
+`passRule: "each task's own verifier, judged per model; never a relative win"`.
+It refuses to start without `--include-live`, with fewer than two distinct
+models, or with an empty selection. **No live comparison has been run** (no
+model spend was authorized), so the file is a capability, not a result.
+
+**Cost/latency dashboard.** Six new gauges are refreshed by the orchestrator's
+existing DB poller from the frozen `cost_ledger`:
+`harness_model_cost_usd{team_id,model}`, `harness_model_calls{team_id,model,role}`,
+`harness_team_spend_usd_month{team_id}`,
+`harness_team_budget_usd{team_id}` (cap resolution: team > plan > env; absent =
+unlimited), and `harness_model_latency_p50_seconds` /
+`harness_model_latency_p95_seconds{team_id,model}` (rolling window,
+`HARNESS_COST_METRICS_WINDOW_HOURS`, default 24; PostgreSQL only). Rows whose run
+cannot be attributed surface as `team_id="unattributed"` instead of vanishing.
+They are gauges, not counters: releasing a reservation deletes ledger rows.
+`deploy/observability/dashboards/harness-cost-latency.json` has eight panels
+(spend vs cap, utilisation, spend by model, calls, p50/p95, cost per call, notes);
+`docs/runbooks/cost-latency-dashboard.md` carries the reading guide. All six
+series were confirmed live on the orchestrator `/metrics`
+(125 cost, 347 spend, 6 cap, 25+25 latency samples at the time of the check).
+The dashboard itself is structurally checked, **not visually verified**.
+
+**Fresh held-out design set.** `w14-design-heldout` (heldOut, 960x640,
+sidebar-led, never tuned) with `scripts/e2e/w14_design_heldout_drill.py`. Its
+deterministic `--fixture-only` leg renders the mockup with the worker image's
+Chromium and proves size, seven exact flat colours, drawn title text, zero
+self-diff and a deterministic re-render — **PASS**
+(`docs/briefs/evidence/eval/w14-design-fixture-1793271851.json`). The live leg
+is **owed**: no vision provider key is configured and live spend was not
+authorized. Thresholds were pre-registered before any run of this task and are
+recorded below; they must not be relaxed after a result.
+
+```json
+{"ratioMax": 0.03, "colourTolerance": 12, "answerRatioTolerance": 0.005,
+ "fixtureColourTolerance": 0}
+```
+
+## Remaining
+
+1. Run the W14 live design leg once a vision key and spend authorization exist;
+   record PASS/FAIL as-is.
+2. Run a real `--compare-model` comparison on two priced models; until then
+   "reproducible comparisons" is implemented but has n=0 evidence.
+3. Open the dashboard in a live Grafana and confirm the panels render.
 
 ## Gate position
 
 | W14 exit claim | State |
 |---|---|
-| Corpus has fixed expected outputs and a real hold-out split, enforced | **pass** — `--check` in static gates (38 / 5 / 28) |
-| Reproducible model comparisons | **open** — no comparison runner yet |
-| Routing requires opt-in | **open** — not implemented |
-| Failure never forces a downgrade | **existing law**, must be re-proven for per-step routing |
+| Corpus has fixed expected outputs and a real hold-out split, enforced | **pass** — `--check` in static gates (39 / 6 / 28) |
+| Reproducible model comparisons | **implemented, n=0** — runner + guards + pass rule; no live comparison run yet |
+| Routing requires opt-in | **pass** — default off, policy read from `team_settings`, live-verified GET/PUT/DELETE |
+| Failure never forces a downgrade | **pass (offline)** — resolver never crosses classes; missing class model keeps the primary; partial plans keep the primary |
 | Unpriced models stop billing zero silently | **pass (visibility + overlay)** — a named unpriced model reports `priced: false`, `pricingSource: "unpriced"`, cost 0; operators price it via `HARNESS_RATE_CARD_JSON`; malformed cards fail loudly |
-| Cost/latency dashboards | **open** — metrics exist, panels do not |
+| Cost/latency dashboards | **pass (series + panels + tests), visually unverified** — six live gauges, eight panels, SQLite and PostgreSQL-gated tests; no live Grafana render |
 
 ## Limitations
 
@@ -116,6 +169,12 @@ reports `operator` and `$2.000000` for 1 M input tokens.
   have a weak verifier. The verifier is the task author's claim.
 * `revisionCheck` covers three runtime files (engine, image gate, images plugin);
   it is not a whole-image digest.
-* Held-out count (5) is a floor, not a quality bar; two of the five are infra
-  boundary tasks, not model-judged.
+* Held-out count (6) is a floor, not a quality bar; two of the six are infra
+  boundary tasks, not model-judged, and the new design task's live leg is owed.
 * No model call is made by any gate added here.
+* Routing is per-RUN, not per-step: the engine takes one model per session, so a
+  mixed plan gets one class. The decision is recorded on the run but not yet
+  surfaced in the runs API.
+* The cost gauges emit one series per (team, model); a dev database with hundreds
+  of drill teams produces hundreds of series. Bound retention or aggregate before
+  pointing a shared Prometheus at it.

@@ -213,6 +213,7 @@
         "type": "number"
        },
        {
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
         "type": "string"
        }
       ],
@@ -1322,6 +1323,7 @@
         "type": "number"
        },
        {
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
         "type": "string"
        },
        {
@@ -1351,6 +1353,7 @@
         "type": "number"
        },
        {
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
         "type": "string"
        },
        {
@@ -1637,6 +1640,22 @@
      "toVersion"
     ],
     "title": "RevertBody",
+    "type": "object"
+   },
+   "RoutingBody": {
+    "additionalProperties": false,
+    "description": "Raw PUT payload; the document is validated before any write.",
+    "properties": {
+     "routing": {
+      "additionalProperties": true,
+      "title": "Routing",
+      "type": "object"
+     }
+    },
+    "required": [
+     "routing"
+    ],
+    "title": "RoutingBody",
     "type": "object"
    },
    "Rule": {
@@ -9102,6 +9121,129 @@
      }
     },
     "summary": "Rotate Secret"
+   }
+  },
+  "/api/v1/teams/{team_id}/settings/model-routing": {
+   "delete": {
+    "description": "Disable routing by removing the document. Idempotent.",
+    "operationId": "delete_model_routing_api_v1_teams__team_id__settings_model_routing_delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Model Routing"
+   },
+   "get": {
+    "description": "Read the team's routing policy (absent = disabled defaults).",
+    "operationId": "get_model_routing_api_v1_teams__team_id__settings_model_routing_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Model Routing Api V1 Teams  Team Id  Settings Model Routing Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Model Routing"
+   },
+   "put": {
+    "description": "Upsert the routing policy (admin-only). Validation precedes any write.",
+    "operationId": "put_model_routing_api_v1_teams__team_id__settings_model_routing_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RoutingBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Put Model Routing Api V1 Teams  Team Id  Settings Model Routing Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put Model Routing"
    }
   },
   "/api/v1/teams/{team_id}/settings/reviewer-thresholds": {
