@@ -525,12 +525,17 @@ stack-law tests; that was this branch's regression and it is fixed.
      conflict key is `(project_id, path, start_line)`
      (`harness_context/store.py:23,36`). Two windows of one file sharing a start
      line therefore write one row and increment the counter twice — a wire field
-     that overstates what was indexed, independent of load.
+     that overstates what was indexed, independent of load. **Checked and not
+     reproduced** for the fixture's `pkg/widget_store.py`: `chunk_text` emits
+     3 chunks with start lines 1/3/6, all distinct. Still worth auditing across
+     the other fixture files, but this is no longer the leading candidate.
   2. The poll loop is `for _ in range(100)` with a 10 ms sleep (~1 s of budget)
      against a real embedding pass. Under CPU pressure the last reads land in
-     different positions of the same commit boundary.
+     different positions of the same commit boundary. Leading candidate: the
+     counted value and the stored rows are read from two different places, and
+     nothing in the product guarantees they are the same snapshot.
 
-  Either way the honest fix is in the product, not the test: report
-  `chunksIndexed` as the number of rows actually written (or key on
-  `(path, start_line, end_line)`), and give the poll loop a deadline with the
-  reason recorded, as the Section 5 browser gate now does.
+  The fix that is correct under either cause: report `chunksIndexed` from the
+  store (a COUNT after the write transaction commits), not from a running
+  counter, and give the poll loop a deadline with the reason recorded, as the
+  Section 5 browser gate now does.
