@@ -11,27 +11,27 @@ class ModelPricing(BaseModel):
 
 # Catalog of supported models and prices per million tokens
 MODEL_PRICING_CATALOG: dict[str, ModelPricing] = {
-    # DeepSeek
+    # DeepSeek (OpenRouter ids; prices re-read from /models 2026-10-29)
     "deepseek/deepseek-chat": ModelPricing(
-        input_cost_per_million=0.14,
-        output_cost_per_million=0.28,
+        input_cost_per_million=0.2574,
+        output_cost_per_million=1.0287,
     ),
-    "deepseek/deepseek-coder": ModelPricing(
-        input_cost_per_million=0.14,
-        output_cost_per_million=0.28,
+    "deepseek/deepseek-v4-flash": ModelPricing(
+        input_cost_per_million=0.091,
+        output_cost_per_million=0.182,
     ),
-    "deepseek/deepseek-reasoner": ModelPricing(
-        input_cost_per_million=0.55,
-        output_cost_per_million=2.19,
+    "deepseek/deepseek-r1-0528": ModelPricing(
+        input_cost_per_million=0.5,
+        output_cost_per_million=2.15,
     ),
     # Qwen
-    "qwen/qwen-2.5-coder-32b": ModelPricing(
-        input_cost_per_million=0.20,
-        output_cost_per_million=0.60,
+    "qwen/qwen-2.5-coder-32b-instruct": ModelPricing(
+        input_cost_per_million=0.66,
+        output_cost_per_million=1.0,
     ),
-    "qwen/qwen-2.5-72b": ModelPricing(
-        input_cost_per_million=0.40,
-        output_cost_per_million=1.20,
+    "qwen/qwen-2.5-72b-instruct": ModelPricing(
+        input_cost_per_million=0.36,
+        output_cost_per_million=0.4,
     ),
     # OpenAI
     "openai/gpt-4o": ModelPricing(
@@ -43,22 +43,22 @@ MODEL_PRICING_CATALOG: dict[str, ModelPricing] = {
         output_cost_per_million=0.60,
     ),
     # Anthropic
-    "anthropic/claude-3-5-sonnet": ModelPricing(
-        input_cost_per_million=3.00,
-        output_cost_per_million=15.00,
+    "anthropic/claude-sonnet-4.5": ModelPricing(
+        input_cost_per_million=3.0,
+        output_cost_per_million=15.0,
     ),
-    "anthropic/claude-3-5-haiku": ModelPricing(
-        input_cost_per_million=0.80,
-        output_cost_per_million=4.00,
+    "anthropic/claude-haiku-4.5": ModelPricing(
+        input_cost_per_million=1.0,
+        output_cost_per_million=5.0,
     ),
     # Mistral
-    "mistral/mistral-large": ModelPricing(
-        input_cost_per_million=2.00,
-        output_cost_per_million=6.00,
+    "mistralai/mistral-large-2512": ModelPricing(
+        input_cost_per_million=0.5,
+        output_cost_per_million=1.5,
     ),
-    "mistral/codestral": ModelPricing(
-        input_cost_per_million=0.30,
-        output_cost_per_million=0.90,
+    "mistralai/codestral-2508": ModelPricing(
+        input_cost_per_million=0.3,
+        output_cost_per_million=0.9,
     ),
     # Local & Open-Weight (Free / self-hosted execution)
     "local/qwen3:14b-ablated": ModelPricing(
@@ -73,7 +73,7 @@ MODEL_PRICING_CATALOG: dict[str, ModelPricing] = {
 
 
 class RouterConfig(BaseSettings):
-    default_primary_model: str = "deepseek/deepseek-coder"
+    default_primary_model: str = "deepseek/deepseek-v4-flash"
     default_reviewer_model: str = "openai/gpt-4o-mini"
     suggest_cheaper_model: bool = False  # default OFF, never force downgrade
 

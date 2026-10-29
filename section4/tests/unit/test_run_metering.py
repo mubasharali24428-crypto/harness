@@ -6,7 +6,9 @@ row via harness_identity.cost_ledger.record_usage → GET /api/v1/models/spend
 
 - completed engine run  ⇒ exactly one ledger row, exact scale-6 Decimal cost,
   correct model/role/tokens, attributed through the frozen team chain.
-- failed/cancelled runs ⇒ NO row (completion path only).
+- failed/cancelled runs ⇒ a row only when the session transcript proves usage
+  (W14: the transcript, not the event stream, is the live SDK's source of
+  truth); a crash with no usage is never billed from an estimate.
 - no DB wired           ⇒ hook is a silent no-op (orchestration unaffected).
 - spend endpoint        ⇒ wired+empty ledger answers 200 unwired=False (real
   zeros, not unknown); no pool at all answers 503 LEDGER_UNAVAILABLE.
@@ -232,9 +234,9 @@ def test_engine_completion_writes_one_exact_decimal_row(db_factory):
     assert row["model"] == "deepseek/deepseek-chat"  # the model that answered
     assert row["input_tokens"] == 10_000 and row["output_tokens"] == 500  # real usage
 
-    # H-023 money law: deepseek-chat $0.14/M in + $0.28/M out
+    # H-023 money law: deepseek-chat $0.2574/M in + $1.0287/M out
     expected = PricingEngine.calculate_cost("deepseek/deepseek-chat", 10_000, 500)
-    assert expected == Decimal("0.001540")  # 0.0014 + 0.00014, quantized (12,6)
+    assert expected == Decimal("0.003088")  # 0.002574 + 0.000514, quantized (12,6)
     stored = _to_money(row["cost_usd"])  # driver returns float on sqlite
     assert isinstance(stored, Decimal)
     assert stored == expected, "stored cost must be NUMERIC-exact vs PricingEngine"
@@ -274,7 +276,9 @@ def test_failed_run_records_no_ledger_row(db_factory):
     run(svc.start_execution("m-run3"))
     run(asyncio.wait_for(svc.runs["m-run3"]["task"], timeout=5))
     assert [e for e in events if e[0] is EventType.ENGINE_FAILED]
-    assert run(_ledger_rows(f)) == [], "failed engine runs must never meter"
+    assert run(_ledger_rows(f)) == [], (
+        "a failure with no transcript usage must not be billed from an estimate"
+    )
 
 
 def test_metering_hook_never_breaks_when_team_unresolvable(tmp_path):
@@ -446,3 +450,159 @@ def test_resolve_engine_model_names_the_answerer():
     assert resolve_engine_model(wrapper, {"engine": "injected"}) == (
         "deepseek/deepseek-reasoner"
     )  # falls back to configured primary
+
+
+# ------------------------------------- transcript usage + retry-safe deltas (W14)
+
+
+def _write_session_transcript(root, session_id: str, records: list[str]) -> None:
+    from pathlib import Path
+
+    path = Path(root) / session_id / "sessions" / "--ws--" / session_id
+    path.mkdir(parents=True, exist_ok=True)
+    (path / "session.v4.jsonl").write_text("\n".join(records) + "\n", encoding="utf-8")
+
+
+def test_session_usage_sums_transcript_and_dedupes_updates(tmp_path):
+    """The deployed SDK emits no usage events; the transcript is the truth.
+
+    Measured live: a completed run returns usage=None while session.v4.jsonl
+    records one usage object per billed step. Consecutive duplicates (message
+    update + its final form) collapse; cache reads are carried separately.
+    """
+    from harness_orchestrator.engine import DeepSeekHarnessWrapper
+
+    wrapper = DeepSeekHarnessWrapper(
+        workspace_dir=str(tmp_path), session_root=str(tmp_path / "sessions")
+    )
+    _write_session_transcript(
+        tmp_path / "sessions",
+        "run-u",
+        [
+            '{"type":"message","message":{"role":"assistant","usage":'
+            '{"inputTokens":100,"outputTokens":10,"cacheReadTokens":900}}}',
+            '{"type":"message","message":{"role":"assistant","usage":'
+            '{"inputTokens":100,"outputTokens":10,"cacheReadTokens":900}}}',
+            '{"type":"message","message":{"role":"assistant","usage":'
+            '{"inputTokens":200,"outputTokens":20,"cacheReadTokens":0}}}',
+            '{"type":"turn"}',
+            "not json at all",
+        ],
+    )
+    # 100+200 input, 10+20 output, 900 cache; the repeated first record counts once.
+    assert wrapper.session_usage("run-u") == {
+        "inputTokens": 300,
+        "outputTokens": 30,
+        "cacheReadTokens": 900,
+    }
+    assert wrapper.session_usage("no-such-run") is None
+
+
+def test_fold_usage_reads_transcript_and_bills_cache_as_input():
+    from harness_orchestrator.run_metering import fold_usage
+
+    class TranscriptEngine:
+        def session_usage(self, run_id):
+            return {"inputTokens": 100, "outputTokens": 10, "cacheReadTokens": 900}
+
+    # Transcript wins over the text estimate; cached prompt tokens bill as input
+    # (the catalog has no cache tier, so this is a conservative upper bound).
+    assert fold_usage({}, "g", engine=TranscriptEngine(), run_id="r") == (1000, 10)
+    # allow_estimate=False is for failure paths: no evidence ⇒ no row.
+    assert fold_usage({}, "g", engine=None, run_id=None, allow_estimate=False) is None
+
+
+def test_blocked_run_meters_evidence_but_never_estimates(db_factory):
+    """A budget-exhausted run really spent tokens; a crash with no transcript does not.
+
+    The old hook metered the completion path only, so blocked/failed runs were
+    invisible spend. Failures now record only provable usage (transcript), never
+    a text estimate of an error message.
+    """
+    from harness_orchestrator.run_metering import record_run_cost
+
+    class BlockedEngine:
+        model = "deepseek/deepseek-chat"
+
+        def session_usage(self, run_id):
+            return {"inputTokens": 500, "outputTokens": 50, "cacheReadTokens": 0}
+
+    class Svc:
+        run_queue_factory = None
+
+        def __init__(self, factory, engine):
+            self.session_factory = factory
+            self.engine = engine
+
+        async def _team_for_run(self, run_data):
+            return "team-a"
+
+    run_data = {
+        "runId": "m-run",
+        "goal": "g",
+        "engine_result": {
+            "engine": "deepseek-harness-sdk:deepseek/deepseek-chat",
+            "status": "error",
+            "finalResponse": "DeepSeek Harness run failed: tool_budget_exhausted",
+        },
+    }
+    run(record_run_cost(Svc(db_factory, BlockedEngine()), run_data, None,
+                        allow_estimate=False))
+    rows = run(_ledger_rows(db_factory))
+    assert len(rows) == 1 and rows[0]["input_tokens"] == 500
+
+    class CrashEngine:
+        model = "deepseek/deepseek-chat"
+
+        def session_usage(self, run_id):
+            return None
+
+    run_data["runId"] = "run-a"  # different run, same team
+    run(record_run_cost(Svc(db_factory, CrashEngine()), run_data, None,
+                        allow_estimate=False))
+    assert len(run(_ledger_rows(db_factory))) == 1, "a crash with no usage is not billed"
+
+
+def test_retried_run_meters_only_new_tokens(db_factory):
+    """A resumed run reuses its session; the transcript is cumulative.
+
+    Billing the whole session again on resume would double-count the first
+    attempt, so the hook records the delta against rows already in the ledger.
+    """
+    from harness_orchestrator.run_metering import record_run_cost
+
+    class GrowingEngine:
+        model = "deepseek/deepseek-chat"
+        totals = {"inputTokens": 1000, "outputTokens": 100, "cacheReadTokens": 0}
+
+        def session_usage(self, run_id):
+            return dict(self.totals)
+
+    class Svc:
+        run_queue_factory = None
+
+        def __init__(self, factory, engine):
+            self.session_factory = factory
+            self.engine = engine
+
+        async def _team_for_run(self, run_data):
+            return "team-a"
+
+    engine = GrowingEngine()
+    svc = Svc(db_factory, engine)
+    run_data = {
+        "runId": "run-a",
+        "goal": "g",
+        "engine_result": {"engine": "deepseek-harness-sdk:deepseek/deepseek-chat"},
+    }
+    run(record_run_cost(svc, run_data, None))
+    engine.totals = {"inputTokens": 2500, "outputTokens": 300, "cacheReadTokens": 0}
+    run(record_run_cost(svc, run_data, None))
+    # A third call with no new usage must add nothing.
+    run(record_run_cost(svc, run_data, None))
+
+    rows = run(_ledger_rows(db_factory))
+    assert [(r["input_tokens"], r["output_tokens"]) for r in rows] == [
+        (1000, 100),
+        (1500, 200),
+    ]

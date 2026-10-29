@@ -474,6 +474,10 @@ services:
       # Set on the orchestrator alone, they would arrive empty in every worker —
       # so the operator's patch files and reviewed MCP servers must be here too.
       DSH_PATCH_FILES: ${DSH_PATCH_FILES:-}
+      # The model name the patch declares rides the same path as the patch
+      # itself: engine containers read DSH_MODEL from the DAEMON's environment,
+      # so the orchestrator alone is not enough for an isolated worker.
+      DSH_MODEL: ${DSH_MODEL:-}
       DSH_MCP_SERVERS: ${DSH_MCP_SERVERS:-}
       # W4 slice 4: package installs. Off by default; permitted only under the
       # container boundary, where the worker is launched with HTTP(S)_PROXY pointed

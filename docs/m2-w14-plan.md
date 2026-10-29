@@ -109,24 +109,38 @@ each selected task once per model with the same budget/fixture and writes one
 `docs/briefs/evidence/eval/comparison-<stamp>.json` with
 `passRule: "each task's own verifier, judged per model; never a relative win"`.
 It refuses to start without `--include-live`, with fewer than two distinct
-models, or with an empty selection. It also refuses when the deployed stack
-declares a different engine model (`SINGLE_MODEL_STACK`, exit 2, no spend): the
-OpenRouter patch configures exactly ONE model per deployment, so two ids in one
-invocation would both be refused by the engine and report two identical fake
-FAILs. That refusal was added after the first attempt did exactly that
-(`comparison-1793275156.json`, retained as the bad artifact that motivated it).
+models, or with an empty selection. It also refuses any requested id the
+deployed engine patch does not declare (`UNDECLARED_MODEL`, exit 2, no spend):
+the engine rejects an undeclared model by name, so such a run would only
+produce a fake FAIL. That refusal followed the first attempt, which did exactly
+that (`comparison-1793275156.json`, retained as the bad artifact that
+motivated it). `SINGLE_MODEL_STACK` remains as the fallback refusal when no
+patch can be read.
 
-A real comparison therefore ran as two single-model deployments of
-`code-search-heldout`; the assembled evidence is
-`comparison-1793275608.json`:
+Resolved: the check no longer ties comparison to a one-model deployment.
+`deploy/patches/openrouter-vision.patch.yml` now declares the text-only
+comparison models (`deepseek/deepseek-chat`, `openai/gpt-4o-mini`) alongside
+`process.env.DSH_MODEL`, and `run_eval.py` parses the patch's `models:` block
+(resolving the `process.env.DSH_MODEL` entry through the orchestrator's actual
+`DSH_MODEL`) to validate the requested set. Each run still sets the team's
+model preference through `PUT /api/v1/models/prefs`, so the per-run model
+override is what selection uses, and the driver records
+`requestedModelApplied` so a silently ignored preference cannot pass.
+
+The self-serve run is one invocation,
+`comparison-1793276796.json`:
 
 | Model | Verdict | What happened |
 |---|---|---|
-| `deepseek/deepseek-chat` | FAIL | answered `FILE: ./pkg/telemetry/flush.py` after one grep call, never edited it (13.0 s) |
-| `openai/gpt-4o-mini` | FAIL | read files until the 21-call budget was exhausted, no edit (37.1 s) |
+| `deepseek/deepseek-chat` | FAIL | failed `targetHasNewValue` and `onlyTargetChanged` (12.9 s) |
+| `openai/gpt-4o-mini` | FAIL | same, plus `answerNamesTheFile` (33.0 s) |
 
-`outcome: NO_MODEL_PASSED` — with zero passes there is no winner, and the pass
-rule never compares models relatively.
+Both driver records (`code-search-heldout-1793276799/-1793276811.json`) show
+`modelPref.applied` equal to the requested id and `requestedModelApplied: true`.
+`outcome: NO_MODEL_PASSED` in both the one-invocation and the earlier
+two-deployment run (`comparison-1793275608.json`, `deepseek/deepseek-chat` and
+`openai/gpt-4o-mini` both FAIL) — with zero passes there is no winner, and the
+pass rule never compares models relatively.
 
 **Cost/latency dashboard.** Six new gauges are refreshed by the orchestrator's
 existing DB poller from the frozen `cost_ledger`:
@@ -170,21 +184,42 @@ the final run — it had treated the reader's blank line as content.
  "fixtureColourTolerance": 0}
 ```
 
-## Findings from the live legs
+## Findings from the live legs (and their resolutions)
 
-* **One engine model per deployment.** `DSH_PATCH_FILES`' OpenRouter patch
-  declares `- id: process.env.DSH_MODEL`, so the engine rejects any other model
-  by name. Self-serve multi-model comparison needs a multi-model patch (an
-  allow-list widening) or per-model redeploys; W14 proves the latter.
-* **Four of twelve catalog ids are not valid on OpenRouter right now:**
-  `deepseek/deepseek-coder`, `qwen/qwen-2.5-coder-32b`, `qwen/qwen-2.5-72b` and
-  `mistral/codestral` answer `400 not a valid model ID`. `/estimate-cost` will
-  happily price them; the catalog (or an operator overlay) needs cleaning.
-  `deepseek/deepseek-chat` and `openai/gpt-4o-mini` are valid.
-* **Engine model calls are not metered into `cost_ledger`.** Two design runs
-  produced zero ledger rows, so the cost dashboard cannot see engine spend —
-  a real gap between "spend exists" and "spend is visible". Not fixed here;
-  recorded so the dashboard is not mistaken for a complete bill.
+* **One engine model per deployment** → **resolved.** The patch now declares a
+  text-model allow-list (`deepseek/deepseek-chat`, `openai/gpt-4o-mini`) plus
+  `process.env.DSH_MODEL`, and the runner validates against that list instead of
+  refusing every multi-model request. One invocation compares two models.
+* **Four of twelve catalog ids were not valid on OpenRouter**
+  (`deepseek/deepseek-coder`, `qwen/qwen-2.5-coder-32b`, `qwen/qwen-2.5-72b`,
+  `mistral/codestral`) → **resolved.** The catalog was re-read from the live
+  `/models` endpoint and rewritten with ids that exist
+  (`deepseek/deepseek-chat`, `deepseek/deepseek-v4-flash`,
+  `deepseek/deepseek-r1-0528`, `qwen/qwen-2.5-coder-32b-instruct`,
+  `qwen/qwen-2.5-72b-instruct`, `anthropic/claude-sonnet-4.5`,
+  `anthropic/claude-haiku-4.5`, `mistralai/mistral-large-2512`,
+  `mistralai/codestral-2508`). The re-read also exposed a stale
+  `deepseek/deepseek-chat` price: it is `0.2574 / 1.0287`, about 1.8x the
+  previously pinned input price. Defaults moved to `deepseek/deepseek-v4-flash`.
+  Never read as a claim that the other prices are fresh — they were transcribed
+  from the same response and remain the task author's claim.
+* **Engine model calls are not metered** → **resolved.** The SDK emits no usage
+  events, so the ledger was built from the goal text instead. `engine.py`
+  now reads the session transcript (`session*.jsonl`) and folds it: consecutive
+  identical usage tuples (one per step, duplicated by the runtime) collapse, and
+  cache reads are billed as input — an explicit upper bound, since cached input
+  is cheaper. `run_metering.py` records per-attempt deltas against what the run
+  has already booked, so a resumed or re-driven run cannot double-count, and the
+  failure paths (timeout, exception, cancel, guard stop, staging failure,
+  non-completed status) record provable usage with `allow_estimate=False` — a
+  blocked run bills what it provably spent, never a goal-text guess.
+  Live proof on the rebuilt image: run `w2-code-search-default-1793277111`
+  booked 22,032 input / 333 output tokens in `cost_ledger`, exactly the
+  deduplicated transcript totals, where the old code booked ~61/7 from the
+  goal. One caveat stands: the deployment's `DSH_MODEL` (`qwen/qwen3.7-flash`)
+  is not in the catalog, so that row bills at the `PricingEngine` fallback
+  ($0.50 / $1.50 per million) — price it through `HARNESS_RATE_CARD_JSON`
+  before trusting the absolute number.
 * **A drill bug hid a failure.** `workspace_text` prints a blank line for a
   missing file, and `"\n"` is truthy, so an unwritten page counted as written.
   Fixed in the W14 drill with `.strip()`; `run 3`'s record keeps the original
@@ -192,20 +227,20 @@ the final run — it had treated the reader's blank line as content.
 
 ## Remaining
 
-1. Meter engine model calls (above) or state the dashboard's blind spot next to
-   every spend panel.
-2. Clean the four dead catalog ids, or replace them via `HARNESS_RATE_CARD_JSON`.
+Nothing owed by W14. The metering caveat above (fallback pricing for an
+uncatalogued deployment model) and the honest-verifier limits under
+Limitations are recorded, not defects of these slices.
 
 ## Gate position
 
 | W14 exit claim | State |
 |---|---|
-| Corpus has fixed expected outputs and a real hold-out split, enforced | **pass** — `--check` in static gates (39 / 6 / 28) |
-| Reproducible model comparisons | **pass, n=1 per model** — runner + single-model-stack preflight; two redeployed runs on `code-search-heldout`, both FAIL under their own verifier, no winner claimed |
+| Corpus has fixed expected outputs and a real hold-out split, enforced | **pass** — `--check` in static gates (39 / 6 / 29) |
+| Reproducible model comparisons | **pass, n=1 per model, one invocation** — runner validates the requested ids against the patch's declared models, sets each run's team model preference (`requestedModelApplied` recorded); `comparison-1793276796.json` on `code-search-heldout`, both models FAIL under their own verifier, no winner claimed |
 | Routing requires opt-in | **pass** — default off, policy read from `team_settings`, live-verified GET/PUT/DELETE |
 | Failure never forces a downgrade | **pass (offline)** — resolver never crosses classes; missing class model keeps the primary; partial plans keep the primary |
 | Unpriced models stop billing zero silently | **pass (visibility + overlay)** — a named unpriced model reports `priced: false`, `pricingSource: "unpriced"`, cost 0; operators price it via `HARNESS_RATE_CARD_JSON`; malformed cards fail loudly |
-| Cost/latency dashboards | **pass (series + panels + tests + Grafana render)** — six live gauges, eight panels, SQLite and PostgreSQL-gated tests, and a real Grafana 11.2.0 render (`w14-dashboard-grafana.png`). Engine-side model calls are not in the ledger (finding above), so spend panels show router-metered spend only |
+| Cost/latency dashboards | **pass (series + panels + tests + Grafana render + engine spend)** — six live gauges, eight panels, SQLite and PostgreSQL-gated tests, and a real Grafana 11.2.0 render (`w14-dashboard-grafana.png`). Engine model calls now book to `cost_ledger` from the session transcript (live-verified), so spend panels see engine spend, not just router spend |
 
 ## Limitations
 

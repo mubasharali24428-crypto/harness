@@ -275,7 +275,7 @@ def _require_admin(principal: Principal) -> None:
 
 def _reasoning_capable(model: str) -> bool:
     name = model.lower()
-    return "reasoner" in name or "/o1" in name or "/o3" in name
+    return "reasoner" in name or "-r1" in name or "/o1" in name or "/o3" in name
 
 
 def _with_reasoning(opts: ModelCallOpts | None, effort: str, model: str) -> ModelCallOpts | None:

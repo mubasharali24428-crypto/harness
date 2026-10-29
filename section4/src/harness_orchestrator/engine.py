@@ -366,6 +366,19 @@ def _notification_events(payload: Any) -> list[dict[str, Any]]:
     return out
 
 
+def _iter_usage_objects(node: Any):
+    """Yield every ``{inputTokens, outputTokens}`` dict nested in a record."""
+    if isinstance(node, dict):
+        if "inputTokens" in node and "outputTokens" in node:
+            yield node
+            return
+        for value in node.values():
+            yield from _iter_usage_objects(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from _iter_usage_objects(value)
+
+
 def _context_meta(events: list[Any]) -> dict[str, Any]:
     """What the runtime's context window is, and how much it has compacted.
 
@@ -1013,6 +1026,58 @@ class DeepSeekHarnessWrapper:
                 totals["outputTokens"] += step["outputTokens"]
         return totals
 
+    def session_usage(self, session_id: str) -> dict[str, int] | None:
+        """Token usage summed from the SDK session transcript, else None.
+
+        Measured 2026-10-29 on the deployed stack: a live run's event stream
+        carries NO ``assistant/chunk`` usage chunks (``usage`` comes back None),
+        while the SDK writes one usage object per billed step into
+        ``session*.jsonl`` under the run's session dir. Reading those back is
+        what makes live metering real instead of a text estimate.
+
+        The SDK writes a message update and then its final form, so identical
+        consecutive records are collapsed. ``cacheReadTokens`` is returned
+        separately: the catalog has no cache tier, and the metering hook bills
+        it at the input rate (a conservative upper bound) rather than dropping
+        prompt tokens it knows were sent.
+        """
+        try:
+            root = Path(self.run_session_dir(session_id))
+        except (ValueError, OSError):
+            return None
+        if not root.is_dir():
+            return None
+        totals = {"inputTokens": 0, "outputTokens": 0, "cacheReadTokens": 0}
+        previous: tuple[int, int, int] | None = None
+        found = False
+        for path in sorted(root.rglob("session*.jsonl")):
+            try:
+                lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+            except OSError:
+                continue
+            for line in lines:
+                try:
+                    record = json.loads(line)
+                except ValueError:
+                    continue
+                for usage in _iter_usage_objects(record):
+                    try:
+                        step = (
+                            int(usage.get("inputTokens") or 0),
+                            int(usage.get("outputTokens") or 0),
+                            int(usage.get("cacheReadTokens") or 0),
+                        )
+                    except (TypeError, ValueError):
+                        continue
+                    if step == previous:  # message update + its final form
+                        continue
+                    previous = step
+                    found = True
+                    totals["inputTokens"] += step[0]
+                    totals["outputTokens"] += step[1]
+                    totals["cacheReadTokens"] += step[2]
+        return totals if found else None
+
     def _with_repo_context(self, goal: str, session_id: str) -> str:
         """Prepend the workspace baseline, once per session.
 
@@ -1068,6 +1133,10 @@ class DeepSeekHarnessWrapper:
                 # chunks; folded onto the result so the orchestrator's
                 # completion hook can meter ACTUAL usage, not estimates.
                 usage = self._fold_usage(events)
+                if usage is None:
+                    # This deployment's SDK surfaces no usage events; the
+                    # transcript is the ground truth (see session_usage).
+                    usage = self.session_usage(session_id)
                 tool_calls = self._fold_tool_calls(events)
             except Exception as exc:  # noqa: BLE001 — honest error, never escape
                 result_text = scrub_secrets(

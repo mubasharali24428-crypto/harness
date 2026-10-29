@@ -1660,6 +1660,9 @@ class OrchestratorService(Orchestrator):
                     "finalResponse": f"DeepSeek Harness run failed: {reason}",
                 }
                 sm.execution_failed(reason)
+                # Real spend may exist before the timeout (partial transcript),
+                # so meter what is provable; never estimate a failure's tokens.
+                await record_run_cost(self, run_data, plan, allow_estimate=False)
                 return
             except Exception as exc:  # noqa: BLE001 — surface engine failures to the UI
                 failed_msg = "DeepSeek Harness run failed: " + scrub_secrets(
@@ -1674,16 +1677,21 @@ class OrchestratorService(Orchestrator):
                 # Wave 6 (D4): honest failure lands on the bus and blocks the run
                 # (no-op unless still EXECUTING — pause/stop already told their story).
                 sm.execution_failed(failed_msg)
+                await record_run_cost(self, run_data, plan, allow_estimate=False)
                 return
             # Part 44: the calls happened whatever happens to the result, so they count first.
             await record_engine_tool_calls(self, run_data, result.get("toolCalls"))
             if run_data.get("cancel_requested"):
+                # The cancelled call still spent tokens; delta metering makes
+                # this safe even if the run is resumed later.
+                await record_run_cost(self, run_data, plan, allow_estimate=False)
                 return  # zombie result from a cancelled live call — discard
             if run_data.get("_guard_stopped"):
                 # Same reasoning as the cancel above: the guard already failed
                 # this run on the record. A worker that finished after being told
                 # to stop must not overwrite that with a success it earned only
                 # by wandering longer.
+                await record_run_cost(self, run_data, plan, allow_estimate=False)
                 return
             staging_error = await self._stage_outputs(run_data)
             if staging_error:
@@ -1694,6 +1702,7 @@ class OrchestratorService(Orchestrator):
                     "finalResponse": staging_error,
                 }
                 sm.execution_failed(staging_error)
+                await record_run_cost(self, run_data, plan, allow_estimate=False)
                 return
             if run_data.get("staged"):
                 result = {**result, "staged": run_data["staged"]}
@@ -1710,6 +1719,9 @@ class OrchestratorService(Orchestrator):
                 await record_run_cost(self, run_data, plan)
             else:
                 sm.execution_failed(summary or f"engine status={status or 'unknown'}")
+                # A blocked/failed engine run is terminal too; without this the
+                # ledger saw only successful runs and under-reported spend.
+                await record_run_cost(self, run_data, plan, allow_estimate=False)
         finally:
             if heartbeat_task is not None:
                 heartbeat_task.cancel()

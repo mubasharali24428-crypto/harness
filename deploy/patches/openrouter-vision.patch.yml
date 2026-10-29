@@ -30,3 +30,17 @@
                 contextWindow: 65536
                 maxTokens: 4096
                 input: [text, image]
+              # W14 comparison set. The engine rejects any model the patch does
+              # not declare, which is why a second model could not be compared
+              # in one deployment. These are TEXT-only (not vision models) and
+              # priced in the catalog, so `run_eval.py --compare-model` can run
+              # one deployment per comparison. Widen this list deliberately:
+              # every entry is a model this deployment may bill.
+              - id: deepseek/deepseek-chat
+                contextWindow: 65536
+                maxTokens: 4096
+                input: [text]
+              - id: openai/gpt-4o-mini
+                contextWindow: 128000
+                maxTokens: 4096
+                input: [text]

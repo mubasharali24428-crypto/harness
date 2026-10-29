@@ -61,7 +61,7 @@ def test_get_without_storage_returns_defaults_and_says_so():
     assert res.status_code == 200
     body = res.json()
     assert body["persisted"] is False
-    assert body["primaryModel"] == "deepseek/deepseek-coder"
+    assert body["primaryModel"] == "deepseek/deepseek-v4-flash"
     assert body["reasoningEffort"] == "off"
 
 
@@ -87,7 +87,7 @@ def test_put_persists_and_reports_the_saved_choice():
     res = client.put(
         "/api/v1/models/prefs",
         json={
-            "primaryModel": "deepseek/deepseek-reasoner",
+            "primaryModel": "deepseek/deepseek-r1-0528",
             "reviewerModel": "deepseek/deepseek-chat",
             "reasoningEffort": "high",
         },
@@ -95,7 +95,7 @@ def test_put_persists_and_reports_the_saved_choice():
     assert res.status_code == 200, res.text
     body = res.json()
     assert body["persisted"] is True
-    assert body["primaryModel"] == "deepseek/deepseek-reasoner"
+    assert body["primaryModel"] == "deepseek/deepseek-r1-0528"
     assert body["reasoningEffort"] == "high"
     assert pool.execute_calls and pool.execute_calls[0][0] == "t-prefs"
 
@@ -134,15 +134,15 @@ def test_put_fails_honestly_without_storage():
 def test_reasoning_is_only_added_for_aggregator_endpoints(monkeypatch):
     opts = api.ModelCallOpts()
     monkeypatch.setenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-    assert api._with_reasoning(opts, "high", "deepseek/deepseek-reasoner") is opts
+    assert api._with_reasoning(opts, "high", "deepseek/deepseek-r1-0528") is opts
 
     monkeypatch.setenv("DEEPSEEK_BASE_URL", "https://openrouter.ai/api/v1")
-    wired = api._with_reasoning(opts, "high", "deepseek/deepseek-reasoner")
+    wired = api._with_reasoning(opts, "high", "deepseek/deepseek-r1-0528")
     assert wired is not None and wired.extra == {"reasoning": {"effort": "high"}}
 
     # Non-reasoning models and "off" keep the historical request shape.
     assert api._with_reasoning(opts, "high", "deepseek/deepseek-chat") is opts
-    assert api._with_reasoning(opts, "off", "deepseek/deepseek-reasoner") is opts
+    assert api._with_reasoning(opts, "off", "deepseek/deepseek-r1-0528") is opts
 
 
 def test_every_default_is_in_the_catalog():

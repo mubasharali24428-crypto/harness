@@ -134,6 +134,44 @@ def stack_model() -> str | None:
     return None
 
 
+def declared_models() -> set[str]:
+    """Model ids the deployed engine patches declare.
+
+    The OpenRouter patch lists its models explicitly and the engine rejects
+    anything else, so a comparison is only meaningful for ids in this set.
+    ``!!js process.env.DSH_MODEL`` resolves to the deployed stack model.
+    """
+    declared: set[str] = set()
+    patches = REPO / "deploy" / "patches"
+    if not patches.is_dir():
+        return declared
+    for path in sorted(patches.glob("*.yml")):
+        inside_models = False
+        models_indent = -1
+        for line in path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            indent = len(line) - len(line.lstrip())
+            if stripped == "models:":
+                inside_models, models_indent = True, indent
+                continue
+            if inside_models and indent <= models_indent:
+                inside_models = False  # left the models block
+            if not inside_models or not stripped.startswith("- id:"):
+                continue
+            value = stripped.split(":", 1)[1].strip()
+            if value.startswith("!!js"):
+                if "DSH_MODEL" in value:
+                    model = stack_model()
+                    if model:
+                        declared.add(model)
+                continue
+            if value:
+                declared.add(value.strip("\"'"))
+    return declared
+
+
 def git_revision() -> dict:
     head = run(["git", "rev-parse", "HEAD"], timeout=20).stdout.strip()
     branch = run(["git", "branch", "--show-current"], timeout=20).stdout.strip()
@@ -442,6 +480,15 @@ def main() -> int:
         return 0
 
     selected, skipped = select(corpus, args)
+    if args.compare_model and args.dry_run:
+        print(json.dumps({
+            "comparison": list(dict.fromkeys(args.compare_model)),
+            "declared": sorted(declared_models()),
+            "stackModel": stack_model(),
+            "tasks": [t["id"] for t in selected],
+            "wouldRun": len(selected) * len(set(args.compare_model)),
+        }, indent=2))
+        return 0
     if args.compare_model:
         models = list(dict.fromkeys(args.compare_model))
         if not args.include_live:
@@ -451,21 +498,37 @@ def main() -> int:
         if not selected:
             ap.error("--compare-model selected no tasks")
         deployed_model = stack_model()
-        if deployed_model and set(models) != {deployed_model}:
-            # The engine's provider patch declares ONE model per deployment
-            # (DSH_MODEL). Requesting another id does not compare anything: the
-            # engine refuses it and every model would "fail" identically. Refuse
-            # before spending.
+        declared = declared_models()
+        if declared:
+            missing = [m for m in models if m not in declared]
+            if missing:
+                print(json.dumps({
+                    "ok": False,
+                    "error": "UNDECLARED_MODEL",
+                    "stackModel": deployed_model,
+                    "declared": sorted(declared),
+                    "requested": models,
+                    "missing": missing,
+                    "hint": (
+                        "add the model to a patch in deploy/patches/ (it declares "
+                        "exactly the models the engine may bill) and rebuild the "
+                        "worker image; a run under an undeclared id fails before "
+                        "the model is called."
+                    ),
+                }, indent=2))
+                return 2
+        elif deployed_model and set(models) != {deployed_model}:
+            # No readable patch: fall back to the single-model check so an
+            # undeclared comparison cannot report two identical fake failures.
             print(json.dumps({
                 "ok": False,
                 "error": "SINGLE_MODEL_STACK",
                 "stackModel": deployed_model,
                 "requested": models,
                 "hint": (
-                    "this deployment declares one engine model. Redeploy the "
-                    "orchestrator and worker-daemon with DSH_MODEL=<model> and run "
-                    "the task once per deployment; a single invocation cannot "
-                    "compare models the engine does not declare."
+                    "no patch declares these models; the engine refuses every "
+                    "undeclared id. Declare them in deploy/patches/ and rebuild "
+                    "the worker image."
                 ),
             }, indent=2))
             return 2

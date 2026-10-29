@@ -18,7 +18,7 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   a boolean `heldOut` with at least five held-out tasks, driver existence for
   script tasks, a positive timeout, a named model for live tasks, and that a
   held-out task does not record tuning use. Current corpus: 39 tasks, 6 held
-  out, 28 implemented.
+  out, 29 implemented.
 * **Operator rate card (models service).** `HARNESS_RATE_CARD_JSON` (inline or a
   container path) merges over the frozen catalog, validated at load — a
   malformed card raises instead of becoming free inference. Every lookup reports
@@ -44,12 +44,17 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   repeats one selection per model and writes
   `comparison-<stamp>.json` with the fixed pass rule "each task's own verifier,
   judged per model; never a relative win". Requires `--include-live`, two
-  distinct models and a non-empty selection, and now refuses with
-  `SINGLE_MODEL_STACK` (exit 2, no spend) when the deployed engine declares a
-  different model — the OpenRouter patch configures one model per deployment.
-  Real comparison `comparison-1793275608.json`: `deepseek/deepseek-chat` and
+  distinct models and a non-empty selection. The deployed engine patch now
+  declares a text-model allow-list (`deepseek/deepseek-chat`,
+  `openai/gpt-4o-mini`) next to `process.env.DSH_MODEL`; the runner parses the
+  patch's `models:` block (resolving the env entry through the orchestrator's
+  actual `DSH_MODEL`) and refuses undeclared ids with `UNDECLARED_MODEL`
+  (exit 2, no spend) instead of producing fake FAILs. Each run sets the team's
+  model preference via `PUT /api/v1/models/prefs` and records
+  `requestedModelApplied`, so an ignored preference cannot pass. One-invocation
+  comparison `comparison-1793276796.json`: `deepseek/deepseek-chat` and
   `openai/gpt-4o-mini` each FAILED `code-search-heldout` under their own
-  verifier (one never edited, one exhausted its call budget); no winner claimed.
+  verifier; no winner claimed.
 * **Cost/latency dashboard.** Six orchestrator gauges roll up the frozen
   `cost_ledger` (spend per team/month, resolved cap, cost and calls per
   team/model, p50/p95 latency on PostgreSQL), unattributable rows surface as
@@ -67,14 +72,30 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   a genuine model failure; thresholds and goal were never changed, and the
   history is recorded. Fixed a drill bug where a blank reader line counted as a
   written page.
+* **Engine model spend now reaches `cost_ledger`.** The live SDK emits no usage
+  events, so the orchestrator folds the run's session transcript
+  (`session*.jsonl`): repeated per-step usage tuples collapse, cache reads bill
+  as input (an upper bound), and each attempt records only its unbilled delta so
+  a resumed run cannot double-count. Failure paths (timeout, exception, cancel,
+  guard stop, staging failure, non-completed status) record provable usage with
+  `allow_estimate=False` — never a goal-text estimate. Live proof: run
+  `w2-code-search-default-1793277111` booked 22,032 input / 333 output tokens,
+  exactly the deduplicated transcript totals (the old path booked ~61/7 from the
+  goal).
+* **Catalog re-read from OpenRouter.** The four dead ids
+  (`deepseek/deepseek-coder`, `qwen/qwen-2.5-coder-32b`, `qwen/qwen-2.5-72b`,
+  `mistral/codestral`) are replaced with live ones
+  (`deepseek/deepseek-chat`, `deepseek/deepseek-v4-flash`,
+  `deepseek/deepseek-r1-0528`, `qwen/qwen-2.5-coder-32b-instruct`,
+  `qwen/qwen-2.5-72b-instruct`, `anthropic/claude-sonnet-4.5`,
+  `anthropic/claude-haiku-4.5`, `mistralai/mistral-large-2512`,
+  `mistralai/codestral-2508`), and the stale `deepseek/deepseek-chat` price is
+  corrected (0.2574 / 1.0287, about 1.8x the old input price). Role defaults
+  move to `deepseek/deepseek-v4-flash`; the router's reasoning detector also
+  matches `-r1` ids. Section 3 suite 144 passed after the fixture updates.
 * **Regression fixed.** Routing must never abort a run: classification now reads
   `steps`/`filesLikelyToChange` defensively, so a partial plan object keeps the
   primary model (6 Section 4 tests had failed before this fix).
-* **Findings recorded, not fixed.** Engine model calls are absent from
-  `cost_ledger` (spend panels see router-metered spend only); four catalog ids
-  (`deepseek/deepseek-coder`, `qwen/qwen-2.5-coder-32b`, `qwen/qwen-2.5-72b`,
-  `mistral/codestral`) answer "not a valid model ID" on OpenRouter; one engine
-  model per deployment means comparisons need a multi-model patch or redeploys.
 
 ### Marathon 2.0 W13 — a runner control plane for customer-controlled hosts (2026-10-28)
 

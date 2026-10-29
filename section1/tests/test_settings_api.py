@@ -306,7 +306,7 @@ async def test_partial_document_fills_missing_keys_with_defaults(
 ROUTING_DOC = {
     "enabled": True,
     "mechanicalModel": "deepseek/deepseek-chat",
-    "reasoningModel": "deepseek/deepseek-reasoner",
+    "reasoningModel": "deepseek/deepseek-r1-0528",
 }
 
 

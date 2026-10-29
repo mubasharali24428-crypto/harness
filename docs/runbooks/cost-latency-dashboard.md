@@ -68,6 +68,22 @@ teams or aggregate with `sum without (team_id)`.
   Unpriced visibility lives in the router's `/estimate-cost` response
   (`priced: false`, `pricingSource: "unpriced"`), not in these panels.
 
+## What the ledger counts
+
+Engine model spend is now in the ledger. The live SDK emits no usage events, so
+the orchestrator folds the run's session transcript (`session*.jsonl`) instead:
+per-step usage tuples are de-duplicated (the runtime repeats each one) and cache
+reads are billed as input, an upper bound because cached input is cheaper. Each
+attempt records only the delta it has not already booked, so a resumed run does
+not double-count. A run that fails, times out or is cancelled books the usage it
+provably spent; it never books a goal-text estimate. A run whose transcript is
+unreadable books nothing and logs that it skipped metering.
+
+A model id absent from the catalog bills at the `PricingEngine` fallback
+($0.50 / $1.50 per million), not at zero. If a deployment's `DSH_MODEL` is not
+in the catalog (for example `qwen/qwen3.7-flash`), the spend is real but the
+absolute number is a placeholder until `HARNESS_RATE_CARD_JSON` prices it.
+
 ## Cost is not a billing statement
 
 The panels read the same ledger the budget gate enforces against. A mismatch
