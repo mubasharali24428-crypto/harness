@@ -57,6 +57,12 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   pricing/budget knob, and `.env.example` + `PROJECT-STATE.md` record the
   `--env-file` trap. Both processes now report `pricingSource: operator` for
   the card-priced model.
+* **The W15 drills are runnable by name.** `make drill-fairness` and
+  `make drill-rate-limit` join `drill-oidc` / `drill-pitr` / `drill-native`, each
+  with its preconditions in `make help` (the rate-limit drill needs a small
+  deployed `HARNESS_TEAM_MODEL_CALL_LIMIT`; the shipped 300/min would require
+  301 live calls to trip). Re-run at defaults after the drift fix: PASS
+  (`w15-rate-limit-1793288031.json`).
 * **Browser-gate timeout tests are no longer load-sensitive.** A 1 s deadline made
   `test_a_slow_render_that_finished_is_still_evidence` fail on a busy machine and
   pass on an idle one (the stand-in browser had not started its screenshot copy

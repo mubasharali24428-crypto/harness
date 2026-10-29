@@ -35,7 +35,7 @@ PG_URL ?= postgresql+asyncpg://harness:harness@localhost:5499/harness
         lint test lint-mcp test-mcp frontend frontend-tsc frontend-vitest static-gates e2e e2e-compose \
         pg-probe pg-probe-integration pg-probe-s1 pg-probe-migrate pg-up pip-audit \
         guard-routes guard-isolation guard-route-law \
-        drill-oidc drill-pitr drill-native
+        drill-oidc drill-pitr drill-native drill-fairness drill-rate-limit
 
 help:
 	@echo "Harness gates — single source of truth shared by CI (.github/workflows/ci.yml):"
@@ -44,10 +44,12 @@ help:
 	@echo "  make test            pytest matrix (same sections, CI order)"
 	@echo "  make frontend        section7: tsc --noEmit + vitest run"
 	@echo "  make static-gates    sh -n entrypoint.sh; compose config; TS mirror --check"
+	@echo "                       + route/isolation law guards (M15-G6a)"
 	@echo "  make drill-oidc      OIDC SSO against a disposable Keycloak (evidence JSON)"
 	@echo "  make drill-pitr      WAL-G PITR against a disposable MinIO bucket (evidence JSON)"
 	@echo "  make drill-native    container tool drill; requires a native Linux host"
-	@echo "                       + route/isolation law guards (M15-G6a)"
+	@echo "  make drill-fairness   W15 admission fairness on the compose Postgres (no spend)"
+	@echo "  make drill-rate-limit W15 per-team budget; needs a small deployed team limit"
 	@echo "  make guard-routes    app/**/page.tsx default-export-only law (W4 carryover)"
 	@echo "  make guard-isolation sections import ONLY contracts/ (M13 isolation law)"
 	@echo "  make e2e             section7 Playwright suite (specs land via lane H3a)"
@@ -227,6 +229,21 @@ drill-pitr:
 
 drill-native:
 	./scripts/native_linux_drill.sh
+
+# W15: admission fairness on the real PostgreSQL dialect. Creates and drops a
+# throwaway database on the compose Postgres (127.0.0.1:5499); no engine run,
+# no model call, no spend. Override the DSN with HARNESS_PG_DSN.
+drill-fairness:
+	section4/.venv/bin/python scripts/e2e/w15_fairness_drill.py
+
+# W15: per-team rate budget on /models/call. PRECONDITION: the models service
+# must be booted with a small HARNESS_TEAM_MODEL_CALL_LIMIT (the shipped default
+# of 300/min would need 301 live calls). Example:
+#   HARNESS_TEAM_MODEL_CALL_LIMIT=3 docker compose -f deploy/docker-compose.yml \
+#     up -d --no-deps --force-recreate models
+#   make drill-rate-limit W15_TEAM_CALL_LIMIT=3
+drill-rate-limit:
+	W15_TEAM_CALL_LIMIT=$${W15_TEAM_CALL_LIMIT:-3} python3 scripts/e2e/w15_rate_limit_drill.py
 
 # -------------------------------------------------------------------- pg-probe
 # Nightly-pg-probe job parity. Guarded: silently skipping would fake parity.

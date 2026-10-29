@@ -185,6 +185,22 @@ status), plus the existing manual drill artifact as the baseline.
   `operator rate card is malformed; pricing from the catalog only` plus the
   named-model fallback warning), which is the intended posture.
 
+* **Deployment env drift re-opened the same divergence, and is now guarded.** An
+  hour later, `models` had been recreated with a different `--env-file`, so it
+  booted without `HARNESS_RATE_CARD_JSON`: the router quoted the catalog while
+  the orchestrator booked the card. Nothing in the code was wrong — compose's
+  `--env-file` replaces its default `.env` lookup. The card moved to the root
+  `.env` the stack boots from, and a new compose-structure test in
+  `section1/tests/test_deploy_observability.py`
+  (`test_every_backend_service_inherits_the_pricing_and_budget_knobs`) rejects
+  any backend API service that omits, or privately redefines, a shared
+  pricing/budget knob (mutation-verified both ways). Both processes report
+  `pricingSource: operator`.
+* **Drills are runnable by name.** `make drill-fairness` and
+  `make drill-rate-limit` join the existing drill targets, with their
+  preconditions in `make help`; `docs/briefs/evidence/eval/w15-rate-limit-1793288031.json`
+  is a re-run through the new target.
+
 ## Gate position
 
 | W15 exit claim | Evidence required |
