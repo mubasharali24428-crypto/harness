@@ -1,0 +1,202 @@
+{
+  "date": "2026-10-29",
+  "week": "W14",
+  "task": "w14-design-heldout",
+  "leg": "live",
+  "run": "w14-design-1793273284",
+  "preRegistered": {
+    "ratioMax": 0.03,
+    "colourTolerance": 12,
+    "answerRatioTolerance": 0.005,
+    "fixtureColourTolerance": 0
+  },
+  "fixture": {
+    "token": "NOVA-60",
+    "bytes": 7036,
+    "sha256": "183c78aaaefad3b11185bc718e00cd9b21efc14430ea5eefe87e8915774648af",
+    "sampledColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    },
+    "expectedColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    }
+  },
+  "fixtureChecks": {
+    "fixtureRendersAtDeclaredSize": true,
+    "flatColoursExactAtSamplePoints": true,
+    "tokenTextIsDrawn": true,
+    "selfDiffIsZero": true,
+    "renderIsDeterministic": true
+  },
+  "drive": "HTTP only",
+  "seededFiles": [
+    "mockup.png"
+  ],
+  "design": {
+    "startStatus": 200,
+    "states": [
+      "executing",
+      "blocked"
+    ],
+    "state": "blocked",
+    "engine": "replayed",
+    "engineStatus": "error",
+    "answer": "DeepSeek Harness run failed: DeepSeek Harness run failed: worker daemon: HTTP Error 401: Unauthorized"
+  },
+  "designTrail": {
+    "toolsUsed": [],
+    "imageDiffCalls": [],
+    "imageSampleCalls": [],
+    "imagePaletteCalls": [],
+    "screenshotCalls": [],
+    "mockupReads": [],
+    "dialogReads": [],
+    "writes": [],
+    "imageArguments": []
+  },
+  "measurement": {
+    "mockupSize": [
+      960,
+      640
+    ],
+    "renderSize": [
+      960,
+      640
+    ],
+    "changedPixels": 614400,
+    "totalPixels": 614400,
+    "ratio": 1.0,
+    "sampledColours": {
+      "canvas": [
+        255,
+        255,
+        255
+      ],
+      "sidebar": [
+        255,
+        255,
+        255
+      ],
+      "header": [
+        255,
+        255,
+        255
+      ],
+      "cardA": [
+        255,
+        255,
+        255
+      ],
+      "cardB": [
+        255,
+        255,
+        255
+      ],
+      "pill": [
+        255,
+        255,
+        255
+      ],
+      "accent": [
+        255,
+        255,
+        255
+      ]
+    }
+  },
+  "checks": {
+    "fixtureLegPassed": true,
+    "designRunSettled": true,
+    "agentOpenedTheMockup": false,
+    "agentMeasuredColours": false,
+    "agentScreenshottedItsPage": false,
+    "agentUsedTheDiff": false,
+    "agentWroteThePage": false,
+    "tokenOnlyInPixelsWasTranscribed": false,
+    "pageRendersAtMockupSize": true,
+    "independentDiffWithinThreshold": false,
+    "flatColoursSurvived": false,
+    "agentRatioAgreesWithBytes": false
+  },
+  "verdict": "FAIL",
+  "failedChecks": [
+    "agentOpenedTheMockup",
+    "agentMeasuredColours",
+    "agentScreenshottedItsPage",
+    "agentUsedTheDiff",
+    "agentWroteThePage",
+    "tokenOnlyInPixelsWasTranscribed",
+    "independentDiffWithinThreshold",
+    "flatColoursSurvived",
+    "agentRatioAgreesWithBytes"
+  ],
+  "designAnswer": "DeepSeek Harness run failed: DeepSeek Harness run failed: worker daemon: HTTP Error 401: Unauthorized"
+}

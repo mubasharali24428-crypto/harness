@@ -1,0 +1,382 @@
+{
+  "date": "2026-10-29",
+  "week": "W14",
+  "task": "w14-design-heldout",
+  "leg": "live",
+  "run": "w14-design-1793274853",
+  "preRegistered": {
+    "ratioMax": 0.03,
+    "colourTolerance": 12,
+    "answerRatioTolerance": 0.005,
+    "fixtureColourTolerance": 0
+  },
+  "fixture": {
+    "token": "VESPER-36",
+    "bytes": 6917,
+    "sha256": "1f93458dd7be8a45242c3e5ee6134584fa908a6593e7afbfb9975696619c1817",
+    "sampledColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    },
+    "expectedColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    }
+  },
+  "fixtureChecks": {
+    "fixtureRendersAtDeclaredSize": true,
+    "flatColoursExactAtSamplePoints": true,
+    "tokenTextIsDrawn": true,
+    "selfDiffIsZero": true,
+    "renderIsDeterministic": true
+  },
+  "drive": "HTTP only",
+  "seededFiles": [
+    "mockup.png"
+  ],
+  "design": {
+    "startStatus": 200,
+    "states": [
+      "executing",
+      "awaiting_done_signal"
+    ],
+    "state": "awaiting_done_signal",
+    "engine": "replayed",
+    "engineStatus": "completed",
+    "answer": "The diff shows only 0.454% changed pixels, all in the title text area (font rendering difference). This is well below the 0.03 threshold.\n\nTOKEN: VESPER-36\nRATIO: 0.00454\nFILES: index.html, style.css"
+  },
+  "designTrail": {
+    "toolsUsed": [
+      "bash",
+      "browser",
+      "image",
+      "read",
+      "read_image",
+      "working_directory",
+      "write"
+    ],
+    "imageDiffCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_d4def20d2d6449d288b17d6d",
+        "arguments": "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\",\"out\":\"shots/diff.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imageSampleCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_9556f3f51ac74ca28c9dd3d8",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[360,215],[700,215],[500,50],[500,500],[350,100],[700,100],[350,350],[700,350],[260,392],[750,377],[690,437]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_60e2844a3aa24328a8d7db36",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[260,100],[260,150],[260,330],[260,335],[460,100],[460,200],[460,330],[465,200],[600,100],[600,200],[600,330],[605,200],[800,100],[800,200],[800,330],[805,200]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_f0b2909112e04152b3369adc",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[260,110],[260,120],[260,130],[260,140],[260,320],[260,325],[260,328],[455,130],[458,130],[460,130],[462,130],[465,130],[595,130],[598,130],[600,130],[602,130],[795,130],[798,130],[800,130],[802,130],[805,130]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_40c4e4bd913f41769f579c38",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[260,95],[260,100],[260,105],[460,95],[460,100],[460,105],[800,95],[800,100],[800,105],[805,95],[805,100],[805,105],[810,130],[815,130],[820,130],[825,130],[830,130],[835,130],[840,130]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_e508be941a6b4f01992f7b74",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[260,106],[260,108],[260,110],[460,106],[460,108],[460,110],[600,106],[600,108],[600,110],[800,106],[800,108],[800,110]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_2b4c5b2f4e87423890e583ae",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[260,328],[260,330],[260,332],[460,328],[460,330],[460,332],[600,328],[600,330],[600,332],[800,328],[800,330],[800,332],[840,130],[845,130],[850,130],[855,130],[860,130],[865,130],[870,130],[875,130],[880,130],[885,130],[890,130],[895,130],[900,130],[905,130],[910,130],[915,130]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_640ed85bc59c44d28395614c",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[458,200],[459,200],[460,200],[461,200],[462,200],[598,200],[599,200],[600,200],[601,200],[897,200],[898,200],[899,200],[900,200],[901,200]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_3b8099102a7a4a8e8f7e4674",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[462,200],[463,200],[464,200],[465,200],[899,200],[900,200]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_453a8ae50fb84c019c685f6d",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[465,200],[470,200],[475,200],[480,200],[485,200],[490,200],[495,200],[500,200],[505,200],[510,200],[515,200],[520,200],[525,200],[530,200],[535,200],[540,200],[545,200],[550,200],[555,200],[560,200],[565,200],[570,200],[575,200],[580,200],[585,200],[590,200],[595,200]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_74c4f6adbb4f400a89ae1439",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[300,50],[300,80],[300,90],[300,95],[300,100],[300,105],[300,110],[700,50],[700,90],[700,95],[700,100],[700,105],[700,110]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_d78178ccaaf249bc822bc6b4",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[300,70],[300,72],[300,74],[300,76],[300,78],[300,80],[300,82],[700,70],[700,72],[700,74],[700,76],[700,78],[700,80]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_bf1b2cd8975d446fb9f36d46",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[260,370],[260,375],[260,410],[260,414],[260,418],[478,370],[478,392],[478,414],[480,392],[482,392],[600,370],[600,375],[600,382],[600,384],[600,386],[898,377],[900,377]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_4b43c12bc92d47cdaf0b8abd",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[601,426],[601,430],[601,440],[601,445],[601,448],[601,450],[782,437],[783,437],[784,437],[785,437],[786,437],[787,437],[788,437]]}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imagePaletteCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_c3e57b6dea1b4b988dd31e4a",
+        "arguments": "{\"action\":\"palette\",\"path\":\"mockup.png\",\"maxColors\":16}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "screenshotCalls": [
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "call_ee38f04b8007453791d79bb4",
+        "arguments": "{\"action\":\"screenshot\",\"url\":\"file:///var/lib/harness-runs/workspace/w14-design-1793274853/index.html\",\"path\":\"shots/render.png\",\"width\":960,\"height\":640}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "mockupReads": [
+      {
+        "type": "tool_call",
+        "tool": "read",
+        "callId": "call_1b0dfcc4c161428e9e102caa",
+        "arguments": "{\"file_path\":\"/var/lib/harness-runs/workspace/w14-design-1793274853/mockup.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "read_image",
+        "callId": "call_4a570aa714b045a58bd0f81c",
+        "arguments": "{\"file_path\":\"/var/lib/harness-runs/workspace/w14-design-1793274853/mockup.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "dialogReads": [],
+    "writes": [
+      {
+        "type": "tool_call",
+        "tool": "write",
+        "callId": "call_31b43b5ade5a4180aec7a0ef",
+        "arguments": "{\"file_path\":\"/var/lib/harness-runs/workspace/w14-design-1793274853/index.html\",\"content\":\"<!DOCTYPE html>\\n<html>\\n<head>\\n    <meta charset=\\\"UTF-8\\\">\\n    <title>VESPER-36</title>\\n    <link rel=\\\"stylesheet\\\" href=\\\"style.css\\\">\\n</head>\\n<body>\\n    <div class=\\\"sidebar\\\"></div>\\n    <div class=\\\"header\\\"></div>\\n    <div class=\\\"card card-left\\\"></div>\\n    <div class=\\\"card card-right\\\"></div>\\n    <div class=\\\"pill\\\"></div>\\n    <div class=\\\"accent-bar\\\"></div>\\n    <div class=\\\"title\\\">VESPER-36</div>\\n</body>\\n</html>\\n\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "write",
+        "callId": "call_725be85d130f4e0f9928a462",
+        "arguments": "{\"file_path\":\"/var/lib/harness-runs/workspace/w14-design-1793274853/style.css\",\"content\":\"* {\\n    margin: 0;\\n    padding: 0;\\n    box-sizing: border-box;\\n}\\n\\nbody {\\n    width: 960px;\\n    height: 640px;\\n    background-color: #0b0d12;\\n    overflow: hidden;\\n    position: relative;\\n}\\n\\n.sidebar {\\n    position: absolute;\\n    left: 0;\\n    top: 0;\\n    width: 220px;\\n    height: 640px;\\n    background-color: #141821;\\n}\\n\\n.header {\\n    position: absolute;\\n    left: 220px;\\n    top: 0;\\n    width: 740px;\\n    height: 72px;\\n    background-color: #1b2030;\\n}\\n\\n.card {\\n    position: absolute;\\n    width: 300px;\\n    height: 220px;\\n    background-color: #1f2433;\\n}\\n\\n.card-left {\\n    left: 260px;\\n    top: 110px;\\n}\\n\\n.card-right {\\n    left: 600px;\\n    top: 110px;\\n}\\n\\n.pill {\\n    position: absolute;\\n    left: 260px;\\n    top: 370px;\\n    width: 220px;\\n    height: 44px;\\n    background-color: #2fbf71;\\n}\\n\\n.accent-bar {\\n    position: absolute;\\n    left: 600px;\\n    top: 370px;\\n    width: 300px;\\n    height: 14px;\\n    background-color: #f0a43c;\\n}\\n\\n.title {\\n    position: absolute;\\n    left: 601px;\\n    top: 426px;\\n    font-family: 'DejaVu Sans', sans-serif;\\n    font-size: 30px;\\n    color: #e8edf6;\\n    letter-spacing: 2px;\\n}\\n\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imageArguments": [
+      "{\"action\":\"palette\",\"path\":\"mockup.png\",\"maxColors\":16}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[360,215],[700,215],[500,50],[500,500],[350,100],[700,100],[350,350],[700,350],[260,392],[750,377],[690,437]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[260,100],[260,150],[260,330],[260,335],[460,100],[460,200],[460,330],[465,200],[600,100],[600,200],[600,330],[605,200],[800,100],[800,200],[800,330],[805,200]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[260,110],[260,120],[260,130],[260,140],[260,320],[260,325],[260,328],[455,130],[458,130],[460,130],[462,130],[465,130],[595,130],[598,130],[600,130],[602,130],[795,130],[798,130],[800,130],[802,130],[805,130]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[260,95],[260,100],[260,105],[460,95],[460,100],[460,105],[800,95],[800,100],[800,105],[805,95],[805,100],[805,105],[810,130],[815,130],[820,130],[825,130],[830,130],[835,130],[840,130]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[260,106],[260,108],[260,110],[460,106],[460,108],[460,110],[600,106],[600,108],[600,110],[800,106],[800,108],[800,110]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[260,328],[260,330],[260,332],[460,328],[460,330],[460,332],[600,328],[600,330],[600,332],[800,328],[800,330],[800,332],[840,130],[845,130],[850,130],[855,130],[860,130],[865,130],[870,130],[875,130],[880,130],[885,130],[890,130],[895,130],[900,130],[905,130],[910,130],[915,130]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[458,200],[459,200],[460,200],[461,200],[462,200],[598,200],[599,200],[600,200],[601,200],[897,200],[898,200],[899,200],[900,200],[901,200]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[462,200],[463,200],[464,200],[465,200],[899,200],[900,200]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[465,200],[470,200],[475,200],[480,200],[485,200],[490,200],[495,200],[500,200],[505,200],[510,200],[515,200],[520,200],[525,200],[530,200],[535,200],[540,200],[545,200],[550,200],[555,200],[560,200],[565,200],[570,200],[575,200],[580,200],[585,200],[590,200],[595,200]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[300,50],[300,80],[300,90],[300,95],[300,100],[300,105],[300,110],[700,50],[700,90],[700,95],[700,100],[700,105],[700,110]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[300,70],[300,72],[300,74],[300,76],[300,78],[300,80],[300,82],[700,70],[700,72],[700,74],[700,76],[700,78],[700,80]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[260,370],[260,375],[260,410],[260,414],[260,418],[478,370],[478,392],[478,414],[480,392],[482,392],[600,370],[600,375],[600,382],[600,384],[600,386],[898,377],[900,377]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[601,426],[601,430],[601,440],[601,445],[601,448],[601,450],[782,437],[783,437],[784,437],[785,437],[786,437],[787,437],[788,437]]}",
+      "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\",\"out\":\"shots/diff.png\"}"
+    ]
+  },
+  "measurement": {
+    "mockupSize": [
+      960,
+      640
+    ],
+    "renderSize": [
+      960,
+      640
+    ],
+    "changedPixels": 2816,
+    "totalPixels": 614400,
+    "ratio": 0.004583,
+    "sampledColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    }
+  },
+  "checks": {
+    "fixtureLegPassed": true,
+    "designRunSettled": true,
+    "agentOpenedTheMockup": true,
+    "agentMeasuredColours": true,
+    "agentScreenshottedItsPage": true,
+    "agentUsedTheDiff": true,
+    "agentWroteThePage": true,
+    "tokenOnlyInPixelsWasTranscribed": true,
+    "pageRendersAtMockupSize": true,
+    "independentDiffWithinThreshold": true,
+    "flatColoursSurvived": true,
+    "agentRatioAgreesWithBytes": true
+  },
+  "verdict": "PASS",
+  "failedChecks": [],
+  "designAnswer": "The diff shows only 0.454% changed pixels, all in the title text area (font rendering difference). This is well below the 0.03 threshold.\n\nTOKEN: VESPER-36\nRATIO: 0.00454\nFILES: index.html, style.css"
+}

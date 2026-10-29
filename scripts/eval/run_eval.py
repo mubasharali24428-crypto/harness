@@ -115,6 +115,25 @@ def worker_image() -> str:
     return "harness-engine-worker:vdev-local"
 
 
+def stack_model() -> str | None:
+    """The model the DEPLOYED stack declares (orchestrator DSH_MODEL).
+
+    The OpenRouter patch configures exactly one model per deployment, so an
+    engine-driven task can only run that model. A comparison across other ids
+    needs the stack redeployed per model — the runner says so instead of
+    spending on runs the engine will refuse.
+    """
+    names = docker_names("orchestrator")
+    if not names:
+        return None
+    proc = run(["docker", "inspect", names[0], "--format",
+                "{{range .Config.Env}}{{println .}}{{end}}"], timeout=30)
+    for line in (proc.stdout or "").splitlines():
+        if line.startswith("DSH_MODEL="):
+            return line.split("=", 1)[1].strip() or None
+    return None
+
+
 def git_revision() -> dict:
     head = run(["git", "rev-parse", "HEAD"], timeout=20).stdout.strip()
     branch = run(["git", "branch", "--show-current"], timeout=20).stdout.strip()
@@ -431,6 +450,25 @@ def main() -> int:
             ap.error("--compare-model needs at least two distinct models")
         if not selected:
             ap.error("--compare-model selected no tasks")
+        deployed_model = stack_model()
+        if deployed_model and set(models) != {deployed_model}:
+            # The engine's provider patch declares ONE model per deployment
+            # (DSH_MODEL). Requesting another id does not compare anything: the
+            # engine refuses it and every model would "fail" identically. Refuse
+            # before spending.
+            print(json.dumps({
+                "ok": False,
+                "error": "SINGLE_MODEL_STACK",
+                "stackModel": deployed_model,
+                "requested": models,
+                "hint": (
+                    "this deployment declares one engine model. Redeploy the "
+                    "orchestrator and worker-daemon with DSH_MODEL=<model> and run "
+                    "the task once per deployment; a single invocation cannot "
+                    "compare models the engine does not declare."
+                ),
+            }, indent=2))
+            return 2
         started = datetime.now(UTC)
         comparison: dict = {
             "kind": "comparison",

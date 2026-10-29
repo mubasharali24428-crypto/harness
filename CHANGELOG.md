@@ -44,8 +44,12 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   repeats one selection per model and writes
   `comparison-<stamp>.json` with the fixed pass rule "each task's own verifier,
   judged per model; never a relative win". Requires `--include-live`, two
-  distinct models and a non-empty selection. No live comparison was run (no
-  spend authorized).
+  distinct models and a non-empty selection, and now refuses with
+  `SINGLE_MODEL_STACK` (exit 2, no spend) when the deployed engine declares a
+  different model — the OpenRouter patch configures one model per deployment.
+  Real comparison `comparison-1793275608.json`: `deepseek/deepseek-chat` and
+  `openai/gpt-4o-mini` each FAILED `code-search-heldout` under their own
+  verifier (one never edited, one exhausted its call budget); no winner claimed.
 * **Cost/latency dashboard.** Six orchestrator gauges roll up the frozen
   `cost_ledger` (spend per team/month, resolved cap, cost and calls per
   team/model, p50/p95 latency on PostgreSQL), unattributable rows surface as
@@ -53,12 +57,21 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   runbook (`docs/runbooks/cost-latency-dashboard.md`). Verified live on
   `/metrics`; panels structurally checked, not visually verified.
 * **Fresh held-out design set.** `w14-design-heldout` + a 960x640 sidebar-led
-  mockup rendered by its own driver. The deterministic fixture leg passes and is
-  recorded (`w14-design-fixture-1793271851.json`); the live leg is owed (no
-  vision key, no spend authorization). Thresholds were pre-registered.
+  mockup rendered by its own driver. Fixture leg PASS
+  (`w14-design-fixture-1793271851.json`); live leg PASS on attempt 4/4
+  (`w14-design-1793274853.json`, ratio 0.004583, colours exact). Attempts 1–2
+  failed on deployment config (missing key, missing vision patch), attempt 3 was
+  a genuine model failure; thresholds and goal were never changed, and the
+  history is recorded. Fixed a drill bug where a blank reader line counted as a
+  written page.
 * **Regression fixed.** Routing must never abort a run: classification now reads
   `steps`/`filesLikelyToChange` defensively, so a partial plan object keeps the
   primary model (6 Section 4 tests had failed before this fix).
+* **Findings recorded, not fixed.** Engine model calls are absent from
+  `cost_ledger` (spend panels see router-metered spend only); four catalog ids
+  (`deepseek/deepseek-coder`, `qwen/qwen-2.5-coder-32b`, `qwen/qwen-2.5-72b`,
+  `mistral/codestral`) answer "not a valid model ID" on OpenRouter; one engine
+  model per deployment means comparisons need a multi-model patch or redeploys.
 
 ### Marathon 2.0 W13 — a runner control plane for customer-controlled hosts (2026-10-28)
 

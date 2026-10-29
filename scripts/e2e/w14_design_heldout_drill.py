@@ -193,7 +193,7 @@ def render_html(html: str, *, width: int, height: int, name: str = "design.html"
 
 def render_page(files: dict[str, str], *, width: int, height: int) -> bytes | None:
     """Render what the agent wrote, with the same Chromium the agent had."""
-    if not files.get("index.html"):
+    if not (files.get("index.html") or "").strip():
         return None
     work = Path(tempfile.mkdtemp(prefix="w14-page-"))
     try:
@@ -400,9 +400,12 @@ def live(timeout: float) -> int:
         trail = w11.tool_trail(run_id)
         evidence["designTrail"] = trail
 
+        # .strip(): workspace_text prints an empty line for a missing file, and
+        # "\n" is truthy — without this a page that was never written renders
+        # as blank and still counts as "the agent wrote a page".
         page_files = {
-            "index.html": w11.workspace_text(run_id, "index.html"),
-            "style.css": w11.workspace_text(run_id, "style.css"),
+            "index.html": w11.workspace_text(run_id, "index.html").strip(),
+            "style.css": w11.workspace_text(run_id, "style.css").strip(),
         }
         render = render_page(page_files, width=WIDTH, height=HEIGHT)
         measurement = measure(mockup, render) if render else {}

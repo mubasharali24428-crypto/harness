@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "kind": "w2-code-search",
+  "variant": "heldout",
+  "takenAt": "2026-10-29T11:59:27.337733+00:00",
+  "runId": "w2-code-search-heldout-1793275158",
+  "goal": "This repository has a wrong value: FLUSH_INTERVAL_SECONDS is set to 30 and\nmust be 45. Find the module that defines it and change only that value. Do not\nmodify any other file. Reply with exactly one line:\nFILE: <the path of the file you changed>\n",
+  "target": "pkg/telemetry/flush.py",
+  "model": "deepseek/deepseek-chat",
+  "modelPref": {
+    "requested": "deepseek/deepseek-chat",
+    "applied": "deepseek/deepseek-chat",
+    "status": 200
+  },
+  "seededFiles": 100,
+  "changedFiles": [],
+  "addedFiles": [],
+  "state": "blocked",
+  "states": [
+    "executing",
+    "blocked"
+  ],
+  "durationSeconds": 8.13,
+  "toolCalls": 0,
+  "toolsUsed": [],
+  "usage": null,
+  "usageNote": "null on this transport per the M07 finding; wall clock and tool calls are recorded instead",
+  "answer": "DeepSeek Harness run failed: DeepSeek Harness run failed: pi-ai provider \"deepseek-official\" has no configured model \"deepseek/deepseek-chat\"",
+  "checks": {
+    "runSettled": true,
+    "targetHasNewValue": false,
+    "onlyTargetChanged": false,
+    "answerNamesTheFile": false,
+    "noFilesDeleted": true,
+    "requestedModelApplied": true
+  },
+  "verdict": "FAIL",
+  "failedChecks": [
+    "targetHasNewValue",
+    "onlyTargetChanged",
+    "answerNamesTheFile"
+  ]
+}

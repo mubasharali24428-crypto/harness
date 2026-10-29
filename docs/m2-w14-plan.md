@@ -109,8 +109,24 @@ each selected task once per model with the same budget/fixture and writes one
 `docs/briefs/evidence/eval/comparison-<stamp>.json` with
 `passRule: "each task's own verifier, judged per model; never a relative win"`.
 It refuses to start without `--include-live`, with fewer than two distinct
-models, or with an empty selection. **No live comparison has been run** (no
-model spend was authorized), so the file is a capability, not a result.
+models, or with an empty selection. It also refuses when the deployed stack
+declares a different engine model (`SINGLE_MODEL_STACK`, exit 2, no spend): the
+OpenRouter patch configures exactly ONE model per deployment, so two ids in one
+invocation would both be refused by the engine and report two identical fake
+FAILs. That refusal was added after the first attempt did exactly that
+(`comparison-1793275156.json`, retained as the bad artifact that motivated it).
+
+A real comparison therefore ran as two single-model deployments of
+`code-search-heldout`; the assembled evidence is
+`comparison-1793275608.json`:
+
+| Model | Verdict | What happened |
+|---|---|---|
+| `deepseek/deepseek-chat` | FAIL | answered `FILE: ./pkg/telemetry/flush.py` after one grep call, never edited it (13.0 s) |
+| `openai/gpt-4o-mini` | FAIL | read files until the 21-call budget was exhausted, no edit (37.1 s) |
+
+`outcome: NO_MODEL_PASSED` — with zero passes there is no winner, and the pass
+rule never compares models relatively.
 
 **Cost/latency dashboard.** Six new gauges are refreshed by the orchestrator's
 existing DB poller from the frozen `cost_ledger`:
@@ -135,33 +151,59 @@ deterministic `--fixture-only` leg renders the mockup with the worker image's
 Chromium and proves size, seven exact flat colours, drawn title text, zero
 self-diff and a deterministic re-render — **PASS**
 (`docs/briefs/evidence/eval/w14-design-fixture-1793271851.json`). The live leg
-is **owed**: no vision provider key is configured and live spend was not
-authorized. Thresholds were pre-registered before any run of this task and are
-recorded below; they must not be relaxed after a result.
+**PASSES** (`w14-design-1793274853.json`): ratio 0.004583 (limit 0.03), all seven
+flat colours exact, token transcribed, and the agent's reported RATIO agreed
+with the bytes. Attempt history is disclosed: run 1 died on a 401 (worker had no
+provider key), run 2 spoke the wrong provider (daemon lacked the OpenRouter
+patch), run 3 was a genuine model failure (only `style.css` written, 47 image
+probes, budget exhausted, no page), run 4 passed. Thresholds and the goal text
+were never changed after the first run; repeated attempts are a purity caveat,
+recorded rather than hidden. The drill's "wrote the page" check was fixed before
+the final run — it had treated the reader's blank line as content.
 
 ```json
 {"ratioMax": 0.03, "colourTolerance": 12, "answerRatioTolerance": 0.005,
  "fixtureColourTolerance": 0}
 ```
 
+## Findings from the live legs
+
+* **One engine model per deployment.** `DSH_PATCH_FILES`' OpenRouter patch
+  declares `- id: process.env.DSH_MODEL`, so the engine rejects any other model
+  by name. Self-serve multi-model comparison needs a multi-model patch (an
+  allow-list widening) or per-model redeploys; W14 proves the latter.
+* **Four of twelve catalog ids are not valid on OpenRouter right now:**
+  `deepseek/deepseek-coder`, `qwen/qwen-2.5-coder-32b`, `qwen/qwen-2.5-72b` and
+  `mistral/codestral` answer `400 not a valid model ID`. `/estimate-cost` will
+  happily price them; the catalog (or an operator overlay) needs cleaning.
+  `deepseek/deepseek-chat` and `openai/gpt-4o-mini` are valid.
+* **Engine model calls are not metered into `cost_ledger`.** Two design runs
+  produced zero ledger rows, so the cost dashboard cannot see engine spend —
+  a real gap between "spend exists" and "spend is visible". Not fixed here;
+  recorded so the dashboard is not mistaken for a complete bill.
+* **A drill bug hid a failure.** `workspace_text` prints a blank line for a
+  missing file, and `"\n"` is truthy, so an unwritten page counted as written.
+  Fixed in the W14 drill with `.strip()`; `run 3`'s record keeps the original
+  (spuriously passing) check.
+
 ## Remaining
 
-1. Run the W14 live design leg once a vision key and spend authorization exist;
-   record PASS/FAIL as-is.
-2. Run a real `--compare-model` comparison on two priced models; until then
-   "reproducible comparisons" is implemented but has n=0 evidence.
-3. Open the dashboard in a live Grafana and confirm the panels render.
+1. Open the dashboard in a live Grafana and confirm the panels render — this
+   stack runs Prometheus only, so it stays structurally verified.
+2. Meter engine model calls (above) or state the dashboard's blind spot next to
+   every spend panel.
+3. Clean the four dead catalog ids, or replace them via `HARNESS_RATE_CARD_JSON`.
 
 ## Gate position
 
 | W14 exit claim | State |
 |---|---|
 | Corpus has fixed expected outputs and a real hold-out split, enforced | **pass** — `--check` in static gates (39 / 6 / 28) |
-| Reproducible model comparisons | **implemented, n=0** — runner + guards + pass rule; no live comparison run yet |
+| Reproducible model comparisons | **pass, n=1 per model** — runner + single-model-stack preflight; two redeployed runs on `code-search-heldout`, both FAIL under their own verifier, no winner claimed |
 | Routing requires opt-in | **pass** — default off, policy read from `team_settings`, live-verified GET/PUT/DELETE |
 | Failure never forces a downgrade | **pass (offline)** — resolver never crosses classes; missing class model keeps the primary; partial plans keep the primary |
 | Unpriced models stop billing zero silently | **pass (visibility + overlay)** — a named unpriced model reports `priced: false`, `pricingSource: "unpriced"`, cost 0; operators price it via `HARNESS_RATE_CARD_JSON`; malformed cards fail loudly |
-| Cost/latency dashboards | **pass (series + panels + tests), visually unverified** — six live gauges, eight panels, SQLite and PostgreSQL-gated tests; no live Grafana render |
+| Cost/latency dashboards | **pass (series + panels + tests), visually unverified** — six live gauges, eight panels, SQLite and PostgreSQL-gated tests; no Grafana in this stack. Engine-side model calls are not in the ledger (finding above), so spend panels show router-metered spend only |
 
 ## Limitations
 
@@ -170,7 +212,8 @@ recorded below; they must not be relaxed after a result.
 * `revisionCheck` covers three runtime files (engine, image gate, images plugin);
   it is not a whole-image digest.
 * Held-out count (6) is a floor, not a quality bar; two of the six are infra
-  boundary tasks, not model-judged, and the new design task's live leg is owed.
+  boundary tasks, not model-judged. The new design task passed on attempt 4/4;
+  the attempts are recorded, which is weaker evidence than a first-attempt pass.
 * No model call is made by any gate added here.
 * Routing is per-RUN, not per-step: the engine takes one model per session, so a
   mixed plan gets one class. The decision is recorded on the run but not yet

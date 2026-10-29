@@ -19,6 +19,7 @@ import base64
 import hashlib
 import importlib.util
 import json
+import os
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -26,6 +27,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 OUT = REPO / "docs" / "briefs" / "evidence" / "eval"
 SEEDED_FILES = 100
+MODELS = "http://127.0.0.1:8003"
 
 spec = importlib.util.spec_from_file_location(
     "w11", REPO / "scripts" / "e2e" / "w11_vision_drill.py")
@@ -154,6 +156,22 @@ def main() -> int:
     if status != 201:
         raise SystemExit(f"create project failed: {status} {project!r}")
 
+    # W14 comparison: the orchestrator runs each run under the team's durable
+    # primary model, not this process's DSH_MODEL. Setting the pref here is
+    # what makes `run_eval.py --compare-model` a real per-model comparison
+    # instead of two identical runs under the deployment default.
+    requested_model = os.environ.get("HARNESS_EVAL_MODEL", "").strip()
+    model_pref: dict = {"requested": requested_model or None, "applied": None}
+    if requested_model:
+        st, prefs = w11.tpl.http(
+            "PUT", f"{MODELS}/api/v1/models/prefs", token=login,
+            body={"primaryModel": requested_model, "reviewerModel": requested_model},
+        )
+        model_pref["status"] = st
+        if st != 200 or not isinstance(prefs, dict):
+            raise SystemExit(f"model pref update failed: {st} {prefs!r}")
+        model_pref["applied"] = prefs.get("primaryModel")
+
     seed_tree(run_id, files)
     started = time.monotonic()
     result = w11.run_goal(run_id, login, project["id"], goal, max_tool_calls=20,
@@ -178,6 +196,11 @@ def main() -> int:
         "onlyTargetChanged": changed == [target],
         "answerNamesTheFile": Path(target).name in answer,
         "noFilesDeleted": all(rel in after for rel in seeded),
+        # Only meaningful under --compare-model; without a requested model the
+        # deployment default applies and there is nothing to verify.
+        "requestedModelApplied": (
+            model_pref["applied"] == requested_model if requested_model else True
+        ),
     }
     evidence = {
         "schema": 1,
@@ -187,7 +210,8 @@ def main() -> int:
         "runId": run_id,
         "goal": goal,
         "target": target,
-        "model": "the stack DSH_MODEL",
+        "model": requested_model or "the stack DSH_MODEL",
+        "modelPref": model_pref,
         "seededFiles": len(seeded),
         "changedFiles": changed,
         "addedFiles": added,

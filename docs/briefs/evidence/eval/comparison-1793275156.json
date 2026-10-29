@@ -1,0 +1,86 @@
+{
+  "kind": "comparison",
+  "startedAt": "2026-10-29T11:59:16.057500+00:00",
+  "git": {
+    "head": "a041a3454bb8f8299c47d2371f0fc4c5dff63d7c",
+    "branch": "w1-engine-tools",
+    "dirty": true
+  },
+  "revisionCheck": {
+    "orchestratorContainer": "harness-orchestrator-1",
+    "workerImage": "harness-engine-worker:vdev-local",
+    "backend": {
+      "engine.py": {
+        "host": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+        "deployed": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+        "match": true
+      },
+      "image_gate.py": {
+        "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+        "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+        "match": true
+      },
+      "harness-images.js": {
+        "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+        "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+        "match": true
+      }
+    },
+    "worker": {
+      "image_gate.py": {
+        "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+        "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+        "match": true
+      },
+      "engine.py": {
+        "host": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+        "deployed": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+        "match": true
+      },
+      "harness-images.js": {
+        "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+        "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+        "match": true
+      }
+    },
+    "verified": true
+  },
+  "models": [
+    "deepseek/deepseek-chat",
+    "qwen/qwen-2.5-coder-32b"
+  ],
+  "passRule": "each task's own verifier, judged per model; never a relative win",
+  "budget": {
+    "repeats": 1,
+    "timeoutScale": 1.0
+  },
+  "tasks": {
+    "code-search-heldout": {
+      "deepseek/deepseek-chat": {
+        "verdict": "FAIL",
+        "driverVerdict": "FAIL",
+        "durationSec": 8.91,
+        "exitCode": 1,
+        "attempts": 1,
+        "failedChecks": [
+          "targetHasNewValue",
+          "onlyTargetChanged",
+          "answerNamesTheFile"
+        ]
+      },
+      "qwen/qwen-2.5-coder-32b": {
+        "verdict": "FAIL",
+        "driverVerdict": "FAIL",
+        "durationSec": 8.76,
+        "exitCode": 1,
+        "attempts": 1,
+        "failedChecks": [
+          "targetHasNewValue",
+          "onlyTargetChanged",
+          "answerNamesTheFile"
+        ]
+      }
+    }
+  },
+  "finishedAt": "2026-10-29T11:59:36.114738+00:00"
+}
