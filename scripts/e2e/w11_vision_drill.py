@@ -144,11 +144,13 @@ gradients. Every rectangle edge is exactly where the colour changes.
 Do these steps IN ORDER and stay inside the call budget:
 1. Open mockup.png with the read tool and note what you see: the background, the
    panel, the coloured bars/blocks, and the exact text.
-2. Measure with the image tool, action "sample" (path "mockup.png", points
-   [[x,y], ...]). Up to 64 points fit in one call. To find an edge, sample a run
-   of points along one axis; the coordinate where the colour changes is the edge.
-   Find every rectangle's left, top, right and bottom, and the text colour, in at
-   most TWO sample calls total. Do not sample one pixel at a time.
+2. Call the image tool ONCE with action "palette" (path "mockup.png"). It returns
+   the dominant colours with each one's bounding box and share of the image —
+   that is the layout. Then, if and only if a rectangle's edge is ambiguous in
+   that output, make AT MOST ONE action "sample" call (path "mockup.png",
+   points [[x,y], ...], up to 64 points in the single call) to settle it.
+   Never probe an edge point by point: a palette plus one sample call is the
+   whole measuring step, and every extra call is budget you no longer have.
 3. Write index.html and style.css in the workspace root. The page must render at
    exactly {w}x{h} with no margins, no scrollbars, and the same background colour.
    Use position:absolute rectangles at the coordinates you measured and the exact
@@ -325,6 +327,8 @@ def tool_trail(run_id: str) -> dict:
                            if '"diff"' in str(c.get("arguments") or "")],
         "imageSampleCalls": [c for c in image_calls
                              if '"sample"' in str(c.get("arguments") or "")],
+        "imagePaletteCalls": [c for c in image_calls
+                              if '"palette"' in str(c.get("arguments") or "")],
         "screenshotCalls": [c for c in calls if c["tool"] == "browser"
                             and "screenshot" in str(c.get("arguments") or "")],
         "mockupReads": [c for c in calls if c["tool"] in ("read", "read_image")
@@ -363,6 +367,13 @@ def probe_gate() -> dict:
                               "workspace": "/work", "tolerance": 16})
         escape = json.dumps({"action": "diff", "before": "../../etc/passwd",
                              "after": "after.png", "workspace": "/work"})
+        # palette: the after image is one flat field plus a known 10x10 patch
+        palette = json.dumps({"action": "palette", "path": "after.png",
+                              "workspace": "/work", "maxColors": 4})
+        palette_escape = json.dumps({"action": "palette", "path": "../../etc/passwd",
+                                      "workspace": "/work"})
+        palette_cap = json.dumps({"action": "palette", "path": "after.png",
+                                  "workspace": "/work", "maxColors": 99})
         cid = tpl.sh("docker", "run", "-d", "--network", "none", "--name",
                      f"w11-probe-{int(time.time())}", "--user", "10001:10001",
                      "-v", f"{work}:/work", "--entrypoint", "sleep", WORKER_IMAGE,
@@ -374,6 +385,15 @@ def probe_gate() -> dict:
         refused = tpl.sh("docker", "exec", cid, "sh", "-lc",
                          f"printf '%s' {w10._sh_quote(escape)} | {gate_argv}",
                          check=False)
+        palette_out = tpl.sh("docker", "exec", cid, "sh", "-lc",
+                             f"printf '%s' {w10._sh_quote(palette)} | {gate_argv}",
+                             check=False)
+        palette_escape_out = tpl.sh("docker", "exec", cid, "sh", "-lc",
+                                    f"printf '%s' {w10._sh_quote(palette_escape)} | {gate_argv}",
+                                    check=False)
+        palette_cap_out = tpl.sh("docker", "exec", cid, "sh", "-lc",
+                                 f"printf '%s' {w10._sh_quote(palette_cap)} | {gate_argv}",
+                                 check=False)
         routes = tpl.sh("docker", "exec", cid, "sh", "-lc", "ip route 2>/dev/null || true",
                         check=False)
 
@@ -391,6 +411,9 @@ def probe_gate() -> dict:
             "network": "none",
             "diff": diff_out,
             "escape": escape_out,
+            "palette": last_json(palette_out),
+            "paletteEscape": last_json(palette_escape_out),
+            "paletteCap": last_json(palette_cap_out),
             "routes": (routes.stdout or "").strip(),
         }
     finally:
@@ -566,10 +589,24 @@ def main() -> int:
     triage_answer = triage["answer"]
     trail = evidence["designTrail"]
     probe_diff = probe.get("diff") or {}
+    # How much the model probed instead of reading the palette once. Reported,
+    # not gated: this is a model-quality measurement, and the gate for the
+    # palette itself is the deterministic leg below.
+    colour_calls = len(trail["imageSampleCalls"]) + len(trail["imagePaletteCalls"])
+    evidence["designLoop"] = {
+        "paletteCalls": len(trail["imagePaletteCalls"]),
+        "sampleCalls": len(trail["imageSampleCalls"]),
+        "colourCallsTotal": colour_calls,
+        "goalAskedFor": "one palette call, then at most one sample call",
+        "withinBound": colour_calls <= 3,
+    }
     checks = {
         "designRunSettled": design["state"] in w10.SETTLED,
         "agentOpenedTheMockup": len(trail["mockupReads"]) >= 1,
-        "agentSampledColours": len(trail["imageSampleCalls"]) >= 1,
+        # colour measurement happened through the image tool — palette or
+        # sample; what matters is that it was bounded, not which action
+        "agentSampledColours": (len(trail["imageSampleCalls"])
+                                + len(trail["imagePaletteCalls"])) >= 1,
         "agentScreenshottedItsPage": len(trail["screenshotCalls"]) >= 1,
         "agentUsedTheDiff": len(trail["imageDiffCalls"]) >= 1,
         "agentWroteThePage": len(trail["writes"]) >= 1 and bool(page_files["index.html"]),
@@ -594,6 +631,20 @@ def main() -> int:
         ),
         "gateRefusesPathsOutsideTheWorkspace": "escapes the workspace" in str(
             (probe.get("escape") or {}).get("denied", "")),
+        # the palette action, proven without a model: one call must return the
+        # known 10x10 patch as its own colour with its exact box
+        "gateReportsThePalette": (
+            (probe.get("palette") or {}).get("ok") is True
+            and any(c["hex"] == "#c82828" and c["pixels"] == 100
+                    and c["bbox"] == [20, 10, 10, 10]
+                    for c in (probe["palette"].get("colors") or []))
+            and any(c["hex"] == "#0a141e" and c["pixels"] == 4900
+                    for c in (probe["palette"].get("colors") or []))
+        ),
+        "gateRefusesPalettePathsOutsideTheWorkspace": "escapes the workspace" in str(
+            (probe.get("paletteEscape") or {}).get("denied", "")),
+        "gateCapsPaletteColours": "maxColors" in str(
+            (probe.get("paletteCap") or {}).get("denied", "")),
         "gateContainerHasNoNetwork": probe.get("network") == "none"
         and "default" not in probe.get("routes", ""),
         "triageRunSettled": triage["state"] in w10.SETTLED,

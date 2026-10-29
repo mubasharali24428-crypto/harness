@@ -290,6 +290,75 @@ class ProjectRule(Base, TimestampMixin):
     )
 
 
+class TeamSkill(Base, TimestampMixin):
+    """M2-W12: team skills — reviewed Markdown instruction bundles (migration 0066).
+
+    Text that advises prompt assembly, never capability: there is no column for
+    a command, script, hook, env, tool or permission. The digest pin
+    (pinned_sha256) covers the canonical content {name, version, description,
+    instructions, provenance_source, provenance_author, team_id}; the S4 loader
+    recomputes it before injecting and skips mismatches. draft is never
+    injected; reviewed+enabled+unexpired is injectable.
+    """
+
+    __tablename__ = "team_skills"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    team_id: Mapped[str] = mapped_column(
+        ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(32), nullable=False)
+    version: Mapped[str] = mapped_column(String(16), nullable=False)
+    description: Mapped[str] = mapped_column(String(500), nullable=False)
+    instructions: Mapped[str] = mapped_column(Text, nullable=False)
+    provenance_source: Mapped[str] = mapped_column(String(200), nullable=False)
+    provenance_author: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft")
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    pinned_sha256: Mapped[str | None] = mapped_column(String(64))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Authorship survives the account deletion as "unknown author" (SET NULL),
+    # so a removed user cannot delete the team's reviewed catalog with it.
+    created_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class ProjectMemory(Base, TimestampMixin):
+    """M2-W12: project memory — reviewed advisory notes per project (migration 0067).
+
+    Injected at plan-proposal time next to project rules, and explicitly NOT
+    instructions: the rendered block states memory cannot override rules, the
+    approved scope or any policy. draft notes are visible to the team but never
+    injected; only reviewed, unexpired notes load.
+    """
+
+    __tablename__ = "project_memory"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    memory_text: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="user")
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft")
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Authorship survives the account deletion as "unknown author" (SET NULL).
+    created_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
 class ModelConfig(Base, TimestampMixin):
     __tablename__ = "model_configs"
 

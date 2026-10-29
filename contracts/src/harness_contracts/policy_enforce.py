@@ -67,6 +67,17 @@ IDENTITY_RULES: tuple[tuple[str, str, str], ...] = (
     ("POST|DELETE", r"/api/v1/keys(/[^/]+)?", "steer"),
     ("POST", r"/api/v1/projects", "steer"),
     ("PUT|DELETE", r"/api/v1/projects/[^/]+/rules", "steer"),
+    # Marathon 2.0 W12: team skills (reviewed instruction bundles) and project
+    # memory. Reads are reads; authoring and toggling steer; review and removal
+    # are admin-only, so the gate itself refuses an engineer, matching the
+    # handlers' role checks (defense in depth, not a second opinion).
+    ("GET", r"/api/v1/teams/[^/]+/skills", "read"),
+    ("POST", r"/api/v1/teams/[^/]+/skills/[^/]+/review", "administer"),
+    ("DELETE", r"/api/v1/teams/[^/]+/skills/[^/]+", "administer"),
+    ("*", r"/api/v1/teams/[^/]+/skills(/.*)?", "steer"),
+    ("GET", r"/api/v1/projects/[^/]+/memory", "read"),
+    ("POST", r"/api/v1/projects/[^/]+/memory/[^/]+/review", "administer"),
+    ("*", r"/api/v1/projects/[^/]+/memory(/.*)?", "steer"),
     ("GET", r"/api/v1/teams/[^/]+/(members|invites|settings/.*)", "read"),
     ("*", r"/api/v1/teams/[^/]+/(members/.*|invites.*|seats/agent|settings/.*)",
      "administer"),

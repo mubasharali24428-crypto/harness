@@ -192,6 +192,16 @@ APPEND_ONLY_ACTIONS = frozenset(
         # Mission 12 G10: user-authored project rules lifecycle.
         "rules.saved",
         "rules.deleted",
+        # Marathon 2.0 W12: governed skill catalog lifecycle.
+        "skill.created",
+        "skill.reviewed",
+        "skill.enabled",
+        "skill.disabled",
+        "skill.removed",
+        # Marathon 2.0 W12: project-scoped memory lifecycle.
+        "memory.created",
+        "memory.reviewed",
+        "memory.deleted",
         # M15-G6b: per-team reviewer-threshold tuning lifecycle.
         "reviewer_thresholds.saved",
         "reviewer_thresholds.deleted",

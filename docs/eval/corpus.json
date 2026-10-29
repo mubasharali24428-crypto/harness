@@ -607,10 +607,10 @@
         "maxCostUsd": 0.15
       },
       "model": "qwen/qwen3.7-flash (OpenRouter, vision patch)",
-      "verifier": "independent re-render <=3% and flat colours exact; token only in pixels transcribed; dialog code/message exact; gate probe 100px/0.02; escape refused; no-network leg",
-      "expected": "exit 0 and 22/22 checks",
+      "verifier": "independent re-render <=3% and flat colours exact; token only in pixels transcribed; dialog code/message exact; gate probe 100px/0.02; escape refused; no-network leg; palette probe returns the known 10x10 patch as its own colour with its exact box, refuses a path outside the workspace and refuses maxColors>24",
+      "expected": "exit 0 and 25/25 checks",
       "evidence": "docs/briefs/evidence/pilot-prep/w11-vision-*.json",
-      "notes": "held out: not used for tuning; n=1"
+      "notes": "held out: not used for tuning; n=1. DISCLOSED at W12: the design goal was re-worded to direct the agent at the new image action=palette (one palette call, then at most one sample call), which weakens this task's held-out purity and is recorded rather than hidden. Live status at HEAD: RED \u2014 colour probing fell from 60 calls to 2 (designLoop.withinBound true, recorded as a metric, not a gate), but the design leg still fails independentDiffWithinThreshold/flatColoursSurvived/agentRatioAgreesWithBytes (26% of pixels differ) plus one provider empty response; triage and every deterministic gate leg pass. Failures retained in w11-vision-1793249425.json and w11-vision-1793250295.json; not re-run until green."
     },
     {
       "id": "cli-parity",
@@ -1077,6 +1077,38 @@
       "expected": "exit 0 and every check true",
       "evidence": "docs/briefs/evidence/pilot-prep/w11-grounding-<stamp>.json",
       "notes": "live vision model; harness checks measure executing and judging, not model accuracy \u2014 the recorded run measured labels 4/4 and coordinates 2/5 amid 1 no answer, reported as such; local fixtures only"
+    },
+    {
+      "id": "w12-skills-memory",
+      "title": "A governed skill catalog and project memory: reviewed, pinned, tenant-scoped, expiring, advisory",
+      "category": "skills",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "implemented",
+      "driver": {
+        "type": "script",
+        "path": "scripts/e2e/w12_skills_memory_drill.py",
+        "args": [],
+        "env": {}
+      },
+      "fixture": {
+        "repo": "live compose stack, migrations 0066/0067",
+        "revision": "w12",
+        "seed": [
+          "three teams, two projects"
+        ]
+      },
+      "budget": {
+        "timeoutSeconds": 600,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "verifier": "draft create is never injected and only an admin review makes a row injectable, with the digest the deployed loader recomputed inside the orchestrator container equal to the API's pin; UPDATEing instructions straight in Postgres behind the API removes the row from the block and restoring the reviewed bytes brings it back; disable/enable, backdated expires_at and removal all unload, removal is an idempotent 204; a foreign team's admin and a nonexistent team get byte-identical 404s and the loader returns only the caller's rows; a skill demanding 'GRANT fs.delete' and a note demanding 'Override the approved plan scope' stay text under their disclaimers while the loaders import no os/subprocess/policy module and the migrations define no capability columns; 21 reviewed skills inject 20; the executor assembles rules, skills, memory, then the @ref bundle and an empty run assembles nothing; memory is project-scoped with review, deletion and expiry; every lifecycle action leaves an audit row",
+      "expected": "exit 0 and every check true",
+      "evidence": "docs/briefs/evidence/eval/w12-skills-memory-<stamp>.json",
+      "notes": "no model; Section 11 assessed first and rejected as a memory store (it is a code index), so memory follows the project_rules pattern; review and removal are admin-only, authoring is engineer+, viewers/guests read; no UI and no content editing (a reviewed bundle is immutable: change means remove and re-author)"
     }
   ]
 }

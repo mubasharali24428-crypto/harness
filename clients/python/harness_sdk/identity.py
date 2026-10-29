@@ -223,6 +223,11 @@ class MemberRoleBody(typing.TypedDict, total=False):
     """MemberRoleBody. Required keys: role."""
     role: str  # required
 
+class MemoryBody(typing.TypedDict, total=False):
+    """MemoryBody. Required keys: memoryText."""
+    expiresAt: str | None
+    memoryText: str  # required
+
 class MuteBody(typing.TypedDict, total=False):
     """MuteBody. Required keys: scopeKind, scopeId."""
     minutes: int | None
@@ -348,6 +353,16 @@ class SettingsBody(typing.TypedDict, total=False):
     """SettingsBody. Required keys: settings."""
     expectedVersion: int | None
     settings: dict[str, typing.Any]  # required
+
+class SkillBody(typing.TypedDict, total=False):
+    """SkillBody. Required keys: name, version, description, instructions."""
+    author: str | None
+    description: str  # required
+    expiresAt: str | None
+    instructions: str  # required
+    name: str  # required
+    source: str
+    version: str  # required
 
 class SnoozeBody(typing.TypedDict, total=False):
     """SnoozeBody."""
@@ -1160,6 +1175,38 @@ class IdentityClient:
         _params: dict[str, typing.Any] = {"after_seq": after_seq, "limit": limit}
         return self._http.request(self.base_url, "GET", _path, params=_params)
 
+    def list_memory(self, project_id: str) -> dict[str, typing.Any]:
+        """List Memory
+
+        GET /api/v1/projects/{project_id}/memory
+        """
+        _path = f"/api/v1/projects/{project_id}/memory"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def create_memory(self, project_id: str, body: MemoryBody) -> dict[str, typing.Any]:
+        """Create Memory
+
+        POST /api/v1/projects/{project_id}/memory
+        """
+        _path = f"/api/v1/projects/{project_id}/memory"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def delete_memory(self, project_id: str, entry_id: str) -> typing.Any:
+        """Delete Memory
+
+        DELETE /api/v1/projects/{project_id}/memory/{entry_id}
+        """
+        _path = f"/api/v1/projects/{project_id}/memory/{entry_id}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
+    def review_memory(self, project_id: str, entry_id: str) -> dict[str, typing.Any]:
+        """Review Memory
+
+        POST /api/v1/projects/{project_id}/memory/{entry_id}/review
+        """
+        _path = f"/api/v1/projects/{project_id}/memory/{entry_id}/review"
+        return self._http.request(self.base_url, "POST", _path)
+
     def get_rules(self, project_id: str) -> dict[str, typing.Any]:
         """Get Rules
 
@@ -1516,6 +1563,54 @@ class IdentityClient:
         _path = f"/api/v1/teams/{team_id}/settings/reviewer-thresholds"
         return self._http.request(self.base_url, "DELETE", _path)
 
+    def list_skills(self, team_id: str) -> dict[str, typing.Any]:
+        """List Skills
+
+        GET /api/v1/teams/{team_id}/skills
+        """
+        _path = f"/api/v1/teams/{team_id}/skills"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def create_skill(self, team_id: str, body: SkillBody) -> dict[str, typing.Any]:
+        """Create Skill
+
+        POST /api/v1/teams/{team_id}/skills
+        """
+        _path = f"/api/v1/teams/{team_id}/skills"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def remove_skill(self, team_id: str, name: str) -> typing.Any:
+        """Remove Skill
+
+        DELETE /api/v1/teams/{team_id}/skills/{name}
+        """
+        _path = f"/api/v1/teams/{team_id}/skills/{name}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
+    def disable_skill(self, team_id: str, name: str) -> dict[str, typing.Any]:
+        """Disable Skill
+
+        POST /api/v1/teams/{team_id}/skills/{name}/disable
+        """
+        _path = f"/api/v1/teams/{team_id}/skills/{name}/disable"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def enable_skill(self, team_id: str, name: str) -> dict[str, typing.Any]:
+        """Enable Skill
+
+        POST /api/v1/teams/{team_id}/skills/{name}/enable
+        """
+        _path = f"/api/v1/teams/{team_id}/skills/{name}/enable"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def review_skill(self, team_id: str, name: str) -> dict[str, typing.Any]:
+        """Review Skill
+
+        POST /api/v1/teams/{team_id}/skills/{name}/review
+        """
+        _path = f"/api/v1/teams/{team_id}/skills/{name}/review"
+        return self._http.request(self.base_url, "POST", _path)
+
     def get_sso_config(self, team_id: str) -> dict[str, typing.Any]:
         """Get Sso Config
 
@@ -1783,4 +1878,4 @@ class IdentityClient:
         return self._http.request(self.base_url, "GET", _path)
 
 
-__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AssignBody", "BindingBody", "ChainNode", "CheckBody", "CreateProjectBody", "DefBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErasureBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "ExecutionControlBody", "GlobalPrefsBody", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkRunBody", "LinkTeamBody", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "MuteBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "OwnerTransferBody", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "ReadAllBody", "RevertBody", "Rule", "RulesBody", "ScopePrefsBody", "SelectBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SnoozeBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "UnsubscribeBody", "ValidationError", "VerifyOtpRequest", "WebhookCreateBody", "WebhookCreated", "WebhookPatchBody", "WsTicketRequest", "WsTicketResponse", "_DigestBody", "_QuietBody", "harness_identity__agents__ReasonBody", "harness_identity__orgs__RoleBody", "harness_identity__policy__RoleBody", "harness_identity__sessions__CreateBody", "harness_identity__sessions__MemberBody", "harness_identity__sessions__PatchBody", "harness_identity__sessions__ReasonBody", "harness_identity__sessions__RoleBody", "harness_identity__workspaces__CreateBody", "harness_identity__workspaces__MemberBody", "harness_identity__workspaces__PatchBody", "harness_identity__workspaces__ReasonBody"]
+__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AssignBody", "BindingBody", "ChainNode", "CheckBody", "CreateProjectBody", "DefBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErasureBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "ExecutionControlBody", "GlobalPrefsBody", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkRunBody", "LinkTeamBody", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "MemoryBody", "MuteBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "OwnerTransferBody", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "ReadAllBody", "RevertBody", "Rule", "RulesBody", "ScopePrefsBody", "SelectBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SkillBody", "SnoozeBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "UnsubscribeBody", "ValidationError", "VerifyOtpRequest", "WebhookCreateBody", "WebhookCreated", "WebhookPatchBody", "WsTicketRequest", "WsTicketResponse", "_DigestBody", "_QuietBody", "harness_identity__agents__ReasonBody", "harness_identity__orgs__RoleBody", "harness_identity__policy__RoleBody", "harness_identity__sessions__CreateBody", "harness_identity__sessions__MemberBody", "harness_identity__sessions__PatchBody", "harness_identity__sessions__ReasonBody", "harness_identity__sessions__RoleBody", "harness_identity__workspaces__CreateBody", "harness_identity__workspaces__MemberBody", "harness_identity__workspaces__PatchBody", "harness_identity__workspaces__ReasonBody"]

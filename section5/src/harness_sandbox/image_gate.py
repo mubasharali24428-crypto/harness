@@ -23,8 +23,12 @@ Guarantees, each testable without a browser:
 
 Actions:
 
-* ``diff``   — ``{before, after, out?, tolerance?}`` → counts, box, diff PNG.
-* ``sample`` — ``{path, points}`` → ``[{x, y, rgb, hex}]`` (max 64 points).
+* ``diff``    — ``{before, after, out?, tolerance?}`` → counts, box, diff PNG.
+* ``sample``  — ``{path, points}`` → ``[{x, y, rgb, hex}]`` (max 64 points).
+* ``palette`` — ``{path, maxColors?}`` → the dominant colours of one PNG with
+  their exact hex, pixel share and bounding box, in one call. ``sample``
+  answers single points, so learning a layout costs a call per region; this
+  answers "what colours, where" directly and is bounded by the same guards.
 
 One JSON line out; a policy refusal is ``{"denied": reason}``, bad data is
 ``{"error": reason}``.
@@ -42,8 +46,13 @@ from pathlib import Path
 MAX_BYTES_DEFAULT = 10 * 1024 * 1024  # the per-artifact cap; a diff image is an artifact
 MAX_PIXELS_DEFAULT = 4_000_000  # 800x600 is 480k; 4M stays well under a few seconds
 MAX_POINTS = 64
+MAX_COLORS_DEFAULT = 12
+MAX_COLORS_CEILING = 24
+#: colours are bucketed on 3 bits per channel (a 5x5x5 cube): antialiasing
+#: noise collapses, distinct flat colours do not.
+_COLOR_SHIFT = 3
 DEFAULT_TOLERANCE = 16
-_ACTIONS = ("diff", "sample")
+_ACTIONS = ("diff", "sample", "palette")
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 
@@ -333,6 +342,78 @@ def _sample(request: dict) -> dict:
     return {"ok": True, "path": rel, "width": width, "height": height, "points": out}
 
 
+def _palette(request: dict) -> dict:
+    """What colours a page is built from, and where — in one bounded call.
+
+    ``sample`` answers exact points, so learning a layout costs one call per
+    region; that is the shape that sent a W11 design run into 60 pixel probes.
+    This answers the same question directly: the image is bucketed on 3 bits
+    per channel (flat colours stay distinct, antialiasing noise collapses), and
+    the largest buckets come back with their exact dominant colour, pixel
+    count, share and bounding box.
+
+    Deterministic (no random tie-breaking: buckets sort by count then by
+    colour), capped by the same byte/pixel guards, and it never leaves the
+    workspace.
+    """
+    workspace = str(request.get("workspace") or "")
+    max_bytes = int(request.get("maxBytes") or MAX_BYTES_DEFAULT)
+    max_pixels = min(int(request.get("maxPixels") or MAX_PIXELS_DEFAULT), MAX_PIXELS_DEFAULT)
+    path = resolve_path(workspace, str(request.get("path") or ""),
+                        field="path", must_exist=True)
+    rel = os.path.relpath(path, os.path.realpath(workspace))
+    width, height, bpp, rows = load_png(path, rel, max_bytes, max_pixels)
+    try:
+        limit = int(request.get("maxColors") or MAX_COLORS_DEFAULT)
+    except (TypeError, ValueError):
+        raise Refused("maxColors must be an integer") from None
+    if not 1 <= limit <= MAX_COLORS_CEILING:
+        raise Refused(f"maxColors must be 1..{MAX_COLORS_CEILING}")
+
+    buckets: dict[tuple[int, int, int], dict] = {}
+    total = width * height
+    for y, row in enumerate(rows):
+        for x in range(width):
+            i = x * bpp
+            rgb = (row[i], row[i + 1], row[i + 2])
+            key = (rgb[0] >> _COLOR_SHIFT, rgb[1] >> _COLOR_SHIFT, rgb[2] >> _COLOR_SHIFT)
+            bucket = buckets.get(key)
+            if bucket is None:
+                buckets[key] = {"count": 1, "rgb": rgb, "sum": [int(v) for v in rgb],
+                                "x0": x, "x1": x, "y0": y, "y1": y}
+                continue
+            bucket["count"] += 1
+            bucket["sum"] = [s + v for s, v in zip(bucket["sum"], rgb, strict=True)]
+            if x < bucket["x0"]:
+                bucket["x0"] = x
+            if x > bucket["x1"]:
+                bucket["x1"] = x
+            if y < bucket["y0"]:
+                bucket["y0"] = y
+            if y > bucket["y1"]:
+                bucket["y1"] = y
+
+    ordered = sorted(buckets.values(), key=lambda b: (-b["count"], b["rgb"]))[:limit]
+    colors = []
+    for bucket in ordered:
+        rgb = bucket["rgb"]
+        colors.append({
+            "rgb": list(rgb),
+            "hex": "#{:02x}{:02x}{:02x}".format(*rgb),
+            "meanRgb": [round(v / bucket["count"]) for v in bucket["sum"]],
+            "pixels": bucket["count"],
+            "share": round(bucket["count"] / total, 6),
+            "bbox": [bucket["x0"], bucket["y0"],
+                     bucket["x1"] - bucket["x0"] + 1, bucket["y1"] - bucket["y0"] + 1],
+        })
+    return {
+        "ok": True, "path": rel, "width": width, "height": height,
+        "pixels": total, "distinctBuckets": len(buckets), "colors": colors,
+        "hint": "one call answers the layout's colours; sample exact points "
+                "only to disambiguate",
+    }
+
+
 def render(request: dict) -> dict:
     """A policy refusal is a result, not an exception: callers always get one dict."""
     try:
@@ -341,7 +422,11 @@ def render(request: dict) -> dict:
             raise Refused(f"action must be one of {_ACTIONS}")
         if not str(request.get("workspace") or "").strip():
             raise Refused("workspace is required")
-        return _diff(request) if action == "diff" else _sample(request)
+        if action == "diff":
+            return _diff(request)
+        if action == "palette":
+            return _palette(request)
+        return _sample(request)
     except Refused as exc:
         return {"denied": str(exc)}
     except (KeyError, TypeError, struct.error) as exc:

@@ -17,7 +17,14 @@ from harness_contracts.signatures import Orchestrator
 from harness_contracts.timeutil import db_now
 from sqlalchemy import text
 
-from harness_orchestrator import collab, domain_metrics, run_checkpoints, staging
+from harness_orchestrator import (
+    collab,
+    domain_metrics,
+    memory_loader,
+    run_checkpoints,
+    skills_loader,
+    staging,
+)
 from harness_orchestrator.budget import (
     BudgetStatus,
     check_budget,
@@ -399,10 +406,11 @@ class OrchestratorService(Orchestrator):
 
     @staticmethod
     def _executor_context_prefix(run_data: dict[str, Any]) -> str:
-        """Project rules, then the curated @ref bundle, then whatever calls it.
+        """Project rules, reviewed skills, project memory, then the curated
+        @ref bundle, then whatever calls it.
 
-        Both blocks are assembled while planning and were stored "for engine
-        prompt assembly" that never happened: the executor received
+        All blocks are assembled while planning and were stored "for engine
+        prompt assembly" that never happened for rules: the executor received
         ``plan.goal + guidance`` and nothing else. They stay advisory — an absent
         or blank block contributes nothing rather than an empty heading, so a run
         with neither produces exactly the prompt it always did.
@@ -411,6 +419,12 @@ class OrchestratorService(Orchestrator):
         rules = str(run_data.get("rules_prompt_block") or "").strip()
         if rules:
             parts.append(rules)
+        skills = str(run_data.get("skills_prompt_block") or "").strip()
+        if skills:
+            parts.append(skills)
+        memory = str(run_data.get("memory_prompt_block") or "").strip()
+        if memory:
+            parts.append(memory)
         bundle = run_data.get("context_bundle")
         rendered = str(bundle.get("rendered") or "").strip() if isinstance(bundle, dict) else ""
         if rendered:
@@ -952,6 +966,18 @@ class OrchestratorService(Orchestrator):
         # and future engine calls can carry it into system context.
         rules_text = await load_project_rules(self.session_factory, run_data.get("projectId"))
         run_data["rules_prompt_block"] = build_rules_block(rules_text)
+        # M2-W12: reviewed team skills and project memory join project rules
+        # as advisory prompt context. Loaded best-effort, never blocks
+        # planning; stored on the run for the executor prompt assembly.
+        team_id = await skills_loader.project_team_id(
+            self.session_factory, run_data.get("projectId")
+        )
+        skills = await skills_loader.load_team_skills(self.session_factory, team_id)
+        run_data["skills_prompt_block"] = skills_loader.build_skills_block(skills)
+        memory = await memory_loader.load_project_memory(
+            self.session_factory, run_data.get("projectId")
+        )
+        run_data["memory_prompt_block"] = memory_loader.build_memory_block(memory)
         # M21-X2: @refs in the brief text resolve (advisory, best-effort) into
         # a bounded context bundle that AUGMENTS the pasted goal. Resolution
         # is OFF unless CONTEXT_SEARCH_BASE_URL is set; any failure degrades

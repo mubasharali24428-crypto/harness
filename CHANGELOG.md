@@ -10,6 +10,58 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Marathon 2.0 W12 — a governed skill catalog and project-scoped memory (2026-10-28)
+
+* **Migrations 0066/0067 (Section 1).** `team_skills` (one row per
+  `(team_id, name)`: provenance source/author, `draft|reviewed|disabled`,
+  `enabled`, `reviewed_by/at`, `pinned_sha256`, `expires_at`) and
+  `project_memory` (per project, `source user|run`, `draft|reviewed`, expiry).
+  No column exists for a command, script, hook, env, tool or permission.
+  `created_by`/`reviewed_by` are nullable `SET NULL`, so deleting an account
+  cannot delete a team's reviewed catalog.
+* **HTTP surface + audit.** `skills_api.py`, `memory_api.py` on the
+  `rules_api.py` conventions: create is always a draft, only admins review
+  (pinning the digest) or remove, engineers steer enable/disable, viewers and
+  guests read; foreign team/project and unknown ids answer the same 404; the
+  caps are UTF-8 byte caps answering `413 SKILL_TOO_LARGE` /
+  `MEMORY_TOO_LARGE`. Eight allowlisted audit actions added, and all ten new
+  routes classified in `IDENTITY_RULES` (the route gate fails otherwise). SDK
+  client and `identity.openapi.json` regenerated.
+* **Injection (Section 4).** `skills_loader.py` / `memory_loader.py` read only
+  reviewed, enabled, unexpired rows whose **recomputed digest equals the pin** —
+  the canonical JSON is byte-identical across the service boundary (golden
+  vector in both suites). Both are failure-tolerant and bounded (20 rows,
+  64 KiB / 32 KiB) and render as explicitly advisory. `propose_plan` loads them
+  and `_executor_context_prefix` now assembles **rules → skills → memory →
+  @ref bundle**. Neither loader imports os/sys/subprocess/shutil/socket/signal
+  or any policy module.
+* **Live drill `scripts/e2e/w12_skills_memory_drill.py`: 44/44 PASS** on the
+  compose stack with real Postgres, no model call. Each step is judged by the
+  **deployed loader inside the orchestrator container**: a reviewed skill
+  injects and its pin crosses the boundary; a row tampered with straight in SQL
+  vanishes from the block and returns when the reviewed bytes are restored;
+  disable/expiry/removal all unload; team B's admin gets identical 404s for team
+  A and for a nonexistent team; a skill demanding `GRANT fs.delete` and a note
+  demanding `Override the approved plan scope` stay text under their
+  disclaimers; 21 reviewed skills inject 20.
+* **Section 11 assessed before building memory:** it is a code index (chunks +
+  pgvector), not a tenant lifecycle store, so memory follows `project_rules`
+  instead. Assessment in `docs/m2-w12-plan.md`.
+* **Tests:** Section 1 +8 (API, authz, no-oracle, caps, audit), Section 4 +20
+  (loaders, golden digest, propose_plan injection, advisory boundary). Full
+  Section 1 suite **999 passed, 54 skipped**, including the route-classification
+  and FK-deletion gates; Section 4 **1609 passed**; `make static-gates` passes.
+* **W11 design-to-code carry-over: the loop is fixed, the leg stays OPEN.**
+  `image_gate.py` gained **`palette`** — one bounded call returning dominant
+  colours with hex, pixel share and bbox (same workspace/byte/pixel guards,
+  `maxColors` 1..24) — exposed through `harness-images.js`, and the design task
+  now asks for one palette call plus at most one sample call. Measured colour
+  probing fell from **60 calls to 2**; the run still fails on reproduction
+  fidelity (26 % of pixels differ) and a provider empty response, so
+  `w11-vision` remains a red baseline with its failures retained rather than a
+  re-run until green. New deterministic palette legs (exact patch, escape
+  refusal, cap refusal) pass, and `test_image_gate.py` is 25.
+
 ### Marathon 2.0 W11 — a model's click is executed and judged (2026-10-28)
 
 * **`browser_session.box`** (new action): AX role+name → `DOM.getBoxModel` →

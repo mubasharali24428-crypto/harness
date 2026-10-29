@@ -638,3 +638,196 @@ async def emit_audit_exported(
         target_id=team_id,
         detail=detail,
     )
+
+
+async def emit_skill_created(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """skill.created — M2-W12: a team skill was authored (always as draft)."""
+    return await _emit(
+        session,
+        "skill.created",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_skill",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_skill_reviewed(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """skill.reviewed — M2-W12: the current content digest was pinned and the
+    skill became injectable (status reviewed, enabled)."""
+    return await _emit(
+        session,
+        "skill.reviewed",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_skill",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_skill_enabled(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """skill.enabled — M2-W12: a reviewed, disabled skill was switched back on."""
+    return await _emit(
+        session,
+        "skill.enabled",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_skill",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_skill_disabled(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """skill.disabled — M2-W12: a reviewed skill was switched off (stays reviewed)."""
+    return await _emit(
+        session,
+        "skill.disabled",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_skill",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_skill_removed(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """skill.removed — M2-W12: a skill was deleted (emitted only when it existed)."""
+    return await _emit(
+        session,
+        "skill.removed",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_skill",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_memory_created(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """memory.created — M2-W12: a project memory note was authored (as draft)."""
+    return await _emit(
+        session,
+        "memory.created",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="project_memory",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_memory_reviewed(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """memory.reviewed — M2-W12: a note became injectable (status reviewed)."""
+    return await _emit(
+        session,
+        "memory.reviewed",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="project_memory",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_memory_deleted(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """memory.deleted — M2-W12: a note was deleted (emitted only when it existed)."""
+    return await _emit(
+        session,
+        "memory.deleted",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="project_memory",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )

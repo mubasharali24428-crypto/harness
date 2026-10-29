@@ -1087,6 +1087,33 @@
     "title": "MemberRoleBody",
     "type": "object"
    },
+   "MemoryBody": {
+    "properties": {
+     "expiresAt": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expiresat"
+     },
+     "memoryText": {
+      "maxLength": 65536,
+      "minLength": 1,
+      "title": "Memorytext",
+      "type": "string"
+     }
+    },
+    "required": [
+     "memoryText"
+    ],
+    "title": "MemoryBody",
+    "type": "object"
+   },
    "MuteBody": {
     "additionalProperties": false,
     "properties": {
@@ -1860,6 +1887,72 @@
      "settings"
     ],
     "title": "SettingsBody",
+    "type": "object"
+   },
+   "SkillBody": {
+    "properties": {
+     "author": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Author"
+     },
+     "description": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+     },
+     "expiresAt": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expiresat"
+     },
+     "instructions": {
+      "maxLength": 65536,
+      "minLength": 1,
+      "title": "Instructions",
+      "type": "string"
+     },
+     "name": {
+      "maxLength": 32,
+      "minLength": 2,
+      "title": "Name",
+      "type": "string"
+     },
+     "source": {
+      "default": "team-authored",
+      "maxLength": 200,
+      "title": "Source",
+      "type": "string"
+     },
+     "version": {
+      "maxLength": 16,
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name",
+     "version",
+     "description",
+     "instructions"
+    ],
+    "title": "SkillBody",
     "type": "object"
    },
    "SnoozeBody": {
@@ -6347,6 +6440,191 @@
     "summary": "Replay Events"
    }
   },
+  "/api/v1/projects/{project_id}/memory": {
+   "get": {
+    "description": "Every note of an owned project, drafts included.",
+    "operationId": "list_memory_api_v1_projects__project_id__memory_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Memory Api V1 Projects  Project Id  Memory Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Memory"
+   },
+   "post": {
+    "description": "Author a draft note. A draft is visible to the team but never injected.",
+    "operationId": "create_memory_api_v1_projects__project_id__memory_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/MemoryBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Memory Api V1 Projects  Project Id  Memory Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Memory"
+   }
+  },
+  "/api/v1/projects/{project_id}/memory/{entry_id}": {
+   "delete": {
+    "description": "Remove a note. Idempotent: deleting what is absent is 204.",
+    "operationId": "delete_memory_api_v1_projects__project_id__memory__entry_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "entry_id",
+      "required": true,
+      "schema": {
+       "title": "Entry Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Memory"
+   }
+  },
+  "/api/v1/projects/{project_id}/memory/{entry_id}/review": {
+   "post": {
+    "description": "Make a note injectable. The text is unchanged; the status is the act.",
+    "operationId": "review_memory_api_v1_projects__project_id__memory__entry_id__review_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "entry_id",
+      "required": true,
+      "schema": {
+       "title": "Entry Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review Memory Api V1 Projects  Project Id  Memory  Entry Id  Review Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Memory"
+   }
+  },
   "/api/v1/projects/{project_id}/rules": {
    "delete": {
     "description": "Remove the rules document entirely (\"no rules configured\"). Idempotent.",
@@ -8484,6 +8762,293 @@
      }
     },
     "summary": "Put Reviewer Thresholds"
+   }
+  },
+  "/api/v1/teams/{team_id}/skills": {
+   "get": {
+    "description": "Every skill of the caller's own team, including drafts and disabled.",
+    "operationId": "list_skills_api_v1_teams__team_id__skills_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Skills Api V1 Teams  Team Id  Skills Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Skills"
+   },
+   "post": {
+    "description": "Author a draft. A draft is visible to the team but never injectable.",
+    "operationId": "create_skill_api_v1_teams__team_id__skills_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SkillBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Skill Api V1 Teams  Team Id  Skills Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Skill"
+   }
+  },
+  "/api/v1/teams/{team_id}/skills/{name}": {
+   "delete": {
+    "description": "Delete a skill entirely. Idempotent: removing what is absent is 204.",
+    "operationId": "remove_skill_api_v1_teams__team_id__skills__name__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "name",
+      "required": true,
+      "schema": {
+       "title": "Name",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Remove Skill"
+   }
+  },
+  "/api/v1/teams/{team_id}/skills/{name}/disable": {
+   "post": {
+    "description": "Switch a reviewed skill off. It stays reviewed; the pin is untouched.",
+    "operationId": "disable_skill_api_v1_teams__team_id__skills__name__disable_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "name",
+      "required": true,
+      "schema": {
+       "title": "Name",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Disable Skill Api V1 Teams  Team Id  Skills  Name  Disable Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Disable Skill"
+   }
+  },
+  "/api/v1/teams/{team_id}/skills/{name}/enable": {
+   "post": {
+    "description": "Switch a reviewed skill back on. Non-reviewed skills cannot be enabled.",
+    "operationId": "enable_skill_api_v1_teams__team_id__skills__name__enable_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "name",
+      "required": true,
+      "schema": {
+       "title": "Name",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Enable Skill Api V1 Teams  Team Id  Skills  Name  Enable Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Enable Skill"
+   }
+  },
+  "/api/v1/teams/{team_id}/skills/{name}/review": {
+   "post": {
+    "description": "Pin the digest of the current content and make the skill injectable.",
+    "operationId": "review_skill_api_v1_teams__team_id__skills__name__review_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "name",
+      "required": true,
+      "schema": {
+       "title": "Name",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review Skill Api V1 Teams  Team Id  Skills  Name  Review Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Skill"
    }
   },
   "/api/v1/teams/{team_id}/sso/config": {

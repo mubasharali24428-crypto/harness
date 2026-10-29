@@ -208,6 +208,89 @@ def test_an_unknown_action_is_refused(tmp_path):
     assert "denied" in out and "action" in out["denied"]
 
 
+# ------------------------------------------------------------------ palette
+
+
+def _layout_png(gate):
+    """A mockup-shaped image: a canvas, a bar, a card and two swatches."""
+    rows = []
+    for y in range(50):
+        row = bytearray()
+        for x in range(50):
+            if y < 5:
+                c = (79, 124, 255)          # top bar
+            elif 10 <= y < 20 and x < 20:
+                c = (23, 26, 33)            # card
+            elif 25 <= y < 30 and 25 <= x < 30:
+                c = (62, 207, 142)          # green swatch
+            elif 25 <= y < 30 and 35 <= x < 40:
+                c = (242, 184, 75)          # amber swatch
+            else:
+                c = (10, 20, 30)            # canvas
+            row += bytes(c)
+        rows.append(row)
+    return gate.encode_png(50, 50, rows)
+
+
+def test_palette_reports_dominant_colours_with_their_boxes(tmp_path):
+    gate = _gate()
+    (tmp_path / "mockup.png").write_bytes(_layout_png(gate))
+    out = gate.render({"action": "palette", "path": "mockup.png", "workspace": str(tmp_path)})
+    assert out["ok"] is True, out
+    assert out["width"] == 50 and out["height"] == 50
+    assert out["pixels"] == 2500
+    hexes = {c["hex"] for c in out["colors"]}
+    assert {"#0a141e", "#4f7cff", "#171a21", "#3ecf8e", "#f2b84b"} <= hexes
+    canvas = next(c for c in out["colors"] if c["hex"] == "#0a141e")
+    assert canvas["pixels"] > 100 and canvas["share"] > 0.4
+    swatch = next(c for c in out["colors"] if c["hex"] == "#3ecf8e")
+    assert swatch["bbox"] == [25, 25, 5, 5] and swatch["pixels"] == 25
+    # sorted by area, so the largest colour is first
+    counts = [c["pixels"] for c in out["colors"]]
+    assert counts == sorted(counts, reverse=True)
+
+
+def test_palette_collapses_antialiasing_noise_but_not_flat_colours(tmp_path):
+    gate = _gate()
+    rows = [bytearray(b"\x0a\x14\x1e" + b"\x0b\x14\x1e") for _ in range(20)]
+    (tmp_path / "noise.png").write_bytes(gate.encode_png(2, 20, rows))
+    out = gate.render({"action": "palette", "path": "noise.png", "workspace": str(tmp_path)})
+    assert out["distinctBuckets"] == 1  # 10 and 11 share a 3-bit bucket
+    assert out["colors"][0]["rgb"] == [10, 20, 30]  # the dominant, first-seen colour
+    # the bucket mean rounds to whichever neighbour dominated the half-pixel
+    assert out["colors"][0]["meanRgb"] in ([10, 20, 30], [11, 20, 30])
+
+
+def test_palette_is_deterministic(tmp_path):
+    gate = _gate()
+    (tmp_path / "mockup.png").write_bytes(_layout_png(gate))
+    req = {"action": "palette", "path": "mockup.png", "workspace": str(tmp_path)}
+    assert gate.render(req) == gate.render(req)
+
+
+def test_palette_honours_the_colour_cap(tmp_path):
+    gate = _gate()
+    (tmp_path / "mockup.png").write_bytes(_layout_png(gate))
+    out = gate.render({"action": "palette", "path": "mockup.png",
+                       "maxColors": 2, "workspace": str(tmp_path)})
+    assert len(out["colors"]) == 2
+    denied = gate.render({"action": "palette", "path": "mockup.png",
+                          "maxColors": 25, "workspace": str(tmp_path)})
+    assert "denied" in denied and "maxColors" in denied["denied"]
+
+
+def test_palette_stays_inside_the_workspace(tmp_path):
+    gate = _gate()
+    outside = tmp_path.parent / "outside.png"
+    outside.write_bytes(_png(gate, 4, 4))
+    out = gate.render({"action": "palette", "path": "../outside.png",
+                       "workspace": str(tmp_path)})
+    assert "denied" in out
+    missing = gate.render({"action": "palette", "path": "gone.png",
+                           "workspace": str(tmp_path)})
+    assert "denied" in missing and "gone.png" in missing["denied"]
+
+
 def test_an_unsupported_png_is_refused_by_name(tmp_path):
     gate = _gate()
     header = struct.pack(">IIBBBBB", 2, 2, 16, 2, 0, 0, 0)  # 16-bit RGB

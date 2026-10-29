@@ -250,6 +250,14 @@ def make_app(session_factory, settings: Settings):
 
     app.include_router(rules_router)
 
+    # Marathon 2.0 W12: governed team skill catalog (migration 0066) and
+    # project-scoped memory (0067) — both advisory prompt blocks via S4 loaders.
+    from .memory_api import router as memory_router
+    from .skills_api import router as skills_router
+
+    app.include_router(skills_router)
+    app.include_router(memory_router)
+
     # M15-G6b: per-team settings CRUD (reviewer thresholds, admin-gated).
     from .settings_api import router as settings_api_router
 

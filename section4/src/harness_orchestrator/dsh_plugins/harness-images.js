@@ -11,9 +11,10 @@ import { spawn } from "node:child_process";
 export const name = "harness-images";
 export const inject = ["tools"];
 
-const DESCRIPTION = `Look at images precisely: pixel diff and pixel sample over PNGs inside this workspace.
+const DESCRIPTION = `Look at images precisely: pixel diff, pixel sample and palette over PNGs inside this workspace.
 * action "diff" compares before/after (same width and height) and returns the changed-pixel count, the ratio, the bounding box, the max channel delta and the mean colour of the changed pixels on each side. It also writes a PNG that paints the changed pixels magenta over a grey copy — open that path with the read tool to see where it differs.
 * action "sample" returns the exact rgb/hex colour at up to 64 [x, y] points IN ONE CALL. Use it to read colours off a mockup instead of guessing hex values — and ask for them together: every call costs tool budget.
+* action "palette" returns the dominant colours of one PNG in ONE call: each colour's hex, share of the image and bounding box. Start a mockup reproduction here — it answers "what colours, where" in one call — then use sample only for the few points the palette leaves ambiguous. Probing point by point is how a run burns its whole tool budget on colours.
 * Use diff after screenshotting your own page against a mockup or a previous render: it is how you know a visual change landed, rather than assuming it did.
 * Only 8-bit RGB/RGBA PNGs the size of a screen (capped by bytes and pixels) are compared; anything else is refused with the reason.`;
 
@@ -53,8 +54,10 @@ export function apply(ctx, config) {
       properties: {
         action: {
           type: "string",
-          enum: ["diff", "sample"],
-          description: "diff compares two PNGs; sample reads exact pixels from one",
+          enum: ["diff", "sample", "palette"],
+          description:
+            "diff compares two PNGs; sample reads exact pixels from one; " +
+            "palette reports the dominant colours of one PNG and where they are",
         },
         before: { type: "string", description: "For diff: workspace-relative PNG to compare from (e.g. mockup.png)" },
         after: { type: "string", description: "For diff: workspace-relative PNG to compare to (e.g. shots/render.png)" },
@@ -63,11 +66,15 @@ export function apply(ctx, config) {
           type: "number",
           description: "For diff: per-channel delta below which pixels count as equal (default 16)",
         },
-        path: { type: "string", description: "For sample: workspace-relative PNG" },
+        path: { type: "string", description: "For sample and palette: workspace-relative PNG" },
         points: {
           type: "array",
           description: "For sample: [x, y] pixel coordinates, at most 64",
           items: { type: "array", items: { type: "number" } },
+        },
+        maxColors: {
+          type: "number",
+          description: "For palette: how many dominant colours to return (default 12, max 24)",
         },
       },
       required: ["action"],
@@ -75,8 +82,8 @@ export function apply(ctx, config) {
     output: { schema: { type: "string" }, render: (_args, value) => [{ type: "text", text: value }] },
     async execute(args, exec) {
       const action = String(args?.action ?? "");
-      if (action !== "diff" && action !== "sample") {
-        throw new Error("action must be 'diff' or 'sample'");
+      if (action !== "diff" && action !== "sample" && action !== "palette") {
+        throw new Error("action must be 'diff', 'sample' or 'palette'");
       }
       const request = {
         action,
@@ -91,6 +98,10 @@ export function apply(ctx, config) {
         request.after = args.after;
         if (typeof args.out === "string" && args.out) request.out = args.out;
         if (typeof args.tolerance === "number") request.tolerance = Math.trunc(args.tolerance);
+      } else if (action === "palette") {
+        if (typeof args?.path !== "string" || !args.path) throw new Error("path is required");
+        request.path = args.path;
+        if (typeof args.maxColors === "number") request.maxColors = Math.trunc(args.maxColors);
       } else {
         if (typeof args?.path !== "string" || !args.path) throw new Error("path is required");
         if (!Array.isArray(args.points) || args.points.length === 0) {
@@ -111,6 +122,17 @@ export function apply(ctx, config) {
         return res.points.length === 1
           ? `${lines}\n(one point per call — pass up to 64 in a single call)`
           : lines;
+      }
+      if (action === "palette") {
+        const lines = res.colors
+          .map((c) => `${c.hex} rgb(${c.rgb.join(", ")}) ${(c.share * 100).toFixed(1)}% ` +
+            `of ${res.width}x${res.height}, bbox ${JSON.stringify(c.bbox)}`)
+          .join("\n");
+        return (
+          `palette of ${res.path} (${res.width}x${res.height}, ` +
+          `${res.distinctBuckets} colour groups)\n${lines}\n` +
+          "sample exact points only to disambiguate what the palette leaves open."
+        );
       }
       const box = res.bbox ? `bbox ${JSON.stringify(res.bbox)}` : "no changed region";
       return (

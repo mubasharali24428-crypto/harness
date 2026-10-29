@@ -110,6 +110,15 @@ DELETION_MAP: dict[tuple[str, str], tuple[str, str]] = {
     ("agent_plans", "run_id"): ("agent_runs.id", "CASCADE"),
     ("meeting_messages", "meeting_id"): ("meetings.id", "CASCADE"),
     ("project_rules", "project_id"): ("projects.id", "CASCADE"),
+    # M2-W12 (0066/0067): a team's reviewed skills die with the team; a
+    # project's memory dies with the project. Authorship and reviewer
+    # back-references survive the account deletion as "unknown".
+    ("team_skills", "team_id"): ("teams.id", "CASCADE"),
+    ("team_skills", "created_by"): ("users.id", "SET NULL"),
+    ("team_skills", "reviewed_by"): ("users.id", "SET NULL"),
+    ("project_memory", "project_id"): ("projects.id", "CASCADE"),
+    ("project_memory", "created_by"): ("users.id", "SET NULL"),
+    ("project_memory", "reviewed_by"): ("users.id", "SET NULL"),
     # owned children of users
     ("github_connections", "user_id"): ("users.id", "CASCADE"),
     ("auth_sessions", "user_id"): ("users.id", "CASCADE"),
@@ -237,10 +246,11 @@ def test_fk_inventory_size_is_pinned():
     """38 ORM FKs (+1 SQL-side: agent_runs.pr_id) today; any schema-surface
     change must touch this suite. (35 -> 36: M22-M3's stripe_webhook_events;
     36 -> 38: M22-M4's team_sso_configs + sso_login_states; 38 -> 43: Session 7's
-    integration_webhooks + integration_webhook_deliveries. The out-of-models
+    integration_webhooks + integration_webhook_deliveries; 43 -> 49: M2-W12's
+    team_skills + project_memory. The out-of-models
     mirrors live in stripe_adapter.py / sso.py and are imported HERE for their
     metadata side effect so enumeration is collection-order independent.)"""
-    assert len(_metadata_fks()) == 43
+    assert len(_metadata_fks()) == 49
 
 
 # --------------------------------------------------------------------------
