@@ -508,3 +508,29 @@ stack-law tests; that was this branch's regression and it is fixed.
   reviewed. Fix is layering, not caching: install Chromium and the wheels in
   stages that depend only on lockfiles/`pyproject.toml`, and copy the sources and
   gates last.
+
+- [ ] **`section11/tests/test_api.py::test_index_lifecycle_over_http` is
+  load-dependent, and the numbers it compares can really differ** (owner: S11).
+  Observed 2026-10-29 while running `make gate` for W16 slice 1: `assert 7 == 8`
+  on `COUNT(*) FROM context_chunks` versus the job's reported `chunksIndexed`.
+  Reproduced twice from a clean tree WITHOUT the W16 test present
+  (`pytest section11/tests -k "not deactivated"` while `pytest section4/tests/unit`
+  runs in parallel), and passed 3/3 in isolation and 8/8 for `test_api.py` alone —
+  so it is the same class as the tracked Section 1/Section 4 flakes, not a new
+  regression from the seat-revocation work.
+
+  Two candidate causes, both worth checking before widening anything:
+
+  1. `chunksIndexed` counts every chunk the pass emits, while the store's
+     conflict key is `(project_id, path, start_line)`
+     (`harness_context/store.py:23,36`). Two windows of one file sharing a start
+     line therefore write one row and increment the counter twice — a wire field
+     that overstates what was indexed, independent of load.
+  2. The poll loop is `for _ in range(100)` with a 10 ms sleep (~1 s of budget)
+     against a real embedding pass. Under CPU pressure the last reads land in
+     different positions of the same commit boundary.
+
+  Either way the honest fix is in the product, not the test: report
+  `chunksIndexed` as the number of rows actually written (or key on
+  `(path, start_line, end_line)`), and give the poll loop a deadline with the
+  reason recorded, as the Section 5 browser gate now does.
