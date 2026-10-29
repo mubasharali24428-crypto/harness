@@ -31,7 +31,8 @@ from typing import Any
 import httpx
 from harness_contracts.signatures import ModelCallOpts, ModelResult
 
-from harness_router.pricing import MODEL_PRICING_CATALOG, PricingEngine
+from harness_router import rate_card
+from harness_router.pricing import MODEL_PRICING_CATALOG
 from harness_router.provider_registry import (
     ANTHROPIC_VERSION,
     Endpoint,
@@ -389,12 +390,20 @@ def _parse_completion(endpoint: Endpoint, data: Any) -> tuple[str, dict[str, int
 
 
 def priced_cost(model: str, input_tokens: int, output_tokens: int) -> Decimal:
-    """Exact cost when we have a price for this model id; zero when we do not."""
-    if model in MODEL_PRICING_CATALOG:
-        return PricingEngine.calculate_cost(model, input_tokens, output_tokens)
-    logger.warning(
-        "model %r has no entry in the pricing catalog (%d known); billing 0 for this call",
-        model,
-        len(MODEL_PRICING_CATALOG),
-    )
-    return Decimal("0")
+    """Exact cost from the deployment rate card; zero (and loud) when unpriced.
+
+    W14: the card is the frozen catalog plus an operator overlay, so a model the
+    deployment routes to can be priced without editing contracts. An unpriced
+    model still bills zero — never an invented rate — but ``rate_card.source``
+    and the warning make the zero mean "unknown", not "free".
+    """
+    card = rate_card.active()
+    if not card.priced(model):
+        logger.warning(
+            "model %r has no rate (catalog %d known, operator card %d); billing 0 for this call",
+            model,
+            len(MODEL_PRICING_CATALOG),
+            card.overlay_size,
+        )
+        return Decimal("0")
+    return card.cost(model, input_tokens, output_tokens)

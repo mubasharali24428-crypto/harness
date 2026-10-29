@@ -343,6 +343,10 @@ services:
     environment:
       <<: *backend-env
       HARNESS_SERVICE: models
+      # M2-W14: operator rate card (inline JSON or a path inside the container).
+      # Unset keeps the built-in catalog; an unpriced model bills zero and is
+      # reported as `unpriced`, never silently priced at a neighbour's rate.
+      HARNESS_RATE_CARD_JSON: ${HARNESS_RATE_CARD_JSON:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

@@ -13,10 +13,8 @@ from pydantic import BaseModel, Field
 
 from harness_router import ledger as cost_ledger
 from harness_router import prefs as model_prefs
-from harness_router import provider_registry
+from harness_router import provider_registry, rate_card
 from harness_router.catalog import catalog
-from harness_router.config import MODEL_PRICING_CATALOG
-from harness_router.pricing import PricingEngine
 from harness_router.providers import (
     InvalidApiKeyError,
     ModelUnavailableError,
@@ -448,22 +446,31 @@ async def model_spend(
 
 @router.post("/estimate-cost", status_code=status.HTTP_200_OK)
 async def estimate_cost(req: EstimateCostRequest, principal: Reader) -> dict[str, Any]:
-    model = req.model if req.model in MODEL_PRICING_CATALOG else None
-    if model is None:
+    """Cost for the NAMED model, or the role's model when none is named.
+
+    W14: a named model that no rate covers answers its own id with cost 0,
+    ``priced: false`` and ``pricingSource: "unpriced"`` — it is never silently
+    swapped for the team's default model, which used to estimate a different
+    model's price under the requested name.
+    """
+    card = rate_card.active()
+    if req.model:
+        model = req.model
+    else:
         saved = await model_prefs.load_prefs(get_ledger_pool(), principal.teamId)
         model = (
             saved["reviewerModel"]
             if req.role == ModelRole.REVIEWER
             else saved["primaryModel"]
         )
-    cost = float(
-        PricingEngine.calculate_cost(model, req.inputTokens, req.outputTokens)
-    )
     return {
         "role": req.role,
+        "model": model,
         "inputTokens": req.inputTokens,
         "outputTokens": req.outputTokens,
-        "estimatedCostUsd": cost,
+        "estimatedCostUsd": float(card.cost(model, req.inputTokens, req.outputTokens)),
+        "priced": card.priced(model),
+        "pricingSource": card.source(model),
     }
 
 
@@ -517,7 +524,7 @@ def provider_catalog(principal: Reader) -> list[dict[str, Any]]:
                     "requiresOwnEndpoint": False,
                 }
             )
-        entry["priced"] = [m for m in e.models if m in MODEL_PRICING_CATALOG]
+        entry["priced"] = [m for m in e.models if rate_card.active().priced(m)]
         out.append(entry)
     return out
 

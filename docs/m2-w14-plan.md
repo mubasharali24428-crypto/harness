@@ -54,26 +54,48 @@ expected output now fails CI rather than disappearing into a comparison.
 
 Current output: `{"ok": true, "tasks": 38, "heldOut": 5, "implemented": 28}`.
 
+**Operator rate card.** `section3/src/harness_router/rate_card.py` merges the
+frozen catalog with `HARNESS_RATE_CARD_JSON` (inline JSON or a container path),
+validated at load: a negative, missing, non-numeric, non-finite or empty-id entry
+raises `RateCardError` instead of turning into free inference. Every lookup now
+reports its source — `catalog`, `operator` or `unpriced` — and money math is
+pinned to `PricingEngine.calculate_cost` by a parity test over the whole catalog.
+
+`/estimate-cost` also fixed a real bug: naming a model that had no rate used to
+**silently answer the team's default model's price under the requested model
+name**. It now answers the requested model with `estimatedCostUsd: 0`,
+`priced: false` and `pricingSource: "unpriced"`, and reports `model`/`priced`/
+`pricingSource` for every call. `/catalog`'s per-provider `priced` list uses the
+same card. Compose passes the env var to the models service and `.env.example`
+documents the shape.
+
+Tests: `section3/tests/unit/test_rate_card.py` (16) — overlay override and
+addition, catalog-vs-unpriced distinction, zero-priced `local/*` staying
+`catalog`, six malformed-card refusals, env loading, `priced_cost` through the
+active card, and the three `/estimate-cost` behaviours above. Section 3 suite:
+144 passed.
+
+Live check on the rebuilt models image (2026-10-29): role default →
+`deepseek/deepseek-coder`, `$0.42`, `priced: true`, `catalog`; named
+`brandnew-lab/model-v9` → `$0.0`, `priced: false`, `unpriced` and the **requested
+id echoed** (no substitution); a one-off container with
+`HARNESS_RATE_CARD_JSON={"models":{"lab/container-priced":{"input":2,"output":4}}}`
+reports `operator` and `$2.000000` for 1 M input tokens.
+
 ## Next slices (in order)
 
-1. **Pricing coverage.** Decide and enforce what happens for a model id absent
-   from `MODEL_PRICING_CATALOG`: refuse to route it, or bill it as explicitly
-   `unpriced` (a distinct state, never `$0.00`). Add a catalog-vs-registry test
-   so a new provider model cannot ship unpriced by accident. Zero-priced
-   `local/*` entries stay intentional and are excluded by an explicit
-   `local` provider kind, not by being zero.
-2. **Per-step routing, opt-in.** A team setting (default off) enabling
+1. **Per-step routing, opt-in.** A team setting (default off) enabling
    mechanical/reasoning step classes; the engine resolves each step's model from
    that policy; any resolution failure falls back to the **team's configured
    primary**, never to a cheaper model, and the fallback is recorded on the run.
-3. **Comparison runner.** `run_eval.py --model A --model B --task …` with the
+2. **Comparison runner.** `run_eval.py --model A --model B --task …` with the
    same budget and fixture, writing one comparison evidence file; live tasks
    require `--include-live` and a named model, and the pass rule is the task's
    own verifier, not a relative win.
-4. **Cost/latency dashboard.** Panels over the existing ledgers (per team, per
+3. **Cost/latency dashboard.** Panels over the existing ledgers (per team, per
    model, p50/p95 latency, spend vs cap) with a runbook note; no new metric
    names unless a panel needs them.
-5. **Held-out hygiene.** The W11 vision task's prompt was adjusted at W12 and
+4. **Held-out hygiene.** The W11 vision task's prompt was adjusted at W12 and
    its purity is disclosed; W14 should add a fresh, never-tuned mockup set so at
    least one design task is genuinely held out.
 
@@ -85,7 +107,7 @@ Current output: `{"ok": true, "tasks": 38, "heldOut": 5, "implemented": 28}`.
 | Reproducible model comparisons | **open** — no comparison runner yet |
 | Routing requires opt-in | **open** — not implemented |
 | Failure never forces a downgrade | **existing law**, must be re-proven for per-step routing |
-| Unpriced models stop billing zero | **open** — decision + enforcement above |
+| Unpriced models stop billing zero silently | **pass (visibility + overlay)** — a named unpriced model reports `priced: false`, `pricingSource: "unpriced"`, cost 0; operators price it via `HARNESS_RATE_CARD_JSON`; malformed cards fail loudly |
 | Cost/latency dashboards | **open** — metrics exist, panels do not |
 
 ## Limitations

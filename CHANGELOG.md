@@ -19,10 +19,18 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   script tasks, a positive timeout, a named model for live tasks, and that a
   held-out task does not record tuning use. Current corpus: 38 tasks, 5 held
   out, 28 implemented.
-* **W14 scope recorded** in `docs/m2-w14-plan.md`: pricing coverage for models
-  absent from the rate card, opt-in per-step routing that never downgrades on
-  failure, a comparison runner with a fixed pass rule, cost/latency panels, and
-  a fresh held-out design set.
+* **Operator rate card (models service).** `HARNESS_RATE_CARD_JSON` (inline or a
+  container path) merges over the frozen catalog, validated at load — a
+  malformed card raises instead of becoming free inference. Every lookup reports
+  `catalog | operator | unpriced`, and the money formula is pinned to
+  `PricingEngine.calculate_cost` by a parity test over the whole catalog.
+  `/estimate-cost` now answers the **requested** model: an unpriced id returns
+  `estimatedCostUsd: 0`, `priced: false`, `pricingSource: "unpriced"` instead of
+  silently substituting the team's default model and quoting its price under the
+  requested name. 16 new tests; Section 3 suite 144 passed.
+* **W14 scope recorded** in `docs/m2-w14-plan.md`: opt-in per-step routing that
+  never downgrades on failure, a comparison runner with a fixed pass rule,
+  cost/latency panels, and a fresh held-out design set.
 
 ### Marathon 2.0 W13 — a runner control plane for customer-controlled hosts (2026-10-28)
 
