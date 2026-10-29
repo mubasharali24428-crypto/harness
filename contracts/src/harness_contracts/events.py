@@ -43,6 +43,17 @@ class EventType(StrEnum):
     # reported decline instead of a picture the agent apparently ignored.
     # The bytes themselves are never in this event — only ids and names.
     GOAL_IMAGES = "goal_images"
+    # W15 (contracts 1.0.0rc6, additive): which model this execution attempt was
+    # actually handed, and why. Routing is opt-in per team (W14), and until now
+    # the decision lived only in an in-memory dict — nobody could verify after
+    # the fact that routing did what the team's policy says. Payload:
+    # {runId, enabled, class, model, source, reason?}. `class` is the plan
+    # classification (`mechanical` or `reasoning`), `source` is how the model was
+    # chosen (`primary`, `policy`, or `policy-fallback`), and `reason` explains a
+    # fallback or a lookup failure. One event per execution attempt, emitted
+    # BEFORE the engine call, so a run that dies mid-flight still records it.
+    # No secrets, no token counts: cost lives in cost_ledger.
+    MODEL_ROUTED = "model_routed"
 
 
 EVENT_TYPES = frozenset(EventType)

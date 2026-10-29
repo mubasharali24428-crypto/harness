@@ -385,6 +385,9 @@ export interface RunAggregateResponse {
     planApproved?: boolean;
     planId?: string | null;
     prId?: string | null;
+    routing?: {
+        [key: string]: unknown;
+    } | null;
     runId: string;
     state: string;
     steps?: AggregateStepOut[];

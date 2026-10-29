@@ -48,7 +48,7 @@ after it supersedes five rows; the rest still stand.
 |---|---|---|
 | Live tool events | `_run_live_events` takes `on_progress` and forwards turn events; the isolated worker emits NDJSON `progress` lines | `section4/.../engine.py`, `engine_worker.py` (e610191) |
 | Tool-event contract | `tool_call`, `tool_result`, `context_compacted` exist in contracts `1.0.0rc3`, TS mirror regenerated, golden payloads in section1 | `contracts/`, `section1/tests/golden/` (e610191) |
-| Contract version | The package is `1.0.0rc4` (rc3 added the transcript events, rc4 added `goal_images`), pinned in four places | `contracts/pyproject.toml` |
+| Contract version | The package is `1.0.0rc6`; rc3 added the transcript events, rc4 `goal_images`, rc6 `model_routed` (W15). It is pinned in two places that must move together: `contracts/pyproject.toml` and `contracts/src/harness_contracts/__init__.py` | `contracts/pyproject.toml`, `contracts/src/harness_contracts/__init__.py` |
 | Git context | `.git` now travels, after `_prepare_seeded_git` strips hooks, worktrees, submodule pointers and credential-bearing config keys | `engine.py` (8438b19) |
 | Output limit | The `4096` cap is gone; `HARNESS_SDK_MAX_TOKENS` sets the provider ceiling explicitly | `engine.py` (8438b19) |
 

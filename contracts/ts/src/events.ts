@@ -20,6 +20,7 @@ export const EventType = {
   TOOL_RESULT: "tool_result",
   CONTEXT_COMPACTED: "context_compacted",
   GOAL_IMAGES: "goal_images",
+  MODEL_ROUTED: "model_routed",
 } as const;
 
 export type EventType = (typeof EventType)[keyof typeof EventType];

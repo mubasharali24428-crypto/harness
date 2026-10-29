@@ -445,6 +445,7 @@ export interface RunAggregateResponse {
   planApproved?: boolean;  // optional
   planId?: string | null;  // optional
   prId?: string | null;  // optional
+  routing?: { [key: string]: unknown } | null;  // optional
   runId: string;
   state: string;
   steps?: AggregateStepOut[];  // optional

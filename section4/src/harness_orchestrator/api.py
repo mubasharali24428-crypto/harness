@@ -501,6 +501,11 @@ class RunAggregateResponse(BaseModel):
     lifecycle: dict | None = None
     # Part 09.010 (additive): {id, fingerprint, isolated, isolation}; no paths, no secrets.
     workspace: dict | None = None
+    # W15 (additive): the run's durable routing decision
+    # {enabled, class, model, source, reason?} from the `model_routed` event, or
+    # None when the run never emitted one (pre-W15 run, or no attempt started).
+    # Read from the event store, so any replica answers it identically.
+    routing: dict | None = None
 
 
 class ErrorDetail(BaseModel):

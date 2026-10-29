@@ -2117,6 +2117,18 @@
       ],
       "title": "Prid"
      },
+     "routing": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Routing"
+     },
      "runId": {
       "title": "Runid",
       "type": "string"

@@ -394,6 +394,7 @@ class RunAggregateResponse(typing.TypedDict, total=False):
     planApproved: bool
     planId: str | None
     prId: str | None
+    routing: dict[str, typing.Any] | None
     runId: str  # required
     state: str  # required
     steps: list[AggregateStepOut]

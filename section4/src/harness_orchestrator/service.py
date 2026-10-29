@@ -1523,6 +1523,13 @@ class OrchestratorService(Orchestrator):
                 # an engine that cannot take images never has them resolved.
                 run_model, routing_decision = await self._routed_model_for_run(run_id, plan)
                 run_data["routing"] = routing_decision
+                # W15: the decision is a durable fact about the attempt, not a
+                # log line. Until now it lived only in this process's dict, so
+                # after a restart (or on another replica) nobody could check
+                # that an opted-in team's policy was honoured — or that a
+                # fallback kept the primary model. Emitted BEFORE the engine
+                # call: an attempt that dies mid-flight still records its model.
+                self._emit(EventType.MODEL_ROUTED, {"runId": run_id, **routing_decision})
                 if accepts_keyword(getattr(self.engine, "execute_goal", None), "images"):
                     # teamId is this process's stamp and is not a durable
                     # column: a replica that never saw the bind, or a resume
@@ -2898,6 +2905,35 @@ class OrchestratorService(Orchestrator):
         """
     )
 
+    # W15: the routing decision a run was actually executed under. Read from
+    # the durable event, NOT from `run_data["routing"]`: the aggregate must
+    # answer on a replica that never ran the attempt, and after a restart.
+    # Newest first, so a resume that re-resolved the policy wins.
+    _ROUTING_SQL = text(
+        """
+        SELECT payload
+          FROM agent_events
+         WHERE run_id = :run_id AND type = :routed_type
+         ORDER BY seq DESC
+         LIMIT 1
+        """
+    )
+
+    @staticmethod
+    def _routing_wire(payload: Any) -> dict[str, Any] | None:
+        """The stored decision record, or None when the run never emitted one.
+
+        A pre-W15 run has no `model_routed` event at all — that reads as None
+        (unknown), not as "routing was off". SQLite hands the JSON back as text,
+        PostgreSQL as an object; both shapes land on the same dict.
+        """
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except Exception:  # noqa: BLE001 — a corrupt row is an absent row
+                return None
+        return payload if isinstance(payload, dict) else None
+
     @staticmethod
     def _step_wire(row: Any) -> dict[str, Any]:
         """One history step. ``reason`` tells a stop (`paused` + user_requested_stop)
@@ -2970,6 +3006,9 @@ class OrchestratorService(Orchestrator):
             "url": None,
             "costUsd": None,
             "steps": [],
+            # W15 (additive): the durable routing decision for this run, or
+            # None when it has none — explicit null per the W4-C2 law.
+            "routing": None,
             # M18-C2: explicit degraded=false — operators read the aggregate
             # and see at a glance that this run's budget decisions were made
             # against a healthy money store (flips true when a gate ran
@@ -3012,6 +3051,16 @@ class OrchestratorService(Orchestrator):
                     .mappings()
                     .all()
                 )
+                routed_row = (
+                    (
+                        await db.execute(
+                            self._ROUTING_SQL,
+                            {"run_id": run_id, "routed_type": EventType.MODEL_ROUTED.value},
+                        )
+                    )
+                    .mappings()
+                    .first()
+                )
             if enrich_row is None:
                 # No agent_runs row: the run only exists if this process is
                 # currently driving a lifecycle for it (bound project, plan,
@@ -3040,6 +3089,11 @@ class OrchestratorService(Orchestrator):
             aggregate["steps"] = [
                 self._step_wire(row) for row in reversed(step_rows)
             ]
+            # W15: which model this run executed under, and why (additive; None
+            # for a run that predates the event or never reached execution).
+            aggregate["routing"] = self._routing_wire(
+                routed_row["payload"] if routed_row else None
+            )
         except RunNotFoundError:
             raise
         except Exception:  # noqa: BLE001 — aggregate must never fail on enrichment

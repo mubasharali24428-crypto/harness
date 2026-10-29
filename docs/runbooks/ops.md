@@ -306,6 +306,41 @@ Enforcement status as audited:
 | Per-run deadline / provider breaker | `engine_runtime.py` | enforced (thread keeps running after deadline; see engine-concurrency.md) |
 | Tier caps (Pro 8 / Team 16 concurrent runs, `PRICING.md`) | - | NOT enforced: marked `[M2]`, only the single env-wide cap exists |
 
+## 3.6 Which model did this run use? (W15)
+
+Routing is opt-in per team (W14), so "why did this run use the cheap model?"
+needs a durable answer rather than a log line. Every execution attempt writes a
+`model_routed` agent event BEFORE the engine call, and `GET /runs/{id}` returns
+it as `routing`:
+
+```sh
+curl -s -H "Authorization: Bearer $TOKEN" \
+  http://127.0.0.1:8004/api/v1/orchestrator/runs/<runId> | jq '.routing'
+# {"class":"mechanical","enabled":true,"model":"cheap/model","runId":"…","source":"policy"}
+```
+
+Read `source`, not just `model`:
+
+| `source` | Meaning |
+|---|---|
+| `policy` | the team's routing policy chose this model for this plan class |
+| `primary` | routing is off for the team; the configured primary model ran |
+| `policy-fallback` | routing is on but the policy has no model for this plan class, so the primary ran — routing never downgrades or invents a model |
+| `null` (`routing` absent) | no attempt was recorded: the run predates W15 or never started executing. Absence is NOT evidence that routing was off |
+
+The same fact straight from the store, when the API is not the question:
+
+```sh
+docker exec harness-db-1 psql -U harness -d harness -c \
+  "select seq, ts, payload from agent_events where run_id='<runId>' and type='model_routed' order by seq;"
+```
+
+One row per attempt: a resume re-resolves the policy, so the newest row is the
+one that describes the newest attempt (the aggregate returns the newest).
+Reproduce the whole check with `make drill-routing` — it uses probe model ids
+that exist in no catalog, so no provider call can succeed and no money can be
+spent, while still proving the decision is recorded before the attempt dies.
+
 ## 4. Prevention checklist
 
 - [ ] No service removed from compose while its container runs (Cause A rule).

@@ -91,6 +91,21 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   described `make static-gates` as three commands; both are corrected, and the
   one recipe line genuinely absent from CI (`spec_drift.py`, needs a section
   venv) is now named as a known gap instead of being glossed over.
+* **A run's routing decision is a durable fact, not process memory.** W14
+  shipped opt-in routing but wrote the outcome only to `run_data["routing"]`
+  plus a log line, so after a restart — or from another replica, or from the run
+  page — nothing could say which model an attempt was handed. Contracts
+  `1.0.0rc6` adds the additive `model_routed` event (`enabled`, `class`,
+  `model`, `source`, `reason?`), emitted before the engine call, and
+  `GET /runs/{id}` now returns it as `routing` (null means *no attempt was
+  recorded*, never "routing was off"). Four unit tests pin one event per attempt
+  and the newest-wins read; `make drill-routing` proved it live end to end
+  (`w15-routing-1793290753.json`: 14 checks, `source: policy`, the event row
+  byte-equal to the API field) using probe model ids that exist in no catalog,
+  so the run could not reach a provider or spend anything. `docs/runbooks/ops.md`
+  §3.6 is the operator answer for "which model did this run use, and why".
+  Specs, SDKs (Python + TS) and the compiled TS dist were regenerated for the
+  new field.
 * **Browser-gate timeout tests are no longer load-sensitive.** A 1 s deadline made
   `test_a_slow_render_that_finished_is_still_evidence` fail on a busy machine and
   pass on an idle one (the stand-in browser had not started its screenshot copy

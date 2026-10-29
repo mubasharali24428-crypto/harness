@@ -199,7 +199,21 @@ status), plus the existing manual drill artifact as the baseline.
 * **Drills are runnable by name.** `make drill-fairness` and
   `make drill-rate-limit` join the existing drill targets, with their
   preconditions in `make help`; `docs/briefs/evidence/eval/w15-rate-limit-1793288031.json`
-  is a re-run through the new target.
+  is a re-run through the new target. `make drill-routing` was added with the
+  routing work below for the same reason.
+* **Routing became auditable (contracts 1.0.0rc6).** The W14 decision record was
+  written into `run_data["routing"]` and read by nobody — so the roadmap claim
+  "routing requires opt-in, failure never forces a downgrade" had no way to be
+  checked after the fact. Contracts gained the additive `model_routed` event
+  (`enabled`/`class`/`model`/`source`/`reason?`), emitted before the engine call
+  and returned by `GET /runs/{id}` as `routing`; absence reads as *no attempt
+  recorded*, never as "routing was off". Evidence:
+  `docs/briefs/evidence/eval/w15-routing-1793290753.json` (live, 14 checks, the
+  durable row identical to the API field), four unit tests in
+  `section4/tests/unit/test_routing_event.py`, operator text in
+  `docs/runbooks/ops.md` §3.6. The TS mirror, both SDKs and the compiled TS dist
+  were regenerated (the `check-ts-dist` gate is what keeps the third of those
+  honest).
 
 ## Gate position
 
