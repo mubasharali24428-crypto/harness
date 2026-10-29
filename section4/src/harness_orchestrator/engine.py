@@ -65,6 +65,37 @@ DEFAULT_DSH_PROVIDER = "deepseek-official"
 REAL_WORKER_MODULE = "harness_orchestrator.engine_worker"
 DAEMON_URL_ENV = "HARNESS_WORKER_DAEMON_URL"
 DAEMON_TOKEN_ENV = "HARNESS_WORKER_DAEMON_TOKEN"
+def real_worker_confinement_error(module: str, real_module: str = REAL_WORKER_MODULE) -> str | None:
+    """Why the REAL engine worker may not run here, or None when it may.
+
+    The real runtime needs a PTY shell, which macOS seatbelt breaks even with
+    allow-default, so a seatbelt-confined real worker is refused rather than
+    silently degraded. On a host with no OS-level backend at all (Linux without
+    the container boundary) the honest answer is that no boundary exists — the
+    old message named seatbelt on every platform, which pointed Linux operators
+    at a sandbox they do not have.
+    """
+    if module != real_module:
+        return None
+    requested = os.environ.get(confine.CONFINEMENT_ENV, "auto").strip().lower()
+    if requested in {"off", "container"}:
+        return None
+    mode = confine.resolve_mode()  # raises for an explicitly unavailable strict mode
+    if mode == "seatbelt":
+        return (
+            "OS confinement is unavailable for the real DeepSeek runtime: seatbelt "
+            f"breaks its PTY shell (resolved mode {mode!r}); set "
+            f"{confine.CONFINEMENT_ENV}=off explicitly to accept an unconfined worker, "
+            "or run it inside a container/VM boundary"
+        )
+    return (
+        "OS confinement is unavailable for the real DeepSeek runtime: this host resolved "
+        f"{confine.CONFINEMENT_ENV} to mode {mode!r}, which provides no OS-level boundary; "
+        f"set {confine.CONFINEMENT_ENV}=container to run inside the container boundary, or "
+        f"{confine.CONFINEMENT_ENV}=off explicitly to accept an unconfined worker"
+    )
+
+
 _SESSION_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
 _SHELL_PLUGIN = Path(__file__).with_name("dsh_plugins") / "harness-shell.js"
 # Section 5's gate script; the worker image sets HARNESS_SHELL_GATE (section4/worker.Dockerfile).
@@ -720,17 +751,10 @@ class DeepSeekHarnessWrapper:
             for d in (workspace, sess, tmp):
                 os.makedirs(d, exist_ok=True)
             module = os.environ.get("HARNESS_ENGINE_WORKER_MODULE", REAL_WORKER_MODULE)
-            if module == REAL_WORKER_MODULE and (
-                os.environ.get(confine.CONFINEMENT_ENV, "auto").strip().lower()
-                not in {"off", "container"}
-            ):
-                # sandbox-exec breaks the dsh runtime's PTY shell (even allow-default), so
-                # seatbelt cannot confine the real runtime; fail closed, never degrade silently.
-                raise confine.ConfinementUnavailableError(
-                    "OS confinement is unavailable for the real DeepSeek runtime (seatbelt breaks "
-                    f"its PTY); set {confine.CONFINEMENT_ENV}=off explicitly to accept an "
-                    "unconfined worker, or run it inside a container/VM boundary"
-                )
+            refusal = real_worker_confinement_error(module)
+            if refusal is not None:
+                # Fail closed, never degrade silently; the message names THIS host's mode.
+                raise confine.ConfinementUnavailableError(refusal)
             mode = confine.resolve_mode()
             if mode == "none":
                 logger.warning(
