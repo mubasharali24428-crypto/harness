@@ -1,0 +1,27 @@
+{
+  "runIds": [
+    "w22-stop-bc2a3406679e-0",
+    "w22-stop-bc2a3406679e-1"
+  ],
+  "verdict": "PASS",
+  "workersBefore": [
+    "a26f1f960056",
+    "2221d070886e"
+  ],
+  "stopResponse": {
+    "runId": "w22-stop-bc2a3406679e-0",
+    "status": "stopped"
+  },
+  "victimAfter": {},
+  "neighbourAfter": {
+    "worker": "2221d070886e",
+    "relay": "cdbcc67b5ef8"
+  },
+  "neighbourChildAlive": true,
+  "lifecycle": {
+    "phase": "stopped",
+    "cancelRequested": true,
+    "cancelConfirmed": true,
+    "mutationPossible": false
+  }
+}

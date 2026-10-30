@@ -1417,10 +1417,30 @@ class DeepSeekHarnessWrapper:
                 # Subscribe only when someone is listening: a caller that does
                 # not want progress should not pay for the callback, and an
                 # engine stub with the narrow historical signature still works.
-                run_kwargs: dict[str, Any] = {"session_id": session_id}
+                session_home = Path(self.run_session_dir(session_id)) / "sessions"
+                histories = list(session_home.glob(f"*/{session_id}/session.v4.jsonl"))
+                if len(histories) > 1:
+                    raise RuntimeError("multiple persisted sessions; refusing to guess")
+                run_kwargs: dict[str, Any] = {}
                 if on_progress is not None:
                     run_kwargs["on_notification"] = _notify
-                result = harness.run(_prompt_input(goal, images), **run_kwargs)
+                if histories:
+                    # A paused worker may already have persisted this session. The
+                    # SDK's run() starts a new one and rejects an existing ID.
+                    # Resume must fail closed if the history cannot be restored.
+                    resume_goal = (
+                        "The previous attempt was interrupted. Its last tool call may "
+                        "not have finished, and the workspace may have been rewound. "
+                        "Do not assume previous actions completed: verify the current "
+                        "workspace and complete the approved task.\n\n" + goal
+                    )
+                    result = harness.resume_session(session_id).run(
+                        _prompt_input(resume_goal, images), **run_kwargs
+                    )
+                else:
+                    result = harness.run(
+                        _prompt_input(goal, images), session_id=session_id, **run_kwargs
+                    )
             text = result.final_response
             events = list(result.events or [])
             for record in self._tool_records(events):  # final sweep: nothing lost

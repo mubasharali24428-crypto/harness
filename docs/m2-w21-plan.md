@@ -128,4 +128,4 @@ Known limits:
   evidence JSONs)
 - [x] `native-tool-confinement` is implemented in `docs/eval/corpus.json` and
   passing
-- [ ] Committed
+- [x] Committed (`7341d50`)

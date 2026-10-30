@@ -73,6 +73,10 @@ _DEFAULT_MIN_POLL_SECONDS = 0.01
 _DEFAULT_BACKOFF_FACTOR = 2.0
 #: W8 slice 2: how often the worker tries to reclaim abandoned boundary networks.
 _DEFAULT_BOUNDARY_SWEEP_SECONDS = 600.0
+#: W22: suspend detection and the reap deferral after it, sized from the
+#: service's 10s heartbeat interval (two missed beats plus margin).
+_SUSPEND_SLACK_SECONDS = 10.0
+_POST_SUSPEND_REAP_GRACE_SECONDS = 25.0
 
 
 def resolve_worker_claim_batch(environ=None) -> int:
@@ -182,11 +186,24 @@ class RunQueueWorker:
             logger.exception("orphan recovery failed at worker start")
         self._wake = asyncio.Event()
         interval = self.poll_interval
+        cycle_started = time.time()
+        reap_after = 0.0
         while True:
+            now = time.time()
+            # W22: a cycle that starts far later than its sleep allowed means this
+            # process was frozen (host sleep, VM or container pause). Our own runs'
+            # heartbeats went stale with it, so reaping first would reap live runs
+            # (2026-10-30: reaped 2 s after the Mac woke). Let them beat first.
+            if now - cycle_started > interval + _SUSPEND_SLACK_SECONDS:
+                reap_after = now + _POST_SUSPEND_REAP_GRACE_SECONDS
+                logger.warning(
+                    "worker loop was suspended %.0fs; reaping deferred", now - cycle_started
+                )
+            cycle_started = now
             try:
                 # M13-H1b: release timed-out claims every cycle so a dead
                 # worker's run is blocked + emitted instead of stuck 'running'.
-                if hasattr(self.service, "reap_zombies"):
+                if hasattr(self.service, "reap_zombies") and now >= reap_after:
                     await self.service.reap_zombies()
             except Exception:  # noqa: BLE001 — one bad sweep must never kill the worker
                 logger.exception("zombie reaper sweep failed")

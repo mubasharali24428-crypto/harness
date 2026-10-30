@@ -1,0 +1,27 @@
+{
+  "runId": "w22-suspend-7d886b237c25",
+  "pauseSeconds": 120,
+  "verdict": "PASS",
+  "image": "harness-backend:vdev-local sha256:29bd710afb127c41ba9166d5cedb37a57c5991a16e0df0ecf70360ad8c208e7b",
+  "worker": "54fdef664049",
+  "before": {
+    "claim": "running|e24a13bfd5dd:1:b848d6|2026-10-30T17:32:22.221429+00:00|3",
+    "runState": "idle",
+    "workerLive": true,
+    "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call"
+  },
+  "duringPause": {
+    "claim": "running|e24a13bfd5dd:1:b848d6|2026-10-30T17:32:22.221429+00:00|123",
+    "runState": "idle",
+    "workerLive": true,
+    "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call"
+  },
+  "after": {
+    "claim": "running|e24a13bfd5dd:1:b848d6|2026-10-30T17:34:55.773977+00:00|0",
+    "runState": "idle",
+    "workerLive": true,
+    "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call",
+    "childLive": true
+  },
+  "stopStatus": 200
+}
