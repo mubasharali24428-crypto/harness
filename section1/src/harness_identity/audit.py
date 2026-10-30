@@ -182,6 +182,9 @@ APPEND_ONLY_ACTIONS = frozenset(
         "approval.self_denied",
         # Part 11.009: an admin exported the team's audit/event evidence.
         "audit.exported",
+        # Marathon 2.0 W16 slice 4: an admin asked whether the chain still
+        # verifies — reading the verdict is reading the evidence.
+        "audit.verified",
         "forbidden.command_blocked",
         # S1-R05a: denied-but-unprovable ownership checks (raw-SQL writer in
         # section4 authz.py; canonical allowlist lives here).
@@ -226,6 +229,15 @@ APPEND_ONLY_ACTIONS = frozenset(
         # Marathon 2.0 W16: SCIM 2.0 subset — a directory credential's lifecycle
         # and the seat changes it made. scim.user_changed carries the token id,
         # never a secret.
+        # Marathon 2.0 W16: SIEM sink lifecycle. `siem.delivered` is written by
+        # the push worker at the milestones an operator must be able to see — a
+        # collector that blocked after MAX_ATTEMPTS, or one an admin resumed —
+        # never per batch, or the trail would describe itself to death.
+        "siem.created",
+        "siem.updated",
+        "siem.deleted",
+        "siem.blocked",
+        "siem.resumed",
         "scim.token_created",
         "scim.token_revoked",
         "scim.user_changed",

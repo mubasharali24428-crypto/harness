@@ -481,6 +481,81 @@ Prove it end to end with `make drill-scim`: 36 checks including the seat's own
 session token going 200 → 401 on identity and 404 → 401 on the shared
 dependency after a single PATCH, with no admin touching Harness in between.
 
+## 3.10 The SIEM stopped receiving the trail (W16)
+
+A sink is an outbound push, not a pull, so "the SIEM shows nothing new" is usually
+one of three things: the worker is not running, the collector is refusing, or the
+destination stopped being allowed. Work it in that order.
+
+1. **Is `siem-push` up, and is it the version you think?**
+   `docker compose -f deploy/docker-compose.yml ps siem-push` and
+   `docker logs harness-siem-push-1 --tail 50`. The loop logs a batch line only
+   when it did something; silence on an idle stack is normal, silence on a team
+   with a growing `pendingRows` is not.
+2. **Read the sink, not the collector.** The admin listing carries the whole
+   story for each sink:
+
+```sh
+curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://127.0.0.1:8001/api/v1/teams/$TEAM_ID/siem/sinks | python3 -m json.tool
+```
+
+| Field | What it means |
+|---|---|
+| `pendingRows` | rows this team still owes the collector past `cursor` |
+| `attempts` | consecutive failed deliveries; 0 means healthy |
+| `lastStatusCode` / `lastError` | the collector's answer (or `OSError`/`ValueError` for transport/egress) |
+| `nextAttemptAt` | when the next try is due — backoff is `min(60·2^(n-1), 3600)` |
+| `state` | `active`, `sending` (claimed right now), or `blocked` |
+| `deliveredRows` | rows accepted by the collector over the sink's life |
+
+3. **`blocked` means eight consecutive failures and no more sends.** Fix the
+   cause (collector back, DNS, allow-list), then resume explicitly:
+   `PATCH /api/v1/teams/{id}/siem/sinks/{sinkId}` with
+   `{"resume": true, "expectedVersion": <version>}`. The backlog goes out in
+   order; nothing was dropped while it was blocked.
+4. **`lastError: ValueError` is our egress rule, not the collector.** The URL is
+   HTTPS, port 443, and its host must be on `HARNESS_SIEM_ALLOWED_HOSTS` **with a
+   public DNS answer** at delivery time. An empty allow-list refuses every
+   destination by design; a host that resolves to `10./172./192.168.` is refused
+   even if it was allow-listed (rebind-after-save). The same knob must be present
+   on the `identity` service, because that is where registration is validated —
+   if it is only on the worker, creating the sink fails with 422 and nothing is
+   ever attempted.
+5. **A re-created sink starts at the newest row.** `startFrom` defaults to
+   `latest`; use `startFrom: "earliest"` when registering if the team wants the
+   retained history replayed. Delivery is at-least-once and every batch carries
+   `Idempotency-Key: <sinkId>:<from>-<to>`, so a collector should dedupe on that
+   key rather than on row content.
+6. **What did we actually send?** The same rows an export would give:
+
+```sh
+curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://127.0.0.1:8001/api/v1/audit/export?format=ndjson&afterSeq=$CURSOR&limit=50"
+```
+
+7. **Can the collector prove it was us?** Every POST carries
+   `X-Harness-Signature: t=<ts>,v1=<hex>` where the hex is
+   `hmac_sha256(sharedSecret, "<ts>." + body)`. Verify it with the secret from
+   your vault (the API only ever shows a hint). Reject timestamps older than your
+   tolerance — we do not retry with an old `t`.
+
+**Verifying the trail itself.** `POST /api/v1/audit/verify` with
+`{"afterChainPos": N, "maxRows": M}` returns a per-row verdict, the chain head,
+and `prunedPrefix`/`anchored` when retention removed the row before the window.
+Two honest limits: it needs the deployment's PostgreSQL (SQLite answers `503
+AUDIT_CHAIN_UNAVAILABLE` rather than a fake `ok`), and it is tamper-evident — a
+privileged attacker who re-seals every row after an edit is invisible to a chain
+check and only the external anchors catch it. `ok: false` names the first
+offending rows in `problems`; that is an integrity incident, not a support
+ticket.
+
+Prove the whole path with `make drill-siem` (59 checks): registration and its
+refusals on the live stack, a real verdict from the deployment's Postgres, the
+deployed worker failing a dead collector without moving the cursor, and — on a
+throwaway database with a real HTTP collector — signed delivery, replay dedupe,
+backoff → blocked → resume and the tamper/pruned-prefix verdicts.
+
 ## 4. Prevention checklist
 
 - [ ] No service removed from compose while its container runs (Cause A rule).

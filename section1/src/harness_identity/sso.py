@@ -344,11 +344,14 @@ def _require_admin(principal: Principal) -> None:
         raise HTTPException(status_code=403, detail=error_body("FORBIDDEN", "admin only"))
 
 
-async def _require_team_tier(request: Request, team_id: str) -> None:
-    """SSO is a Team-tier feature: the team's billing plan must be 'team'.
+async def _require_team_tier(request: Request, team_id: str, feature: str = "SSO") -> None:
+    """A Team-tier feature: the team's billing plan must be 'team'.
 
     When billing storage cannot be consulted we degrade HONESTLY to refused
-    (fail-closed for a paid-feature gate) rather than silently enabling it.
+    (fail-closed for a paid-feature gate) rather than silently enabling it. The
+    feature name is a parameter because SSO and the SIEM sink share this gate —
+    a customer told to "upgrade for SSO" while configuring an audit export is
+    reading a message about someone else's feature.
     """
     factory = request.app.state.session_factory
     plan_value: str | None = None
@@ -363,7 +366,7 @@ async def _require_team_tier(request: Request, team_id: str) -> None:
     if plan_value != "team":
         raise HTTPException(
             status_code=403,
-            detail=error_body("PLAN_REQUIRED", "SSO requires the Team tier"),
+            detail=error_body("PLAN_REQUIRED", f"{feature} requires the Team tier"),
         )
 
 

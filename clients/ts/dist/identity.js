@@ -65,10 +65,16 @@ export class IdentityClient {
     }
     /** Export Audit
      *  GET /api/v1/audit/export */
-    export_audit(stream, after_seq, limit, run_id) {
+    export_audit(stream, after_seq, limit, run_id, format) {
         const _path = `/api/v1/audit/export`;
-        const params = { "stream": stream, "afterSeq": after_seq, "limit": limit, "runId": run_id };
+        const params = { "stream": stream, "afterSeq": after_seq, "limit": limit, "runId": run_id, "format": format };
         return this.http.request(this.baseUrl, _path, "GET", undefined, params);
+    }
+    /** Verify Audit
+     *  POST /api/v1/audit/verify */
+    verify_audit(body) {
+        const _path = `/api/v1/audit/verify`;
+        return this.http.request(this.baseUrl, _path, "POST", body);
     }
     /** Login
      *  POST /api/v1/auth/login */
@@ -872,6 +878,36 @@ export class IdentityClient {
         const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/reviewer-thresholds`;
         return this.http.request(this.baseUrl, _path, "DELETE", undefined);
     }
+    /** List Sinks
+     *  GET /api/v1/teams/{team_id}/siem/sinks */
+    list_sinks(team_id) {
+        const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/siem/sinks`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
+    /** Create Sink
+     *  POST /api/v1/teams/{team_id}/siem/sinks */
+    create_sink(team_id, body) {
+        const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/siem/sinks`;
+        return this.http.request(this.baseUrl, _path, "POST", body);
+    }
+    /** Get Sink
+     *  GET /api/v1/teams/{team_id}/siem/sinks/{sink_id} */
+    get_sink(team_id, sink_id) {
+        const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/siem/sinks/${encodeURIComponent(sink_id)}`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
+    /** Delete Sink
+     *  DELETE /api/v1/teams/{team_id}/siem/sinks/{sink_id} */
+    delete_sink(team_id, sink_id) {
+        const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/siem/sinks/${encodeURIComponent(sink_id)}`;
+        return this.http.request(this.baseUrl, _path, "DELETE", undefined);
+    }
+    /** Patch Sink
+     *  PATCH /api/v1/teams/{team_id}/siem/sinks/{sink_id} */
+    patch_sink(team_id, sink_id, body) {
+        const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/siem/sinks/${encodeURIComponent(sink_id)}`;
+        return this.http.request(this.baseUrl, _path, "PATCH", body);
+    }
     /** List Skills
      *  GET /api/v1/teams/{team_id}/skills */
     list_skills(team_id) {
@@ -1139,6 +1175,7 @@ export class IdentityClient {
  * export interface/type AcceptBody
  * export interface/type ApplyBody
  * export interface/type AttestBody
+ * export interface/type AuditVerifyRequest
  * export interface/type BindingBody
  * export interface/type ChainNode
  * export interface/type CheckBody
@@ -1197,6 +1234,8 @@ export class IdentityClient {
  * export interface/type ServiceIdentityBody
  * export interface/type SessionResponse
  * export interface/type SettingsBody
+ * export interface/type SinkCreateBody
+ * export interface/type SinkPatchBody
  * export interface/type SkillBody
  * export interface/type SnoozeBody
  * export interface/type SsoCompleteBody

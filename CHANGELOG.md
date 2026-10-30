@@ -103,6 +103,35 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
   PATCH, then reactivates, with the last-admin refusal and revoked-credential
   refusals in the same run. Spec, both SDKs and `clients/ts/dist` moved with it.
   Operator text: `docs/runbooks/ops.md` §3.9.
+* **The audit trail can now be handed to a SIEM, not just downloaded by a
+  human.** `GET /api/v1/audit/export?format=ndjson` emits one self-contained JSON
+  object per line with the chain fields and a `X-Harness-Next-Cursor` header, and
+  a team admin can register **push sinks** (`/api/v1/teams/{id}/siem/sinks`,
+  Team tier, ≤5 per team, migration 0071): HTTPS collector, host on an operator
+  allow-list, shared secret Fernet-encrypted with a hint only, HMAC-SHA256
+  signature header (`t=<ts>,v1=hmac(secret, "<ts>." + body)`) and an
+  `Idempotency-Key` per batch. Delivery is at-least-once and never skips: the
+  cursor advances only on a 2xx, a compare-and-set claim with a 120s lease makes
+  a dead worker's sink reclaimable, retries back off `min(60·2^(n-1), 3600)`, and
+  after 8 consecutive failures the sink goes `blocked` with an audit row and
+  stays quiet until an admin resumes it. A third surface,
+  `POST /api/v1/audit/verify`, returns a per-row chain verdict for a window — the
+  same PostgreSQL function the trigger sealed with, plus prev-hash seam,
+  `prunedPrefix`/`anchored` and newest-row-deletion detection — and on a lane
+  without the chain (SQLite) it answers 503 rather than an `ok` it cannot support.
+  Export and push share one reader (`audit_rows.py`), so a collector cannot be
+  shown different rows than an auditor. Two wiring defects the live drill found:
+  the API validates collector URLs at registration but the identity service had
+  no `HARNESS_SIEM_ALLOWED_HOSTS` (and, pre-existing, no
+  `HARNESS_WEBHOOK_ALLOWED_HOSTS`, so the webhook door was refusing every URL),
+  and an engineer's session had to be re-bound to the team after an invite before
+  it demonstrated the 403. Evidence: 55 tests across the export shape, reader,
+  egress law, sink API, delivery loop and the live-Postgres window (every
+  delivery/verdict law mutation-checked) and `make drill-siem`, 59 checks —
+  signed delivery into a real HTTP collector, replay dedupe, backoff → blocked →
+  resume, tamper named by row, pruned prefix declared. Spec, both SDKs and
+  `clients/ts/dist` moved with it (191 identity operations). Operator text:
+  `docs/runbooks/ops.md` §3.10.
 * **W16 opened with an audit, not an assumption.** `docs/m2-w16-plan.md` records
   what exists today with file:line for each claim: OIDC auth-code+PKCE exists but
   mapped email only (no group→role — closed by the slice above); SCIM does not exist at all (no endpoint,

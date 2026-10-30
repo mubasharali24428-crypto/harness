@@ -729,6 +729,132 @@ async def emit_scim_user_changed(
     )
 
 
+async def emit_siem_sink_created(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """siem.created — W16 slice 4: a collector endpoint was registered. detail
+    carries {label, startFrom, cursor}; the shared secret is never passed in."""
+    return await _emit(
+        session,
+        "siem.created",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="siem_sink",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_siem_sink_changed(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """siem.updated — W16 slice 4: label/url/secret/active/state changed. detail
+    carries {changed, version}; a rotated secret is recorded as the word
+    "rotated", never a value or a hint."""
+    return await _emit(
+        session,
+        "siem.updated",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="siem_sink",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_siem_sink_deleted(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """siem.deleted — W16 slice 4: collector removed; the cursor dies with it, so
+    this row is the last word on where the team's trail stopped being pushed."""
+    return await _emit(
+        session,
+        "siem.deleted",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="siem_sink",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_siem_sink_blocked(
+    session: AsyncSession,
+    *,
+    actor_user_id: str | None,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "system",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """siem.blocked — W16 slice 4: the collector refused MAX_ATTEMPTS times in a
+    row and the worker stopped. The actor is the worker, so there is no user."""
+    return await _emit(
+        session,
+        "siem.blocked",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="siem_sink",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_siem_sink_resumed(
+    session: AsyncSession,
+    *,
+    actor_user_id: str | None,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """siem.resumed — W16 slice 4: a blocked collector starts again (an admin's
+    PATCH), so the gap between blocked and resumed is bounded by a named act."""
+    return await _emit(
+        session,
+        "siem.resumed",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="siem_sink",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
 async def emit_audit_exported(
     session: AsyncSession,
     *,
@@ -740,6 +866,28 @@ async def emit_audit_exported(
     return await _emit(
         session,
         "audit.exported",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team",
+        target_id=team_id,
+        detail=detail,
+    )
+
+
+async def emit_audit_verified(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    detail: dict[str, Any] | None = None,
+) -> AuditLog | None:
+    """audit.verified - W16 slice 4: an admin asked whether the hash chain still
+    verifies. detail carries {afterChainPos, maxRows, rowsChecked, ok}; the
+    verdict is an integrity claim about evidence, so asking for it is itself a
+    consequential read and is recorded like the export access row is."""
+    return await _emit(
+        session,
+        "audit.verified",
         user_id=actor_user_id,
         team_id=team_id,
         target_type="team",

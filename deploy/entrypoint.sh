@@ -17,10 +17,10 @@ fi
 
 if [ -n "${HARNESS_SERVICE:-}" ]; then
   case "$HARNESS_SERVICE" in
-    migrate|identity|github|models|orchestrator|sandbox|meeting|review|webhook-delivery) ;;
+    migrate|identity|github|models|orchestrator|sandbox|meeting|review|webhook-delivery|siem-push) ;;
     *)
       echo "unknown HARNESS_SERVICE: $HARNESS_SERVICE" >&2
-      echo "expected: migrate identity github models orchestrator sandbox meeting review webhook-delivery" >&2
+      echo "expected: migrate identity github models orchestrator sandbox meeting review webhook-delivery siem-push" >&2
       exit 1
       ;;
   esac
@@ -146,6 +146,13 @@ PYGATE
 
   if [ "$HARNESS_SERVICE" = webhook-delivery ]; then
     exec python -m harness_identity.webhook_worker
+  fi
+
+  # W16 slice 4: the SIEM push loop. Separate service so a stalled customer
+  # collector cannot slow outbound webhooks, and so `pendingRows` growth has an
+  # obvious process to look at.
+  if [ "$HARNESS_SERVICE" = siem-push ]; then
+    exec python -m harness_identity.siem_worker
   fi
 
   case "$HARNESS_SERVICE" in

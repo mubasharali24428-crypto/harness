@@ -1,0 +1,444 @@
+{
+  "verdict": "PASS",
+  "checks": [
+    {
+      "check": "team tier raised (an egress path is not a starter feature)",
+      "got": 200,
+      "want": 200,
+      "ok": true
+    },
+    {
+      "check": "engineer invited",
+      "got": 201,
+      "want": 201,
+      "ok": true
+    },
+    {
+      "check": "engineer joins the team",
+      "got": 200,
+      "want": 200,
+      "ok": true
+    },
+    {
+      "check": "a session bound to this team is minted",
+      "got": 200,
+      "want": 200,
+      "ok": true
+    },
+    {
+      "check": "an engineer cannot register a collector",
+      "got": 403,
+      "want": 403,
+      "ok": true
+    },
+    {
+      "check": "nor list them",
+      "got": 403,
+      "want": 403,
+      "ok": true
+    },
+    {
+      "check": "plaintext refused",
+      "got": [
+        422,
+        "INVALID_SIEM_URL"
+      ],
+      "want": [
+        422,
+        "INVALID_SIEM_URL"
+      ],
+      "ok": true
+    },
+    {
+      "check": "not allow-listed refused",
+      "got": [
+        422,
+        "INVALID_SIEM_URL"
+      ],
+      "want": [
+        422,
+        "INVALID_SIEM_URL"
+      ],
+      "ok": true
+    },
+    {
+      "check": "loopback refused",
+      "got": [
+        422,
+        "INVALID_SIEM_URL"
+      ],
+      "want": [
+        422,
+        "INVALID_SIEM_URL"
+      ],
+      "ok": true
+    },
+    {
+      "check": "query string refused",
+      "got": [
+        422,
+        "INVALID_SIEM_URL"
+      ],
+      "want": [
+        422,
+        "INVALID_SIEM_URL"
+      ],
+      "ok": true
+    },
+    {
+      "check": "admin registers the collector",
+      "got": 201,
+      "want": 201,
+      "ok": true
+    },
+    {
+      "check": "the shared secret never comes back",
+      "got": false,
+      "want": false,
+      "ok": true
+    },
+    {
+      "check": "only a hint does",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "stored as ciphertext, not the value",
+      "got": "f",
+      "want": "f",
+      "ok": true
+    },
+    {
+      "check": "a foreign team's sink answers like an unknown one",
+      "got": [
+        404,
+        {
+          "error": {
+            "code": "NOT_FOUND",
+            "message": "team not found"
+          },
+          "detail": {
+            "error": {
+              "code": "NOT_FOUND",
+              "message": "team not found"
+            }
+          }
+        }
+      ],
+      "want": [
+        404,
+        {
+          "error": {
+            "code": "NOT_FOUND",
+            "message": "team not found"
+          },
+          "detail": {
+            "error": {
+              "code": "NOT_FOUND",
+              "message": "team not found"
+            }
+          }
+        }
+      ],
+      "ok": true
+    },
+    {
+      "check": "ndjson export answers",
+      "got": 200,
+      "want": 200,
+      "ok": true
+    },
+    {
+      "check": "with the machine media type",
+      "got": "application/x-ndjson",
+      "want": "application/x-ndjson",
+      "ok": true
+    },
+    {
+      "check": "one JSON object per line",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "each line is self-contained with its chain fields",
+      "got": [
+        "action",
+        "chainPos",
+        "rowHash",
+        "seq"
+      ],
+      "want": [
+        "action",
+        "chainPos",
+        "rowHash",
+        "seq"
+      ],
+      "ok": true
+    },
+    {
+      "check": "a cursor header comes with it",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "the window verdict answers on the deployment's Postgres",
+      "got": 200,
+      "want": 200,
+      "ok": true
+    },
+    {
+      "check": "and the chain verifies",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "row by row, with hashes",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "the head is reported",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "an engineer cannot ask for the verdict",
+      "got": 403,
+      "want": 403,
+      "ok": true
+    },
+    {
+      "check": "and asking is itself in the trail",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "the deployed siem-push worker attempted delivery",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "a dead collector does not advance the cursor",
+      "got": 1343,
+      "want": 1343,
+      "ok": true
+    },
+    {
+      "check": "the lag stays visible",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "the failure is named",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "nothing has been delivered",
+      "got": 0,
+      "want": 0,
+      "ok": true
+    },
+    {
+      "check": "the collector is removed",
+      "got": 204,
+      "want": 204,
+      "ok": true
+    },
+    {
+      "check": "and the team is left with none",
+      "got": [],
+      "want": [],
+      "ok": true
+    },
+    {
+      "check": "a signed batch reaches the collector",
+      "got": 1,
+      "want": 1,
+      "ok": true
+    },
+    {
+      "check": "the collector recomputes the HMAC",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "the batch carries the team's sealed rows",
+      "got": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "want": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "ok": true
+    },
+    {
+      "check": "rows carry chain hashes the collector can keep",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "the cursor moved to the last row handed over",
+      "got": 4,
+      "want": 4,
+      "ok": true
+    },
+    {
+      "check": "and more rows are waiting, so the next tick is immediate",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "the second batch continues where the first ended",
+      "got": [
+        5,
+        6
+      ],
+      "want": [
+        5,
+        6
+      ],
+      "ok": true
+    },
+    {
+      "check": "and links to it by prevHash",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "a restart with nothing new posts nothing",
+      "got": 2,
+      "want": 2,
+      "ok": true
+    },
+    {
+      "check": "a lost cursor update replays the same batch, not a new one",
+      "got": 2,
+      "want": 2,
+      "ok": true
+    },
+    {
+      "check": "a refused batch is a retry",
+      "got": 1,
+      "want": 1,
+      "ok": true
+    },
+    {
+      "check": "the cursor did not move",
+      "got": 6,
+      "want": 6,
+      "ok": true
+    },
+    {
+      "check": "attempts counted",
+      "got": 1,
+      "want": 1,
+      "ok": true
+    },
+    {
+      "check": "and the retry is scheduled one backoff step out",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "a dead collector ends up blocked",
+      "got": "blocked",
+      "want": "blocked",
+      "ok": true
+    },
+    {
+      "check": "and the trail says so",
+      "got": 1,
+      "want": 1,
+      "ok": true
+    },
+    {
+      "check": "a blocked sink stays quiet",
+      "got": 3,
+      "want": 3,
+      "ok": true
+    },
+    {
+      "check": "resuming delivers the backlog, in one batch",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "the last sealed row was handed over",
+      "got": 13,
+      "want": 13,
+      "ok": true
+    },
+    {
+      "check": "the window verdict is clean",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "and covers the sealed rows",
+      "got": 13,
+      "want": 13,
+      "ok": true
+    },
+    {
+      "check": "with the head reached",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "a tampered row makes the verdict false",
+      "got": false,
+      "want": false,
+      "ok": true
+    },
+    {
+      "check": "and names exactly the row",
+      "got": [
+        3
+      ],
+      "want": [
+        3
+      ],
+      "ok": true
+    },
+    {
+      "check": "a pruned head is declared, not hidden",
+      "got": true,
+      "want": true,
+      "ok": true
+    },
+    {
+      "check": "the surviving window still links",
+      "got": true,
+      "want": true,
+      "ok": true
+    }
+  ],
+  "passed": 59,
+  "failed": 0,
+  "seconds": 27.1
+}

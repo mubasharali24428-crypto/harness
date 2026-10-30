@@ -61,6 +61,10 @@ IDENTITY_RULES: tuple[tuple[str, str, str], ...] = (
     ("GET", r"/api/v1/me", "read"),
     ("GET", r"/api/v1/audit", "administer"),
     ("GET", r"/api/v1/audit/export", "export"),
+    # Marathon 2.0 W16 slice 4: asking whether the hash chain still verifies is
+    # the same evidence door as pulling the export, so it carries the same
+    # permission rather than a new one an org policy would have to learn.
+    ("POST", r"/api/v1/audit/verify", "export"),
     ("GET", r"/api/v1/billing/state", "read"),
     ("PUT", r"/api/v1/billing/plan", "billing"),
     ("GET", r"/api/v1/(keys|projects|projects/[^/]+/(rules|events/replay))", "read"),
@@ -103,6 +107,10 @@ IDENTITY_RULES: tuple[tuple[str, str, str], ...] = (
     # entries exist to keep the classification law total).
     ("GET", r"/api/v1/teams/[^/]+/scim/tokens", "read"),
     ("*", r"/api/v1/teams/[^/]+/scim/tokens(/.*)?", "administer"),
+    # Marathon 2.0 W16 slice 4: a SIEM sink is an outbound egress decision plus a
+    # live delivery cursor over the team's evidence, so every verb on it is an
+    # admin act — there is no read-only view that an engineer should hold.
+    ("*", r"/api/v1/teams/[^/]+/siem/sinks(/.*)?", "administer"),
     ("*", r"/scim/v2(/.*)?", EXEMPT),
     ("GET", r"/api/v1/workspaces(/.*)?", "read"),
     ("*", r"/api/v1/workspaces/(allowlist.*|templates|[^/]+/delete)", "administer"),

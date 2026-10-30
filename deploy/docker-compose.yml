@@ -288,6 +288,13 @@ services:
     environment:
       <<: *backend-env
       HARNESS_SERVICE: identity
+      # W16 slice 4: the API validates a collector URL against the same
+      # allow-list the worker obeys at delivery time. Without it here, every
+      # registration would be refused against an empty list. The webhook API
+      # validates with HARNESS_WEBHOOK_ALLOWED_HOSTS the same way, so both live
+      # on the service that accepts the registration, not only on the worker.
+      HARNESS_SIEM_ALLOWED_HOSTS: ${HARNESS_SIEM_ALLOWED_HOSTS:-}
+      HARNESS_WEBHOOK_ALLOWED_HOSTS: ${HARNESS_WEBHOOK_ALLOWED_HOSTS:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -320,6 +327,29 @@ services:
       HARNESS_SERVICE: webhook-delivery
       HARNESS_WEBHOOK_ALLOWED_HOSTS: ${HARNESS_WEBHOOK_ALLOWED_HOSTS:-}
       HARNESS_WEBHOOK_POLL_SECONDS: ${HARNESS_WEBHOOK_POLL_SECONDS:-5}
+    depends_on: *backend-depends
+    restart: unless-stopped
+
+  # Marathon 2.0 W16 slice 4: pushes each team's audit trail to its SIEM
+  # collector. Its own service (not folded into webhook-delivery) because a
+  # customer collector that answers slowly must not stall outbound webhooks, and
+  # because a stalled trail needs one obvious process to look at.
+  siem-push:
+    <<: *backend-build
+    logging: *logging-caps
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_JOB_CPU_LIMIT:-0.25}"
+          memory: ${HARNESS_JOB_MEM_LIMIT:-256m}
+          pids: ${HARNESS_JOB_PIDS_LIMIT:-64}
+    environment:
+      <<: *backend-env
+      HARNESS_SERVICE: siem-push
+      # Empty allow-list = no destination is acceptable, so a deployment that
+      # forgets this cannot silently ship evidence anywhere (see egress.py).
+      HARNESS_SIEM_ALLOWED_HOSTS: ${HARNESS_SIEM_ALLOWED_HOSTS:-}
+      HARNESS_SIEM_POLL_SECONDS: ${HARNESS_SIEM_POLL_SECONDS:-30}
     depends_on: *backend-depends
     restart: unless-stopped
 

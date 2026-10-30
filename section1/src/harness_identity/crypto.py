@@ -160,6 +160,7 @@ ENCRYPTED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("integration_webhooks", "id", "secret_encrypted"),
     ("github_connections", "id", "access_token_encrypted"),
     ("team_sso_configs", "team_id", "client_secret_encrypted"),
+    ("siem_sinks", "id", "secret_encrypted"),
 )
 
 

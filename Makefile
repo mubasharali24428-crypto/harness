@@ -35,7 +35,7 @@ PG_URL ?= postgresql+asyncpg://harness:harness@localhost:5499/harness
         lint test lint-mcp test-mcp frontend frontend-tsc frontend-vitest check-ts-dist static-gates e2e e2e-compose \
         pg-probe pg-probe-integration pg-probe-s1 pg-probe-migrate pg-up pip-audit \
         guard-routes guard-isolation guard-route-law \
-        drill-oidc drill-pitr drill-native drill-fairness drill-rate-limit drill-routing drill-seat-revocation drill-scim
+        drill-oidc drill-pitr drill-native drill-fairness drill-rate-limit drill-routing drill-seat-revocation drill-scim drill-siem
 
 help:
 	@echo "Harness gates — single source of truth shared by CI (.github/workflows/ci.yml):"
@@ -54,6 +54,7 @@ help:
 	@echo "  make drill-routing    W15 routing decision is durable + readable (no spend)"
 	@echo "  make drill-seat-revocation W16 revoked seat refused on every live door"
 	@echo "  make drill-scim         W16 SCIM deprovision reaches every live door"
+	@echo "  make drill-siem         W16 SIEM push: signed delivery, replay, block/resume, verdict"
 	@echo "  make guard-routes    app/**/page.tsx default-export-only law (W4 carryover)"
 	@echo "  make guard-isolation sections import ONLY contracts/ (M13 isolation law)"
 	@echo "  make e2e             section7 Playwright suite (specs land via lane H3a)"
@@ -272,6 +273,11 @@ drill-seat-revocation:
 # containers and a real Postgres (needs the stack up + migration 0070).
 drill-scim:
 	python3 scripts/e2e/w16_scim_deprovision_drill.py
+
+# W16 slice 4. section1's venv on purpose: Part B seeds a throwaway database
+# through the ORM and drives the real delivery loop with sqlalchemy/asyncpg.
+drill-siem:
+	section1/.venv/bin/python scripts/e2e/w16_siem_push_drill.py
 
 # -------------------------------------------------------------------- pg-probe
 # Nightly-pg-probe job parity. Guarded: silently skipping would fake parity.

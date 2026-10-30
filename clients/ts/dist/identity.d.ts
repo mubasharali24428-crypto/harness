@@ -23,6 +23,11 @@ export interface AttestBody {
     };
     signature: string;
 }
+/** AuditVerifyRequest. */
+export interface AuditVerifyRequest {
+    afterChainPos?: number;
+    maxRows?: number;
+}
 /** BindingBody. Required keys: kind, value. */
 export interface BindingBody {
     kind: string;
@@ -387,6 +392,22 @@ export interface SettingsBody {
         [key: string]: unknown;
     };
 }
+/** SinkCreateBody. Required keys: collectorUrl, label, sharedSecret. */
+export interface SinkCreateBody {
+    collectorUrl: string;
+    label: string;
+    sharedSecret: string;
+    startFrom?: "latest" | "earliest";
+}
+/** SinkPatchBody. Required keys: expectedVersion. */
+export interface SinkPatchBody {
+    active?: boolean | null;
+    collectorUrl?: string | null;
+    expectedVersion: number;
+    label?: string | null;
+    resume?: boolean;
+    sharedSecret?: string | null;
+}
 /** SkillBody. Required keys: description, instructions, name, version. */
 export interface SkillBody {
     author?: string | null;
@@ -633,7 +654,10 @@ export declare class IdentityClient {
     list_audit(limit?: number): Promise<Record<string, unknown>>;
     /** Export Audit
      *  GET /api/v1/audit/export */
-    export_audit(stream?: string, after_seq?: number, limit?: number, run_id?: string): Promise<Record<string, unknown>>;
+    export_audit(stream?: string, after_seq?: number, limit?: number, run_id?: string, format?: string): Promise<Record<string, unknown>>;
+    /** Verify Audit
+     *  POST /api/v1/audit/verify */
+    verify_audit(body: AuditVerifyRequest): Promise<Record<string, unknown>>;
     /** Login
      *  POST /api/v1/auth/login */
     login(body: LoginRequest): Promise<SessionResponse>;
@@ -1030,6 +1054,21 @@ export declare class IdentityClient {
     /** Delete Reviewer Thresholds
      *  DELETE /api/v1/teams/{team_id}/settings/reviewer-thresholds */
     delete_reviewer_thresholds(team_id: string): Promise<unknown>;
+    /** List Sinks
+     *  GET /api/v1/teams/{team_id}/siem/sinks */
+    list_sinks(team_id: string): Promise<Record<string, unknown>>;
+    /** Create Sink
+     *  POST /api/v1/teams/{team_id}/siem/sinks */
+    create_sink(team_id: string, body: SinkCreateBody): Promise<Record<string, unknown>>;
+    /** Get Sink
+     *  GET /api/v1/teams/{team_id}/siem/sinks/{sink_id} */
+    get_sink(team_id: string, sink_id: string): Promise<Record<string, unknown>>;
+    /** Delete Sink
+     *  DELETE /api/v1/teams/{team_id}/siem/sinks/{sink_id} */
+    delete_sink(team_id: string, sink_id: string): Promise<unknown>;
+    /** Patch Sink
+     *  PATCH /api/v1/teams/{team_id}/siem/sinks/{sink_id} */
+    patch_sink(team_id: string, sink_id: string, body: SinkPatchBody): Promise<Record<string, unknown>>;
     /** List Skills
      *  GET /api/v1/teams/{team_id}/skills */
     list_skills(team_id: string): Promise<Record<string, unknown>>;

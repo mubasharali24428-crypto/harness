@@ -218,14 +218,71 @@ last-admin refusal, and a revoked credential writing nothing. Spec, both SDKs an
 
 ## Slice 4 — audit export a SIEM can actually consume
 
-* `format=ndjson` on the existing export endpoint: one self-contained JSON object
-  per line, chain fields preserved, so a collector that appends lines is enough;
-* an **outbound push sink** (HTTPS collector URL + HMAC-SHA256 signature header +
-  bounded retry with backoff + a delivery cursor so a restart does not re-send or
-  skip);
-* a customer-facing verification endpoint (`POST /api/v1/audit/verify` with a
-  cursor window) that returns the chain check result for *exported* rows, so
-  tamper-evidence does not require our CLI or our database.
+Shipped as three surfaces over one reader, so an export and a push cannot show a
+collector different rows:
+
+* `format=ndjson` on `GET /api/v1/audit/export`: one self-contained JSON object
+  per line, chain fields (`chainPos`/`prevHash`/`rowHash`) preserved, with
+  `X-Harness-Next-Cursor` / `X-Harness-More` so a script can walk the range
+  without parsing the body first. The rows come from `audit_rows.read_audit_page`,
+  the same function the push uses — one copy of the team-scope rule, not two that
+  can drift.
+* **Push sinks** at `/api/v1/teams/{id}/siem/sinks` (admin, Team tier, ≤5 per
+  team, migration 0071). The collect URL obeys the webhook egress law, now
+  extracted into `egress.py` so both surfaces share it: HTTPS, port 443, no
+  userinfo/query/fragment, host on `HARNESS_SIEM_ALLOWED_HOSTS`, no literal
+  private IP or `.local` name. The shared secret is Fernet-encrypted, returned
+  once as a hint, rotatable, never echoed. Delivery is at-least-once:
+  `X-Harness-Signature: t=<ts>,v1=<hmac-sha256(secret, "<ts>." + body)>` plus
+  `Idempotency-Key: <sinkId>:<from>-<to>`, and **the cursor advances only on a
+  2xx** — a crash between send and commit replays the batch instead of skipping
+  it. Retries back off `min(60·2^(n-1), 3600)`, the claim is compare-and-set with
+  a 120s lease so a dead worker's row is reclaimable, and after 8 consecutive
+  failures the sink goes `blocked`, an audit row says so, and nothing more is
+  sent until an admin resumes. A new sink starts at the newest row unless the
+  admin asks for `startFrom="earliest"`; the "latest" cursor is a scoped
+  `MAX(seq)`, not the last row of a page (a page-capped cursor would start
+  mid-trail and skip evidence).
+* `POST /api/v1/audit/verify` — a window of the chain, row by row, for a customer
+  holding an export. Each row is re-derived with the **same PostgreSQL function
+  the trigger sealed it with**, so there is no second canonicalisation to drift;
+  the verdict also checks the prev-hash seam, reports `prunedPrefix`/`anchored`
+  when retention removed the row before the window, and catches newest-row
+  deletion by comparing the stored head with the last row. It is admin-only on
+  the same `export` permission as the export, and asking is itself audited
+  (`audit.verified`), including a refusal. On a lane without the chain (SQLite)
+  it answers **503 `AUDIT_CHAIN_UNAVAILABLE`** rather than an `ok` it cannot
+  support.
+* The push loop runs as its own service (`siem-push`, `HARNESS_SIEM_POLL_SECONDS`)
+  so a slow customer collector cannot stall outbound webhooks, and so a stalled
+  trail has one obvious process to look at.
+
+Two honest limits, stated rather than implied: the verdict is
+**tamper-evident, not tamper-proof** — a privileged attacker who re-seals every
+hash from the edited row onward is invisible to a chain check and only the
+external anchors catch it (pinned by
+`test_a_resealed_chain_is_honest_about_what_the_window_can_prove`); and chain
+fields are real only where the database seals them, so on SQLite they are null
+and the verdict refuses. Wiring found by the live drill: the identity service
+needs `HARNESS_SIEM_ALLOWED_HOSTS` itself — the API validates at registration —
+and `HARNESS_WEBHOOK_ALLOWED_HOSTS` had the same omission, which meant the
+webhook registration door was refusing every URL on the dev stack.
+
+Evidence: 5 export-shape tests (`test_audit_export_ndjson.py`), 4 reader law
+tests (`test_audit_rows_reader.py`), 4 egress-law tests (`test_egress_law.py`),
+18 sink-API tests (`test_siem_sinks_api.py`), 16 delivery-loop tests
+(`test_siem_push.py`), 5 refusal/authz tests plus the real verdict through the app
+(`test_audit_verify_endpoint.py`), 7 live-Postgres window tests
+(`test_audit_chain_pg.py`) — each delivery and verdict law mutation-checked — and
+`make drill-siem`: 59 checks, evidence
+`docs/briefs/evidence/pilot-prep/w16_siem_push_20261030T032737Z.json`. Part A
+proves registration and its four refusals, the NDJSON shape, a real verdict from
+the deployment's Postgres, and the deployed worker failing a dead destination
+without moving the cursor; Part B signs a batch into a real HTTP collector (HMAC
+recomputed, chain linkage across batches, replay deduped by idempotency key),
+then walks backoff → blocked → resume and the tamper / pruned-prefix verdicts on
+rows the database actually sealed. Spec, both SDKs and `clients/ts/dist` moved
+with it (191 identity operations).
 
 ## Not in this week (stated, not hidden)
 
@@ -254,5 +311,5 @@ last-admin refusal, and a revoked credential writing nothing. Spec, both SDKs an
 | A deactivated user cannot authenticate or act | unit per surface + live drill (old token 401, fresh login 403) | **shipped 2026-10-29** |
 | SSO can map an IdP group to a role, only through an admin-written rule | mapping tests + Keycloak live drill (promote, demote, audit source) | **shipped 2026-10-29** |
 | An IdP deprovisioning reaches Harness | SCIM subset (11+20+6 tests) + live drill (36 checks, 200→401 at both doors) | **shipped 2026-10-29** |
-| A SIEM can ingest and verify the audit trail | NDJSON + push sink + verify endpoint, live proof | pending (slice 4) |
+| A SIEM can ingest and verify the audit trail | NDJSON + push sink + verify endpoint (55 tests) + `make drill-siem` (59 checks) | **shipped 2026-10-29** |
 | No doc claims key or residency management the code lacks | doc diff + the audit table above | pending |

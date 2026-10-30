@@ -63,6 +63,25 @@
     "title": "AttestBody",
     "type": "object"
    },
+   "AuditVerifyRequest": {
+    "properties": {
+     "afterChainPos": {
+      "default": 0,
+      "minimum": 0.0,
+      "title": "Afterchainpos",
+      "type": "integer"
+     },
+     "maxRows": {
+      "default": 500,
+      "maximum": 1000.0,
+      "minimum": 1.0,
+      "title": "Maxrows",
+      "type": "integer"
+     }
+    },
+    "title": "AuditVerifyRequest",
+    "type": "object"
+   },
    "BindingBody": {
     "properties": {
      "kind": {
@@ -2005,6 +2024,113 @@
     "title": "SettingsBody",
     "type": "object"
    },
+   "SinkCreateBody": {
+    "properties": {
+     "collectorUrl": {
+      "maxLength": 2048,
+      "minLength": 12,
+      "title": "Collectorurl",
+      "type": "string"
+     },
+     "label": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Label",
+      "type": "string"
+     },
+     "sharedSecret": {
+      "maxLength": 128,
+      "minLength": 16,
+      "title": "Sharedsecret",
+      "type": "string"
+     },
+     "startFrom": {
+      "default": "latest",
+      "enum": [
+       "latest",
+       "earliest"
+      ],
+      "title": "Startfrom",
+      "type": "string"
+     }
+    },
+    "required": [
+     "label",
+     "collectorUrl",
+     "sharedSecret"
+    ],
+    "title": "SinkCreateBody",
+    "type": "object"
+   },
+   "SinkPatchBody": {
+    "properties": {
+     "active": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Active"
+     },
+     "collectorUrl": {
+      "anyOf": [
+       {
+        "maxLength": 2048,
+        "minLength": 12,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Collectorurl"
+     },
+     "expectedVersion": {
+      "minimum": 1.0,
+      "title": "Expectedversion",
+      "type": "integer"
+     },
+     "label": {
+      "anyOf": [
+       {
+        "maxLength": 120,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Label"
+     },
+     "resume": {
+      "default": false,
+      "title": "Resume",
+      "type": "boolean"
+     },
+     "sharedSecret": {
+      "anyOf": [
+       {
+        "maxLength": 128,
+        "minLength": 16,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Sharedsecret"
+     }
+    },
+    "required": [
+     "expectedVersion"
+    ],
+    "title": "SinkPatchBody",
+    "type": "object"
+   },
    "SkillBody": {
     "properties": {
      "author": {
@@ -3537,7 +3663,7 @@
   },
   "/api/v1/audit/export": {
    "get": {
-    "description": "Admin-only evidence export for the CALLER's team (there is no team parameter, so a\nforeign team's rows can never be requested). ``stream=audit`` is the security audit\nlog; ``stream=collab`` is the product event history of shared runs (optionally one\n``runId``). Ascending by ``seq`` from ``afterSeq``; at most EXPORT_PAGE_MAX rows per\ncall; follow ``nextCursor`` while ``hasMore``. Each export is itself audited.",
+    "description": "Admin-only evidence export for the CALLER's team (there is no team parameter, so a\nforeign team's rows can never be requested). ``stream=audit`` is the security audit\nlog; ``stream=collab`` is the product event history of shared runs (optionally one\n``runId``). Ascending by ``seq`` from ``afterSeq``; at most EXPORT_PAGE_MAX rows per\ncall; follow ``nextCursor`` while ``hasMore``. Each export is itself audited.\n\n``format=ndjson`` streams the same rows one JSON object per line for a SIEM\ncollector that appends lines. A stream of lines has no place to put a cursor, so\n``X-Harness-Next-Cursor`` / ``X-Harness-More`` carry it; the rows themselves are\nbyte-identical to the JSON body's `items` entries, chain fields included.",
     "operationId": "export_audit_api_v1_audit_export_get",
     "parameters": [
      {
@@ -3579,6 +3705,16 @@
        "title": "Runid",
        "type": "string"
       }
+     },
+     {
+      "in": "query",
+      "name": "format",
+      "required": false,
+      "schema": {
+       "default": "json",
+       "title": "Format",
+       "type": "string"
+      }
      }
     ],
     "responses": {
@@ -3606,6 +3742,47 @@
      }
     },
     "summary": "Export Audit"
+   }
+  },
+  "/api/v1/audit/verify": {
+   "post": {
+    "description": "W16 slice 4: verify the hash chain over a window of the trail, so a\ncustomer holding an export can be told \u2014 row by row \u2014 whether it is still\nwhat the database sealed. Admin only, like every other evidence door.\n\nThe verdict can only come from re-deriving the hashes with the same trigger\nfunction the chain was sealed by. That function is PostgreSQL-only; on a lane\nwithout it the endpoint refuses (503) rather than reporting a check it did not\nperform, because ``ok: true`` from a code path that verified nothing is the\nmost dangerous answer this endpoint could give.",
+    "operationId": "verify_audit_api_v1_audit_verify_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AuditVerifyRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Verify Audit Api V1 Audit Verify Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Verify Audit"
    }
   },
   "/api/v1/auth/login": {
@@ -9615,6 +9792,247 @@
      }
     },
     "summary": "Put Reviewer Thresholds"
+   }
+  },
+  "/api/v1/teams/{team_id}/siem/sinks": {
+   "get": {
+    "description": "List the team's collectors with their lag, so a stalled SIEM is visible.",
+    "operationId": "list_sinks_api_v1_teams__team_id__siem_sinks_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Sinks Api V1 Teams  Team Id  Siem Sinks Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Sinks"
+   },
+   "post": {
+    "description": "Register a collector endpoint (admin + Team tier). The shared secret is\nstored encrypted and never returned again.",
+    "operationId": "create_sink_api_v1_teams__team_id__siem_sinks_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SinkCreateBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Sink Api V1 Teams  Team Id  Siem Sinks Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Sink"
+   }
+  },
+  "/api/v1/teams/{team_id}/siem/sinks/{sink_id}": {
+   "delete": {
+    "description": "Remove a collector. Idempotent 204, like the other integration deletes.",
+    "operationId": "delete_sink_api_v1_teams__team_id__siem_sinks__sink_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "sink_id",
+      "required": true,
+      "schema": {
+       "title": "Sink Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Sink"
+   },
+   "get": {
+    "operationId": "get_sink_api_v1_teams__team_id__siem_sinks__sink_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "sink_id",
+      "required": true,
+      "schema": {
+       "title": "Sink Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Sink Api V1 Teams  Team Id  Siem Sinks  Sink Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Sink"
+   },
+   "patch": {
+    "description": "Change a collector's settings. `expectedVersion` is required: a cursor or\nendpoint changed by a stale UI click would silently re-point live evidence.",
+    "operationId": "patch_sink_api_v1_teams__team_id__siem_sinks__sink_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "sink_id",
+      "required": true,
+      "schema": {
+       "title": "Sink Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SinkPatchBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Patch Sink Api V1 Teams  Team Id  Siem Sinks  Sink Id  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Patch Sink"
    }
   },
   "/api/v1/teams/{team_id}/skills": {
