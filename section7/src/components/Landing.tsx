@@ -129,6 +129,12 @@ export function LandingView() {
             aria-label="Get started"
             style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: space.md, flexWrap: "wrap" }}
           >
+            <a href="/docs" style={navLink}>
+              Docs
+            </a>
+            <a href="/pricing" style={navLink}>
+              Pricing
+            </a>
             <a href="/login" style={navLink}>
               Sign in
             </a>

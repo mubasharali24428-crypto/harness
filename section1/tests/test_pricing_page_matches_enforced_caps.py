@@ -13,6 +13,7 @@ The tables carry HTML-comment markers so the rest of the prose can change freely
 without weakening the check.
 """
 
+import json
 import re
 from pathlib import Path
 
@@ -29,6 +30,7 @@ SERVICES = ROOT / "deploy" / "runners" / "services.py"
 ENGINE_RUNTIME = (
     ROOT / "section4" / "src" / "harness_orchestrator" / "engine_runtime.py"
 )
+UI_PRICING = ROOT / "section7" / "src" / "lib" / "pricing.json"
 
 
 def _block(name: str, *, width: int) -> dict[str, list[str]]:
@@ -121,3 +123,56 @@ def test_the_page_no_longer_advertises_what_no_door_enforces():
         assert stale not in text, (
             f"PRICING.md still advertises {stale!r}; no door enforces it"
         )
+
+
+# --------------------------------------------------------------- the /pricing page
+# The UI route reads section7/src/lib/pricing.json. It is the same claim in a
+# second place, so it gets the same check — otherwise the page a customer
+# actually looks at would drift first.
+
+
+@pytest.fixture(scope="module")
+def ui() -> dict:
+    return json.loads(UI_PRICING.read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("tier", PLAN_TIERS)
+def test_the_pricing_route_shows_the_caps_the_code_enforces(ui, tier):
+    effective = tier_caps(tier).to_wire()
+    for field, cells in ui["caps"].items():
+        assert cells[tier] == effective[field], (
+            f"/pricing shows {tier}.{field} as {cells[tier]!r}; code enforces"
+            f" {effective[field]!r}"
+        )
+
+
+def test_the_pricing_route_uses_the_same_platform_limits(ui):
+    assert ui["platform"]["siemSinksPerTeam"] == MAX_SINKS_PER_TEAM
+    assert ui["platform"]["scimTokensPerTeam"] == MAX_TOKENS_PER_TEAM
+    assert ui["platform"]["workspacesPerTeam"] == DEFAULT_MAX_PER_TEAM
+
+    source = SERVICES.read_text(encoding="utf-8")
+    per_team = re.search(
+        r'os\.environ\.get\(\s*"HARNESS_RUN_CONCURRENCY"\s*,\s*"(\d+)"', source
+    )
+    assert per_team and ui["platform"]["runConcurrencyPerTeam"] == int(per_team.group(1))
+    pool = re.search(
+        r"_DEFAULT_ENGINE_MAX_CONCURRENCY\s*=\s*(\d+)",
+        ENGINE_RUNTIME.read_text(encoding="utf-8"),
+    )
+    assert pool and ui["platform"]["enginePoolMax"] == int(pool.group(1))
+
+
+def test_the_pricing_route_separates_enforced_from_declared(ui):
+    enforced = set(ui["enforced"])
+    declared = set(ui["declared"])
+    assert enforced == {"runsPerDay", "contextIndexMaxChunks"}
+    assert declared == {"seatLimit", "auditRetentionDays"}
+    assert enforced | declared == set(ui["caps"]), "every row must say whether it refuses"
+
+
+def test_the_pricing_route_invents_no_amount(ui):
+    """"Contact us" is the honest price until counsel signs off; a dollar figure
+    on the route would be the same overclaim in a nicer font."""
+    for tier in ui["tiers"]:
+        assert tier["price"] in {"$0 forever", "Contact us"}, tier

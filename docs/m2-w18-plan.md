@@ -41,22 +41,20 @@ operator can find the knob.
 
 A one-shot importer, `scripts/migrate_agent_config.py`, plus
 `docs/migrating-from-claude-code-and-codex.md`. The importer reads the files a
-team already has — `CLAUDE.md`, `AGENTS.md`, `.cursor/rules/*.mdc`, and a Codex
-`config.toml`'s `instructions`/`rules` — and writes them into Harness through the
-**public API only** (project rules + project memory), so it needs no schema or
-route changes and cannot disagree with the product:
+team already has — `CLAUDE.md`, `AGENTS.md`, `.cursor/rules/*.mdc`, and
+`.codex/rules/*.md` — and writes one fenced block in the existing project rules
+document through the **public API**. It does not import Codex `config.toml` or
+write project memory:
 
-* `--dry-run` prints the exact calls it would make (the default; nothing is sent
-  without `--apply`);
-* each source becomes one rule with `source=<file>` in its provenance, so a
-  later review can see where a rule came from;
-* secrets-shaped lines (`sk-…`, `ghp_…`, bearer tokens, `*_KEY=`, private key
-  blocks) are dropped and counted, never forwarded — a migration must not become
-  an exfiltration channel;
-* an oversized file is truncated at a rule boundary and reported, not silently
-  split;
-* idempotent: a re-run updates the same rule (matched on source + title) instead
-  of duplicating it.
+* the default preview sends nothing and assumes an empty existing document;
+  `--apply` fetches the current document and writes the merged result;
+* each source is identified by a heading in the merged block;
+* common secret-shaped lines and private-key blocks are filtered and counted,
+  but the filter is not exhaustive; remove secrets and review the preview;
+* whole sources that do not fit are dropped and reported; an individually
+  oversized source is refused;
+* re-running replaces the fenced block. The GET/PUT sequence has no conditional
+  write, so an intervening concurrent edit can be overwritten.
 
 Tests run the parser and the request builder against fixtures; the HTTP leg is
 covered by a `--dry-run` golden and (later) a live drill when the stack is not
@@ -88,12 +86,44 @@ corrections came out of running it: the team id comes from the login response
 caused. The SDK README examples remain as they are; a generated checker for the
 fenced blocks is NOT built (see "not this week").
 
+## Slice 5 — the pages, in the product (shipped)
+
+`/pricing` and `/docs` are now routes in the app (section7), not only Markdown:
+
+* `/pricing` renders from `section7/src/lib/pricing.json`, and the backend test
+  compares that file to `tier_caps()` and the door constants — the same pin as
+  PRICING.md, so the page a customer actually reads cannot drift. Rows are
+  labelled `enforced` / `declared`, amounts are `$0 forever` / `Contact us` (a
+  test refuses any other dollar figure), and the Team-only surfaces name their
+  refusal (`403 PLAN_REQUIRED`).
+* `/docs` carries the four steps the quickstart was executed with (no fifth,
+  invented step), labels `/demo` a recorded replay, and points at the sample
+  repos and the migration command.
+* The landing nav links both pages; a signed-out visitor can reach them without
+  guessing a URL.
+
+Evidence: 10 vitest tests over the two pages (rendered with `renderToStaticMarkup`,
+the repo's Node-env convention), 6 more backend pins for the JSON, `make
+frontend` 1013 passed + tsc clean, and both routes served live after rebuilding
+the frontend image (`/pricing` 200 with `>20<`, `2000`, `Unlimited`, `enforced`,
+`declared`; `/docs` 200 with the four steps and both links).
+
+## Slice 6 — a demo that runs live (shipped, in the honest sense)
+
+`make e2e-compose` against the deployed stack: **13/13 checks green in 3.1s** —
+21 containers healthy, readiness, passwordless login, demo seed with
+`replay=true` and idempotent re-seed, run aggregate with 10 steps, engine truth
+`replayed`, 10 marked events, the audit row, sandbox create/exec/destroy with a
+post-destroy 404, the cross-tenant no-oracle answer, 23 metrics families, and the
+frontend serving HTML. That is a demo that RUNS rather than a recording — and the
+seeded run inside it still says `replayed`, because the honesty rule does not get
+suspended for a demo.
+
 ## Not this week, or not here (stated)
 
-* **A live demo run.** W17 owns the deployed stack for load and failure drills
-  and requires an isolated environment; a demo that contends with it would make
-  both sets of evidence weaker. The demo script lands with the quickstart check
-  and is executed when the stack is free.
+* **A live *agent* demo (real provider spend).** The journey above runs the
+  product live but replays the agent, by design. A real provider run is a W17
+  concern (engine saturation, cost) and belongs in an isolated environment.
 * **Publishing to PyPI/npm.** An external release step with credentials this
   environment does not hold; the packages are built and import-checked instead.
 * **Seat and agent-seat limits.** `PRICING.md` will stop claiming them as

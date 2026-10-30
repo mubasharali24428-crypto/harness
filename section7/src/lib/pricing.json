@@ -1,0 +1,34 @@
+{
+  "_comment": "W18 — the pricing page's only data source. Every number here is compared to the enforcement code by section1/tests/test_pricing_page_matches_enforced_caps.py; change the code, change this file, or the test fails. null means unlimited.",
+  "tiers": [
+    { "id": "free", "name": "Free", "price": "$0 forever", "priceNote": "self-hosted" },
+    { "id": "pro", "name": "Pro", "price": "Contact us", "priceNote": "counsel review required" },
+    { "id": "team", "name": "Team", "price": "Contact us", "priceNote": "per seat, counsel review required" }
+  ],
+  "caps": {
+    "runsPerDay": { "free": 20, "pro": null, "team": null },
+    "contextIndexMaxChunks": { "free": 2000, "pro": null, "team": null },
+    "seatLimit": { "free": 1, "pro": 5, "team": 25 },
+    "auditRetentionDays": { "free": 30, "pro": 30, "team": 365 }
+  },
+  "capLabels": {
+    "runsPerDay": "Runs per UTC day, per team",
+    "contextIndexMaxChunks": "Context index, chunks per project",
+    "seatLimit": "Human seats (declared)",
+    "auditRetentionDays": "Audit retention, days (target)"
+  },
+  "enforced": ["runsPerDay", "contextIndexMaxChunks"],
+  "declared": ["seatLimit", "auditRetentionDays"],
+  "platform": {
+    "runConcurrencyPerTeam": 4,
+    "enginePoolMax": 8,
+    "workspacesPerTeam": 50,
+    "siemSinksPerTeam": 5,
+    "scimTokensPerTeam": 10
+  },
+  "teamOnly": [
+    { "surface": "SSO with group→role mapping", "limit": "one config per team" },
+    { "surface": "SCIM 2.0 directory provisioning", "limit": "≤10 live tokens per team" },
+    { "surface": "SIEM audit push", "limit": "≤5 sinks per team" }
+  ]
+}

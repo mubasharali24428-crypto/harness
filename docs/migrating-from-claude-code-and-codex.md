@@ -6,14 +6,16 @@ the same repos, and the project **rules document** is where those conventions
 belong — it is loaded for every run on that project and reviewed like any other
 change.
 
-This guide moves them across without copying a single secret.
+The importer filters common credential shapes, but cannot detect every secret.
+Remove credentials from source files and review the dry-run output before using
+`--apply`; both the preview and project rules may expose anything the filter misses.
 
 ## What maps to what
 
 | You have | Harness equivalent | How it moves |
 |---|---|---|
 | `CLAUDE.md`, `AGENTS.md` | project rules document | `scripts/migrate_agent_config.py` |
-| `.cursor/rules/*.mdc`, `.codex/rules/*.md` | same document (front-matter stripped) | the same tool |
+| `.cursor/rules/*.mdc`, `.codex/rules/*.md` | same document (`.mdc` front-matter stripped) | the same tool |
 | `~/.claude/settings.json` / Codex `config.toml` (model, approval mode) | deployment settings, not project rules | **not imported** — see "What does not move" |
 | MCP servers (`claude_desktop_config.json`, `[mcp_servers]`) | `docs/integrations.md` + `docs/extensions.md` (deployment-level MCP config) | configured by the operator |
 
@@ -37,8 +39,8 @@ and sends **nothing**. Read the summary:
 | `truncatedAt` | a file that did not fit under 64KB — dropped whole, named here |
 | `bytes` | the document size the API will see |
 
-If `droppedSecretLines` is not 0, open those files and remove the secrets there
-too: the importer protects the rules document, not your repository.
+Remove secrets from the source files even if `droppedSecretLines` is zero: the
+filter is a best-effort check and does not protect your repository.
 
 ## 2. Apply it
 
@@ -73,6 +75,10 @@ What the tool does, in order:
 Everything **outside** the block is your own text and is preserved. Running the
 tool again replaces the block in place — it never duplicates it — so it is safe
 to re-run after editing `AGENTS.md`.
+
+The API has no conditional update for this operation. If someone edits project
+rules between the importer's GET and PUT, their edit can be overwritten; arrange
+an editing pause while applying the import.
 
 ## What is deliberately dropped
 

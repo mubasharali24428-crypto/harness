@@ -11,10 +11,11 @@ The laws, and why each one is not decoration:
 
 * **Nothing is sent without `--apply`.** The default is a printed plan; a
   migration tool that writes on a typo is a data-loss tool.
-* **Nothing secret-shaped is forwarded.** A config file is exactly where a team
+* **Known secret shapes are filtered.** A config file is exactly where a team
   keeps `OPENAI_API_KEY=…`, and a rules document is read by every agent on the
   project. Lines that look like credentials (and whole private-key blocks) are
-  dropped and counted — a migration must not become an exfiltration channel.
+  dropped and counted. Filtering cannot detect every credential; review sources
+  before importing and never rely on this filter as a security boundary.
 * **A re-run replaces its own block.** The merged document is fenced by
   `<!-- harness:migrated-agent-rules -->` markers; everything outside them is the
   team's own text and is never touched, and a second run does not duplicate.
@@ -73,10 +74,7 @@ _SECRET_PATTERNS = (
     ),
     re.compile(r"(?i)\bauthorization\s*:\s*bearer\s+\S{8,}"),
 )
-_KEY_BLOCK = re.compile(
-    r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----",
-    re.DOTALL,
-)
+_KEY_BEGIN = re.compile(r"-----BEGIN ([A-Z ]*PRIVATE KEY)-----")
 
 
 class ImportTooLarge(RuntimeError):
@@ -110,14 +108,17 @@ def scrub(text: str) -> tuple[str, int]:
     """Drop credential-shaped lines and private-key blocks; return the count."""
     dropped = 0
 
-    def _drop_block(match: re.Match[str]) -> str:
-        nonlocal dropped
-        dropped += match.group(0).count("\n") + 1
-        return ""
-
-    text = _KEY_BLOCK.sub(_drop_block, text)
     kept: list[str] = []
+    private_key_end: str | None = None
     for line in text.splitlines():
+        begin = _KEY_BEGIN.search(line)
+        if private_key_end is not None or begin:
+            if private_key_end is None and begin:
+                private_key_end = f"-----END {begin.group(1)}-----"
+            if private_key_end in line:
+                private_key_end = None
+            dropped += 1
+            continue
         if any(pattern.search(line) for pattern in _SECRET_PATTERNS):
             dropped += 1
             continue
@@ -176,8 +177,23 @@ def build_document(sources: list[Source], *, existing: str = "") -> Document:
             )
         sections.append(section)
 
+    has_begin = MARK_BEGIN in existing
+    has_end = MARK_END in existing
+    if has_begin != has_end or existing.count(MARK_BEGIN) > 1 or existing.count(MARK_END) > 1:
+        raise ValueError("existing rules contain incomplete or repeated migration markers")
+    if has_begin:
+        start = existing.index(MARK_BEGIN)
+        end_start = existing.index(MARK_END)
+        if end_start < start:
+            raise ValueError("existing rules contain migration markers in the wrong order")
+        prefix, suffix = existing[:start], existing[end_start + len(MARK_END):]
+    elif existing.strip():
+        prefix, suffix = existing.rstrip("\n") + "\n\n", "\n"
+    else:
+        prefix, suffix = "", "\n"
+
     truncated_at: str | None = None
-    while len((existing + "\n\n" + _render(sections)).encode("utf-8")) > MAX_RULES_BYTES:
+    while len((prefix + _render(sections) + suffix).encode("utf-8")) > MAX_RULES_BYTES:
         if len(sections) == 1:
             raise ImportTooLarge(
                 f"{sources[0].label} leaves no room under the"
@@ -186,19 +202,8 @@ def build_document(sources: list[Source], *, existing: str = "") -> Document:
         truncated_at = sources[len(sections) - 1].label
         sections.pop()
 
-    block = _render(sections)
-    if MARK_BEGIN in existing and MARK_END in existing:
-        start = existing.index(MARK_BEGIN)
-        end = existing.index(MARK_END, start) + len(MARK_END)
-        merged = existing[:start] + block + existing[end:]
-        return Document(text=merged, replaced=True, truncated_at=truncated_at)
-    if existing.strip():
-        return Document(
-            text=existing.rstrip("\n") + "\n\n" + block + "\n",
-            replaced=False,
-            truncated_at=truncated_at,
-        )
-    return Document(text=block + "\n", replaced=False, truncated_at=truncated_at)
+    return Document(text=prefix + _render(sections) + suffix,
+                    replaced=has_begin, truncated_at=truncated_at)
 
 
 def _http(url: str, method: str, token: str | None, body: dict | None):
