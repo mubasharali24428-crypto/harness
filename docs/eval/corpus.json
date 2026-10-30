@@ -863,10 +863,10 @@
       "kind": "boundary",
       "cost": "infra",
       "heldOut": true,
-      "status": "fixture-owed",
+      "status": "implemented",
       "driver": {
-        "type": "builtin",
-        "path": null,
+        "type": "script",
+        "path": "scripts/eval/tasks/tenant_isolation_task.py",
         "args": [],
         "env": {}
       },
@@ -881,10 +881,10 @@
         "maxCostUsd": 0
       },
       "model": null,
-      "verifier": "cross-team GETs answer 404/403 with no existence oracle; shares covered by w9",
-      "expected": "all cross-team reads refused",
-      "evidence": "to be created",
-      "notes": "owed: w9 covers shares; compose_journey step 11 covers cross-tenant reads answering identical 404s. The broader API matrix (artifacts, events, runs, keys) is not yet a task."
+      "verifier": "for every GET /runs/{id}... route in section4/openapi.json, team B's answer for team A's run has the same status and error code as for a nonexistent run, A's unique marker is in none of B's bodies, anonymous is 401/403, and A itself reads its own plan (non-vacuous); B's project read matches a random id",
+      "expected": "no existence oracle and no leak on any spec-derived route",
+      "evidence": "docs/briefs/evidence/eval/tenant-isolation-api-<stamp>.json written by the driver",
+      "notes": "driver written 2026-10-30; offline --selftest passes, but it has NOT been run against the stack, so there is no pass on record. Covers run-addressed routes and projects only; events over the websocket, keys and non-run artifact routes outside /runs are not in the matrix. Shares stay covered by w9; compose_journey step 11 stays as the smoke."
     },
     {
       "id": "native-tool-confinement",
