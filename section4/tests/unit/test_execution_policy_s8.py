@@ -56,53 +56,59 @@ def test_sdk_policy_overlay_is_final_and_profile_cannot_be_overridden(tmp_path, 
     assert f'workspaceRoot: "{Path(wrapper.run_workspace("run-s8")).resolve()}"' in policy
 
 
-def test_the_patch_turns_on_the_file_and_search_tools_inside_the_workspace(tmp_path):
+def test_the_patch_turns_on_the_file_and_search_tools_inside_the_workspace(tmp_path, monkeypatch):
     """W1: sdk-minimal ships tool-fs with read/write/edit off, so the agent could
-    not open a file without the shell gate. The patch enables them — and is
-    still the same patch that pins the workspace, which is why that is safe."""
+    not open a file without the shell gate. The patch enables them inside the
+    container, whose mounts are what confine them (W21)."""
     from harness_orchestrator.engine import _execution_policy_patch
 
     (tmp_path / "ws").mkdir()
+    monkeypatch.setattr("harness_orchestrator.engine.confine.resolve_mode", lambda: "container")
     text = Path(_execution_policy_patch(str(tmp_path), str(tmp_path / "ws"))).read_text()
 
     assert "- id: tool-fs\n" in text
     for expected in ("    read: true", "    readImage: true", "    write: true", "    edit: true"):
         assert expected in text, expected
     assert "read: false" not in text and "write: false" not in text
-    assert "- id: tool-fs-search" in text  # glob/grep without a bash round-trip
+    assert "dsh-tool-fs-search'\n  disabled: false" in text  # glob/grep, no bash round-trip
 
-    # the confinement that makes the fs tool safe travels with it
+    # the policy pin still travels with it
     assert "mode: workspace-write" in text
     assert f'workspaceRoot: "{Path(tmp_path / "ws").resolve()}"' in text
 
 
-def test_write_and_edit_need_an_os_boundary_that_can_freeze_forbidden_paths(tmp_path, monkeypatch):
-    """The fs tool is workspace-scoped, but forbidden paths live INSIDE the
-    workspace and the tool does not know them. Container mounts and Seatbelt
-    freeze them; Landlock and `none` cannot, so capability follows the boundary."""
+def test_native_file_tools_are_off_outside_the_container(tmp_path, monkeypatch):
+    """W21/M01: `workspaceRoot` confines nothing — in `off` mode native read and
+    write reached any path by absolute path, `../`, symlink or cd. Only the
+    container's mounts confine them, so every other mode turns them off."""
+    from harness_orchestrator.engine import _execution_policy_patch
+
+    (tmp_path / "ws").mkdir()
+    for mode in ("none", "seatbelt", "landlock"):
+        monkeypatch.setattr("harness_orchestrator.engine.confine.resolve_mode", lambda m=mode: m)
+        text = Path(_execution_policy_patch(str(tmp_path), str(tmp_path / "ws"), {})).read_text()
+        for off in ("read: false", "readImage: false", "write: false", "edit: false"):
+            assert f"    {off}" in text, (mode, off)
+        assert "dsh-tool-fs-search'\n  disabled: true" in text, mode
+        assert "confined only by the container" in text, mode  # the reason travels
+
+
+def test_write_and_edit_need_the_container_to_freeze_forbidden_paths(tmp_path, monkeypatch):
+    """Forbidden paths live INSIDE the workspace and the tool does not know them;
+    the container's nested read-only binds freeze them."""
     from harness_orchestrator.engine import _execution_policy_patch
 
     (tmp_path / "ws").mkdir()
     policy = {"forbiddenPaths": ["pyproject.toml", "secrets/"]}
 
-    monkeypatch.setattr("harness_orchestrator.engine.confine.resolve_mode", lambda: "landlock")
-    text = Path(_execution_policy_patch(str(tmp_path), str(tmp_path / "ws"), policy)).read_text()
-    assert "    write: false" in text and "    edit: false" in text
-    assert "    read: true" in text  # reading is workspace-scoped everywhere
-    assert "cannot freeze them" in text  # the reason travels with the patch
-
-    monkeypatch.setattr("harness_orchestrator.engine.confine.resolve_mode", lambda: "seatbelt")
+    monkeypatch.setattr("harness_orchestrator.engine.confine.resolve_mode", lambda: "container")
     text = Path(_execution_policy_patch(str(tmp_path), str(tmp_path / "ws"), policy)).read_text()
     assert "    write: true" in text and "    edit: true" in text
-    assert "cannot freeze them" not in text
+    assert "    read: true" in text
 
     monkeypatch.setattr("harness_orchestrator.engine.confine.resolve_mode", lambda: "none")
     text = Path(_execution_policy_patch(str(tmp_path), str(tmp_path / "ws"), policy)).read_text()
-    assert "    write: false" in text
-
-    # no forbidden paths at all: the workspace boundary is the whole story
-    text = Path(_execution_policy_patch(str(tmp_path), str(tmp_path / "ws"), {})).read_text()
-    assert "    write: true" in text and "    edit: true" in text
+    assert "    write: false" in text and "    read: false" in text
 
 
 def test_a_narrower_intent_scope_disables_native_writes(tmp_path, monkeypatch):

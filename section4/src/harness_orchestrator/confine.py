@@ -22,6 +22,7 @@ container or explicit off (seatbelt breaks its PTY).
 
 from __future__ import annotations
 
+import fnmatch
 import glob
 import logging
 import os
@@ -166,6 +167,37 @@ def scope_targets(
         if any(real == f or real.startswith(f + os.sep) for f in forbidden):
             continue
         found[real] = None
+    return sorted(found)
+
+
+#: W21: workspace files the container hides behind an empty read-only bind, so neither the native
+#: read tool nor a shell code string (``open('.e'+'nv')``) can read them; the shell gate's own
+#: secret check is lexical only. Narrower than section5's SECRET_PATTERNS on purpose: ``*token*``,
+#: ``*secret*`` and ``*credential*`` would also hide source such as ``tokenizer.py``.
+SECRET_FILE_PATTERNS = (".env*", "*.pem", "*.key", "*id_rsa*", "*id_ed25519*", "*.pfx", "*.p12")
+MAX_SECRET_TARGETS = 256
+
+
+def secret_targets(workspace: str) -> list[str]:
+    """Real paths of regular files in the workspace whose name matches SECRET_FILE_PATTERNS.
+
+    Only files that exist at launch can be masked; a symlink is skipped (its target is either
+    outside the workspace, so not mounted, or a workspace file judged by its own name).
+    """
+    root = os.path.realpath(workspace)
+    found = []
+    for dirpath, _, filenames in os.walk(root):  # ponytail: full walk; prune if a repo is huge
+        for name in filenames:
+            path = os.path.join(dirpath, name)
+            if any(fnmatch.fnmatch(name, p) for p in SECRET_FILE_PATTERNS) and not os.path.islink(
+                path
+            ):
+                found.append(path)
+    if len(found) > MAX_SECRET_TARGETS:
+        raise ConfinementUnavailableError(
+            f"{len(found)} secret-named files in the workspace (limit {MAX_SECRET_TARGETS}); "
+            "remove them rather than run with some of them readable"
+        )
     return sorted(found)
 
 
@@ -440,6 +472,10 @@ def wrap_command(
             if "," in path:
                 raise ConfinementUnavailableError("forbidden paths must not contain commas")
             result += ["--mount", _mount(path, "readonly")]
+        for path in secret_targets(workspace):  # W21: reads as empty, rename/write refused
+            if "," in path:
+                raise ConfinementUnavailableError("secret file paths must not contain commas")
+            result += ["--mount", f"type=bind,src=/dev/null,dst={path},readonly"]
         # Values are inherited by Docker from its scrubbed client environment, never argv.
         # One documented exception: the egress routing variables. They are non-secret
         # (an internal alias URL), and `--env KEY` would resolve to the DAEMON's own

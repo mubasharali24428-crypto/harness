@@ -1,0 +1,291 @@
+{
+  "date": "2026-10-30",
+  "milestone": "M01 (W21)",
+  "mode": "container",
+  "workerImage": "harness-engine-worker:vdev-local",
+  "model": "scripted stub on 127.0.0.1 (no provider, no spend)",
+  "scopePaths": [
+    "src"
+  ],
+  "forbiddenPaths": [
+    "src/locked.conf",
+    "config"
+  ],
+  "toolsAdvertised": [
+    "bash",
+    "browser",
+    "edit",
+    "image",
+    "read",
+    "read_image",
+    "web_fetch",
+    "working_directory",
+    "write"
+  ],
+  "status": "completed",
+  "seconds": 4.94,
+  "finalResponseExcerpt": "done",
+  "disk": {
+    "landed": {
+      "write-in-scope": true,
+      "edit-in-scope": true,
+      "write-out-of-scope": false,
+      "write-out-of-scope-abs": false,
+      "edit-out-of-scope": false,
+      "write-traversal": false,
+      "write-forbidden-in-scope": false,
+      "edit-forbidden-in-scope": false,
+      "write-forbidden-dir": false,
+      "write-via-dir-symlink": false,
+      "edit-via-file-symlink": false,
+      "write-via-forbidden-symlink": false,
+      "write-outside-abs": false,
+      "write-after-cd": false,
+      "write-via-symlink-out": false
+    },
+    "outside workspace changed": false,
+    "changed outside src/ok.txt and src/app.py": []
+  },
+  "cases": [
+    {
+      "id": "write-in-scope",
+      "tool": "write",
+      "args": {
+        "file_path": "src/ok.txt",
+        "content": "ok"
+      },
+      "expect": "allowed",
+      "result": "<path>/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/w21-container-1793379619/src/ok.txt</path>\n<type>file</type>\n<content>\nCreated file\n</content>",
+      "verdict": "allowed"
+    },
+    {
+      "id": "edit-in-scope",
+      "tool": "edit",
+      "args": {
+        "file_path": "src/app.py",
+        "old_string": "hi",
+        "new_string": "bye"
+      },
+      "expect": "allowed",
+      "result": "The file /private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/w21-container-1793379619/src/app.py has been updated successfully.",
+      "verdict": "allowed"
+    },
+    {
+      "id": "write-out-of-scope",
+      "tool": "write",
+      "args": {
+        "file_path": "docs/leak.txt",
+        "content": "x"
+      },
+      "expect": "refused",
+      "result": "Error: EROFS: read-only file system, mkdir '/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/w21-container-1793379619/docs/.leak.txt.7.3b1665c5-bc94-4428-81d5-c7ca68f9073e.tmpdir'",
+      "verdict": "refused"
+    },
+    {
+      "id": "write-out-of-scope-abs",
+      "tool": "write",
+      "args": {
+        "file_path": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/w21-container-1793379619/docs/abs.txt",
+        "content": "x"
+      },
+      "expect": "refused",
+      "result": "Error: EROFS: read-only file system, mkdir '/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/w21-container-1793379619/docs/.abs.txt.7.d7a34ea0-25c0-40f8-a8c0-b9f1e6ba9bcd.tmpdir'",
+      "verdict": "refused"
+    },
+    {
+      "id": "edit-out-of-scope",
+      "tool": "edit",
+      "args": {
+        "file_path": "docs/notes.md",
+        "old_string": "notes",
+        "new_string": "x"
+      },
+      "expect": "refused",
+      "result": "Error: EROFS: read-only file system, mkdir '/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/w21-container-1793379619/docs/.notes.md.7.0f1a405c-dd66-44d7-84a3-937bc39bc690.tmpdir'",
+      "verdict": "refused"
+    },
+    {
+      "id": "write-traversal",
+      "tool": "write",
+      "args": {
+        "file_path": "../escape.txt",
+        "content": "x"
+      },
+      "expect": "refused",
+      "result": "Error: EROFS: read-only file system, mkdir '/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/.escape.txt.7.43b45951-2f86-4285-bfdd-60758ed9765c.tmpdir'",
+      "verdict": "refused"
+    },
+    {
+      "id": "write-forbidden-in-scope",
+      "tool": "write",
+      "args": {
+        "file_path": "src/locked.conf",
+        "content": "x"
+      },
+      "expect": "refused",
+      "result": "Error: EBUSY: resource busy or locked, rename '/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/w21-container-1793379619/src/.locked.conf.7.b2cbd73a-42b7-4afc-99f1-62bb56d7a846.tmpdir/locked.conf.tmp' -> '/private/var/folders/6s/6cr386jx5nz7y95nk",
+      "verdict": "refused"
+    },
+    {
+      "id": "edit-forbidden-in-scope",
+      "tool": "edit",
+      "args": {
+        "file_path": "src/locked.conf",
+        "old_string": "locked",
+        "new_string": "x"
+      },
+      "expect": "refused",
+      "result": "Error: EBUSY: resource busy or locked, rename '/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/w21-container-1793379619/src/.locked.conf.7.55dd728d-7ee3-438d-a1d1-5bbe1f69e080.tmpdir/locked.conf.tmp' -> '/private/var/folders/6s/6cr386jx5nz7y95nk",
+      "verdict": "refused"
+    },
+    {
+      "id": "write-forbidden-dir",
+      "tool": "write",
+      "args": {
+        "file_path": "config/new.conf",
+        "content": "x"
+      },
+      "expect": "refused",
+      "result": "Error: EROFS: read-only file system, mkdir '/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/w21-container-1793379619/config/.new.conf.7.989fcefb-6f1c-4cd7-ab87-03e9cf521438.tmpdir'",
+      "verdict": "refused"
+    },
+    {
+      "id": "write-via-dir-symlink",
+      "tool": "write",
+      "args": {
+        "file_path": "src/link_docs/leak2.txt",
+        "content": "x"
+      },
+      "expect": "refused",
+      "result": "Error: EROFS: read-only file system, mkdir '/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/w21-container-1793379619/docs/.leak2.txt.7.fa59c254-579d-467f-811a-e5e2c9d47d93.tmpdir'",
+      "verdict": "refused"
+    },
+    {
+      "id": "edit-via-file-symlink",
+      "tool": "edit",
+      "args": {
+        "file_path": "src/link_notes",
+        "old_string": "notes",
+        "new_string": "x"
+      },
+      "expect": "refused",
+      "result": "Error: EROFS: read-only file system, mkdir '/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/w21-container-1793379619/docs/.notes.md.7.7c02258b-5833-4ff0-811b-35c396d01afa.tmpdir'",
+      "verdict": "refused"
+    },
+    {
+      "id": "write-via-forbidden-symlink",
+      "tool": "write",
+      "args": {
+        "file_path": "src/link_locked",
+        "content": "x"
+      },
+      "expect": "refused",
+      "result": "Error: EBUSY: resource busy or locked, rename '/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/w21-container-1793379619/src/.locked.conf.7.5d2d5fbb-21bd-4369-939b-66e538998ed9.tmpdir/locked.conf.tmp' -> '/private/var/folders/6s/6cr386jx5nz7y95nk",
+      "verdict": "refused"
+    },
+    {
+      "id": "write-outside-abs",
+      "tool": "write",
+      "args": {
+        "file_path": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/outside-w21-container-1793379619/planted.txt",
+        "content": "x"
+      },
+      "expect": "refused",
+      "result": "Error: ENOENT: no such file or directory, mkdir '/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/outside-w21-container-1793379619'",
+      "verdict": "refused"
+    },
+    {
+      "id": "read-outside-abs",
+      "tool": "read",
+      "args": {
+        "file_path": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/outside-w21-container-1793379619/host-data.txt"
+      },
+      "expect": "refused",
+      "result": "Error: cannot read \"/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/outside-w21-container-1793379619/host-data.txt\": not found",
+      "verdict": "refused"
+    },
+    {
+      "id": "read-outside-traversal",
+      "tool": "read",
+      "args": {
+        "file_path": "../outside-w21-container-1793379619/host-data.txt"
+      },
+      "expect": "refused",
+      "result": "Error: cannot read \"/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/w21-container-1793379619/../outside-w21-container-1793379619/host-data.txt\": not found",
+      "verdict": "refused"
+    },
+    {
+      "id": "read-outside-symlink",
+      "tool": "read",
+      "args": {
+        "file_path": "src/link_out/host-data.txt"
+      },
+      "expect": "refused",
+      "result": "Error: cannot read \"/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/w21-container-1793379619/src/link_out/host-data.txt\": not found",
+      "verdict": "refused"
+    },
+    {
+      "id": "read-image-outside",
+      "tool": "read_image",
+      "args": {
+        "file_path": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/outside-w21-container-1793379619/host-data.txt"
+      },
+      "expect": "refused",
+      "result": "Error: cannot read \"/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/outside-w21-container-1793379619/host-data.txt\": the .txt extension does not declare a supported image format; read_image accepts PNG/JPEG/WebP/GIF files, including extension-le",
+      "verdict": "refused"
+    },
+    {
+      "id": "cd-outside",
+      "tool": "working_directory",
+      "args": {
+        "cd": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/outside-w21-container-1793379619"
+      },
+      "expect": "refused",
+      "result": "Error: working-directory: directory does not exist: \"/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/outside-w21-container-1793379619\"",
+      "verdict": "refused"
+    },
+    {
+      "id": "write-after-cd",
+      "tool": "write",
+      "args": {
+        "file_path": "after-cd.txt",
+        "content": "x"
+      },
+      "expect": "refused",
+      "result": "Error: EROFS: read-only file system, mkdir '/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/w21-container-1793379619/.after-cd.txt.7.897858cd-23fa-42db-9ecd-0521edf3cca2.tmpdir'",
+      "verdict": "refused"
+    },
+    {
+      "id": "read-after-cd",
+      "tool": "read",
+      "args": {
+        "file_path": "host-data.txt"
+      },
+      "expect": "refused",
+      "result": "Error: cannot read \"/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/w21-container-1793379619/host-data.txt\": not found",
+      "verdict": "refused"
+    },
+    {
+      "id": "write-via-symlink-out",
+      "tool": "write",
+      "args": {
+        "file_path": "src/link_out/planted2.txt",
+        "content": "x"
+      },
+      "expect": "refused",
+      "result": "Error: ENOENT: no such file or directory, mkdir '/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/w21-container-1793379619/src/link_out'",
+      "verdict": "refused"
+    },
+    {
+      "id": "read-secret-file",
+      "tool": "read",
+      "args": {
+        "file_path": ".env"
+      },
+      "expect": "refused",
+      "result": "Error: cannot read \"/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379619/workspace/w21-container-1793379619/.env\": not a regular file",
+      "verdict": "refused"
+    }
+  ],
+  "pass": true
+}

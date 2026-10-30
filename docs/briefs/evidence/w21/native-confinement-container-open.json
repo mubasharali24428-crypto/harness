@@ -1,0 +1,177 @@
+{
+  "date": "2026-10-30",
+  "milestone": "M01 (W21)",
+  "mode": "container-open",
+  "workerImage": "harness-engine-worker:vdev-local",
+  "model": "scripted stub on 127.0.0.1 (no provider, no spend)",
+  "scopePaths": [],
+  "forbiddenPaths": [],
+  "toolsAdvertised": [
+    "bash",
+    "browser",
+    "edit",
+    "image",
+    "read",
+    "read_image",
+    "web_fetch",
+    "working_directory",
+    "write"
+  ],
+  "status": "completed",
+  "seconds": 5.16,
+  "finalResponseExcerpt": "done",
+  "disk": {
+    "landed": {
+      "write-in-scope": true,
+      "edit-in-scope": true,
+      "write-traversal": false,
+      "write-outside-abs": false,
+      "write-after-cd": false,
+      "write-via-symlink-out": false
+    },
+    "outside workspace changed": false,
+    "changed outside src/ok.txt and src/app.py": [
+      "after-cd.txt"
+    ]
+  },
+  "cases": [
+    {
+      "id": "write-in-scope",
+      "tool": "write",
+      "args": {
+        "file_path": "src/ok.txt",
+        "content": "ok"
+      },
+      "expect": "allowed",
+      "result": "<path>/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379521/workspace/w21-container-1793379521/src/ok.txt</path>\n<type>file</type>\n<content>\nCreated file\n</content>",
+      "verdict": "allowed"
+    },
+    {
+      "id": "edit-in-scope",
+      "tool": "edit",
+      "args": {
+        "file_path": "src/app.py",
+        "old_string": "hi",
+        "new_string": "bye"
+      },
+      "expect": "allowed",
+      "result": "The file /private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379521/workspace/w21-container-1793379521/src/app.py has been updated successfully.",
+      "verdict": "allowed"
+    },
+    {
+      "id": "write-traversal",
+      "tool": "write",
+      "args": {
+        "file_path": "../escape.txt",
+        "content": "x"
+      },
+      "expect": "refused",
+      "result": "Error: EROFS: read-only file system, mkdir '/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379521/workspace/.escape.txt.7.c958f9c7-6bbb-4847-a5da-94ddcfc3062a.tmpdir'",
+      "verdict": "refused"
+    },
+    {
+      "id": "write-outside-abs",
+      "tool": "write",
+      "args": {
+        "file_path": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379521/workspace/outside-w21-container-1793379521/planted.txt",
+        "content": "x"
+      },
+      "expect": "refused",
+      "result": "Error: ENOENT: no such file or directory, mkdir '/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379521/workspace/outside-w21-container-1793379521'",
+      "verdict": "refused"
+    },
+    {
+      "id": "read-outside-abs",
+      "tool": "read",
+      "args": {
+        "file_path": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379521/workspace/outside-w21-container-1793379521/host-data.txt"
+      },
+      "expect": "refused",
+      "result": "Error: cannot read \"/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379521/workspace/outside-w21-container-1793379521/host-data.txt\": not found",
+      "verdict": "refused"
+    },
+    {
+      "id": "read-outside-traversal",
+      "tool": "read",
+      "args": {
+        "file_path": "../outside-w21-container-1793379521/host-data.txt"
+      },
+      "expect": "refused",
+      "result": "Error: cannot read \"/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379521/workspace/w21-container-1793379521/../outside-w21-container-1793379521/host-data.txt\": not found",
+      "verdict": "refused"
+    },
+    {
+      "id": "read-outside-symlink",
+      "tool": "read",
+      "args": {
+        "file_path": "src/link_out/host-data.txt"
+      },
+      "expect": "refused",
+      "result": "Error: cannot read \"/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379521/workspace/w21-container-1793379521/src/link_out/host-data.txt\": not found",
+      "verdict": "refused"
+    },
+    {
+      "id": "read-image-outside",
+      "tool": "read_image",
+      "args": {
+        "file_path": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379521/workspace/outside-w21-container-1793379521/host-data.txt"
+      },
+      "expect": "refused",
+      "result": "Error: cannot read \"/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379521/workspace/outside-w21-container-1793379521/host-data.txt\": the .txt extension does not declare a supported image format; read_image accepts PNG/JPEG/WebP/GIF files, including extension-le",
+      "verdict": "refused"
+    },
+    {
+      "id": "cd-outside",
+      "tool": "working_directory",
+      "args": {
+        "cd": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379521/workspace/outside-w21-container-1793379521"
+      },
+      "expect": "refused",
+      "result": "Error: working-directory: directory does not exist: \"/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379521/workspace/outside-w21-container-1793379521\"",
+      "verdict": "refused"
+    },
+    {
+      "id": "write-after-cd",
+      "tool": "write",
+      "args": {
+        "file_path": "after-cd.txt",
+        "content": "x"
+      },
+      "expect": "refused",
+      "result": "<path>/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379521/workspace/w21-container-1793379521/after-cd.txt</path>\n<type>file</type>\n<content>\nCreated file\n</content>",
+      "verdict": "refused"
+    },
+    {
+      "id": "read-after-cd",
+      "tool": "read",
+      "args": {
+        "file_path": "host-data.txt"
+      },
+      "expect": "refused",
+      "result": "Error: cannot read \"/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379521/workspace/w21-container-1793379521/host-data.txt\": not found",
+      "verdict": "refused"
+    },
+    {
+      "id": "write-via-symlink-out",
+      "tool": "write",
+      "args": {
+        "file_path": "src/link_out/planted2.txt",
+        "content": "x"
+      },
+      "expect": "refused",
+      "result": "Error: ENOENT: no such file or directory, mkdir '/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379521/workspace/w21-container-1793379521/src/link_out'",
+      "verdict": "refused"
+    },
+    {
+      "id": "read-secret-file",
+      "tool": "read",
+      "args": {
+        "file_path": ".env"
+      },
+      "expect": "refused",
+      "result": "Error: cannot read \"/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-container-1793379521/workspace/w21-container-1793379521/.env\": not a regular file",
+      "verdict": "refused"
+    }
+  ],
+  "pass": true
+}

@@ -1,0 +1,171 @@
+{
+  "date": "2026-10-30",
+  "milestone": "M01 (W21)",
+  "mode": "off-open",
+  "workerImage": null,
+  "model": "scripted stub on 127.0.0.1 (no provider, no spend)",
+  "scopePaths": [],
+  "forbiddenPaths": [],
+  "toolsAdvertised": [
+    "bash",
+    "browser",
+    "image",
+    "web_fetch",
+    "working_directory"
+  ],
+  "status": "completed",
+  "seconds": 2.68,
+  "finalResponseExcerpt": "done",
+  "disk": {
+    "landed": {
+      "write-in-scope": false,
+      "edit-in-scope": false,
+      "write-traversal": false,
+      "write-outside-abs": false,
+      "write-after-cd": false,
+      "write-via-symlink-out": false
+    },
+    "outside workspace changed": false,
+    "changed outside src/ok.txt and src/app.py": []
+  },
+  "cases": [
+    {
+      "id": "write-in-scope",
+      "tool": "write",
+      "args": {
+        "file_path": "src/ok.txt",
+        "content": "ok"
+      },
+      "expect": "refused",
+      "result": "Error: unknown tool \"write\"",
+      "verdict": "refused"
+    },
+    {
+      "id": "edit-in-scope",
+      "tool": "edit",
+      "args": {
+        "file_path": "src/app.py",
+        "old_string": "hi",
+        "new_string": "bye"
+      },
+      "expect": "refused",
+      "result": "Error: unknown tool \"edit\"",
+      "verdict": "refused"
+    },
+    {
+      "id": "write-traversal",
+      "tool": "write",
+      "args": {
+        "file_path": "../escape.txt",
+        "content": "x"
+      },
+      "expect": "refused",
+      "result": "Error: unknown tool \"write\"",
+      "verdict": "refused"
+    },
+    {
+      "id": "write-outside-abs",
+      "tool": "write",
+      "args": {
+        "file_path": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-off-1793379532/workspace/outside-w21-off-1793379532/planted.txt",
+        "content": "x"
+      },
+      "expect": "refused",
+      "result": "Error: unknown tool \"write\"",
+      "verdict": "refused"
+    },
+    {
+      "id": "read-outside-abs",
+      "tool": "read",
+      "args": {
+        "file_path": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-off-1793379532/workspace/outside-w21-off-1793379532/host-data.txt"
+      },
+      "expect": "refused",
+      "result": "Error: unknown tool \"read\"",
+      "verdict": "refused"
+    },
+    {
+      "id": "read-outside-traversal",
+      "tool": "read",
+      "args": {
+        "file_path": "../outside-w21-off-1793379532/host-data.txt"
+      },
+      "expect": "refused",
+      "result": "Error: unknown tool \"read\"",
+      "verdict": "refused"
+    },
+    {
+      "id": "read-outside-symlink",
+      "tool": "read",
+      "args": {
+        "file_path": "src/link_out/host-data.txt"
+      },
+      "expect": "refused",
+      "result": "Error: unknown tool \"read\"",
+      "verdict": "refused"
+    },
+    {
+      "id": "read-image-outside",
+      "tool": "read_image",
+      "args": {
+        "file_path": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-off-1793379532/workspace/outside-w21-off-1793379532/host-data.txt"
+      },
+      "expect": "refused",
+      "result": "Error: unknown tool \"read_image\"",
+      "verdict": "refused"
+    },
+    {
+      "id": "cd-outside",
+      "tool": "working_directory",
+      "args": {
+        "cd": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-off-1793379532/workspace/outside-w21-off-1793379532"
+      },
+      "expect": "refused",
+      "result": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w21-native/w21-off-1793379532/workspace/outside-w21-off-1793379532",
+      "verdict": "refused"
+    },
+    {
+      "id": "write-after-cd",
+      "tool": "write",
+      "args": {
+        "file_path": "after-cd.txt",
+        "content": "x"
+      },
+      "expect": "refused",
+      "result": "Error: unknown tool \"write\"",
+      "verdict": "refused"
+    },
+    {
+      "id": "read-after-cd",
+      "tool": "read",
+      "args": {
+        "file_path": "host-data.txt"
+      },
+      "expect": "refused",
+      "result": "Error: unknown tool \"read\"",
+      "verdict": "refused"
+    },
+    {
+      "id": "write-via-symlink-out",
+      "tool": "write",
+      "args": {
+        "file_path": "src/link_out/planted2.txt",
+        "content": "x"
+      },
+      "expect": "refused",
+      "result": "Error: unknown tool \"write\"",
+      "verdict": "refused"
+    },
+    {
+      "id": "read-secret-file",
+      "tool": "read",
+      "args": {
+        "file_path": ".env"
+      },
+      "expect": "refused",
+      "result": "Error: unknown tool \"read\"",
+      "verdict": "refused"
+    }
+  ],
+  "pass": true
+}

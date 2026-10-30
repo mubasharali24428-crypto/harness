@@ -138,9 +138,11 @@ def _fs_write_capability(
 ) -> tuple[bool, str]:
     """Can this run's filesystem tool be allowed to WRITE?
 
-    The runtime confines tool-fs to ``workspaceRoot``, and nothing else. Two
-    things the approved policy names live *inside* that root and the tool does
-    not know them:
+    The runtime's ``workspaceRoot`` confines nothing (W21 measured reads and
+    writes escaping it in ``off`` mode); only the container mounts confine
+    tool-fs, which is why the patch turns it off elsewhere. Two things the
+    approved policy names live *inside* the workspace and the tool does not
+    know them:
 
     * ``forbiddenPaths`` — frozen for the whole worker by the container's
       nested read-only binds and by Seatbelt's ``deny file-write*``; Landlock
@@ -212,6 +214,15 @@ def _execution_policy_patch(
     }
     patch = Path(session_dir) / "harness-execution-policy.yml"
     may_write, write_note = _fs_write_capability(shell_policy, workspace_dir)
+    # W21/M01: the native file tools are confined by the container's mounts and by nothing
+    # else; outside it they reach any path by absolute path, `../`, symlink or cd.
+    contained = confine.resolve_mode() == "container"
+    if not contained:
+        may_write, write_note = False, (
+            "read/write/edit off: native file tools are confined only by the container "
+            "boundary; the shell gate remains"
+        )
+    fs_read = "true" if contained else "false"
     if write_note:
         logger.warning("run %s: %s", Path(session_dir).name, write_note)
     write_flags = (
@@ -311,23 +322,22 @@ def _execution_policy_patch(
         f"    workspaceRoot: {json.dumps(os.path.realpath(workspace_dir))}\n"
         # W1: the shipped sdk-minimal profile turns the filesystem tool off
         # (read/write/edit all false, only readImage on), so until now the agent
-        # could not open a file without going through the shell gate. Turning it
-        # on is safe only because the runtime confines this tool to the same
-        # workspace the shell gate enforces: the workspace-file layer raises
-        # `outside-workspace` for any path that escapes `workspaceRoot` above.
-        # Writes additionally depend on the plan's forbidden paths being frozen
-        # by the OS boundary — see _fs_write_capability.
+        # could not open a file without going through the shell gate. W21 measured
+        # that `workspaceRoot` above does not confine this tool, so it is on only
+        # inside the container, whose mounts are the boundary (outside paths are
+        # not mounted, secret files are masked). Writes additionally depend on the
+        # plan's forbidden paths and scope being frozen — see _fs_write_capability.
         "- id: tool-fs\n"
         "  name: '@deepseek-ai/dsh-tool-fs'\n"
         "  disabled: false\n"
         "  config:\n"
-        "    read: true\n"
-        "    readImage: true\n" + note + write_flags +
+        f"    read: {fs_read}\n"
+        f"    readImage: {fs_read}\n" + note + write_flags +
         # glob/grep as first-class tools: they were only reachable through
         # bash before, which meant every file search paid a shell round-trip.
         "- id: tool-fs-search\n"
         "  name: '@deepseek-ai/dsh-tool-fs-search'\n"
-        "  disabled: false\n"
+        f"  disabled: {'false' if contained else 'true'}\n"
         "  config:\n"
         "    sampleOverCapGlobResults: false\n"
         "- id: persistent-bash\n"

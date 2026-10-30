@@ -74,6 +74,22 @@ def test_scope_that_names_nothing_existing_leaves_the_workspace_read_only(tmp_pa
     assert mounts[0].endswith("readonly=true") and len(mounts) == 2
 
 
+def test_secret_files_are_masked_by_an_empty_read_only_bind(tmp_path):
+    """W21: native read and `open('.e'+'nv')` both read `.env`; the lexical rule stops neither."""
+    ws, session = _tree(tmp_path)
+    secrets = (".env", ".env.local", "src/server.pem")
+    for name in (*secrets, "src/tokenizer.py", "docs/secret_notes.md"):
+        (ws / name).write_text("x")
+    (ws / "src" / "link.env").symlink_to(ws / "README.md")
+    argv = confine.wrap_command(
+        ["python", "-m", "w"], mode="container", roots=[], workspace=str(ws),
+        session_dir=str(session), tmp_dir=str(tmp_path), container_name="n", network="p",
+    )
+    masked = [m for m in argv if m.startswith("type=bind,src=/dev/null,")]
+    real = ws.resolve()
+    assert masked == [f"type=bind,src=/dev/null,dst={real / p},readonly" for p in secrets]
+
+
 def test_native_writes_follow_the_observed_mount(tmp_path, monkeypatch):
     ws, _ = _tree(tmp_path)
     policy = {"scopePaths": ["src"]}

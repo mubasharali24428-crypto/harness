@@ -893,11 +893,11 @@
       "kind": "boundary",
       "cost": "infra",
       "heldOut": false,
-      "status": "fixture-owed",
+      "status": "implemented",
       "driver": {
-        "type": "builtin",
-        "path": null,
-        "args": [],
+        "type": "script",
+        "path": "scripts/e2e/w21_native_confinement_drill.py",
+        "args": ["--mode", "container"],
         "env": {}
       },
       "fixture": {
@@ -911,10 +911,10 @@
         "maxCostUsd": 0
       },
       "model": null,
-      "verifier": "inside-workspace/outside-intent writes, forbidden files, symlinks and code-string paths tested per enforcement backend",
-      "expected": "each escape refused; refusals recorded",
-      "evidence": "to be created",
-      "notes": "owed: this is M01, still open; no access is widened until it closes"
+      "verifier": "a scripted model on 127.0.0.1 drives 22 native read/write/edit/read_image/working_directory calls through the real container worker: out-of-scope and absolute-path writes, forbidden files and directories, symlinks in and out of the workspace, ../ traversal, cd then read/write, and the workspace .env; the disk (sha256 per target) and the tool results decide, not the runtime's wording",
+      "expected": "the two in-scope controls land; every other case is refused, no canary reaches a tool result, nothing outside the workspace changes",
+      "evidence": "docs/briefs/evidence/w21/native-confinement-container.json written by the driver",
+      "notes": "M01 closed 2026-10-30 (W21, docs/m2-w21-plan.md). Container is the only backend where the native file tools are on: the engine turns them off in every other mode, and off/seatbelt are covered by --mode off [--open] and --mode seatbelt runs of the same driver. Secret-named files (.env*, *.pem, *.key, ssh keys, *.pfx, *.p12) are masked by an empty read-only bind. tool-fs-search is not advertised by the runtime and is not covered. Shell code-string paths stay covered by m03_scope_drill."
     },
     {
       "id": "ast-lsp-confinement",
