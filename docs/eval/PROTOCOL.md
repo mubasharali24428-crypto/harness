@@ -151,6 +151,16 @@ Live tasks are nondeterministic. The W1 baseline uses `repeats: 1` and labels it
 Promotion claims about pass rates require at least 3 repeats and report the
 spread; a single pass is an existence proof, not a rate.
 
+The runner's `--repeats N` is **retry-until-first-pass**, not N independent runs:
+it stops at the first PASS, so it cannot support a rate. For a rate, invoke the
+runner N separate times and keep every evidence file.
+
+Tasks that log in share the credential edge's budget (10 requests per 60 s per IP,
+so about 5 logins a minute). Run a batch with `--gap 65` or the later tasks fail
+with `429 RATE_LIMITED`, which is the batch's fault and not the product's. A driver
+that imports repo packages into its own process (for example `w11-grounding`) needs
+them on `PYTHONPATH`; set it in the task's `driver.env`.
+
 ## Failure retention
 
 Failures stay in the evidence and in the baseline summary. A later run may

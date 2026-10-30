@@ -1,0 +1,391 @@
+{
+  "schema": 1,
+  "kind": "tenant-isolation-api",
+  "takenAt": "2026-10-30T09:02:11.423179+00:00",
+  "runId": "iso-run-1793350930",
+  "model": "none (deterministic API matrix)",
+  "durationSeconds": 0.72,
+  "routesChecked": 36,
+  "rows": [
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/agents",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/approvals",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/artifacts",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/artifacts/{artifactId}",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/artifacts/{artifactId}/content",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/artifacts/{artifactId}/preview",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/changes",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/checkpoints",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/collab-history",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/completion",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/control",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/diff",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/engine",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/execution-limits",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/execution-status",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/git-permissions",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/git-state",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/intent",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/intent/conflicts",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/lineage",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/participants",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/participation/prefs",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/plan",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/plan/versions",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/plan/versions/{n}",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/plan/versions/{n}/comments",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/plan/versions/{n}/diff",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/plan/versions/{n}/edits",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/presence",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/status",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/subtasks",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{runId}/task",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{scopeId}/comments",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{scopeId}/comments/export",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    },
+    {
+      "route": "/api/v1/orchestrator/runs/{scopeId}/comments/{commentId}/history",
+      "foreign": 404,
+      "missing": 404,
+      "foreignCode": "NOT_FOUND",
+      "anonymous": 401,
+      "indistinguishable": true,
+      "leak": false,
+      "anonymousRefused": true
+    }
+  ],
+  "checks": {
+    "routesDerivedFromSpec": true,
+    "ownerReadsOwnPlan": true,
+    "ownerReadsOwnProject": false,
+    "noExistenceOracleOnRuns": true,
+    "noMarkerLeak": true,
+    "anonymousRefused": true,
+    "projectNoOracle": true,
+    "projectNoLeak": true
+  },
+  "projectStatuses": {
+    "foreign": 404,
+    "missing": 404,
+    "own": 404
+  },
+  "verdict": "FAIL",
+  "failedChecks": [
+    "ownerReadsOwnProject"
+  ],
+  "failedRoutes": []
+}

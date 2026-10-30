@@ -6,194 +6,182 @@ evidence pack, the outstanding limitations and the next roadmap. Its exit is a
 decision-ready evidence pack and a pilot/full-release decision **recorded by an
 authorized owner**; if gates fail, release is deferred and the plan is redone.
 
-This document is the W20 working record. It is **not** a release decision, a
-readiness verdict, or a claim that any W1-W19 gate holds at HEAD. `STATUS.md`
+This document is the W20 record. It is **not** a release decision. `STATUS.md`
 still says NOT READY for production or a general pilot, and nothing here changes it.
 
-## Coordination (2026-10-30)
+## Outcome (2026-10-30)
 
-W17 is being executed concurrently in this tree by another agent. W20 was written
-to avoid every file and resource that agent holds:
+The rerun ran. The evidence pack is in
+[`docs/briefs/evidence/w20/`](briefs/evidence/w20/README.md), with every raw
+file, a hash manifest and the measured spend.
 
-| Held by the W17 agent (not touched by W20) | Why it matters |
+**The held-out gate fails.** Four of six held-out tasks pass every run; the two
+vision tasks (`w11-vision`, `w14-design-heldout`) pass **0 of 3** each. The
+cause is the deployed hosted model (`qwen/qwen3.7-flash` on OpenRouter)
+returning empty responses mid-run; in every case the engine stopped the run as
+`blocked` rather than report success, so the safety behaviour held and the
+capability did not. Under the roadmap's rule, a failed gate means the release is
+deferred and replanned — see "Recommendation" below. The decision record stays
+blank for the authorized owner.
+
+Everything else that W20 could run passed at one verified revision:
+
+| Area | Result |
 |---|---|
-| `section1/src/harness_identity/eventbus.py`, `scripts/loadtest/run_probe.sh`, `scripts/pitr_drill.sh` (modified, uncommitted) | source W17 is changing |
-| `docs/m2-w17-plan.md`, `docs/runbooks/w17-reliability.md`, `docs/briefs/evidence/w17/`, `section1/tests/test_w17_*.py` (untracked) | W17's record and evidence |
-| the running compose stack (17 containers), its database and its load/PITR drills | a W20 rerun would contend with W17's drills and disturb its measurements |
+| Revision | `run_eval.py --verify-only` `verified: true` for orchestrator, worker image **and** worker daemon at HEAD `12fb221`; a clean build of HEAD's Dockerfile matches the deployed runtime files byte for byte (108/108) |
+| Fixed set, no model | **15/15 PASS** (boundaries, egress, quotas, LSP confinement, skills, memory, BYO runner, browser session, visuals, journey) |
+| Held-out, deterministic | `stale-edit` PASS, `tenant-isolation-api` PASS (36 run routes + 3 project routes, no existence oracle, no leak) |
+| Held-out, live (3 independent runs each) | `w8-crash-cleanup` 3/3, `code-search-heldout` 3/3, `w11-vision` 0/3, `w14-design-heldout` 0/3 |
+| New agent tasks (3 runs each) | `tests-written` 3/3; `multi-file-refactor` 1/3 (code right every time; twice left the old name in `README.md`) |
+| `w11-grounding` (3 runs) | 3/3 |
+| Live journey | PASS on the verified stack |
+| Local gates | `make static-gates`, `make lint`, pytest in every section, MCP, Section 7 `tsc`/`vitest`/`next build`: all pass |
+| Spend | about **$0.044** measured for 21 live runs (ledger delta $0.036632 + $0.007255 reported directly) |
 
-W20 adds this one file. It makes no commit, restarts nothing, and runs no live
-task. Everything it ran was read-only: the corpus contract check, the deployed-vs-
-worktree hash check, and a `--dry-run` of the held-out selection.
+## What W20 found and fixed
 
-## Starting audit (2026-10-30)
+1. **Agent runs could not dispatch.** The worker daemon (compose profile
+   `worker`) had been left behind when the backend was recreated: old image, and a
+   `HARNESS_WORKER_DAEMON_TOKEN` that no longer matched the orchestrator's, so it
+   answered every dispatch `401`. Recreated from the root `.env`; runbook
+   [`ops.md` §3.11](runbooks/ops.md).
+2. **The revision check had a blind spot.** `--verify-only` checked the
+   orchestrator and worker image but not the daemon, which imports `engine.py` and
+   launches every worker. It now checks the daemon too; the first run of the new
+   check failed on the stale daemon.
+3. **The worker image was 12 files behind HEAD** and missing
+   `harness_contracts/rate_card.py`. Refreshed by re-running the Dockerfile's own
+   pip step from `git archive HEAD`; a later clean build confirmed the same bytes.
+   Rollback tags `harness-engine-worker:pre-w20-overlay` and
+   `harness-worker-daemon:pre-w20-overlay` are kept.
+4. **`--repeats N` is retry-until-first-pass**, not N independent runs, so it
+   cannot support a rate. Live tasks ran as three separate invocations;
+   `PROTOCOL.md` and the help text now say so.
+5. **Back-to-back drills trip the login limit** (about 5 logins a minute per
+   IP): three tasks failed in under a second with `429`. The runner gained
+   `--gap SECONDS`; `PROTOCOL.md` documents `--gap 65`.
+6. **Corpus fixes.** `w11-grounding` was labelled `infra` but calls a vision
+   model (reclassified `live`) and needs the repo source on `PYTHONPATH` (set in
+   its `driver.env`). The new `tenant-isolation-api` driver's first run exposed
+   its own defect (a `GET /projects/{id}` route that does not exist); its project
+   half now comes from the identity spec.
+7. **`agent_events` partitions exist through 2026-12-31**, so the 2026-11-01
+   write cliff is covered.
 
-| W20 requirement | What exists | Gap found |
-|---|---|---|
-| Independent rerun of the held-out suite | corpus of 39 tasks, 6 held out, 32 implemented (3 drivers added 2026-10-30, none run on the stack); `scripts/eval/run_eval.py` | see "Why the reruns have not been run" |
-| Live journey | `scripts/e2e/compose_journey.py` (12 checks); W18 live demo | would contend with W17 on the shared stack |
-| Release checklist | none as a single document; per-week "gate position" tables in `docs/m2-w*-plan.md` | assembled below, every box unchecked |
-| Versioned evidence pack | evidence is spread over `docs/briefs/evidence/` (eval, w17, w19 files) | indexed below; pack is not frozen |
-| Outstanding limitations | each plan has a Limitations section | consolidated below |
-| Next roadmap | none after W20 | proposal below |
-| Authorized decision | none | decision record left blank |
+Two observations for other owners, recorded and not changed here:
 
-### Checks run today (read-only)
+* **Possible lease weakness (W17).** One `w14-design-heldout` run hit
+  `heartbeat_lost` after a ~6-minute vision step; the orchestrator later logged
+  "claim lost to another worker; fencing local engine".
+* **Port interference on this machine.** One `w11-vision` run's login was
+  answered by a Django development page on `127.0.0.1:8001`: another application
+  briefly bound the identity port. That run is recorded as invalid, not as a
+  product or model result.
 
-* `run_eval.py --check`: `ok`, 39 tasks, 6 held out. 29 were implemented when this
-  audit started and 32 after the three drivers listed below were added. This validates
-  the corpus contract only; it executes nothing.
-* `run_eval.py --verify-only`: **`verified: false`**. Backend files and two worker
-  files match the worktree; the worker image's `engine.py` does not (host
-  `2bca7251…`, deployed `375b2769…`). Under the protocol, any result produced now
-  is `stale_image: true` and cannot be promoted. This is the same drift W19
-  recorded; it has not been rebuilt.
-* `--dry-run` of each held-out id with `--include-live`: five are selectable
-  (`w8-crash-cleanup`, `w11-vision`, `stale-edit`, `code-search-heldout`,
-  `w14-design-heldout`); at that point **`tenant-isolation-api` selected nothing**
-  because its status was `fixture-owed`. A held-out task that cannot run is a gap,
-  not a pass. Since then (`4f19712`) it has a driver, so it now selects, but it has
-  never run on the stack.
-* Drivers added 2026-10-30, each with an offline `--selftest` and **no run on
-  record**: `tenant-isolation-api` (`scripts/eval/tasks/tenant_isolation_task.py`),
-  `multi-file-refactor` and `tests-written` (`scripts/eval/tasks/code_change_task.py`).
-  The last file's selftest shows its verifier accepts a reference solution and
-  rejects the plausible wrong ones (untouched, search-and-replace that edits
-  `vendor/`, callers not updated, edited tests, a test that passes on the bug, a
-  fix with no test, a test that fails by `NameError`). That proves the check, not
-  that any model can pass it.
+## Coordination
 
-## Why the reruns have not been run
+W17 was executed concurrently in this tree by another agent. W20 did not edit,
+stage or commit its files (`eventbus.py`, `run_probe.sh`, `pitr_drill.sh`, the
+W17 plan, runbook, tests and evidence). W20 did change the shared stack in two
+reversible ways: it retagged the worker and daemon images and recreated the
+`worker-daemon` container (no other service), with rollback tags kept. No run
+was in flight at either change.
 
-All of these are open; none is waived.
+## Release checklist
 
-1. **Revision drift.** The deployed worker's `engine.py` differs from the worktree.
-   Rebuild and re-verify at a coordinated point first, or the whole rerun is
-   unpromotable.
-2. **Shared stack.** The live journey and `w8-crash-cleanup` act on the stack the W17
-   agent is measuring. Run them after W17's owner finishes, or on a separately
-   identified environment.
-3. **Model spend.** `w11-vision`, `code-search-heldout`, `w14-design-heldout` and
-   `w8-crash-cleanup` are `cost: live`. The protocol asks for at least 3 repeats
-   for any rate claim. A budget and a pinned model must be agreed by the owner.
-4. **No local chat model.** Six fixed-set tasks (`m03-scope`, `m04-streaming`,
-   `m07-api-run`, `m07-daemon-topology`, `w3-rewind`, `w3-partial-write`) are
-   `blocked`: Ollama holds only `nomic-embed-text`. They stay blocked until a chat
-   model is pulled or the drills are pointed at a funded provider.
-5. **Unrun drivers and one fixture still owed.** `tenant-isolation-api` (held out),
-   `multi-file-refactor` and `tests-written` have drivers but have never run, so
-   their first run may expose driver defects as well as product ones.
-   `native-tool-confinement` (M01) is still `fixture-owed`.
+A ticked box means the evidence exists at the verified revision, **not** that
+the gate passed; the result is stated on the line.
 
-## Rerun procedure (for whoever runs it, once the preconditions hold)
-
-1. Freeze HEAD; record `git status` and confirm the worktree is clean.
-2. Rebuild backend and worker images from HEAD. `run_eval.py --verify-only` must
-   print `verified: true` before any number is quoted.
-3. `run_eval.py --check`, then `make static-gates`, the Section 1 pytest and Ruff,
-   and the Section 7 typecheck, unit tests and build.
-4. Held-out set, one task per call, `--include-live --repeats 3`, with the pinned
-   model recorded: `w8-crash-cleanup`, `w11-vision`, `stale-edit`,
-   `code-search-heldout`, `w14-design-heldout`, `tenant-isolation-api`. Keep
-   failures; do not rerun until green without keeping the earlier file. Run the new
-   fixed-set agent tasks `multi-file-refactor` and `tests-written` the same way; a
-   failure there may be a driver defect, so read the evidence before blaming the model.
-5. `scripts/e2e/compose_journey.py` on the verified stack, plus the W18 live demo.
-6. Fill the checklist below from the raw evidence files, not from the plans.
-7. An owner who did not write the code reviews the pack and records the decision.
-
-## Gate ledger, W1-W19, as recorded in each plan
-
-"Recorded" means the plan's own gate table. W20 has not re-verified any row at
-HEAD; the rerun above does that.
-
-| Week | Recorded position | Open item carried into W20 |
-|---|---|---|
-| W1 baseline | partial baseline passed (3/3 executed, 22 deferred) | full set never executed; M01 open |
-| W2 code intelligence | bounded search task passed | one synthetic fixture, n=1 |
-| W3 safe edits | stale patch, rewind, scope, denials closed | worker/child stop and partial-write reconcile are historical only (2026-10-26) |
-| W4 SDK/boundary | web, install, egress, MCP closed; AST/LSP spike closed | no real third-party MCP; package awareness not claimed |
-| W5 CLI | parity, token handling, reconnect, capture closed | none recorded as blocking |
-| W6 skills | prototype closed | Hermes H0 paperwork absent; H2 not attempted |
-| W7 LSP/editor | 16-check LSP drill, editor round-trip passed | `.vsix` and real-window smoke not run; Hermes H3 blocked |
-| W8 parallel isolation | three concurrent runs, cleanup, hash-anchored apply | universal isolation not claimed (one host, n=1); engine does not call quota endpoints |
-| W9 artifacts | shares, revocation, deployment binding, screenshots passed | none recorded as blocking |
-| W10 browser | persistent adapter, 19 actions, redirects, downloads, clipboard | remote subresources rely on the proxy |
-| W11 vision | click executed then judged, model grounding vs AX | n=1; no broad generalization or accessibility claim |
-| W12 skills/memory | catalog, injection handling, project memory passed | none recorded as blocking |
-| W13 BYO runners | threat model, lifecycle, revocation, replay, isolation | "Remaining (explicitly open)" section in its plan |
-| W14 model intelligence | hold-out enforced, comparisons, opt-in routing, dashboards | n=1 per model; both models failed their own verifier on the compared task |
-| W15 multi-tenant | fairness, per-team limits, key rotation | scheduled restore trigger never observed (account credit limit) |
-| W16 enterprise | deactivation, group-to-role, SCIM subset, SIEM shipped; docs-vs-code key/residency audit closed 2026-10-30 (grep, no diff needed) | CMEK and residency enforcement remain absent by design; counsel sign-off on terms is a human step |
-| W17 reliability | **in progress, other agent**: first slice and an 8/100-user dry-engine run | no SLO met; 100-user control p95 1.4 s, engine-wait p95 27 s; no live-agent capacity; backup-recording warning; no on-call owner |
-| W18 launch | slices 1-6 committed (pricing test, importer, docs, demo) | release-candidate independent review unfinished; credential filter is best-effort; GET/PUT can overwrite a concurrent edit |
-| W19 buffer | defect fixes and an open-gates table committed | open items in that table remain open |
-
-## Release checklist (all unchecked)
-
-Each box needs raw evidence at one named revision and image digest.
-
-- [ ] Worker and backend images verified against HEAD by hash (`verified: true`)
-- [ ] Fixed-set tasks rerun; failures and deferrals listed with reason and owner
-- [ ] Held-out set rerun with 3 repeats and pinned model; `tenant-isolation-api` run (its driver has never run)
-- [ ] M01 native-tool confinement closed
-- [ ] Compose live journey passes on the verified stack
-- [ ] `make static-gates`, Section 1 pytest and Ruff, Section 7 typecheck/tests/build pass
-- [ ] No unsafe action in any task; safety failures reported as hard fails
+- [x] Images verified against HEAD by hash, daemon included (`verified: true`); clean build matches
+- [x] Fixed set rerun: 15/15 PASS. Deferred with reason: six tasks pinned to a local chat model that does not exist on this machine (`m03-scope`, `m04-streaming`, `m07-api-run`, `m07-daemon-topology`, `w3-rewind`, `w3-partial-write`; owner: evaluation, decide model or retire) and `native-tool-confinement` (M01)
+- [x] Held-out set rerun, live tasks 3 independent runs with the pinned model — **result: gate FAILS** (both vision tasks 0/3)
+- [ ] M01 native-tool confinement closed — a 1-2 day security spike across every enforcement backend; not attempted in W20
+- [x] Compose live journey passes on the verified stack
+- [x] `make static-gates`, every section's pytest and Ruff, Section 7 typecheck/tests/build pass
+- [x] No unsafe action: every boundary task passed; every live failure stopped as `blocked`/refused rather than reporting success
 - [ ] W17 owner's SLOs defined and measured; capacity envelope stated with its limits
 - [ ] Restore drill on the real deployment; scheduled-restore trigger observed
 - [ ] Backup monitoring and on-call/status ownership assigned to named people
-- [x] W16 documentation claims match the code (key and residency management) — static audit 2026-10-30, see `docs/m2-w16-plan.md`
-- [ ] W13 execution leg proven with a real bring-your-own runner (needs an external runner)
+- [x] W16 documentation claims match the code (key and residency management) — static audit, see `docs/m2-w16-plan.md`
+- [ ] W13 execution leg proven with a real bring-your-own runner (a product feature, not built)
 - [ ] W15 scheduled restore observed running (next run 2026-11-01T12:00Z; the earlier trigger hit an account credit limit)
-- [ ] `agent_events` partitions confirmed present past 2026-10 (or the `events-retention` sidecar confirmed) before 2026-11-01
+- [x] `agent_events` partitions present through 2026-12-31 (checked 2026-10-30)
 - [ ] Package publish (PyPI/npm) credentials and the publish step decided by their owner
-- [ ] Pricing amounts and invoicing terms approved by counsel; the page maps only to enforced caps until then
-- [ ] SSO/OIDC hardening items (M4) scheduled or closed
+- [ ] Pricing amounts and invoicing terms approved by counsel
+- [ ] SSO/OIDC (risk register R-45): shipped and tested; the owner's pilot need-by decision remains
 - [ ] W18 release-candidate review finished by someone other than the author
-- [ ] External security review scheduled or done; counsel review of terms
+- [ ] External security review scheduled or done
 - [ ] Hermes rights evidence in hand, or the launch claim narrowed to exclude Hermes
-- [ ] No auto-merge; manual plan approval and rollback documented and drilled
+- [ ] No auto-merge; manual plan approval and rollback documented and drilled at this revision
 - [ ] Every removed item recorded with an owner and a follow-up
 
-## Evidence pack (index, not yet frozen)
+## Recommendation (for the owner; not a decision)
 
-* Corpus and protocol: `docs/eval/corpus.json`, `docs/eval/PROTOCOL.md`
-* Baseline and per-week: `docs/briefs/evidence/eval/`
-* W17 (other agent, in progress): `docs/briefs/evidence/w17/`
-* W19: `docs/briefs/evidence/w19-skills-eval-verified.json`,
-  `w19-boundary-eval.json`, `w19-skills-eval.json`
-* Status of record: `STATUS.md` (NOT READY), `docs/pilot-remediation/`
+* **Defer full release.** The held-out vision gate fails on the deployed model.
+* **Replan vision first:** choose a vision model or provider that completes the
+  W11/W14 tasks, redeploy, and rerun only those two tasks three times. If they pass,
+  re-run the whole held-out set once at that revision.
+* **A design-partner pilot that excludes vision features** is the narrower claim
+  this evidence can support, subject to the people-owned items above (security
+  review, counsel, named on-call). That choice belongs to the authorized owner.
 
-The pack is frozen only at the end of a clean rerun, with the commit, image
-digests, model, environment, reviewer and defects named in a manifest.
+## Gate ledger, W1-W19, as recorded in each plan
+
+The rerun re-proved the rows marked *re-run 2026-10-30*; others stand as each
+plan records them.
+
+| Week | Recorded position | Open item carried forward |
+|---|---|---|
+| W1 baseline | partial baseline; *re-run 2026-10-30 at a verified revision* | M01 open; six tasks need a local chat model |
+| W2 code intelligence | *re-run: `code-search-heldout` 3/3* | one synthetic fixture |
+| W3 safe edits | stale patch, rewind, scope, denials; *re-run: `stale-edit` PASS* | worker/child stop and partial-write reconcile still historical only |
+| W4 SDK/boundary | *re-run: egress, AST/LSP confinement PASS* | no real third-party MCP; package awareness not claimed |
+| W5 CLI | *re-run: `cli-diagnostics` PASS* | none recorded as blocking |
+| W6 skills | *re-run: `skills-governance` PASS* | Hermes H0 paperwork absent |
+| W7 LSP/editor | *re-run: `lsp-real-server` PASS* | `.vsix` and real-window smoke not run; Hermes H3 blocked |
+| W8 parallel isolation | *re-run: quotas, apply-conflict, crash cleanup 3/3 PASS* | universal isolation not claimed |
+| W9 artifacts | *re-run: `w9-visuals` PASS* | none recorded as blocking |
+| W10 browser | *re-run: `w10-browser-session` PASS* | remote subresources rely on the proxy |
+| W11 vision | *re-run: `w11-grounding` 3/3; `w11-vision` 0/3* | **vision task fails on the deployed model** |
+| W12 skills/memory | *re-run: `w12-skills-memory` PASS* | none recorded as blocking |
+| W13 BYO runners | *re-run: `w13-byo-runner` PASS* | execution leg not built |
+| W14 model intelligence | *re-run: `w14-design-heldout` 0/3* | **vision held-out fails on the deployed model** |
+| W15 multi-tenant | fairness, per-team limits, key rotation | scheduled restore trigger never observed |
+| W16 enterprise | shipped; docs-vs-code audit closed | CMEK and residency enforcement absent by design |
+| W17 reliability | in progress, other agent | no SLO met or owned; possible lease weakness seen in W20 |
+| W18 launch | slices committed | independent review unfinished |
+| W19 buffer | open-gates table committed | its items remain open |
+
+## Rerun procedure (to repeat W20)
+
+1. Record `git status`; the runtime source dirs must be clean.
+2. If the backend was recreated, recreate `worker-daemon` too (`ops.md` §3.11).
+   `run_eval.py --verify-only` must print `verified: true` before any number is quoted.
+3. `make static-gates`, `make lint`, every section's pytest, `make frontend`, and
+   `npm run build` in `section7`.
+4. `run_eval.py --cost infra --gap 65` for the fixed and deterministic held-out set.
+5. Each live task three times, one `--task` per invocation, 65 s apart; snapshot
+   `cost_ledger` before and after.
+6. Fill the checklist from the raw files; an owner who did not write the code
+   reviews the pack and records the decision.
 
 ## Outstanding limitations
 
-* Deployed worker image is not the checked revision.
-* Nothing in the 100-user load result predicts real-agent capacity or SLO compliance.
-* Held-out sets are small (n=1 for several tasks), so no rate or generalization claim.
+* Vision capability depends on a model that currently fails the held-out tasks.
+* Nothing here measures real-agent capacity or SLO compliance (W17).
+* n=3 per live task is enough to see a pattern, not to quote a precise rate.
+* The deployed images are overlays; a clean build was verified byte-identical but
+  is not what is running.
 * Stripe is undrilled by decision; billing stays flag-off.
-* External security review, counsel review and Hermes rights are tracked outside
-  this tree and block the commercial and Hermes claims.
 * Index admission exclusion is per process, not across replicas.
-* Native-tool confinement (M01) is open; no access is widened until it closes.
-
-## Next roadmap (proposal for the owner, not a commitment)
-
-1. Finish W17, then a coordinated image rebuild and `--verify-only` green.
-2. Build the missing fixtures (tenant-isolation matrix, refactor, tests-written) and
-   close M01.
-3. One funded, pinned-model rerun with repeats; this is the real W20 gate.
-4. Assign named owners for on-call, status, backups and the release review.
-5. Decide the narrowed launch claim (design-partner pilot vs wider) from the rerun.
-6. Re-estimate from measured capacity before setting any dates.
+* M01 native-tool confinement is open; no access is widened until it closes.
 
 ## Decision record
 
 | Field | Value |
 |---|---|
-| Revision / image digests | _not set_ |
-| Evidence pack manifest | _not set_ |
+| Revision / image digests | HEAD `12fb221`; worker `sha256:a5f587aeb1f0…`, daemon `sha256:00c0b7107bee…`, backend `sha256:5973222fefd5…` |
+| Evidence pack manifest | `docs/briefs/evidence/w20/README.md` |
 | Reviewer (not the author) | _not set_ |
 | Decision (pilot / full release / defer and replan) | _not set — an authorized owner records this_ |
 | Date | _not set_ |

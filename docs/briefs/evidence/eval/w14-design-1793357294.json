@@ -1,0 +1,203 @@
+{
+  "date": "2026-10-30",
+  "week": "W14",
+  "task": "w14-design-heldout",
+  "leg": "live",
+  "run": "w14-design-1793357294",
+  "preRegistered": {
+    "ratioMax": 0.03,
+    "colourTolerance": 12,
+    "answerRatioTolerance": 0.005,
+    "fixtureColourTolerance": 0
+  },
+  "fixture": {
+    "token": "VESPER-92",
+    "bytes": 6841,
+    "sha256": "95be39ecf7595812cc6f521a26da881522bfddb2d0cb3ddfd475fb560eddadeb",
+    "sampledColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    },
+    "expectedColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    }
+  },
+  "fixtureChecks": {
+    "fixtureRendersAtDeclaredSize": true,
+    "flatColoursExactAtSamplePoints": true,
+    "tokenTextIsDrawn": true,
+    "selfDiffIsZero": true,
+    "renderIsDeterministic": true
+  },
+  "drive": "HTTP only",
+  "seededFiles": [
+    "mockup.png"
+  ],
+  "design": {
+    "startStatus": 200,
+    "states": [
+      "executing",
+      "blocked"
+    ],
+    "state": "blocked",
+    "engine": "replayed",
+    "engineStatus": "error",
+    "answer": "DeepSeek Harness run failed: heartbeat_lost"
+  },
+  "designTrail": {
+    "toolsUsed": [
+      "image",
+      "read_image"
+    ],
+    "imageDiffCalls": [],
+    "imageSampleCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_8326dd15ba484a75b08e8318",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[220,36],[260,100],[560,320],[600,100],[900,320],[260,392],[600,377],[690,437],[110,320]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_3a14b753306b43a39cb63f8f",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[300,150],[400,200],[500,250],[650,150],[750,200],[850,250],[260,200],[560,200],[600,200],[900,200]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_32b0c4e6bc054f21a58f3395",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,200],[255,200],[258,200],[262,200],[555,200],[558,200],[562,200],[565,200],[595,200],[598,200],[602,200],[605,200],[895,200],[898,200],[902,200],[905,200]]}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imagePaletteCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_9671f3050a804c85a6fff6a9",
+        "arguments": "{\"action\":\"palette\",\"path\":\"mockup.png\",\"maxColors\":12}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "screenshotCalls": [],
+    "mockupReads": [
+      {
+        "type": "tool_call",
+        "tool": "read_image",
+        "callId": "call_beed93aff85441caa55312b3",
+        "arguments": "{\"file_path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "dialogReads": [],
+    "writes": [],
+    "imageArguments": [
+      "{\"action\":\"palette\",\"path\":\"mockup.png\",\"maxColors\":12}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[220,36],[260,100],[560,320],[600,100],[900,320],[260,392],[600,377],[690,437],[110,320]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[300,150],[400,200],[500,250],[650,150],[750,200],[850,250],[260,200],[560,200],[600,200],[900,200]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,200],[255,200],[258,200],[262,200],[555,200],[558,200],[562,200],[565,200],[595,200],[598,200],[602,200],[605,200],[895,200],[898,200],[902,200],[905,200]]}"
+    ]
+  },
+  "measurement": {},
+  "checks": {
+    "fixtureLegPassed": true,
+    "designRunSettled": true,
+    "agentOpenedTheMockup": true,
+    "agentMeasuredColours": true,
+    "agentScreenshottedItsPage": false,
+    "agentUsedTheDiff": false,
+    "agentWroteThePage": false,
+    "tokenOnlyInPixelsWasTranscribed": false,
+    "pageRendersAtMockupSize": false,
+    "independentDiffWithinThreshold": false,
+    "flatColoursSurvived": false,
+    "agentRatioAgreesWithBytes": false
+  },
+  "verdict": "FAIL",
+  "failedChecks": [
+    "agentScreenshottedItsPage",
+    "agentUsedTheDiff",
+    "agentWroteThePage",
+    "tokenOnlyInPixelsWasTranscribed",
+    "pageRendersAtMockupSize",
+    "independentDiffWithinThreshold",
+    "flatColoursSurvived",
+    "agentRatioAgreesWithBytes"
+  ],
+  "designAnswer": "DeepSeek Harness run failed: heartbeat_lost"
+}

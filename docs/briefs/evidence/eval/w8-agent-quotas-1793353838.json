@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "kind": "w8-agent-quotas",
+  "takenAt": "2026-10-30T09:50:40Z",
+  "claim": "subagent depth, live-children and scope are enforced before any spawn",
+  "drive": "orchestrator /agents/spawn and /agents/{id}/cancel on the compose stack; no model call, no worker",
+  "honestLimit": "the external engine does not call these endpoints yet (agent_tree.py docstring): this proves the gate, not delegation",
+  "runId": "w8-quota-1793353838",
+  "agentDefinition": {
+    "id": "d3e79270-8286-4c1f-a3c8-1bbef9de0dd0",
+    "maxDepth": 1,
+    "maxChildren": 1
+  },
+  "approval": {
+    "approver": "second admin (SELF_APPROVAL refused the author)"
+  },
+  "responses": {
+    "root": {
+      "status": 201,
+      "id": "7a467815-29f4-458f-8f83-99854697da06"
+    },
+    "child": {
+      "status": 201,
+      "id": "5e9a993d-2dfc-44ac-a071-51b3ea96140a"
+    },
+    "secondChild": {
+      "status": 409,
+      "code": "SPAWN_CHILDREN_EXCEEDED"
+    },
+    "grandchild": {
+      "status": 409,
+      "code": "SPAWN_DEPTH_EXCEEDED"
+    },
+    "wideChild": {
+      "status": 403,
+      "code": "SCOPE_EXCEEDS_PARENT"
+    },
+    "cancel": {
+      "status": 200,
+      "changed": true
+    }
+  },
+  "assignments": {
+    "root": "cancelled",
+    "child": "cancelled"
+  },
+  "pool": {
+    "maxAgents": 20,
+    "totalSpawned": 2,
+    "budgetUsd": "5",
+    "reservedUsd": "0",
+    "spentUsd": "0"
+  },
+  "checks": {
+    "definitionApproved": true,
+    "rootSpawned": true,
+    "childSpawned": true,
+    "childrenQuotaEnforced": true,
+    "depthQuotaEnforced": true,
+    "scopeInheritanceEnforced": true,
+    "cancelCascades": true,
+    "onlyQuotaAllowingSpawnsRecorded": true,
+    "poolReservationRolledBack": true
+  },
+  "verdict": "PASS",
+  "failedChecks": []
+}

@@ -213,13 +213,27 @@ def revision_check() -> dict:
         worker[label] = {"host": host, "deployed": deployed,
                          "match": bool(deployed and host == deployed)}
 
+    # The worker daemon imports engine.py and builds every worker itself, so a
+    # stale daemon image makes a current worker image a false comfort.
+    daemon: dict[str, dict] = {}
+    daemons = docker_names("worker-daemon")
+    dsite = container_python_site(daemons[0]) if daemons else None
+    for label, host_rel, rel in RUNTIME_FILES if daemons else []:
+        host = sha256_file(REPO / host_rel)
+        path = WORKER_GATE_PATH if label == "image_gate.py" else f"{dsite}/{rel}"
+        deployed = container_hash(daemons[0], path) if dsite else None
+        daemon[label] = {"host": host, "deployed": deployed,
+                         "match": bool(deployed and host == deployed)}
     return {
         "orchestratorContainer": container,
         "workerImage": image,
+        "workerDaemonContainer": daemons[0] if daemons else None,
         "backend": backend,
         "worker": worker,
+        "daemon": daemon,
         "verified": all(v["match"] for v in backend.values())
-                    and all(v["match"] for v in worker.values()),
+                    and all(v["match"] for v in worker.values())
+                    and all(v["match"] for v in daemon.values()),
     }
 
 
@@ -441,7 +455,10 @@ def main() -> int:
                     default=[])
     ap.add_argument("--include-live", action="store_true",
                     help="allow tasks whose cost is live (model spend)")
-    ap.add_argument("--repeats", type=int, default=1)
+    ap.add_argument("--repeats", type=int, default=1,
+                    help="retry a failing task up to N attempts; stops at the first PASS, so this is not N independent runs")
+    ap.add_argument("--gap", type=float, default=0.0,
+                    help="seconds to wait between tasks; the credential edge allows about 5 logins a minute per IP, so a login-heavy batch needs ~65")
     ap.add_argument("--timeout-scale", type=float, default=1.0)
     ap.add_argument("--out", default=None)
     ap.add_argument("--list", action="store_true")
@@ -602,9 +619,12 @@ def main() -> int:
     }
     env["model"] = os.environ.get("DSH_MODEL") or None
     env["repeats"] = args.repeats
+    env["gapSeconds"] = args.gap
 
     results = []
-    for task in selected:
+    for index, task in enumerate(selected):
+        if index and args.gap:
+            time.sleep(args.gap)
         scale = args.timeout_scale
         if scale != 1.0:
             task = json.loads(json.dumps(task))

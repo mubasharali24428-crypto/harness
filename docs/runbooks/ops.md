@@ -556,6 +556,45 @@ deployed worker failing a dead collector without moving the cursor, and — on a
 throwaway database with a real HTTP collector — signed delivery, replay dedupe,
 backoff → blocked → resume and the tamper/pruned-prefix verdicts.
 
+## 3.11 Runs never start: the worker daemon answers 401 (W20)
+
+**Symptom.** `/ready` is green, but no run reaches a worker. The orchestrator is
+configured with `HARNESS_WORKER_DAEMON_URL`, so every start goes through the
+daemon, and the daemon rejects the call.
+
+**Cause.** `worker-daemon` is behind the compose `worker` profile. Recreating the
+backend with a plain `up -d` leaves it on its old image **and** its old
+environment, including `HARNESS_WORKER_DAEMON_TOKEN` and `DSH_MCP_SERVERS`. When
+the root `.env` token differs from the one the daemon was created with, the
+orchestrator is locked out. The daemon also imports `engine.py`, so a stale image
+changes how workers are launched even when the token matches.
+
+**Diagnose** (prints a status code, never the token):
+
+```sh
+docker exec harness-orchestrator-1 python -c "
+import os, urllib.request, urllib.error
+req = urllib.request.Request(os.environ['HARNESS_WORKER_DAEMON_URL'].rstrip('/') + '/runs/zz-probe',
+    headers={'Authorization': 'Bearer ' + os.environ['HARNESS_WORKER_DAEMON_TOKEN']})
+try: print(urllib.request.urlopen(req, timeout=10).status)
+except urllib.error.HTTPError as e: print(e.code)"
+```
+
+`200` is healthy, `401` is a token mismatch. `python3 scripts/eval/run_eval.py
+--verify-only` also compares the daemon's runtime files with the worktree.
+
+**Fix.** Recreate only the daemon, from the same env source the orchestrator was
+created with (the root `.env`; adding `deploy/.env` overrides the token and
+reproduces the fault):
+
+```sh
+docker compose --env-file .env -f deploy/docker-compose.yml -p harness \
+  --profile worker up -d --no-deps --force-recreate --pull never worker-daemon
+```
+
+Re-run the probe and `--verify-only`. **Prevention:** anything that recreates the
+backend recreates the daemon in the same step.
+
 ## 4. Prevention checklist
 
 - [ ] No service removed from compose while its container runs (Cause A rule).

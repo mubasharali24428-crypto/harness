@@ -11,7 +11,9 @@ The independent checks, taken from the responses and never from a message:
 2. **No leak.** A's marker appears in none of B's bodies.
 3. **Not vacuous.** Team A itself gets 200 for the plan, and the marker is in it.
 4. **Anonymous is refused** on the same routes (401/403, never 200).
-5. **Projects.** B's read of A's project matches B's read of a random id.
+5. **Projects.** Every ``GET /projects/{project_id}...`` route in the recorded identity
+   spec answers B exactly as it answers for a random id, and the project list shows
+   A's project to A and not to B.
 
     python3 scripts/eval/tasks/tenant_isolation_task.py            # needs the stack
     python3 scripts/eval/tasks/tenant_isolation_task.py --selftest # offline
@@ -32,6 +34,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 OUT = REPO / "docs" / "briefs" / "evidence" / "eval"
 SPEC = REPO / "section4" / "openapi.json"
+IDENTITY_SPEC = REPO / "scripts" / "sdk-gen" / "specs" / "identity.openapi.json"
 P = "/api/v1/orchestrator"
 FAKE = {"artifactId": "art-none", "n": "1", "commentId": "c-none"}
 
@@ -40,6 +43,12 @@ def route_templates(spec: dict) -> list[str]:
     """GET paths addressed by a run id, from the recorded spec."""
     return sorted(p for p, ops in spec.get("paths", {}).items()
                   if "get" in ops and re.match(rf"^{re.escape(P)}/runs/\{{(runId|scopeId)\}}", p))
+
+
+def project_templates(spec: dict) -> list[str]:
+    """GET paths addressed by a project id, from the recorded identity spec."""
+    return sorted(p for p, ops in spec.get("paths", {}).items()
+                  if "get" in ops and p.startswith("/api/v1/projects/{project_id}"))
 
 
 def fill(template: str, run_id: str) -> str:
@@ -72,6 +81,9 @@ def selftest() -> int:
     assert t == [f"{P}/runs/{{runId}}/artifacts/{{artifactId}}", f"{P}/runs/{{runId}}/plan",
                  f"{P}/runs/{{scopeId}}/comments"], t
     assert fill(t[0], "r1") == f"{P}/runs/r1/artifacts/art-none"
+    ident = {"paths": {"/api/v1/projects": {"get": {}}, "/api/v1/projects/{project_id}/rules":
+                       {"get": {}, "put": {}}, "/api/v1/projects/{project_id}/memory/{e}": {"delete": {}}}}
+    assert project_templates(ident) == ["/api/v1/projects/{project_id}/rules"]
     nf = (404, {"detail": {"error": {"code": "RUN_NOT_FOUND"}}})
     assert indistinguishable(nf, (404, {"error": {"code": "RUN_NOT_FOUND"}}))
     assert not indistinguishable((403, {"error": {"code": "FORBIDDEN"}}), nf)  # an oracle
@@ -129,27 +141,45 @@ def main() -> int:
             failures.append(tmpl)
 
     own_status, own_plan = get(f"{P}/runs/{run_id}/plan", token_a)
-    p_foreign = tpl.http("GET", f"{tpl.IDENTITY}/api/v1/projects/{project['id']}", token=token_b)
-    p_missing = tpl.http("GET", f"{tpl.IDENTITY}/api/v1/projects/{uuid.uuid4()}", token=token_b)
-    p_own = tpl.http("GET", f"{tpl.IDENTITY}/api/v1/projects/{project['id']}", token=token_a)
+
+    def ident(path: str, token: str | None):
+        return tpl.http("GET", f"{tpl.IDENTITY}{path}", token=token)
+
+    missing_project = f"iso-missing-project-{stamp}"
+    prows = []
+    for tmpl in project_templates(json.loads(IDENTITY_SPEC.read_text(encoding="utf-8"))):
+        owner = ident(tmpl.replace("{project_id}", project["id"]), token_a)
+        foreign = ident(tmpl.replace("{project_id}", project["id"]), token_b)
+        missing = ident(tmpl.replace("{project_id}", missing_project), token_b)
+        anon = ident(tmpl.replace("{project_id}", project["id"]), None)
+        prows.append({"route": tmpl, "owner": owner[0], "foreign": foreign[0],
+                      "missing": missing[0], "anonymous": anon[0],
+                      "indistinguishable": indistinguishable(foreign, missing),
+                      "leak": leaks(project["id"], foreign[1], missing[1], anon[1]),
+                      "anonymousRefused": anon[0] in (401, 403)})
+    list_a, list_b = ident("/api/v1/projects", token_a), ident("/api/v1/projects", token_b)
 
     checks = {
         "routesDerivedFromSpec": len(templates) >= 20,
         "ownerReadsOwnPlan": own_status == 200 and leaks(marker, own_plan),
-        "ownerReadsOwnProject": p_own[0] == 200,
+        "ownerReadsOwnProject": (leaks(project["id"], list_a[1])
+                                 and any(r["owner"] == 200 for r in prows)),
         "noExistenceOracleOnRuns": all(r["indistinguishable"] for r in rows),
         "noMarkerLeak": not any(r["leak"] for r in rows),
         "anonymousRefused": all(r["anonymousRefused"] for r in rows),
-        "projectNoOracle": indistinguishable(p_foreign, p_missing) and p_foreign[0] != 200,
-        "projectNoLeak": not leaks(marker, p_foreign[1]) and not leaks(project["id"], p_foreign[1]),
+        "projectRoutesDerivedFromSpec": len(prows) >= 3,
+        "projectNoOracle": all(r["indistinguishable"] and r["foreign"] != 200 for r in prows),
+        "projectNoLeak": not any(r["leak"] for r in prows),
+        "projectAnonymousRefused": all(r["anonymousRefused"] for r in prows),
+        "projectListIsolated": leaks(project["id"], list_a[1]) and not leaks(project["id"], list_b[1]),
     }
     evidence = {
         "schema": 1, "kind": "tenant-isolation-api",
         "takenAt": datetime.now(UTC).isoformat(), "runId": run_id,
         "model": "none (deterministic API matrix)",
         "durationSeconds": round(time.monotonic() - started, 2),
-        "routesChecked": len(templates), "rows": rows, "checks": checks,
-        "projectStatuses": {"foreign": p_foreign[0], "missing": p_missing[0], "own": p_own[0]},
+        "routesChecked": len(templates), "rows": rows, "projectRows": prows,
+        "checks": checks,
         "verdict": "PASS" if all(checks.values()) else "FAIL",
         "failedChecks": [k for k, v in checks.items() if not v], "failedRoutes": failures,
     }

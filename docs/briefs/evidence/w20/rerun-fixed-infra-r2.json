@@ -1,0 +1,823 @@
+{
+  "schema": 1,
+  "kind": "marathon2-baseline",
+  "corpusRevision": "m2-w8",
+  "startedAt": "2026-10-30T09:47:15.448505+00:00",
+  "finishedAt": "2026-10-30T10:03:21.497113+00:00",
+  "environment": {
+    "git": {
+      "head": "12fb2213152a1079369c2f120ed6cf16cb16df37",
+      "branch": "w1-engine-tools",
+      "dirty": true
+    },
+    "revisionCheck": {
+      "orchestratorContainer": "harness-orchestrator-1",
+      "workerImage": "harness-engine-worker:vdev-local",
+      "workerDaemonContainer": "harness-worker-daemon-1",
+      "backend": {
+        "engine.py": {
+          "host": "2bca7251e3076c96b344929ef5082c502324d8a8964489fb9ac1a0d6a7f4feef",
+          "deployed": "2bca7251e3076c96b344929ef5082c502324d8a8964489fb9ac1a0d6a7f4feef",
+          "match": true
+        },
+        "image_gate.py": {
+          "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "match": true
+        }
+      },
+      "worker": {
+        "image_gate.py": {
+          "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "match": true
+        },
+        "engine.py": {
+          "host": "2bca7251e3076c96b344929ef5082c502324d8a8964489fb9ac1a0d6a7f4feef",
+          "deployed": "2bca7251e3076c96b344929ef5082c502324d8a8964489fb9ac1a0d6a7f4feef",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "match": true
+        }
+      },
+      "daemon": {
+        "engine.py": {
+          "host": "2bca7251e3076c96b344929ef5082c502324d8a8964489fb9ac1a0d6a7f4feef",
+          "deployed": "2bca7251e3076c96b344929ef5082c502324d8a8964489fb9ac1a0d6a7f4feef",
+          "match": true
+        },
+        "image_gate.py": {
+          "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "match": true
+        }
+      },
+      "verified": true
+    },
+    "images": {
+      "backend": "sha256:5973222fefd58569010b807d5e1822d74edffccfa5194f4acf979d1bc976aa7c",
+      "engineWorker": "sha256:a5f587aeb1f00106d73f395bc5481b42f456d4c43c325a8f1f6156370ee53a9c"
+    },
+    "model": null,
+    "repeats": 1,
+    "gapSeconds": 65.0
+  },
+  "selection": {
+    "includeLive": false,
+    "costs": [
+      "infra"
+    ],
+    "tasks": [],
+    "categories": []
+  },
+  "summary": {
+    "executed": 15,
+    "passed": 15,
+    "failed": 0,
+    "errors": 0,
+    "deferred": 24,
+    "corpus": 39,
+    "revisionVerified": true
+  },
+  "results": [
+    {
+      "id": "stack-compose-journey",
+      "category": "stack_health",
+      "kind": "infra",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-30T09:47:19.195390+00:00",
+          "durationSec": 3.07,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": null,
+          "failedChecks": [],
+          "stdoutTail": "compose E2E journey against http://127.0.0.1:8001 (+orchestrator/sandbox/frontend)\n[ok] step 01 all 21 containers running/healthy\n[ok] step 02 stack ready: identity+orchestrator+sandbox /ready, frontend 200\n[ok] step 03 passwordless login A \u2192 solo team 4b1c3404-1236-445f-aaec-db1ce57fb618 (admin)\n[ok] step 04 demo seed \u2192 project demo-proj-e8bef4188dfa, run demo-run-5c93ecd7fe9c, replay=true, pr_opened\n[ok] step 05 demo re-seed idempotent (same project/run)\n[ok] step 06 run aggregate \u2192 pr_opened with 10 steps\n[ok] step 07 engine result truthfully reports 'replayed' (no live claim)\n[ok] step 08 event replay \u2192 10 marked events, 9 types, ordered\n[ok] step 09 audit page \u2192 1 team-scoped rows incl. ['invite.minted']\n[ok] step 10 sandbox create\u2192exec(passed)\u2192destroy\u2192post-destroy 404\n[ok] step 11 cross-tenant reads answer identical 404 NOT_FOUND (no oracle)\n[ok] step 12 metrics \u2192 23 harness_* families\n[ok] step 13 frontend serves HTML\n\nPASS: 13 checks green in 3.0s\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 3.07,
+      "budget": {
+        "timeoutSeconds": 600,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "exit 0",
+      "driver": "scripts/e2e/compose_journey.py",
+      "verifier": "every compose container running/healthy; readiness; OTP login; idempotent demo seed; replay ordering; audit page; sandbox create/exec/destroy 404"
+    },
+    {
+      "id": "w4-egress-deny",
+      "category": "denied_network",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-30T09:48:27.269869+00:00",
+          "durationSec": 1.1,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": "PASS",
+          "failedChecks": [],
+          "stdoutTail": "{\n  \"drill\": \"w4-egress-network\",\n  \"takenAt\": \"2026-10-30T09:48:28Z\",\n  \"container\": \"b979b2cdee66\",\n  \"network\": \"harness_sandbox_egress\",\n  \"insideTheProxy\": {\n    \"allowed_endpoint\": {\n      \"reply\": \"HTTP/1.1 200 Connection Established\",\n      \"ok\": true\n    },\n    \"allowed_git\": {\n      \"reply\": \"HTTP/1.1 200 Connection Established\",\n      \"ok\": true\n    },\n    \"denied_docs\": {\n      \"reply\": \"HTTP/1.1 403 Forbidden\\r\\nContent-Length: 0\",\n      \"ok\": true\n    },\n    \"denied_host\": {\n      \"reply\": \"HTTP/1.1 403 Forbidden\\r\\nContent-Length: 0\",\n      \"ok\": true\n    },\n    \"denied_port\": {\n      \"reply\": \"HTTP/1.1 403 Forbidden\\r\\nContent-Length: 0\",\n      \"ok\": true\n    },\n    \"denied_method\": {\n      \"reply\": \"HTTP/1.1 405 Method Not Allowed\\r\\nContent-Length: 0\",\n      \"ok\": true\n    }\n  },\n  \"fromTheSandboxNetwork\": {\n    \"allowed_endpoint\": {\n      \"reply\": \"HTTP/1.1 200 Connection Established\",\n      \"ok\": true\n    },\n    \"allowed_git\": {\n      \"reply\": \"HTTP/1.1 200 Connection Established\",\n      \"ok\": true\n    },\n    \"denied_docs\": {\n      \"reply\": \"HTTP/1.1 403 Forbidden\\r\\nContent-Length: 0\",\n      \"ok\": true\n    },\n    \"denied_host\": {\n      \"reply\": \"HTTP/1.1 403 Forbidden\\r\\nContent-Length: 0\",\n      \"ok\": true\n    },\n    \"denied_port\": {\n      \"reply\": \"HTTP/1.1 403 Forbidden\\r\\nContent-Length: 0\",\n      \"ok\": true\n    },\n    \"denied_method\": {\n      \"reply\": \"HTTP/1.1 405 Method Not Allowed\\r\\nContent-Length: 0\",\n      \"ok\": true\n    }\n  },\n  \"verdict\": \"pass\"\n}\n\nwrote docs/briefs/evidence/pilot-prep/w4-egress-network-1793353708.json\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 1.1,
+      "budget": {
+        "timeoutSeconds": 300,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "exit 0",
+      "driver": "scripts/e2e/w4_egress_network_drill.py",
+      "verifier": "allow-listed host 200; unlisted host, non-443 port and non-CONNECT method 403; sandbox peer CONNECT denied"
+    },
+    {
+      "id": "w8-apply-conflict",
+      "category": "concurrency",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-30T09:49:33.373075+00:00",
+          "durationSec": 0.44,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": "PASS",
+          "failedChecks": [],
+          "stdoutTail": "{\n  \"verdict\": \"PASS\",\n  \"failed\": [],\n  \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/eval/w8-overlap-1793353773.json\"\n}\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 0.44,
+      "budget": {
+        "timeoutSeconds": 180,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "exit 0 with every check true",
+      "driver": "scripts/e2e/w8_overlap_drill.py",
+      "verifier": "apply_back is hash-anchored: the first result lands byte-for-byte; a second result for the same path is refused with the expected base digest and the actual digest; the refusal writes nothing else (all-or-nothing); a re-apply is refused; a new-file collision and a stale deletion are refused and the file survives"
+    },
+    {
+      "id": "w8-agent-quotas",
+      "category": "concurrency",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-30T09:50:38.816498+00:00",
+          "durationSec": 1.5,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": "PASS",
+          "failedChecks": [],
+          "stdoutTail": "{\n  \"verdict\": \"PASS\",\n  \"failed\": [],\n  \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/eval/w8-agent-quotas-1793353838.json\"\n}\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 1.5,
+      "budget": {
+        "timeoutSeconds": 180,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "exit 0 with every check true",
+      "driver": "scripts/e2e/w8_agents_quota_drill.py",
+      "verifier": "an approved definition (second admin, never self-approved) spawns a root and one child; a second child is refused SPAWN_CHILDREN_EXCEEDED; a grandchild is refused SPAWN_DEPTH_EXCEEDED; a child asking for a parent's missing tool is refused SCOPE_EXCEEDS_PARENT; cancel cascades and the run pool reservation returns to zero"
+    },
+    {
+      "id": "w8-quotas-isolation",
+      "category": "concurrency",
+      "kind": "infra",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-30T09:51:45.318754+00:00",
+          "durationSec": 2.81,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": "PASS",
+          "failedChecks": [],
+          "stdoutTail": "{\n  \"verdict\": \"PASS\",\n  \"failed\": [],\n  \"intentRace\": [\n    200,\n    202\n  ],\n  \"childStatuses\": [\n    201,\n    409,\n    409,\n    201,\n    201\n  ],\n  \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/eval/w8-concurrency-1793353905.json\"\n}\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 2.81,
+      "budget": {
+        "timeoutSeconds": 300,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "exit 0 and the task's own verdict is PASS",
+      "driver": "scripts/eval/tasks/concurrency_task.py",
+      "verifier": "two-principal intent race (200 + 202 queued, leader stale 409 with a conflict record); per-run staging diffs contain only their own bytes at the same relative path; per-run checkpoint manifests and rewind do not cross; stop preserves both workspaces; five concurrent child spawns against maxChildren=3 yield 3+2; depth/budget/scope refusals; cascade cancel; cross-team 404"
+    },
+    {
+      "id": "cli-diagnostics",
+      "category": "cli_parity",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-30T09:52:53.132515+00:00",
+          "durationSec": 2.87,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": "PASS",
+          "failedChecks": [],
+          "stdoutTail": "{\n  \"verdict\": \"PASS\",\n  \"failed\": [],\n  \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/eval/w5-cli-diagnostics-1793353973.json\"\n}\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 2.87,
+      "budget": {
+        "timeoutSeconds": 180,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "exit 0 with every check true",
+      "driver": "scripts/e2e/w5_cli_diagnostics.py",
+      "verifier": "no token exit 3 with NOT_LOGGED_IN; usage exit 2 with USAGE; unknown run exit 1 with the server 404 code; --capture equals stdout and is 0600; token store 0600/0700 and absent from output; a real run reads with exit 0"
+    },
+    {
+      "id": "skills-governance",
+      "category": "skills",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-30T09:54:01.007246+00:00",
+          "durationSec": 0.16,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": "PASS",
+          "failedChecks": [],
+          "stdoutTail": "{\n  \"verdict\": \"PASS\",\n  \"failed\": [],\n  \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/eval/w6-skills-1793354041.json\"\n}\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 0.16,
+      "budget": {
+        "timeoutSeconds": 120,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "exit 0 with every check true",
+      "driver": "scripts/e2e/w6_skills_drill.py",
+      "verifier": "only reviewed+enabled skills load; post-review edits break the pin and are excluded; executable/policy manifest keys refused; team directories isolate; symlinked skill dirs never followed; rendering is advisory and mutates no policy; removal unloads; CLI list agrees with the loader"
+    },
+    {
+      "id": "stale-edit",
+      "category": "stale_edit",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": true,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-30T09:55:06.167556+00:00",
+          "durationSec": 0.87,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": "PASS",
+          "failedChecks": [],
+          "stdoutTail": "{\n  \"verdict\": \"PASS\",\n  \"failed\": [],\n  \"runId\": \"w3-stale-1793354106\",\n  \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/eval/w3-stale-edit-1793354106.json\"\n}\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 0.87,
+      "budget": {
+        "timeoutSeconds": 300,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "refusal with a specific error code; accepted state unchanged; rewind restores exactly",
+      "driver": "scripts/eval/tasks/stale_edit_task.py",
+      "verifier": "stale intent write at an older version: 409 INTENT_CONFLICT with a conflict record when fields moved, 409 STALE_INTENT_VERSION when they did not, 422 BAD_VERSION when ahead; accepted intent and plan content byte-identical afterwards; scope_change redirect leaves intent unchanged; stale plan version write 409 VERSION_CONFLICT; stale plan patch proposal 409 VERSION_NOT_OPEN; checkpoint snapshot+mutate+rewind restores bytes and removes the post-snapshot file; rewind with no snapshots 409 CHECKPOINT_UNAVAILABLE"
+    },
+    {
+      "id": "tenant-isolation-api",
+      "category": "tenant_isolation",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": true,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-30T09:56:12.042912+00:00",
+          "durationSec": 0.71,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": "PASS",
+          "failedChecks": [],
+          "stdoutTail": "{\n  \"verdict\": \"PASS\",\n  \"failed\": [],\n  \"failedRoutes\": [],\n  \"routes\": 36,\n  \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/eval/tenant-isolation-api-1793354172.json\"\n}\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 0.71,
+      "budget": {
+        "timeoutSeconds": 300,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "no existence oracle and no leak on any spec-derived route (36 run routes, 3 project routes)",
+      "driver": "scripts/eval/tasks/tenant_isolation_task.py",
+      "verifier": "for every GET /runs/{id}... route in section4/openapi.json, team B's answer for team A's run has the same status and error code as for a nonexistent run, A's unique marker is in none of B's bodies, anonymous is 401/403, and A itself reads its own plan (non-vacuous); every GET /projects/{project_id}... route in the recorded identity spec (events/replay, memory, rules) answers B as it answers a random id, and the project list shows A's project to A and not to B"
+    },
+    {
+      "id": "ast-lsp-confinement",
+      "category": "confinement",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-30T09:57:17.756024+00:00",
+          "durationSec": 3.99,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": "PASS",
+          "failedChecks": [],
+          "stdoutTail": "{\n  \"verdict\": \"PASS\",\n  \"failed\": [],\n  \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/eval/w4-ast-lsp-1793354237.json\"\n}\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 3.99,
+      "budget": {
+        "timeoutSeconds": 300,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "exit 0 with all ten checks true",
+      "driver": "scripts/e2e/w4_ast_lsp_drill.py",
+      "verifier": "AST search finds the planted definitions and skips a symlink escape; the language server receives no credential-shaped env key, runs with cwd=workspace, cannot write a read-only workspace (EROFS) or reach the network (ENETUNREACH); a silent server is killed at the deadline; the source tree is byte-identical; the container has no route"
+    },
+    {
+      "id": "lsp-real-server",
+      "category": "confinement",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-30T09:58:26.740970+00:00",
+          "durationSec": 4.6,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": "PASS",
+          "failedChecks": [],
+          "stdoutTail": "{\n  \"verdict\": \"PASS\",\n  \"failed\": [],\n  \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/eval/w7-lsp-real-1793354306.json\"\n}\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 4.6,
+      "budget": {
+        "timeoutSeconds": 300,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "exit 0 with every check true",
+      "driver": "scripts/e2e/w7_lsp_real_drill.py",
+      "verifier": "the image's baked client is byte-identical to the worktree; pylsp is installed at a pinned version; diagnostics fire for a planted undefined name and unused import and a clean file publishes none; symbols, definition and references resolve to planted locations; the server process's /proc environment carries no credential-shaped key and HOME/TMPDIR are outside the workspace; the read-only workspace refuses a write (EROFS); the network is unreachable; a stopped server is killed at the deadline; the tree is byte-identical; the container has no route"
+    },
+    {
+      "id": "w9-visuals",
+      "category": "artifact_authz",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-30T09:59:36.341782+00:00",
+          "durationSec": 5.88,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": "PASS",
+          "failedChecks": [],
+          "stdoutTail": "{\n \"checks\": {\n  \"renderedBothStates\": true,\n  \"pixelsProveTheChange\": true,\n  \"controlsAreAccessible\": true,\n  \"unboundRunRefused\": true,\n  \"bothAttached\": true,\n  \"dimensionsReadFromHeader\": true,\n  \"provenanceNamesReviewedRevision\": true,\n  \"pairSharesTheSnapshot\": true,\n  \"afterNamesItsBefore\": true,\n  \"artifactIdShaMatchesBytes\": true,\n  \"listResolvesThePair\": true,\n  \"refused_svg\": true,\n  \"refused_gif\": true,\n  \"refused_pdf\": true,\n  \"refused_tooWide\": true,\n  \"refused_oversized\": true,\n  \"refused_afterWithoutBefore\": true,\n  \"refused_secondAfter\": true,\n  \"refused_crossRevisionPair\": true,\n  \"refusedUploadsStoredNothing\": true,\n  \"foreignTeamGets404\": true,\n  \"shareMinted\": true,\n  \"anonymousDownloadServesTheBytes\": true,\n  \"servedAsDownloadNotDocument\": true,\n  \"shaHeaderMatchesTheImage\": true,\n  \"revokedShareDies\": true,\n  \"expiredIsGoneOnRead\": true,\n  \"expiredContentIs410\": true,\n  \"expiredShareIs410\": true,\n  \"purgeTombstonesTheRow\": true,\n  \"purgeRemovesTheBlob\": true,\n  \"purgedContentIsGone\": true,\n  \"auditRecordsTheAttach\": true\n },\n \"verdict\": \"PASS\"\n}\nPASS  evidence -> docs/briefs/evidence/pilot-prep/w9-visual-evidence-1793354376.json\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 5.88,
+      "budget": {
+        "timeoutSeconds": 600,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "exit 0 and every check true",
+      "driver": "scripts/e2e/w9_visual_evidence_drill.py",
+      "verifier": "fixture page rendered twice in a --network none, cap-dropped container (canvas pixel before #b3261e / after #1a7f37, aria-pressed false/true); attach refuses a run with no head (409 VISUAL_REVISION_UNBOUND); provenance carries run head, base sha, approved plan version and changes digest on both halves; SVG/GIF/PDF 415, 9000px 422, oversized 413; after without before 422; second after 409 VISUAL_PAIR_TAKEN; pair across a moved head 409 VISUAL_PAIR_REVISION_MISMATCH; foreign team 404; PNG share downloads with octet-stream/attachment/nosniff/sandbox and matching sha, revoke 404; backdated retention expires it (410 on content and share) and purge tombstones the row and removes the blob"
+    },
+    {
+      "id": "w10-browser-session",
+      "category": "ui_screenshot",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-30T10:00:47.223170+00:00",
+          "durationSec": 2.82,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": "PASS",
+          "failedChecks": [],
+          "stdoutTail": "{\n \"checks\": {\n  \"sessionStarted\": true,\n  \"browserEnvScrubbed\": true,\n  \"navigated\": true,\n  \"accessibilityTreeNamesControls\": true,\n  \"pageTextCaptured\": true,\n  \"clickUsedTheBoxCentre\": true,\n  \"clickEffectVisibleInAr\": true,\n  \"pixelsProveTheSameChange\": true,\n  \"screenshotsBounded\": true,\n  \"typedIntoTheFocusedField\": true,\n  \"scrolled\": true,\n  \"clipboardDenied\": true,\n  \"onlyTheWorkspaceWasRequested\": true,\n  \"fileOutsideRefused\": true,\n  \"httpsWithoutProxyRefused\": true,\n  \"httpSchemeRefused\": true,\n  \"redirectRefused\": true,\n  \"screenshotEscapeRefused\": true,\n  \"redirectQuarantinedToBlank\": true,\n  \"downloadCanceled\": true,\n  \"noDownloadFileWritten\": true,\n  \"profileRemoved\": true,\n  \"chromiumGone\": true,\n  \"everyStepHasAResult\": true,\n  \"everyStepAudited\": true,\n  \"visualPairAttached\": true,\n  \"pairCarriesTheReviewedRevision\": true\n },\n \"verdict\": \"PASS\"\n}\nPASS  evidence -> docs/briefs/evidence/pilot-prep/w10-browser-session-1793354447.json\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 2.82,
+      "budget": {
+        "timeoutSeconds": 300,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "fixture": {
+        "repo": "generated static page",
+        "revision": "w10-session",
+        "seed": [
+          "w10_session.html",
+          "redirect.html"
+        ]
+      },
+      "expected": "exit 0 and every check true",
+      "driver": "scripts/e2e/w10_browser_session_drill.py",
+      "verifier": "one Chromium driven over CDP in a detached --network none worker container: navigate, inspect (AX role/name), clickAx at the DOM box centre (aria-pressed flips, canvas pixel #b3261e -> #1a7f37), type, scroll, clipboard denied, only file:///ws requests; refusals for a file outside the workspace, https without proxy, plain http, a page-script redirect (refused and quarantined to about:blank) and an escaping screenshot path; download canceled with no file; no chromium process left; browser env PATH/HOME/LANG only; the two screenshots attached to the run as a W9 visual pair with provenance"
+    },
+    {
+      "id": "w12-skills-memory",
+      "category": "skills",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-30T10:01:55.043557+00:00",
+          "durationSec": 18.65,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": null,
+          "failedChecks": [],
+          "stdoutTail": "{\n \"checks\": {\n  \"draftCreated\": true,\n  \"draftNotEnabled\": true,\n  \"provenanceRecorded\": true,\n  \"draftNeverInjects\": true,\n  \"crossTeamReviewRefusedNoOracle\": true,\n  \"crossTeamListNoOracle\": true,\n  \"reviewMakesItInjectable\": true,\n  \"pinSurvivesReview\": true,\n  \"loaderInjectsReviewed\": true,\n  \"pinCrossesServiceBoundary\": true,\n  \"blockIsAdvisory\": true,\n  \"privilegeDemandStaysText\": true,\n  \"tamperedRowNotInjected\": true,\n  \"pinRestoresWhenBytesReturn\": true,\n  \"disableDropsIt\": true,\n  \"enableBringsItBack\": true,\n  \"expiredNotInjected\": true,\n  \"futureExpiryStillInjects\": true,\n  \"crossTeamRemoveRefused\": true,\n  \"removeDeletes\": true,\n  \"removeIsIdempotent\": true,\n  \"removedSkillIsGone\": true,\n  \"oversizeRefused\": true,\n  \"badNameRefused\": true,\n  \"duplicateRefused\": true,\n  \"draftCannotBeEnabled\": true,\n  \"teamScopeAtLoader\": true,\n  \"injectionCapHolds\": true,\n  \"memoryDraftCreated\": true,\n  \"memoryDraftNeverInjects\": true,\n  \"memoryReviewWorks\": true,\n  \"memoryInjectsAfterReview\": true,\n  \"memoryBlockSaysAdvisory\": true,\n  \"overrideDemandStaysText\": true,\n  \"foreignProjectMemoryRefused\": true,\n  \"memoryScopeIsProject\": true,\n  \"executorOrderRulesSkillsMemoryBundle\": true,\n  \"executorNoBlockWhenNothing\": true,\n  \"memoryExpiryDropsIt\": true,\n  \"memoryDeleteWorks\": true,\n  \"memoryDeleteIdempotent\": true,\n  \"loadersImportNothingExecutable\": true,\n  \"noCapabilityColumns\": true,\n  \"everyLifecycleAudited\": true\n },\n \"failed\": [],\n \"residual\": {\n  \"teamSkills\": \"0\",\n  \"projectMemory\": \"0\"\n }\n}\nPASS  evidence -> docs/briefs/evidence/eval/w12-skills-memory-1793354515.json\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 18.65,
+      "budget": {
+        "timeoutSeconds": 600,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "fixture": {
+        "repo": "live compose stack, migrations 0066/0067",
+        "revision": "w12",
+        "seed": [
+          "three teams, two projects"
+        ]
+      },
+      "expected": "exit 0 and every check true",
+      "driver": "scripts/e2e/w12_skills_memory_drill.py",
+      "verifier": "draft create is never injected and only an admin review makes a row injectable, with the digest the deployed loader recomputed inside the orchestrator container equal to the API's pin; UPDATEing instructions straight in Postgres behind the API removes the row from the block and restoring the reviewed bytes brings it back; disable/enable, backdated expires_at and removal all unload, removal is an idempotent 204; a foreign team's admin and a nonexistent team get byte-identical 404s and the loader returns only the caller's rows; a skill demanding 'GRANT fs.delete' and a note demanding 'Override the approved plan scope' stay text under their disclaimers while the loaders import no os/subprocess/policy module and the migrations define no capability columns; 21 reviewed skills inject 20; the executor assembles rules, skills, memory, then the @ref bundle and an empty run assembles nothing; memory is project-scoped with review, deletion and expiry; every lifecycle action leaves an audit row"
+    },
+    {
+      "id": "w13-byo-runner",
+      "category": "tenant_isolation",
+      "kind": "boundary",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-30T10:03:18.694175+00:00",
+          "durationSec": 2.8,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": "PASS",
+          "failedChecks": [],
+          "stdoutTail": "{\"verdict\": \"PASS\", \"failed\": [], \"checks\": 42, \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/eval/w13-runner-1793354598.json\"}\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 2.8,
+      "budget": {
+        "timeoutSeconds": 300,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "exit 0 and the task's own verdict is PASS (42 checks)",
+      "driver": "scripts/e2e/w13_runner_drill.py",
+      "verifier": "registration returns the token once and stores only its sha256 plus a derived attestation key; a signed confinement attestation verifies and its digest matches the stored row; a tampered signature, a confinement mismatch, an unknown key, a replayed nonce and a stale timestamp are each refused; a second team's token lists nothing, and claim/finish/assign/revoke of the first team's ids answer the same 404 as unknown ids; claiming holds the run_claims lease as runner:<id>, a second claim is refused, heartbeat renews, finish deletes only the runner's own claim; an expired lease releases the job and orphans (never re-queues) the run; revocation is idempotent and kills the token on the next request, rotation mints a new token and kills the old one immediately, an anonymous malformed body is 401 not 422; revoked runners take no jobs; every lifecycle action leaves an audit row"
+    }
+  ],
+  "deferred": [
+    {
+      "id": "m03-scope",
+      "category": "confinement",
+      "status": "blocked",
+      "reason": "blocked 2026-10-28: local Ollama has only nomic-embed-text, no chat model. Prerequisite: pull a local chat model or point the drill at a compatible endpoint."
+    },
+    {
+      "id": "m04-streaming",
+      "category": "streaming",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent (nomic-embed-text only)"
+    },
+    {
+      "id": "m07-api-run",
+      "category": "bug_fix",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "m07-daemon-topology",
+      "category": "confinement",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "m07-vision-api",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--cost)"
+    },
+    {
+      "id": "w3-rewind",
+      "category": "cancellation_recovery",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "w3-partial-write",
+      "category": "cancellation_recovery",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "w4-web-fetch",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--cost)"
+    },
+    {
+      "id": "w4-install",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--cost)"
+    },
+    {
+      "id": "w4-mcp-client",
+      "category": "mcp",
+      "status": "implemented",
+      "reason": "deferred: not selected (--cost)"
+    },
+    {
+      "id": "w4-credential-leak",
+      "category": "tenant_isolation",
+      "status": "implemented",
+      "reason": "deferred: not selected (--cost)"
+    },
+    {
+      "id": "w8-concurrency",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--cost)"
+    },
+    {
+      "id": "w8-crash-cleanup",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--cost)"
+    },
+    {
+      "id": "w9-share-deploy",
+      "category": "artifact_authz",
+      "status": "implemented",
+      "reason": "deferred: not selected (--cost)"
+    },
+    {
+      "id": "w10-browser-repro",
+      "category": "ui_screenshot",
+      "status": "implemented",
+      "reason": "deferred: not selected (--cost)"
+    },
+    {
+      "id": "w11-vision",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--cost)"
+    },
+    {
+      "id": "cli-parity",
+      "category": "cli_parity",
+      "status": "implemented",
+      "reason": "deferred: not selected (--cost)"
+    },
+    {
+      "id": "code-search",
+      "category": "code_search",
+      "status": "implemented",
+      "reason": "deferred: not selected (--cost)"
+    },
+    {
+      "id": "multi-file-refactor",
+      "category": "refactor",
+      "status": "implemented",
+      "reason": "deferred: not selected (--cost)"
+    },
+    {
+      "id": "tests-written",
+      "category": "tests",
+      "status": "implemented",
+      "reason": "deferred: not selected (--cost)"
+    },
+    {
+      "id": "native-tool-confinement",
+      "category": "confinement",
+      "status": "fixture-owed",
+      "reason": "owed: this is M01, still open; no access is widened until it closes"
+    },
+    {
+      "id": "code-search-heldout",
+      "category": "code_search",
+      "status": "implemented",
+      "reason": "deferred: not selected (--cost)"
+    },
+    {
+      "id": "w11-grounding",
+      "category": "ui_screenshot",
+      "status": "implemented",
+      "reason": "deferred: not selected (--cost)"
+    },
+    {
+      "id": "w14-design-heldout",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--cost)"
+    }
+  ],
+  "limitations": [
+    "n=1 unless --repeats was raised; a single pass is an existence proof, not a rate.",
+    "A task is deferred, blocked or fixture-owed is not a pass.",
+    "Revision verification compares runtime files inside the deployed containers/images with this worktree; a mismatch makes every result stale for HEAD."
+  ]
+}
