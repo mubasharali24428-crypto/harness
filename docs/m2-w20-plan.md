@@ -111,7 +111,7 @@ the gate passed; the result is stated on the line.
 - [x] Images verified against HEAD by hash, daemon included (`verified: true`); clean build matches
 - [x] Fixed set rerun: 15/15 PASS. Deferred with reason: six tasks pinned to a local chat model that does not exist on this machine (`m03-scope`, `m04-streaming`, `m07-api-run`, `m07-daemon-topology`, `w3-rewind`, `w3-partial-write`; owner: evaluation, decide model or retire) and `native-tool-confinement` (M01)
 - [x] Held-out set rerun, live tasks 3 independent runs with the pinned model — first rerun on qwen: gate FAILED (both vision tasks 0/3); **follow-up on `anthropic/claude-haiku-5.5`: gate PASSES** (vision 3/3 each, rest of held-out set 1/1) at HEAD `9e34f42` + uncommitted fixes
-- [ ] The follow-up's fixes committed, so the passing revision is reproducible from git
+- [x] The follow-up's fixes committed, so the passing revision is reproducible from git (`53924be`)
 - [ ] Fixed live set (`multi-file-refactor`, `tests-written`, `w11-grounding`) rerun on Haiku — not done; `w11-grounding` pins its own model
 - [ ] M01 native-tool confinement closed — a 1-2 day security spike across every enforcement backend; not attempted in W20
 - [x] Compose live journey passes on the verified stack
@@ -143,6 +143,7 @@ the gate passed; the result is stated on the line.
   included, subject to those same items. That choice belongs to the authorized
   owner.
 * Superseded, kept for the record: "defer full release; replan vision first."
+* The marathon continues past W20: `docs/m2-continuation-plan.md` (W21–W29).
 
 ## Gate ledger, W1-W19, as recorded in each plan
 
