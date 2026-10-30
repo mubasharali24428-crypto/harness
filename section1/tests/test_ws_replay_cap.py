@@ -323,6 +323,24 @@ async def test_rest_replay_reports_truncation_pair(app, monkeypatch):
     assert body["oldestSeqSent"] == seqs[-15]
 
 
+async def test_rest_before_seq_backfills_truncated_gap_oldest_first(app, monkeypatch):
+    """W22: paging (after_seq, before_seq) by nextCursor recovers the whole skipped range."""
+    monkeypatch.setenv("REPLAY_MAX_EVENTS", "15")
+    bus = app.state.event_bus
+    seqs = await _publish_n(bus, "p1", 40)
+    stop = seqs[-15]  # the oldestSeqSent a truncated resume reports
+
+    got, cursor = [], 0
+    for _ in range(10):
+        body = (await _rest_get(app, f"?after_seq={cursor}&before_seq={stop}&limit=10")).json()
+        if not body["items"]:
+            break
+        got += [i["seq"] for i in body["items"]]
+        cursor = body["nextCursor"]
+    assert got == seqs[:-15]
+    assert not body.get("replayTruncated")
+
+
 # --------------------------------------- seq-window resume under concurrency
 
 

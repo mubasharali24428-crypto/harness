@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -316,10 +317,12 @@ def sweep_orphan_boundaries(
             continue
         if older_than_seconds > 0:
             created = docker(
-                "network", "inspect", "--format", "{{.Created}}", name, check=False
+                "network", "inspect", "--format", "{{json .Created}}", name, check=False
             ).stdout.strip()
             try:
-                age = time.time() - _parse_iso(created)
+                # W22: plain {{.Created}} is Go's "2026-10-30 18:35:07.8 +0000 UTC", which
+                # fromisoformat rejects - every network was kept. JSON gives RFC 3339.
+                age = time.time() - _parse_iso(json.loads(created))
             except (ValueError, TypeError):
                 kept.append(name)
                 continue

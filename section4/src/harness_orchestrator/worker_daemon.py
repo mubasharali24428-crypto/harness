@@ -10,6 +10,8 @@ boundary. Paths come from its own ``DSH_WORKSPACE``/``DSH_SESSION_ROOT``, the im
     POST /runs/<id>          NDJSON: {"progress": {...}} per tool event, then {"result": {...}}
     POST /runs/<id>/cancel   {"confirmed": bool}
     GET  /runs/<id>          {"running": bool}
+    GET  /boundaries         {"runs": [run id, ...]} labelled boundaries Docker still has
+    POST /sweep              {"settledRunIds": [...], "olderThanSeconds": n} -> sweep report
 
 Every call carries ``Authorization: Bearer $HARNESS_WORKER_DAEMON_TOKEN``; without a token
 configured the daemon refuses to start. It must listen only on a network the orchestrator
@@ -94,6 +96,10 @@ class Handler(BaseHTTPRequestHandler):
         return match.group(1), bool(match.group(2))
 
     def do_GET(self) -> None:  # noqa: N802 - http.server API
+        if self.path == "/boundaries" and self._authorized():
+            runs = sorted(set(container_runtime.labelled_boundary_runs().values()))
+            self._reply(200, {"runs": runs})
+            return
         route = self._route()
         if route is None or route[1]:
             return None if route is None else self._reply(404, {"error": "not found"})
@@ -102,6 +108,9 @@ class Handler(BaseHTTPRequestHandler):
         self._reply(200, {"running": bool(wrapper and wrapper.is_worker_running(route[0]))})
 
     def do_POST(self) -> None:  # noqa: N802 - http.server API
+        if self.path == "/sweep" and self._authorized():
+            self._sweep()
+            return
         route = self._route()
         if route is None:
             return
@@ -153,6 +162,31 @@ class Handler(BaseHTTPRequestHandler):
             with _LOCK:
                 _RUNS.pop(session_id, None)
 
+    def _sweep(self) -> None:
+        """W22: the strong sweep, with the settlement proof supplied by the orchestrator.
+
+        A SIGKILLed daemon leaves its worker running; this process cannot tell that
+        corpse from a live run, the orchestrator's event log can. Runs this daemon
+        still holds are never touched, whatever the caller says.
+        """
+        length = int(self.headers.get("Content-Length") or 0)
+        if not 0 < length <= 1024 * 1024:
+            self._reply(413, {"error": "body missing or too large"})
+            return
+        try:
+            body = json.loads(self.rfile.read(length))
+            settled = {str(r) for r in body["settledRunIds"]}
+            grace = float(body["olderThanSeconds"])
+        except (ValueError, KeyError, TypeError) as exc:
+            self._reply(400, {"error": f"bad sweep body: {type(exc).__name__}"})
+            return
+        with _LOCK:
+            held = set(_RUNS)
+        report = container_runtime.sweep_orphan_boundaries(
+            held, settled - held, older_than_seconds=grace
+        )
+        self._reply(200, report)
+
 
 def serve(bind: str) -> ThreadingHTTPServer:
     host, _, port = bind.rpartition(":")
@@ -172,8 +206,8 @@ def _boundary_sweeper(interval: float, grace: float) -> None:
     That leaves the SIGKILLed-daemon case uncleaned on purpose: after the daemon
     dies, its own worker container is still running and nothing local can tell
     that apart from a live run. The daemon restarts, sweeps the quiet leftovers on
-    its first pass, and the durable-proof sweep in the service covers stacks where
-    one process holds both the socket and the DB.
+    its first pass; the corpse itself is stopped by the orchestrator's durable-proof
+    sweep, which reaches this socket through ``POST /sweep`` (W22).
     """
     while True:
         time.sleep(interval)

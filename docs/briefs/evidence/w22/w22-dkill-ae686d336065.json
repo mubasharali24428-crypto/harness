@@ -1,0 +1,85 @@
+{
+  "runId": "w22-dkill-ae686d336065",
+  "deadSeconds": 60,
+  "verdict": "FAIL",
+  "daemonImage": "harness-worker-daemon:vw22clean sha256:2e5609d67d08eb5a47b611a234013fe5d5b0c0eea924f22d2486d77963834c68",
+  "before": {
+    "at": "10:49:38",
+    "daemon": "running",
+    "state": "executing",
+    "lifecycle": {
+      "phase": "running",
+      "cancelRequested": false,
+      "cancelConfirmed": false,
+      "mutationPossible": true
+    },
+    "claim": "running",
+    "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call",
+    "containers": {
+      "worker": "417bfea74183",
+      "relay": "1978675c8f37"
+    },
+    "childLive": true,
+    "networks": [
+      "harness-616a068c594047258825eed794ff2d38-net"
+    ]
+  },
+  "killExit": 0,
+  "daemonDead": {
+    "at": "10:50:39",
+    "daemon": "exited",
+    "state": "blocked",
+    "lifecycle": {
+      "phase": "blocked",
+      "cancelRequested": false,
+      "cancelConfirmed": false,
+      "mutationPossible": true
+    },
+    "claim": "",
+    "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call,engine_failed:worker daemon ended the run without a result",
+    "containers": {
+      "worker": "417bfea74183",
+      "relay": "1978675c8f37"
+    },
+    "childLive": true,
+    "networks": [
+      "harness-616a068c594047258825eed794ff2d38-net"
+    ]
+  },
+  "startExit": 0,
+  "daemonBack": {
+    "at": "10:52:09",
+    "daemon": "running",
+    "state": "blocked",
+    "lifecycle": {
+      "phase": "blocked",
+      "cancelRequested": false,
+      "cancelConfirmed": false,
+      "mutationPossible": false
+    },
+    "claim": "",
+    "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call,engine_failed:worker daemon ended the run without a result",
+    "containers": {
+      "worker": "417bfea74183",
+      "relay": "1978675c8f37"
+    },
+    "childLive": true,
+    "networks": [
+      "harness-616a068c594047258825eed794ff2d38-net"
+    ]
+  },
+  "checks": {
+    "daemonBack": true,
+    "runSettled": true,
+    "claimReleased": true,
+    "noLiveWorkerOrRelay": false,
+    "noLiveChild": false
+  },
+  "drillRemoved": {
+    "worker": "417bfea74183",
+    "relay": "1978675c8f37"
+  },
+  "drillRemovedNetworks": [
+    "harness-616a068c594047258825eed794ff2d38-net"
+  ]
+}

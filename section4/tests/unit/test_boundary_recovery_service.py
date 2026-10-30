@@ -102,3 +102,27 @@ def test_a_docker_less_process_reports_its_own_failure(replica_pair, monkeypatch
     monkeypatch.setattr(container_runtime, "sweep_orphan_boundaries", raise_oserror)
     report = asyncio.run(service.recover_boundaries())
     assert "docker unavailable" in report["skipped"]
+
+
+def test_split_deployment_sends_settled_runs_to_the_daemon(replica_pair, monkeypatch):  # noqa: F811
+    """W22: with no socket here, the daemon lists boundaries and this process proves settlement."""
+    import io
+    import json
+
+    factory = replica_pair["factory"]
+    service = replica_pair["replicas"][0]
+    asyncio.run(_emit(factory, "run-a", "engine_failed"))
+    asyncio.run(_emit(factory, "run-b", "execution_started"))
+    sent = []
+
+    def fake_call(method, path, body=None, timeout=10.0):
+        sent.append((method, path, body))
+        payload = {"runs": ["run-a", "run-b"]} if path == "/boundaries" else {"count": 1}
+        return io.BytesIO(json.dumps(payload).encode())
+
+    monkeypatch.setattr(service.engine, "daemon_url", "http://daemon")
+    monkeypatch.setattr(service.engine, "_daemon_call", fake_call)
+    assert asyncio.run(service.recover_boundaries()) == {"count": 1}
+    method, path, body = sent[-1]
+    assert (method, path) == ("POST", "/sweep")
+    assert body["settledRunIds"] == ["run-a"], "an executing run is never sent as settled"

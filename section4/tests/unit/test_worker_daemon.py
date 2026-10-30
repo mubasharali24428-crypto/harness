@@ -205,3 +205,40 @@ def test_a_root_launcher_runs_the_worker_as_the_workspace_owner(tmp_path, monkey
     assert confine._worker_user(str(tmp_path)) == f"{st.st_uid}:{st.st_gid}"
     monkeypatch.setattr(os, "stat", lambda p: os.stat_result((0,) * 10))
     assert confine._worker_user(str(tmp_path)) == "10001:10001"  # never root
+
+
+def test_sweep_takes_settlement_from_the_caller_but_never_a_held_run(daemon, monkeypatch):
+    """W22: a SIGKILLed daemon's worker is stopped only on the orchestrator's settled proof."""
+    from harness_orchestrator import container_runtime
+
+    url, _ = daemon
+    seen = {}
+    monkeypatch.setattr(
+        container_runtime, "labelled_boundary_runs", lambda: {"harness-a-net": "run-a"}
+    )
+    monkeypatch.setattr(
+        container_runtime,
+        "sweep_orphan_boundaries",
+        lambda held, settled, **kw: seen.update(held=held, settled=settled, **kw) or {"count": 0},
+    )
+
+    def call(method, path, body=None, token=TOKEN):
+        request = urllib.request.Request(
+            url + path, method=method,
+            data=None if body is None else json.dumps(body).encode(),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        with urllib.request.urlopen(request, timeout=5) as reply:
+            return json.loads(reply.read())
+
+    worker_daemon._RUNS["run-held"] = None
+    try:
+        assert call("GET", "/boundaries") == {"runs": ["run-a"]}
+        call("POST", "/sweep", {"settledRunIds": ["run-a", "run-held"], "olderThanSeconds": 300})
+        assert seen["settled"] == {"run-a"}, "a run this daemon still holds is never settled"
+        assert "run-held" in seen["held"] and seen["older_than_seconds"] == 300
+        with pytest.raises(urllib.error.HTTPError) as denied:
+            call("POST", "/sweep", {"settledRunIds": [], "olderThanSeconds": 0}, token="wrong")
+        assert denied.value.code == 401
+    finally:
+        worker_daemon._RUNS.pop("run-held", None)

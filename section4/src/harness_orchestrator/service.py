@@ -2450,6 +2450,8 @@ class OrchestratorService(Orchestrator):
         held = set(held)
         for boundary in getattr(self.engine, "live_boundary_run_ids", lambda: [])():
             held.add(boundary)
+        if getattr(self.engine, "daemon_url", ""):
+            return await self._recover_boundaries_via_daemon(held)
         candidates = set(labelled_boundary_runs().values())
         settled = await self._settled_run_ids(candidates - held)
         try:
@@ -2458,6 +2460,31 @@ class OrchestratorService(Orchestrator):
             )
         except OSError as exc:  # no Docker socket (bare test host): nothing to reclaim
             return {"skipped": f"docker unavailable: {exc}", "removed": [], "kept": []}
+
+    async def _recover_boundaries_via_daemon(self, held: set[str]) -> dict[str, Any]:
+        """W22: split deployment - the daemon lists and stops, this process proves settlement.
+
+        A SIGKILLed daemon leaves its worker running after the run is blocked; only the
+        event log here can say that run is over, and only the daemon can stop it.
+        """
+        call = self.engine._daemon_call
+        try:
+            listed = await asyncio.to_thread(call, "GET", "/boundaries")
+            runs = set(json.loads(listed.read())["runs"])
+            settled = await self._settled_run_ids(runs - held)
+            swept = await asyncio.to_thread(
+                call,
+                "POST",
+                "/sweep",
+                {
+                    "settledRunIds": sorted(settled),
+                    "olderThanSeconds": self.boundary_sweep_grace_seconds,
+                },
+                120.0,
+            )
+            return json.loads(swept.read())
+        except OSError as exc:  # daemon unreachable or refused: nothing was reclaimed
+            return {"skipped": f"worker daemon unavailable: {exc}", "removed": [], "kept": []}
 
     async def _settled_run_ids(self, candidates: set[str]) -> set[str]:
         """Which of ``candidates`` the durable event log says are past execution.

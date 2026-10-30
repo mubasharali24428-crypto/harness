@@ -48,7 +48,9 @@ class FakeDocker:
             if info is None:
                 return done(1, stderr="no such network")
             if "--format" in argv:
-                return done(stdout=(self.now - timedelta(seconds=self.created_ago)).isoformat())
+                # What `--format '{{json .Created}}'` really prints: quoted RFC 3339, 9 digits.
+                created = self.now - timedelta(seconds=self.created_ago)
+                return done(stdout=json.dumps(created.strftime("%Y-%m-%dT%H:%M:%S.%f") + "123Z"))
             # Real Docker lists only running endpoints here — the reason the
             # sweeper cannot rely on inspect alone and must disconnect by name.
             running = {
@@ -201,6 +203,14 @@ def test_a_boundary_younger_than_the_grace_window_is_left_alone(monkeypatch):
     fake = _install(monkeypatch, FakeDocker({name: spec}, created_ago=5.0))
     report = container_runtime.sweep_orphan_boundaries(set(), {"run-6"}, older_than_seconds=300)
     assert report["kept"] == [name] and name in fake.net
+
+
+def test_a_settled_boundary_older_than_the_grace_window_is_removed(monkeypatch):
+    """W22: with a grace window the age must actually parse, or every network is kept."""
+    name, spec = _boundary("run-6b", "f")
+    fake = _install(monkeypatch, FakeDocker({name: spec}, created_ago=900.0))
+    report = container_runtime.sweep_orphan_boundaries(set(), {"run-6b"}, older_than_seconds=300)
+    assert report["count"] == 1 and name not in fake.net
 
 
 def test_a_daemon_that_cannot_be_listed_reports_failure_not_zero_orphans(monkeypatch):

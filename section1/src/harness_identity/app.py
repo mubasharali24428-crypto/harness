@@ -1479,10 +1479,22 @@ async def replay_events(
     request: Request,
     after_seq: int = 0,
     limit: int = 0,
+    before_seq: int = 0,
     principal: Annotated[object, Depends(get_principal)] = None,
 ) -> dict:
     await _require_project_access(request.app.state.session_factory, principal, project_id)
     bus: EventBus = request.app.state.event_bus
+    if before_seq > 0:
+        # W22 backfill: the default page keeps the NEWEST events of the gap, so a client
+        # paging a truncated gap (after_seq, oldestSeqSent) never reaches its start.
+        # Bounded pages go oldest-first; an empty page means the range is complete.
+        items = [
+            e for e in await bus.replay(project_id, after_seq, limit or 500) if e.seq < before_seq
+        ]
+        return {
+            "items": [e.model_dump() for e in items],
+            "nextCursor": items[-1].seq if items else after_seq,
+        }
     page = await bus.replay_page(project_id, after_seq, limit or 500)
     return {
         "items": [e.model_dump() for e in page.envelopes],
