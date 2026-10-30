@@ -114,6 +114,7 @@ class ContextService:
         self.overlap = overlap
         self.jobs: dict[str, IndexJob] = {}
         self._project_locks: dict[str, asyncio.Lock] = {}
+        self._active_projects: set[str] = set()
         self.embed_calls = 0  # texts handed to the backend (skip-proof metric)
 
     # ------------------------------------------------------------------ jobs
@@ -133,15 +134,22 @@ class ContextService:
         root = pathlib.Path(repo_path)
         if not root.is_dir():
             raise RepoIndexError(f"repo_path is not a directory: {repo_path}")
-        if project_id in self._project_locks and self._project_locks[project_id].locked():
+        if project_id in self._active_projects:
             raise RepoIndexError(f"an index job is already running for project {project_id}")
-
-        await self._enforce_context_cap(project_id)
-
-        lock = self._project_locks.setdefault(project_id, asyncio.Lock())
-        job = IndexJob(id=str(uuid.uuid4()), project_id=project_id, repo_path=str(root))
-        self.jobs[job.id] = job
-        asyncio.get_running_loop().create_task(self._run_index(job, root, lock))
+        # Reserve before the first await: another request can otherwise pass
+        # the lock check while this one is still resolving the team's cap.
+        self._active_projects.add(project_id)
+        try:
+            await self._enforce_context_cap(project_id)
+            lock = self._project_locks.setdefault(project_id, asyncio.Lock())
+            job = IndexJob(id=str(uuid.uuid4()), project_id=project_id, repo_path=str(root))
+            self.jobs[job.id] = job
+            asyncio.get_running_loop().create_task(self._run_index(job, root, lock))
+        except BaseException:
+            # Includes cancellation while checking the cap; no job owns the
+            # reservation until create_task succeeds.
+            self._active_projects.discard(project_id)
+            raise
         return job.to_status()
 
     async def _enforce_context_cap(self, project_id: str) -> None:
@@ -217,6 +225,8 @@ class ContextService:
             except Exception as exc:  # noqa: BLE001 — job boundary; error goes to the wire
                 job.status = "failed"
                 job.error = f"{type(exc).__name__}: {exc}"
+            finally:
+                self._active_projects.discard(job.project_id)
 
     # ------------------------------------------------------------- ingestion
 

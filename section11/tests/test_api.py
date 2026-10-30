@@ -1,6 +1,7 @@
 """API contract tests: gated access, index lifecycle, frozen search payload."""
 
 import asyncio
+import time
 
 from conftest import AUTH_HEADERS
 from sqlalchemy import text
@@ -96,14 +97,15 @@ async def test_index_lifecycle_over_http(client, db, mini_repo):
     assert body["status"] in {"pending", "indexing", "completed"}
 
     status_body = None
-    for _ in range(100):
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
         res = await client.get(f"/api/v1/context/index/{job_id}", headers=AUTH_HEADERS)
         assert res.status_code == 200
         status_body = res.json()
         if status_body["status"] in {"completed", "failed"}:
             break
         await asyncio.sleep(0.01)
-    assert status_body is not None and status_body["status"] == "completed"
+    assert status_body is not None and status_body["status"] == "completed", status_body
     assert status_body["filesIndexed"] == 5
     assert status_body["chunksIndexed"] > 0
     assert status_body["error"] is None

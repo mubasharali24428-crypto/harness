@@ -141,3 +141,46 @@ async def test_full_migration_walk_then_real_vector_search(pg_url):
         assert hits[0].score > 0.4
     finally:
         await engine.dispose()
+
+
+async def test_reader_during_index_does_not_rollback_writer(pg_url, mini_repo):
+    """A separate Postgres session reads while an index transaction is open."""
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from harness_context.embeddings import HashingEmbedding
+    from harness_context.service import ContextService, IndexJob
+
+    engine = create_async_engine(pg_url)
+    try:
+        await _wait_ready(engine)
+        sys.path.insert(0, str(HARNESS_ROOT / "deploy" / "runners"))
+        import migrate as migrate_runner
+
+        await migrate_runner.migrate(engine)
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        svc = ContextService(factory, HashingEmbedding(dims=256))
+        original = svc.store.upsert_chunk
+        pids = []
+
+        async def upsert_with_reader(session, **kwargs):
+            await original(session, **kwargs)
+            if not pids:
+                writer_pid = await session.scalar(text("SELECT pg_backend_pid()"))
+                async with factory() as reader:
+                    reader_pid = await reader.scalar(text("SELECT pg_backend_pid()"))
+                    await reader.scalar(text("SELECT COUNT(*) FROM context_chunks"))
+                pids.extend([writer_pid, reader_pid])
+
+        svc.store.upsert_chunk = upsert_with_reader
+        job = IndexJob(id="w19-pg", project_id="w19-pg", repo_path=str(mini_repo))
+        await svc.reindex(job, mini_repo)
+        async with factory() as reader:
+            count = await reader.scalar(
+                text("SELECT COUNT(*) FROM context_chunks WHERE project_id = :project"),
+                {"project": job.project_id},
+            )
+        assert len(pids) == 2 and pids[0] != pids[1]
+        assert count == job.chunks_indexed and count > 0
+    finally:
+        await engine.dispose()
