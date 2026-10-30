@@ -29,7 +29,7 @@ worktree hash check, and a `--dry-run` of the held-out selection.
 
 | W20 requirement | What exists | Gap found |
 |---|---|---|
-| Independent rerun of the held-out suite | corpus of 39 tasks, 6 held out, 29 implemented; `scripts/eval/run_eval.py` | see "Why the reruns have not been run" |
+| Independent rerun of the held-out suite | corpus of 39 tasks, 6 held out, 32 implemented (3 drivers added 2026-10-30, none run on the stack); `scripts/eval/run_eval.py` | see "Why the reruns have not been run" |
 | Live journey | `scripts/e2e/compose_journey.py` (12 checks); W18 live demo | would contend with W17 on the shared stack |
 | Release checklist | none as a single document; per-week "gate position" tables in `docs/m2-w*-plan.md` | assembled below, every box unchecked |
 | Versioned evidence pack | evidence is spread over `docs/briefs/evidence/` (eval, w17, w19 files) | indexed below; pack is not frozen |
@@ -39,7 +39,8 @@ worktree hash check, and a `--dry-run` of the held-out selection.
 
 ### Checks run today (read-only)
 
-* `run_eval.py --check`: `ok`, 39 tasks, 6 held out, 29 implemented. This validates
+* `run_eval.py --check`: `ok`, 39 tasks, 6 held out. 29 were implemented when this
+  audit started and 32 after the three drivers listed below were added. This validates
   the corpus contract only; it executes nothing.
 * `run_eval.py --verify-only`: **`verified: false`**. Backend files and two worker
   files match the worktree; the worker image's `engine.py` does not (host
@@ -48,8 +49,18 @@ worktree hash check, and a `--dry-run` of the held-out selection.
   recorded; it has not been rebuilt.
 * `--dry-run` of each held-out id with `--include-live`: five are selectable
   (`w8-crash-cleanup`, `w11-vision`, `stale-edit`, `code-search-heldout`,
-  `w14-design-heldout`); **`tenant-isolation-api` selects nothing** because its
-  status is `fixture-owed`. A held-out task that cannot run is a gap, not a pass.
+  `w14-design-heldout`); at that point **`tenant-isolation-api` selected nothing**
+  because its status was `fixture-owed`. A held-out task that cannot run is a gap,
+  not a pass. Since then (`4f19712`) it has a driver, so it now selects, but it has
+  never run on the stack.
+* Drivers added 2026-10-30, each with an offline `--selftest` and **no run on
+  record**: `tenant-isolation-api` (`scripts/eval/tasks/tenant_isolation_task.py`),
+  `multi-file-refactor` and `tests-written` (`scripts/eval/tasks/code_change_task.py`).
+  The last file's selftest shows its verifier accepts a reference solution and
+  rejects the plausible wrong ones (untouched, search-and-replace that edits
+  `vendor/`, callers not updated, edited tests, a test that passes on the bug, a
+  fix with no test, a test that fails by `NameError`). That proves the check, not
+  that any model can pass it.
 
 ## Why the reruns have not been run
 
@@ -68,8 +79,10 @@ All of these are open; none is waived.
    `m07-api-run`, `m07-daemon-topology`, `w3-rewind`, `w3-partial-write`) are
    `blocked`: Ollama holds only `nomic-embed-text`. They stay blocked until a chat
    model is pulled or the drills are pointed at a funded provider.
-5. **Fixtures owed.** `tenant-isolation-api` (held out), `multi-file-refactor`,
-   `tests-written` and `native-tool-confinement` (M01, still open).
+5. **Unrun drivers and one fixture still owed.** `tenant-isolation-api` (held out),
+   `multi-file-refactor` and `tests-written` have drivers but have never run, so
+   their first run may expose driver defects as well as product ones.
+   `native-tool-confinement` (M01) is still `fixture-owed`.
 
 ## Rerun procedure (for whoever runs it, once the preconditions hold)
 
@@ -80,8 +93,10 @@ All of these are open; none is waived.
    and the Section 7 typecheck, unit tests and build.
 4. Held-out set, one task per call, `--include-live --repeats 3`, with the pinned
    model recorded: `w8-crash-cleanup`, `w11-vision`, `stale-edit`,
-   `code-search-heldout`, `w14-design-heldout`. Keep failures; do not rerun until
-   green without keeping the earlier file.
+   `code-search-heldout`, `w14-design-heldout`, `tenant-isolation-api`. Keep
+   failures; do not rerun until green without keeping the earlier file. Run the new
+   fixed-set agent tasks `multi-file-refactor` and `tests-written` the same way; a
+   failure there may be a driver defect, so read the evidence before blaming the model.
 5. `scripts/e2e/compose_journey.py` on the verified stack, plus the W18 live demo.
 6. Fill the checklist below from the raw evidence files, not from the plans.
 7. An owner who did not write the code reviews the pack and records the decision.
@@ -119,7 +134,7 @@ Each box needs raw evidence at one named revision and image digest.
 
 - [ ] Worker and backend images verified against HEAD by hash (`verified: true`)
 - [ ] Fixed-set tasks rerun; failures and deferrals listed with reason and owner
-- [ ] Held-out set rerun with 3 repeats and pinned model; `tenant-isolation-api` fixture built
+- [ ] Held-out set rerun with 3 repeats and pinned model; `tenant-isolation-api` run (its driver has never run)
 - [ ] M01 native-tool confinement closed
 - [ ] Compose live journey passes on the verified stack
 - [ ] `make static-gates`, Section 1 pytest and Ruff, Section 7 typecheck/tests/build pass

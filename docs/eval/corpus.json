@@ -803,17 +803,17 @@
       "kind": "agent",
       "cost": "live",
       "heldOut": false,
-      "status": "fixture-owed",
+      "status": "implemented",
       "driver": {
-        "type": "builtin",
-        "path": null,
-        "args": [],
+        "type": "script",
+        "path": "scripts/eval/tasks/code_change_task.py",
+        "args": ["--task", "refactor"],
         "env": {}
       },
       "fixture": {
-        "repo": "fixture repo to be built",
-        "revision": null,
-        "seed": []
+        "repo": "generated 9-file Python package (SHOP in code_change_task.py)",
+        "revision": "m2-w20-refactor",
+        "seed": ["shop/{pricing,cart,invoice,report}.py", "vendor/legacy_pricing.py (lookalike, must not change)", "tests/test_shop.py", "README.md"]
       },
       "budget": {
         "timeoutSeconds": 1200,
@@ -821,10 +821,10 @@
         "maxCostUsd": 0.15
       },
       "model": "the stack DSH_MODEL",
-      "verifier": "the fixture's own test command passes on the agent's branch; no forbidden path changed",
-      "expected": "tests pass and the refactor is reviewable",
-      "evidence": "to be created",
-      "notes": "owed: no refactor fixture"
+      "verifier": "run in a scratch copy of the workspace after the run: the shipped tests pass; a verifier-owned check the agent never sees pins the new API (line_total, discount_pct keyword-only, calc_price gone, callers price identically); calc_price appears nowhere outside vendor/; vendor/ and tests/ are byte-identical; only shop/*.py and README.md changed; nothing seeded deleted",
+      "expected": "every check true; the evidence carries the unified diff so the refactor is reviewable",
+      "evidence": "docs/briefs/evidence/eval/code-change-refactor-*.json",
+      "notes": "driver written 2026-10-30. Offline --selftest (no stack, no model) proves the verifier accepts a reference solution and rejects: untouched baseline, global search-and-replace that edits vendor/, rename without updating callers, edited tests, and a left-behind alias. NOT run against the stack: no model run and no pass on record. Added files outside vendor/ and tests/ are recorded, not failed, because engine artifacts may land in the workspace root."
     },
     {
       "id": "tests-written",
@@ -833,17 +833,17 @@
       "kind": "agent",
       "cost": "live",
       "heldOut": false,
-      "status": "fixture-owed",
+      "status": "implemented",
       "driver": {
-        "type": "builtin",
-        "path": null,
-        "args": [],
+        "type": "script",
+        "path": "scripts/eval/tasks/code_change_task.py",
+        "args": ["--task", "tests-written"],
         "env": {}
       },
       "fixture": {
-        "repo": "fixture repo to be built",
-        "revision": null,
-        "seed": []
+        "repo": "generated 3-file Python package with a planted bug (PAGER in code_change_task.py)",
+        "revision": "m2-w20-tests-written",
+        "seed": ["pager/paging.py (page_count floors instead of ceiling)", "tests/test_paging.py (green on the buggy source)"]
       },
       "budget": {
         "timeoutSeconds": 1200,
@@ -851,10 +851,10 @@
         "maxCostUsd": 0.15
       },
       "model": "the stack DSH_MODEL",
-      "verifier": "planted bug: the new test fails on the baseline and passes with the patch; differential check",
-      "expected": "test added and both runs recorded",
-      "evidence": "to be created",
-      "notes": "owed: needs the H1 differential pattern (W6/W14)"
+      "verifier": "differential, run in scratch copies after the run: with the original buggy pager/paging.py restored, the agent's tests/ fail with an AssertionError (not an import, name, syntax or attribute error); with the agent's source they all pass; a verifier-owned reference check the agent never sees passes on the agent's source (page_count is a ceiling, all_pages rebuilds the input for 312 size/length pairs); a test file was added or changed; only pager/paging.py and tests/ changed",
+      "expected": "every check true; evidence records the failing run on the original source, the passing run on the fix, and the diff",
+      "evidence": "docs/briefs/evidence/eval/code-change-tests-written-*.json",
+      "notes": "driver written 2026-10-30. Offline --selftest proves the verifier accepts a good test plus a fix and rejects: no test, a test that passes on the bug, a failing test with no fix, a fix with no test, a test that fails by NameError, and a stray new module under pager/. Editing the seeded test file is accepted. NOT run against the stack: no model run and no pass on record. Needs the standard-library unittest: the orchestrator image has no pytest. The earlier note about the H1 differential pattern is superseded; this is a plain two-run differential."
     },
     {
       "id": "tenant-isolation-api",
