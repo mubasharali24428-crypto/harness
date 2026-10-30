@@ -1,0 +1,496 @@
+{
+  "date": "2026-10-30",
+  "week": "W14",
+  "task": "w14-design-heldout",
+  "leg": "live",
+  "run": "w14-design-1793361565",
+  "preRegistered": {
+    "ratioMax": 0.03,
+    "colourTolerance": 12,
+    "answerRatioTolerance": 0.005,
+    "fixtureColourTolerance": 0
+  },
+  "fixture": {
+    "token": "ARTIFACT-56",
+    "bytes": 6992,
+    "sha256": "d1a389918417ddaf9fa8f53e8a414b519f3d91e4f9d266d95aea7480a554d87b",
+    "sampledColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    },
+    "expectedColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    }
+  },
+  "fixtureChecks": {
+    "fixtureRendersAtDeclaredSize": true,
+    "flatColoursExactAtSamplePoints": true,
+    "tokenTextIsDrawn": true,
+    "selfDiffIsZero": true,
+    "renderIsDeterministic": true
+  },
+  "drive": "HTTP only",
+  "seededFiles": [
+    "mockup.png"
+  ],
+  "design": {
+    "startStatus": 200,
+    "states": [
+      "executing",
+      "awaiting_done_signal"
+    ],
+    "state": "awaiting_done_signal",
+    "engine": "replayed",
+    "engineStatus": "completed",
+    "answer": "RATIO: 0.01419 is below 0.03 threshold. Final output:\n\nTOKEN: ARTIFACT-56\nRATIO: 0.01419\nFILES: index.html, style.css"
+  },
+  "designTrail": {
+    "toolsUsed": [
+      "bash",
+      "browser",
+      "edit",
+      "image",
+      "read",
+      "read_image",
+      "write"
+    ],
+    "imageDiffCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_c35445d3fe404c3584182412",
+        "arguments": "{\"action\":\"diff\",\"before\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"after\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/shots/render.png\",\"out\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/shots/diff.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_84db054837574ec0847ab7a1",
+        "arguments": "{\"action\":\"diff\",\"before\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"after\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/shots/render.png\",\"out\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/shots/diff.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_4d91c0c3bc7f48af95850e49",
+        "arguments": "{\"action\":\"diff\",\"before\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"after\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/shots/render.png\",\"out\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/shots/diff.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imageSampleCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_d2fce60c386540d58412be0e",
+        "arguments": "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[300,150],[550,150],[650,150],[400,80],[400,90],[400,100],[400,110],[300,320],[300,330],[650,320],[650,330],[450,200],[570,200],[575,200],[578,200]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_1bca575cdce34287987eedab",
+        "arguments": "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[400,0],[400,30],[400,60],[400,70],[400,75],[400,80],[400,100],[400,150],[400,200],[400,250],[400,300],[400,350],[400,400]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_23d0ab2c38ce45bb9197e563",
+        "arguments": "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[300,100],[300,110],[300,120],[300,130],[300,310],[300,320],[300,330],[300,340]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_32bf37b3aada4153bbba5e3a",
+        "arguments": "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[580,100],[580,150],[580,200],[580,250],[580,300],[580,310],[580,320],[580,330]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_1ac7bc6364fa4718858c1f8a",
+        "arguments": "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[260,200],[270,200],[280,200],[540,200],[550,200],[560,200],[570,200],[580,200],[590,200],[600,200],[860,200],[870,200],[880,200]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_d23a1aa983dc4ea28287d779",
+        "arguments": "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[400,105],[400,108],[400,110],[400,112],[400,318],[400,320],[400,322],[400,325]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_8064373aa08842b088500777",
+        "arguments": "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[250,200],[255,200],[260,200],[265,200],[545,200],[550,200],[555,200],[560,200],[595,200],[598,200],[600,200],[602,200],[855,200],[860,200],[865,200],[870,200],[875,200],[880,200]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_71390e76c7574787b60c75af",
+        "arguments": "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[400,320],[400,323],[400,326],[400,329],[400,332],[400,335]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_e18b8a0112e14ea283c299b0",
+        "arguments": "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[730,105],[730,110],[730,320],[730,325],[730,330]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_7126e43e4e5f498fad3787fc",
+        "arguments": "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[885,200],[890,200],[895,200],[900,200],[905,200],[910,200],[915,200],[920,200],[925,200],[930,200],[935,200],[940,200],[945,200],[950,200],[955,200],[959,200]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_c61f8489ceef49e39515ae32",
+        "arguments": "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[400,68],[400,69],[400,70],[400,71],[400,72],[400,73],[400,74]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_209eaec424c8479c9a1bf824",
+        "arguments": "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[260,370],[260,375],[260,380],[260,410],[260,414],[260,415],[260,416],[260,417],[260,418],[260,419],[260,420],[475,370],[475,410],[475,414],[475,415],[475,416],[475,417],[475,418],[475,419],[475,420]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_32b2c29c17f24bf58d43d022",
+        "arguments": "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[600,370],[600,375],[600,380],[895,370],[895,375],[895,380],[899,370],[899,375],[899,380]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_3fd56e11b9674719b08db99b",
+        "arguments": "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[475,395],[478,395],[479,395],[480,395],[481,395],[482,395],[485,395]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_5c576acb40ab4c388c77ad93",
+        "arguments": "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[899,385],[900,385],[901,385],[902,385]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_393b49acc5d44892a60d76a5",
+        "arguments": "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[601,426],[601,435],[601,445],[805,435],[806,435],[807,435],[808,435],[810,435]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_8869641be4de49b98f45633b",
+        "arguments": "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[600,435],[602,435],[604,435],[605,435],[804,435],[805,435],[806,435]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_b53dd913bd314477b25d2175",
+        "arguments": "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[700,425],[700,426],[700,427],[700,445],[700,446],[700,447],[700,448]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_1e9633bc700a47678b0d4988",
+        "arguments": "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[700,428],[700,429],[700,430],[700,431],[700,432],[700,433],[700,434]]}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imagePaletteCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_790b2ee275f94563bcb734a0",
+        "arguments": "{\"action\":\"palette\",\"maxColors\":12,\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "screenshotCalls": [
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "call_771573d1e2fd4b74810aef5d",
+        "arguments": "{\"action\":\"screenshot\",\"height\":640,\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/shots/render.png\",\"url\":\"file:///var/lib/harness-runs/workspace/w14-design-1793361565/index.html\",\"width\":960}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "call_68c8d92ee9d84aeab61bb990",
+        "arguments": "{\"action\":\"screenshot\",\"height\":640,\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/shots/render.png\",\"url\":\"file:///var/lib/harness-runs/workspace/w14-design-1793361565/index.html\",\"width\":960}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "call_1b37c5a6e44c4e86909ce6c3",
+        "arguments": "{\"action\":\"screenshot\",\"height\":640,\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/shots/render.png\",\"url\":\"file:///var/lib/harness-runs/workspace/w14-design-1793361565/index.html\",\"width\":960}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "mockupReads": [
+      {
+        "type": "tool_call",
+        "tool": "read",
+        "callId": "call_1549151959ed4fdcaa567084",
+        "arguments": "{\"file_path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "read_image",
+        "callId": "call_b605b51bd2cc4582ba35447d",
+        "arguments": "{\"file_path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "dialogReads": [],
+    "writes": [
+      {
+        "type": "tool_call",
+        "tool": "write",
+        "callId": "call_5ab92997bf5f4d88a02b831c",
+        "arguments": "{\"file_path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/index.html\",\"content\":\"<!DOCTYPE html>\\n<html lang=\\\"en\\\">\\n<head>\\n    <meta charset=\\\"UTF-8\\\">\\n    <meta name=\\\"viewport\\\" content=\\\"width=960, initial-scale=1\\\">\\n    <title>ARTIFACT-56</title>\\n    <link rel=\\\"stylesheet\\\" href=\\\"style.css\\\">\\n</head>\\n<body>\\n    <div class=\\\"sidebar\\\"></div>\\n    <div class=\\\"header\\\"></div>\\n    <div class=\\\"main-content\\\"></div>\\n    <div class=\\\"card card-left\\\"></div>\\n    <div class=\\\"card card-right\\\"></div>\\n    <div class=\\\"pill\\\"></div>\\n    <div class=\\\"accent-bar\\\"></div>\\n    <div class=\\\"title\\\">ARTIFACT-56</div>\\n</body>\\n</html>\\n\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "write",
+        "callId": "call_7e5020ad004f46658bc08f92",
+        "arguments": "{\"file_path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/style.css\",\"content\":\"* {\\n    margin: 0;\\n    padding: 0;\\n    box-sizing: border-box;\\n}\\n\\nbody {\\n    width: 960px;\\n    height: 640px;\\n    overflow: hidden;\\n    background-color: #0b0d12;\\n    font-family: 'DejaVu Sans', sans-serif;\\n}\\n\\n.sidebar {\\n    position: absolute;\\n    left: 0;\\n    top: 0;\\n    width: 220px;\\n    height: 640px;\\n    background-color: #141821;\\n}\\n\\n.header {\\n    position: absolute;\\n    left: 220px;\\n    top: 0;\\n    width: 740px;\\n    height: 72px;\\n    background-color: #1b2030;\\n}\\n\\n.main-content {\\n    position: absolute;\\n    left: 220px;\\n    top: 72px;\\n    width: 740px;\\n    height: 568px;\\n    background-color: #0b0d12;\\n}\\n\\n.card {\\n    position: absolute;\\n    width: 295px;\\n    height: 220px;\\n    background-color: #1f2433;\\n}\\n\\n.card-left {\\n    left: 260px;\\n    top: 110px;\\n}\\n\\n.card-right {\\n    left: 600px;\\n    top: 110px;\\n}\\n\\n.pill {\\n    position: absolute;\\n    left: 260px;\\n    top: 370px;\\n    width: 220px;\\n    height: 44px;\\n    background-color: #2fbf71;\\n}\\n\\n.accent-bar {\\n    position: absolute;\\n    left: 600px;\\n    top: 370px;\\n    width: 300px;\\n    height: 14px;\\n    background-color: #f0a43c;\\n}\\n\\n.title {\\n    position: absolute;\\n    left: 605px;\\n    top: 430px;\\n    font-size: 16px;\\n    font-weight: bold;\\n    color: #e8edf6;\\n    white-space: nowrap;\\n}\\n\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "edit",
+        "callId": "call_66cdc4d701314bc4b653a8fe",
+        "arguments": "{\"file_path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/style.css\",\"old_string\":\".card {\\n    position: absolute;\\n    width: 295px;\\n    height: 220px;\\n    background-color: #1f2433;\\n}\\n\\n.card-left {\\n    left: 260px;\\n    top: 110px;\\n}\\n\\n.card-right {\\n    left: 600px;\\n    top: 110px;\\n}\",\"new_string\":\".card {\\n    position: absolute;\\n    width: 300px;\\n    height: 215px;\\n    background-color: #1f2433;\\n}\\n\\n.card-left {\\n    left: 260px;\\n    top: 110px;\\n}\\n\\n.card-right {\\n    left: 600px;\\n    top: 110px;\\n}\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "edit",
+        "callId": "call_d0b7d3c0762f4ebe94c620ab",
+        "arguments": "{\"file_path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/style.css\",\"old_string\":\".title {\\n    position: absolute;\\n    left: 605px;\\n    top: 430px;\\n    font-size: 16px;\\n    font-weight: bold;\\n    color: #e8edf6;\\n    white-space: nowrap;\\n}\",\"new_string\":\".title {\\n    position: absolute;\\n    left: 601px;\\n    top: 426px;\\n    font-size: 22px;\\n    font-weight: bold;\\n    color: #e8edf6;\\n    white-space: nowrap;\\n}\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "edit",
+        "callId": "call_605f2c7f54f64446ba768606",
+        "arguments": "{\"file_path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/style.css\",\"old_string\":\".card {\\n    position: absolute;\\n    width: 300px;\\n    height: 215px;\\n    background-color: #1f2433;\\n}\",\"new_string\":\".card {\\n    position: absolute;\\n    width: 300px;\\n    height: 210px;\\n    background-color: #1f2433;\\n}\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imageArguments": [
+      "{\"action\":\"palette\",\"maxColors\":12,\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\"}",
+      "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[300,150],[550,150],[650,150],[400,80],[400,90],[400,100],[400,110],[300,320],[300,330],[650,320],[650,330],[450,200],[570,200],[575,200],[578,200]]}",
+      "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[400,0],[400,30],[400,60],[400,70],[400,75],[400,80],[400,100],[400,150],[400,200],[400,250],[400,300],[400,350],[400,400]]}",
+      "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[300,100],[300,110],[300,120],[300,130],[300,310],[300,320],[300,330],[300,340]]}",
+      "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[580,100],[580,150],[580,200],[580,250],[580,300],[580,310],[580,320],[580,330]]}",
+      "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[260,200],[270,200],[280,200],[540,200],[550,200],[560,200],[570,200],[580,200],[590,200],[600,200],[860,200],[870,200],[880,200]]}",
+      "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[400,105],[400,108],[400,110],[400,112],[400,318],[400,320],[400,322],[400,325]]}",
+      "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[250,200],[255,200],[260,200],[265,200],[545,200],[550,200],[555,200],[560,200],[595,200],[598,200],[600,200],[602,200],[855,200],[860,200],[865,200],[870,200],[875,200],[880,200]]}",
+      "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[400,320],[400,323],[400,326],[400,329],[400,332],[400,335]]}",
+      "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[730,105],[730,110],[730,320],[730,325],[730,330]]}",
+      "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[885,200],[890,200],[895,200],[900,200],[905,200],[910,200],[915,200],[920,200],[925,200],[930,200],[935,200],[940,200],[945,200],[950,200],[955,200],[959,200]]}",
+      "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[400,68],[400,69],[400,70],[400,71],[400,72],[400,73],[400,74]]}",
+      "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[260,370],[260,375],[260,380],[260,410],[260,414],[260,415],[260,416],[260,417],[260,418],[260,419],[260,420],[475,370],[475,410],[475,414],[475,415],[475,416],[475,417],[475,418],[475,419],[475,420]]}",
+      "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[600,370],[600,375],[600,380],[895,370],[895,375],[895,380],[899,370],[899,375],[899,380]]}",
+      "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[475,395],[478,395],[479,395],[480,395],[481,395],[482,395],[485,395]]}",
+      "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[899,385],[900,385],[901,385],[902,385]]}",
+      "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[601,426],[601,435],[601,445],[805,435],[806,435],[807,435],[808,435],[810,435]]}",
+      "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[600,435],[602,435],[604,435],[605,435],[804,435],[805,435],[806,435]]}",
+      "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[700,425],[700,426],[700,427],[700,445],[700,446],[700,447],[700,448]]}",
+      "{\"action\":\"sample\",\"path\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"points\":[[700,428],[700,429],[700,430],[700,431],[700,432],[700,433],[700,434]]}",
+      "{\"action\":\"diff\",\"before\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"after\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/shots/render.png\",\"out\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/shots/diff.png\"}",
+      "{\"action\":\"diff\",\"before\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"after\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/shots/render.png\",\"out\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/shots/diff.png\"}",
+      "{\"action\":\"diff\",\"before\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/mockup.png\",\"after\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/shots/render.png\",\"out\":\"/var/lib/harness-runs/workspace/w14-design-1793361565/shots/diff.png\"}"
+    ]
+  },
+  "measurement": {
+    "mockupSize": [
+      960,
+      640
+    ],
+    "renderSize": [
+      960,
+      640
+    ],
+    "changedPixels": 8747,
+    "totalPixels": 614400,
+    "ratio": 0.014237,
+    "sampledColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    }
+  },
+  "checks": {
+    "fixtureLegPassed": true,
+    "designRunSettled": true,
+    "agentOpenedTheMockup": true,
+    "agentMeasuredColours": true,
+    "agentScreenshottedItsPage": true,
+    "agentUsedTheDiff": true,
+    "agentWroteThePage": true,
+    "tokenOnlyInPixelsWasTranscribed": true,
+    "pageRendersAtMockupSize": true,
+    "independentDiffWithinThreshold": true,
+    "flatColoursSurvived": true,
+    "agentRatioAgreesWithBytes": false
+  },
+  "verdict": "FAIL",
+  "failedChecks": [
+    "agentRatioAgreesWithBytes"
+  ],
+  "designAnswer": "RATIO: 0.01419 is below 0.03 threshold. Final output:\n\nTOKEN: ARTIFACT-56\nRATIO: 0.01419\nFILES: index.html, style.css"
+}

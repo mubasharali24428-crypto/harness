@@ -34,6 +34,7 @@ import base64
 import hashlib
 import importlib.util
 import json
+import re
 import shutil
 import tempfile
 import time
@@ -673,15 +674,16 @@ def main() -> int:
     return 0 if evidence["verdict"] == "PASS" else 1
 
 
+_RATIO_LINE = re.compile(r"RATIO:\s*(\d*\.?\d+)", re.IGNORECASE)
+
+
 def _ratio_agrees(answer: str, measurement: dict) -> bool:
-    line = next((ln for ln in answer.splitlines() if ln.upper().startswith("RATIO:")), "")
-    if ":" not in line:
+    # W20: the last RATIO line is the final answer; models sometimes narrate an
+    # earlier "RATIO: 0.014 is below ..." before the three-line block.
+    found = [m for ln in answer.splitlines() if (m := _RATIO_LINE.match(ln.strip()))]
+    if not found:
         return False
-    claimed_text = line.split(":", 1)[1].strip().replace("%", "")
-    try:
-        claimed = float(claimed_text)
-    except ValueError:
-        return False
+    claimed = float(found[-1].group(1))
     # A percentage in the answer is the same number the drill measures.
     if claimed > 1:
         claimed /= 100.0

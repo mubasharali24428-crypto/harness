@@ -74,12 +74,38 @@ def test_different_tool_names_accumulate_separately():
     guard = LoopGuard(max_calls=None, repeat_limit=3)
     for i in range(2):
         assert guard.observe(_call(name="read", call_id=f"r{i}")) is None
-        assert guard.observe(_call(name="write", call_id=f"w{i}")) is None
+        assert guard.observe(_call(name="grep", call_id=f"g{i}")) is None
     assert guard.calls_seen == 4
     assert guard.repeat_of("read", '{"command":"git status"}') == 2
-    assert guard.repeat_of("write", '{"command":"git status"}') == 2
-    # A third read reaches the limit; the writes never contributed to it.
+    assert guard.repeat_of("grep", '{"command":"git status"}') == 2
+    # A third read reaches the limit; the greps never contributed to it.
     assert guard.observe(_call(name="read", call_id="r2")) == "loop_detected"
+
+
+def test_inspecting_again_after_an_edit_is_not_a_loop():
+    """W20, measured: a design run took the same screenshot after each of four
+    edits and was stopped as a loop. Re-checking changed state is work."""
+    guard = LoopGuard(max_calls=None, repeat_limit=4)
+    shot = '{"action":"screenshot"}'
+    for i in range(6):
+        assert guard.observe(_call(name="browser", arguments=shot, call_id=f"s{i}")) is None
+        assert guard.observe(_call(name="edit", arguments=f'{{"n":{i}}}', call_id=f"e{i}")) is None
+
+
+def test_identical_edits_are_still_a_loop_across_inspections():
+    """The reset is for re-inspection only; re-applying one edit is going round."""
+    guard = LoopGuard(max_calls=None, repeat_limit=3)
+    for i in range(2):
+        assert guard.observe(_call(name="edit", arguments="same", call_id=f"e{i}")) is None
+        assert guard.observe(_call(name="browser", arguments="shot", call_id=f"s{i}")) is None
+    assert guard.observe(_call(name="edit", arguments="same", call_id="e2")) == "loop_detected"
+
+
+def test_inspection_without_an_edit_still_loops():
+    guard = LoopGuard(max_calls=None, repeat_limit=3)
+    for i in range(2):
+        assert guard.observe(_call(name="browser", arguments="shot", call_id=f"s{i}")) is None
+    assert guard.observe(_call(name="browser", arguments="shot", call_id="s2")) == "loop_detected"
 
 
 

@@ -32,6 +32,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import re
 import shutil
 import tempfile
 import time
@@ -347,15 +348,17 @@ def fixture_only() -> int:
 # ------------------------------------------------------------------ live leg
 
 
+_RATIO_LINE = re.compile(r"RATIO:\s*(\d*\.?\d+)", re.IGNORECASE)
+
+
 def _ratio_agrees(answer: str, measurement: dict) -> bool:
-    line = next((ln for ln in answer.splitlines() if ln.upper().startswith("RATIO:")), "")
-    if ":" not in line:
+    # W20: the last RATIO line is the final answer. A measured run narrated
+    # "RATIO: 0.01419 is below 0.03 threshold." before its three-line block, and
+    # the first-line parser failed a claim that matched the bytes.
+    found = [m for ln in answer.splitlines() if (m := _RATIO_LINE.match(ln.strip()))]
+    if not found:
         return False
-    text = line.split(":", 1)[1].strip().replace("%", "")
-    try:
-        claimed = float(text)
-    except ValueError:
-        return False
+    claimed = float(found[-1].group(1))
     if claimed > 1:
         claimed /= 100.0
     return abs(claimed - measurement.get("ratio", 1.0)) <= PRE_REGISTERED[

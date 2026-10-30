@@ -15,14 +15,30 @@ The rerun ran. The evidence pack is in
 [`docs/briefs/evidence/w20/`](briefs/evidence/w20/README.md), with every raw
 file, a hash manifest and the measured spend.
 
-**The held-out gate fails.** Four of six held-out tasks pass every run; the two
-vision tasks (`w11-vision`, `w14-design-heldout`) pass **0 of 3** each. The
-cause is the deployed hosted model (`qwen/qwen3.7-flash` on OpenRouter)
-returning empty responses mid-run; in every case the engine stopped the run as
-`blocked` rather than report success, so the safety behaviour held and the
-capability did not. Under the roadmap's rule, a failed gate means the release is
-deferred and replanned — see "Recommendation" below. The decision record stays
-blank for the authorized owner.
+**Update, same day: the held-out gate passes on a replanned model.** The first
+rerun (HEAD `12fb221`, `qwen/qwen3.7-flash`) failed it: the two vision tasks
+passed 0 of 3 each. Following this plan's own "replan vision" recommendation,
+the failures were traced and fixed one at a time (details and every run in the
+[evidence pack](briefs/evidence/w20/README.md#follow-up-the-same-day-vision-gate-passes-on-anthropicclaude-haiku-55)):
+
+1. `maxTokens` for the deployed model 4096 → 16384 (reasoning tokens had
+   exhausted the budget, the "empty responses");
+2. a **loop guard false positive** fixed in `loop_guard.py` (re-checking a
+   screenshot after each edit was stopped as a loop);
+3. the drills' RATIO parser now reads the last `RATIO:` line (a post-hoc
+   verifier fix, disclosed; no failed run was re-scored);
+4. the model switched to **`anthropic/claude-haiku-5.5`** on OpenRouter, after
+   qwen still produced a 26.6% layout diff and a reasoning loop.
+
+On Haiku: **`w11-vision` 3/3, `w14-design-heldout` 3/3** (pixel diff ≤ 0.32%
+against a 3% gate), and the rest of the held-out set passes once at the same
+revision. No pre-registered threshold changed. The decision record stays blank
+for the authorized owner; the revision includes uncommitted changes until they
+are committed.
+
+The original first-rerun outcome, kept as recorded: four of six held-out tasks
+passed every run and both vision tasks 0 of 3, with every failure stopped as
+`blocked` rather than reported as success.
 
 Everything else that W20 could run passed at one verified revision:
 
@@ -31,12 +47,12 @@ Everything else that W20 could run passed at one verified revision:
 | Revision | `run_eval.py --verify-only` `verified: true` for orchestrator, worker image **and** worker daemon at HEAD `12fb221`; a clean build of HEAD's Dockerfile matches the deployed runtime files byte for byte (108/108) |
 | Fixed set, no model | **15/15 PASS** (boundaries, egress, quotas, LSP confinement, skills, memory, BYO runner, browser session, visuals, journey) |
 | Held-out, deterministic | `stale-edit` PASS, `tenant-isolation-api` PASS (36 run routes + 3 project routes, no existence oracle, no leak) |
-| Held-out, live (3 independent runs each) | `w8-crash-cleanup` 3/3, `code-search-heldout` 3/3, `w11-vision` 0/3, `w14-design-heldout` 0/3 |
-| New agent tasks (3 runs each) | `tests-written` 3/3; `multi-file-refactor` 1/3 (code right every time; twice left the old name in `README.md`) |
+| Held-out, live (3 independent runs each) | first rerun (qwen): `w8-crash-cleanup` 3/3, `code-search-heldout` 3/3, `w11-vision` 0/3, `w14-design-heldout` 0/3. **Follow-up (Haiku 5.5): `w11-vision` 3/3, `w14-design-heldout` 3/3; `w8-crash-cleanup`, `code-search-heldout`, `stale-edit`, `tenant-isolation-api` 1/1 each** |
+| New agent tasks (3 runs each) | `tests-written` 3/3 then 3/3; `multi-file-refactor` 1/3 then 3/3 after the `maxTokens` change (qwen; not rerun on Haiku) |
 | `w11-grounding` (3 runs) | 3/3 |
 | Live journey | PASS on the verified stack |
 | Local gates | `make static-gates`, `make lint`, pytest in every section, MCP, Section 7 `tsc`/`vitest`/`next build`: all pass |
-| Spend | about **$0.044** measured for 21 live runs (ledger delta $0.036632 + $0.007255 reported directly) |
+| Spend | about **$0.044** for the first 21 live runs; **≈ $0.226 for the whole day** including the follow-up (Haiku: ≈ $0.0076 per vision run) |
 
 ## What W20 found and fixed
 
@@ -94,7 +110,9 @@ the gate passed; the result is stated on the line.
 
 - [x] Images verified against HEAD by hash, daemon included (`verified: true`); clean build matches
 - [x] Fixed set rerun: 15/15 PASS. Deferred with reason: six tasks pinned to a local chat model that does not exist on this machine (`m03-scope`, `m04-streaming`, `m07-api-run`, `m07-daemon-topology`, `w3-rewind`, `w3-partial-write`; owner: evaluation, decide model or retire) and `native-tool-confinement` (M01)
-- [x] Held-out set rerun, live tasks 3 independent runs with the pinned model — **result: gate FAILS** (both vision tasks 0/3)
+- [x] Held-out set rerun, live tasks 3 independent runs with the pinned model — first rerun on qwen: gate FAILED (both vision tasks 0/3); **follow-up on `anthropic/claude-haiku-5.5`: gate PASSES** (vision 3/3 each, rest of held-out set 1/1) at HEAD `9e34f42` + uncommitted fixes
+- [ ] The follow-up's fixes committed, so the passing revision is reproducible from git
+- [ ] Fixed live set (`multi-file-refactor`, `tests-written`, `w11-grounding`) rerun on Haiku — not done; `w11-grounding` pins its own model
 - [ ] M01 native-tool confinement closed — a 1-2 day security spike across every enforcement backend; not attempted in W20
 - [x] Compose live journey passes on the verified stack
 - [x] `make static-gates`, every section's pytest and Ruff, Section 7 typecheck/tests/build pass
@@ -117,13 +135,14 @@ the gate passed; the result is stated on the line.
 
 ## Recommendation (for the owner; not a decision)
 
-* **Defer full release.** The held-out vision gate fails on the deployed model.
-* **Replan vision first:** choose a vision model or provider that completes the
-  W11/W14 tasks, redeploy, and rerun only those two tasks three times. If they pass,
-  re-run the whole held-out set once at that revision.
-* **A design-partner pilot that excludes vision features** is the narrower claim
-  this evidence can support, subject to the people-owned items above (security
-  review, counsel, named on-call). That choice belongs to the authorized owner.
+* **The vision replan is done** (follow-up above): on `anthropic/claude-haiku-5.5`
+  the held-out gate passes. Commit the fixes first, so the revision is in git.
+* **Full release still waits on the unticked people-owned items** above (M01,
+  W17 SLOs, restore drill, on-call, counsel, external security review).
+* **A design-partner pilot** is the claim this evidence now supports, vision
+  included, subject to those same items. That choice belongs to the authorized
+  owner.
+* Superseded, kept for the record: "defer full release; replan vision first."
 
 ## Gate ledger, W1-W19, as recorded in each plan
 
@@ -142,10 +161,10 @@ plan records them.
 | W8 parallel isolation | *re-run: quotas, apply-conflict, crash cleanup 3/3 PASS* | universal isolation not claimed |
 | W9 artifacts | *re-run: `w9-visuals` PASS* | none recorded as blocking |
 | W10 browser | *re-run: `w10-browser-session` PASS* | remote subresources rely on the proxy |
-| W11 vision | *re-run: `w11-grounding` 3/3; `w11-vision` 0/3* | **vision task fails on the deployed model** |
+| W11 vision | *re-run: `w11-grounding` 3/3; `w11-vision` 0/3 on qwen, **3/3 on Haiku 5.5*** | fixes uncommitted until committed |
 | W12 skills/memory | *re-run: `w12-skills-memory` PASS* | none recorded as blocking |
 | W13 BYO runners | *re-run: `w13-byo-runner` PASS* | execution leg not built |
-| W14 model intelligence | *re-run: `w14-design-heldout` 0/3* | **vision held-out fails on the deployed model** |
+| W14 model intelligence | *re-run: `w14-design-heldout` 0/3 on qwen, **3/3 on Haiku 5.5*** | loop-guard false positive fixed |
 | W15 multi-tenant | fairness, per-team limits, key rotation | scheduled restore trigger never observed |
 | W16 enterprise | shipped; docs-vs-code audit closed | CMEK and residency enforcement absent by design |
 | W17 reliability | in progress, other agent | no SLO met or owned; possible lease weakness seen in W20 |
@@ -167,7 +186,8 @@ plan records them.
 
 ## Outstanding limitations
 
-* Vision capability depends on a model that currently fails the held-out tasks.
+* Vision capability depends on the model: qwen fails the held-out vision tasks,
+  Haiku 5.5 passes them (n=3 each). A model change needs the vision tasks rerun.
 * Nothing here measures real-agent capacity or SLO compliance (W17).
 * n=3 per live task is enough to see a pattern, not to quote a precise rate.
 * The deployed images are overlays; a clean build was verified byte-identical but
@@ -180,7 +200,7 @@ plan records them.
 
 | Field | Value |
 |---|---|
-| Revision / image digests | HEAD `12fb221`; worker `sha256:a5f587aeb1f0…`, daemon `sha256:00c0b7107bee…`, backend `sha256:5973222fefd5…` |
+| Revision / image digests | first rerun: HEAD `12fb221`; worker `sha256:a5f587aeb1f0…`, daemon `sha256:00c0b7107bee…`, backend `sha256:5973222fefd5…`. Follow-up (gate passes): HEAD `9e34f42` + uncommitted fixes, model `anthropic/claude-haiku-5.5`; worker `sha256:09e3b10734fe…`, daemon `sha256:9e03e476f7a0…`, backend `sha256:5d53a21dce7c…` |
 | Evidence pack manifest | `docs/briefs/evidence/w20/README.md` |
 | Reviewer (not the author) | _not set_ |
 | Decision (pilot / full release / defer and replan) | _not set — an authorized owner records this_ |

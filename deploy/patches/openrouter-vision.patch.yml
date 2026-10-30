@@ -26,9 +26,14 @@
             apiKeyEnv: DEEPSEEK_API_KEY
             baseURL: !!js process.env.DEEPSEEK_BASE_URL
             models:
+              # W20: the deployed model reasons, and reasoning tokens count against
+              # maxTokens. At 4096, image-heavy steps spent the whole budget
+              # thinking and the turn ended `max-tokens` with no answer (W11/W14
+              # held-out 0/3, reported as "empty response"). 16384 is a quarter of
+              # the provider's 65536 ceiling; at $0.13/M output it costs <$0.003/turn.
               - id: !!js process.env.DSH_MODEL
                 contextWindow: 65536
-                maxTokens: 4096
+                maxTokens: 16384
                 input: [text, image]
               # W14 comparison set. The engine rejects any model the patch does
               # not declare, which is why a second model could not be compared

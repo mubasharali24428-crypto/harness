@@ -1,0 +1,26 @@
+{
+  "model": "anthropic/claude-haiku-5.5",
+  "provider": "openrouter",
+  "patch": "/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/m07-smoke-sessions/m07-1793376215/openrouter-vision.patch.yml",
+  "visionDeclared": true,
+  "isolated": false,
+  "status": "completed",
+  "elapsedSeconds": 15.5,
+  "maxTokens": 512,
+  "usage": {
+    "inputTokens": 16436,
+    "outputTokens": 920,
+    "cacheReadTokens": 0
+  },
+  "context": {
+    "contextWindow": null,
+    "compactions": 0,
+    "compactedTokens": 0
+  },
+  "toolCallCount": 3,
+  "goalImagesAttached": 1,
+  "imageFile": "/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/m07-smoke-workspace/shot.png",
+  "finalResponseExcerpt": "220, 40, 40",
+  "paidSmokeOptIn": "HARNESS_ALLOW_PAID_SMOKE=1",
+  "keyInOutput": false
+}

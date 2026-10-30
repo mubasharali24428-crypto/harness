@@ -42,6 +42,12 @@ DEFAULT_REPEAT_LIMIT = 4
 
 _WS = re.compile(r"\s+")
 
+#: W20: calls that change the workspace. After one, the same screenshot or test
+#: command is checking new state, not going round. Measured: a W14 design run
+#: was stopped on its 4th identical `browser` screenshot although every one came
+#: after an `edit`. Identical writes still count across resets.
+MUTATING_TOOLS = frozenset({"write", "edit"})
+
 
 def loop_repeat_limit() -> int | None:
     """Operator-tunable repeat limit; unset means the default, not "disabled".
@@ -110,7 +116,12 @@ class LoopGuard:
             self._stop = TOOL_BUDGET_EXHAUSTED
             return self._stop
 
-        key = _shape(record.get("name"), record.get("arguments"))
+        name = record.get("name")
+        if name in MUTATING_TOOLS:
+            self._shapes = {
+                k: v for k, v in self._shapes.items() if k.split(" ", 1)[0] in MUTATING_TOOLS
+            }
+        key = _shape(name, record.get("arguments"))
         seen = self._shapes.get(key, 0) + 1
         self._shapes[key] = seen
         if self._repeat_limit is not None and seen >= self._repeat_limit:

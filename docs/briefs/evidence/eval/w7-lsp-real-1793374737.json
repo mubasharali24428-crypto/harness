@@ -1,0 +1,186 @@
+{
+  "schema": 1,
+  "kind": "w7-lsp-real-server",
+  "takenAt": "2026-10-30T15:39:01.619561+00:00",
+  "image": "harness-engine-worker-lsp:vdev-local",
+  "imageId": "sha256:0daea5ab7d9671e97cd4b69c7ff2cf801169d444ccbf63adc8b6362152ff9382",
+  "clientSha256": {
+    "worktree": "4efcefb43bd33f9864099b545e8cd2b49cafc656be8c6aea2e5d95774111fe41",
+    "image": "4efcefb43bd33f9864099b545e8cd2b49cafc656be8c6aea2e5d95774111fe41"
+  },
+  "network": "none",
+  "user": "10001:10001",
+  "workspaceMount": "read-only",
+  "server": {
+    "name": "pylsp",
+    "version": "1.12.2",
+    "pyflakes": "3.2.0"
+  },
+  "checks": {
+    "imageClientMatchesWorktree": true,
+    "pylspPinned": true,
+    "capabilitiesAdvertised": true,
+    "diagnosticsReported": true,
+    "unusedImportWarned": true,
+    "cleanFilePublishesNothing": true,
+    "symbolsListDefinitions": true,
+    "definitionResolvesToDeclaration": true,
+    "referencesSpanFiles": true,
+    "serverEnvironmentScrubbed": true,
+    "workspaceReadOnly": true,
+    "networkBlocked": true,
+    "deadlineKillsRealServer": true,
+    "workspaceTreeUnchanged": true,
+    "containerHasNoRoute": true,
+    "probeCompleted": true
+  },
+  "verdict": "PASS",
+  "failedChecks": [],
+  "observations": {
+    "routes": "",
+    "capabilities": [
+      "codeActionProvider",
+      "codeLensProvider",
+      "completionProvider",
+      "definitionProvider",
+      "documentFormattingProvider",
+      "documentHighlightProvider",
+      "documentRangeFormattingProvider",
+      "documentSymbolProvider",
+      "executeCommandProvider",
+      "experimental",
+      "foldingRangeProvider",
+      "hoverProvider",
+      "notebookDocumentSync",
+      "referencesProvider",
+      "renameProvider",
+      "signatureHelpProvider",
+      "textDocumentSync",
+      "workspace"
+    ],
+    "diagnostics": [
+      {
+        "source": "pyflakes",
+        "range": {
+          "start": {
+            "line": 0,
+            "character": 0
+          },
+          "end": {
+            "line": 0,
+            "character": 10
+          }
+        },
+        "message": "'os' imported but unused",
+        "severity": 2
+      },
+      {
+        "source": "pyflakes",
+        "range": {
+          "start": {
+            "line": 10,
+            "character": 11
+          },
+          "end": {
+            "line": 10,
+            "character": 26
+          }
+        },
+        "message": "undefined name 'undefined_name'",
+        "severity": 1
+      }
+    ],
+    "cleanDiagnostics": [],
+    "symbols": [
+      "RETRY_BACKOFF_SECONDS",
+      "broken",
+      "compute_backoff",
+      "os"
+    ],
+    "definition": [
+      {
+        "uri": "file:///work/pkg/retry.py",
+        "range": {
+          "start": {
+            "line": 5,
+            "character": 4
+          },
+          "end": {
+            "line": 5,
+            "character": 19
+          }
+        }
+      }
+    ],
+    "references": [
+      {
+        "uri": "file:///work/pkg/jobs.py",
+        "range": {
+          "start": {
+            "line": 0,
+            "character": 22
+          },
+          "end": {
+            "line": 0,
+            "character": 37
+          }
+        }
+      },
+      {
+        "uri": "file:///work/pkg/jobs.py",
+        "range": {
+          "start": {
+            "line": 2,
+            "character": 8
+          },
+          "end": {
+            "line": 2,
+            "character": 23
+          }
+        }
+      },
+      {
+        "uri": "file:///work/pkg/retry.py",
+        "range": {
+          "start": {
+            "line": 5,
+            "character": 4
+          },
+          "end": {
+            "line": 5,
+            "character": 19
+          }
+        }
+      }
+    ],
+    "serverEnvironmentKeys": [
+      "HOME",
+      "LANG",
+      "PATH",
+      "TMPDIR"
+    ],
+    "serverHome": "/tmp/lsp-home-uc4fl1nu",
+    "serverTmpdir": "/tmp/lsp-home-uc4fl1nu",
+    "workspaceWrite": {
+      "wrote": false,
+      "error": "OSError: [Errno 30] Read-only file system: '/work/escape.txt'"
+    },
+    "network": {
+      "connected": false,
+      "error": "OSError: [Errno 101] Network is unreachable"
+    },
+    "deadline": {
+      "timedOut": true
+    },
+    "deadlineSeconds": 1.013,
+    "timings": {
+      "initializeSeconds": 0.858,
+      "diagnosticsSeconds": 0.503,
+      "symbolsSeconds": 0.466,
+      "definitionSeconds": 0.038,
+      "referencesSeconds": 0.003
+    },
+    "probeStderr": "",
+    "fatal": null
+  }
+}
