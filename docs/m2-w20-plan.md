@@ -108,7 +108,7 @@ HEAD; the rerun above does that.
 | W13 BYO runners | threat model, lifecycle, revocation, replay, isolation | "Remaining (explicitly open)" section in its plan |
 | W14 model intelligence | hold-out enforced, comparisons, opt-in routing, dashboards | n=1 per model; both models failed their own verifier on the compared task |
 | W15 multi-tenant | fairness, per-team limits, key rotation | scheduled restore trigger never observed (account credit limit) |
-| W16 enterprise | deactivation, group-to-role, SCIM subset, SIEM shipped | row "no doc claims key or residency management the code lacks" still **pending** |
+| W16 enterprise | deactivation, group-to-role, SCIM subset, SIEM shipped; docs-vs-code key/residency audit closed 2026-10-30 (grep, no diff needed) | CMEK and residency enforcement remain absent by design; counsel sign-off on terms is a human step |
 | W17 reliability | **in progress, other agent**: first slice and an 8/100-user dry-engine run | no SLO met; 100-user control p95 1.4 s, engine-wait p95 27 s; no live-agent capacity; backup-recording warning; no on-call owner |
 | W18 launch | slices 1-6 committed (pricing test, importer, docs, demo) | release-candidate independent review unfinished; credential filter is best-effort; GET/PUT can overwrite a concurrent edit |
 | W19 buffer | defect fixes and an open-gates table committed | open items in that table remain open |
@@ -127,7 +127,13 @@ Each box needs raw evidence at one named revision and image digest.
 - [ ] W17 owner's SLOs defined and measured; capacity envelope stated with its limits
 - [ ] Restore drill on the real deployment; scheduled-restore trigger observed
 - [ ] Backup monitoring and on-call/status ownership assigned to named people
-- [ ] W16 documentation claims match the code (key and residency management)
+- [x] W16 documentation claims match the code (key and residency management) — static audit 2026-10-30, see `docs/m2-w16-plan.md`
+- [ ] W13 execution leg proven with a real bring-your-own runner (needs an external runner)
+- [ ] W15 scheduled restore observed running (next run 2026-11-01T12:00Z; the earlier trigger hit an account credit limit)
+- [ ] `agent_events` partitions confirmed present past 2026-10 (or the `events-retention` sidecar confirmed) before 2026-11-01
+- [ ] Package publish (PyPI/npm) credentials and the publish step decided by their owner
+- [ ] Pricing amounts and invoicing terms approved by counsel; the page maps only to enforced caps until then
+- [ ] SSO/OIDC hardening items (M4) scheduled or closed
 - [ ] W18 release-candidate review finished by someone other than the author
 - [ ] External security review scheduled or done; counsel review of terms
 - [ ] Hermes rights evidence in hand, or the launch claim narrowed to exclude Hermes

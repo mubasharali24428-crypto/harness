@@ -312,4 +312,4 @@ with it (191 identity operations).
 | SSO can map an IdP group to a role, only through an admin-written rule | mapping tests + Keycloak live drill (promote, demote, audit source) | **shipped 2026-10-29** |
 | An IdP deprovisioning reaches Harness | SCIM subset (11+20+6 tests) + live drill (36 checks, 200→401 at both doors) | **shipped 2026-10-29** |
 | A SIEM can ingest and verify the audit trail | NDJSON + push sink + verify endpoint (55 tests) + `make drill-siem` (59 checks) | **shipped 2026-10-29** |
-| No doc claims key or residency management the code lacks | doc diff + the audit table above | pending |
+| No doc claims key or residency management the code lacks | doc diff + the audit table above | **audited 2026-10-30, no diff needed**: `docs/workspaces.md`, `docs/legal/README.md` and `SECURITY_QUESTIONNAIRE.md` already say residency is a label and there is no customer-managed key; a sweep of README, STATUS, PRICING, `docs/*.md` and `docs/runbooks` found no claim of per-tenant keys, KMS, geo-pinning or regional hosting. Master-key rotation (W15) is the only key management claimed, and it exists. Static grep, not a legal review |
