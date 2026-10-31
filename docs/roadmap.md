@@ -21,3 +21,23 @@ readiness. No real pilot baseline or customer interviews are available, so prior
 re-ranked. Full product readiness is **NO-GO** until the matrix gates and external evidence in
 `docs/briefs/evidence/s10/readiness-report.md` are satisfied. The ecosystem phase remains exploratory
 and follows the security review; billing with Stripe remains outside current scope.
+
+## Hx execution track (2026-10-31) — capability, does not re-order the phases above
+
+Hx is the agentic language in `packages/language`: a checked subset, a driver that runs one
+workflow against a host bridge inside its declared budget, and evidence a reviewer can read.
+It is a capability track, not a phase — it neither compresses the four-session pilot promise nor
+substitutes for the security review, and it adds no approval or merge surface.
+
+| Milestone | State | Gate evidence |
+|---|---|---|
+| M1 vertical slice — check → authorise → host op → typed validation → evidence; budgets, denial, cancellation, replay | done | language suite green; `hxr` exit codes 0–5 as documented |
+| M2 Section 4 runs a workflow; events land in Section 1 | done | sections 1/4 green (1223 / 1933); ordering and durability asserted against the contract; replay reproduces the digest; isolation guard clean |
+| M3 live Section 5 — `repo.read` and `verify.tests` through the shipped runner | done | `section5/tests/unit/test_hx_live_host_ops.py`: real confinement, loud skip where there is none |
+| M4 model relay — declared roles, fail-closed without a router, no forced downgrade, secrets scrubbed by content | done | `test_host_model_relay.py` asserts on the captured prompt, the log, the events and the evidence |
+| M5 enums, record construction, `for` bounded by the list and by `budget.steps` | done | code + fixture + golden per construct; `test_language_growth.py` also pins what did not arrive |
+
+Open by design, each named in `docs/hx-execution-architecture.md` §4.2/§6: `cost` is declared and
+reported but never enforced; a grant cannot be revoked mid-run; replay covers successes only;
+secret detection is prefix-based, not entropy-based; `for` has no `break`; one workflow per run;
+the driver bounds host calls, not CPU — real confinement stays Section 5's job.

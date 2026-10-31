@@ -32,6 +32,22 @@ billing stays flag-off. Remaining blockers: a reviewed dedicated sandbox
 worker/daemon, host certification, the first native-Linux drill run, and
 counsel-approved terms (a review packet now exists under `docs/legal/`).
 
+Updated 2026-10-31: the **Hx execution track** (M1–M5, design in
+`docs/hx-execution-architecture.md`) is complete and committed at `332d273`. A
+program in the `agent` profile now checks, is authorised against its own
+manifest, runs inside its declared budget across a host bridge, and produces
+evidence that says `approved: false` / `autoMerge: false`. Section 4 executes a
+workflow through `harness_contracts.workflow` (contracts `1.0.0rc7`, TS mirror
+in the same change) and publishes its events, which Section 1 persists;
+Section 5's shipped `LocalSandboxRunner` serves the live `repo.read` /
+`verify.tests` seam; `model.invoke` is routed by Section 3's `ModelRouter` with
+the role the source declares, fails closed without one, and records a downgrade
+instead of performing it. Suites at that commit: language 261, section 1 1223,
+section 4 1933, section 5 459, `make guard-isolation` clean. This does **not**
+move the verdict above: the driver bounds host calls, not CPU; its `cost` budget
+is declared and reported, never enforced; and the track adds no approval
+surface of its own.
+
 ## PROGRAM CLOSE — Mission 23 (2026-08-26)
 
 The 10x program (missions 11–23, per docs/briefs/mission17-10x-plan.md) is
@@ -59,11 +75,20 @@ Final suites re-run INDEPENDENTLY by the close-out lane at finale HEAD
 
 Residual risk — what a v1.0 buyer should know:
 
-1. **Replay-cap flake is suppressed, not proven extinct**: one load-dependent
-   recurrence observed post-b83dbfd (whose 30/30 census ran the suspect file
-   in isolation, a weaker condition than full-suite load). Frequency ~1 per
-   full-suite sweeps; needs a ≥25-run FULL-suite census before "eliminated"
-   is honest again.
+1. **Replay-cap "flake" — diagnosed, reproduced and fixed (2026-10-31)**: the
+   concurrent-resume test recovered a truncated page's skipped range with a
+   plain `afterSeq` walk, and that path is newest-N too under
+   `REPLAY_MAX_EVENTS` — so when a loaded runner let the gap outgrow the cap,
+   the walk could not reach the rows the resume page had skipped and reported a
+   loss that never happened. The test now fills each page's
+   `(cursor, oldestSeqSent)` hole through `before_seq`, and
+   `test_a_capped_resume_page_names_a_hole_a_client_can_fill` exercises the cap
+   deterministically, so the load-dependent timing is no longer the only way in.
+   Measured: the file green 20× consecutively, full section 1 green at 1223
+   passed / 63 skipped, and a probe with the reader slowed to 20 ms fails on the
+   old protocol and passes on the new one. The bar this entry set for itself —
+   a ≥25-run **full-suite** census — has not been run; it measured frequency,
+   and the frequency question is now answered by the mechanism above.
 2. **pgvector-dependent features ship honestly-OFF** on the default compose
    image (postgres:18-alpine has no pgvector); migration 0030 degrades
    cleanly without it.
