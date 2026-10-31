@@ -28,6 +28,8 @@ set -euo pipefail
 export PROBE_MASTER_KEY="${PROBE_MASTER_KEY:-dev-master-key-change-me-in-prod!}"
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# `down -v` must never resolve to the live pinned harness_runs volume (compose pins its name).
+export HARNESS_RUNS_VOLUME="${PROBE_PROJECT:-harness-loadtest}_runs"
 # Function, not a string var: the repo path contains spaces ("untitled folder 2")
 # and word-splitting a command string mangles it.
 compose() {

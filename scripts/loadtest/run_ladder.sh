@@ -22,6 +22,7 @@ HOLD="${LADDER_HOLD:-60}"
 OUT="${LADDER_OUT:-$SRC/docs/briefs/evidence/w17/ladder-$REV}"
 RUNGS=("$@"); [ ${#RUNGS[@]} -gt 0 ] || RUNGS=(4 8 16 32 64 100)
 export PROBE_PROJECT="harness-w17ladder-$REV"
+export HARNESS_RUNS_VOLUME="${PROBE_PROJECT}_runs"   # compose pins harness_runs; `down -v` must not reach the live one
 export HARNESS_IMAGE_TAG="w17-$REV"          # never collide with another stack's image tag
 export PROBE_MASTER_KEY="${PROBE_MASTER_KEY:-dev-master-key-change-me-in-prod!}"
 

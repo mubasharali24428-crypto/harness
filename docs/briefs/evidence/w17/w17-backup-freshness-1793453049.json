@@ -1,0 +1,10 @@
+{
+  "alerts": {
+    "HarnessBackupNeverRan": "pending",
+    "HarnessServiceDown": "pending"
+  },
+  "checks": {},
+  "error": "AssertionError: backup series is absent but HarnessBackupNeverRan is not firing",
+  "seriesValue": null,
+  "verdict": "FAIL"
+}

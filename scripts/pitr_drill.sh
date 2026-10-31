@@ -13,7 +13,8 @@
 # Everything happens in a PRIVATE compose project (default
 # harness-pitr-<utc stamp>, own network, volumes, MinIO and `walg-db`); the
 # live stack is never touched. Safe by default: the script refuses a project
-# that already has containers, never reads .env unless PITR_ENV_FILE names one,
+# that already has containers, passes no --env-file unless PITR_ENV_FILE names one
+# (compose still auto-loads deploy/.env, which is why WALG_FILE_PREFIX is overridden below),
 # and its cleanup only ever removes things it created (`down -v` on its own
 # project, its own restore container and volume). PITR_KEEP=1 skips cleanup.
 #
@@ -48,6 +49,9 @@ COMPOSE+=(-f deploy/docker-compose.yml --profile walg)
 # The compose file pins the default network name (shared with the live stack);
 # this override keeps the drill off it.
 export HARNESS_NETWORK_DEFAULT="${PROJECT}_default"
+# Same for the run-storage volume: compose pins its name, so `down -v` below would otherwise
+# target the LIVE harness_runs whenever the live stack is not holding it.
+export HARNESS_RUNS_VOLUME="${PROJECT}_runs"
 PITR_CONTAINER="${PROJECT}-restore"
 PITR_VOLUME="${PROJECT}_pgdata_restore"
 if docker volume inspect "$PITR_VOLUME" >/dev/null 2>&1; then

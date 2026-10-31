@@ -121,9 +121,90 @@ rule test and `section1/tests/test_backup_metrics_pg.py`.
 **Finding for the owner, not a pass:** the base-backup cadence has not succeeded in
 ~6 days on the deployment this repo calls live, and no alert could have told anyone.
 
+## Unit E — shared run-volume hazard (fixed)
+
+`harness_runs` carries an explicit `name:` (worker-daemon mounts it by literal name), and
+compose does not prefix an explicit name with the project. So `docker compose -p <any
+project> down -v` resolves to the **live** volume, protected only by Docker's "in use"
+refusal. Reproduced on scratch volumes (never the live one): with the pattern as it was,
+`down -v` on project `t1` reported `Volume scratch_live_runs Removed`; with an override it
+removed only `t2_runs` and the other volume survived.
+
+Fix: the name is `${HARNESS_RUNS_VOLUME:-harness_runs}` (default unchanged, so the live
+stack is untouched) and worker-daemon's `HARNESS_RUNS_VOLUME` reads the same variable, so
+the daemon and compose cannot disagree. Every script that tears down a throwaway project
+now exports a project-scoped value: `scripts/pitr_drill.sh`, `scripts/loadtest/run_probe.sh`,
+`run_ladder.sh`, `deploy/runners/rollback_rehearsal.sh`. Regression test
+`section1/tests/test_deploy_volume_isolation.py` (3 tests) pins the variable, the
+daemon/compose agreement and the four scripts. Also corrected two false claims: the PITR
+script and runbook said it "never reads `.env`"; compose auto-loads `deploy/.env`.
+
+Verified end to end: the real-5xx drill's isolated stack was torn down with the fixed
+`run_probe.sh down`; `harness_runs` still existed afterwards and no live container was
+affected by that command.
+
+**Residual:** the default is still the shared name. A new script that runs `down -v` on an
+isolated project and forgets the variable reintroduces the hazard; the test covers the four
+known scripts, not future ones. Making the default fail closed would break the live
+bring-up, which is why it was not done.
+
+## Unit F — real 5xx generation (closed)
+
+`scripts/e2e/w17_real_5xx_drill.py`, run against an isolated `loadtest` stack (image
+`vs2fresh`, project `harness-w17-5xx`, torn down afterwards). It stops the stack's
+database, so the deployed orchestrator fails the way production would, and reads the
+answer from the deployed `/metrics`:
+
+| Check | Result (both runs) |
+|---|---|
+| Healthy plan requests move `outcome="ok"`, not `error` | yes |
+| 5 authenticated requests during the outage | **5 × HTTP 500** (genuine, `INTERNAL_ERROR`) |
+| `harness_eligible_requests_total{outcome="error"}` | rose by exactly 5 |
+| `http_requests_total{status="500"}` | rose by exactly 5 |
+| Caller error (unauthenticated) | 401, **not counted** |
+| `/ready` during outage | 503, **not counted** (synthetic probe) |
+| Recovery | `/ready` 200 within 1.0 s of `docker start db`, no orchestrator restart; next request 201 |
+| Run SLI | 4 ok / 5 error = 0.4444 (by construction, not an availability claim) |
+
+2/2 PASS: `docs/briefs/evidence/w17/w17-real-5xx-bd16f83a6cd5.json`,
+`...-58273c6771b9.json`. The drill restarts the database in a `finally`, and refuses a
+`--db-container` that is not a loadtest database.
+
+Not proven: that `HarnessHigh5xxRate` pages (promtool covers the rule; this stack has no
+Prometheus), and no availability objective over a window. After the final lint pass
+(imports only) the drill was not re-run because the live stack and the shared ports were
+in use by another lane.
+
+## Restore evidence review (what it proves, what it does not)
+
+| Evidence | Date | Result |
+|---|---|---|
+| `pilot-prep/walg-s3-pitr-drill.json` | 2026-10-25 | pass, restore 3 s |
+| `pilot-prep/pitr-drill-20261029T140816Z.json` | 2026-10-29 | pass, restore 4 s |
+| `w17/pitr.json` | 2026-10-31T06:06:59Z | pass, restore 4 s, `backupRecorded: true`, private compose project |
+
+Each proves a real rewind: row 2 exists only if WAL written after the base backup replays,
+and is absent after the target-time promote. Three passes in a week on one script.
+
+Limits that matter to the owner:
+
+- The subject is a **marker table in a scratch cluster**, not the live database. It proves
+  the mechanism, not that the live archive restores. (Batch 1 `A12` did a PITR from the live
+  file archive in October; that is a separate, older piece of evidence.)
+- **`harness_store` (artifact bytes) and `harness_runs` are not covered by any backup or
+  restore step** in the runbooks or scripts. The `artifacts` table is restored by PITR, but
+  the bytes it points at are not. The runbook itself says to back the store up "with the
+  database" and nothing does. This is an open gap, not a pass.
+- 4 s on an empty database says nothing about RTO at production size.
+- The live base-backup cadence was 6.1 days stale at 05:32 on 2026-10-31 and nothing has
+  taken a backup since. Taking one writes to the live archive, so it was left to the
+  stack's owner.
+- The scheduled monthly drill uses a MinIO image pinned by digest and cached locally; it
+  was reported unpullable from public registries during the October S3 drill (not re-checked today), so a pruned cache would break the next run.
+
 ## Verification
 
-- `section1`: **1225 passed, 63 skipped**, `ruff check src tests scripts` clean.
+- `section1`: **1228 passed, 63 skipped** (was 1225; +3 volume-isolation tests), `ruff check src tests scripts` clean.
 - `promtool`: 19 rules, unit tests SUCCESS (`scripts/test-alerts.sh`).
 - `section4` observability unit tests: 15 passed (Unit B).
 - Image provenance checked *inside* the image: `observe_replay_age` present,
@@ -144,23 +225,33 @@ Two things that need recording because they will bite the next builder:
 - `loadtest` needs `PROBE_MASTER_KEY` set (the documented M18-C4 gotcha — an empty
   `HARNESS_MASTER_KEY` from `x-backend-env` overrides the dev fallback and identity
   crash-loops on `master_key must be non-empty`).
-- **The `loadtest` profile's `down -v` tries to remove the shared, explicitly-named
-  `harness_runs` volume.** It was refused only because the live stack still held it.
-  Running that profile while the main stack is *down* would delete another project's
-  run artifacts. Worth a compose fix, not a workaround.
+- ~~The `loadtest` profile's `down -v` targets the shared `harness_runs` volume.~~ **Fixed
+  in Unit E.** Any throwaway project must still export `HARNESS_RUNS_VOLUME`; the four
+  existing scripts do.
 
 ## Where Stage 2 actually stands
 
 | Exit item | Status | By whom |
 |---|---|---|
-| Failure-outcome measurement (W17 drills) | Terminal-event retry, cross-replica NOTIFY, durable admission, Linux shell cleanup, MCP cleanup: **done**. Real 5xx generation: **open**. | engineering (partly) |
-| Backup/alert verification | **Closed as mechanism**: backup gauge + alert state verified live; routing verified to a live target. **Open as operations**: the real destination is unset and the current receiver is dead. | engineering did its half |
+| Failure-outcome measurement (W17 drills) | Terminal-event retry, cross-replica NOTIFY, durable admission, Linux shell cleanup, MCP cleanup, **real 5xx generation (Unit F)**: **done**. | engineering |
+| Backup/alert verification | **Closed as mechanism**: backup gauge + alert state verified live; routing verified to a live target; three PITR drill passes. **Open as operations**: the real destination is unset and the receiver is dead; the live base backup is stale; the artifact store has no backup at all. | engineering did its half |
 | SLO *measurement* (eligible-request denominator, bounded-lag histogram, both alerted on) | **Closed** — Units B and C. | engineering |
 | Named SLO adopted, on-call owner, escalation, page destination, public-status decision | **Cannot be closed by engineering.** The roadmap: "No engineering milestone implicitly closes these decisions." | human owner |
 | Measured capacity on the target topology, real provider | **Cannot be closed here.** Requires the approved budget and a target topology; only the laptop dry-engine figure exists. | human owner |
 
-**Stage 2 exit: NOT met.** Everything engineering could close is closed and verified
-at a named revision; what remains is a human decision and a spend authorisation, and
-inventing either would be the failure mode this repo exists to prevent. The two
-concrete engineering follow-ups inside Stage 2 that are *not* human-gated: the real-5xx
-drill, and the `harness_runs` volume hazard above.
+**Stage 2 exit: NOT met.** Everything engineering could close without a decision or a
+spend is closed and verified at a named revision, including both items the previous
+revision of this record left open (the real-5xx drill and the volume hazard). What
+remains: a human owner (SLO adoption, on-call, page destination, status page), an
+approved budget and target topology (capacity), and two **operational** items found
+while reviewing the restore evidence: take a real base backup on the live stack, and
+decide how `harness_store` is backed up. Inventing any of these would be the failure mode
+this repo exists to prevent.
+
+**Live-stack caveat at the time of writing.** Around 13:22 UTC every backend container of
+the live `harness` project was stopped within 1.4 s of each other while another lane was
+building a separate `harnessfresh` project. I did not stop them and did not restart them.
+`scripts/e2e/w17_backup_freshness_verify.py` therefore **failed** at that moment
+(`w17-backup-freshness-1793453049.json`: series absent, `HarnessBackupNeverRan` still
+`pending`). That is the orchestrator being down, not a backup regression; the passing
+reading at 05:32 stands for the cadence finding. Re-run it once the stack is back.

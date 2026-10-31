@@ -503,7 +503,7 @@ services:
       HARNESS_WORKER_DAEMON_TOKEN: ${HARNESS_WORKER_DAEMON_TOKEN:-}
       HARNESS_ENGINE_IMAGE: harness-engine-worker:v${HARNESS_IMAGE_TAG:-dev-local}
       HARNESS_ENGINE_TIMEOUT_SECONDS: ${HARNESS_ENGINE_TIMEOUT_SECONDS:-900}
-      HARNESS_RUNS_VOLUME: harness_runs
+      HARNESS_RUNS_VOLUME: ${HARNESS_RUNS_VOLUME:-harness_runs}
       HARNESS_RUNS_ROOT: /var/lib/harness-runs
       DSH_WORKSPACE: /var/lib/harness-runs/workspace
       DSH_SESSION_ROOT: /var/lib/harness-runs/sessions
@@ -1210,7 +1210,8 @@ services:
   #   python3 scripts/loadtest/smoke_probe.py \
   #     --identity http://localhost:18001 --orchestrator http://localhost:18004
   #   ... drive locust per scripts/loadtest/README.md ...
-  #   docker compose -f deploy/docker-compose.yml -p harness-loadtest --profile loadtest down -v
+  #   HARNESS_RUNS_VOLUME=harness-loadtest_runs docker compose -f deploy/docker-compose.yml \
+  #     -p harness-loadtest --profile loadtest down -v   # (var REQUIRED: else -v targets the live harness_runs)
   # M20-T2 (OPS-21/22): ONE scrape target covering every service. Each backend
   # exposes GET /metrics (Prometheus text format) on its container port, so
   # static DNS names + one job scrape them all; job/service labels tell the
@@ -1490,8 +1491,12 @@ volumes:
   harness_store_loadtest:
   # M07: run workspaces/sessions. Fixed name because worker-daemon names it in each worker's
   # `--mount type=volume,src=harness_runs,volume-subpath=…` (Docker resolves that, not compose).
+  # The name is pinned OUTSIDE the compose project prefix, so `-p <anything> down -v` resolves to
+  # the LIVE volume. Every throwaway project (drills, loadtest, rehearsal) must therefore export
+  # HARNESS_RUNS_VOLUME=<project>_runs; worker-daemon reads the same variable. Guarded by
+  # section1/tests/test_deploy_volume_isolation.py.
   harness_runs:
-    name: harness_runs
+    name: ${HARNESS_RUNS_VOLUME:-harness_runs}
   # H-018 (M13-W3-H2): the archiving database's own data volume — deliberately
   # SEPARATE from `pgdata` so PITR drills can never collide with live data.
   pgdata_walg:

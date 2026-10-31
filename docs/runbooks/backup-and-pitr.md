@@ -76,11 +76,13 @@ PITR_DRILL_LOG=docs/briefs/evidence/pilot-prep/pitr-drill-$STAMP.log \
 The script runs in its own throwaway compose project (`harness-pitr-<utc stamp>`,
 or `PITR_PROJECT=<name>`), with its own network, MinIO, `walg-db`, restore
 container and volume. It refuses a project name that already has containers,
-never reads `.env` unless `PITR_ENV_FILE` is set, applies migration 0059 to the
+passes no `--env-file` unless `PITR_ENV_FILE` is set (compose still auto-loads `deploy/.env`, so the script overrides `WALG_FILE_PREFIX` and `HARNESS_RUNS_VOLUME`), applies migration 0059 to the
 scratch cluster and fails the drill unless the wrapper records the backup in
 `backup_runs` (a missing record means backup-freshness monitoring is unproven).
 Cleanup is `compose -p <its project> down -v` plus its own restore
-container/volume, so it cannot remove the live stack's objects; `PITR_KEEP=1`
+container/volume. The compose file pins the run-storage volume name (`harness_runs`),
+which `down -v` would otherwise resolve to the live volume, so the script sets
+`HARNESS_RUNS_VOLUME=<project>_runs` first; `PITR_KEEP=1`
 leaves everything for inspection (then remove it with that same `down -v`).
 Each run keeps its own dated evidence pair, so histories never overwrite each
 other. The automation's run status is the failure signal; the script exits
