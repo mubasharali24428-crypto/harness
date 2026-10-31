@@ -73,6 +73,15 @@ PITR_DRILL_LOG=docs/briefs/evidence/pilot-prep/pitr-drill-$STAMP.log \
   ./scripts/pitr_drill.sh
 ```
 
+The script runs in its own throwaway compose project (`harness-pitr-<utc stamp>`,
+or `PITR_PROJECT=<name>`), with its own network, MinIO, `walg-db`, restore
+container and volume. It refuses a project name that already has containers,
+never reads `.env` unless `PITR_ENV_FILE` is set, applies migration 0059 to the
+scratch cluster and fails the drill unless the wrapper records the backup in
+`backup_runs` (a missing record means backup-freshness monitoring is unproven).
+Cleanup is `compose -p <its project> down -v` plus its own restore
+container/volume, so it cannot remove the live stack's objects; `PITR_KEEP=1`
+leaves everything for inspection (then remove it with that same `down -v`).
 Each run keeps its own dated evidence pair, so histories never overwrite each
 other. The automation's run status is the failure signal; the script exits
 non-zero on a failed drill and the automation reports the failing step without
@@ -324,6 +333,7 @@ immediate fresh base backup.
 | 2026-10-21 07:49 | `restore-walg.sh` against the **live `db` archive** (`/tmp/harness-walg-live`, base 07:32) | `07:48:17+00` | 10 s | ~3 s (13 s script total) | **PASS** (2nd run) | run #1 aborted: live `db` runs `-c max_connections=120`, scratch server defaulted to 100 → "insufficient parameter settings"; script now passes 120. Stopped before the DELETE's commit (07:48:19.656); marker id=1 back, id=99 (after target) absent; users/teams/projects/events/backup_runs counts equal live; promoted in 1 s → timeline 2; scratch `archive_mode=off`, no timeline-2 WAL in the live prefix |
 | 2026-10-21 08:52 | `restore-walg.sh` from **S3** (SeaweedFS 4.48 on 127.0.0.1, `s3://walg/drill`, access keys enforced; `walg-db` archiving, base `…33` in 2 s) | `08:51:55+00` | 1 s | 1 s (4 s script total) | **PASS** (2nd run) | run #1: the DELETE and `pg_switch_wal()` were one `psql -c` transaction, so its commit sat in an unarchived segment → "recovery ended before configured recovery target was reached" (procedure error; switch WAL in its own statement). Stopped before txn 798 (the DELETE); 5000 rows with marker id=1 while paused (`walg-db` after the DELETE: 4999); promoted, INSERT ok. Found and fixed: no `AWS_S3_FORCE_PATH_STYLE` passthrough (wal-g hung), and the script mounted `/nonexistent` in S3 mode, which Docker Desktop refuses |
 | 2026-10-25 09:53 | `./scripts/pitr_drill.sh` (MinIO S3 API, **versioned bucket**, `walg-db` only) | `09:52:59+00` | 1 s | 1 s (3 s script total) | **PASS** | marker id=2 written AFTER the base backup, deleted after TARGET; target restored it while the live drill DB had 1 row; promoted. Base backup 2 s. Also fixed the procedure's ordering (backup must precede the marker) and made the script wait for the archiver instead of sleeping. Evidence: `docs/briefs/evidence/pilot-prep/walg-s3-pitr-drill.json`. The drill cluster is unmigrated, so the wrapper's `backup_runs` write warns; it does not affect WAL/restore |
+| 2026-10-31 06:06 | `./scripts/pitr_drill.sh` after the W17 isolation change (private compose project `harness-pitr-20261031t060635z`, MinIO S3 API, versioned bucket) | `06:06:49+00` | 2 s | 1 s (4 s script total; base backup 3 s) | **PASS** | marker id=2 present at target, absent after the delete; promoted; the wrapper recorded the backup in `backup_runs` (migration 0059 applied to the scratch cluster, no WARN); cleanup left no containers, volumes or networks of the project, and the live `harness` stack was not touched. Evidence: `docs/briefs/evidence/w17/pitr.json` / `.log`. Local MinIO is not offsite cloud storage and this is not a live-primary cutover test |
 
 Base-backup wall times (⏱ RTO input, wrapper-reported): 03:57:39 → ~1.1 s
 (first successful full), 03:58:36 → ~1 s (green post-check run). Dataset is

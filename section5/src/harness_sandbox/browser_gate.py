@@ -184,6 +184,11 @@ def _run_chromium(
     )
     try:
         out, err = proc.communicate(timeout=timeout)
+        # Helpers that closed their pipes can outlive the main process: reap the group too.
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError:
+            pass
         return proc.returncode, out or b"", (err or b"").decode("utf-8", "replace")[-800:], False
     except subprocess.TimeoutExpired:
         try:

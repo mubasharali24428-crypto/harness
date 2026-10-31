@@ -404,12 +404,21 @@ class LspSession:
 
     # -------------------------------------------------------------------- process
 
+    def _kill_group(self) -> None:
+        """SIGKILL the server's whole process group, even if the leader is already gone.
+
+        The group id is the leader's pid (``start_new_session``). Workers the server forked
+        outlive a leader that exited or crashed, so this must not be conditional on the leader.
+        """
+        try:
+            os.killpg(self._proc.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass  # ponytail: empty group; a recycled pid is the (tiny) ceiling here
+
     def kill(self) -> None:
+        self._kill_group()
         if self._proc.poll() is None:
-            try:
-                os.killpg(os.getpgid(self._proc.pid), signal.SIGKILL)
-            except (ProcessLookupError, PermissionError):
-                self._proc.kill()
+            self._proc.kill()
             try:
                 self._proc.wait(2.0)
             except subprocess.TimeoutExpired:
@@ -430,6 +439,7 @@ class LspSession:
         except (LspError, OSError, ValueError):
             self.kill()
         finally:
+            self._kill_group()
             self._selector.close()
             for stream in (self._proc.stdin, self._proc.stdout, self._proc.stderr):
                 if stream is not None:

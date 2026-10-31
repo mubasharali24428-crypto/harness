@@ -1,0 +1,148 @@
+[pitr-drill 06:06:35Z] bucket prefix s3://harness-walg/pitr-20261031t060635z
+ Network harness-pitr-20261031t060635z_default Creating 
+ Network harness-pitr-20261031t060635z_default Created 
+ Volume harness-pitr-20261031t060635z_minio_drill Creating 
+ Volume harness-pitr-20261031t060635z_minio_drill Created 
+ Container harness-pitr-20261031t060635z-minio-1 Creating 
+ Container harness-pitr-20261031t060635z-minio-1 Created 
+ Container harness-pitr-20261031t060635z-minio-1 Starting 
+ Container harness-pitr-20261031t060635z-minio-1 Started 
+ Container harness-pitr-20261031t060635z-minio-1 Waiting 
+ Container harness-pitr-20261031t060635z-minio-1 Healthy 
+ Container harness-pitr-20261031t060635z-minio-1 Running 
+ Container harness-pitr-20261031t060635z-minio-1 Waiting 
+ Container harness-pitr-20261031t060635z-minio-1 Healthy 
+ Container harness-pitr-20261031t060635z-minio-init-run-783b6065807f Creating 
+ Container harness-pitr-20261031t060635z-minio-init-run-783b6065807f Created 
+ Volume harness-pitr-20261031t060635z_pgdata_walg Creating 
+ Volume harness-pitr-20261031t060635z_pgdata_walg Created 
+ Container harness-pitr-20261031t060635z-walg-db-1 Creating 
+ Container harness-pitr-20261031t060635z-walg-db-1 Created 
+ Container harness-pitr-20261031t060635z-walg-db-1 Starting 
+ Container harness-pitr-20261031t060635z-walg-db-1 Started 
+ Container harness-pitr-20261031t060635z-walg-db-1 Waiting 
+ Container harness-pitr-20261031t060635z-walg-db-1 Healthy 
+[pitr-drill 06:06:45Z] object store ready (bucket harness-walg, versioning on)
+NOTICE:  table "pitr_marker" does not exist, skipping
+[pitr-drill 06:06:45Z] baseline row id=1 written
+ Volume harness-pitr-20261031t060635z_walg_logs Creating 
+ Volume harness-pitr-20261031t060635z_walg_logs Created 
+ Container harness-pitr-20261031t060635z-walg-db-1 Running 
+ Container harness-pitr-20261031t060635z-walg-db-1 Waiting 
+ Container harness-pitr-20261031t060635z-walg-db-1 Healthy 
+ Container harness-pitr-20261031t060635z-walg-run-92e152069e7a Creating 
+ Container harness-pitr-20261031t060635z-walg-run-92e152069e7a Created 
+[walg-backup 2026-10-31T06:06:46Z] starting STREAMING base backup via PGHOST=walg-db (BASE_BACKUP protocol)
+INFO: 2026/10/31 06:06:46.700696 Backup will be pushed to storage: default
+INFO: 2026/10/31 06:06:46.708349 Running remote backup through Postgres connection.
+INFO: 2026/10/31 06:06:46.708360 Features like delta backup and partial restore are disabled, there might be a performance impact.
+INFO: 2026/10/31 06:06:46.708361 To run with local backup functionalities, supply [db_directory].
+INFO: 2026/10/31 06:06:46.710515 Starting remote backup
+INFO: 2026/10/31 06:06:46.790920 Streaming remote backup
+INFO: 2026/10/31 06:06:46.790960 Adding data directory
+INFO: 2026/10/31 06:06:47.947170 Finishing backup
+INFO: 2026/10/31 06:06:47.947205 If wal-g hangs during this step, please Postgres log file for details.
+INFO: 2026/10/31 06:06:47.947344 Updating metadata
+INFO: 2026/10/31 06:06:47.947364 Uploading metadata
+INFO: 2026/10/31 06:06:47.964886 Wrote backup with name base_000000010000000000000004
+[walg-backup 2026-10-31T06:06:47Z] base backup complete
+[walg-backup 2026-10-31T06:06:47Z] archiver check: last_archived_wal=000000010000000000000004.00000028.backup age=1s
+[walg-backup 2026-10-31T06:06:48Z] post-check: backup inventory lists at least one full backup (base backup verified in storage)
+[walg-backup 2026-10-31T06:06:48Z] timed RTO evidence slot — base backup wall time: 2s (record this in docs/runbooks/backup-and-pitr.md drill table)
+[walg-backup 2026-10-31T06:06:48Z] recorded the base backup in backup_runs
+[walg-backup 2026-10-31T06:06:48Z] done (mode=base)
+[pitr-drill 06:06:48Z] backup_runs rows for this backup: 1 (recorded=1)
+[pitr-drill 06:06:48Z] row id=2 committed at 2026-10-31 06:06:48+00
+[pitr-drill 06:06:49Z] recovery target 2026-10-31 06:06:49+00 (strictly after id=2, strictly before the delete)
+[pitr-drill 06:06:49Z] archiver after switch: archived,failed=5,0
+[pitr-drill 06:06:51Z] after DELETE the drill database has 1 row(s) (expect 1)
+[walg-restore 2026-10-31T06:06:51Z] storage: s3://harness-walg/pitr-20261031t060635z
+[walg-restore 2026-10-31T06:06:51Z] inventorying base backups in storage (wal-g backup-list --detail)
+INFO: 2026/10/31 06:06:51.556188 List backups from storages: [default]
+backup_name                   modified             wal_file_name            storage_name start_time           finish_time          hostname     data_dir                      pg_version start_lsn finish_lsn is_permanent
+base_000000010000000000000004 2026-10-31T06:06:47Z 000000010000000000000004 default      2026-10-31T06:06:46Z 2026-10-31T06:06:47Z d40b587cfd11 /var/lib/postgresql/18/docker 180006     0/4000028 0/4000120  false
+[walg-restore 2026-10-31T06:06:51Z] created empty volume harness-pitr-20261031t060635z_pgdata_restore
+INFO: 2026/10/31 06:06:52.048026 Selecting the latest backup...
+INFO: 2026/10/31 06:06:52.048460 Backup to fetch will be searched in storages: [default]
+INFO: 2026/10/31 06:06:52.053287 LATEST backup is: 'base_000000010000000000000004'
+INFO: 2026/10/31 06:06:53.466486 Finished extraction of part_001.tar.lz4
+INFO: 2026/10/31 06:06:53.469238 Finished extraction of pg_control.tar.lz4
+INFO: 2026/10/31 06:06:53.469258 
+Backup extraction complete.
+[walg-restore 2026-10-31T06:06:53Z] base backup fetched in 2s  ← RTO EVIDENCE SLOT #1 (fetch)
+wired:
+restore_command = 'wal-g wal-fetch "%f" "%p"'
+recovery_target_time = '2026-10-31 06:06:49+00'
+recovery_target_action = 'pause'
+[walg-restore 2026-10-31T06:06:54Z] recovery wiring written: target_time=2026-10-31 06:06:49+00 action=pause
+[walg-restore 2026-10-31T06:06:55Z] server ready (paused at target) in 1s  ← RTO EVIDENCE SLOT #2 (replay-to-pause)
+2026-10-31 06:06:54.791 UTC [12] LOG:  restored log file "000000010000000000000004" from archive
+2026-10-31 06:06:54.809 UTC [12] LOG:  starting point-in-time recovery to 2026-10-31 06:06:49+00
+2026-10-31 06:06:54.876 UTC [12] LOG:  restored log file "000000010000000000000005" from archive
+2026-10-31 06:06:54.927 UTC [12] LOG:  restored log file "000000010000000000000006" from archive
+2026-10-31 06:06:54.980 UTC [12] LOG:  consistent recovery state reached at 0/4000120
+2026-10-31 06:06:54.980 UTC [12] LOG:  recovery stopping before commit of transaction 760, time 2026-10-31 06:06:50.963241+00
+
+=======================================================================
+ PAUSED AT TARGET — VERIFY BEFORE PROMOTING (operator, in order)
+=======================================================================
+ 1. Confirm the recovered moment:
+      docker exec harness-pitr-20261031t060635z-restore psql -U harness -d harness \
+        -c "SELECT now(), pg_last_wal_replay_lsn(), pg_is_in_recovery();"
+ 2. Sanity-check business data vs expectations (counts of users / teams /
+    projects / agent_events; your incident marker tables).
+ 3. Promote ONLY when satisfied (ends recovery, opens writes):
+      docker exec harness-pitr-20261031t060635z-restore psql -U harness -c "SELECT pg_wal_replay_resume();"
+    Wait for logs: redo done / selected new timeline ID / database system
+    is ready to accept connections.
+ 4. Cutover (DESTRUCTIVE to the live stack — schedule it):
+      cd <repo> && docker compose -f deploy/docker-compose.yml stop \
+        identity github models orchestrator sandbox meeting review frontend db
+      docker run --rm -v harness_pgdata:/from -v "$PWD":/to alpine \
+        tar czf /to/pgdata-broken-$(date -u +%Y%m%dT%H%M%SZ).tgz -C /from .
+      docker volume rm harness_pgdata && docker volume create harness_pgdata
+      docker run --rm -v harness_pgdata:/to -v harness-pitr-20261031t060635z_pgdata_restore:/from alpine \
+        sh -c 'cp -a /from/. /to/'
+      docker compose -f deploy/docker-compose.yml up -d
+ 5. Verify the stack (curl localhost:8001/health … 8008, UI login, counts),
+    then take an immediate fresh base backup and record RPO/RTO in
+    docs/runbooks/backup-and-pitr.md (drill evidence table).
+ 6. Tear down this drill:
+      docker rm -f harness-pitr-20261031t060635z-restore && docker volume rm harness-pitr-20261031t060635z_pgdata_restore
+=======================================================================
+[walg-restore 2026-10-31T06:06:55Z] done — harness-pitr-20261031t060635z-restore is UP and PAUSED at 2026-10-31 06:06:49+00
+[pitr-drill 06:06:56Z] recovered rows: 1,2 (expect 1,2), in_recovery=t
+[pitr-drill 06:06:59Z] promoted, in_recovery=f
+{
+  "drill": "walg-s3-pitr",
+  "executedAt": "2026-10-31T06:06:59Z",
+  "storage": {
+    "kind": "s3-compatible (MinIO)",
+    "bucket": "harness-walg",
+    "prefix": "s3://harness-walg/pitr-20261031t060635z",
+    "endpoint": "http://minio:9000",
+    "versioning": true,
+    "credentials": "drill-only, from compose defaults"
+  },
+  "project": "harness-pitr-20261031t060635z",
+  "source": "drill instance walg-db in a private compose project, not the live primary",
+  "backupRecorded": true,
+  "target": "2026-10-31 06:06:49+00",
+  "rowsAtTarget": "1,2",
+  "rowsAfterDisaster": "1",
+  "promoted": true,
+  "timingsSeconds": {
+    "baseBackup": 3,
+    "fetch": 2,
+    "replayToPause": 1,
+    "restoreTotal": 4
+  },
+  "result": "pass",
+  "notes": [
+    "id=2 was inserted AFTER the base backup, so its presence proves WAL replay.",
+    "The delete happened after the target, so its absence proves the rewind.",
+    "Bucket versioning is enabled for ransomware recovery.",
+    "Cutover onto the live volume remains a manual, destructive decision."
+  ]
+}
+[pitr-drill 06:06:59Z] PASS — evidence docs/briefs/evidence/w17/pitr.json

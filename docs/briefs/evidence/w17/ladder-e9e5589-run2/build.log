@@ -1,0 +1,119 @@
+ Image harness-backend:vw17-e9e5589 Building 
+ Image harness-backend:vw17-e9e5589 Building 
+ Image harness-backend:vw17-e9e5589 Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 2.12kB done
+#1 DONE 0.0s
+
+#2 [orchestrator-loadtest internal] load build definition from backend.Dockerfile
+#2 transferring dockerfile: 2.32kB done
+#2 DONE 0.0s
+
+#3 [identity-loadtest internal] load metadata for docker.io/library/python:3.13-slim
+#3 DONE 0.1s
+
+#4 [migrate-loadtest  1/16] FROM docker.io/library/python:3.13-slim@sha256:ffb752e139c0a19692a43af8d8523b274222dd68eebad5d583b45c2201c6e30a
+#4 resolve docker.io/library/python:3.13-slim@sha256:ffb752e139c0a19692a43af8d8523b274222dd68eebad5d583b45c2201c6e30a 0.0s done
+#4 DONE 0.0s
+
+#5 [migrate-loadtest  2/16] WORKDIR /opt/harness
+#5 CACHED
+
+#6 [migrate-loadtest  3/16] RUN pip install --no-cache-dir "deepseek-harness-sdk==0.1.1rc1"
+#6 CACHED
+
+#7 [orchestrator-loadtest internal] load .dockerignore
+#7 transferring context: 513B done
+#7 DONE 0.0s
+
+#8 [migrate-loadtest internal] load build context
+#8 transferring context: 7.35MB 0.1s done
+#8 DONE 0.2s
+
+#9 [orchestrator-loadtest  4/16] COPY contracts/ ./contracts/
+#9 CACHED
+
+#10 [orchestrator-loadtest 15/16] RUN pip install --no-cache-dir       ./contracts       ./section1 ./section2 ./section3 ./section4       ./section5 ./section6 ./section8     && rm -rf /root/.cache
+#10 CACHED
+
+#11 [orchestrator-loadtest  8/16] COPY section4/ ./section4/
+#11 CACHED
+
+#12 [orchestrator-loadtest 11/16] COPY section8/ ./section8/
+#12 CACHED
+
+#13 [orchestrator-loadtest 14/16] COPY section10/demo_repo/ ./demo_repo/
+#13 CACHED
+
+#14 [orchestrator-loadtest 10/16] COPY section6/ ./section6/
+#14 CACHED
+
+#15 [orchestrator-loadtest  7/16] COPY section3/ ./section3/
+#15 CACHED
+
+#16 [orchestrator-loadtest  5/16] COPY section1/ ./section1/
+#16 CACHED
+
+#17 [orchestrator-loadtest  9/16] COPY section5/ ./section5/
+#17 CACHED
+
+#18 [orchestrator-loadtest  6/16] COPY section2/ ./section2/
+#18 CACHED
+
+#19 [orchestrator-loadtest 12/16] COPY deploy/runners/ ./deploy/runners/
+#19 CACHED
+
+#20 [orchestrator-loadtest 13/16] COPY deploy/entrypoint.sh ./deploy/entrypoint.sh
+#20 CACHED
+
+#21 [orchestrator-loadtest 16/16] RUN useradd --system --create-home --shell /usr/sbin/nologin harness     && mkdir -p /tmp/harness-dsh /tmp/harness_sandboxes /var/lib/harness-store        /var/lib/harness-runs     && chown -R harness:harness /tmp/harness-dsh /tmp/harness_sandboxes /var/lib/harness-store        /var/lib/harness-runs
+#21 CACHED
+
+#22 [migrate-loadtest] exporting to image
+#22 exporting layers done
+#22 exporting manifest sha256:41ec8685e89e2e5f9ce8c647209368070f348af4f3f978b3a89e1b1430a222b8 done
+#22 exporting config sha256:4b15cf1a2d18c5b540d9620fe92793d0ea47f85b622025a093bd5f5d10fe2789 done
+#22 exporting attestation manifest sha256:59afc4d52d74fd85d20eedb197b1dba188719c8e71f80cb0c9b3be6ea621460e 0.0s done
+#22 exporting manifest list sha256:deda14639fb68ee74370e2410d6de168fb11cb4096eaecd145bcc7a9515ff41a
+#22 exporting manifest list sha256:deda14639fb68ee74370e2410d6de168fb11cb4096eaecd145bcc7a9515ff41a 0.0s done
+#22 naming to docker.io/library/harness-backend:vw17-e9e5589 done
+#22 unpacking to docker.io/library/harness-backend:vw17-e9e5589 0.0s done
+#22 naming to docker.io/library/harness-backend:latest done
+#22 unpacking to docker.io/library/harness-backend:latest 0.0s done
+#22 DONE 0.1s
+
+#23 [identity-loadtest] exporting to image
+#23 exporting layers done
+#23 exporting manifest sha256:bde2519caaf663f0581afcddf99d48326fb9ac5cc06ddede63c4fc4a62607df2 done
+#23 exporting config sha256:f212796aada875ab35b1b80465905f59d2ca906d3b62ef9c0f2ff37a8b03ebe8 done
+#23 exporting attestation manifest sha256:f90bfa915f7ad5f62134c3b0b5bbe1a08e4075e59eda710ecaa6ad51e3f78368 0.0s done
+#23 exporting manifest list sha256:47398afccbf5184646a7b9319dd39188050f068f365261a7985e42434502034c 0.0s done
+#23 naming to docker.io/library/harness-backend:vw17-e9e5589 done
+#23 unpacking to docker.io/library/harness-backend:vw17-e9e5589 0.0s done
+#23 naming to docker.io/library/harness-backend:latest done
+#23 unpacking to docker.io/library/harness-backend:latest 0.0s done
+#23 DONE 0.1s
+
+#24 [orchestrator-loadtest] exporting to image
+#24 exporting layers done
+#24 exporting manifest sha256:ff70056bddd31e7dea5b460d920345c94dcd42bc165d802effee46772dfb8d75 done
+#24 exporting config sha256:e656a7a90a9251b0a11d22592d1b2c2499aba379b3ffdfe85e0e6f22407c7ab7 done
+#24 exporting attestation manifest sha256:c1d619cdf881a1b8c829c83d21bc598aa37fee3db633955cca0f7b3ec489da5c 0.0s done
+#24 exporting manifest list sha256:02695acdd7e5174a44926aaed23356135a0cf3bf6b810943acdefd291125c2d4 0.0s done
+#24 naming to docker.io/library/harness-backend:vw17-e9e5589 done
+#24 unpacking to docker.io/library/harness-backend:vw17-e9e5589 0.0s done
+#24 naming to docker.io/library/harness-backend:latest done
+#24 unpacking to docker.io/library/harness-backend:latest 0.0s done
+#24 DONE 0.3s
+
+#25 [identity-loadtest] resolving provenance for metadata file
+#25 DONE 0.0s
+
+#26 [migrate-loadtest] resolving provenance for metadata file
+#26 DONE 0.0s
+
+#27 [orchestrator-loadtest] resolving provenance for metadata file
+#27 DONE 0.0s
+ Image harness-backend:vw17-e9e5589 Built 
+ Image harness-backend:vw17-e9e5589 Built 
+ Image harness-backend:vw17-e9e5589 Built 

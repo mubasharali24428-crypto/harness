@@ -428,11 +428,14 @@ class BrowserSession:
             try:
                 self._proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                try:
-                    os.killpg(self._proc.pid, signal.SIGKILL)
-                except OSError:
-                    pass
-                self._proc.wait(timeout=5)
+                pass
+            # Renderers and helpers share the group; they can outlive the main process, so the
+            # group is signalled even when the leader already exited (an empty group is a no-op).
+            try:
+                os.killpg(self._proc.pid, signal.SIGKILL)
+            except OSError:
+                pass
+            self._proc.wait(timeout=5)
         if self._tmp:
             shutil.rmtree(self._tmp, ignore_errors=True)
         return {"closed": True, "profileRemoved": not Path(self._tmp).exists()}

@@ -1,0 +1,1 @@
+orchestrator-loadtest-1  | {"ts":"2026-10-31T06:32:06.891Z","level":"WARNING","logger":"harness_contracts.pricing","msg":"model 'stub' is priced by neither the catalog nor the operator rate card; metering it at the fallback rate (0.5 in / 1.5 out per million tokens)","requestId":null}

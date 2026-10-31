@@ -1463,7 +1463,9 @@ services:
 # every service relies on for `db`-style lookups.
 networks:
   default:
-    name: harness_default
+    # Overridable only so isolated drills (scripts/pitr_drill.sh) stay off the
+    # live network; the default is unchanged.
+    name: ${HARNESS_NETWORK_DEFAULT:-harness_default}
     driver: bridge
     attachable: true
   # No gateway: sandbox containers can only reach the egress proxy.
