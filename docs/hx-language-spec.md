@@ -134,8 +134,8 @@ Type      = Name [ "<" Type { "," Type } ">" ] [ "?" ] ;
 | `Map<K, V>` | keyed collection | Exactly two type arguments (`HX3008`). |
 | `Agent<T>` | a declared agent that returns `T` | Only in an `agent` declaration; anywhere else `HX3001`. |
 | `T?` | `Optional<T>` | A present `T` may stand where `T?` is expected; the reverse is `HX3002`. |
-| schema name | nominal record | Fields are checked on member access (`HX3004`). |
-| enum name | nominal enumeration | Members are declared, not constructed in 0.1.0. |
+| schema name | nominal record | Fields are checked on member access (`HX3004`); a record is built by naming every field (`Summary(text: "…")`, `HX3003`). |
+| enum name | nominal enumeration | A member is written `Level.high` and is a value of `Level`; an undeclared member is `HX3013`. |
 
 **Nominal, not structural.** Two schemas with identical fields are different
 types. There is no subtyping and no coercion: `Any` is the only universal
@@ -178,11 +178,12 @@ BudgetValue  = Int | Float [ Currency ] | Duration | String | "true" | "false" ;
 Params       = "(" [ Ident ":" Type { "," Ident ":" Type } ] ")" ;
 
 Block        = "{" { Statement } "}" ;
-Statement    = Let | Ensure | Return | If | Expr [ ";" ] ;
+Statement    = Let | Ensure | Return | If | For | Expr [ ";" ] ;
 Let          = "let" Ident [ ":" Type ] "=" Expr ;
 Ensure       = "ensure" Expr ;
 Return       = "return" [ Expr ] ;
 If           = "if" Expr Block [ "else" Block ] ;
+For          = "for" Ident "in" Expr Block ;
 
 Expr         = Or ;
 Or           = And { "or" And } ;
@@ -222,6 +223,14 @@ and for how long" by reading the top of it.
 - `return` ends a declaration. A `fn` or `workflow` returning anything other
   than `Any` must end with a `return`, or with an `if`/`else` whose both
   branches do (`HX3007`).
+- `for name in list` iterates a `List<T>` in order (`HX3014` otherwise), binding
+  `name` for the body and spending one `budget.steps` per pass (`HX5006` when the
+  workflow declares no steps). The list is the structural bound and the budget
+  is the spend bound, so a loop cannot outlive either: a list longer than the
+  remaining steps ends the run as `budget` (`HXH501`) at a recorded step, with
+  the iterations it did perform still in the event log. There is no `while` and
+  no mutation — the loop variable is a binding, not a cell — and a `for` inside a
+  pure `fn` is `HX4008`, because a pure function has no budget to point at.
 - An expression statement is evaluated for its effect; its value is discarded.
 
 ---
@@ -406,9 +415,9 @@ either.
 |---|---|---|
 | `HX1xxx` | Lexical | `HX1001` unexpected character · `HX1002` unterminated string · `HX1003` unterminated block comment · `HX1005` invalid escape |
 | `HX2xxx` | Syntax | `HX2001` expected token/expression · `HX2002` unclosed brace (reported at the opener) · `HX2003` expected a declaration · `HX2004` section/agent after the body · `HX2005` duplicate section |
-| `HX3xxx` | Names and types | `HX3001` unknown type / undeclared boundary schema / `Agent` misuse · `HX3002` type mismatch · `HX3003` arity or argument name · `HX3004` unknown schema field · `HX3005` unknown identifier, function or operation · `HX3006` duplicate declaration/field/member/setting/parameter · `HX3007` missing final return · `HX3008` wrong type-argument arity · `HX3009` unknown agent setting · `HX3010` agent without `role` · `HX3011` not callable / unreadable member / unknown agent operation · `HX3012` operator type error |
-| `HX4xxx` | Effects and capabilities | `HX4001` undeclared capability · `HX4002` unknown capability · `HX4003` effect in a pure `fn` · `HX4004` ambient operation · `HX4005` effect not awaited · `HX4006` authority from source · `HX4007` task never awaited |
-| `HX5xxx` | Budgets | `HX5001` unknown key · `HX5002` duplicate key · `HX5003` out of range · `HX5004` wrong type/units/currency · `HX5005` spawns exceed `budget.tasks` |
+| `HX3xxx` | Names and types | `HX3001` unknown type / undeclared boundary schema / `Agent` misuse · `HX3002` type mismatch · `HX3003` arity or argument name · `HX3004` unknown schema field · `HX3005` unknown identifier, function or operation · `HX3006` duplicate declaration/field/member/setting/parameter · `HX3007` missing final return · `HX3008` wrong type-argument arity · `HX3009` unknown agent setting · `HX3010` agent without `role` · `HX3011` not callable / unreadable member / unknown agent operation · `HX3012` operator type error · `HX3013` unknown enum member · `HX3014` `for` over a non-List |
+| `HX4xxx` | Effects and capabilities | `HX4001` undeclared capability · `HX4002` unknown capability · `HX4003` effect in a pure `fn` · `HX4004` ambient operation · `HX4005` effect not awaited · `HX4006` authority from source · `HX4007` task never awaited · `HX4008` loop in a pure `fn` |
+| `HX5xxx` | Budgets | `HX5001` unknown key · `HX5002` duplicate key · `HX5003` out of range · `HX5004` wrong type/units/currency · `HX5005` spawns exceed `budget.tasks` · `HX5006` `for` without `budget.steps` |
 | `HX6xxx` | Profiles | `HX6001` construct requires the `agent` profile · `HX6002` source may not select the profile |
 | `HX7xxx` | Warnings | `HX7001` capability declared but unused · `HX7002` no budget · `HX7003` spawn without `budget.tasks` · `HX7005` duplicate capability |
 
@@ -520,6 +529,10 @@ The reference implementation ships the tests that define conformance:
 | Driver: bridge | `tests/test_host_bridge.py` | One door; settled exit codes; refusals by name; root escape; secret paths; recording and replay. |
 | Driver: runtime | `tests/test_host_runtime.py` | End-to-end run, denial, each budget, cancellation, redaction, evidence, replay without a live host. |
 | Driver: CLI | `tests/test_host_cli.py` | `hxr plan` / `hxr run` exit codes 0–5, stdout/stderr split, evidence file. |
+| Driver: contract runner | `tests/test_host_contract_runner.py` | `hxr` is a `WorkflowRunner` for Section 4; a replay reproduces the digest without reaching the live host. |
+| Driver: model relay | `tests/test_host_model_relay.py` | A secret never reaches the outbound prompt, the log, the event stream or the evidence bundle; a downgrade is recorded, never performed. |
+| Growth | `tests/test_language_growth.py` | Each addition (enum values, record construction, loops) has code + fixture + golden, and what did not come in with them: no `while`, no modules. |
+| Live host | `section5/tests/unit/test_hx_live_host_ops.py` | One real `repo.read` and one real `verify.tests` through the shipped `LocalSandboxRunner`; skips loudly, never weakly, without an OS boundary. |
 
 To add a diagnostic: pick the namespace, add the code where it is emitted, add a
 fixture that triggers it, regenerate its golden, and read the diff. A code that
@@ -540,10 +553,13 @@ Deliberately absent, with the reason:
   anything else with `HXH102`. There is no ambient access of any kind: every
   effect crosses the host bridge.
 - **Module system.** Single file. `import` is rejected by name, not unknown.
-- **Loops and mutation.** Workflows are straight-line plus `if`/`else`. Loops
-  need a termination story tied to `budget.steps`; that is roadmap work.
-- **Struct literals and construction.** Schemas describe values that arrive
-  from host operations; the checker reads fields but does not build records.
+- **Mutation, `while`, and assignment.** `for` iterates a list and spends one
+  `budget.steps` per pass, so the data bounds the passes and the budget bounds
+  the spend. There is no `while` — it would need a termination proof this
+  language cannot offer — and no assignment or mutable binding.
+- **Construction out of thin air.** A record can be built (`Summary(text: "…")`)
+  from values the program already holds, and only for a type the program itself
+  declared. There is no anonymous struct literal and no construction on the wire.
 - **User-defined generics, traits, pattern matching.** None.
 - **Money/duration arithmetic.** Parseable and bounded, not computable.
 - **Approval verbs.** `approve`, `administer`, `billing`, `export` are not
@@ -568,7 +584,9 @@ language it accepts:
 | `await` on a host operation or an agent operation | executes through the bridge |
 | `spawn` … `await` of the task | executes on a bounded thread pool |
 | `fn` declarations and calls | executes |
-| enum member references, record construction | not executed (source builds no records in 0.1) |
+| `for x in list` … body | executes, spending one `budget.steps` per pass; the list ends it or the budget does (`HXH501`) |
+| enum member references (`Level.high`) | executes |
+| record construction (`Summary(text: "…")`) | executes; a field of the wrong type is refused on the spot (`HXH201`) |
 | anything else | `HXH102`, refused — never guessed |
 
 The order is the product claim, and it is the order of `run_source`:
@@ -579,10 +597,11 @@ The order is the product claim, and it is the order of `run_source`:
 3. **Authorise.** The host grants a subset of the manifest's request; an
    unrequested grant is not a grant, an ungranted request denies the run
    (`HXH401`), and the decision is asked again at every call site.
-4. **Run.** The workflow executes inside its declared `budget`; `steps`,
-   `tool_calls`, `tasks` and `duration` stop the run they name (`HXH501`),
-   cancellation takes effect at the next step (`HXH601`), and a host reply that
-   does not match its declared type fails at the boundary (`HXH301`).
+4. **Run.** The workflow executes inside its declared `budget`; `steps`
+   (including one per loop pass), `tool_calls`, `tasks` and `duration` stop the
+   run they name (`HXH501`), cancellation takes effect at the next step
+   (`HXH601`), and a host reply that does not match its declared type fails at
+   the boundary (`HXH301`).
 5. **Record.** `hx.evidence/v1`: source digest and size, manifest, policy
    decision, input digest (never values), every crossing with run id,
    correlation id and idempotency key, usage against declared limits, outcome,

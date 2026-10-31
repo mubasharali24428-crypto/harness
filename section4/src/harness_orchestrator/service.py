@@ -7,6 +7,7 @@ import queue
 import secrets
 import socket
 import time
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -15,6 +16,7 @@ from harness_contracts.events import EventType
 from harness_contracts.plan import AgentPlan
 from harness_contracts.signatures import Orchestrator
 from harness_contracts.timeutil import db_now
+from harness_contracts.workflow import WorkflowRequest, WorkflowResult, WorkflowRunner
 from sqlalchemy import text
 
 from harness_orchestrator import (
@@ -82,6 +84,7 @@ from harness_orchestrator.state_machine import (
     approved_at_from_wire,
     plan_approval_ttl_seconds,
 )
+from harness_orchestrator.workflow_runs import WorkflowRuns
 from harness_orchestrator.workspace_gate import check_run_start, enforce_run_start
 
 logger = logging.getLogger(__name__)
@@ -232,6 +235,7 @@ class OrchestratorService(Orchestrator):
         stale_seconds: int = 90,
         engine_runtime: EngineRuntime | None = None,
         context_transport=None,
+        workflow_runner: WorkflowRunner | None = None,
     ) -> None:
         self.planner = planner or PlanService()
         self.reviewer = reviewer or ReviewerSubAgent()
@@ -269,10 +273,19 @@ class OrchestratorService(Orchestrator):
         # without touching sibling code (isolation law) or ports.
         self.context_transport = context_transport
 
+        # M2: program runs. The runner is a contract implementation injected by
+        # the assembly point — this section never imports the Hx driver, so a
+        # workflow executes here without a section-to-section dependency.
+        self.workflows = WorkflowRuns(workflow_runner, self._emit, self._clean_event_text)
+
         # M19-N1: terminal runs are evicted from this cache — the durable
         # lifecycle (agent_events/agent_plans/agent_runs) is the source of
         # truth and replays deterministically, so RAM holds only live runs.
         self.runs: dict[str, dict[str, Any]] = {}
+        # M2: a run may execute at most one program at a time. Two concurrent
+        # runs would interleave their transcript events under the same runId,
+        # and a reviewer could not tell which call produced which result.
+        self._workflow_runs_in_flight: set[str] = set()
         self._bg_tasks: set[asyncio.Task] = set()
         self._fence_tasks: set[asyncio.Task] = set()  # claim-lost fences in flight
         # run_id -> monotonic deadline: another replica's worker held this run when it was
@@ -432,6 +445,17 @@ class OrchestratorService(Orchestrator):
             parts.append(rendered)
         return "\n\n".join(parts) + "\n\n" if parts else ""
 
+    def _clean_event_text(self, value: Any, limit: int = 4000) -> str:
+        """One scrubbing rule for every engine-derived string that reaches the bus.
+
+        The provider key is the only secret this process can name for certain, so
+        it is replaced literally; ``durable_event_text`` handles the encoding
+        hazards that would fail the insert. Both apply before truncation, so a
+        limit can never cut a secret in half and leave the halves stored.
+        """
+        key = getattr(self.engine, "api_key", "") or ""
+        return scrub_secrets(durable_event_text(value), key)[:limit]
+
     def _emit_tool_record(self, run_id: str, record: dict[str, Any]) -> None:
         """Bridge one engine tool record onto the project bus.
 
@@ -439,10 +463,8 @@ class OrchestratorService(Orchestrator):
         strings are scrubbed here rather than at the source: the arguments and
         output are model- and tool-authored text, and the transcript is durable.
         """
-        key = getattr(self.engine, "api_key", "") or ""
 
-        def _clean(value: Any, limit: int = 4000) -> str:
-            return scrub_secrets(durable_event_text(value), key)[:limit]
+        _clean = self._clean_event_text
 
         if record.get("phase") == "call":
             self._emit(
@@ -545,11 +567,43 @@ class OrchestratorService(Orchestrator):
                 pass
         await self._publish_safe(event_type, project_id, payload, run_id)
 
+    #: W17: the two engine-terminal events are the only durable answer a client
+    #: gets for a run. Losing one leaves the run stuck in "executing" forever
+    #: (load-ladder run 1, rung 16: execution_started + model_routed, no terminal,
+    #: claim released). Everything else may ride best-effort; these retry.
+    _TERMINAL_PUBLISH_EVENTS = (EventType.ENGINE_COMPLETED, EventType.ENGINE_FAILED)
+    _TERMINAL_PUBLISH_ATTEMPTS = 4
+
     async def _publish_safe(self, event_type, project_id, payload, run_id) -> None:
-        try:
-            await self.bus.publish(event_type, project_id, dict(payload), run_id)
-        except Exception:  # noqa: BLE001 — delivery must never break orchestration
-            logger.exception("eventbus publish failed for run %s", run_id)
+        attempts = (
+            OrchestratorService._TERMINAL_PUBLISH_ATTEMPTS
+            if event_type in OrchestratorService._TERMINAL_PUBLISH_EVENTS
+            else 1
+        )
+        for attempt in range(1, attempts + 1):
+            try:
+                await self.bus.publish(event_type, project_id, dict(payload), run_id)
+                if attempt > 1:
+                    logger.warning(
+                        "terminal event %s for run %s published on attempt %d",
+                        event_type.value, run_id, attempt,
+                    )
+                return
+            except Exception:  # noqa: BLE001 — delivery must never break orchestration
+                if attempt < attempts:
+                    logger.warning(
+                        "eventbus publish failed for run %s (%s, attempt %d/%d), retrying",
+                        run_id, event_type.value, attempt, attempts,
+                        exc_info=True,
+                    )
+                    await asyncio.sleep(0.25 * attempt)
+                    continue
+                logger.exception(
+                    "eventbus publish FAILED for run %s (%s) after %d attempts — "
+                    "run has no durable terminal event; clients must fall back "
+                    "to REST state",
+                    run_id, event_type.value, attempts,
+                )
 
     # ------------------------------------------------------------- budget
 
@@ -1298,6 +1352,76 @@ class OrchestratorService(Orchestrator):
         # end-to-end (legacy direct-spawn semantics preserved).
         sm.start_execution()
         self._spawn_execution(run_data, plan)
+
+    async def run_workflow(
+        self,
+        run_id: str,
+        program: str,
+        *,
+        workflow: str | None = None,
+        project_id: str | None = None,
+        grants: Sequence[str] = (),
+        principal_permissions: Sequence[str] | None = None,
+        principal: str = "anonymous",
+        policy: str = "harness",
+        profile: str = "agent",
+        inputs: Mapping[str, Any] | None = None,
+    ) -> WorkflowResult:
+        """Execute one Hx program for this run, through the injected runner.
+
+        The host decides grants; this method only carries the decision. Nothing
+        here approves, merges, or retries: a refusal is a settled outcome with a
+        terminal event, which is what lets a client stop waiting.
+        """
+        run_data = await self._ensure_run(run_id, project_id)
+        resolved = run_data.get("projectId") or await self._project_for_run(run_id)
+        if not resolved:
+            raise ValueError(
+                f"run '{run_id}' has no project; pass project_id= or persist the run first"
+            )
+        run_data["projectId"] = resolved
+        if run_id in self._workflow_runs_in_flight:
+            raise RuntimeError(f"run '{run_id}' is already executing a workflow")
+        request = WorkflowRequest(
+            runId=run_id,
+            projectId=resolved,
+            program=program,
+            workflow=workflow,
+            profile=profile,
+            grants=list(grants),
+            principalPermissions=(
+                None if principal_permissions is None else list(principal_permissions)
+            ),
+            principal=principal,
+            policy=policy,
+            inputs=dict(inputs or {}),
+        )
+        self._workflow_runs_in_flight.add(run_id)
+        try:
+            return await self.workflows.execute(request)
+        finally:
+            self._workflow_runs_in_flight.discard(run_id)
+
+    async def _project_for_run(self, run_id: str) -> str | None:
+        """The run's project, read when the caller did not name it.
+
+        None means "not known here" (bare unit mode or an unknown run) — the
+        caller decides what that means, rather than this helper inventing a
+        project id that would publish into somebody else's log.
+        """
+        if self.session_factory is None:
+            return None
+        try:
+            async with self.session_factory() as db:
+                row = (
+                    await db.execute(
+                        text("SELECT project_id FROM agent_runs WHERE id = :r"), {"r": run_id}
+                    )
+                ).first()
+                return row.project_id if row is not None else None
+        except Exception:  # noqa: BLE001 — no table / no DB: let the caller decide
+            logger.exception("project lookup failed for run %s", run_id)
+            return None
 
     def _spawn_execution(self, run_data: dict[str, Any], plan: AgentPlan) -> None:
         """Start one live engine task. Shared by start_execution and resume_agent

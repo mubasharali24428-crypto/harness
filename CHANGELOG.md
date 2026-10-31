@@ -10,6 +10,42 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Hx milestones M2–M5 — the driver becomes part of the Harness (2026-10-31)
+
+* **M2 — Section 4 runs a workflow, and the events land in Section 1.**
+  `section4/src/harness_orchestrator/workflow_runs.py` publishes what the driver
+  emits through the `WorkflowRunner` contract; `harness_hx_host/contract_runner.py`
+  is that runner. Ordering and durability are asserted against the contract, a
+  replay reproduces the digest without reaching the host, and
+  `make guard-isolation` still finds no cross-section edge.
+* **M3 — Section 5 is live.** `SandboxHostBridge` runs against the shipped
+  `LocalSandboxRunner` for one real `repo.read` and one real `verify.tests`
+  (`section5/tests/unit/test_hx_live_host_ops.py`), skipping loudly — with the
+  runner's own reason — where the kernel offers no OS boundary.
+* **M4 — model relay.** `model.invoke` goes through the Harness's `ModelRouter`
+  with the role the manifest declares; no router fails closed (`HXH403`); a
+  downgrade is recorded (`performed: false`) and never retried. One detector
+  (`harness_hx_host/secrets.py`) scrubs prompts, replies, logs, events and the
+  evidence bundle by content, closing the two places where free text escaped
+  the old name-based redaction (`call.start` args, `outcome.output`).
+* **M5 — three constructs.** Enum members (`HX3013`), record construction
+  (`HX3003`/`HX3004`) and `for … in …` (`HX3014`, `HX4008`, `HX5006`) — bounded
+  by the list and by `budget.steps`, one step per pass, so a list longer than the
+  budget ends as `budget`/`HXH501` at a recorded step. Each ships code + fixture
+  + golden; `test_language_growth.py` also pins what did not arrive: no `while`,
+  no assignment, no modules.
+
+### Contracts 1.0.0rc7 — the workflow-run contract (2026-10-31, additive)
+
+* **A program run now has a contract instead of an import.** Section 4 has to
+  execute an Hx workflow, and the isolation law says a section imports only
+  `harness_contracts` — so the seam is the contract, not the driver:
+  `harness_contracts.workflow` defines `WorkflowRequest` / `WorkflowResult` /
+  `WorkflowOperation` and the `WorkflowRunner` Protocol. Section 4 calls the
+  Protocol, the driver implements it, and `deploy/` is the only place that
+  knows both. Nothing existing changed; `contracts/ts/generate.py --check`
+  stays green because the generated mirror covers events/roles/plan only.
+
 ### Marathon 2.0 W16 — enterprise readiness (2026-10-29)
 
 * **A revoked seat is revoked everywhere.** `users.is_active` was a hint — it

@@ -1,4 +1,4 @@
-// TS mirror of harness_contracts v1.0.0rc6 (Python is source of truth).
+// TS mirror of harness_contracts v1.0.0rc7 (Python is source of truth).
 // Regenerate by hand only on a deliberate contracts version bump.
 
 export type Role = "admin" | "engineer" | "viewer" | "guest";
@@ -67,4 +67,49 @@ export interface AgentPlan {
 
 export interface ApiError {
   error: { code: string; message: string };
+}
+
+// -- 1.0.0rc7: the workflow-run contract (harness_contracts.workflow) --------
+
+export type WorkflowStatus =
+  | "ok"
+  | "refused"
+  | "denied"
+  | "budget"
+  | "cancelled"
+  | "error";
+
+/** One crossing of the host boundary, as the run reported it. */
+export interface WorkflowOperation {
+  callId: string;
+  operation: string;
+  ok: boolean;
+  arguments?: string;
+  error?: string | null;
+  durationMs?: number;
+}
+
+export interface WorkflowRequest {
+  runId: string;
+  projectId: string;
+  program: string;
+  workflow?: string | null;
+  profile?: "core" | "agent";
+  grants?: string[];
+  principalPermissions?: string[] | null;
+  principal?: string;
+  policy?: string;
+  inputs?: Record<string, unknown>;
+}
+
+export interface WorkflowResult {
+  status: WorkflowStatus;
+  code?: string | null;
+  message?: string;
+  workflow?: string | null;
+  output?: unknown;
+  digest?: string;
+  evidence?: Record<string, unknown>;
+  operations?: WorkflowOperation[];
+  diagnostics?: Record<string, unknown>[];
 }

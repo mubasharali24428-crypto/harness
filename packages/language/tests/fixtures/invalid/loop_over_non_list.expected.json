@@ -1,0 +1,9 @@
+[
+  {
+    "line": 4,
+    "col": 15,
+    "kind": "error",
+    "code": "HX3014",
+    "message": "'for' iterates a List, found String"
+  }
+]

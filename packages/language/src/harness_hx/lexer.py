@@ -30,6 +30,8 @@ KEYWORDS = frozenset(
         "return",
         "if",
         "else",
+        "for",
+        "in",
         "await",
         "spawn",
         "true",

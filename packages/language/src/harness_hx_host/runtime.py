@@ -2,10 +2,12 @@
 
 This is deliberately **not** a general-purpose interpreter. It executes the
 construct set the agent profile's target workflow uses — straight-line ``let``,
-``await``, ``spawn``/join, ``ensure``, ``if``, ``return``, pure ``fn`` calls and
-calls to the closed host-operation table — and refuses anything else with
-``HXH102``. There is no loop, no assignment, no closure, no module system, and
-no way to name an operation that is not in ``harness_hx.capabilities``.
+``await``, ``spawn``/join, ``ensure``, ``if``, ``for`` over a list, enum member
+values, record construction, ``return``, pure ``fn`` calls and calls to the
+closed host-operation table — and refuses anything else with ``HXH102``. There
+is no ``while``, no assignment, no closure and no module system, and no way to
+name an operation that is not in ``harness_hx.capabilities``. ``for`` is bounded
+by the list it iterates and by ``budget.steps``, which it spends once per pass.
 
 Three rules are enforced here that the checker can only *describe*:
 
@@ -26,7 +28,7 @@ from __future__ import annotations
 import hashlib
 import threading
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any
@@ -53,13 +55,20 @@ from .errors import (
     NotRunnable,
     ScriptError,
 )
+from .secrets import scrub_text
 
 _DURATION_UNITS_MS = {"ms": 1, "s": 1000, "m": 60_000, "h": 3_600_000}
 _SENSITIVE = ("secret", "token", "password", "passwd", "api_key", "apikey", "credential", "private")
 
 
 def _redact(value: Any, depth: int = 0) -> Any:
-    """Keys that name a secret never reach an event, a log or the evidence bundle."""
+    """Keys that name a secret never reach an event, a log or the evidence bundle.
+
+    Key names are only half of it: a payload is free text, and a repository file
+    or a model reply carries a token under a key called ``input``. So string
+    values are scrubbed by *shape* as well, which is what makes the event log a
+    surface a secret cannot reach rather than one it merely usually misses.
+    """
     if depth > 6:
         return "…"
     if isinstance(value, Mapping):
@@ -75,7 +84,9 @@ def _redact(value: Any, depth: int = 0) -> Any:
         return [_redact(item, depth + 1) for item in value]
     if isinstance(value, SchemaValue):
         return _redact(value.to_json(), depth + 1)
-    if isinstance(value, (str, int, float, bool)) or value is None:
+    if isinstance(value, str):
+        return scrub_text(value)
+    if isinstance(value, (int, float, bool)) or value is None:
         return value
     return f"<{type(value).__name__}>"
 
@@ -199,6 +210,9 @@ class Runtime:
         self._lock = threading.Lock()
         self._seq = 0
         self.schemas = {decl.name: decl for decl in program.decls if isinstance(decl, A.SchemaDecl)}
+        self.enums = {decl.name: decl for decl in program.decls if isinstance(decl, A.EnumDecl)}
+        # One nominal namespace at the boundary: schemas and enums validate alike.
+        self.types: dict[str, Any] = {**self.schemas, **self.enums}
         self.functions = {decl.name: decl for decl in program.decls if isinstance(decl, A.FnDecl)}
         self.agents = {agent.name: agent for agent in workflow.agents}
         # Spawned work is bounded twice: by budget.tasks (enforced) and by the pool.
@@ -267,7 +281,7 @@ class Runtime:
                 value = validate(
                     type_name_text(statement.annotation),
                     value,
-                    self.schemas,
+                    self.types,
                     error=ScriptError,
                     where=f"let {statement.name}",
                 )
@@ -289,6 +303,9 @@ class Runtime:
             elif statement.orelse is not None:
                 self._block(statement.orelse)
             return
+        if isinstance(statement, A.ForStmt):
+            self._loop(statement)
+            return
         if isinstance(statement, A.ExprStmt):
             self._eval(statement.value)
             return
@@ -297,6 +314,32 @@ class Runtime:
             line=statement.line,
             col=statement.col,
         )
+
+    def _loop(self, statement: A.ForStmt) -> None:
+        """Iterate a list, paying one step per pass.
+
+        This is the whole termination story: the list bounds the passes, the
+        budget bounds the spend, and whichever runs out first is the one the run
+        reports. A long list is a budget stop at a recorded step, never a hang,
+        and a cancelled run stops between passes rather than inside one.
+        """
+        items = self._eval(statement.iterable)
+        if isinstance(items, SchemaValue) or not isinstance(items, Sequence) or isinstance(
+            items, (str, bytes)
+        ):
+            raise ScriptError(
+                f"'for' iterates a List, found {type(items).__name__}",
+                line=statement.line,
+                col=statement.col,
+            )
+        for index, item in enumerate(items):
+            self._tick(statement.line, statement.col)
+            self.event("loop.iteration", line=statement.line, index=index)
+            self._scopes.append({statement.name: item})
+            try:
+                self._block(statement.body)
+            finally:
+                self._scopes.pop()
 
     # -- expressions ------------------------------------------------------
 
@@ -314,6 +357,8 @@ class Runtime:
         if isinstance(node, A.Ident):
             return self._lookup(node.name, node)
         if isinstance(node, A.Member):
+            if isinstance(node.base, A.Ident) and node.base.name in self.enums:
+                return self._enum_member(node)
             base = self._eval(node.base)
             return self._member(base, node)
         if isinstance(node, A.Await):
@@ -362,6 +407,18 @@ class Runtime:
             line=node.line,
             col=node.col,
         )
+
+    def _enum_member(self, node: A.Member) -> str:
+        """``Severity.high`` is the string ``high``, checked against the declaration."""
+        decl = self.enums[node.base.name]
+        members = [member.name for member in decl.members]
+        if node.name not in members:
+            raise ScriptError(
+                f"enum '{decl.name}' has no member '{node.name}'",
+                line=node.line,
+                col=node.col,
+            )
+        return node.name
 
     def _member(self, base: Any, node: A.Member) -> Any:
         if isinstance(base, SchemaValue):
@@ -477,17 +534,31 @@ class Runtime:
             )
         for name, type_text in params:
             bound[name] = validate(
-                type_text, bound[name], self.schemas, error=ScriptError, where=f"argument {name}"
+                type_text, bound[name], self.types, error=ScriptError, where=f"argument {name}"
             )
         return bound, positional
 
     def _call(self, node: A.Call) -> Any:
+        if isinstance(node.callee, A.Ident) and node.callee.name in self.schemas:
+            return self._record(node)
         name, capability = self._callee(node)
         if name in self.functions and capability is None:
             return self._user_call(self.functions[name], node)
         if capability is not None:
             return self._effect(node, name)
         return self._pure_call(node, name)
+
+    def _record(self, node: A.Call) -> Any:
+        """``Summary(text: "ok")``: every field named, then validated as written."""
+        name = node.callee.name
+        if node.args:
+            raise ScriptError(
+                f"'{name}' is constructed with named fields", line=node.line, col=node.col
+            )
+        values = {kwarg.name: self._eval(kwarg.value) for kwarg in node.kwargs}
+        return validate(
+            name, values, self.types, error=ScriptError, where=f"{name} construction"
+        )
 
     def _user_call(self, decl: A.FnDecl, node: A.Call) -> Any:
         params = tuple((param.name, type_name_text(param.type)) for param in decl.params)
@@ -499,7 +570,7 @@ class Runtime:
             return validate(
                 type_name_text(decl.returns),
                 returned.value,
-                self.schemas,
+                self.types,
                 error=ScriptError,
                 where=f"return of {decl.name}",
             )
@@ -530,7 +601,7 @@ class Runtime:
             self.event("call.failed", operation=operation.name, capability=operation.capability,
                        error=error.code)
             raise
-        result = host_result(operation.returns, value, self.schemas, operation.name)
+        result = host_result(operation.returns, value, self.types, operation.name)
         self.event(
             "call.finished",
             operation=operation.name,
@@ -581,7 +652,7 @@ class Runtime:
             return validate(
                 operation.returns,
                 dict(zip(fields, positional, strict=True)),
-                self.schemas,
+                self.types,
                 error=ScriptError,
                 where=f"{name} result",
             )
@@ -605,7 +676,7 @@ class Runtime:
             raise
         except Exception as error:  # noqa: BLE001
             raise HostUnavailable(f"{name} failed in the model relay: {error}") from error
-        result = host_result(type_name_text(agent.type.args[0]), reply, self.schemas, name)
+        result = host_result(type_name_text(agent.type.args[0]), reply, self.types, name)
         self.event(
             "call.finished",
             operation=name,
@@ -639,7 +710,7 @@ class Runtime:
                 if name not in self.inputs:
                     raise ScriptError(f"workflow input '{name}' was not supplied")
                 self._scopes[-1][name] = validate(
-                    type_text, self.inputs[name], self.schemas, error=ScriptError,
+                    type_text, self.inputs[name], self.types, error=ScriptError,
                     where=f"input {name}",
                 )
             self.event("run.started", workflow=self.workflow.name, profile="agent")
@@ -649,7 +720,7 @@ class Runtime:
                 return validate(
                     type_name_text(self.workflow.returns),
                     returned.value,
-                    self.schemas,
+                    self.types,
                     error=ScriptError,
                     where="workflow return",
                 )

@@ -185,6 +185,10 @@ but no test proves the property.
 | Evidence bundle (`hx.evidence/v1`) with correlation and idempotency | implemented | `test_host_runtime.py` |
 | Recorded run replays with no live host | implemented | `RecordingBridge` / `ReplayBridge` tests |
 | `hxr plan` / `hxr run`, exit codes 0–5, stdout machine-readable | implemented | `test_host_cli.py` (10) |
+| Secrets found by content, not by key name, on every surface | implemented (M4) | `test_host_model_relay.py` (10) — prompt, log, event, evidence |
+| `model.invoke` routed with the declared role; downgrade recorded, never performed | implemented (M4) | `test_host_model_relay.py` |
+| The driver IS Section 4's `WorkflowRunner`; its events reach Section 1 | implemented (M2) | `test_host_contract_runner.py` (10); `section4/tests/unit/test_workflow_*.py` (13) |
+| `for` over a list, one `budget.steps` per pass | implemented (M5) | `test_language_growth.py` (15) |
 | `cost` budget enforced | **partial** — parsed and reported, never enforced (no price model in the driver) | `runtime.py` `Budget` |
 | Mid-run revocation of a grant | **partial** — the per-call check consults the same immutable `Decision`; revocation means a new decision | `runtime.py` `_require` |
 
@@ -194,18 +198,18 @@ but no test proves the property.
 |---|---|---|
 | `FakeHostBridge` | implemented | deterministic; used by every runtime test |
 | `ReadOnlyRepoBridge` (local) | implemented | one root, secret names/suffixes refused, containment enforced, tests/models refused with `HXH403` |
-| `SandboxHostBridge` (Section 2 reads + Section 5 `exec_structured`) | **unverified** | unit-tested against stub sandboxes and a stub repository; never run against a live Section 5 container |
+| `SandboxHostBridge` (Section 2 reads + Section 5 `exec_structured`) | implemented (M3) | live against the shipped `LocalSandboxRunner` — Seatbelt on macOS, Landlock on Linux — for one real `repo.read` and one real `verify.tests`; unit-tested against stub sandboxes elsewhere |
 | `RecordingBridge` / `ReplayBridge` | implemented | replay refuses any exchange it did not record |
-| Model relay (`model.invoke` through Harness routing) | **planned** — adapters take a host-supplied `agents` mapping today | no router call exists in this package |
+| Model relay (`model.invoke` through Harness routing) | implemented (M4) | `ModelRelay` takes a `ModelRouter` and the agents' declared settings; without a router it fails closed (`HXH403`) rather than answering as itself |
 
 ### 4.4 Harness integration
 
 | Integration | Status |
 |---|---|
 | Sections import only `harness_contracts` | **preserved** — no section imports the driver; it lives in `packages/language` |
-| Section 4 engine calls the driver | planned (M2) |
-| Events persisted via Section 1 `agent_events` | planned (M2); today events go to the caller's `emit` callback and the evidence bundle |
-| Section 5 confinement used for `verify.tests` | partial (adapter exists; live run is M3) |
+| Section 4 engine calls the driver | implemented (M2) — `workflow_runs.py` takes a `WorkflowRunner` and publishes the run's events |
+| Events persisted via Section 1 `agent_events` | implemented (M2) — Section 4 publishes, Section 1 persists; ordering is asserted against the contract, not assumed |
+| Section 5 confinement used for `verify.tests` | implemented (M3) — live `exec_structured`; a refused path is refused by the same policy check as before |
 | Human approval / review surface | out of scope by design — the evidence says `approved: false` and stops |
 
 ### 4.5 Hermes (unchanged by this milestone)
@@ -229,7 +233,7 @@ but no test proves the property.
 
 ## 5. Tests, and what each one is for
 
-`packages/language`: **219 passed**, `ruff check` clean.
+`packages/language`: **261 passed**, `ruff check` clean.
 
 | File | Tests | What it proves |
 |---|---|---|
@@ -238,11 +242,17 @@ but no test proves the property.
 | `test_host_bridge.py` | 13 | call ordering; content-addressed proposals; settled exit code → evidence; streaming-only refusal; unlisted suite; repository protocol; missing adapter; root escape; secret paths; no deadlock inside a running loop |
 | `test_host_authority.py` | 9 | deny-by-default; grants; permission mapping; human-only invariant; the driver's permission names are the frozen contract's; corrupt manifest; pure op; digest binding; decision JSON |
 | `test_host_cli.py` | 10 | plan/deny/grant/JSON; run + evidence file; denial; missing file; check errors; wrong digest; host refusal; inputs must be an object |
-| checker suites | 153 | lexer, parser, types, effects, budgets, profiles, manifest, wire, goldens (incl. the three demo programs), seeded faults |
+| `test_host_contract_runner.py` | 10 | the driver is a `WorkflowRunner`; a replay reproduces the digest without reaching the live host; a replay missing an exchange fails honestly |
+| `test_host_model_relay.py` | 10 | the secret is absent from the captured prompt, the log, the events and the evidence; an echoed secret is scrubbed on the way back; no router fails closed; a downgrade is recorded once and not retried; a provider error is scrubbed on all three surfaces |
+| `test_language_growth.py` | 15 | enums, record construction and `for` each have code + fixture + golden; 500 files under `budget { steps: 5 }` ends as `budget`/`HXH501` with its performed iterations still in the log; no `while`, no modules |
+| checker suites | 160 | lexer, parser, types, effects, budgets, profiles, manifest, wire, goldens (incl. the three demo programs), seeded faults, growth |
 
 Determinism: every driver test uses an injected clock, an in-memory bridge and no
-network, container or model. The one real-host interaction in this document is
-§3's CLI transcript, which reads files inside a temp directory.
+network, container or model — with exactly two exceptions, both deliberate: §3's
+CLI transcript reads files in a temp directory, and
+`section5/tests/unit/test_hx_live_host_ops.py` runs the real confined runner. The
+live test is skipped, loudly and with the runner's own reason, on a host with no
+OS boundary; it never weakens into a fake.
 
 ---
 
@@ -254,16 +264,20 @@ network, container or model. The one real-host interaction in this document is
    boundary. Real confinement stays Section 5's job.
 2. **Trust sits in the bridge.** `SandboxHostBridge` is honest about refusing
    what it lacks an adapter for, but it is only as safe as the Section 5 handle
-   and allow-listed commands the host gives it. That wiring has not been run
-   live.
-3. **Events are emitted, not persisted.** The driver calls `emit` and returns the
-   evidence; it does not write `agent_events`. Section 1 owns persistence and
-   Section 4 owns semantics, so this is a wiring gap (M2), not a licence to
-   invent a second event store.
-4. **Redaction is name-based.** Keys containing `secret`, `token`, `password`,
-   `credential`, `private`, `api_key` are masked. A secret pasted into a
-   free-text field is not detected; that needs content scanning, which is not in
-   this milestone.
+   and allow-listed commands the host gives it. That wiring has been run live
+   for two operations (M3); everything else is as safe as the host's policy,
+   which this document does not own.
+3. **Events are emitted, then published.** The driver calls `emit` and returns
+   the evidence; it does not write `agent_events` itself. Section 4 publishes and
+   Section 1 persists (M2) — the driver still owns no storage, which is why a run
+   has to be given a runner rather than reaching into a database.
+4. **Redaction is by shape, not by semantics.** Keys containing `secret`,
+   `token`, `password`, `credential`, `private`, `api_key` are masked, and free
+   text is scanned for the shapes secrets actually take (PEM blocks, `sk-`,
+   `ghp_`, `AKIA`, `AIza`, `xoxb-`, JWTs, `://user:pass@`). A secret in a shape
+   nobody has seen yet still gets through: the detector recognises prefixes, not
+   entropy, so undetected shapes are a listed gap rather than a claim of
+   completeness.
 5. **Replay covers successes only.** A failed exchange is not recorded, so a
    replay of a failing run re-raises `HXH403` rather than the original failure.
 6. **No retries, no idempotency beyond keys.** The driver issues each call once
@@ -288,13 +302,15 @@ network, container or model. The one real-host interaction in this document is
 | # | Milestone | Gate (all must hold before the next starts) |
 |---|---|---|
 | **M1** ✅ | Vertical slice: check → authorise → one allow-listed host op → typed validation → evidence; denial, cancellation, budget; replay | `packages/language` suite green; `hxr` exit codes as documented; §3 reproduced |
-| **M2** | Section 4 executes a workflow through `run_source`, and events reach Section 1's `agent_events` | Sections 1/4 suites still pass; event ordering + correlation asserted against the contract; a replay produces identical evidence; no section imports anything but `harness_contracts` |
-| **M3** | Live Section 5: `SandboxHostBridge` over a real confined `exec_structured`, allow-listed commands from policy | one real read + one real test suite run in CI (docker); confinement tests unchanged; a refused path is refused for the same reason as before |
-| **M4** | Model relay: `model.invoke` routed by the Harness, roles from the manifest, no forced downgrade | no secret value in any prompt, log or event (test asserts on captured prompts); downgrade attempt is recorded, not performed |
-| **M5** | Language growth, in this order: `enum` values in source; record construction; loops with a `budget.steps` termination story | each addition ships a code, a fixture, a golden and a test that the closed set changed deliberately |
+| **M2** ✅ | Section 4 executes a workflow through `run_source`, and events reach Section 1's `agent_events` | Sections 1/4 suites still pass (1222 + 1933); event ordering + correlation asserted against the contract; a replay produces identical evidence; no section imports anything but `harness_contracts` (`make guard-isolation`) |
+| **M3** ✅ | Live Section 5: `SandboxHostBridge` over a real confined `exec_structured`, allow-listed commands from policy | one real read + one real test suite run through the shipped runner; confinement tests unchanged; a refused path is refused for the same reason as before |
+| **M4** ✅ | Model relay: `model.invoke` routed by the Harness, roles from the manifest, no forced downgrade | no secret value in any prompt, log, event or evidence (the test asserts on captured prompts); downgrade attempt is recorded, not performed |
+| **M5** ✅ | Language growth: `enum` values in source; record construction; loops with a `budget.steps` termination story | each addition ships a code, a fixture, a golden and a test that the closed set changed deliberately (`test_language_growth.py`) |
 
 Out of scope until M3 is green: any claim that a run is *confined*. Until M2 is
-green: any claim that a run is *audited*.
+green: any claim that a run is *audited*. Both are green now; the claims they
+gate are limited by §6, not by this table — a run is audited as far as Section 1
+persists it and confined as far as the `LocalSandboxRunner` policy goes.
 
 ---
 
@@ -304,9 +320,81 @@ green: any claim that a run is *audited*.
 |---|---|
 | Checker, manifest, `hxc` | `packages/language/src/harness_hx/` |
 | Driver, bridges, `hxr` | `packages/language/src/harness_hx_host/` |
+| Secret detector (prefixes, PEM, JWT, URL credentials) | `packages/language/src/harness_hx_host/secrets.py` |
+| Model relay (roles, scrubbing both ways, downgrade record) | `packages/language/src/harness_hx_host/model_relay.py` |
+| `WorkflowRunner` adapter for Section 4 | `packages/language/src/harness_hx_host/contract_runner.py` |
+| Section 4 run + publish | `section4/src/harness_orchestrator/workflow_runs.py` |
+| Live Section 5 seam | `section5/tests/unit/test_hx_live_host_ops.py` |
 | Target workflow | `packages/language/tests/fixtures/valid/fix_issue.hx` |
 | Demo programs (§3) | `packages/language/tests/fixtures/valid/{read_one,needs_tests,stops_at_budget}.hx` |
 | Language specification | `docs/hx-language-spec.md` (§12.1 is the driver) |
 | Original proposal | `docs/hermes-agentic-language-plan.md` |
 | Package README | `packages/language/README.md` |
 | Hermes conventions and batch status | `/Users/user/Compiler_Project/hermes/UPGRADE_KNOWLEDGE_GRAPH.md` |
+
+---
+
+## 9. The M2–M5 record
+
+What each milestone added, and the check that made it true rather than planned.
+
+**M2 — Section 4 runs a workflow.** `workflow_runs.py` takes a `WorkflowRunner`
+and publishes the events the driver emits; `contract_runner.py` makes `hxr`
+that runner. It is wired to the frozen `WorkflowStatus` / `WorkflowOperation` /
+`WorkflowRequest` / `WorkflowResult` surface (`contracts/workflow.py`), which is
+why the contracts package is `1.0.0rc7` — an additive change with the TS mirror
+updated in the same commit, not a silent one.
+
+> Gate: section 1 **1222 passed, 63 skipped**; section 4 **1933 passed, 59
+> skipped**; `test_a_successful_run_publishes_in_causal_order` and
+> `test_the_transcript_is_durable_and_causally_ordered` assert order against the
+> contract; `test_a_replay_reproduces_the_digest_without_touching_the_host`
+> asserts identity; `test_the_section_imports_only_contracts_and_itself` plus
+> `make guard-isolation` (275 src files, no cross-section edge) assert the import
+> rule.
+
+**M3 — Section 5, live.** The same `SandboxHostBridge` that unit tests stubbed
+now runs against the shipped `LocalSandboxRunner`: one real `repo.read` (content
+through streaming `exec`) and one real `verify.tests` (a verdict through settled
+`exec_structured`), with the path checked before the command exists and a
+forbidden path refused by the same policy as before.
+
+> Gate: `section5/tests/unit/test_hx_live_host_ops.py`, **4 passed** on macOS
+> (Seatbelt). In CI it runs under the `section5` matrix job; where the kernel
+> offers no boundary the test **skips with the runner's own reason** instead of
+> proving something weaker than the product claims.
+
+**M4 — Model relay.** `ModelRelay` turns the manifest's `agent` declarations
+into `ModelRouter.call_model` calls (role from source, overridable by the host,
+never the reverse), fails closed with `HXH403` when there is no router, and
+records a downgrade (`performed: false`) instead of retrying it. One detector
+(`secrets.py`) runs on the outbound prompt, the inbound reply, every log line,
+every event payload and the evidence bundle — the last two because the old
+key-name redaction let a secret through in free text under `input` and in
+`outcome.output`.
+
+> Gate: `test_host_model_relay.py`, **10 passed**. The assertions are on the
+> *captured* prompt and on `caplog`, not on intent; the report carries
+> `promptSha256` and `promptBytes`, never the messages. What is scrubbed is
+> reported as a count by kind, never as the value.
+
+**M5 — The language grew by three constructs.** Enum members (`Level.high`,
+`HX3013` for an undeclared one), record construction (`Summary(text: "…")`,
+with `HX3003`/`HX3004` and a runtime refusal for a wrong field), and `for x in
+list` (`HX3014` non-list, `HX4008` in a pure `fn`, `HX5006` without
+`budget.steps`). Each came with code + valid fixture + refusal fixture + golden.
+
+> Gate: `test_language_growth.py`, **15 passed**, including the termination
+> story demonstrated rather than asserted: 500 files under `budget { steps: 5 }`
+> ends as `status == "budget"`, `HXH501`, `"budget.steps (5)"`, with 1–5
+> `loop.iteration` events still in the log. The same file pins what did **not**
+> arrive: no `while` (it would need a termination proof this language cannot
+> offer), no assignment, no modules.
+
+Suite totals after M5: `packages/language` **261 passed**, `ruff` clean.
+
+**What is still open**, so nobody reads this table as more than it says:
+`cost` is declared and reported, never enforced; a grant cannot be revoked
+mid-run; replay covers successes only; the detector knows prefixes, not entropy;
+and `for` has no `break` — a loop exits by returning or by exhausting its list
+or its budget. Each is in §6 or §4.2 as a named partial, not a footnote here.

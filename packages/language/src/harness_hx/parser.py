@@ -411,6 +411,8 @@ class Parser:
             return A.ReturnStmt(self._parse_expr(), token.line, token.col)
         if token.kind == "if":
             return self._parse_if()
+        if token.kind == "for":
+            return self._parse_for()
         expression = self._parse_expr()
         self.match(";")
         return A.ExprStmt(expression, token.line, token.col)
@@ -421,6 +423,14 @@ class Parser:
         then = self._parse_block()
         orelse = self._parse_block() if self.match("else") else None
         return A.IfStmt(condition, then, orelse, keyword.line, keyword.col)
+
+    def _parse_for(self) -> A.ForStmt:
+        keyword = self.advance()
+        name = self.expect("ident", "expected a loop variable name")
+        self.expect("in", f"expected 'in' after loop variable {name.value!r}")
+        iterable = self._parse_expr()
+        body = self._parse_block()
+        return A.ForStmt(name.value, iterable, body, keyword.line, keyword.col)
 
     # -- expressions ------------------------------------------------------
     def _parse_expr(self) -> A.Expr:

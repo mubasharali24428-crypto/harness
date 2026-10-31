@@ -1,9 +1,9 @@
 [
   {
-    "line": 6,
+    "line": 7,
     "col": 11,
     "kind": "error",
     "code": "HX3011",
-    "message": "'Issue' names a type and is not callable"
+    "message": "'Level' is an enum; a value is written 'Level.member'"
   }
 ]

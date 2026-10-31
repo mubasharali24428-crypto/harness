@@ -9,6 +9,9 @@ Nominal, not structural: two schemas with identical fields are different
 types, an unknown field is an error (fail closed, never silently drop data),
 and a missing field is an error. ``Any`` is the only universal match, and it
 exists for the checker's escape hatch, not for privileged results.
+
+Enums are validated the same way and in the same place: a value of an enum type
+is one of the members the program declared, or it does not cross.
 """
 
 from __future__ import annotations
@@ -91,24 +94,24 @@ def split_type(text: str) -> tuple[str, list[str]]:
 def validate(
     type_text: str,
     value: Any,
-    schemas: Mapping[str, Any],
+    types: Mapping[str, Any],
     *,
     error: type[HxHostError] = ScriptError,
     where: str | None = None,
 ) -> Any:
     """Validate ``value`` against ``type_text`` or raise ``error``.
 
-    The failure names the field path, because "RepoFile.text is not a String"
-    is actionable and "invalid host result" is not.
+    ``types`` is the program's declared schemas *and* enums: both are nominal
+    types, and a value of either has to be one the source wrote down.
     """
     text = type_text.strip()
     if text.endswith("?"):
         if value is None:
             return None
-        return validate(text[:-1], value, schemas, error=error, where=where)
+        return validate(text[:-1], value, types, error=error, where=where)
     name, args = split_type(text)
     # At the top level, name the type being validated; "value" says nothing.
-    where = where or (name if name in schemas else "value")
+    where = where or (name if name in types else "value")
     if name == "Any":
         return value
     if name in PRIMITIVES:
@@ -126,7 +129,7 @@ def validate(
         if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
             raise error(f"{where} must be List<{args[0]}>, got {type(value).__name__}")
         return [
-            validate(args[0], item, schemas, error=error, where=f"{where}[{index}]")
+            validate(args[0], item, types, error=error, where=f"{where}[{index}]")
             for index, item in enumerate(value)
         ]
     if name == "Map":
@@ -138,11 +141,18 @@ def validate(
         for key, item in value.items():
             if args[0] == "String" and not isinstance(key, str):
                 raise error(f"{where}: Map key {key!r} must be String")
-            out[key] = validate(args[1], item, schemas, error=error, where=f"{where}[{key!r}]")
+            out[key] = validate(args[1], item, types, error=error, where=f"{where}[{key!r}]")
         return out
-    schema = schemas.get(name)
+    schema = types.get(name)
     if schema is None:
         raise error(f"{where}: no schema named '{name}' is declared in this program")
+    if hasattr(schema, "members"):
+        members = [member.name for member in schema.members]
+        if not isinstance(value, str) or value not in members:
+            raise error(
+                f"{where} must be one of {', '.join(members)}, got {value!r}"
+            )
+        return value
     if isinstance(value, SchemaValue):
         if value.name != name:
             raise error(f"{where} must be {name}, got {value.name}")
@@ -162,7 +172,7 @@ def validate(
         field_name: validate(
             type_name_text(declared[field_name]),
             source[field_name],
-            schemas,
+            types,
             error=error,
             where=f"{where}.{field_name}",
         )
@@ -183,12 +193,12 @@ def type_name_text(type_ref: Any) -> str:
     return name
 
 
-def host_result(type_text: str, value: Any, schemas: Mapping[str, Any], operation: str) -> Any:
+def host_result(type_text: str, value: Any, types: Mapping[str, Any], operation: str) -> Any:
     """Validate one host reply. A mismatch is the host's bug, not the program's."""
     return validate(
         type_text,
         value,
-        schemas,
+        types,
         error=InvalidHostResult,
         where=f"{operation} result",
     )

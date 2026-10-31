@@ -485,6 +485,47 @@ class Checker:
         for statement in block.statements:
             self._stmt(statement, context)
 
+    def _check_for(self, statement: A.ForStmt, context: Context) -> None:
+        """A loop is bounded twice, and both bounds are written down.
+
+        The list bounds how many iterations can happen; ``budget.steps`` bounds
+        what the run may spend proving it. A loop over a long list is therefore
+        not a hang — it is a budget stop at a recorded step. A loop in a pure
+        ``fn`` has no budget to point at, so it is refused rather than trusted.
+        """
+        actual, _ = self._expr(statement.iterable, context)
+        element = "Any"
+        if actual.startswith("List<") and actual.endswith(">"):
+            element = actual[len("List<") : -1]
+        elif actual != "Any":
+            self.report.error(
+                "HX3014",
+                f"'for' iterates a List, found {actual}",
+                statement.iterable.line,
+                statement.iterable.col,
+            )
+        if context.kind != "workflow":
+            self.report.error(
+                "HX4008",
+                "'for' cannot run in a pure fn; a loop needs the workflow's budget.steps",
+                statement.line,
+                statement.col,
+            )
+        elif context.budget.get("steps") is None:
+            self.report.error(
+                "HX5006",
+                "'for' needs budget.steps: the loop's termination story is the budget",
+                statement.line,
+                statement.col,
+            )
+        outer = context.scope
+        context.scope = Scope(parent=outer)
+        context.scope.define(statement.name, element)
+        try:
+            self._block(statement.body, context)
+        finally:
+            context.scope = outer
+
     def _stmt(self, statement: A.Stmt, context: Context) -> None:
         if isinstance(statement, A.LetStmt):
             actual, _ = self._expr(statement.value, context)
@@ -545,6 +586,9 @@ class Checker:
             self._block(statement.then, context)
             if statement.orelse is not None:
                 self._block(statement.orelse, context)
+            return
+        if isinstance(statement, A.ForStmt):
+            self._check_for(statement, context)
             return
         if isinstance(statement, A.ExprStmt):
             self._expr(statement.value, context)
@@ -623,6 +667,19 @@ class Checker:
         return resolved, False
 
     def _member(self, node: A.Member, context: Context) -> tuple[str, bool]:
+        if isinstance(node.base, A.Ident) and node.base.name in self.enums:
+            decl = self.enums[node.base.name]
+            members = [member.name for member in decl.members]
+            if node.name not in members:
+                self.report.error(
+                    "HX3013",
+                    f"enum '{decl.name}' has no member '{node.name}' "
+                    f"(members: {', '.join(members)})",
+                    node.line,
+                    node.col,
+                )
+                return "Any", False
+            return decl.name, False
         base_type, _ = self._expr(node.base, context)
         inner = self._optional_inner(base_type)
         fields = self.field_types.get(inner)
@@ -719,20 +776,23 @@ class Checker:
             return "Any", True
         fn = self.fns.get(name)
         if fn is None:
-            if name in self.schemas or name in self.enums:
+            if name in self.enums:
                 self.report.error(
                     "HX3011",
-                    f"'{name}' names a type and is not callable",
+                    f"'{name}' is an enum; a value is written '{name}.member'",
                     node.line,
                     node.col,
                 )
-            else:
-                self.report.error(
-                    "HX3005",
-                    f"unknown function '{name}'",
-                    node.line,
-                    node.col,
-                )
+                self._check_args_loose(node, context)
+                return "Any", False
+            if name in self.schemas:
+                return self._record(node, context, name)
+            self.report.error(
+                "HX3005",
+                f"unknown function '{name}'",
+                node.line,
+                node.col,
+            )
             self._check_args_loose(node, context)
             return "Any", False
         params = tuple(
@@ -741,6 +801,60 @@ class Checker:
         )
         self._check_args(node, context, params)
         return self._resolve(fn.returns) or "Any", False
+
+    def _record(self, node: A.Call, context: Context, name: str) -> tuple[str, bool]:
+        """``Summary(text: "ok")`` constructs a record; a schema is a constructor.
+
+        Named fields only, all of them: a positional form would silently depend
+        on declaration order, and letting a declared default fill a hole would
+        make two identical-looking constructions produce different values.
+        """
+        fields = self.field_types.get(name, {})
+        if node.args:
+            self.report.error(
+                "HX3003",
+                f"'{name}' is constructed with named fields, e.g. "
+                f"{name}({next(iter(fields), 'field')}: value)",
+                node.line,
+                node.col,
+            )
+        given: set[str] = set()
+        for kwarg in node.kwargs:
+            if kwarg.name in given:
+                self.report.error(
+                    "HX3006",
+                    f"duplicate field '{kwarg.name}' in '{name}'",
+                    kwarg.line,
+                    kwarg.col,
+                )
+                continue
+            given.add(kwarg.name)
+            actual, _ = self._expr(kwarg.value, context)
+            declared = fields.get(kwarg.name)
+            if declared is None:
+                self.report.error(
+                    "HX3004",
+                    f"schema '{name}' has no field '{kwarg.name}'",
+                    kwarg.line,
+                    kwarg.col,
+                )
+                continue
+            if not self._compatible(declared, actual):
+                self.report.error(
+                    "HX3002",
+                    f"field '{kwarg.name}' expects {declared}, found {actual}",
+                    kwarg.line,
+                    kwarg.col,
+                )
+        missing = [field for field in fields if field not in given]
+        if missing:
+            self.report.error(
+                "HX3003",
+                f"'{name}' is missing field(s) {', '.join(missing)}",
+                node.line,
+                node.col,
+            )
+        return name, False
 
     def _agent_call(
         self,

@@ -6,8 +6,9 @@ row, so the client saw "executing" until its own timeout. ``_publish_safe``
 swallows every exception ("delivery must never break orchestration") and the
 claim is released regardless, so a single failed terminal write is unrecoverable.
 
-Strict xfail: it documents the demonstrated gap without changing service.py, which
-carries another lane's uncommitted work. Delete the marker when the retry lands.
+Fix: ENGINE_COMPLETED / ENGINE_FAILED retry with a bounded number of attempts
+and backoff; non-terminal publishes stay best-effort. A publish that exhausts
+retries still never raises into the run.
 """
 
 import pytest
@@ -33,14 +34,28 @@ class _Stub:
         self.bus = bus
 
 
-@pytest.mark.xfail(
-    strict=True, reason="W17: terminal event dropped after one transient publish failure"
-)
+@pytest.mark.parametrize("failures", [1, 2, 3])
 @pytest.mark.parametrize("event", [EventType.ENGINE_COMPLETED, EventType.ENGINE_FAILED])
-async def test_terminal_event_survives_one_transient_publish_failure(event):
-    bus = _FlakyBus(failures=1)
+async def test_terminal_event_survives_transient_publish_failures(event, failures):
+    bus = _FlakyBus(failures=failures)
     await OrchestratorService._publish_safe(_Stub(bus), event, "p1", {"runId": "r1"}, "r1")
     assert bus.published == [event.value]
+
+
+@pytest.mark.parametrize("event", [EventType.ENGINE_COMPLETED, EventType.ENGINE_FAILED])
+async def test_terminal_publish_retries_bounded_then_never_raises(event):
+    """Negative control: an always-failing bus is retried a bounded number of
+    times and the failure still does not escape into the run."""
+    calls: list[str] = []
+
+    class _DeadBus:
+        async def publish(self, event_type, project_id, payload, run_id):
+            calls.append(event_type.value)
+            raise ConnectionError("bus down")
+
+    stub = _Stub(_DeadBus())
+    await OrchestratorService._publish_safe(stub, event, "p1", {"runId": "r1"}, "r1")
+    assert calls == [event.value] * OrchestratorService._TERMINAL_PUBLISH_ATTEMPTS
 
 
 async def test_a_non_terminal_event_may_still_be_dropped_without_breaking_the_run():

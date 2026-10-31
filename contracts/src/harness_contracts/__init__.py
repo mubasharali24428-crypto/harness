@@ -51,9 +51,26 @@ from .tiers import (
 )
 from .timeutil import as_utc, db_now, now_utc, utcnow_iso
 
-__version__ = "1.0.0rc6"
+# 1.0.0rc7 (additive): the workflow-run contract — Section 4 executes a program
+# through this Protocol and knows nothing about the driver behind it.
+from .workflow import (
+    WORKFLOW_STATUSES,
+    WorkflowOperation,
+    WorkflowRequest,
+    WorkflowResult,
+    WorkflowRunner,
+    WorkflowStatus,
+)
+
+__version__ = "1.0.0rc7"
 
 __all__ = [
+    "WORKFLOW_STATUSES",
+    "WorkflowOperation",
+    "WorkflowRequest",
+    "WorkflowResult",
+    "WorkflowRunner",
+    "WorkflowStatus",
     "Principal",
     "Role",
     "can",

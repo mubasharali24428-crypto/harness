@@ -20,11 +20,19 @@ from __future__ import annotations
 
 from typing import Any
 
+from .secrets import scrub_text, scrub_value
+
 STATUSES: tuple[str, ...] = ("ok", "refused", "denied", "budget", "cancelled", "error")
 
 
 class HxHostError(Exception):
-    """Base class: one failure, one code, one status, one position if known."""
+    """Base class: one failure, one code, one status, one position if known.
+
+    The message and detail are scrubbed where they are created. A host adapter's
+    exception may quote a response header, and an error travels further than the
+    value that caused it — into a log, an event, the evidence bundle — so this is
+    the one place where every failure is made safe once.
+    """
 
     status = "error"
     code = "HXH000"
@@ -38,10 +46,10 @@ class HxHostError(Exception):
         detail: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(message)
-        self.message = message
+        self.message = scrub_text(message) if isinstance(message, str) else message
         self.line = line
         self.col = col
-        self.detail = detail or {}
+        self.detail = scrub_value(detail or {})
 
     def as_record(self, path: str | None = None) -> dict[str, object]:
         """The frozen Section 5 wire shape, so a runtime failure reads like a check."""

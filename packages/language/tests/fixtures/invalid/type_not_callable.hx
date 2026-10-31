@@ -1,8 +1,9 @@
-schema Issue {
-  id: String
+enum Level {
+  low
+  high
 }
 
 fn go() -> Bool {
-  let x = Issue()
+  let x = Level()
   return true
 }

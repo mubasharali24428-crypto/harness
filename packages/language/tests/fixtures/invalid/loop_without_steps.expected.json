@@ -1,0 +1,9 @@
+[
+  {
+    "line": 10,
+    "col": 3,
+    "kind": "error",
+    "code": "HX5006",
+    "message": "'for' needs budget.steps: the loop's termination story is the budget"
+  }
+]

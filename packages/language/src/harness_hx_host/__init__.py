@@ -28,6 +28,7 @@ from .bridge import (
     BridgeCall,
     BridgeExchange,
     ConfinedCommandRunner,
+    ConfinedReader,
     FakeHostBridge,
     HostBridge,
     ReadOnlyRepoBridge,
@@ -35,6 +36,7 @@ from .bridge import (
     ReplayBridge,
     SandboxHostBridge,
 )
+from .contract_runner import ContractRunner
 from .errors import (
     STATUSES,
     BudgetExhausted,
@@ -48,11 +50,15 @@ from .errors import (
     NotRunnable,
     ScriptError,
 )
+from .model_relay import AgentPolicy, ModelRelay
 from .run import RunResult, digest_of, inputs_digest, run_source
 from .runtime import Budget, Runtime
+from .secrets import REDACTED, Tally, find, scrub, scrub_text, scrub_value
 
 __all__ = [
+    "REDACTED",
     "STATUSES",
+    "AgentPolicy",
     "BridgeCall",
     "BridgeExchange",
     "Budget",
@@ -61,6 +67,8 @@ __all__ = [
     "CapabilityDenied",
     "CheckRefused",
     "ConfinedCommandRunner",
+    "ConfinedReader",
+    "ContractRunner",
     "Decision",
     "Denial",
     "DigestMismatch",
@@ -69,6 +77,7 @@ __all__ = [
     "HostUnavailable",
     "HxHostError",
     "InvalidHostResult",
+    "ModelRelay",
     "NotRunnable",
     "ReadOnlyRepoBridge",
     "RecordingBridge",
@@ -78,10 +87,15 @@ __all__ = [
     "SandboxHostBridge",
     "SchemaValue",
     "ScriptError",
+    "Tally",
     "authorize",
     "digest_of",
+    "find",
     "inputs_digest",
     "run_source",
+    "scrub",
+    "scrub_text",
+    "scrub_value",
     "source_digest",
     "validate",
 ]

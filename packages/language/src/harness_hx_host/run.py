@@ -42,6 +42,7 @@ from .errors import (
     ScriptError,
 )
 from .runtime import Runtime
+from .secrets import Tally, scrub_text, scrub_value
 
 
 @dataclass(frozen=True)
@@ -71,16 +72,26 @@ class RunResult:
         return self.status == "ok"
 
     def evidence(self) -> dict[str, Any]:
-        """The artifact a reviewer keeps. Contains no secret values by construction."""
-        outcome: dict[str, Any] = {"status": self.status, "output": plain(self.output)}
+        """The artifact a reviewer keeps. Contains no secret values by construction.
+
+        The output is scrubbed as it is written, not as it is produced: the
+        program's value stays what it is, while the durable copy cannot carry a
+        token. ``redactions`` says a value was masked, so a reviewer reading a
+        ``[redacted]`` here knows it was masked by us and not returned by the host.
+        """
+        tally = Tally()
+        outcome: dict[str, Any] = {
+            "status": self.status,
+            "output": scrub_value(plain(self.output), tally=tally),
+        }
         if self.error is not None:
             outcome["error"] = {
                 "code": self.error.code,
                 "status": self.status,
-                "message": self.error.message,
+                "message": scrub_text(self.error.message),
                 "line": self.error.line,
                 "col": self.error.col,
-                "detail": self.error.detail,
+                "detail": scrub_value(self.error.detail, tally=tally),
             }
         return {
             "kind": "hx.evidence/v1",
@@ -101,6 +112,7 @@ class RunResult:
             "events": list(self.events),
             "usage": self.budget,
             "outcome": outcome,
+            "redactions": tally.to_json(),
             "review": {"required": True, "approved": False, "autoMerge": False},
             "durationMs": self.duration_ms,
         }

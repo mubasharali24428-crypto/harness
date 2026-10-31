@@ -168,6 +168,23 @@ class IfStmt(Stmt):
 
 
 @dataclass(frozen=True)
+class ForStmt(Stmt):
+    """One pass per element of a ``List``, and one step per pass by the budget.
+
+    There is no ``while``: a loop whose termination depends on mutation would
+    have to prove it terminates, and this language has no mutation. Over a list
+    the bound is structural; over the budget it is declared; both are visible in
+    the source.
+    """
+
+    name: str
+    iterable: Expr
+    body: Block
+    line: int
+    col: int
+
+
+@dataclass(frozen=True)
 class ExprStmt(Stmt):
     value: Expr
     line: int

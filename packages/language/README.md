@@ -63,6 +63,9 @@ Driver guarantees (`harness_hx_host`):
 | `steps`, `tool_calls`, `tasks` and `duration` stop the run that exceeds them | `runtime.py` (`HXH501`) |
 | Cancellation takes effect at the next step; a spawned call costs one tool call, not two | `runtime.py` (`HXH601`) |
 | Secret-shaped arguments are redacted before any event; evidence says `review.required: true`, `autoMerge: false` | `runtime.py`, `run.py` |
+| A secret is found by *content* — on the prompt, the log, the event and the evidence — and reported as a count by kind, never as a value | `secrets.py`, `run.py` |
+| `model.invoke` goes through the host's `ModelRouter` with the declared role; no router fails closed, a downgrade is recorded and never performed | `model_relay.py` (`HXH403`) |
+| The driver is a `WorkflowRunner`: Section 4 runs it and publishes its events | `contract_runner.py`, `section4/src/harness_orchestrator/workflow_runs.py` |
 | A patch is a proposal with a content-addressed id; nothing merges, approves or applies | `bridge.py` |
 | A recorded run replays from its exchanges and never reaches a live host | `bridge.py` (`RecordingBridge`, `ReplayBridge`) |
 
@@ -83,8 +86,11 @@ src/harness_hx/
 src/harness_hx_host/
   errors.py        typed failures; closed status vocabulary; HXH codes
   boundary.py      nominal validation of everything the host returns
+  secrets.py       the one detector: PEM, provider keys, tokens, JWTs, URL credentials
   authority.py     manifest → Decision; digest binding; human-only permissions
   bridge.py        the one door out (fake, section-2/5, local, record, replay)
+  model_relay.py   model.invoke → the host's ModelRouter; roles, scrub-in/out, downgrades
+  contract_runner.py  the driver as a harness_contracts WorkflowRunner
   runtime.py       the workflow driver and its budgets
   run.py           check → bind → authorise → run → evidence
   cli.py           hxr plan / hxr run (exit 0/1/2/3/4/5)

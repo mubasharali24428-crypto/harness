@@ -27,6 +27,7 @@ import asyncio
 import hashlib
 import inspect
 import json
+import shlex
 import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -40,6 +41,22 @@ from .errors import HostUnavailable, InvalidHostResult
 #: the refusal is a property of the path, not of the command that asked.
 SECRET_NAMES = frozenset({".env", ".env.local", "id_rsa", "id_ed25519", ".git", ".ssh"})
 SECRET_SUFFIXES = (".pem", ".key", ".p12", ".pfx")
+
+
+def _cat_command(path: str) -> str:
+    """A read as one allow-listed command, with the path checked before it runs.
+
+    The sandbox would deny an escape anyway; refusing here means the transcript
+    says "forbidden path" instead of showing a command that looked permitted.
+    """
+    if not isinstance(path, str) or not path or path.startswith("/"):
+        raise InvalidHostResult(f"repo.read: {path!r} is not a workspace-relative path")
+    parts = Path(path).parts
+    if any(part in (".", "..") for part in parts) or any(part in SECRET_NAMES for part in parts):
+        raise InvalidHostResult(f"repo.read: {path!r} is a forbidden path")
+    if path.endswith(SECRET_SUFFIXES):
+        raise InvalidHostResult(f"repo.read: {path!r} is a forbidden path")
+    return f"cat -- {shlex.quote(path)}"
 
 
 @dataclass(frozen=True)
@@ -72,6 +89,19 @@ def _patch_value(changes: Any) -> dict[str, str]:
         diff = json.dumps(changes, sort_keys=True, default=str)
     digest = hashlib.sha256(diff.encode("utf-8")).hexdigest()
     return {"id": f"patch-{digest[:16]}", "diff": diff}
+
+
+def _agent_reply(handler: Any, agent: str, operation: str, payload: Any) -> Any:
+    """A relay is an object with the bridge's own method; anything else is data.
+
+    The distinction is by type, never by trying a call and seeing what fails: a
+    host that guessed at arity would turn a wiring mistake into a run that
+    almost worked.
+    """
+    invoke = getattr(handler, "invoke_agent", None)
+    if callable(invoke):
+        return invoke(agent, operation, payload)
+    return handler(payload) if callable(handler) else handler
 
 
 @dataclass
@@ -120,7 +150,7 @@ class FakeHostBridge:
         reply = self.agents.get(agent)
         if reply is None:
             raise HostUnavailable(f"no reply configured for agent {agent!r}")
-        return reply(payload) if callable(reply) else reply
+        return _agent_reply(reply, agent, operation, payload)
 
 
 class ConfinedCommandRunner:
@@ -161,6 +191,45 @@ class ConfinedCommandRunner:
         }
 
 
+class ConfinedReader:
+    """Section 5's streaming ``exec``, adapted to one text read.
+
+    A read is content; a verdict is not — which is why reads use the streaming
+    door and tests use the settled one. The cap is not decoration: a workflow
+    that reads an enormous generated file must fail with a reason, not exhaust
+    the process that is executing it.
+    """
+
+    def __init__(self, sandbox: Any, handle: Any, limit: int = 256 * 1024) -> None:
+        self.sandbox = sandbox
+        self.handle = handle
+        self.limit = limit
+
+    def read_text(self, command: str) -> str:
+        stream = getattr(self.sandbox, "exec", None)
+        if stream is None:
+            raise HostUnavailable(
+                "this sandbox exposes no exec(); a confined read needs Section 5's exec"
+            )
+        chunks: list[str] = []
+        size = 0
+
+        async def _collect() -> None:
+            nonlocal size
+            async for line in stream(self.handle, command):
+                text = line if isinstance(line, str) else line.decode("utf-8", errors="replace")
+                size += len(text)
+                if size > self.limit:
+                    raise InvalidHostResult(
+                        f"confined read exceeded {self.limit} bytes; it is not a file a "
+                        "workflow can hold"
+                    )
+                chunks.append(text)
+
+        _await_blocking(_collect())
+        return "".join(chunks)
+
+
 def _await_blocking(awaitable: Any) -> Any:
     """Run an awaitable to completion from synchronous code, loop or no loop."""
     try:
@@ -185,22 +254,33 @@ def _await_blocking(awaitable: Any) -> Any:
 
 @dataclass
 class SandboxHostBridge:
-    """The production shape: Section 2 reads, Section 5 runs, this host refuses the rest."""
+    """The production shape: a reader, Section 5's confined executor, refusals.
+
+    Two ways to read, and the difference is honest: a repository service (Section
+    2's protocol) when the host has GitHub, or the confined task itself when it
+    has only a sandbox. Neither invents a read the host cannot perform — with
+    neither wired, ``repo.read`` refuses.
+    """
 
     confined: ConfinedCommandRunner | None = None
     repo: Any | None = None
+    reader: ConfinedReader | None = None
     project_id: str = ""
     ref: str = "main"
     test_commands: Mapping[str, str] = field(default_factory=dict)
     agents: Mapping[str, Any] = field(default_factory=dict)
 
     def read_file(self, path: str) -> Mapping[str, Any]:
-        if self.repo is None:
-            raise HostUnavailable("repo.read needs a repository service adapter")
-        text = self.repo.read_file(self.project_id, self.ref, path)
-        if not isinstance(text, str):
-            raise InvalidHostResult(f"repo.read returned {type(text).__name__}, expected text")
-        return {"path": path, "text": text}
+        if self.repo is not None:
+            text = self.repo.read_file(self.project_id, self.ref, path)
+            if not isinstance(text, str):
+                raise InvalidHostResult(f"repo.read returned {type(text).__name__}, expected text")
+            return {"path": path, "text": text}
+        if self.reader is not None:
+            return {"path": path, "text": self.reader.read_text(_cat_command(path))}
+        raise HostUnavailable(
+            "repo.read needs a repository service adapter or a confined sandbox reader"
+        )
 
     def list_files(self, prefix: str) -> list[dict[str, Any]]:
         if self.repo is None:
@@ -228,7 +308,7 @@ class SandboxHostBridge:
         reply = self.agents.get(agent)
         if reply is None:
             raise HostUnavailable(f"no model relay wired for agent {agent!r}")
-        return reply(payload) if callable(reply) else reply
+        return _agent_reply(reply, agent, operation, payload)
 
 
 @dataclass
