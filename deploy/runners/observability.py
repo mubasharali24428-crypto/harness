@@ -117,6 +117,12 @@ class GaugeSpec:
     _last_error: str | None = field(default=None, repr=False)
 
 
+# Synthetic-probe / self-scrape route templates excluded from the availability
+# SLI denominator (docs/runbooks/slo-and-capacity.md: "Do not treat /health alone
+# as service availability"; probes failing before real work are not eligible).
+_PROBE_PATHS = frozenset({"/health", "/health?deep=1", "/ready", "/metrics"})
+
+
 class MetricsCollector:
     """Minimal Prometheus text-format collector (no prometheus_client dep).
 
@@ -134,6 +140,33 @@ class MetricsCollector:
         self._hist_raw: dict[tuple[str, str], list[int]] = {}
         self._hist_sum: dict[tuple[str, str], float] = {}
         self._gauges: dict[str, GaugeSpec] = {}
+        # W17 Stage-2: availability-eligible request rollup. The raw
+        # http_requests_total{status} is present, but the API-availability SLI
+        # must be measured on the ELIGIBLE set only — caller 4xx, synthetic
+        # probes (/health, /ready, /metrics) and a declared maintenance window
+        # are excluded, per docs/runbooks/slo-and-capacity.md. Availability =
+        # ok / (ok + error); this counter is that SLI's denominator. Not a
+        # substitute for the owner's decision to adopt a threshold.
+        self._eligible = {"ok": 0, "error": 0}
+
+    @staticmethod
+    def _classify_eligible(path: str, status_code: int | str) -> str | None:
+        """'ok' | 'error' | None (None = not eligible, excluded)."""
+        if path in _PROBE_PATHS:
+            return None  # synthetic probe / self-scrape
+        if os.environ.get("HARNESS_MAINTENANCE_MODE", "").strip().lower() in {"1", "true", "on"}:
+            return None  # a declared, announced maintenance window
+        try:
+            code = int(status_code)
+        except (TypeError, ValueError):
+            return None  # non-numeric (e.g. websocket/aborted) — not an HTTP outcome
+        if 200 <= code < 400:
+            return "ok"
+        if 400 <= code < 500:
+            return None  # caller error: the backend served the request, the input was wrong
+        if code >= 500:
+            return "error"
+        return None  # 1xx informational
 
     # ------------------------------------------------------------- traffic
 
@@ -143,12 +176,15 @@ class MetricsCollector:
         ckey = (method, path, str(status_code))
         hkey = (method, path)
         idx = bisect.bisect_right(self._buckets, duration_s)
+        outcome = self._classify_eligible(path, status_code)
         with self._lock:
             self._counts[ckey] = self._counts.get(ckey, 0) + 1
             raw = self._hist_raw.setdefault(hkey, [0] * len(self._buckets))
             if 0 <= idx < len(raw):
                 raw[idx] += 1
             self._hist_sum[hkey] = self._hist_sum.get(hkey, 0.0) + duration_s
+            if outcome is not None:
+                self._eligible[outcome] += 1
 
     def add_gauge(self, spec: GaugeSpec) -> None:
         """Register a domain series family (idempotent by name)."""
@@ -205,6 +241,7 @@ class MetricsCollector:
             hist_raw = {k: list(v) for k, v in self._hist_raw.items()}
             hist_sum = dict(self._hist_sum)
             gauges = list(self._gauges.values())
+            eligible = dict(self._eligible)
 
         lines = [
             "# HELP http_requests_total Total HTTP requests handled.",
@@ -216,6 +253,18 @@ class MetricsCollector:
                 f'path="{_escape_label(path)}",status="{_escape_label(status_label)}"}}'
                 f" {count}"
             )
+
+        # Availability SLI denominator: eligible ok/error only (4xx + probes +
+        # maintenance excluded at observe()). Both series always rendered so a
+        # PromQL ok/(ok+error) is stable at zero traffic. Adopting a threshold and
+        # an alert on it is the owner's decision, not implied here.
+        lines.append(
+            "# HELP harness_eligible_requests_total Availability-eligible HTTP "
+            "requests, excluding caller 4xx, synthetic probes and declared maintenance."
+        )
+        lines.append("# TYPE harness_eligible_requests_total counter")
+        lines.append(f'harness_eligible_requests_total{{outcome="ok"}} {eligible["ok"]}')
+        lines.append(f'harness_eligible_requests_total{{outcome="error"}} {eligible["error"]}')
 
         lines.append(
             "# HELP http_request_duration_seconds HTTP request duration in seconds."

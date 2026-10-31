@@ -306,3 +306,40 @@ def test_collector_thread_safety_smoke():
     body = collector.render()
     total = sum(int(n) for n in re.findall(r"^http_requests_total\{.*?\} (\d+)$", body, re.M))
     assert total == 4000
+
+
+# ----------------------------------------------------- W17 Stage-2 eligible-request
+
+
+def _eligible(body: str) -> tuple[int, int]:
+    ok = re.search(r'harness_eligible_requests_total\{outcome="ok"\} (\d+)', body)
+    err = re.search(r'harness_eligible_requests_total\{outcome="error"\} (\d+)', body)
+    return int(ok.group(1)), int(err.group(1))
+
+
+def test_eligible_counter_excludes_caller_4xx_and_probes():
+    m = MetricsCollector()
+    m.observe(method="GET", path="/api/v1/orchestrator/runs", status_code=200, duration_s=0.01)
+    m.observe(method="GET", path="/api/v1/orchestrator/runs", status_code=503, duration_s=0.01)
+    m.observe(method="GET", path="/api/v1/orchestrator/runs", status_code=404, duration_s=0.01)
+    m.observe(method="GET", path="/health", status_code=503, duration_s=0.01)
+    m.observe(method="GET", path="/metrics", status_code=500, duration_s=0.01)
+    body = m.render()
+    # one eligible ok (200), one eligible error (503); the 404 and the two probe
+    # 5xx are NOT eligible, but the raw http_requests_total still counts all five.
+    assert _eligible(body) == (1, 1)
+    assert sum(int(n) for n in re.findall(r"^http_requests_total\{.*?\} (\d+)$", body, re.M)) == 5
+
+
+def test_eligible_counter_rendered_at_zero_when_no_traffic():
+    assert _eligible(MetricsCollector().render()) == (0, 0)
+
+
+def test_declared_maintenance_window_excludes_requests(monkeypatch):
+    monkeypatch.setenv("HARNESS_MAINTENANCE_MODE", "1")
+    m = MetricsCollector()
+    m.observe(method="GET", path="/api/v1/orchestrator/runs", status_code=500, duration_s=0.01)
+    m.observe(method="GET", path="/api/v1/orchestrator/runs", status_code=200, duration_s=0.01)
+    # during a declared maintenance window nothing counts against availability, so
+    # a real outage masked by maintenance cannot silently read as 0% uptime.
+    assert _eligible(m.render()) == (0, 0)

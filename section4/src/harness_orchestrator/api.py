@@ -1,5 +1,6 @@
 import bisect
 import logging
+import os
 import threading
 import time
 import uuid
@@ -82,6 +83,12 @@ def _escape_label(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
 
+# Synthetic-probe / self-scrape route templates excluded from the availability
+# SLI (docs/runbooks/slo-and-capacity.md: never treat /health alone as
+# availability). Kept identical to the assembly copy in deploy/runners/observability.
+_PROBE_PATHS = frozenset({"/health", "/health?deep=1", "/ready", "/metrics"})
+
+
 class MetricsCollector:
     """Minimal Prometheus text-format collector (no prometheus_client dep).
 
@@ -103,6 +110,31 @@ class MetricsCollector:
         # (method, path) -> per-bucket observation counts
         self._hist_raw: dict[tuple[str, str], list[int]] = {}
         self._hist_sum: dict[tuple[str, str], float] = {}
+        # W17 Stage-2: availability-eligible rollup (ok / error). The raw
+        # http_requests_total{status} is present, but the API-availability SLI
+        # must be measured on the ELIGIBLE set: caller 4xx, synthetic probes and a
+        # declared maintenance window are excluded (slo-and-capacity.md). Not a
+        # substitute for the owner's decision to adopt a threshold on it.
+        self._eligible = {"ok": 0, "error": 0}
+
+    @staticmethod
+    def _classify_eligible(path: str, status_code: int | str) -> str | None:
+        """'ok' | 'error' | None (None = not eligible, excluded)."""
+        if path in _PROBE_PATHS:
+            return None
+        if os.environ.get("HARNESS_MAINTENANCE_MODE", "").strip().lower() in {"1", "true", "on"}:
+            return None
+        try:
+            code = int(status_code)
+        except (TypeError, ValueError):
+            return None
+        if 200 <= code < 400:
+            return "ok"
+        if 400 <= code < 500:
+            return None  # caller error
+        if code >= 500:
+            return "error"
+        return None  # 1xx
 
     def observe(
         self, *, method: str, path: str, status_code: int | str, duration_s: float
@@ -110,12 +142,15 @@ class MetricsCollector:
         ckey = (method, path, str(status_code))
         hkey = (method, path)
         idx = bisect.bisect_right(self._buckets, duration_s)
+        outcome = self._classify_eligible(path, status_code)
         with self._lock:
             self._counts[ckey] = self._counts.get(ckey, 0) + 1
             raw = self._hist_raw.setdefault(hkey, [0] * len(self._buckets))
             if 0 <= idx < len(raw):
                 raw[idx] += 1
             self._hist_sum[hkey] = self._hist_sum.get(hkey, 0.0) + duration_s
+            if outcome is not None:
+                self._eligible[outcome] += 1
 
     def render(self) -> str:
         """Prometheus text format (version 0.0.4), deterministic ordering."""
@@ -123,6 +158,7 @@ class MetricsCollector:
             counters = sorted(self._counts.items())
             hist_raw = {k: list(v) for k, v in self._hist_raw.items()}
             hist_sum = dict(self._hist_sum)
+            eligible = dict(self._eligible)
 
         lines = [
             "# HELP http_requests_total Total HTTP requests handled.",
@@ -134,6 +170,16 @@ class MetricsCollector:
                 f'path="{_escape_label(path)}",status="{_escape_label(status_label)}"}}'
                 f" {count}"
             )
+
+        # Availability SLI denominator; both outcomes always rendered so a
+        # PromQL ok/(ok+error) is stable at zero traffic.
+        lines.append(
+            "# HELP harness_eligible_requests_total Availability-eligible HTTP "
+            "requests, excluding caller 4xx, synthetic probes and declared maintenance."
+        )
+        lines.append("# TYPE harness_eligible_requests_total counter")
+        lines.append(f'harness_eligible_requests_total{{outcome="ok"}} {eligible["ok"]}')
+        lines.append(f'harness_eligible_requests_total{{outcome="error"}} {eligible["error"]}')
 
         lines.append(
             "# HELP http_request_duration_seconds "
