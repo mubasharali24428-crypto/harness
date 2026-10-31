@@ -32,8 +32,9 @@ billing stays flag-off. Remaining blockers: a reviewed dedicated sandbox
 worker/daemon, host certification, the first native-Linux drill run, and
 counsel-approved terms (a review packet now exists under `docs/legal/`).
 
-Updated 2026-10-31: the **Hx execution track** (M1–M5, design in
-`docs/hx-execution-architecture.md`) is complete and committed at `332d273`. A
+Updated 2026-10-31: the **Hx execution track** (M1–M6, design in
+`docs/hx-execution-architecture.md`) is complete through M6, committed at `332d273`
+(M2–M5) and `3637e3f` (M6). A
 program in the `agent` profile now checks, is authorised against its own
 manifest, runs inside its declared budget across a host bridge, and produces
 evidence that says `approved: false` / `autoMerge: false`. Section 4 executes a
@@ -42,10 +43,17 @@ in the same change) and publishes its events, which Section 1 persists;
 Section 5's shipped `LocalSandboxRunner` serves the live `repo.read` /
 `verify.tests` seam; `model.invoke` is routed by Section 3's `ModelRouter` with
 the role the source declares, fails closed without one, and records a downgrade
-instead of performing it. Suites at that commit: language 261, section 1 1223,
+instead of performing it. M6 made the two limits that used to be recorded but not
+checked actually check: `budget.cost` is reserved against a **host-supplied price
+table** before each crossing (an unpriced crossing is refused rather than free, and
+a ceiling with no table is announced in its own evidence as `declared-not-enforced`),
+and a grant can be **revoked mid-run** — the next crossing is denied, completed ones
+stand, and the revision is logged with the host's reason. Suites at `3637e3f`:
+language 295 (spec/toolchain now `0.2.0`), section 1 1223,
 section 4 1933, section 5 459, `make guard-isolation` clean. This does **not**
-move the verdict above: the driver bounds host calls, not CPU; its `cost` budget
-is declared and reported, never enforced; and the track adds no approval
+move the verdict above: the driver bounds host calls, not CPU; a price is the
+host's estimate, not a settled bill from Section 3's ledger; a revoked capability
+stops effects but does not kill a call in flight; and the track adds no approval
 surface of its own.
 
 ## PROGRAM CLOSE — Mission 23 (2026-08-26)
