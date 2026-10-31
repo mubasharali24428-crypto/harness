@@ -269,5 +269,15 @@ docker compose --env-file .env -f deploy/docker-compose.yml --profile observabil
 - Prove delivery after any change: post a test alert
   (`curl -XPOST localhost:9093/api/v2/alerts -H 'Content-Type: application/json' -d '[{"labels":{"alertname":"DeliveryCheck","severity":"warning"}}]'`)
   and confirm the mail arrives. The last full run is `docs/briefs/evidence/s11/alert-delivery.md`.
+- **Prove the routing *to a live target* without a mail catcher:** `scripts/e2e/w17_alert_delivery_drill.py`
+  renders this same template (enabling the webhook receiver), runs a throwaway Alertmanager, POSTs a
+  synthetic `severity="page"` alert and asserts it lands on a local HTTP sink. It proves the mechanism,
+  not a chosen destination — a team points `HARNESS_ALERT_WEBHOOK_URL` at their own relay. Stage-2 run:
+  `docs/briefs/evidence/w17/w17-alert-delivery-*.json` (config valid, delivered in ~10 s, `status=firing`).
+  **A running stack whose only receiver is a dead SMTP catcher delivers nothing** (on 2026-10-31 the live
+  `mailpit` was six days dead while `HarnessBackupStale` was firing). Check delivery, not just evaluation.
+- Event-freshness alert: `HarnessEventFreshnessSlo` fires when fewer than 99% of live collaboration
+  frames land in the 5 s bucket for 10m; see [slo-and-capacity](slo-and-capacity.md#objectives) and
+  `scripts/e2e/w17_event_freshness_drill.py` for the end-to-end measurement.
 - Silence during maintenance: `docker compose ... exec alertmanager amtool silence add alertname=HarnessServiceDown --duration 30m --alertmanager.url=http://localhost:9093`.
 

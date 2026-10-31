@@ -11,12 +11,16 @@ and deployed topology before promising these objectives externally.
 |---|---|---|---|
 | API availability | ≥99.5% successful health-eligible requests per rolling 30 days | Count successful backend responses against eligible requests; exclude caller 4xx, planned maintenance announced in advance, and synthetic probes failing before reaching Harness. Do not treat `/health` alone as service availability. | `HarnessServiceDown` and `HarnessHigh5xxRate`; follow [alerting](alerting.md) and [ops](ops.md). |
 | Human-gated control-plane latency | p95 ≤250 ms over 5-minute windows | Measure propose/approve/start server duration separately from queue wait and provider execution. Report by route and service; do not hide errors by excluding them. | Existing HTTP duration histogram and high-5xx alerts; investigate DB pool, route latency, then queue. |
-| Event delivery freshness | ≥99% of committed collaboration events delivered or replayable within 5 seconds over 5-minute windows | Start at durable event commit; finish on push acknowledgement or successful replay. Keep drops and duplicates visible as separate outcomes. No production end-to-end freshness histogram is currently confirmed, so this target is not yet measurable. | Existing delivery outcome alerts detect drops/duplicates but not freshness; add a bounded-lag histogram before claiming attainment. |
+| Event delivery freshness | ≥99% of committed collaboration events delivered or replayable within 5 seconds over 5-minute windows | Start at durable event commit; finish on the frame's write to a live socket or a successful replay send. A committed row is durable — hence replayable — at commit, so live delivery is the only variable part. Measured by `harness_event_delivery_lag_seconds` (live, **the SLO signal**) with `harness_event_replay_age_seconds` as a separate diagnostic (a long-closed client legitimately replays old events). Keep drops and duplicates visible on `harness_event_delivery_total{outcome}`. | `HarnessEventFreshnessSlo`: the `le="5.0"` bucket is below 99% of live observations for 10m, guarded so absent traffic does not page. Still **not attained**: the histogram and alert exist and were exercised end to end, but a human owner must adopt the target and it must hold over a real window on the deployed topology. |
 
 These are engineering targets, not a service guarantee. A rolling SLO needs durable time-series retention,
-alert routing, and a reviewed maintenance policy. Prometheus currently evaluates locally; there is no
-configured Alertmanager delivery destination. Until delivery is connected and exercised, operators
-must keep the Prometheus alerts page open during a pilot.
+alert routing, and a reviewed maintenance policy. The measurement instruments now exist on the deployed
+stack: the live freshness histogram (with a matching alert) and the backup-freshness gauge feeding
+`HarnessBackupStale`. The Alertmanager *mechanism* is exercised to a live target by
+`scripts/e2e/w17_alert_delivery_drill.py` (a synthetic `page` alert reached a local webhook sink through
+the real template), but no paging destination has been chosen by an owner: the running stack's email
+receiver points at a catcher that is not running. Until a real destination is configured and exercised,
+operators must keep the Prometheus alerts page open during a pilot.
 
 An importable Grafana dashboard definition is provided at
 [`deploy/observability/dashboards/harness-overview.json`](../../deploy/observability/dashboards/harness-overview.json).

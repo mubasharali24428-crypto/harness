@@ -1,0 +1,15 @@
+{
+  "api": "http://127.0.0.1:51907",
+  "checkConfig": "Checking '/cfg/alertmanager.yml'  SUCCESS\nFound:\n - global config\n - route\n - 0 inhibit rules\n - 1 receivers\n - 0 templates",
+  "checks": {
+    "alertnamePreserved": true,
+    "apiAcceptedSyntheticAlert": true,
+    "configValid": true,
+    "sinkReceivedPost": true,
+    "status": "firing"
+  },
+  "container": "w17-am-drill-cd70fddddd",
+  "receivedAfterSeconds": 10.393,
+  "receiver": "email",
+  "verdict": "PASS"
+}

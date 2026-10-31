@@ -1247,6 +1247,9 @@ async def project_ws(
         for envelope in page.envelopes:
             await guard.send(envelope.model_dump(), throttle=False)
             last_seq = max(last_seq, envelope.seq)
+            lag = _lag_seconds(envelope.ts)
+            if lag is not None:
+                realtime_metrics.observe_replay_age(lag)
         domain_metrics.inc("replayed", len(page.envelopes))
         if int(afterSeq) > 0:
             realtime_metrics.inc(
@@ -1382,6 +1385,9 @@ async def run_collab_ws(
         for frame in page.frames:
             await guard.send(frame, throttle=False)
             last_seq = max(last_seq, frame["seq"])
+            lag = _lag_seconds(frame["ts"])
+            if lag is not None:
+                realtime_metrics.observe_replay_age(lag)
         domain_metrics.inc("replayed", len(page.frames))
         if start > 0:
             realtime_metrics.inc(

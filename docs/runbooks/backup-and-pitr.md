@@ -87,6 +87,16 @@ other. The automation's run status is the failure signal; the script exits
 non-zero on a failed drill and the automation reports the failing step without
 retrying into a pass.
 
+**Verify the freshness signal on the live stack:** `scripts/e2e/w17_backup_freshness_verify.py`
+reads `harness_backup_last_success_timestamp_seconds` from Prometheus, computes its age and
+asserts that `HarnessBackupStale`'s state agrees with the 25 h threshold (`HarnessBackupNeverRan`
+must stay quiet while the series exists). It deliberately does not run a real backup — a drill
+must not archive into the live prefix — and it does not insert a synthetic `backup_runs` row,
+which would "fix" the number and prove nothing. The 2026-10-31 run found the newest base backup
+~6.1 days old, so the alert was correctly **firing**; the fresh→clears leg is covered by the
+promtool rule test and `section1/tests/test_backup_metrics_pg.py`. Evidence:
+`docs/briefs/evidence/w17/w17-backup-freshness-*.json`.
+
 Operators who do not run QoderWake automations can schedule the same command
 with host cron (monthly, `0 4 1 * *`) — the command is the contract, the
 scheduler is not. Do not run it inside a container sleep loop: a missed run
