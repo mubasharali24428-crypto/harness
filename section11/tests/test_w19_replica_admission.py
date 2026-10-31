@@ -92,6 +92,27 @@ async def test_expired_lease_is_reclaimed_by_another_replica(db, mini_repo):
             await second
 
 
+async def test_the_admission_path_provisions_its_own_table(db, mini_repo):
+    """A driver that only ran `DDL_SQLITE` must still be able to admit a project.
+
+    Migration 0072 creates `project_index_reservations` in a deployment and
+    `ensure_schema` does it for this suite, but the indexing path cannot assume
+    WHO bootstrapped the schema — it used to fail with `no such table`.
+    """
+    async with db() as s:
+        async with s.begin():
+            await s.execute(text("DROP TABLE IF EXISTS project_index_reservations"))
+    a = _replica(db)
+    job = await a.start_index(str(mini_repo), PROJECT)
+    assert await _held_count(db) == 1, "the table was recreated, and the lease taken"
+    for _ in range(200):
+        status = a.get_job(job.job_id)
+        if status and status.status in ("completed", "failed"):
+            break
+        await asyncio.sleep(0.02)
+    assert await _held_count(db) == 0
+
+
 async def test_reservation_released_after_index_completes(db, mini_repo):
     a = _replica(db)
     job = await a.start_index(str(mini_repo), PROJECT)
