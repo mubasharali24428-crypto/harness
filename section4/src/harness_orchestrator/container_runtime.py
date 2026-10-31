@@ -273,8 +273,36 @@ def run_boundary_running(run_id: str) -> bool:
         name, _, label = line.partition("\t")
         if label.strip() != run_id or not BOUNDARY_NET_RE.match(name.strip()):
             continue
-        running = _running_containers(_attached_container_ids(name.strip()))
-        if any(cname != proxy for _cid, cname in running):
+        # Inspection failures are unknown, not evidence that the boundary is quiet.
+        try:
+            inspected = docker("network", "inspect", name.strip(), check=False)
+            if inspected.returncode != 0:
+                return True
+            import json
+
+            containers = json.loads(inspected.stdout)[0]["Containers"] or {}
+            ids = set(containers)
+            if not ids:
+                continue
+            processes = docker(
+                "ps", "--all", "--no-trunc", "--format", "{{.ID}}|{{.Names}}|{{.State}}",
+                check=False,
+            )
+            if processes.returncode != 0:
+                return True
+            seen = set()
+            for line in processes.stdout.splitlines():
+                parts = line.split("|", 2)
+                if len(parts) != 3:
+                    return True
+                cid, cname, state = parts
+                if cid in ids:
+                    seen.add(cid)
+                    if cname != proxy and state.strip() == "running":
+                        return True
+            if seen != ids:
+                return True
+        except (OSError, ValueError, IndexError, KeyError, TypeError):
             return True
     return False
 

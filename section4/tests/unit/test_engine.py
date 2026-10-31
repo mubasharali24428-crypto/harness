@@ -25,7 +25,10 @@ def test_stub_mode_is_honest_not_faked():
     assert out["engine"] == "stub"
 
 
-def test_injected_backend_still_works():
+def test_injected_backend_still_works(monkeypatch):
+    # N02 repo-context appends the workspace baseline to the goal on every path;
+    # these assertions pin goal pass-through, so use the designed kill-switch.
+    monkeypatch.setenv("HARNESS_REPO_CONTEXT", "0")
     w = DeepSeekHarnessWrapper(backend_runner=lambda g: f"ran:{g}")
     out = w.execute_goal("x")
     assert out["status"] == "completed" and out["finalResponse"] == "ran:x"

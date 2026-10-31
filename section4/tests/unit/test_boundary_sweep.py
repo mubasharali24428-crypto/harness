@@ -258,3 +258,19 @@ def test_run_boundary_running_sees_an_orphan_and_treats_unknown_as_running(monke
     assert container_runtime.run_boundary_running("run-orphan") is False
     _install(monkeypatch, FakeDocker({}, listing_fails=True))
     assert container_runtime.run_boundary_running("run-orphan") is True
+
+
+def test_boundary_status_treats_failed_inspection_as_running(monkeypatch):
+    import re
+    from subprocess import CompletedProcess
+
+    from harness_orchestrator import container_runtime
+
+    def fake_docker(*args, **kwargs):
+        if args[:2] == ("network", "ls"):
+            return CompletedProcess(args, 0, "harness-abc-net\trun-a\n", "")
+        return CompletedProcess(args, 1, "", "unavailable")
+
+    monkeypatch.setattr(container_runtime, "docker", fake_docker)
+    monkeypatch.setattr(container_runtime, "BOUNDARY_NET_RE", re.compile(r"harness-abc-net"))
+    assert container_runtime.run_boundary_running("run-a") is True

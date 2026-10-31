@@ -264,7 +264,10 @@ class TestEngineWrapper:
         assert result["status"] == "not_configured"
         assert "not configured" in result["finalResponse"]
 
-    def test_custom_backend_runner(self):
+    def test_custom_backend_runner(self, monkeypatch):
+        # N02 repo-context appends the workspace baseline to the goal; the
+        # kill-switch keeps this assertion about goal pass-through.
+        monkeypatch.setenv("HARNESS_REPO_CONTEXT", "0")
         e = DeepSeekHarnessWrapper(backend_runner=lambda goal: f"CUSTOM: {goal}")
         result = e.execute_goal("task-42")
         assert result["finalResponse"] == "CUSTOM: task-42"
