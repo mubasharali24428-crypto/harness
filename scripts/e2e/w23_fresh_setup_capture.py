@@ -13,6 +13,7 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import time
 import uuid
@@ -36,7 +37,7 @@ def main() -> int:
     env = {**os.environ, "HARNESS_TOKEN": token, "HARNESS_CONFIG_DIR": tempfile.mkdtemp(),
            "PYTHONPATH": str(REPO / "clients/python")}
     proc = subprocess.run(
-        [str(REPO / "section4/.venv/bin/python"), "-m", "harness_sdk.cli.main", "doctor",
+        [sys.executable, "-m", "harness_sdk.cli.main", "doctor",
          "--project", seed["projectId"], "--json", "--capture", str(capture),
          "--identity-url", IDENTITY, "--orchestrator-url", ORCHESTRATOR],
         env=env, capture_output=True, text=True, timeout=120, check=False)

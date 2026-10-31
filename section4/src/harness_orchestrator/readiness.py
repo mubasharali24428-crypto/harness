@@ -9,17 +9,19 @@ answered ``401`` to every dispatch (ops runbook §3.11) — is the case it exist
 
 Every entry is ``ok``, ``fail`` or ``unknown``, names its component and never
 carries a secret: variables are named, tokens and keys are never echoed. The
-provider is checked from configuration only; nothing here calls a model.
+provider is checked from configuration only, including the request format the
+engine will send (W23 F2); nothing here calls a model.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -38,6 +40,7 @@ from harness_orchestrator.live_mode import (
 
 OK, FAIL, UNKNOWN = "ok", "fail", "unknown"
 _PACKAGE = Path(__file__).resolve().parent
+PATCH_ENV = "DSH_PATCH_FILES"
 
 
 def _entry(check: str, status: str, component: str, reason: str, detail: str) -> dict[str, str]:
@@ -61,7 +64,35 @@ def code_digest() -> str:
     return digest.hexdigest()
 
 
-def check_engine(env: Mapping[str, str]) -> list[dict[str, str]]:
+def _wire_format(env: Mapping[str, str], base_url: str,
+                 exists: Callable[[str], bool]) -> tuple[str | None, str]:
+    """W23 F2: (failure reason or None, detail) for the request format the engine sends.
+
+    Unpatched, the engine's only route speaks the Anthropic Messages API
+    (engine.DEFAULT_DSH_PROVIDER); an OpenAI-compatible gateway rejects it with
+    "Invalid Anthropic Messages API request" on the first run. A reviewed patch
+    file re-points it, and the engine refuses to start when one is missing.
+    """
+    patches = [p for p in (env.get(PATCH_ENV) or "").split(os.pathsep) if p]
+    missing = [p for p in patches if not exists(p)]
+    if missing:
+        return "PATCH_FILE_MISSING", (f"{PATCH_ENV} names {missing[0]}, which does not exist; "
+                                      "the engine refuses to start")
+    if patches:
+        return None, f"request format set by {PATCH_ENV}"
+    parts = urllib.parse.urlsplit(base_url)
+    # ponytail: path heuristic. OpenAI-compatible gateways (OpenRouter, Ollama, LiteLLM, vLLM)
+    # serve under /v1, Anthropic-format hosts do not. Only a model call proves it (paid, not run).
+    if parts.path.rstrip("/").endswith("/v1"):
+        return "PROVIDER_FORMAT_MISMATCH", (
+            f"unpatched, the engine sends Anthropic Messages API requests, but {parts.hostname}"
+            f"{parts.path} looks OpenAI-compatible; set {PATCH_ENV} "
+            "(deploy/patches/openrouter.patch.yml)")
+    return None, "Anthropic Messages API (no patch)"
+
+
+def check_engine(env: Mapping[str, str],
+                 exists: Callable[[str], bool] = os.path.exists) -> list[dict[str, str]]:
     """``provider`` and ``model`` from the engine's validated configuration."""
     try:
         mode = resolve_live_mode(env)
@@ -84,9 +115,16 @@ def check_engine(env: Mapping[str, str]) -> list[dict[str, str]]:
                    str(exc) if on_model else "provider configuration is invalid"),
         ]
     host = urllib.parse.urlsplit(live["base_url"] or "").hostname or "unknown host"
+    mismatch, wire = _wire_format(env, live["base_url"] or "", exists)
+    if mismatch:
+        return [
+            _entry("provider", FAIL, "provider", mismatch, wire),
+            _entry("model", UNKNOWN, "model", "NOT_CHECKED",
+                   "the provider cannot be reached as configured"),
+        ]
     return [
         _entry("provider", OK, "provider", "CONFIGURED",
-               f"{host}; configured, reachability not probed"),
+               f"{host}; {wire}; configured, reachability not probed"),
         _entry("model", OK, "model", "CONFIGURED", f"runs use {live['model']} only"),
     ]
 

@@ -644,3 +644,50 @@ def test_retried_run_meters_only_new_tokens(db_factory):
         (1000, 100),
         (1500, 200),
     ]
+
+
+def test_stopped_run_with_proven_usage_lands_in_the_ledger(db_factory):
+    """W23 F4, the real thing: stop a run mid-engine-call and read cost_ledger.
+
+    The existing lifecycle test replaces record_run_cost with a recorder, so it only
+    proves the call is made. On the deployed stack a stopped run's model turn (7 045 in /
+    64 out, present in its transcript) never reached the ledger. This drives the real
+    stop path with the real writer and asserts the row.
+    """
+    import threading
+
+    from harness_orchestrator.engine import DeepSeekHarnessWrapper
+
+    entered, release = threading.Event(), threading.Event()
+
+    def runner(goal):
+        entered.set()
+        release.wait(10)
+        return "late"
+
+    eng = DeepSeekHarnessWrapper(backend_runner=runner)
+    eng.session_usage = lambda run_id: {
+        "inputTokens": 7045, "outputTokens": 64, "cacheReadTokens": 0}
+    svc, _ = _wire_service(db_factory, eng)
+    _approve(svc, "run-a")
+
+    async def go():
+        await svc.start_execution("run-a")
+        task = svc.runs["run-a"]["task"]
+        for _ in range(300):
+            if entered.is_set():
+                break
+            await asyncio.sleep(0.01)
+        assert entered.is_set()
+        await svc.stop_agent("run-a")
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        await asyncio.sleep(0.3)  # let any shielded metering finish
+        release.set()
+
+    run(go())
+    rows = run(_ledger_rows(db_factory))
+    assert [(r["run_id"], r["input_tokens"], r["output_tokens"]) for r in rows] == [
+        ("run-a", 7045, 64)]

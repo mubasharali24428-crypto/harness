@@ -1769,6 +1769,10 @@ class OrchestratorService(Orchestrator):
                         "status": "cancelled",
                         "finalResponse": "Execution cancelled via pause/stop.",
                     }
+                # W23 F4: the stopped/paused call still spent tokens the transcript
+                # proves. Shielded so a second cancel cannot drop the row; delta
+                # metering keeps a later resume from double-billing.
+                await asyncio.shield(record_run_cost(self, run_data, plan, allow_estimate=False))
                 return
             except CircuitOpenError as exc:
                 # Hung-provider circuit OPEN: fail fast BEFORE burning a

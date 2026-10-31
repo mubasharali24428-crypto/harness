@@ -21,6 +21,7 @@ Spend: one short model turn (the agent sleeps rather than reasons).
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import time
 import uuid
@@ -49,7 +50,7 @@ def harness_cli(token: str, *argv: str) -> tuple[int, dict]:
     env = {**os.environ, "HARNESS_TOKEN": token, "HARNESS_CONFIG_DIR": tempfile.mkdtemp(),
            "PYTHONPATH": str(REPO / "clients/python")}
     proc = subprocess.run(
-        [str(REPO / "section4/.venv/bin/python"), "-m", "harness_sdk.cli.main", *argv,
+        [sys.executable, "-m", "harness_sdk.cli.main", *argv,
          "--identity-url", IDENTITY, "--orchestrator-url", ORCHESTRATOR],
         env=env, capture_output=True, text=True, timeout=120, check=False)
     return proc.returncode, json.loads(proc.stdout or "{}")

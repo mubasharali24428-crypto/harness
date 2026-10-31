@@ -9,6 +9,7 @@ daemon image built before this change answers.
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
@@ -29,6 +30,9 @@ LIVE_ENV = {
     "DEEPSEEK_API_KEY": KEY,
     "DEEPSEEK_BASE_URL": "https://openrouter.ai/api/v1",
     "DSH_MODEL": "anthropic/claude-haiku-5.5",
+    # OpenRouter needs the reviewed patch (W23 F2); a real file, so `exists` holds.
+    "DSH_PATCH_FILES": str(
+        Path(__file__).resolve().parents[3] / "deploy/patches/openrouter.patch.yml"),
 }
 
 
@@ -241,3 +245,36 @@ def test_the_route_does_not_confirm_a_foreign_project(monkeypatch, db_service):
     unknown = client.get("/api/v1/orchestrator/readiness", params={"projectId": "p-nope"})
     assert foreign.status_code == unknown.status_code == 404
     assert foreign.json() == unknown.json()
+
+
+# ------------------------------------------------------------- W23 F2: request format
+
+
+def test_an_openai_gateway_without_its_patch_fails_before_the_first_run():
+    env = {k: v for k, v in LIVE_ENV.items() if k != "DSH_PATCH_FILES"}
+    checks = _by_id(readiness.check_engine(env))
+    assert checks["provider"]["status"] == "fail"
+    assert checks["provider"]["reason"] == "PROVIDER_FORMAT_MISMATCH"
+    assert "DSH_PATCH_FILES" in checks["provider"]["detail"]
+    assert checks["model"]["status"] == "unknown"
+    assert KEY not in json.dumps(checks)
+
+
+def test_a_missing_patch_file_fails_like_the_engine_would():
+    checks = _by_id(readiness.check_engine({**LIVE_ENV, "DSH_PATCH_FILES": "/nope.yml"}))
+    assert checks["provider"]["reason"] == "PATCH_FILE_MISSING"
+
+
+@pytest.mark.parametrize(
+    "url", ["https://api.anthropic.com", "https://api.deepseek.com/anthropic"])
+def test_an_anthropic_format_host_needs_no_patch(url):
+    env = {k: v for k, v in LIVE_ENV.items() if k != "DSH_PATCH_FILES"}
+    env["DEEPSEEK_BASE_URL"] = url
+    checks = _by_id(readiness.check_engine(env))
+    assert checks["provider"]["status"] == "ok"
+    assert "Anthropic Messages API" in checks["provider"]["detail"]
+
+
+def test_a_patched_engine_says_the_patch_sets_the_format():
+    provider = _by_id(readiness.check_engine(LIVE_ENV))["provider"]
+    assert "set by DSH_PATCH_FILES" in provider["detail"]

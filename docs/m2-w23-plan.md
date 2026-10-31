@@ -260,9 +260,47 @@ project `harnessfresh`:
   that project; it most likely went in that lane's cleanup after its 06:31
   commit.
 
-**Follow-ups this run found:** F2 needs a decision. A readiness probe that
-proves the provider accepts the model costs one model call per check, so it
-needs a spend rule. F4 is a metering gap in the stop path.
+**Follow-ups this run found, and where they stand (build `vw23f24`):**
+* **F2, narrowed without spend.** `readiness.check_engine` now checks the
+  request format: a base URL ending in `/v1` with no `DSH_PATCH_FILES` fails as
+  `PROVIDER_FORMAT_MISMATCH`, and a patch path that does not exist fails as
+  `PATCH_FILE_MISSING`. This is the exact failure the first run hit, caught
+  before any run. The live report now reads `openrouter.ai; request format set
+  by DSH_PATCH_FILES` (`w23-fresh-f2live-9719c90a`). Still open: proving the
+  provider accepts the *model* costs one call per check and needs a spend rule.
+  The `/v1` test is a heuristic: a gateway that is OpenAI-shaped on another
+  path is not caught.
+* **F4, fixed.** `_execute` meters the cancelled call from the transcript
+  (`allow_estimate=False`, shielded) before returning. Delta metering keeps a
+  resume from billing it twice. Live: the stop drill on `vw23f24`
+  (`w23-stop-f59816cce46d`, PASS 9/9) wrote `cost_ledger` 7045 in / 64 out,
+  $0.000736 for `w23stop-1793462964`. Before the fix was deployed, the same
+  drill on the same database left no row (`w23stop-1793452864` and
+  `w23stop-1793460273`, the latter `w23-stop-8e61b8c977ce`: 0 ledger rows each).
+  Tests: `test_lifecycle_races.py::test_a_cancelled_call_is_still_metered` (stop
+  and pause; fails without the fix) and
+  `test_run_metering.py::test_stopped_run_with_proven_usage_lands_in_the_ledger`
+  (real stop path and real writer, reads the ledger row back).
+
+**Separate-machine run: steps for the owner.** No second machine is reachable
+from this session (no saved SSH connection, no cloud environment), so this is
+written for a person to run on one. On a machine with Docker and Python 3.11+
+and nothing from Harness on it:
+
+1. Clone at the tested revision, then follow `docs/quickstart.md` §1 exactly.
+   It now uses `--env-file .env`. Build the images there (no image tag), so the
+   build is part of the run.
+2. Capture the bare report: `python3 -m venv .venv && .venv/bin/pip install -e
+   clients/python`, then `.venv/bin/python scripts/e2e/w23_fresh_setup_capture.py
+   --label bare-machine` (it logs in with an OTP and seeds a run). Expect exit 1,
+   naming `ENGINE_DRY` and `WORKER_TOKEN_UNSET`.
+3. Set the provider in `.env`: key, base URL, `DSH_MODEL`, `ENGINE_LIVE_MODE=live`,
+   and, for an OpenAI-compatible gateway, `DSH_PATCH_FILES`. Also set
+   `HARNESS_WORKER_DAEMON_TOKEN`. Start again with `--profile worker`, then run
+   the capture with `--label configured-machine`. Expect exit 0. Since F2, a
+   missing patch on a `/v1` gateway fails here, not on the first run.
+4. Run `scripts/e2e/w23_stop_drill.py` (one short model turn) and send back the
+   three JSON files from `docs/briefs/evidence/w23/`.
 
 **W23 verdict.** Every exit item has evidence, with the fresh-machine item met
 only as a fresh checkout and database on this host. A separate machine was
