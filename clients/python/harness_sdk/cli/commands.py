@@ -383,6 +383,39 @@ def run_status(sdk: Any, run_id: str) -> dict[str, Any]:
     }
 
 
+def stop_run(
+    sdk: Any,
+    run_id: str,
+    *,
+    wait: float = 30.0,
+    poll_seconds: float = 1.0,
+    clock: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> dict[str, Any]:
+    """W23: stop, and call it stopped only once the server confirms the engine is gone.
+
+    The stop answer is ``stopped``, ``stopping`` or (a repeat on a finished run)
+    ``completed``. While ``stopping`` the lifecycle phase is polled for up to
+    ``wait`` seconds; a server that never confirms leaves it ``stopping``.
+    """
+    status = (sdk.orchestrator.stop_agent(run_id) or {}).get("status")
+    deadline = clock() + wait
+    while status == "stopping" and clock() < deadline:
+        sleep(poll_seconds)
+        status = (sdk.orchestrator.get_run(run_id).get("lifecycle") or {}).get("phase", status)
+    return {"runId": run_id, "status": status, "confirmed": status in ("stopped", "completed")}
+
+
+def format_stop(payload: dict[str, Any], wait: float) -> str:
+    run = f"run {payload['runId']}"
+    if payload["status"] == "stopped":
+        return f"{run}: stopped (confirmed: the agent can no longer change files)"
+    if payload["status"] == "completed":
+        return f"{run}: already completed"
+    return (f"{run}: stop requested, not confirmed after {wait:g}s; the agent may still "
+            f"change files. Check with `harness status {payload['runId']}`.")
+
+
 def readiness(sdk: Any, project_id: str | None) -> dict[str, Any]:
     """W23: what would stop a run in this project, named by component."""
     project = pick_project(sdk, project_id)

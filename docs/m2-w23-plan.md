@@ -45,7 +45,7 @@ does not depend on it.
    the run page and the CLI.
 3. **Steering timing — built, see "Slice 3" below.** State when queued guidance takes effect, sourced from
    the engine's actual delivery point, not a guess.
-4. **Stop confirmation.** After the Stage 1 gate: the UI and CLI report
+4. **Stop confirmation — built, see "Slice 4" below.** Planned for after the Stage 1 gate: the UI and CLI report
    "stopped" only on `cancelConfirmed`, and say so when confirmation is pending
    or unknown.
 
@@ -86,6 +86,7 @@ does not depend on it.
 * Deployed: 12 backend containers and worker-daemon on `vw23ready1`. The
   **frontend stays on `vs1coherent`**: pulling `node:22-slim` timed out three
   times, so the onboarding card is verified by vitest and tsc only, not live.
+  (Superseded by the W23 exit run: the frontend now runs `vw23exit1`.)
 * Drill `scripts/e2e/w23_readiness_drill.py --tag w23ready1 --stale-tag s1coherent`:
   **PASS 7/7** (`docs/briefs/evidence/w23/w23-ready-3b505b2afab7.json`;
   its `git` field shows the HEAD at drill time, `1774770`, which another lane
@@ -165,12 +166,109 @@ does not depend on it.
 * **Evidence (2026-10-31).** section4: 2025 passed, 59 skipped. section7: 1055
   vitest passed and tsc clean. `spec_drift.py` clean; ruff clean. Not deployed.
 
+## Slice 4 — stop confirmation
+
+* **Gate note.** Built by owner direction ("complete the W23") while the Stage 1
+  exit is still open. It changes **no stop behaviour**: no backend file
+  changed. It changes only what the UI and CLI claim, and they now claim less,
+  so it cannot make a stop less truthful. The Stage 1 gate itself is not closed
+  or relaxed by this.
+* **CLI.** New `harness stop <run> [--wait 30] [--json]`. It exits 0 only when
+  the server answers `stopped` or `completed`, or when the lifecycle phase
+  reaches it within `--wait`. A stop that stays `stopping` exits 5 (timeout)
+  and says the agent may still change files. A server without a lifecycle stays
+  unconfirmed.
+* **UI.** The Stop button no longer discards the server's answer. It says
+  "Stopped. Confirmed…" only for `stopped`, and otherwise "not confirmed yet:
+  the agent may still change files". The note upgrades once the refreshed
+  status carries `cancelConfirmed`.
+* **Run page.** It used to stop polling as soon as the state read `done`, which
+  froze an unconfirmed stop on "Working". `runSettled` now keeps polling while
+  `mutationPossible`.
+* **Tests.** `clients/python/tests/test_cli.py`: confirmed at once, polled until
+  confirmed, never confirmed (bounded by `--wait`), no lifecycle, and exit codes
+  and text. `tests/unit/stopConfirmation.test.tsx`: every stop answer, plus
+  `runSettled` for each lifecycle case.
+
+* **Live (2026-10-31).** This passed on the deployed stack as part of
+  `w23-stop-33f65a53927a` (see the exit evidence below). `harness stop --json`
+  exited 0 with `confirmed: true` in 0.61 s, and `harness status` then read
+  `finished`.
+
 ## Exit evidence (unchanged from the continuation plan)
 
 * A fresh-machine setup run, with the readiness report captured.
 * The drift check **fails** on a deliberately stale daemon. Both faults are
   reproduced: a token mismatch (`401`) and an old image (revision mismatch).
 * A stop test confirms no orphan processes (relies on the W22 drills).
+
+## W23 exit run (2026-10-31)
+
+**Build and deploy.** Images `vw23exit1` were built from `git archive de62c0e`
+plus the 7 uncommitted slice 4 files, for backend, engine-worker,
+worker-daemon and **frontend** (the `node:22-slim` pull works again). All 13
+app containers, the frontend included, run that tag. The code digest
+`9725a594…` is identical in the orchestrator, the daemon and the worktree.
+
+| Exit item | Evidence | Result |
+|---|---|---|
+| Drift check fails on a stale daemon | `w23-ready-bb838bc7787e` on `vw23exit1` (and `w23-ready-3b505b2afab7` earlier) | **Met.** Token fault → `WORKER_UNAUTHORIZED`; old image → `WORKER_PREDATES_READINESS`; `/ready` 200 throughout; both recovered |
+| A stop test confirms no orphan processes | `w23-stop-33f65a53927a` (shared stack), `w23-stop-264d359b6cf0` (fresh stack) | **Met, 9/9 checks each.** A live `python3 … time.sleep(180)` child was in the worker at stop. `userStatus` read `working`; guidance mid-run answered `next_execution`; `harness stop` confirmed; worker and relay containers gone, none left on the run; lifecycle read `stopped` / `cancelConfirmed` / `finished` |
+| Fresh-machine setup run, readiness captured | `w23-fresh-bare-6ac4b2e8`, `w23-fresh-configured-2976bfdb`, `w23-fresh-configured-patch-000391bd` | **Met with limits (below):** a fresh checkout and fresh database on this host, not a separate machine |
+
+**Fresh setup, step by step.** The shared stack was stopped (not removed) from
+06:22 to 06:37. `docs/quickstart.md` was followed in a clean tree under compose
+project `harnessfresh`:
+
+1. **The quickstart as written failed (F1).** `migrate` refused to start
+   because no master key was set. Compose reads `.env` from the compose file's
+   directory (`deploy/`), so the key the quickstart appends to the repo-root
+   `.env` never reached the services. `make e2e-compose` runs against an
+   already-running stack, so it never exercised this path. **Fixed:**
+   `docs/quickstart.md` now passes `--env-file .env`. With that, the stack was
+   ready in 18 s (cached images), and `/ready` 200 and the UI 200 were confirmed.
+2. **Bare `.env.example`:** `harness doctor` exited 1, naming
+   `provider: fail ENGINE_DRY` and `worker: fail WORKER_TOKEN_UNSET`, with model
+   and revision `unknown`. The seeded demo project counts as a connected
+   repository, and permissions were `ok`.
+3. **Provider, model, live mode and worker token set:** all six checks `ok`,
+   exit 0. **The first run then blocked (F2):** `engine_failed: Invalid
+   Anthropic Messages API request` (`w23-stop-0e024cb381c5`, FAIL). The model
+   this deployment uses needs the OpenRouter patch (`DSH_PATCH_FILES`, which
+   `.env.example` documents). The readiness report said `model: ok` anyway,
+   because it checks configuration, not that the provider accepts the model.
+   This is the "provider reachability not proven" gap from slice 1, now shown
+   to matter on a real first run.
+4. **With the patch file set:** all six `ok`, exit 0, and the stop drill
+   passed 9/9.
+
+**Limits, stated plainly.**
+* Same host, with Docker already installed. The `vw23exit1` images were
+  reused, not rebuilt on the fresh setup.
+* The database and store volumes were fresh (`harnessfresh_*`, removed by name
+  afterwards). **Run workspaces were not (F3):** at `de62c0e` the runs volume
+  name is pinned to `harness_runs`, so the fresh stack wrote its two runs'
+  workspaces into the live volume (`w23stop-1793453186`, `w23stop-1793453423`;
+  left there, unknown to the live database). W17 committed the per-project
+  scoping (`14a7391`) during this run, after the archive. Nothing used
+  `down -v`.
+* **Spend (F4):** `cost_ledger` has **0 rows** for the three `w23stop-*` runs,
+  although each made one short model turn. A stopped run's turn is not metered.
+  Bounded by three short haiku turns, but not recorded.
+* The other lane's `harness-w17-5xx` load-test project was running before the
+  shared stack was stopped and was gone afterwards. No command here addressed
+  that project; it most likely went in that lane's cleanup after its 06:31
+  commit.
+
+**Follow-ups this run found:** F2 needs a decision. A readiness probe that
+proves the provider accepts the model costs one model call per check, so it
+needs a spend rule. F4 is a metering gap in the stop path.
+
+**W23 verdict.** Every exit item has evidence, with the fresh-machine item met
+only as a fresh checkout and database on this host. A separate machine was
+not exercised. Slice 4 was built before the Stage 1 gate by owner direction,
+and changes no stop behaviour. Stage 1's exit is still open, and `STATUS.md`
+stays NOT READY.
 
 ## Rules carried over
 

@@ -32,6 +32,7 @@ import { loadSession } from "@/lib/auth";
 import {
   type RunAggregateDto,
   getRunAggregate,
+  runSettled,
 } from "../../../../runs/runsApi";
 import { RunDetailAggregate } from "./runDetailAggregate";
 import { PlanGateCard } from "../../../../dashboard/planGate";
@@ -128,7 +129,7 @@ export default function RunDetailPage({
 
   // Keep the summary live (stop/done change the state after first load).
   // ponytail: 3s polling like the shared panel; push delivery is P4.
-  const terminal = /^(done|stopped|failed|completed|cancelled)$/i.test(agg?.state ?? "");
+  const terminal = runSettled(agg);
   useEffect(() => {
     if (!token || !runId || terminal) return;
     const id = setInterval(() => void fetchAgg(true), 3000);

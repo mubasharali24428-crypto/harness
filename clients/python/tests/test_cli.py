@@ -14,7 +14,7 @@ import stat
 import pytest
 from harness_sdk.cli import config
 from harness_sdk.cli import session as session_store
-from harness_sdk.cli.commands import CliError, execute_run, format_diff
+from harness_sdk.cli.commands import CliError, execute_run, format_diff, stop_run
 from harness_sdk.cli.main import main
 from harness_sdk.errors import ApiError
 
@@ -195,6 +195,7 @@ def test_every_command_accepts_the_service_url_flags(config_dir, monkeypatch):
         ["run", "goal", "--project", "p", "--yes", "--json"],
         ["status", "r1", "--json"],
         ["diff", "r1", "--json"],
+        ["stop", "r1", "--json"],
     ):
         args = parser.parse_args([*argv, "--orchestrator-url", "http://orch"])
         assert args.orchestrator_url == "http://orch", argv
@@ -495,3 +496,79 @@ def test_doctor_names_the_failing_component_and_exits_nonzero():
     main(["doctor", "--project", "p9"], sdk=sdk, stdout=human)
     assert "fail" in human.getvalue() and "worker-daemon" in human.getvalue()
     assert "not ready" in human.getvalue()
+
+
+# ------------------------------------------------------------- W23 stop confirmation
+
+
+class _StopOrch:
+    """stop answers `first`; each later read returns the next lifecycle phase."""
+
+    def __init__(self, first, phases=()):
+        self.first, self.phases, self.reads = first, list(phases), 0
+
+    def stop_agent(self, run_id):
+        return {"runId": run_id, "status": self.first}
+
+    def get_run(self, run_id):
+        self.reads += 1
+        phase = self.phases.pop(0) if self.phases else None
+        return {"runId": run_id, "state": "done",
+                "lifecycle": {"phase": phase} if phase else None}
+
+
+class _Clock:
+    def __init__(self):
+        self.t = 0.0
+
+    def __call__(self):
+        return self.t
+
+    def sleep(self, s):
+        self.t += s
+
+
+def _stop(first, phases=(), wait=5.0):
+    sdk, clock = _Sdk(), _Clock()
+    sdk.orchestrator = _StopOrch(first, phases)
+    return stop_run(sdk, "r1", wait=wait, clock=clock, sleep=clock.sleep), sdk.orchestrator
+
+
+@pytest.mark.parametrize("first", ["stopped", "completed"])
+def test_stop_confirmed_at_once_never_polls(first):
+    result, orch = _stop(first)
+    assert result == {"runId": "r1", "status": first, "confirmed": True} and orch.reads == 0
+
+
+def test_stopping_is_polled_until_the_server_confirms():
+    result, orch = _stop("stopping", ["stopping", "stopping", "stopped"])
+    assert result["status"] == "stopped" and result["confirmed"] and orch.reads == 3
+
+
+def test_stopping_that_never_confirms_is_not_called_stopped():
+    result, orch = _stop("stopping", ["stopping"] * 100, wait=5.0)
+    assert result == {"runId": "r1", "status": "stopping", "confirmed": False}
+    assert orch.reads == 5  # bounded by --wait
+
+
+def test_an_older_server_without_lifecycle_stays_unconfirmed():
+    result, _ = _stop("stopping", [], wait=2.0)
+    assert result["status"] == "stopping" and not result["confirmed"]
+
+
+def test_stop_command_exit_code_and_text(monkeypatch):
+    import importlib
+
+    cli_main = importlib.import_module("harness_sdk.cli.main")  # the package exports main()
+
+    monkeypatch.setattr(cli_main, "stop_run", lambda c, rid, wait: {
+        "runId": rid, "status": "stopping", "confirmed": False})
+    out = io.StringIO()
+    assert main(["stop", "r1", "--wait", "3"], sdk=_Sdk(), stdout=out) == 5
+    assert "not confirmed after 3s" in out.getvalue() and "may still change files" in out.getvalue()
+    monkeypatch.setattr(cli_main, "stop_run", lambda c, rid, wait: {
+        "runId": rid, "status": "stopped", "confirmed": True})
+    out = io.StringIO()
+    assert main(["stop", "r1", "--json"], sdk=_Sdk(), stdout=out) == 0
+    body = json.loads(out.getvalue())
+    assert body["status"] == "stopped" and body["confirmed"] and body["exitCode"] == 0

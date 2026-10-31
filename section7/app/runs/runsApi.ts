@@ -190,6 +190,14 @@ export interface RunAggregateDto {
   lifecycle?: { phase: string; cancelConfirmed: boolean; mutationPossible: boolean; userStatus?: string } | null;
 }
 
+/** Pure: the run page may stop polling. W23: a stopped run is `done` before its stop is
+ *  confirmed, so it keeps polling while the engine can still change files; otherwise the
+ *  status would freeze on "Working". An older server without lifecycle settles on state alone. */
+export function runSettled(agg: Pick<RunAggregateDto, "state" | "lifecycle"> | null): boolean {
+  return /^(done|stopped|failed|completed|cancelled)$/i.test(agg?.state ?? "")
+    && agg?.lifecycle?.mutationPossible !== true;
+}
+
 /** Client cap mirroring F3a's _AGGREGATE_STEPS_MAX: even if a future server
  *  lifts its cap, the timeline still renders at most this many events. */
 export const RUN_AGGREGATE_STEPS_MAX = 100;

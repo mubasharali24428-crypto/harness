@@ -5,6 +5,7 @@
     harness chat [--resume <id>] [--message "..."] [--yes] [--json]
     harness status <runId> [--json]
     harness diff <runId> [--json]
+    harness stop <runId> [--wait 30] [--json]  # W23: exit 0 only once confirmed
     harness doctor [--project <id>] [--json]   # W23 first-run readiness
 
 Output policy: human text by default; `--json` prints exactly one object to
@@ -40,9 +41,11 @@ from .commands import (
     format_diff,
     format_readiness,
     format_steps,
+    format_stop,
     readiness,
     run_diff,
     run_status,
+    stop_run,
 )
 
 
@@ -88,6 +91,15 @@ def build_parser() -> argparse.ArgumentParser:
     diff.add_argument("run_id")
     diff.add_argument("--json", action="store_true")
     diff.add_argument("--capture", metavar="PATH",
+                      help="also write the JSON object to PATH (0600)")
+
+    stop = subs.add_parser("stop", parents=[common],
+                           help="stop a run and wait until the server confirms it ended")
+    stop.add_argument("run_id")
+    stop.add_argument("--wait", type=float, default=30.0, metavar="SECONDS",
+                      help="how long to wait for confirmation (default 30)")
+    stop.add_argument("--json", action="store_true")
+    stop.add_argument("--capture", metavar="PATH",
                       help="also write the JSON object to PATH (0600)")
 
     doctor = subs.add_parser("doctor", parents=[common],
@@ -261,6 +273,13 @@ def main(
             payload = diagnostics.contract("diff", run_diff(client, args.run_id), 0)
             _deliver(out, as_json, payload, lambda: format_diff(payload), capture)
             return 0
+        if command == "stop":
+            result = stop_run(client, args.run_id, wait=args.wait)
+            # Unconfirmed is a timeout, not success: the agent may still change files.
+            exit_code = diagnostics.OK if result["confirmed"] else diagnostics.TIMEOUT
+            payload = diagnostics.contract("stop", result, exit_code)
+            _deliver(out, as_json, payload, lambda: format_stop(payload, args.wait), capture)
+            return exit_code
         if command == "doctor":
             report = readiness(client, args.project)
             exit_code = diagnostics.OK if report["ready"] else diagnostics.FAILURE

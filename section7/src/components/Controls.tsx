@@ -14,6 +14,14 @@ import {
   inputStyle,
 } from "@/lib/styles";
 
+/** W23: what a stop answer means. Only `stopped` is a confirmed end (the engine is gone);
+ *  `stopping` and anything unknown say the agent may still change files. */
+export function stopNotice(status: string | undefined): string {
+  if (status === "stopped") return "Stopped. Confirmed: the agent can no longer change files.";
+  if (status === "completed") return "This run had already finished.";
+  return "Stop requested, not confirmed yet: the agent may still change files. The status reads Finished once it is confirmed.";
+}
+
 export function Controls({
   runId,
   stagedPending = false,
@@ -35,6 +43,7 @@ export function Controls({
   const [editPath, setEditPath] = useState("");
   const [editContent, setEditContent] = useState("");
   const [change, setChange] = useState("");
+  const [stopNote, setStopNote] = useState<string | null>(null);
   const editorRef = useEditorView(editContent, { onChange: setEditContent, label: "New file content" });
 
   async function run(action: string, fn: () => Promise<unknown>) {
@@ -60,6 +69,9 @@ export function Controls({
     if (!checked) setError(null);
   }
 
+  // The wire status carries the Part 10 lifecycle (contracts' RunStatus does not type it yet).
+  const confirmed = (status as { lifecycle?: { cancelConfirmed?: boolean } } | null)?.lifecycle?.cancelConfirmed === true;
+  const stopShown = stopNote && confirmed ? stopNotice("stopped") : stopNote;
   const state = status?.state;
   const canPause = state === "executing";
   const canResume = state === "paused" || state === "blocked";
@@ -86,7 +98,7 @@ export function Controls({
         <button
           style={dangerButtonStyle}
           disabled={!canStop || busy !== null}
-          onClick={() => run("stop", () => stopAgent(runId, token))}
+          onClick={() => run("stop", async () => setStopNote(stopNotice((await stopAgent(runId, token)).status)))}
         >
           Stop
         </button>
@@ -152,6 +164,7 @@ export function Controls({
 
       {stagedPending && <p role="status">Resolve staged changes before completing this run.</p>}
       {error && <p style={{ color: "var(--red)", fontSize: 13 }}>{error}</p>}
+      {stopShown && <p role="status" data-testid="stop-notice" style={{ fontSize: 13 }}>{stopShown}</p>}
 
       <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 8 }}>
         <input

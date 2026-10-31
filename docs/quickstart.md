@@ -16,9 +16,13 @@ test runs (`make e2e-compose`, 12 checks) — nothing here is illustrative-only.
 cd harness
 cp .env.example .env
 printf 'HARNESS_MASTER_KEY=%s\n' "$(python3 -c 'import secrets;print(secrets.token_hex(32))')" >> .env
-docker compose -f deploy/docker-compose.yml up -d
-docker compose -f deploy/docker-compose.yml run --rm migrate
+docker compose --env-file .env -f deploy/docker-compose.yml up -d
+docker compose --env-file .env -f deploy/docker-compose.yml run --rm migrate
 ```
+
+`--env-file .env` is required: Compose reads `.env` from the compose file's
+directory (`deploy/`), so without it the key above never reaches the services
+and `migrate` refuses to start (found by the W23 fresh-setup run).
 
 Wait until identity is *ready* (readiness gates the database and migrations, not
 just the process):
