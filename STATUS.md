@@ -32,9 +32,9 @@ billing stays flag-off. Remaining blockers: a reviewed dedicated sandbox
 worker/daemon, host certification, the first native-Linux drill run, and
 counsel-approved terms (a review packet now exists under `docs/legal/`).
 
-Updated 2026-10-31: the **Hx execution track** (M1–M7, design in
-`docs/hx-execution-architecture.md`) is complete through M7, committed at `332d273`
-(M2–M5), `3637e3f` (M6) and `746a2d2` (M7). A
+Updated 2026-10-31: the **Hx execution track** (M1–M8, design in
+`docs/hx-execution-architecture.md`) is complete through M8, committed at `332d273`
+(M2–M5), `3637e3f` (M6), `746a2d2` (M7) and `9e54132` (M8). A
 program in the `agent` profile now checks, is authorised against its own
 manifest, runs inside its declared budget across a host bridge, and produces
 evidence that says `approved: false` / `autoMerge: false`. Section 4 executes a
@@ -53,14 +53,37 @@ in that story's honesty: a recorded **failure** now replays as itself (same code
 status, line, message and contract digest) instead of being masked by the replay's
 own "nothing recorded" error, recordings are versioned (`hx.recording/v2`) with an
 explicit outcome per exchange, and a call that never settled makes the recording
-incomplete — which a replay refuses (`HXH104`) rather than fills in. Suites at
-`746a2d2`:
-language 315 (spec/toolchain now `0.3.0`), section 1 1223,
-section 4 1933, section 5 459, `make guard-isolation` clean. This does **not**
+incomplete — which a replay refuses (`HXH104`) rather than fills in. M8 made a program
+**several files** without making anything load during a run: `use notes` names a module
+whose bytes the host supplies, a used module arrives renamed so `notes.Summary` is one
+identifier in the checker, the runtime and the evidence, and the manifest carries a
+digest per file (`sources[]`, `program_sha256` over module names rather than paths, so an
+approved digest survives a clone) — which closes the hole where an unchanged entry file
+with a swapped helper used to run. Two ways to compute a value arrived, neither of them
+assignment: `for … accumulate` binds per pass and `base with { … }` yields a new record,
+so `n = 2` is still a syntax refusal and the loop's termination story is unchanged. Suites
+at `9e54132`:
+language **367** (spec/toolchain now `0.4.0`), section 4's Hx-adjacent subset
+`pytest tests/unit -q -k "hx or workflow or runner"` **22**, section 5's
+`tests/unit/test_hx_live_host_ops.py` **4**, `make guard-isolation` clean (276 src
+files, 10 sections), `scripts/spec_drift.py` clean, TS mirror current. The whole-suite
+counts for sections 1/4/5 are deliberately **not** pinned to this commit: a concurrent
+lane was committing into `section4` while these were measured (section 4's suite came in
+at 2033, then 2081, with 48 tests from an in-flight `review_summary` module in between),
+so a number here would be theirs and unverifiable rather than a claim about M8. Two
+observations from those runs are worth keeping: one section 4 randomized-order run failed
+while the same suite passed in fixed order, and
+`section1/tests/test_ratelimit_expensive_ops.py::test_model_call_burst_over_limit_429`
+failed once in a full section 1 run and passed three times in isolation — order- and
+timing-sensitive tests in sections this track does not touch (Section 1 imports nothing
+from it, and `guard-isolation` proves that). Both are recorded rather than hidden.
+This does **not**
 move the verdict above: the driver bounds host calls, not CPU; a price is the
 host's estimate, not a settled bill from Section 3's ledger; a revoked capability
 stops effects but does not kill a call in flight; a replay can reproduce an effect
-it recorded but cannot undo one; and the track adds no approval surface of its own.
+it recorded but cannot undo one; a module is only as trustworthy as the resolver the
+host hands it; Section 4 still cannot pin a multi-file program until `WorkflowRequest`
+carries a program digest; and the track adds no approval surface of its own.
 
 ## PROGRAM CLOSE — Mission 23 (2026-08-26)
 

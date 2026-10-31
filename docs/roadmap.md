@@ -38,11 +38,18 @@ substitutes for the security review, and it adds no approval or merge surface.
 | M5 enums, record construction, `for` bounded by the list and by `budget.steps` | done | code + fixture + golden per construct; `test_language_growth.py` also pins what did not arrive |
 | M6 `budget.cost` enforced against a host price table; a grant revocable mid-run | done (`3637e3f`) | the run stops *before* the crossing it cannot pay and an unpriced crossing is refused, not free; `declared-not-enforced` is said out loud in the evidence; revocation denies the next crossing, cannot widen the request, and is logged with its reason; the driver's code set is pinned by `test_host_codes.py` |
 | M7 a recorded failure replays as itself; an unfinished recording is refused | done (`746a2d2`) | `hx.recording/v2` names an outcome per exchange, so a failure re-raises with its own code, status, line and digest; a call that never settled is refused with `HXH104`; deleting a recorded failure makes the replay refuse rather than invent; `hxr --record`/`--replay` are proven by deleting the file the run read. Language 315, spec `0.3.0` |
+| M8 multi-file programs with a digest per file, `for … accumulate`, record update `with` — no assignment | done (`9e54132`) | `use` resolves a name to host-supplied bytes and nothing loads during a run (`import` still refused by name); a used module is renamed for its reader, so a local look-alike schema cannot be passed to its helper; `sources[]` + `program_sha256` pin every file and survive a clone, and a swapped helper is `HXH103` where `--digest` on the entry alone lets it run; the accumulate loop still spends one step per pass and records the value each pass started with. Language 367, spec `0.4.0` |
+| M10a formatter (`hxfmt`), M9 capability parity gate, M10b language server | open | each waits on its own gate: idempotent format that preserves the AST; a live adapter or refuse-by-name; symbols and hover over the 0.4.0 grammar |
 
 Open by design, each named in `docs/hx-execution-architecture.md` §4.2/§6: a price is the host's
 estimate, not a settled bill (only Section 3's ledger knows what a provider charged); a revoked
 capability stops effects but does not kill a call in flight; a replay can reproduce a recorded
 effect but cannot undo one;
 secret detection is prefix-based, not entropy-based; `for` has no `break`; one workflow per run;
-no modules, no mutation; the driver bounds host calls, not CPU — real confinement stays
-Section 5's job.
+no assignment, no `while`, no packages or versions — `use` names files the host already agreed
+to supply, at most 16 and 256 KiB each, one level deep, types and pure `fn` only; there is no
+numeric arithmetic (`+` joins Strings, and a `List` has no members), which is an owner decision
+about operators rather than a gap to fill quietly; a module is only as trustworthy as the
+resolver the host hands it (§6.11); Section 4 cannot pin a multi-file program until
+`WorkflowRequest` carries a program digest (§6.12); the driver bounds host calls, not CPU — real
+confinement stays Section 5's job.
