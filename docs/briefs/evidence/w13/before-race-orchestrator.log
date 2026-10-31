@@ -1,0 +1,24 @@
+23:18:42 INFO    uvicorn.error Started server process [53094]
+23:18:42 INFO    uvicorn.error Waiting for application startup.
+23:18:42 INFO    uvicorn.error Application startup complete.
+23:18:42 INFO    uvicorn.error Uvicorn running on http://127.0.0.1:18604 (Press CTRL+C to quit)
+23:18:43 INFO    uvicorn.access 127.0.0.1:52507 - "GET /health HTTP/1.1" 200
+23:18:43 INFO    harness.deploy.request http request
+23:18:43 INFO    harness.orchestrator.request http request
+23:18:43 INFO    uvicorn.access 127.0.0.1:52511 - "POST /api/v1/orchestrator/runs/af882a3a-a034-4c7d-9340-b73dd16f5d11/plan HTTP/1.1" 201
+23:18:43 INFO    harness.deploy.request http request
+23:18:43 INFO    harness.orchestrator.request http request
+23:18:43 INFO    uvicorn.access 127.0.0.1:52512 - "POST /api/v1/orchestrator/runs/af882a3a-a034-4c7d-9340-b73dd16f5d11/plan/approve HTTP/1.1" 200
+23:18:43 INFO    harness.deploy.request http request
+23:18:43 INFO    harness.orchestrator.request http request
+23:18:43 INFO    uvicorn.access 127.0.0.1:52513 - "POST /api/v1/orchestrator/runs/af882a3a-a034-4c7d-9340-b73dd16f5d11/start HTTP/1.1" 200
+23:18:43 INFO    harness.deploy.request http request
+23:18:43 INFO    harness.orchestrator.request http request
+23:18:44 INFO    harness_orchestrator.service checkpoint 0001-before-attempt-1 for af882a3a-a034-4c7d-9340-b73dd16f5d11 (0 files)
+23:18:44 INFO    harness_orchestrator.service checkpoint 0002-after-attempt-1 for af882a3a-a034-4c7d-9340-b73dd16f5d11 (0 files)
+23:18:44 WARNING harness_contracts.pricing model 'deepseek-chat' is priced by neither the catalog nor the operator rate card; metering it at the fallback rate (0.5 in / 1.5 out per million tokens)
+23:18:44 INFO    harness_orchestrator.run_metering recorded run cost for af882a3a-a034-4c7d-9340-b73dd16f5d11: 44 tokens $0.000058
+23:18:46 INFO    uvicorn.access 127.0.0.1:52515 - "GET /api/v1/orchestrator/runs/af882a3a-a034-4c7d-9340-b73dd16f5d11/engine HTTP/1.1" 200
+23:18:46 INFO    harness.deploy.request http request
+23:18:46 INFO    harness.orchestrator.request http request
+23:18:46 INFO    uvicorn.error Shutting down

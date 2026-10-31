@@ -96,6 +96,10 @@ IDENTITY_RULES: tuple[tuple[str, str, str], ...] = (
     ("POST", r"/api/v1/runner/jobs/[^/]+/claim", "steer"),
     ("POST", r"/api/v1/runner/jobs/[^/]+/heartbeat", "steer"),
     ("POST", r"/api/v1/runner/jobs/[^/]+/finish", "steer"),
+    # W13 execution leg: the plan-derived spec is read-only; reporting tool events
+    # writes to the run's transcript, so it is a steering act like finish.
+    ("GET", r"/api/v1/runner/jobs/[^/]+/spec", "read"),
+    ("POST", r"/api/v1/runner/jobs/[^/]+/events", "steer"),
     ("GET", r"/api/v1/teams/[^/]+/(members|invites|settings/.*)", "read"),
     ("*", r"/api/v1/teams/[^/]+/(members/.*|invites.*|seats/agent|settings/.*)",
      "administer"),

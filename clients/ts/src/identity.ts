@@ -134,6 +134,11 @@ export interface EventReplayResponse {
   replayTruncated?: boolean | null;  // optional
 }
 
+/** EventsBody. Required keys: events. */
+export interface EventsBody {
+  events: RunnerEvent[];
+}
+
 /** ExecutionControlBody. Required keys: disabled, reason. */
 export interface ExecutionControlBody {
   disabled: boolean;
@@ -400,6 +405,18 @@ export interface RunnerBody {
   confinement?: string;  // optional
   description: string;
   name: string;
+}
+
+/** RunnerEvent. Required keys: callId, phase. */
+export interface RunnerEvent {
+  callId: string;
+  command?: string | null;  // optional
+  durationMs?: number | null;  // optional
+  error?: string | null;  // optional
+  exitCode?: number | null;  // optional
+  ok?: boolean | null;  // optional
+  output?: string | null;  // optional
+  phase: "call" | "result";
 }
 
 /** ScopePrefsBody. */
@@ -1255,9 +1272,9 @@ export class IdentityClient {
 
   /** Replay Events
    *  GET /api/v1/projects/{project_id}/events/replay */
-  replay_events(project_id: string, after_seq?: number, limit?: number): Promise<EventReplayResponse> {
+  replay_events(project_id: string, after_seq?: number, limit?: number, before_seq?: number): Promise<EventReplayResponse> {
     const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/events/replay`;
-    const params: Record<string, unknown> = {"after_seq": after_seq, "limit": limit};
+    const params: Record<string, unknown> = {"after_seq": after_seq, "limit": limit, "before_seq": before_seq};
     return this.http.request<EventReplayResponse>(this.baseUrl, _path, "GET", undefined, params);
   }
 
@@ -1331,6 +1348,13 @@ export class IdentityClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
   }
 
+  /** Post Job Events
+   *  POST /api/v1/runner/jobs/{run_id}/events */
+  post_job_events(run_id: string, body: EventsBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/runner/jobs/${encodeURIComponent(run_id)}/events`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
   /** Finish Job
    *  POST /api/v1/runner/jobs/{run_id}/finish */
   finish_job(run_id: string, body: FinishBody): Promise<Record<string, unknown>> {
@@ -1343,6 +1367,13 @@ export class IdentityClient {
   heartbeat_job(run_id: string): Promise<Record<string, unknown>> {
     const _path = `/api/v1/runner/jobs/${encodeURIComponent(run_id)}/heartbeat`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Job Spec
+   *  GET /api/v1/runner/jobs/{run_id}/spec */
+  job_spec(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/runner/jobs/${encodeURIComponent(run_id)}/spec`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
   }
 
   /** List Sessions
@@ -2073,6 +2104,7 @@ export class IdentityClient {
  * export interface/type ErrorEnvelope
  * export interface/type EventEnvelopeOut
  * export interface/type EventReplayResponse
+ * export interface/type EventsBody
  * export interface/type ExecutionControlBody
  * export interface/type FinishBody
  * export interface/type GlobalPrefsBody
@@ -2112,6 +2144,7 @@ export class IdentityClient {
  * export interface/type Rule
  * export interface/type RulesBody
  * export interface/type RunnerBody
+ * export interface/type RunnerEvent
  * export interface/type ScopePrefsBody
  * export interface/type SelectBody
  * export interface/type ServiceIdentityBody

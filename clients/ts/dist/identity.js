@@ -485,9 +485,9 @@ export class IdentityClient {
     }
     /** Replay Events
      *  GET /api/v1/projects/{project_id}/events/replay */
-    replay_events(project_id, after_seq, limit) {
+    replay_events(project_id, after_seq, limit, before_seq) {
         const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/events/replay`;
-        const params = { "after_seq": after_seq, "limit": limit };
+        const params = { "after_seq": after_seq, "limit": limit, "before_seq": before_seq };
         return this.http.request(this.baseUrl, _path, "GET", undefined, params);
     }
     /** List Memory
@@ -550,6 +550,12 @@ export class IdentityClient {
         const _path = `/api/v1/runner/jobs/${encodeURIComponent(run_id)}/claim`;
         return this.http.request(this.baseUrl, _path, "POST", undefined);
     }
+    /** Post Job Events
+     *  POST /api/v1/runner/jobs/{run_id}/events */
+    post_job_events(run_id, body) {
+        const _path = `/api/v1/runner/jobs/${encodeURIComponent(run_id)}/events`;
+        return this.http.request(this.baseUrl, _path, "POST", body);
+    }
     /** Finish Job
      *  POST /api/v1/runner/jobs/{run_id}/finish */
     finish_job(run_id, body) {
@@ -561,6 +567,12 @@ export class IdentityClient {
     heartbeat_job(run_id) {
         const _path = `/api/v1/runner/jobs/${encodeURIComponent(run_id)}/heartbeat`;
         return this.http.request(this.baseUrl, _path, "POST", undefined);
+    }
+    /** Job Spec
+     *  GET /api/v1/runner/jobs/{run_id}/spec */
+    job_spec(run_id) {
+        const _path = `/api/v1/runner/jobs/${encodeURIComponent(run_id)}/spec`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
     }
     /** List Sessions
      *  GET /api/v1/sessions */
@@ -1190,6 +1202,7 @@ export class IdentityClient {
  * export interface/type ErrorEnvelope
  * export interface/type EventEnvelopeOut
  * export interface/type EventReplayResponse
+ * export interface/type EventsBody
  * export interface/type ExecutionControlBody
  * export interface/type FinishBody
  * export interface/type GlobalPrefsBody
@@ -1229,6 +1242,7 @@ export class IdentityClient {
  * export interface/type Rule
  * export interface/type RulesBody
  * export interface/type RunnerBody
+ * export interface/type RunnerEvent
  * export interface/type ScopePrefsBody
  * export interface/type SelectBody
  * export interface/type ServiceIdentityBody

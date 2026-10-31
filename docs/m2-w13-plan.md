@@ -103,8 +103,10 @@ customer host (controls its own machine), other tenants (hold their own tokens).
 | `POST /api/v1/runner/heartbeat` | runner token | signed confinement attestation |
 | `GET /api/v1/runner/jobs` | runner token | that runner's open jobs only |
 | `POST /api/v1/runner/jobs/{runId}/claim` | runner token | holds the `run_claims` lease as `runner:<id>` |
-| `POST /api/v1/runner/jobs/{runId}/heartbeat` | runner token | renews lease + run claim |
-| `POST /api/v1/runner/jobs/{runId}/finish` | runner token | deletes only its own claim |
+| `POST /api/v1/runner/jobs/{runId}/heartbeat` | runner token | renews lease + run claim; answers `cancel` once the log shows the run stopped |
+| `GET /api/v1/runner/jobs/{runId}/spec` | runner token | the approved plan's commands, forbidden/scope paths and limits (execution leg) |
+| `POST /api/v1/runner/jobs/{runId}/events` | runner token | bounded, scrubbed `tool_call`/`tool_result` events (execution leg) |
+| `POST /api/v1/runner/jobs/{runId}/finish` | runner token | deletes only its own claim and settles the run (execution leg) |
 
 Refusals: unknown/revoked token → **401** with no distinction beyond the message;
 replayed nonce → **409** `REPLAY_REJECTED`; stale timestamp → **401**
@@ -214,8 +216,70 @@ sections and `make static-gates` passes after regenerating
 | Team isolation verified | **pass** — live drill (stolen token, identical 404s) |
 | Worker lifecycle verified | **pass** — live drill |
 | Trust assumptions documented | **pass** — this document |
-| A run executes on a customer-controlled host | **OPEN** — the control plane and lease are real; the runner does not yet execute the approved plan or stream tool events into the orchestrator (`docs/m2-w13-plan.md` §Remaining) |
+| A run executes on a customer-controlled host | **PARTIAL** — a real runner process executes the approved plan's commands through the Section 5 shell gate and the run settles from its recorded results (isolated drill, 16/16). Same machine as the services, test commands only, no agent loop (§Execution leg, §Remaining) |
 | Runner UI / mTLS / rate limits | **not shipped** |
+
+## Execution leg (2026-10-30)
+
+**What a BYO run does now.** The admin may offer an approved run to a runner *before* it
+starts. `start_execution` still announces and queues the run (the queued `run_claims` row is
+what the runner claims), then applies the same budget/tier gate the local worker applies
+before a spawn, and returns: `claim_next_run` skips any run that has a `runner_jobs` row, so
+the orchestrator never spawns an engine for it. The runner then:
+
+1. attests, lists its jobs, claims one;
+2. `GET …/spec` — the commands are the approved plan's `tests`, read from `agent_plans`
+   (status `approved`) on the server, with its forbidden paths, the intent's scope paths and
+   the limits. More than 20 commands (`PLAN_TOO_LARGE`) or none (`NO_COMMANDS`) is refused,
+   never truncated;
+3. runs each command through `shell_gate.py` (allow-list, forbidden and scope paths,
+   Seatbelt/Landlock — no confinement means refused), fail-fast, heartbeating while a
+   command runs and killing it on `cancel` or a lost lease;
+4. `POST …/events` — one `call` and one `result` per command. The server names the tool
+   (`bash`), rebuilds the payload, refuses any command that is not in the approved plan
+   (`COMMAND_NOT_IN_PLAN`), re-scrubs token-shaped strings and the runner's own bearer token,
+   bounds output to 2000 characters, caps a job at 80 events and a batch at 50, and writes
+   the batch only if every event validates;
+5. `POST …/finish` — releases the lease **and settles the run exactly as a local engine
+   does**: `engine_completed` (→ the human done-gate, `awaiting_done_signal`) or
+   `engine_failed` (→ `blocked`). The verdict is re-derived from the recorded results: a
+   runner that says `completed` without a passing result for every approved command is
+   settled `failed`. A run the log no longer shows as executing (a human stop) only loses its
+   lease and never gets an `engine_*` event.
+
+**Why the log, not a call into the orchestrator.** Sections may not import each other and the
+runner routes live in Section 1, but the run lifecycle already replays from `agent_events`
+(M19-N1/Part 54). Section 1 appends to the same log through its `EventBus`; the orchestrator
+drops its stale cached copy and replays. The event is published *before* the claim is deleted,
+so a failed publish leaves the lease held and `finish` retryable instead of stranding a run
+`executing` with no owner.
+
+**Trust assumptions, unchanged.** The host is trusted to run what it is told and report
+honestly. Approval, the command allow-list, caps, the budget gate and the terminal verdict
+stay server-side. Nothing here proves the host is honest: a host that runs nothing and
+fabricates a passing `tool_result` is indistinguishable from one that ran it.
+
+**Decisions worth knowing.**
+
+* *Any* `runner_jobs` row excludes a run from the local worker — including `released`,
+  `completed` and `failed` — so a lost lease, or a retry after a finished job, can never move
+  customer code onto the harness host. The cost is that such a run needs a human to re-dispatch
+  it, and today there is no endpoint for that (§Remaining).
+* Plans proposed through the API always list `pytest tests/` as their test command, so that
+  is what a BYO runner runs. The approver sees that list at plan approval.
+* A run with no plan row (the lease-only jobs of the control-plane tests) keeps the old
+  behaviour: `finish` releases the lease and emits nothing.
+
+**Evidence.** `docs/briefs/evidence/w13/` — an isolated drill on a throwaway PostgreSQL with
+the real identity and orchestrator services, before (a `git archive` of `e9e5589`) and after.
+See its README for what is simulated. Model spend: **$0, 0 model calls** (the orchestrator's
+engine was the provider-less echo backend).
+
+**Tests.** `section1/tests/test_runner_exec.py` (15, offline), `section4/tests/unit/
+test_byo_dispatch.py` (10), `section5/tests/unit/test_byo_runner.py` (15, including the real
+shell gate). Full suites: Section 1 1222 passed / 63 skipped, Section 4 1910 / 59, Section 5
+455 / 8. `make static-gates` passes after recording the two new routes (`identity.openapi.json`,
+the Python and TypeScript SDKs and `clients/ts/dist`) and the `HARNESS_RUNNER_TOKEN` knob.
 
 ## Hardening pass (2026-10-29, same day)
 
@@ -240,12 +304,21 @@ Closed after the first live gate:
 
 ## Remaining (explicitly open)
 
-* **Execution leg.** The runner must execute the approved plan through Section
-  5's shell gate and stream bounded, scrubbed tool events into the orchestrator's
-  state machine, then finish the run. The seam is `start_execution`
-  (`section4/.../service.py`): a BYO dispatch must skip the local spawner and
-  let the runner's `finish` drive the run to a terminal state. Until that lands,
-  a BYO runner can *hold and complete a lease*, not *execute the work*.
+* **Agent loop and a real remote host.** The execution leg (below) runs the approved plan's
+  *test commands* on the host. A model-driven agent loop on the customer host (editing code,
+  producing a diff/PR) is not built, and no run has yet crossed a real network to a machine
+  that is not the services' own host.
+* **Accounting and notifications for BYO runs.** The runner's tool calls are not counted
+  against the Part 44 per-run tool-call limit (the per-job event cap bounds them instead),
+  `finish` records no cost (no model call is made on the harness side), and the
+  `_RUN_PROBLEMS` in-app notification fires only for events Section 4 itself emits, so a
+  BYO run that settles `engine_failed` is `blocked` without telling the run's participants.
+* **Re-dispatch after a lost lease.** A lost lease orphans the run, and `runner_jobs.run_id`
+  is the primary key, so there is no endpoint to offer the same run to another runner.
+  The local worker never takes such a run either (see "Execution leg").
+* **Mid-command cancellation in the drill.** `cancel` on the job heartbeat and the runner
+  killing the command are unit-tested (fake server, real gate); the isolated drill does not
+  exercise a human stop.
 * **Transport hardening.** mTLS or request signing on top of the token, plus
   per-runner rate limits (the identity rate limiter is not yet wired here).
 * **UI.** Registration, revocation, rotation and lease status are API/SDK only.
@@ -259,12 +332,13 @@ Closed after the first live gate:
   project/runner is deleted.
 * The drill seeds a queued `run_claims` row directly because no BYO dispatch
   endpoint exists; that is recorded in the evidence rather than hidden.
-* The customer host is simulated by the drill process, so the drill proves the
-  credential/lifecycle boundary, not remote tool execution.
+* The execution drill runs the real runner as a separate process on the services' own
+  machine: it proves the protocol, the shell gate and the log path, not a WAN or a hostile
+  host.
 
 ## Carry-over
 
-* **W14:** the execution leg above, then a real remote run with before/after
-  artifacts; only after that may the roadmap gate be marked pass.
+* **W14:** a real remote run with before/after artifacts (and the agent loop on the host,
+  if that is wanted); only after that may the roadmap gate be marked pass.
 * **M01:** native-tool confinement remains open; nothing here widened it — the
   new surface is a control plane plus a lease over the existing queue.

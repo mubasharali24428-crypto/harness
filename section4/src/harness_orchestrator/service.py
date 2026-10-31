@@ -58,6 +58,7 @@ from harness_orchestrator.run_queue import (
     enqueue_run,
     executing_run_ids,
     finish_run,
+    has_runner_job,
     heartbeat_age_seconds,
     heartbeat_run,
     queue_available,
@@ -1274,6 +1275,7 @@ class OrchestratorService(Orchestrator):
             # emission, so the shared log carries exactly one announcement
             # no matter how many replicas answer the request. (The winner's
             # worker loop performs the actual claim + spawn.)
+            byo = await has_runner_job(self.run_queue_factory, run_id)
             elected = await enqueue_run(
                 self.run_queue_factory, run_id, run_data.get("projectId") or ""
             )
@@ -1284,6 +1286,13 @@ class OrchestratorService(Orchestrator):
                 )
                 return
             sm.start_execution()
+            if byo:
+                # W13: offered to a bring-your-own runner. The queued row is the runner's to
+                # claim and claim_next_run skips it, so no local engine is ever spawned; the
+                # runner's finish settles the run through the event log. Budget/tier policy is
+                # still ours: the gate the worker applies before a spawn applies here.
+                if await self._budget_gate(run_data, plan):
+                    await finish_run(self.run_queue_factory, run_id)
             return
         # Bare / scratch-store mode: this process owns the lifecycle
         # end-to-end (legacy direct-spawn semantics preserved).

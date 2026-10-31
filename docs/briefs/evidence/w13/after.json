@@ -1,0 +1,131 @@
+{
+  "label": "after",
+  "tree": "/Users/user/untitled folder 2/harness",
+  "seconds": 9.1,
+  "modelCalls": 0,
+  "spendUsd": 0,
+  "passed": 16,
+  "failed": 0,
+  "checks": [
+    {
+      "name": "offer BEFORE start is accepted",
+      "ok": true,
+      "detail": "offered"
+    },
+    {
+      "name": "orchestrator start accepted",
+      "ok": true,
+      "detail": 200
+    },
+    {
+      "name": "local worker leaves the BYO run alone",
+      "ok": true,
+      "detail": {
+        "claim": "queued/enqueuer",
+        "events": [
+          "plan_proposed",
+          "plan_approved",
+          "execution_started"
+        ]
+      }
+    },
+    {
+      "name": "stolen team-B token: spec/events 404, same body as unknown id",
+      "ok": true,
+      "detail": [
+        404,
+        404,
+        404
+      ]
+    },
+    {
+      "name": "real runner process exits 0 and reports the run",
+      "ok": true,
+      "detail": "executed 85125d8f-763e-4acc-9c0b-bd6435898a51"
+    },
+    {
+      "name": "log shows call -> result -> engine_completed, no local engine",
+      "ok": true,
+      "detail": [
+        "plan_proposed",
+        "plan_approved",
+        "execution_started",
+        "tool_call",
+        "tool_result",
+        "engine_completed"
+      ]
+    },
+    {
+      "name": "tool_call is the approved command attributed to the runner; result is a real passing pytest run (exit 0)",
+      "ok": true,
+      "detail": [
+        "{\"command\": \"pytest tests/\"}|9805cf4c-6ccc-403a-bc9e-7e4a2f52e79f",
+        "true|0|true"
+      ]
+    },
+    {
+      "name": "settled by the server from recorded results, not by the echo engine",
+      "ok": true,
+      "detail": "BYO runner customer-host executed 1 approved command(s); all exited 0"
+    },
+    {
+      "name": "runner token appears in no event",
+      "ok": true,
+      "detail": "0"
+    },
+    {
+      "name": "lease released and job completed",
+      "ok": true,
+      "detail": [
+        "completed",
+        ""
+      ]
+    },
+    {
+      "name": "orchestrator replays the settle into its own view",
+      "ok": true,
+      "detail": {
+        "sessionId": "85125d8f-763e-4acc-9c0b-bd6435898a51",
+        "engine": "replayed",
+        "status": "completed",
+        "finalResponse": "BYO runner customer-host executed 1 approved command(s); all exited 0"
+      }
+    },
+    {
+      "name": "assignment and completion are audited",
+      "ok": true,
+      "detail": "2"
+    },
+    {
+      "name": "liar claims its lease",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "command outside the approved plan is refused (422) and not logged",
+      "ok": true,
+      "detail": [
+        422,
+        "COMMAND_NOT_IN_PLAN"
+      ]
+    },
+    {
+      "name": "'completed' without a passing result is settled failed",
+      "ok": true,
+      "detail": {
+        "runId": "fdcfdd93-986a-49ca-be26-912f41f372f5",
+        "state": "failed"
+      }
+    },
+    {
+      "name": "run is blocked by an engine_failed the server wrote",
+      "ok": true,
+      "detail": [
+        "plan_proposed",
+        "plan_approved",
+        "execution_started",
+        "engine_failed"
+      ]
+    }
+  ]
+}

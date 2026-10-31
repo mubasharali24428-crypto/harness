@@ -1,0 +1,49 @@
+{
+  "label": "before",
+  "tree": "/private/tmp/claude-501/-Users-user-untitled-folder-2/e598c3ae-202d-4b1f-9955-bf03d3286b79/scratchpad/before-tree",
+  "seconds": 4.4,
+  "modelCalls": 0,
+  "spendUsd": 0,
+  "passed": 5,
+  "failed": 0,
+  "checks": [
+    {
+      "name": "offer BEFORE start is refused (no product seam)",
+      "ok": true,
+      "detail": [
+        404,
+        "NOT_FOUND"
+      ]
+    },
+    {
+      "name": "offer after start accepted only because the worker is slowed",
+      "ok": true,
+      "detail": [
+        201,
+        ""
+      ]
+    },
+    {
+      "name": "legacy runner holds the lease",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "finish says completed...",
+      "ok": true,
+      "detail": {
+        "runId": "2acaac78-d154-4f92-afdf-77bbf7ef0e49",
+        "state": "completed"
+      }
+    },
+    {
+      "name": "...but nothing executed: no tool events, no engine_* event, run left EXECUTING",
+      "ok": true,
+      "detail": [
+        "plan_proposed",
+        "plan_approved",
+        "execution_started"
+      ]
+    }
+  ]
+}

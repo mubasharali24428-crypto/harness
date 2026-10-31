@@ -127,6 +127,10 @@ class EventReplayResponse(typing.TypedDict, total=False):
     oldestSeqSent: int | None
     replayTruncated: bool | None
 
+class EventsBody(typing.TypedDict, total=False):
+    """EventsBody. Required keys: events."""
+    events: list[RunnerEvent]  # required
+
 class ExecutionControlBody(typing.TypedDict, total=False):
     """ExecutionControlBody. Required keys: disabled, reason."""
     disabled: bool  # required
@@ -355,6 +359,17 @@ class RunnerBody(typing.TypedDict, total=False):
     confinement: str
     description: str  # required
     name: str  # required
+
+class RunnerEvent(typing.TypedDict, total=False):
+    """RunnerEvent. Required keys: phase, callId."""
+    callId: str  # required
+    command: str | None
+    durationMs: int | None
+    error: str | None
+    exitCode: int | None
+    ok: bool | None
+    output: str | None
+    phase: typing.Literal['call', 'result']  # required
 
 class ScopePrefsBody(typing.TypedDict, total=False):
     """ScopePrefsBody."""
@@ -1244,13 +1259,13 @@ class IdentityClient:
         _path = "/api/v1/projects"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
-    def replay_events(self, project_id: str, after_seq: int | None = None, limit: int | None = None) -> EventReplayResponse:
+    def replay_events(self, project_id: str, after_seq: int | None = None, limit: int | None = None, before_seq: int | None = None) -> EventReplayResponse:
         """Replay Events
 
         GET /api/v1/projects/{project_id}/events/replay
         """
         _path = f"/api/v1/projects/{project_id}/events/replay"
-        _params: dict[str, typing.Any] = {"after_seq": after_seq, "limit": limit}
+        _params: dict[str, typing.Any] = {"after_seq": after_seq, "limit": limit, "before_seq": before_seq}
         return self._http.request(self.base_url, "GET", _path, params=_params)
 
     def list_memory(self, project_id: str) -> dict[str, typing.Any]:
@@ -1333,6 +1348,14 @@ class IdentityClient:
         _path = f"/api/v1/runner/jobs/{run_id}/claim"
         return self._http.request(self.base_url, "POST", _path)
 
+    def post_job_events(self, run_id: str, body: EventsBody) -> dict[str, typing.Any]:
+        """Post Job Events
+
+        POST /api/v1/runner/jobs/{run_id}/events
+        """
+        _path = f"/api/v1/runner/jobs/{run_id}/events"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
     def finish_job(self, run_id: str, body: FinishBody) -> dict[str, typing.Any]:
         """Finish Job
 
@@ -1348,6 +1371,14 @@ class IdentityClient:
         """
         _path = f"/api/v1/runner/jobs/{run_id}/heartbeat"
         return self._http.request(self.base_url, "POST", _path)
+
+    def job_spec(self, run_id: str) -> dict[str, typing.Any]:
+        """Job Spec
+
+        GET /api/v1/runner/jobs/{run_id}/spec
+        """
+        _path = f"/api/v1/runner/jobs/{run_id}/spec"
+        return self._http.request(self.base_url, "GET", _path)
 
     def list_sessions(self, q: str | None = None, state: str | None = None, workspace_id: str | None = None, run_id: str | None = None, limit: int | None = None, cursor: str | None = None) -> dict[str, typing.Any]:
         """List Sessions
@@ -2157,4 +2188,4 @@ class IdentityClient:
         return self._http.request(self.base_url, "PATCH", _path, json_body=body)
 
 
-__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AttestBody", "AuditVerifyRequest", "BindingBody", "ChainNode", "CheckBody", "CreateProjectBody", "DefBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErasureBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "ExecutionControlBody", "FinishBody", "GlobalPrefsBody", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkRunBody", "LinkTeamBody", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "MemoryBody", "MuteBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "OwnerTransferBody", "PatchOp", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "PutBody", "ReadAllBody", "RevertBody", "RoutingBody", "Rule", "RulesBody", "RunnerBody", "ScopePrefsBody", "SelectBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SinkCreateBody", "SinkPatchBody", "SkillBody", "SnoozeBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "TokenBody", "UnsubscribeBody", "ValidationError", "VerifyOtpRequest", "WebhookCreateBody", "WebhookCreated", "WebhookPatchBody", "WsTicketRequest", "WsTicketResponse", "_DigestBody", "_QuietBody", "harness_identity__agents__ReasonBody", "harness_identity__orgs__RoleBody", "harness_identity__policy__AssignBody", "harness_identity__policy__RoleBody", "harness_identity__runner_api__AssignBody", "harness_identity__scim__PatchBody", "harness_identity__sessions__CreateBody", "harness_identity__sessions__MemberBody", "harness_identity__sessions__PatchBody", "harness_identity__sessions__ReasonBody", "harness_identity__sessions__RoleBody", "harness_identity__workspaces__CreateBody", "harness_identity__workspaces__MemberBody", "harness_identity__workspaces__PatchBody", "harness_identity__workspaces__ReasonBody"]
+__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AttestBody", "AuditVerifyRequest", "BindingBody", "ChainNode", "CheckBody", "CreateProjectBody", "DefBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErasureBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "EventsBody", "ExecutionControlBody", "FinishBody", "GlobalPrefsBody", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkRunBody", "LinkTeamBody", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "MemoryBody", "MuteBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "OwnerTransferBody", "PatchOp", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "PutBody", "ReadAllBody", "RevertBody", "RoutingBody", "Rule", "RulesBody", "RunnerBody", "RunnerEvent", "ScopePrefsBody", "SelectBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SinkCreateBody", "SinkPatchBody", "SkillBody", "SnoozeBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "TokenBody", "UnsubscribeBody", "ValidationError", "VerifyOtpRequest", "WebhookCreateBody", "WebhookCreated", "WebhookPatchBody", "WsTicketRequest", "WsTicketResponse", "_DigestBody", "_QuietBody", "harness_identity__agents__ReasonBody", "harness_identity__orgs__RoleBody", "harness_identity__policy__AssignBody", "harness_identity__policy__RoleBody", "harness_identity__runner_api__AssignBody", "harness_identity__scim__PatchBody", "harness_identity__sessions__CreateBody", "harness_identity__sessions__MemberBody", "harness_identity__sessions__PatchBody", "harness_identity__sessions__ReasonBody", "harness_identity__sessions__RoleBody", "harness_identity__workspaces__CreateBody", "harness_identity__workspaces__MemberBody", "harness_identity__workspaces__PatchBody", "harness_identity__workspaces__ReasonBody"]

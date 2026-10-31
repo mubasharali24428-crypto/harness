@@ -182,6 +182,12 @@ async def claim_next_run(factory, worker_id: str, max_per_team: int) -> dict[str
         except Exception:  # noqa: BLE001 — pre-0052 scratch schema uses the worker default
             if db.in_transaction():
                 await db.rollback()
+        try:
+            await db.execute(text("SELECT 1 FROM runner_jobs LIMIT 0"))
+            sql = sql.replace("WHERE rc.state = 'queued'\n", _BYO_EXCLUSION, 1)
+        except Exception:  # noqa: BLE001 — no runner_jobs table: nothing is ever offered to a runner
+            if db.in_transaction():
+                await db.rollback()
         if db.bind.dialect.name == "postgresql":
             # Lock the candidate row inside its subquery, before RETURNING.
             sql = _inject_skip_locked(sql)
@@ -274,6 +280,15 @@ WHERE run_id = (
 RETURNING run_id, project_id
 """
 
+# W13: a run offered to a bring-your-own runner is claimed by that runner, never by this
+# worker. ANY runner_jobs row excludes it - including released/completed/failed - so a
+# lease that was lost, or a finished job's retry, cannot silently move customer code onto
+# the harness host. A lost lease is re-dispatched by a human (docs/m2-w13-plan.md).
+_BYO_EXCLUSION = (
+    "WHERE rc.state = 'queued'\n"
+    "      AND NOT EXISTS (SELECT 1 FROM runner_jobs j WHERE j.run_id = rc.run_id)\n"
+)
+
 _CLAIM_SQL_CONFIGURABLE = _CLAIM_SQL.replace(
     "< :max_per_team",
     "< COALESCE((SELECT bp.concurrent_runs_override FROM billing_plans bp "
@@ -296,6 +311,26 @@ async def heartbeat_run(factory, run_id: str, worker_id: str) -> bool:
         ).rowcount
         await db.commit()
         return bool(matched)
+
+
+async def has_runner_job(factory, run_id: str) -> bool:
+    """True when the run was offered to a bring-your-own runner (Section 1 ``runner_jobs``).
+
+    Such a run is still announced and queued by ``start_execution`` - the queued row is what
+    the runner claims - but the local worker never spawns it. No table means no BYO runners.
+    """
+    from sqlalchemy import text
+
+    try:
+        async with factory() as db:
+            row = (
+                await db.execute(
+                    text("SELECT 1 FROM runner_jobs WHERE run_id = :r"), {"r": run_id}
+                )
+            ).first()
+    except Exception:  # noqa: BLE001 — no runner_jobs table (pre-0068 / scratch schema)
+        return False
+    return row is not None
 
 
 async def queue_available(factory) -> bool:

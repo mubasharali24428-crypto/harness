@@ -1,0 +1,17 @@
+23:18:20 INFO    uvicorn.error Started server process [52796]
+23:18:20 INFO    uvicorn.error Waiting for application startup.
+23:18:20 INFO    uvicorn.error Application startup complete.
+23:18:20 INFO    uvicorn.error Uvicorn running on http://127.0.0.1:18601 (Press CTRL+C to quit)
+23:18:20 INFO    uvicorn.access 127.0.0.1:52435 - "GET /health HTTP/1.1" 200
+23:18:20 INFO    harness.deploy.request http request
+23:18:21 INFO    uvicorn.access 127.0.0.1:52451 - "POST /api/v1/team-runners HTTP/1.1" 201
+23:18:21 INFO    harness.deploy.request http request
+23:18:21 INFO    uvicorn.access 127.0.0.1:52455 - "POST /api/v1/team-runners/f8913f0c-d4dc-4998-9aca-e562ac4a1fd2/jobs HTTP/1.1" 404
+23:18:21 INFO    harness.deploy.request http request
+23:18:21 INFO    uvicorn.access 127.0.0.1:52457 - "POST /api/v1/team-runners/f8913f0c-d4dc-4998-9aca-e562ac4a1fd2/jobs HTTP/1.1" 201
+23:18:21 INFO    harness.deploy.request http request
+23:18:21 INFO    uvicorn.access 127.0.0.1:52458 - "POST /api/v1/runner/jobs/2acaac78-d154-4f92-afdf-77bbf7ef0e49/claim HTTP/1.1" 200
+23:18:21 INFO    harness.deploy.request http request
+23:18:21 INFO    uvicorn.access 127.0.0.1:52459 - "POST /api/v1/runner/jobs/2acaac78-d154-4f92-afdf-77bbf7ef0e49/finish HTTP/1.1" 200
+23:18:21 INFO    harness.deploy.request http request
+23:18:21 INFO    uvicorn.error Shutting down

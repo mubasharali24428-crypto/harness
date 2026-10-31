@@ -122,6 +122,10 @@ export interface EventReplayResponse {
     oldestSeqSent?: number | null;
     replayTruncated?: boolean | null;
 }
+/** EventsBody. Required keys: events. */
+export interface EventsBody {
+    events: RunnerEvent[];
+}
 /** ExecutionControlBody. Required keys: disabled, reason. */
 export interface ExecutionControlBody {
     disabled: boolean;
@@ -358,6 +362,17 @@ export interface RunnerBody {
     confinement?: string;
     description: string;
     name: string;
+}
+/** RunnerEvent. Required keys: callId, phase. */
+export interface RunnerEvent {
+    callId: string;
+    command?: string | null;
+    durationMs?: number | null;
+    error?: string | null;
+    exitCode?: number | null;
+    ok?: boolean | null;
+    output?: string | null;
+    phase: "call" | "result";
 }
 /** ScopePrefsBody. */
 export interface ScopePrefsBody {
@@ -861,7 +876,7 @@ export declare class IdentityClient {
     create_project(body: CreateProjectBody): Promise<ProjectCreatedResponse>;
     /** Replay Events
      *  GET /api/v1/projects/{project_id}/events/replay */
-    replay_events(project_id: string, after_seq?: number, limit?: number): Promise<EventReplayResponse>;
+    replay_events(project_id: string, after_seq?: number, limit?: number, before_seq?: number): Promise<EventReplayResponse>;
     /** List Memory
      *  GET /api/v1/projects/{project_id}/memory */
     list_memory(project_id: string): Promise<Record<string, unknown>>;
@@ -892,12 +907,18 @@ export declare class IdentityClient {
     /** Claim Job
      *  POST /api/v1/runner/jobs/{run_id}/claim */
     claim_job(run_id: string): Promise<Record<string, unknown>>;
+    /** Post Job Events
+     *  POST /api/v1/runner/jobs/{run_id}/events */
+    post_job_events(run_id: string, body: EventsBody): Promise<Record<string, unknown>>;
     /** Finish Job
      *  POST /api/v1/runner/jobs/{run_id}/finish */
     finish_job(run_id: string, body: FinishBody): Promise<Record<string, unknown>>;
     /** Heartbeat Job
      *  POST /api/v1/runner/jobs/{run_id}/heartbeat */
     heartbeat_job(run_id: string): Promise<Record<string, unknown>>;
+    /** Job Spec
+     *  GET /api/v1/runner/jobs/{run_id}/spec */
+    job_spec(run_id: string): Promise<Record<string, unknown>>;
     /** List Sessions
      *  GET /api/v1/sessions */
     list_sessions(q?: string | null, state?: string | null, workspace_id?: string | null, run_id?: string | null, limit?: number, cursor?: string | null): Promise<Record<string, unknown>>;

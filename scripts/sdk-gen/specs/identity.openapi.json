@@ -232,6 +232,7 @@
         "type": "number"
        },
        {
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
         "type": "string"
        }
       ],
@@ -551,6 +552,24 @@
      "nextCursor"
     ],
     "title": "EventReplayResponse",
+    "type": "object"
+   },
+   "EventsBody": {
+    "properties": {
+     "events": {
+      "items": {
+       "$ref": "#/components/schemas/RunnerEvent"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "Events",
+      "type": "array"
+     }
+    },
+    "required": [
+     "events"
+    ],
+    "title": "EventsBody",
     "type": "object"
    },
    "ExecutionControlBody": {
@@ -1367,6 +1386,7 @@
         "type": "number"
        },
        {
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
         "type": "string"
        },
        {
@@ -1396,6 +1416,7 @@
         "type": "number"
        },
        {
+        "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
         "type": "string"
        },
        {
@@ -1832,6 +1853,101 @@
      "description"
     ],
     "title": "RunnerBody",
+    "type": "object"
+   },
+   "RunnerEvent": {
+    "properties": {
+     "callId": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Callid",
+      "type": "string"
+     },
+     "command": {
+      "anyOf": [
+       {
+        "maxLength": 4000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Command"
+     },
+     "durationMs": {
+      "anyOf": [
+       {
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Durationms"
+     },
+     "error": {
+      "anyOf": [
+       {
+        "maxLength": 1000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Error"
+     },
+     "exitCode": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Exitcode"
+     },
+     "ok": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ok"
+     },
+     "output": {
+      "anyOf": [
+       {
+        "maxLength": 30000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Output"
+     },
+     "phase": {
+      "enum": [
+       "call",
+       "result"
+      ],
+      "title": "Phase",
+      "type": "string"
+     }
+    },
+    "required": [
+     "phase",
+     "callId"
+    ],
+    "title": "RunnerEvent",
     "type": "object"
    },
    "ScopePrefsBody": {
@@ -6788,6 +6904,16 @@
        "title": "Limit",
        "type": "integer"
       }
+     },
+     {
+      "in": "query",
+      "name": "before_seq",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "title": "Before Seq",
+       "type": "integer"
+      }
      }
     ],
     "responses": {
@@ -7244,8 +7370,61 @@
     "summary": "Claim Job"
    }
   },
+  "/api/v1/runner/jobs/{run_id}/events": {
+   "post": {
+    "description": "Append bounded, scrubbed tool events to the run's log.\n\nThe whole batch is validated before anything is written, so a refused batch\nleaves no partial transcript. The server names the tool and rebuilds each\npayload; the runner supplies only the command, outcome and output text.",
+    "operationId": "post_job_events_api_v1_runner_jobs__run_id__events_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "run_id",
+      "required": true,
+      "schema": {
+       "title": "Run Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/EventsBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Post Job Events Api V1 Runner Jobs  Run Id  Events Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Post Job Events"
+   }
+  },
   "/api/v1/runner/jobs/{run_id}/finish": {
    "post": {
+    "description": "Release the lease and settle the run exactly as a local engine would.\n\nThe terminal verdict is re-derived from the recorded tool results: a runner\nthat says ``completed`` without a passing result for every approved command is\nsettled ``failed``. A run that is no longer executing (human stop) only loses\nits lease - ``finish`` never resurrects it.",
     "operationId": "finish_job_api_v1_runner_jobs__run_id__finish_post",
     "parameters": [
      {
@@ -7334,6 +7513,48 @@
      }
     },
     "summary": "Heartbeat Job"
+   }
+  },
+  "/api/v1/runner/jobs/{run_id}/spec": {
+   "get": {
+    "description": "What the host may execute, read from the approved plan - never from the runner.",
+    "operationId": "job_spec_api_v1_runner_jobs__run_id__spec_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "run_id",
+      "required": true,
+      "schema": {
+       "title": "Run Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Job Spec Api V1 Runner Jobs  Run Id  Spec Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Job Spec"
    }
   },
   "/api/v1/sessions": {
