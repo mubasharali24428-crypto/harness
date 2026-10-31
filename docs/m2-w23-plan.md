@@ -40,7 +40,7 @@ does not depend on it.
    a named reason and the component. It never echoes secrets. `/ready` is left
    as it is so compose healthchecks keep their meaning. A CLI `doctor` command
    and a UI first-run panel read the same report.
-2. **Live status.** A pure mapping from run state, connection status and
+2. **Live status — built, see "Slice 2" below.** A pure mapping from run state, connection status and
    lifecycle to the five user states, with tests for every combination, shown in
    the run page and the CLI.
 3. **Steering timing.** State when queued guidance takes effect, sourced from
@@ -103,6 +103,33 @@ does not depend on it.
 * W23 exit status: "the drift check fails on a deliberately stale daemon" is
   **met** for the two W20 faults. The fresh-machine setup run and the stop
   test are still owed.
+
+## Slice 2 — live status
+
+* **Server half.** `lifecycle.userStatus` (additive, on `GET /runs/{id}` and
+  `/status`) comes from `lifecycle.user_status(state, phase)`. It is `finished`
+  only when the phase is `stopped` or `completed`, so the engine is confirmed
+  gone. `pausing` and `stopping` stay `working` because files can still change.
+  `reviewing` is `working` because a reviewer sub-agent runs it. The done-gate
+  and an open PR are `waiting`.
+* **Client half.** Only the viewer knows its own connection dropped, so
+  `reconnecting` is added in the UI: `liveStatus(userStatus, ConnStatus)` in
+  `realtimeCore.ts`. `finished` survives a dropped connection; `live`,
+  `polling` (3 s refresh) and `access_lost` keep the server status; every other
+  connection state reads `reconnecting`. The run page reads `reconnecting`
+  after a failed background refresh. An older server that sends no
+  `userStatus` gets no status line rather than a guess.
+* **CLI.** `harness status` prints `run <id>: <state> (<userStatus>)`, and
+  `--json` carries `userStatus`. Each call is a fresh request, so it never
+  reports `reconnecting`; a failed call is an error.
+* **Tests.** Every state × stop × quiesce combination (40) is in
+  `test_lifecycle_table.py`, which also asserts that `finished` never appears
+  with `mutationPossible`. Every server status × connection state (28), plus
+  unknown values, is in `tests/unit/userStatus.test.tsx`, with render checks.
+* **Evidence (2026-10-31).** section4: 2003 passed, 59 skipped. Python SDK/CLI:
+  91 passed. section7: 1053 vitest passed and tsc clean. `spec_drift.py` clean,
+  because `lifecycle` is typed as `dict` and no schema changed, so no SDK
+  regeneration was needed. Not deployed and not checked live.
 
 ## Exit evidence (unchanged from the continuation plan)
 

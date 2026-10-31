@@ -198,6 +198,30 @@ export const STATUS_TEXT: Record<ConnStatus, string> = {
 };
 export const UPDATE_REQUIRED_TEXT = "This page is out of date, reload to see all activity";
 
+// W23: the five states a person reads. The server sends four (lifecycle.userStatus);
+// only this client knows its own connection dropped, so it adds `reconnecting`.
+export type UserStatus = "working" | "waiting" | "reconnecting" | "blocked" | "finished";
+const SERVER_STATUSES: readonly string[] = ["working", "waiting", "blocked", "finished"];
+
+/** Pure. `finished` is final, so it survives a dropped connection; anything else seen over a
+ *  connection that is not fresh is `reconnecting`. `polling` is fresh (3 s); `access_lost` keeps
+ *  the last status because it will not reconnect (ConnectionStatus says why). Unknown → null. */
+export function liveStatus(server: string | null | undefined, conn: ConnStatus): UserStatus | null {
+  if (!server || !SERVER_STATUSES.includes(server)) return null;
+  if (server === "finished" || conn === "live" || conn === "polling" || conn === "access_lost") {
+    return server as UserStatus;
+  }
+  return "reconnecting";
+}
+
+export const USER_STATUS_TEXT: Record<UserStatus, string> = {
+  working: "Working",
+  waiting: "Waiting",
+  reconnecting: "Reconnecting",
+  blocked: "Blocked",
+  finished: "Finished",
+};
+
 export function statusText(status: ConnStatus, updateRequired: boolean): string {
   return updateRequired ? `${STATUS_TEXT[status]}. ${UPDATE_REQUIRED_TEXT}` : STATUS_TEXT[status];
 }

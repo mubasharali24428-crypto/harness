@@ -173,4 +173,25 @@ def lifecycle_view(
         "cancelRequested": bool(stop_requested),
         "cancelConfirmed": bool(stop_requested and engine_quiesced),
         "mutationPossible": mutation_possible,
+        "userStatus": user_status(state, phase),
     }
+
+
+# W23: the server's half of the five user states. `reconnecting` is the
+# client's to add: only the viewer knows its own connection dropped.
+USER_STATUSES = ("working", "waiting", "reconnecting", "blocked", "finished")
+
+
+def user_status(state: AgentState, phase: str) -> str:
+    """working / waiting / blocked / finished, from the honest phase.
+
+    `finished` only once the phase is stopped/completed (engine confirmed gone);
+    `stopping` and `pausing` are still working because files can still change.
+    """
+    if phase in ("stopped", "completed"):
+        return "finished"
+    if phase == "blocked":
+        return "blocked"
+    if phase in ("running", "pausing", "stopping") or state in (S.PLANNING, S.REVIEWING):
+        return "working"
+    return "waiting"  # idle, plan approval, paused, done-gate, PR open

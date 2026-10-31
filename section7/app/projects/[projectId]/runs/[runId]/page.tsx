@@ -56,6 +56,7 @@ export default function RunDetailPage({
   const [agg, setAgg] = useState<RunAggregateDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [stale, setStale] = useState(false); // W23: last background refresh failed
   const [notFound, setNotFound] = useState(false);
 
   // Next 15 hands route params as a Promise; accept both shapes so tests can
@@ -102,9 +103,14 @@ export default function RunDetailPage({
     }
     try {
       setAgg(await getRunAggregate(runId, token));
+      setStale(false);
     } catch (e) {
-      // A failed background refresh keeps the last good summary on screen.
-      if (quiet) return;
+      // A failed background refresh keeps the last good summary on screen,
+      // marked as reconnecting (W23) so it is not read as current.
+      if (quiet) {
+        setStale(true);
+        return;
+      }
       setAgg(null);
       if (e instanceof ApiError && e.status === 404) {
         setNotFound(true);
@@ -171,7 +177,9 @@ export default function RunDetailPage({
           <ErrorState title="Run didn’t load" message={error} onRetry={() => void fetchAgg()} />
         )}
         {loading && !agg && !notFound && <LoadingState label="Loading run…" rows={4} />}
-        {agg && <RunDetailAggregate agg={agg} now={Date.now()} />}
+        {agg && (
+          <RunDetailAggregate agg={agg} now={Date.now()} conn={stale ? "reconnecting" : "polling"} />
+        )}
       </RunTabPanel>
 
       <RunTabPanel id="plan" active={tab === "plan"}>

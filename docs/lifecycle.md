@@ -14,6 +14,7 @@ machine drift apart.
 | **phase** | What an operator may be told (`lifecycle.phase` on `GET /runs/{id}`): pending, running, pausing, paused, blocked, reviewing, stopping, stopped, completed. |
 | **cancel requested** | A stop/pause was accepted. Durable immediately (event + `run.cancel_requested` audit). |
 | **cancel confirmed** | The engine is confirmed unable to mutate files (worker process group dead / container gone). `run.cancel_confirmed` audit, `lifecycle.cancelConfirmed`. |
+| **user status** | What a person reads (`lifecycle.userStatus`, W23): working (running, planning, reviewing, pausing, stopping), waiting (idle, plan approval, paused, done-gate, PR open), blocked, finished (stopped or completed only). The UI adds a fifth, reconnecting, when its own refreshes fail. |
 
 `done` is the only terminal state and is shared by *accepted review* and *stop*. The two are told apart by
 the durable stop tombstone (see Stop below): `phase` is `stopped` for a stop, `completed` for an accepted review.

@@ -186,6 +186,8 @@ export interface RunAggregateDto {
    *  this run was made FAIL-CLOSED (money store unreachable) — an operator-
    *  visible outage-shaped denial, never a silently opened gate. */
   budget: { degraded: boolean };
+  /** Part 10 / W23 (additive): honest lifecycle; userStatus is the server's half of the user states. */
+  lifecycle?: { phase: string; cancelConfirmed: boolean; mutationPossible: boolean; userStatus?: string } | null;
 }
 
 /** Client cap mirroring F3a's _AGGREGATE_STEPS_MAX: even if a future server

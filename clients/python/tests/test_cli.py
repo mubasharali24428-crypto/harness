@@ -155,6 +155,18 @@ def test_status_and_diff_render_the_server_view():
     assert "a.py" in stdout.getvalue() and "+x" in stdout.getvalue()
 
 
+def test_status_shows_the_server_user_status():
+    sdk = _Sdk()
+    get_run = sdk.orchestrator.get_run
+    sdk.orchestrator.get_run = lambda rid: {**get_run(rid), "lifecycle": {"userStatus": "finished"}}
+    stdout = io.StringIO()
+    assert main(["status", "run-1"], sdk=sdk, stdout=stdout) == 0
+    assert "run run-1: done (finished)" in stdout.getvalue()
+    stdout = io.StringIO()
+    assert main(["status", "run-1", "--json"], sdk=sdk, stdout=stdout) == 0
+    assert json.loads(stdout.getvalue())["userStatus"] == "finished"
+
+
 def test_logout_removes_the_store(config_dir):
     config.save(config.Credentials("tok"))
     stderr = io.StringIO()

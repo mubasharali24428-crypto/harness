@@ -377,6 +377,8 @@ def run_status(sdk: Any, run_id: str) -> dict[str, Any]:
     return {
         "runId": run.get("runId", run_id),
         "state": run.get("state"),
+        # W23: working / waiting / blocked / finished; None from an older server.
+        "userStatus": (run.get("lifecycle") or {}).get("userStatus"),
         "steps": list(run.get("steps") or []),
     }
 

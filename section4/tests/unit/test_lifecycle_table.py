@@ -119,3 +119,39 @@ def test_stopped_phase_is_never_reported_with_a_live_engine(state):
         v = view(state, stop=stop, quiesced=False)
         assert v["phase"] not in ("stopped", "paused", "completed")
         assert v["mutationPossible"] is True
+
+
+# ------------------------------------------------------------- W23 user status
+
+_EXPECTED_USER_STATUS = {
+    AgentState.IDLE: "waiting",
+    AgentState.PLANNING: "working",
+    AgentState.AWAITING_PLAN_APPROVAL: "waiting",
+    AgentState.EXECUTING: "working",
+    AgentState.PAUSED: "waiting",  # once quiesced; pausing is still working
+    AgentState.AWAITING_DONE_SIGNAL: "waiting",
+    AgentState.REVIEWING: "working",
+    AgentState.BLOCKED: "blocked",
+    AgentState.PR_OPENED: "waiting",
+    AgentState.DONE: "finished",  # once quiesced; stopping is still working
+}
+
+
+def test_every_state_has_an_expected_user_status():
+    assert set(_EXPECTED_USER_STATUS) == set(AgentState)
+
+
+@pytest.mark.parametrize("state", list(AgentState))
+@pytest.mark.parametrize("stop", [True, False])
+@pytest.mark.parametrize("quiesced", [True, False])
+def test_user_status_every_combination(state, stop, quiesced):
+    v = view(state, stop=stop, quiesced=quiesced)
+    assert v["userStatus"] in lifecycle.USER_STATUSES
+    assert v["userStatus"] != "reconnecting"  # the client's to add
+    expected = _EXPECTED_USER_STATUS[state]
+    if not quiesced and state in (AgentState.PAUSED, AgentState.DONE):
+        expected = "working"  # pausing / stopping: the engine can still mutate
+    assert v["userStatus"] == expected
+    # Never "finished" while files can still change.
+    if v["userStatus"] == "finished":
+        assert v["mutationPossible"] is False

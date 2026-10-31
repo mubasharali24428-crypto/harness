@@ -250,7 +250,9 @@ def main(
                 out,
                 as_json,
                 payload,
-                lambda: f"run {payload['runId']}: {payload['state']}\n"
+                lambda: f"run {payload['runId']}: {payload['state']}"
+                        + (f" ({payload['userStatus']})" if payload.get("userStatus") else "")
+                        + "\n"
                         f"{format_steps(payload['steps'])}",
                 capture,
             )
