@@ -64,6 +64,7 @@ DEFAULT_DSH_PROFILE = "sdk-minimal"
 DEFAULT_DSH_PROVIDER = "deepseek-official"
 REAL_WORKER_MODULE = "harness_orchestrator.engine_worker"
 DAEMON_URL_ENV = "HARNESS_WORKER_DAEMON_URL"
+DAEMON_REAP_SECONDS = 3600.0  # W22: how long to keep trying to stop a lost daemon's orphan
 DAEMON_TOKEN_ENV = "HARNESS_WORKER_DAEMON_TOKEN"
 def real_worker_confinement_error(module: str, real_module: str = REAL_WORKER_MODULE) -> str | None:
     """Why the REAL engine worker may not run here, or None when it may.
@@ -1006,6 +1007,7 @@ class DeepSeekHarnessWrapper:
             if session_id in self._cancel_requested:
                 return "Execution cancelled.", "cancelled", model, []
             if result is None:
+                self._start_daemon_reaper(session_id)
                 return "worker daemon ended the run without a result", "error", model, []
             return (
                 scrub_secrets(str(result.get("text", "")), self.api_key),
@@ -1014,8 +1016,39 @@ class DeepSeekHarnessWrapper:
                 result.get("events") or [],
             )
         except Exception as exc:  # noqa: BLE001 - daemon loss fails the run, never degrades it
+            self._start_daemon_reaper(session_id)
             msg = scrub_secrets(f"DeepSeek Harness run failed: worker daemon: {exc}", self.api_key)
             return msg, "error", model, []
+
+    def _start_daemon_reaper(self, session_id: str) -> None:
+        threading.Thread(
+            target=self._reap_after_daemon_loss,
+            args=(session_id,),
+            daemon=True,
+            name=f"daemon-reap-{session_id}",
+        ).start()
+
+    def _reap_after_daemon_loss(self, session_id: str, interval: float = 5.0) -> None:
+        """W22: the daemon stream died under this run; stop its orphan as soon as one answers.
+
+        A SIGKILLed daemon leaves the worker running and restarts knowing nothing of it.
+        ``/reap`` stops that boundary but never a run the daemon holds, so a resume that
+        races this loop is safe. ponytail: in-memory only; if this process restarts too,
+        the periodic boundary sweep (grace + interval, ~15 min) is the fallback.
+        """
+        deadline = time.monotonic() + DAEMON_REAP_SECONDS
+        while time.monotonic() < deadline:
+            with self._proc_lock:
+                if session_id in self._daemon_runs:
+                    return  # a new attempt owns the run now
+            try:
+                with self._daemon_call("POST", f"/runs/{session_id}/reap") as resp:
+                    reply = json.load(resp)
+                if reply.get("confirmed") or reply.get("held"):
+                    return
+            except (OSError, ValueError):
+                pass  # daemon still down or mid-restart: keep trying
+            time.sleep(interval)
 
     @property
     def mode(self) -> LiveMode:

@@ -1,0 +1,9 @@
+[
+  {
+    "line": 2,
+    "col": 13,
+    "kind": "error",
+    "code": "HX1001",
+    "message": "unexpected character '@'"
+  }
+]

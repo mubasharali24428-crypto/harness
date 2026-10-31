@@ -266,9 +266,12 @@ export function replayEvents(
   projectId: string,
   afterSeq: number,
   token: string,
+  beforeSeq?: number,
 ): Promise<{ items: EventEnvelope[]; nextCursor: number }> {
+  // W22: beforeSeq pages a truncated replay gap oldest-first.
+  const before = beforeSeq ? `&before_seq=${beforeSeq}` : "";
   return apiFetch(
-    `${IDENTITY_BASE}/api/v1/projects/${projectId}/events/replay?after_seq=${afterSeq}`,
+    `${IDENTITY_BASE}/api/v1/projects/${projectId}/events/replay?after_seq=${afterSeq}${before}`,
     token,
   );
 }

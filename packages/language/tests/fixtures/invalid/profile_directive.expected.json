@@ -1,0 +1,9 @@
+[
+  {
+    "line": 1,
+    "col": 1,
+    "kind": "error",
+    "code": "HX6002",
+    "message": "the profile is selected by the host, never by the source; remove this declaration"
+  }
+]

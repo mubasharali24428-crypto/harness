@@ -143,7 +143,7 @@ reviewed post-image bytes.
 | One real language-server fixture works within the sandbox | **pass** — pinned pylsp on a `--network none`, read-only, unprivileged container |
 | Editor package verified | **pass** — typecheck, build, 29 tests |
 | Editor round-trip through the policy gate and digest-bound review | **pass** — live 11/11 at this revision |
-| Packaged `.vsix` and a real-window smoke | **not run** — no packaging tooling installed, no display |
+| Packaged `.vsix` and a real-window smoke | **pass (smoke only)** — `npm run package` builds a 46 KB `.vsix`; installed in a real VS Code 1.140 window it activates and registers all four commands with no errors ([evidence](briefs/evidence/w7/vsix-smoke.md)). The end-to-end task in a window is **not run** (no typing into the editor, no screenshot) |
 | Hermes H3 (language server for `.hms`) | **blocked** — H0 paperwork still absent, no `.hms` corpus and no `hermesc`; the W7 LSP proof is Python, not Hermes |
 
 ## Limitations

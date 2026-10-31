@@ -40,3 +40,4 @@ task0/sessions/
 
 # macOS Finder metadata
 .DS_Store
+clients/vscode/*.vsix

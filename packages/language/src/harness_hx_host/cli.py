@@ -1,0 +1,189 @@
+"""``hxr`` — the host side of Hx: plan a run, or run one locally and record it.
+
+``hxc`` answers "is this program well formed?". ``hxr`` answers "may it run
+here, what did it do, and what is the evidence?".
+
+Exit codes are part of the interface:
+
+* ``0`` — the run finished and its ``ensure``/return contract held.
+* ``1`` — refused (check errors, digest mismatch, unsupported construct) or the
+  program or host failed.
+* ``2`` — usage or I/O failure.
+* ``3`` — the host denied the request.
+* ``4`` — a declared budget was exhausted.
+* ``5`` — the run was cancelled.
+
+stdout carries only the requested JSON (plan or evidence); diagnostics and
+failures go to stderr, the same split the checker keeps.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+from harness_hx.api import PROFILES, check_source
+from harness_hx.diagnostics import render_json, render_line
+from harness_hx.manifest import build_manifest
+
+from .authority import authorize
+from .bridge import ReadOnlyRepoBridge
+from .errors import HxHostError
+from .run import run_source
+
+_EXIT = {"ok": 0, "refused": 1, "error": 1, "denied": 3, "budget": 4, "cancelled": 5}
+
+
+def _common(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("path", help="the .hx program to read")
+    parser.add_argument("--profile", default="agent", choices=list(PROFILES))
+    parser.add_argument(
+        "--grant",
+        action="append",
+        default=[],
+        metavar="CAP",
+        help="a capability this host grants; repeat or comma-separate. Empty grants nothing.",
+    )
+    parser.add_argument(
+        "--permissions",
+        default=None,
+        help="the principal's Harness permissions, comma-separated (e.g. read,comment)",
+    )
+    parser.add_argument("--principal", default="anonymous")
+    parser.add_argument("--policy", default="local-dev")
+    parser.add_argument("--json", action="store_true", help="emit JSON on stdout")
+
+
+def _grants(raw: list[str]) -> list[str]:
+    names: list[str] = []
+    for item in raw:
+        names.extend(part.strip() for part in item.split(",") if part.strip())
+    return names
+
+
+def _permissions(raw: str | None) -> list[str] | None:
+    if raw is None:
+        return None
+    return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def _read(path_text: str) -> str | None:
+    try:
+        return Path(path_text).read_text(encoding="utf-8")
+    except OSError as error:
+        sys.stderr.write(f"hxr: cannot read {path_text}: {error}\n")
+        return None
+
+
+def _plan(args: argparse.Namespace) -> int:
+    source = _read(args.path)
+    if source is None:
+        return 2
+    result = check_source(source, args.path, args.profile)
+    if args.json:
+        sys.stderr.write(render_json(result.diagnostics) + "\n")
+    else:
+        for diagnostic in result.diagnostics:
+            sys.stderr.write(render_line(diagnostic) + "\n")
+    if not result.ok:
+        return 1
+    manifest = build_manifest(result, args.profile)
+    decision = authorize(
+        manifest,
+        granted=_grants(args.grant),
+        principal_permissions=_permissions(args.permissions),
+        principal=args.principal,
+        policy=args.policy,
+    )
+    payload = {"manifest": manifest, "policy": decision.to_json()}
+    if args.json:
+        sys.stdout.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    else:
+        granted = ", ".join(sorted(decision.granted)) or "nothing"
+        sys.stdout.write(f"workflows: {len(manifest.get('workflows', []))}\n")
+        sys.stdout.write(f"requested: {', '.join(sorted(decision.requested)) or 'nothing'}\n")
+        sys.stdout.write(f"granted: {granted}\n")
+        for denial in decision.denials:
+            sys.stdout.write(f"denied: {denial.capability} — {denial.reason}\n")
+    return 0 if decision.allowed else 3
+
+
+def _run(args: argparse.Namespace) -> int:
+    source = _read(args.path)
+    if source is None:
+        return 2
+    inputs: dict[str, Any] = {}
+    if args.inputs is not None:
+        try:
+            inputs = json.loads(args.inputs)
+        except json.JSONDecodeError as error:
+            sys.stderr.write(f"hxr: --inputs is not JSON: {error}\n")
+            return 2
+        if not isinstance(inputs, dict):
+            sys.stderr.write("hxr: --inputs must be a JSON object\n")
+            return 2
+    root = Path(args.root) if args.root else Path(args.path).resolve().parent
+    bridge = ReadOnlyRepoBridge(root=root)
+    outcome = run_source(
+        source,
+        path=args.path,
+        profile=args.profile,
+        inputs=inputs,
+        bridge=bridge,
+        granted=_grants(args.grant),
+        principal_permissions=_permissions(args.permissions),
+        principal=args.principal,
+        policy=args.policy,
+        expected_digest=args.digest,
+    )
+    for diagnostic in outcome.diagnostics:
+        sys.stderr.write(render_line(diagnostic) + "\n")
+    if outcome.error is not None:
+        sys.stderr.write(json.dumps(outcome.error.as_record(outcome.path)) + "\n")
+
+    evidence = outcome.to_json()
+    if args.evidence:
+        Path(args.evidence).write_text(
+            json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+    if args.json:
+        sys.stdout.write(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
+    else:
+        sys.stdout.write(f"status: {outcome.status}\n")
+        sys.stdout.write(f"workflow: {outcome.workflow}\n")
+        sys.stdout.write(f"run: {outcome.run_id}\n")
+        if outcome.ok:
+            sys.stdout.write(json.dumps(evidence["outcome"]["output"], indent=2) + "\n")
+    return _EXIT.get(outcome.status, 1)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="hxr",
+        description="Plan or run an Hx workflow against a host. Never merges, never approves.",
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    plan_parser = sub.add_parser("plan", help="check, build the manifest, decide the request")
+    _common(plan_parser)
+
+    run_parser = sub.add_parser("run", help="run one workflow locally and write evidence")
+    _common(run_parser)
+    run_parser.add_argument("--root", default=None, help="repository root the program may read")
+    run_parser.add_argument("--inputs", default=None, help="workflow inputs as a JSON object")
+    run_parser.add_argument("--digest", default=None, help="expected sha256 of the source bytes")
+    run_parser.add_argument("--evidence", default=None, help="write the evidence bundle here")
+
+    try:
+        args = parser.parse_args(argv)
+        return _plan(args) if args.command == "plan" else _run(args)
+    except HxHostError as error:  # defensive: run_source already turns these into results
+        sys.stderr.write(json.dumps(error.as_record()) + "\n")
+        return 1
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

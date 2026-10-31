@@ -1,0 +1,9 @@
+[
+  {
+    "line": 10,
+    "col": 11,
+    "kind": "error",
+    "code": "HX4007",
+    "message": "task 'a' is spawned but never awaited"
+  }
+]

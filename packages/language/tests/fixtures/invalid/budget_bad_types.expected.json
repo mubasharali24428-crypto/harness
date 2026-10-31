@@ -1,0 +1,16 @@
+[
+  {
+    "line": 8,
+    "col": 32,
+    "kind": "error",
+    "code": "HX5004",
+    "message": "'duration' must be a duration such as 10m or 90s"
+  },
+  {
+    "line": 8,
+    "col": 42,
+    "kind": "error",
+    "code": "HX5004",
+    "message": "'cost' must be money with a currency, e.g. 2.00 USD"
+  }
+]

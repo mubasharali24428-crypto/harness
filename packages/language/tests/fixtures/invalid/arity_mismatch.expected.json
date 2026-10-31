@@ -1,0 +1,9 @@
+[
+  {
+    "line": 10,
+    "col": 31,
+    "kind": "error",
+    "code": "HX3003",
+    "message": "expected at most 2 argument(s), found 3"
+  }
+]

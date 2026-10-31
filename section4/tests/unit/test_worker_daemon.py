@@ -242,3 +242,71 @@ def test_sweep_takes_settlement_from_the_caller_but_never_a_held_run(daemon, mon
         assert denied.value.code == 401
     finally:
         worker_daemon._RUNS.pop("run-held", None)
+
+
+def test_an_unheld_run_is_answered_from_docker_and_reaped_but_a_held_one_never(
+    daemon, monkeypatch
+):
+    """W22: after a SIGKILL the daemon's memory is empty while the old worker still runs."""
+    from harness_orchestrator import container_runtime
+
+    url, _ = daemon
+    monkeypatch.setenv("HARNESS_ENGINE_CONFINEMENT", "container")  # what main() forces
+    alive = {"orphan": True}
+    swept = []
+    monkeypatch.setattr(
+        container_runtime, "run_boundary_running", lambda rid: alive.get(rid, False)
+    )
+
+    def fake_sweep(held, settled, **kw):
+        swept.append((set(settled), kw.get("only_run_id")))
+        alive.pop(kw.get("only_run_id"), None)
+        return {"count": 1}
+
+    monkeypatch.setattr(container_runtime, "sweep_orphan_boundaries", fake_sweep)
+
+    def call(method, path):
+        request = urllib.request.Request(
+            url + path, method=method, headers={"Authorization": f"Bearer {TOKEN}"}
+        )
+        with urllib.request.urlopen(request, timeout=5) as reply:
+            return json.loads(reply.read())
+
+    assert call("GET", "/runs/orphan") == {"running": True}, "memory is not proof"
+    assert call("POST", "/runs/orphan/reap") == {"confirmed": True, "held": False}
+    assert swept == [({"orphan"}, "orphan")]
+    assert call("GET", "/runs/orphan") == {"running": False}
+
+    worker_daemon._RUNS["held-run"] = None
+    try:
+        assert call("POST", "/runs/held-run/reap") == {"confirmed": False, "held": True}
+        assert len(swept) == 1, "a held run is never swept by /reap"
+    finally:
+        worker_daemon._RUNS.pop("held-run", None)
+
+    alive["stopped-by-user"] = True
+    assert call("POST", "/runs/stopped-by-user/cancel") == {"confirmed": True}
+    assert swept[-1] == ({"stopped-by-user"}, "stopped-by-user"), "Stop reaps the orphan too"
+
+
+def test_the_orchestrator_reaps_a_lost_daemons_orphan_once_it_answers(tmp_path, monkeypatch):
+    """W22: the reaper retries through the daemon's downtime and stops at the first answer."""
+    import io
+
+    engine = _orchestrator(tmp_path)
+    calls = []
+
+    def fake_call(method, path, body=None, timeout=10.0):
+        calls.append((method, path))
+        if len(calls) < 3:
+            raise urllib.error.URLError("daemon down")
+        return io.BytesIO(b'{"confirmed": true, "held": false}')
+
+    monkeypatch.setattr(engine, "_daemon_call", fake_call)
+    engine._reap_after_daemon_loss("run-lost", interval=0)
+    assert calls == [("POST", "/runs/run-lost/reap")] * 3
+
+    calls.clear()
+    engine._daemon_runs.add("run-resumed")  # a new attempt owns it: hands off
+    engine._reap_after_daemon_loss("run-resumed", interval=0)
+    assert calls == []

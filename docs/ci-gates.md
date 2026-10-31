@@ -27,6 +27,7 @@ works end-to-end and fails loudly with exit 2 while specs are absent).
 | `make lint-section<N>` | `cd sectionN && ./.venv/bin/ruff check src tests scripts \|\| ./.venv/bin/ruff check src tests` | `python-tests` matrix → ruff step | The `\|\|` fallback mirrors the original CI line: sections without a `scripts/` tree would fail ruff on the missing path. |
 | `make test-section<N>` | `cd sectionN && ./.venv/bin/python -m pytest tests/ -q` | `python-tests` matrix → pytest step | Uses each section's OWN venv (editable `harness_contracts` + section) — same as CI's provisioning step builds. N ∈ {1,2,3,4,5,6,8,10,11}, CI matrix order. |
 | `make test-mcp` / `make lint-mcp` | `cd mcp && pytest` / ruff | `mcp` job | MCP server is not a section; contracts are installed first, same as bootstrap. |
+| `make test-language` / `make lint-language` | `cd packages/language && ./.venv/bin/python -m pytest tests -q` / `./.venv/bin/ruff check src tests scripts` | `language` job | Hx (Harness dialect of Hermes): the checker (`hxc`) and the workflow driver (`hxr`). Not a section: `packages/language` installs `../../contracts` first, same as bootstrap. Spec: `docs/hx-language-spec.md`; why two halves: `docs/hx-execution-architecture.md`. |
 | `make frontend-tsc` | `cd section7 && npx tsc --noEmit` | `frontend` → tsc step | |
 | `make frontend-vitest` | `cd section7 && npx vitest run` | `frontend` → vitest step | `make frontend` runs both halves. |
 | `make pg-probe-integration` | real-PG checkpoint probe (`integration/test_checkpoint1.py`) | `nightly-pg-probe` (schedule/dispatch only) | Requires `HARNESS_TEST_PG=1` + Postgres on :5499 (compose stack); the target refuses to fake-run without them. |
@@ -39,7 +40,9 @@ works end-to-end and fails loudly with exit 2 while specs are absent).
 
 Aggregators: `make lint`, `make test`, `make frontend`, `make pg-probe`,
 `make gate`. Per-section targets exist so you can iterate exactly like the CI
-matrix does: `make test-section6`, `make lint-section8`, …
+matrix does: `make test-section6`, `make lint-section8`, … Non-section packages
+have their own pair (`lint-mcp`/`test-mcp`, `lint-language`/`test-language`) and
+both pairs are part of `make gate`.
 
 ## Route-module + isolation law guards (M15-G6a)
 

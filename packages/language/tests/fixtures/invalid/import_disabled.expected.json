@@ -1,0 +1,9 @@
+[
+  {
+    "line": 1,
+    "col": 1,
+    "kind": "error",
+    "code": "HX4004",
+    "message": "'import' is not available: module loading is disabled in every profile and programs are single-file"
+  }
+]

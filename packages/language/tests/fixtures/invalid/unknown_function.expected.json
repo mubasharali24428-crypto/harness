@@ -1,0 +1,9 @@
+[
+  {
+    "line": 2,
+    "col": 10,
+    "kind": "error",
+    "code": "HX3005",
+    "message": "unknown function 'frobnicate'"
+  }
+]

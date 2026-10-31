@@ -253,11 +253,38 @@ def _running_containers(ids: list[str]) -> list[tuple[str, str]]:
     return found
 
 
+def run_boundary_running(run_id: str) -> bool:
+    """W22: does any container of this run's labelled boundary still run?
+
+    The daemon's answer for a run it does not hold: after a SIGKILL its memory is
+    empty but the old worker may still be up. Unknown counts as running, so a
+    failed listing never reads as "safe, nothing can mutate".
+    """
+    try:
+        listing = docker(
+            "network", "ls", "--format", "{{.Name}}\t{{.Label \"harness-run\"}}", check=False
+        )
+    except OSError:  # no docker CLI: unknown
+        return True
+    if listing.returncode != 0:
+        return True
+    proxy = os.environ.get(EGRESS_PROXY_CONTAINER_ENV, "harness-sandbox-egress-1")
+    for line in listing.stdout.splitlines():
+        name, _, label = line.partition("\t")
+        if label.strip() != run_id or not BOUNDARY_NET_RE.match(name.strip()):
+            continue
+        running = _running_containers(_attached_container_ids(name.strip()))
+        if any(cname != proxy for _cid, cname in running):
+            return True
+    return False
+
+
 def sweep_orphan_boundaries(
     held_run_ids: set[str],
     settled_run_ids: set[str] | None,
     *,
     older_than_seconds: float = 0.0,
+    only_run_id: str | None = None,
 ) -> dict[str, object]:
     """Remove per-run boundaries that their owner demonstrably abandoned.
 
@@ -312,6 +339,8 @@ def sweep_orphan_boundaries(
         if not BOUNDARY_NET_RE.match(name):
             continue
         run_id = label.strip()
+        if only_run_id is not None and run_id != only_run_id:
+            continue  # W22: a targeted reap of one run never judges anyone else's boundary
         if not run_id or run_id in held_run_ids:
             kept.append(name)  # anonymous, or ours to keep: not ours to destroy
             continue

@@ -1,0 +1,9 @@
+[
+  {
+    "line": 2,
+    "col": 14,
+    "kind": "error",
+    "code": "HX4004",
+    "message": "'exec' is an ambient host operation; no profile provides it"
+  }
+]

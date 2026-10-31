@@ -8,8 +8,9 @@ boundary. Paths come from its own ``DSH_WORKSPACE``/``DSH_SESSION_ROOT``, the im
 ``HARNESS_ENGINE_IMAGE``, the mode is always ``container``, the limits are ``confine``'s.
 
     POST /runs/<id>          NDJSON: {"progress": {...}} per tool event, then {"result": {...}}
-    POST /runs/<id>/cancel   {"confirmed": bool}
-    GET  /runs/<id>          {"running": bool}
+    POST /runs/<id>/cancel   {"confirmed": bool}  also stops an orphan this daemon does not hold
+    POST /runs/<id>/reap     {"confirmed": bool, "held": bool}  orphan only; never a held run
+    GET  /runs/<id>          {"running": bool}  from Docker when this daemon does not hold it
     GET  /boundaries         {"runs": [run id, ...]} labelled boundaries Docker still has
     POST /sweep              {"settledRunIds": [...], "olderThanSeconds": n} -> sweep report
 
@@ -39,9 +40,29 @@ from harness_orchestrator.engine import DAEMON_TOKEN_ENV, DAEMON_URL_ENV, DeepSe
 logger = logging.getLogger(__name__)
 
 MAX_BODY = 48 * 1024 * 1024  # goal images ride the request as base64
-_PATH = re.compile(r"/runs/([A-Za-z0-9][A-Za-z0-9_-]{0,63})(/cancel)?")
+_PATH = re.compile(r"/runs/([A-Za-z0-9][A-Za-z0-9_-]{0,63})(?:/(cancel|reap))?")
 _RUNS: dict[str, DeepSeekHarnessWrapper] = {}
 _LOCK = threading.Lock()
+
+
+def _container_mode() -> bool:
+    return os.environ.get(confine.CONFINEMENT_ENV) == "container"
+
+
+def _reap_unheld(session_id: str) -> bool | None:
+    """W22: stop a run's orphaned boundary; None when this daemon holds the run.
+
+    After a SIGKILL the restarted daemon holds nothing, while the old worker may
+    still run and write. Done under the lock: a new attempt for the same run
+    cannot register and build its boundary until this one is gone.
+    """
+    with _LOCK:
+        if session_id in _RUNS:
+            return None
+        if not _container_mode():
+            return True  # process workers die with this daemon; no boundary can outlive it
+        container_runtime.sweep_orphan_boundaries(set(), {session_id}, only_run_id=session_id)
+        return not container_runtime.run_boundary_running(session_id)
 
 
 def _wrapper(session_id: str, body: dict[str, Any]) -> DeepSeekHarnessWrapper:
@@ -85,7 +106,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
-    def _route(self) -> tuple[str, bool] | None:
+    def _route(self) -> tuple[str, str] | None:
         if not self._authorized():
             self._reply(401, {"error": "unauthorized"})
             return None
@@ -93,7 +114,7 @@ class Handler(BaseHTTPRequestHandler):
         if not match:
             self._reply(404, {"error": "not found"})
             return None
-        return match.group(1), bool(match.group(2))
+        return match.group(1), match.group(2) or ""
 
     def do_GET(self) -> None:  # noqa: N802 - http.server API
         if self.path == "/boundaries" and self._authorized():
@@ -105,7 +126,11 @@ class Handler(BaseHTTPRequestHandler):
             return None if route is None else self._reply(404, {"error": "not found"})
         with _LOCK:
             wrapper = _RUNS.get(route[0])
-        self._reply(200, {"running": bool(wrapper and wrapper.is_worker_running(route[0]))})
+        if wrapper is None:  # W22: not ours in memory is not proof nothing runs
+            running = _container_mode() and container_runtime.run_boundary_running(route[0])
+            self._reply(200, {"running": running})
+            return
+        self._reply(200, {"running": wrapper.is_worker_running(route[0])})
 
     def do_POST(self) -> None:  # noqa: N802 - http.server API
         if self.path == "/sweep" and self._authorized():
@@ -114,11 +139,18 @@ class Handler(BaseHTTPRequestHandler):
         route = self._route()
         if route is None:
             return
-        session_id, cancel = route
-        if cancel:
-            with _LOCK:
-                wrapper = _RUNS.get(session_id)
-            self._reply(200, {"confirmed": True if wrapper is None else wrapper.cancel(session_id)})
+        session_id, action = route
+        if action == "reap":
+            confirmed = _reap_unheld(session_id)
+            self._reply(200, {"confirmed": bool(confirmed), "held": confirmed is None})
+            return
+        if action == "cancel":
+            confirmed = _reap_unheld(session_id)
+            if confirmed is None:
+                with _LOCK:
+                    wrapper = _RUNS.get(session_id)
+                confirmed = True if wrapper is None else wrapper.cancel(session_id)
+            self._reply(200, {"confirmed": confirmed})
             return
         length = int(self.headers.get("Content-Length") or 0)
         if not 0 < length <= MAX_BODY:

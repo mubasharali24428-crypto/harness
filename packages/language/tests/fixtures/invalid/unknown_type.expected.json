@@ -1,0 +1,9 @@
+[
+  {
+    "line": 2,
+    "col": 7,
+    "kind": "error",
+    "code": "HX3001",
+    "message": "unknown type 'Missing'"
+  }
+]

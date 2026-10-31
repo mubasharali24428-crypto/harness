@@ -6,17 +6,18 @@ then `docker kill`s harness-worker-daemon-1 and later starts it again. Snapshots
 the claim, lifecycle, events and the run's containers before the kill, while the
 daemon is dead, and after it is back.
 
-Pass: the run settles (not left running), its claim is released, and the
-orchestrator's durable-proof sweep (through the daemon's POST /sweep) stops the
-orphaned worker and relay within one sweep grace + interval - a live orphan after
-the run is reported finished could keep mutating the workspace. The deployed
-grace and interval are not shortened for the drill; it waits and records how
-long the orphan lived. The orphan must outlive that window on its own (four
-280 s children; the bash tool caps one call at 300 s), and the pass requires the
-daemon to have logged POST /sweep and the run's network to be gone: a worker
-that simply finished is not evidence of the sweep. The drill removes anything
-the product left behind.
+Default mode: the orchestrator's reaper must stop the orphaned worker and relay
+within REAP_WAIT_SECONDS of the daemon coming back, and the daemon must have
+logged POST /runs/<id>/reap. With --orchestrator-restart the orchestrator is
+restarted while the daemon is dead (its in-memory reaper is lost): the orphan
+then lives on, the status must still say mutationPossible, and a user's POST
+/stop must remove it. Both modes require every snapshot that sees a live
+container on the run's network to report mutationPossible=true (statusTruthful).
+The orphan cannot exit on its own inside the window (four 280 s children; the
+bash tool caps one call at 300 s). The drill removes anything the product left
+behind. The periodic sweep (grace + interval, ~15 min) was proven separately.
 """
+import argparse
 import json
 import time
 import uuid
@@ -34,8 +35,9 @@ from w3_stop_spike import (
 
 DAEMON = "harness-worker-daemon-1"
 DEAD_SECONDS = 60
-AFTER_SECONDS = 90
-SWEEP_WAIT_SECONDS = 300 + 600 + 120  # BOUNDARY_SWEEP_GRACE + _INTERVAL defaults, plus margin
+ORCHESTRATOR_NAME = "harness-orchestrator-1"
+REAP_WAIT_SECONDS = 30  # reaper polls /reap every 5 s once the daemon answers
+BACK_SECONDS = 20
 CHILD = "time.sleep(280)"
 CHILD_RUNS = 4
 
@@ -81,9 +83,34 @@ def snapshot(run_id, token):
     }
 
 
+def orphan_alive(run_id):
+    return bool(run_containers(run_id) or labelled_containers(run_id))
+
+
+def truthful(snap):
+    """A live container on the run's network must never read as unable to mutate."""
+    live = bool(snap["containers"] or snap["onRunNetwork"] or snap["childLive"])
+    return not live or bool((snap["lifecycle"] or {}).get("mutationPossible"))
+
+
+def wait_healthy(name, seconds=180):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if sh("docker", "inspect", "-f", "{{.State.Health.Status}}", name,
+              check=False).stdout.strip() == "healthy":
+            return True
+        time.sleep(2)
+    return False
+
+
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--orchestrator-restart", action="store_true",
+                        help="restart the orchestrator while the daemon is dead")
+    restart = parser.parse_args().orchestrator_restart
     run_id = f"w22-dkill-{uuid.uuid4().hex[:12]}"
-    record = {"runId": run_id, "deadSeconds": DEAD_SECONDS, "verdict": "FAIL"}
+    record = {"runId": run_id, "mode": "orchestrator-restart" if restart else "reaper",
+              "deadSeconds": DEAD_SECONDS, "verdict": "FAIL"}
     out = Path(__file__).resolve().parents[2] / "docs/briefs/evidence/w22" / f"{run_id}.json"
     base = f"{ORCHESTRATOR}/api/v1/orchestrator/runs/{run_id}"
     token = None
@@ -115,31 +142,50 @@ def main():
         record["killedAtUtc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         record["killExit"] = sh("docker", "kill", DAEMON, check=False).returncode
         time.sleep(DEAD_SECONDS)
-        record["daemonDead"] = snapshot(run_id, token)
+        snaps = [snapshot(run_id, token)]
+        record["daemonDead"] = snaps[-1]
+        if restart:
+            record["orchestratorRestartExit"] = sh("docker", "restart", ORCHESTRATOR_NAME,
+                                                   check=False).returncode
+            record["orchestratorHealthy"] = wait_healthy(ORCHESTRATOR_NAME)
+            snaps.append(snapshot(run_id, token))
+            record["afterOrchestratorRestart"] = snaps[-1]
         if record["daemonDead"]["daemon"] != "running":
             record["startExit"] = sh("docker", "start", DAEMON, check=False).returncode
-        time.sleep(AFTER_SECONDS)
-        record["daemonBack"] = snapshot(run_id, token)
-        killed_at = time.monotonic() - DEAD_SECONDS - AFTER_SECONDS
-        deadline = time.monotonic() + SWEEP_WAIT_SECONDS
-        while (run_containers(run_id) or labelled_containers(run_id)) \
-                and time.monotonic() < deadline:
-            time.sleep(10)
-        record["orphanLivedSeconds"] = round(time.monotonic() - killed_at)
-        after = record["afterSweep"] = snapshot(run_id, token)
+        started = time.monotonic()
+        if restart:
+            time.sleep(BACK_SECONDS)
+            snaps.append(snapshot(run_id, token))
+            record["daemonBack"] = snaps[-1]
+            record["stop"] = http("POST", f"{base}/stop", token=token)
+        deadline = time.monotonic() + REAP_WAIT_SECONDS
+        while orphan_alive(run_id) and time.monotonic() < deadline:
+            snaps.append(snapshot(run_id, token))
+            time.sleep(1)
+        record["orphanLivedAfterDaemonStartSeconds"] = round(time.monotonic() - started)
+        snaps.append(snapshot(run_id, token))
+        after = record["after"] = snaps[-1]
+        record["snapshots"] = snaps
         logs = sh("docker", "logs", "--since", record["killedAtUtc"], DAEMON, check=False)
-        record["daemonSweepCalls"] = [line for line in (logs.stdout + logs.stderr).splitlines()
-                                      if "POST /sweep" in line]
+        verb = "/cancel" if restart else "/reap"
+        record["daemonCalls"] = [line for line in (logs.stdout + logs.stderr).splitlines()
+                                 if f"POST /runs/{run_id}{verb}" in line]
         checks = record["checks"] = {
-            "daemonBack": record["daemonBack"]["daemon"] == "running",
-            "runSettled": after["state"] not in (None, "running", "executing"),
+            "daemonBack": after["daemon"] == "running",
+            "runNotRunning": after["state"] not in (None, "running", "executing"),
             "claimReleased": after["claim"] == "",
             "noLiveWorkerOrRelay": not after["containers"] and not after["onRunNetwork"],
             "noLiveChild": not after["childLive"],
-            "childStillLiveWhenDaemonBack": record["daemonBack"]["childLive"],
-            "sweepCalled": bool(record["daemonSweepCalls"]),
-            "networkRemovedBySweep": not after["networks"],
+            "statusTruthful": all(truthful(snap) for snap in snaps),
+            f"daemonLogged{verb.replace('/', ' ').title().strip()}": bool(record["daemonCalls"]),
         }
+        if restart:
+            checks["orchestratorHealthy"] = record["orchestratorHealthy"]
+            checks["orphanLiveAfterRestart"] = record["daemonBack"]["childLive"]
+            checks["stopAccepted"] = record["stop"][0] in (200, 202)
+            checks["stopConfirmed"] = bool((after["lifecycle"] or {}).get("cancelConfirmed"))
+        else:
+            checks["childLiveWhileDaemonDead"] = record["daemonDead"]["childLive"]
         record["verdict"] = "PASS" if all(checks.values()) else "FAIL"
     except Exception as exc:  # noqa: BLE001 — save failed drills
         record["error"] = f"{type(exc).__name__}: {exc}"[:300]

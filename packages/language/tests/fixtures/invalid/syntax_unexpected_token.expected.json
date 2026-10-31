@@ -1,0 +1,9 @@
+[
+  {
+    "line": 6,
+    "col": 7,
+    "kind": "error",
+    "code": "HX2001",
+    "message": "expected a variable name, found '='"
+  }
+]

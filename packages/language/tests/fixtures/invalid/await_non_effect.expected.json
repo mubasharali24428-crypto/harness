@@ -1,0 +1,9 @@
+[
+  {
+    "line": 2,
+    "col": 11,
+    "kind": "error",
+    "code": "HX3002",
+    "message": "'await' expects an effect call or a spawned task, found Int"
+  }
+]

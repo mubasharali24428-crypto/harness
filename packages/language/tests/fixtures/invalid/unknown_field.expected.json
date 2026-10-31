@@ -1,0 +1,9 @@
+[
+  {
+    "line": 11,
+    "col": 19,
+    "kind": "error",
+    "code": "HX3004",
+    "message": "schema 'Evidence' has no field 'ok'"
+  }
+]

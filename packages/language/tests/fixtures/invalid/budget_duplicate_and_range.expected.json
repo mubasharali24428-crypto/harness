@@ -1,0 +1,30 @@
+[
+  {
+    "line": 8,
+    "col": 19,
+    "kind": "error",
+    "code": "HX5003",
+    "message": "'steps' must be between 1 and 1000000"
+  },
+  {
+    "line": 8,
+    "col": 22,
+    "kind": "error",
+    "code": "HX5002",
+    "message": "duplicate budget key 'steps'"
+  },
+  {
+    "line": 8,
+    "col": 43,
+    "kind": "error",
+    "code": "HX5003",
+    "message": "'duration' must be between 1ms and 24h"
+  },
+  {
+    "line": 8,
+    "col": 54,
+    "kind": "error",
+    "code": "HX5004",
+    "message": "unsupported currency 'EUR' (only USD in spec 0.1.0)"
+  }
+]

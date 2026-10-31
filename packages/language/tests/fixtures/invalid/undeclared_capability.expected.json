@@ -1,0 +1,16 @@
+[
+  {
+    "line": 7,
+    "col": 12,
+    "kind": "warning",
+    "code": "HX7001",
+    "message": "capability 'repo.read' is declared but never used"
+  },
+  {
+    "line": 10,
+    "col": 31,
+    "kind": "error",
+    "code": "HX4001",
+    "message": "capability 'tool.test' is required here but is not declared in 'requires'"
+  }
+]

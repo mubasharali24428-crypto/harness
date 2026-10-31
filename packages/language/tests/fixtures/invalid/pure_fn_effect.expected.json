@@ -1,0 +1,9 @@
+[
+  {
+    "line": 7,
+    "col": 25,
+    "kind": "error",
+    "code": "HX4003",
+    "message": "'repo.read' is an effect and cannot run in a pure fn"
+  }
+]

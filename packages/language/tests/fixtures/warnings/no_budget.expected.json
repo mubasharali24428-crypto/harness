@@ -1,0 +1,23 @@
+[
+  {
+    "line": 7,
+    "col": 1,
+    "kind": "warning",
+    "code": "HX7002",
+    "message": "workflow 'read' declares no budget; host defaults apply"
+  },
+  {
+    "line": 7,
+    "col": 1,
+    "kind": "warning",
+    "code": "HX7003",
+    "message": "spawn is used without a budget.tasks limit"
+  },
+  {
+    "line": 8,
+    "col": 23,
+    "kind": "warning",
+    "code": "HX7001",
+    "message": "capability 'tool.test' is declared but never used"
+  }
+]

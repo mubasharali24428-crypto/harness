@@ -1,0 +1,9 @@
+[
+  {
+    "line": 13,
+    "col": 1,
+    "kind": "error",
+    "code": "HX6001",
+    "message": "workflow 'check' requires the agent profile, which the host selects"
+  }
+]

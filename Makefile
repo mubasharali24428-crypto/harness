@@ -15,10 +15,12 @@
 #                        + M15-G6a route/isolation law guards
 #   make e2e             section7 Playwright hero-journey (specs: lane H3a)
 #   make pg-probe        nightly parity: real-PG integration + S1 suite (needs PG)
-#   make gate            EVERYTHING a PR must pass (static-gates lint test frontend)
+#   make gate            EVERYTHING a PR must pass (static-gates lint test frontend
+#                        + the mcp and language package gates)
 #
 # Per-section granular targets (used by CI matrix jobs): make test-section<N>,
-# make lint-section<N> for N in 1 2 3 4 5 6 8 10.
+# make lint-section<N> for N in 1 2 3 4 5 6 8 10 11. Non-section packages keep
+# their own pair: make lint-mcp/test-mcp and make lint-language/test-language.
 
 SECTIONS := section1 section2 section3 section4 section5 section6 section8 section10 section11
 FRONTEND := section7
@@ -32,7 +34,7 @@ PG_URL ?= postgresql+asyncpg://harness:harness@localhost:5499/harness
 
 .PHONY: help bootstrap clean-venvs guard-script-check \
         gate $(foreach s,$(SECTIONS),lint-$(s) test-$(s)) \
-        lint test lint-mcp test-mcp frontend frontend-tsc frontend-vitest check-ts-dist static-gates e2e e2e-compose \
+        lint test lint-mcp test-mcp lint-language test-language frontend frontend-tsc frontend-vitest check-ts-dist static-gates e2e e2e-compose \
         pg-probe pg-probe-integration pg-probe-s1 pg-probe-migrate pg-up pip-audit \
         guard-routes guard-isolation guard-route-law \
         drill-oidc drill-pitr drill-native drill-fairness drill-rate-limit drill-routing drill-seat-revocation drill-scim drill-siem
@@ -61,8 +63,9 @@ help:
 	@echo "  make e2e-compose     zero-key compose journey, 12 checks (needs stack + master key)"
 	@echo "  make pg-probe        real-PG probes: integration checkpoint + S1 suite + migrate runner (needs PG :5499)"
 	@echo "  make pip-audit       dependency audit (WARN-posture parity with CI)"
-	@echo "  make gate            static-gates + lint + test + frontend"
+	@echo "  make gate            static-gates + lint + test + lint-mcp/test-mcp + lint-language/test-language + frontend"
 	@echo "  make lint-section<N> / test-section<N>   one section, exactly CI's command"
+	@echo "  make lint-language / test-language      packages/language (Hx checker), exactly CI's command"
 
 # ------------------------------------------------------------------ bootstrap
 # F-1 (M17-B6): a fresh clone ships no .venv anywhere — the very first
@@ -94,13 +97,19 @@ bootstrap:
 			./.venv/bin/pip install --quiet -e ../contracts && \
 			{ ./.venv/bin/pip install --quiet -e ".[dev]" || \
 			  ./.venv/bin/pip install --quiet -e .; } && cd .. || exit 1
+	@echo "== packages/language (Hx) =="; \
+		cd packages/language && $(PYTHON) -m venv .venv && \
+			./.venv/bin/pip install --quiet --upgrade pip && \
+			./.venv/bin/pip install --quiet -e ../../contracts && \
+			{ ./.venv/bin/pip install --quiet -e ".[dev]" || \
+			  ./.venv/bin/pip install --quiet -e .; } && cd ../.. || exit 1
 	@echo ""
 	@echo "Bootstrap complete. Try: make test-section1"
 
 clean-venvs:
 	@for s in $(SECTIONS); do rm -rf $$s/.venv; done
-	@rm -rf mcp/.venv
-	@echo "Removed all section venvs. Re-run 'make bootstrap' to recreate."
+	@rm -rf mcp/.venv packages/language/.venv
+	@echo "Removed all section/package venvs. Re-run 'make bootstrap' to recreate."
 
 # ---------------------------------------------------------------- static gates
 # M15-G6a added the route-module + isolation law guards (guard-route-law) to
@@ -186,6 +195,13 @@ lint-mcp:
 	cd mcp && ./.venv/bin/ruff check src tests
 test-mcp:
 	cd mcp && ./.venv/bin/python -m pytest tests -q
+
+# Hx language package is not a section either. Its venv installs contracts
+# first (path dependency) exactly like mcp and bootstrap.
+lint-language:
+	cd packages/language && ./.venv/bin/ruff check src tests scripts
+test-language:
+	cd packages/language && ./.venv/bin/python -m pytest tests -q
 
 
 # -------------------------------------------------------------------- frontend
@@ -358,7 +374,7 @@ guard-script-check:
 # ----------------------------------------------------------------------- gate
 # Everything branch protection blocks a PR on. (e2e joins here when H3a's
 # specs land; nightly pg-probe and security-scan stay schedule/push-scoped.)
-gate: static-gates lint lint-mcp test test-mcp frontend
+gate: static-gates lint lint-mcp test test-mcp lint-language test-language frontend
 	@echo ""
-	@echo "GATE GREEN — static-gates + lint + test + frontend all passed."
+	@echo "GATE GREEN — static-gates + lint + test + lint-mcp/test-mcp + lint-language/test-language + frontend all passed."
 	@echo "This is byte-for-byte what ci.yml enforces on PRs."

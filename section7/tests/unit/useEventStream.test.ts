@@ -327,6 +327,59 @@ describe("H-012 guarded JSON.parse (malformed-frame resilience)", () => {
   });
 });
 
+describe("W22 truncated-replay backfill", () => {
+  it("pages the missing gap from REST oldest-first when the server marks a capped replay", async () => {
+    MockSocket.instances = [];
+    const pages: Record<number, EventEnvelope[]> = { 10: [evt(11), evt(12)], 12: [evt(13)], 13: [] };
+    const fetchReplay = vi.fn(async (after: number, before: number) => {
+      expect(before).toBe(14);
+      const items = pages[after] ?? [];
+      return { items, nextCursor: items.length ? items[items.length - 1].seq : after };
+    });
+    const events: EventEnvelope[] = [];
+    const controller = new EventStreamController({
+      mintTicket: TICKET,
+      socketFactory: (url) => new MockSocket(url),
+      schedule: makeScheduler().schedule,
+      fetchReplay,
+      onEvent: (e) => events.push(e),
+    });
+    controller.start("proj-1", "tok-1");
+    await flush();
+    const sock = MockSocket.instances[0];
+    sock.open();
+    sock.message(JSON.stringify(evt(14))); // the capped replay's newest slice
+    sock.message(JSON.stringify({ replayTruncated: true, oldestSeqSent: 14, afterSeq: 10 }));
+    await vi.waitFor(() => expect(fetchReplay).toHaveBeenCalledTimes(3));
+    expect(events.map((e) => e.seq)).toEqual([14, 11, 12, 13]);
+    expect(controller.getLastSeq()).toBe(14);
+  });
+
+  it("a failed backfill is logged and the live stream keeps going", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    MockSocket.instances = [];
+    const events: EventEnvelope[] = [];
+    const controller = new EventStreamController({
+      mintTicket: TICKET,
+      socketFactory: (url) => new MockSocket(url),
+      schedule: makeScheduler().schedule,
+      fetchReplay: async () => {
+        throw new Error("503");
+      },
+      onEvent: (e) => events.push(e),
+    });
+    controller.start("proj-1", "tok-1");
+    await flush();
+    const sock = MockSocket.instances[0];
+    sock.open();
+    sock.message(JSON.stringify({ replayTruncated: true, oldestSeqSent: 5, afterSeq: 0 }));
+    await vi.waitFor(() => expect(consoleSpy).toHaveBeenCalled());
+    sock.message(JSON.stringify(evt(6)));
+    expect(events.map((e) => e.seq)).toEqual([6]);
+    expect(controller.getStatus().state).toBe("open");
+  });
+});
+
 // ---------------------------------------------------------------------------
 // H-012: hook-level refetch coalescing — mirrors WorkingArea's wiring with a
 // fake event source so the debounce behavior is asserted end-to-end.

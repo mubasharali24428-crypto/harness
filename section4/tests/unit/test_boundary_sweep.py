@@ -233,3 +233,28 @@ def test_foreign_networks_are_not_matched_by_the_boundary_pattern(monkeypatch):
     )
     report = container_runtime.sweep_orphan_boundaries(set(), {"run-8"})
     assert report["removed"] == [] and "harness-bridge-net" in fake.net
+
+
+def test_a_targeted_reap_touches_only_its_own_run(monkeypatch):
+    """W22: /reap for one run must not judge a neighbour, settled or not."""
+    mine, mine_spec = _boundary("run-mine", "a")
+    other, other_spec = _boundary("run-other", "b")
+    fake = _install(monkeypatch, FakeDocker({mine: mine_spec, other: other_spec}))
+    report = container_runtime.sweep_orphan_boundaries(
+        set(), {"run-mine", "run-other"}, only_run_id="run-mine"
+    )
+    assert [r["network"] for r in report["removed"]] == [mine]
+    assert other in fake.net and other not in report["kept"]
+
+
+def test_run_boundary_running_sees_an_orphan_and_treats_unknown_as_running(monkeypatch):
+    """W22: a restarted daemon must not answer "not running" from its empty memory."""
+    name, spec = _boundary("run-orphan", "c", relay="exited")
+    fake = _install(monkeypatch, FakeDocker({name: spec}))
+    assert container_runtime.run_boundary_running("run-orphan") is True
+    assert container_runtime.run_boundary_running("run-elsewhere") is False
+    fake.net[name]["containers"][f"harness-{'c' * 32}"] = "exited"
+    # The shared egress proxy is still attached and running; it is not the run.
+    assert container_runtime.run_boundary_running("run-orphan") is False
+    _install(monkeypatch, FakeDocker({}, listing_fails=True))
+    assert container_runtime.run_boundary_running("run-orphan") is True

@@ -76,7 +76,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test test/*.test.ts",
+    "bundle": "npm run build && esbuild src/extension.ts --bundle --format=esm --platform=node --target=node22 --external:vscode --outfile=dist/extension.js",
+    "package": "npm run bundle && npx --yes @vscode/vsce@3.2.1 package --no-dependencies --allow-missing-repository --skip-license -o harness-vscode.vsix"
   },
   "dependencies": {
     "harness-ts-sdk": "file:../ts"
@@ -85,6 +87,7 @@
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.90.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "esbuild": "^0.28.2"
   }
 }

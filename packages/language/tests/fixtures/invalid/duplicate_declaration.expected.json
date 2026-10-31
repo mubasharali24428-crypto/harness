@@ -1,0 +1,9 @@
+[
+  {
+    "line": 5,
+    "col": 1,
+    "kind": "error",
+    "code": "HX3006",
+    "message": "schema 'Issue' is already declared as a schema"
+  }
+]

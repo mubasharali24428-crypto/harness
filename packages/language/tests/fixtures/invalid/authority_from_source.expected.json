@@ -1,0 +1,9 @@
+[
+  {
+    "line": 2,
+    "col": 19,
+    "kind": "error",
+    "code": "HX4006",
+    "message": "'policy.grant' would change authority; source requests capabilities and the host policy decides"
+  }
+]

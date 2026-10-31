@@ -1,0 +1,2 @@
+schema Issue {
+  id: String
