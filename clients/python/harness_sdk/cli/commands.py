@@ -381,6 +381,25 @@ def run_status(sdk: Any, run_id: str) -> dict[str, Any]:
     }
 
 
+def readiness(sdk: Any, project_id: str | None) -> dict[str, Any]:
+    """W23: what would stop a run in this project, named by component."""
+    project = pick_project(sdk, project_id)
+    body = sdk.orchestrator.get_readiness(project_id=project) or {}
+    return {"projectId": project, "ready": bool(body.get("ok")),
+            "checks": list(body.get("checks") or [])}
+
+
+def format_readiness(payload: dict[str, Any]) -> str:
+    lines = [
+        f"{c.get('status', '?'):>7}  {c.get('check', '?'):<11} "
+        f"{c.get('component', '?')}: {c.get('detail', '')}"
+        for c in payload.get("checks") or []
+    ]
+    failing = [c.get("check") for c in payload.get("checks") or [] if c.get("status") != "ok"]
+    lines.append("ready" if payload.get("ready") else f"not ready: {', '.join(failing)}")
+    return "\n".join(lines)
+
+
 def run_diff(sdk: Any, run_id: str, limit: int = 100) -> dict[str, Any]:
     return sdk.orchestrator.run_diff(run_id, limit=limit) or {}
 

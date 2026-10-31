@@ -167,6 +167,25 @@ export function displayErrorMessage(err: unknown): string {
   return `${raw} If this keeps happening, contact support with the time it occurred.`;
 }
 
+/** W23: one entry of GET /api/v1/orchestrator/readiness. */
+export interface ReadinessCheck {
+  check: "provider" | "model" | "worker" | "revision" | "repository" | "permissions";
+  status: "ok" | "fail" | "unknown";
+  component: string;
+  reason: string;
+  detail: string;
+}
+
+export interface ReadinessReport {
+  ok: boolean;
+  checks: ReadinessCheck[];
+}
+
+export function getReadiness(projectId: string, token: string | null): Promise<ReadinessReport> {
+  const q = new URLSearchParams({ projectId });
+  return apiFetch(`${ORCHESTRATOR_BASE}/api/v1/orchestrator/readiness?${q}`, token);
+}
+
 export function getRunStatus(runId: string, token: string): Promise<RunStatus> {
   return apiFetch(`${ORCHESTRATOR_BASE}/api/v1/orchestrator/runs/${runId}/status`, token);
 }

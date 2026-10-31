@@ -5,6 +5,7 @@
     harness chat [--resume <id>] [--message "..."] [--yes] [--json]
     harness status <runId> [--json]
     harness diff <runId> [--json]
+    harness doctor [--project <id>] [--json]   # W23 first-run readiness
 
 Output policy: human text by default; `--json` prints exactly one object to
 stdout (progress notes go to stderr), so `harness run --json | jq` is safe.
@@ -37,7 +38,9 @@ from .commands import (
     chat_loop,
     execute_run,
     format_diff,
+    format_readiness,
     format_steps,
+    readiness,
     run_diff,
     run_status,
 )
@@ -86,6 +89,13 @@ def build_parser() -> argparse.ArgumentParser:
     diff.add_argument("--json", action="store_true")
     diff.add_argument("--capture", metavar="PATH",
                       help="also write the JSON object to PATH (0600)")
+
+    doctor = subs.add_parser("doctor", parents=[common],
+                             help="check provider, model, worker, revision, repository and role")
+    doctor.add_argument("--project", help="project id (required when you belong to several)")
+    doctor.add_argument("--json", action="store_true")
+    doctor.add_argument("--capture", metavar="PATH",
+                        help="also write the JSON object to PATH (0600)")
 
     chat = subs.add_parser("chat", parents=[common], help="interactive loop over the run path")
     chat.add_argument("--project", help="project id (required when you belong to several)")
@@ -249,6 +259,12 @@ def main(
             payload = diagnostics.contract("diff", run_diff(client, args.run_id), 0)
             _deliver(out, as_json, payload, lambda: format_diff(payload), capture)
             return 0
+        if command == "doctor":
+            report = readiness(client, args.project)
+            exit_code = diagnostics.OK if report["ready"] else diagnostics.FAILURE
+            payload = diagnostics.contract("doctor", report, exit_code)
+            _deliver(out, as_json, payload, lambda: format_readiness(payload), capture)
+            return exit_code
         if command == "chat":
             if args.resume and args.continue_last:
                 raise CliError("pass either --resume or --continue, not both")

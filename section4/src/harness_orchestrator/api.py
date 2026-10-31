@@ -992,6 +992,66 @@ async def get_plan(runId: str, reader: RunReader) -> dict[str, Any]:
     return plan.model_dump()
 
 
+class ReadinessCheckOut(BaseModel):
+    check: Literal["provider", "model", "worker", "revision", "repository", "permissions"]
+    status: Literal["ok", "fail", "unknown"]
+    component: str
+    reason: str
+    detail: str
+
+
+class ReadinessResponse(BaseModel):
+    ok: bool
+    checks: list[ReadinessCheckOut]
+
+
+@router.get(
+    "/readiness",
+    status_code=status.HTTP_200_OK,
+    response_model=ReadinessResponse,
+    responses={
+        404: {"model": ErrorEnvelope, "description": "unknown or foreign project (no-oracle)"}
+    },
+)
+async def get_readiness(projectId: str, principal: RequirePrincipal) -> dict[str, Any]:
+    """W23: would a run started now in this project work, and if not, what is wrong."""
+    import asyncio
+
+    from harness_orchestrator import readiness
+    from harness_orchestrator.engine import DAEMON_TOKEN_ENV
+
+    factory = getattr(_service, "session_factory", None)
+    repo, known = None, factory is not None
+    if known:
+        from sqlalchemy import text
+
+        async with factory() as db:
+            row = (
+                await db.execute(
+                    text("SELECT team_id, repo_full_name FROM projects WHERE id = :p"),
+                    {"p": projectId},
+                )
+            ).first()
+        if row is None or row.team_id != principal.teamId:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": {"code": "NOT_FOUND", "message": "project not found"}},
+            )
+        repo = row.repo_full_name
+    worker = await asyncio.to_thread(
+        readiness.check_worker,
+        getattr(_service.engine, "daemon_url", "") or "",
+        os.environ.get(DAEMON_TOKEN_ENV, ""),
+        readiness.code_digest(),
+    )
+    return readiness.report([
+        *readiness.check_engine(os.environ),
+        *worker,
+        readiness.check_repository(repo, known=known),
+        readiness.check_permissions(principal),
+    ])
+
+
 # ---------------------------------------------------------------------------
 # Shared-run collaboration (multiplayer pilot S2) - see collab.py for the rules.
 # Every route is guarded by the run-ownership dependency (foreign run => 404);

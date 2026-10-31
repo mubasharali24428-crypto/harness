@@ -12,6 +12,7 @@ boundary. Paths come from its own ``DSH_WORKSPACE``/``DSH_SESSION_ROOT``, the im
     POST /runs/<id>/reap     {"confirmed": bool, "held": bool}  orphan only; never a held run
     GET  /runs/<id>          {"running": bool}  from Docker when this daemon does not hold it
     GET  /boundaries         {"runs": [run id, ...]} labelled boundaries Docker still has
+    GET  /version            {"codeDigest": sha256} of this package, for W23 readiness
     POST /sweep              {"settledRunIds": [...], "olderThanSeconds": n} -> sweep report
 
 Every call carries ``Authorization: Bearer $HARNESS_WORKER_DAEMON_TOKEN``; without a token
@@ -34,7 +35,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-from harness_orchestrator import confine, container_runtime
+from harness_orchestrator import confine, container_runtime, readiness
 from harness_orchestrator.engine import DAEMON_TOKEN_ENV, DAEMON_URL_ENV, DeepSeekHarnessWrapper
 
 logger = logging.getLogger(__name__)
@@ -120,6 +121,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/boundaries" and self._authorized():
             runs = sorted(set(container_runtime.labelled_boundary_runs().values()))
             self._reply(200, {"runs": runs})
+            return
+        if self.path == "/version" and self._authorized():  # W23 readiness: same code?
+            self._reply(200, {"codeDigest": readiness.code_digest()})
             return
         route = self._route()
         if route is None or route[1]:

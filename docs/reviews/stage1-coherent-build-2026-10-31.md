@@ -85,3 +85,24 @@ rebuilds the frontend — a deliberate local-only choice, never the shipped defa
 Verdict: the mixed-image cleanup is **done**; the product verdict is still
 **NOT READY**, and Stage 1 recovery + the human/owner gates remain ahead —
 accurately, not as an oversight.
+
+## Daemon-kill reliability rate on `vs1coherent` (2026-10-31, 04:58–05:14 PDT)
+
+Eight consecutive runs of `scripts/e2e/w22_daemon_kill_drill.py` against the
+unchanged `vs1coherent` stack (daemon image `sha256:a428fc232f96…`), run back
+to back with no code or config change between them:
+
+| Mode | Runs | Verdict | Orphan gone after daemon returned |
+|---|---|---|---|
+| reaper | 5 | **5/5 PASS** (8/8 checks each) | 17 s in every run |
+| `--orchestrator-restart` | 3 | **3/3 PASS** (durable reap 37 s, no user stop) | 37 s in every run |
+
+Evidence: `docs/briefs/evidence/w22/w22-dkill-{516152e8dca6, 63df20776368,
+517943c1c74d, 2596b4ecff01, e2f40f79a2df, 4b3943defd58, 44d8459ce5d3,
+0789f54efb2e}.json`. Spend: 8 `cost_ledger` rows, $0.005872 in the window.
+
+With the earlier single pass that makes **9/9 on this revision**, against 5/8 on
+the pre-fix `vw22orphan1` set. What this still does **not** cover: one fault
+(daemon SIGKILL) on one topology (single host, Docker Desktop). The other W22
+gates (partial write, replay, provider outage) are still at "passed once", and no
+second backend or topology has been exercised, so the Stage 1 exit stays open.

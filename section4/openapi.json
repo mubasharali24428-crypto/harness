@@ -1710,6 +1710,73 @@
     "title": "ReactBody",
     "type": "object"
    },
+   "ReadinessCheckOut": {
+    "properties": {
+     "check": {
+      "enum": [
+       "provider",
+       "model",
+       "worker",
+       "revision",
+       "repository",
+       "permissions"
+      ],
+      "title": "Check",
+      "type": "string"
+     },
+     "component": {
+      "title": "Component",
+      "type": "string"
+     },
+     "detail": {
+      "title": "Detail",
+      "type": "string"
+     },
+     "reason": {
+      "title": "Reason",
+      "type": "string"
+     },
+     "status": {
+      "enum": [
+       "ok",
+       "fail",
+       "unknown"
+      ],
+      "title": "Status",
+      "type": "string"
+     }
+    },
+    "required": [
+     "check",
+     "status",
+     "component",
+     "reason",
+     "detail"
+    ],
+    "title": "ReadinessCheckOut",
+    "type": "object"
+   },
+   "ReadinessResponse": {
+    "properties": {
+     "checks": {
+      "items": {
+       "$ref": "#/components/schemas/ReadinessCheckOut"
+      },
+      "title": "Checks",
+      "type": "array"
+     },
+     "ok": {
+      "title": "Ok",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "ok",
+     "checks"
+    ],
+    "title": "ReadinessResponse",
+    "type": "object"
+   },
    "ReasonBody": {
     "additionalProperties": false,
     "properties": {
@@ -4082,6 +4149,59 @@
     "summary": "Put Settings",
     "tags": [
      "presence"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/readiness": {
+   "get": {
+    "description": "W23: would a run started now in this project work, and if not, what is wrong.",
+    "operationId": "get_readiness_api_v1_orchestrator_readiness_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "projectId",
+      "required": true,
+      "schema": {
+       "title": "Projectid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReadinessResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "unknown or foreign project (no-oracle)"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Readiness",
+    "tags": [
+     "orchestrator"
     ]
    }
   },

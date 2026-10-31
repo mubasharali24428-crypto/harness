@@ -361,6 +361,21 @@ export interface ReactBody {
   reaction: "thumbs_up" | "thumbs_down" | "heart" | "eyes" | "celebrate" | "question" | "check";
 }
 
+/** ReadinessCheckOut. Required keys: check, component, detail, reason, status. */
+export interface ReadinessCheckOut {
+  check: "provider" | "model" | "worker" | "revision" | "repository" | "permissions";
+  component: string;
+  detail: string;
+  reason: string;
+  status: "ok" | "fail" | "unknown";
+}
+
+/** ReadinessResponse. Required keys: checks, ok. */
+export interface ReadinessResponse {
+  checks: ReadinessCheckOut[];
+  ok: boolean;
+}
+
 /** ReasonBody. */
 export interface ReasonBody {
   reason?: string | null;  // optional
@@ -771,6 +786,14 @@ export class OrchestratorClient {
   put_settings(body: SettingsRequest): Promise<Record<string, unknown>> {
     const _path = `/api/v1/orchestrator/presence-settings`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
+  /** Get Readiness
+   *  GET /api/v1/orchestrator/readiness */
+  get_readiness(project_id?: string): Promise<ReadinessResponse> {
+    const _path = `/api/v1/orchestrator/readiness`;
+    const params: Record<string, unknown> = {"projectId": project_id};
+    return this.http.request<ReadinessResponse>(this.baseUrl, _path, "GET", undefined, params);
   }
 
   /** List Runs
@@ -1700,6 +1723,8 @@ export class OrchestratorClient {
  * export interface/type ProposePlanRequest
  * export interface/type ProposePlanResponse
  * export interface/type ReactBody
+ * export interface/type ReadinessCheckOut
+ * export interface/type ReadinessResponse
  * export interface/type ReasonBody
  * export interface/type ReassignBody
  * export interface/type RedirectRequest

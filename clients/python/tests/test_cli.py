@@ -442,3 +442,44 @@ def test_the_token_never_appears_in_output_or_capture(config_dir, tmp_path, monk
     assert "tok-super-secret" not in out.getvalue()
     assert "tok-super-secret" not in err.getvalue()
     assert "tok-super-secret" not in target.read_text()
+
+
+# --------------------------------------------------------------- doctor (W23)
+
+
+class _ReadyOrch:
+    def __init__(self, ok):
+        self.ok, self.asked = ok, []
+
+    def get_readiness(self, project_id=None):
+        self.asked.append(project_id)
+        worker = {"check": "worker", "status": "ok" if self.ok else "fail",
+                  "component": "worker-daemon",
+                  "reason": "REACHABLE" if self.ok else "WORKER_UNAUTHORIZED",
+                  "detail": "answers" if self.ok else "the daemon rejected the token"}
+        return {"ok": self.ok, "checks": [worker]}
+
+
+def test_doctor_reports_ready_and_exits_zero():
+    sdk = _Sdk()
+    sdk.orchestrator = _ReadyOrch(ok=True)
+    out = io.StringIO()
+    assert main(["doctor"], sdk=sdk, stdout=out) == 0
+    assert sdk.orchestrator.asked == ["proj-1"]
+    assert "ready" in out.getvalue()
+
+
+def test_doctor_names_the_failing_component_and_exits_nonzero():
+    sdk = _Sdk()
+    sdk.orchestrator = _ReadyOrch(ok=False)
+    out = io.StringIO()
+    assert main(["doctor", "--project", "p9", "--json"], sdk=sdk, stdout=out) == 1
+    payload = json.loads(out.getvalue())
+    assert payload["command"] == "doctor" and payload["ok"] is False
+    assert payload["projectId"] == "p9"
+    assert payload["checks"][0]["reason"] == "WORKER_UNAUTHORIZED"
+
+    human = io.StringIO()
+    main(["doctor", "--project", "p9"], sdk=sdk, stdout=human)
+    assert "fail" in human.getvalue() and "worker-daemon" in human.getvalue()
+    assert "not ready" in human.getvalue()
