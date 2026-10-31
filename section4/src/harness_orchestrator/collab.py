@@ -1148,6 +1148,28 @@ GUIDANCE_KINDS = ("redirect.guidance", "redirect.scope_change")
 GUIDANCE_DELIVERED = "guidance.delivered"
 MAX_INJECTED = 4000
 
+# W23: when guidance reaches the agent. guidance_since runs once, as an engine call
+# starts (service._execute), so a call already in flight never sees it.
+_BEFORE_EXECUTION = ("idle", "planning", "awaiting_plan_approval", "paused", "blocked")
+
+
+def takes_effect(state: str, queued: bool) -> str:
+    """after_acceptance / next_start / next_execution / never, from the run state now."""
+    if queued:
+        return "after_acceptance"  # then as below, once the holder accepts
+    if state == "done":
+        return "never"
+    if state in _BEFORE_EXECUTION:
+        return "next_start"  # the next start or resume reads it
+    # executing, done-gate, reviewing, PR open: this pass has read its guidance
+    # already; it reaches the agent only if the run executes again.
+    return "next_execution"
+
+
+async def takes_effect_now(svc: Any, run_id: str, queued: bool) -> str:
+    sm = (await svc._ensure_run(run_id))["state_machine"]
+    return takes_effect(sm.state.value, queued)
+
 
 def _collab_not_installed(exc: Exception) -> bool:
     return any(m in str(exc).lower() for m in _NO_TABLE_MARKERS)

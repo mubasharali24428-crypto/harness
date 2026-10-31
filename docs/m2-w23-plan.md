@@ -43,7 +43,7 @@ does not depend on it.
 2. **Live status — built, see "Slice 2" below.** A pure mapping from run state, connection status and
    lifecycle to the five user states, with tests for every combination, shown in
    the run page and the CLI.
-3. **Steering timing.** State when queued guidance takes effect, sourced from
+3. **Steering timing — built, see "Slice 3" below.** State when queued guidance takes effect, sourced from
    the engine's actual delivery point, not a guess.
 4. **Stop confirmation.** After the Stage 1 gate: the UI and CLI report
    "stopped" only on `cancelConfirmed`, and say so when confirmation is pending
@@ -130,6 +130,40 @@ does not depend on it.
   91 passed. section7: 1053 vitest passed and tsc clean. `spec_drift.py` clean,
   because `lifecycle` is typed as `dict` and no schema changed, so no SDK
   regeneration was needed. Not deployed and not checked live.
+
+## Slice 3 — steering timing
+
+* **Delivery point (measured from code, not assumed).** The engine reads guidance
+  once per engine call, as the call starts: `service._execute` calls
+  `collab.guidance_since` and prepends it to the prompt. After the call returns,
+  `mark_guidance_delivered` writes the cursor. Nothing injects guidance into a
+  call already in flight, so the honest answer for a running run is "not this pass".
+* **API.** `POST runs/{id}/redirect` (guidance or scope change) and an accepted
+  `control/decide` now answer `takesEffect`, from `collab.takes_effect(state, queued)`:
+  `after_acceptance` (queued for the holder), `next_start` (idle, planning, plan
+  approval, paused, blocked), `next_execution` (executing, done-gate, reviewing,
+  PR open: only if the run executes again) or `never` (done). Permission
+  changes are not injected and get no value. The field is additive, and the
+  response is typed `dict`, so the spec and SDKs are unchanged.
+* **UI.** The "Send direction" notice and the holder's "Suggestion accepted"
+  notice say when the agent sees it. The latter used to say "sent to the agent",
+  which was not true for a running run. An unknown or missing value shows no
+  timing rather than a guess.
+* **CLI.** There is no steering command in `harness`, so there is nothing to
+  show. Add it with one when a CLI steering command lands.
+* **Conservative edge.** An `executing` run whose engine call has not started yet
+  (queued, unclaimed) is reported as `next_execution`, although its first call
+  will read the guidance. The report can say later than the truth, never earlier.
+* **Not covered.** A per-guidance "delivered" marker. The cursor exists
+  (`guidance.delivered`), but it is filtered out of the event stream as noise,
+  so the UI cannot yet confirm delivery after the fact.
+* **Tests.** Every `AgentState` × queued (20 cases) is in `test_control.py`, with
+  a check that the table covers every state. The route tests cover queued →
+  `after_acceptance`, accepted → `next_start`, direct guidance → `next_start`,
+  and a permission change carrying no value. `tests/unit/steeringTiming.test.ts`
+  covers each text and unknown values.
+* **Evidence (2026-10-31).** section4: 2025 passed, 59 skipped. section7: 1055
+  vitest passed and tsc clean. `spec_drift.py` clean; ruff clean. Not deployed.
 
 ## Exit evidence (unchanged from the continuation plan)
 

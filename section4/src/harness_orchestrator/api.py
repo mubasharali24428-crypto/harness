@@ -1185,12 +1185,16 @@ async def collab_claim_leader(runId: str, actor: CollabWriter) -> dict:
 @router.post("/runs/{runId}/redirect")
 async def collab_redirect(runId: str, req: RedirectRequest, actor: CollabWriter) -> dict:
     _pilot_gate(actor)
-    return await _collab(
+    result = await _collab(
         lambda f: collab.redirect(
             f, actor, runId, req.kind, req.content, req.reason,
             collab.actor_request_id(actor, req.requestId),
         )
     )
+    if f"redirect.{req.kind}" in collab.GUIDANCE_KINDS:  # permission changes are not injected
+        result["takesEffect"] = await collab.takes_effect_now(
+            _service, runId, bool(result.get("queued")))
+    return result
 
 
 @router.get("/runs/{runId}/collab-history")

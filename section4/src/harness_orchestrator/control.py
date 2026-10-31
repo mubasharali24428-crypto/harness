@@ -1106,8 +1106,12 @@ async def control_revoke(runId: str, req: RevokeBody, actor: _Writer) -> dict:
 @router.post(RUN + "/control/decide")
 async def control_decide(runId: str, req: DecideBody, actor: _Writer) -> dict:
     await _mutating(actor, runId)
-    return await _call(lambda f: decide(
+    result = await _call(lambda f: decide(
         f, actor, runId, req.requestId, req.instructionId, req.decision, req.reason))
+    if isinstance(result, dict) and result.get("state") == "accepted":  # now ordinary guidance
+        svc = _service if _service is not None else _api._service
+        result["takesEffect"] = await collab.takes_effect_now(svc, runId, False)
+    return result
 
 
 @router.get(RUN + "/intent")
