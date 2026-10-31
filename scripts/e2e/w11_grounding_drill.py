@@ -349,8 +349,21 @@ def product_vision_refusal(model: str) -> dict:
     try:
         import asyncio
 
+        class _NoDb:
+            """A factory that fails on use: only the refusal-before-the-call path
+            can return with images untouched; anything else reaches this error."""
+
+            def __call__(self):
+                raise RuntimeError("vision-refusal probe has no database")
+
+            async def __aenter__(self):
+                raise RuntimeError("vision-refusal probe has no database")
+
+            async def __aexit__(self, *exc):
+                return False
+
         result = asyncio.run(goal_images.resolve_goal_images(
-            object(), "w11-grounding", None, model, read=lambda ref: None))
+            _NoDb(), "w11-grounding", None, model, read=lambda ref: None))
         return {"ok": True, "refused": result.refused, "attached": result.selected}
     finally:
         if previous is None:
