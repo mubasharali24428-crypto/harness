@@ -88,6 +88,15 @@ class ContextStore:
         """
         from datetime import UTC, datetime
 
+        # Self-provision the admission table. Migration 0072 creates it in a real
+        # deployment, and ensure_schema does for the local suite, but the indexing
+        # path must not assume WHO bootstrapped the schema (a cross-section driver
+        # that only ran DDL_SQLITE would otherwise fail with "no such table").
+        # Idempotent and cheap; matches ensure_schema's CREATE-IF-NOT-EXISTS posture.
+        from .sql import RESERVATION_DDL
+
+        await conn.execute(text(RESERVATION_DDL))
+
         until = datetime.fromisoformat(now).timestamp() + lease_seconds
         until_iso = datetime.fromtimestamp(until, tz=UTC).isoformat()
         result = await conn.execute(
