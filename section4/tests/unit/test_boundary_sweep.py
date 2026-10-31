@@ -213,6 +213,37 @@ def test_a_settled_boundary_older_than_the_grace_window_is_removed(monkeypatch):
     assert report["count"] == 1 and name not in fake.net
 
 
+def test_a_settled_corpse_needs_only_the_short_grace_not_the_full_window(monkeypatch):
+    """W22: a run the durable log calls finished cannot be resumed.
+
+    The 300 s grace exists to spare a boundary that may still be in flight. Once the
+    lifecycle says the engine call ended it is a corpse, so waiting grace + interval
+    (~15 min) after an orchestrator restart protected nothing.
+    """
+    name, spec = _boundary("run-6c", "9")
+    fake = _install(monkeypatch, FakeDocker({name: spec}, created_ago=15.0))
+    report = container_runtime.sweep_orphan_boundaries(set(), {"run-6c"}, older_than_seconds=300)
+    assert report["count"] == 1 and name not in fake.net
+
+
+def test_an_unsettled_boundary_keeps_the_full_grace(monkeypatch):
+    """The same age without the durable proof is still nobody's to destroy."""
+    name, spec = _boundary("run-6d", "8")
+    fake = _install(monkeypatch, FakeDocker({name: spec}, created_ago=15.0))
+    report = container_runtime.sweep_orphan_boundaries(set(), None, older_than_seconds=300)
+    assert report["kept"] == [name] and name in fake.net
+
+
+def test_a_targeted_reap_ignores_age_even_for_a_settled_run(monkeypatch):
+    """`/runs/<id>/reap` passes grace 0: the proof is the target, not the clock."""
+    name, spec = _boundary("run-6e", "7")
+    fake = _install(monkeypatch, FakeDocker({name: spec}, created_ago=1.0))
+    report = container_runtime.sweep_orphan_boundaries(
+        set(), {"run-6e"}, older_than_seconds=0, only_run_id="run-6e"
+    )
+    assert report["count"] == 1 and name not in fake.net
+
+
 def test_a_daemon_that_cannot_be_listed_reports_failure_not_zero_orphans(monkeypatch):
     _install(monkeypatch, FakeDocker({}, listing_fails=True))
     report = container_runtime.sweep_orphan_boundaries(set(), {"run-7"})

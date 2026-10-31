@@ -9,13 +9,15 @@ daemon is dead, and after it is back.
 Default mode: the orchestrator's reaper must stop the orphaned worker and relay
 within REAP_WAIT_SECONDS of the daemon coming back, and the daemon must have
 logged POST /runs/<id>/reap. With --orchestrator-restart the orchestrator is
-restarted while the daemon is dead (its in-memory reaper is lost): the orphan
-then lives on, the status must still say mutationPossible, and a user's POST
-/stop must remove it. Both modes require every snapshot that sees a live
-container on the run's network to report mutationPossible=true (statusTruthful).
-The orphan cannot exit on its own inside the window (four 280 s children; the
-bash tool caps one call at 300 s). The drill removes anything the product left
-behind. The periodic sweep (grace + interval, ~15 min) was proven separately.
+restarted while the daemon is dead (its in-memory reaper is lost): the durable
+path must then reap the orphan by itself within DURABLE_REAP_WAIT_SECONDS - a
+stale claim, the engine_failed that follows, and a sweep that reads that proof
+in the same cycle - with no user stop. A POST /stop is only issued (and checked)
+when that self-heal does not happen. Both modes require every snapshot that sees
+a live container on the run's network to report mutationPossible=true
+(statusTruthful). The orphan cannot exit on its own inside the window (four
+280 s children; the bash tool caps one call at 300 s). The drill removes
+anything the product left behind.
 """
 import argparse
 import json
@@ -37,6 +39,7 @@ DAEMON = "harness-worker-daemon-1"
 DEAD_SECONDS = 60
 ORCHESTRATOR_NAME = "harness-orchestrator-1"
 REAP_WAIT_SECONDS = 30  # reaper polls /reap every 5 s once the daemon answers
+DURABLE_REAP_WAIT_SECONDS = 180  # stale claim (90 s) + one cycle + settled grace (10 s)
 BACK_SECONDS = 20
 CHILD = "time.sleep(280)"
 CHILD_RUNS = 4
@@ -157,7 +160,18 @@ def main():
             time.sleep(BACK_SECONDS)
             snaps.append(snapshot(run_id, token))
             record["daemonBack"] = snaps[-1]
-            record["stop"] = http("POST", f"{base}/stop", token=token)
+            # W22 follow-up (2026-10-31): a double failure must NOT need a human.
+            # The fast `/reap` loop died with the orchestrator, so the only path
+            # left is the durable one: stale claim -> engine_failed -> the boundary
+            # sweep reads that proof and reaps without the grace+interval wait.
+            deadline = time.monotonic() + DURABLE_REAP_WAIT_SECONDS
+            while orphan_alive(run_id) and time.monotonic() < deadline:
+                snaps.append(snapshot(run_id, token))
+                time.sleep(2)
+            record["durableReapSeconds"] = round(time.monotonic() - started)
+            record["orphanAliveBeforeStop"] = orphan_alive(run_id)
+            if record["orphanAliveBeforeStop"]:
+                record["stop"] = http("POST", f"{base}/stop", token=token)
         deadline = time.monotonic() + REAP_WAIT_SECONDS
         while orphan_alive(run_id) and time.monotonic() < deadline:
             snaps.append(snapshot(run_id, token))
@@ -167,9 +181,10 @@ def main():
         after = record["after"] = snaps[-1]
         record["snapshots"] = snaps
         logs = sh("docker", "logs", "--since", record["killedAtUtc"], DAEMON, check=False)
-        verb = "/cancel" if restart else "/reap"
-        record["daemonCalls"] = [line for line in (logs.stdout + logs.stderr).splitlines()
-                                 if f"POST /runs/{run_id}{verb}" in line]
+        lines = (logs.stdout + logs.stderr).splitlines()
+        record["daemonCalls"] = [line for line in lines if f"POST /runs/{run_id}" in line]
+        # The durable path stops the orphan through the sweep, not through /cancel.
+        record["sweepCalls"] = [line for line in lines if "POST /sweep" in line]
         checks = record["checks"] = {
             "daemonBack": after["daemon"] == "running",
             "runNotRunning": after["state"] not in (None, "running", "executing"),
@@ -177,14 +192,24 @@ def main():
             "noLiveWorkerOrRelay": not after["containers"] and not after["onRunNetwork"],
             "noLiveChild": not after["childLive"],
             "statusTruthful": all(truthful(snap) for snap in snaps),
-            f"daemonLogged{verb.replace('/', ' ').title().strip()}": bool(record["daemonCalls"]),
         }
         if restart:
             checks["orchestratorHealthy"] = record["orchestratorHealthy"]
             checks["orphanLiveAfterRestart"] = record["daemonBack"]["childLive"]
-            checks["stopAccepted"] = record["stop"][0] in (200, 202)
-            checks["stopConfirmed"] = bool((after["lifecycle"] or {}).get("cancelConfirmed"))
+            # The property this mode now tests: no human needed. If the durable
+            # path fails, the drill still drives the user's stop for cleanup but
+            # records that the self-heal did not happen.
+            checks["durableReapWithoutUserStop"] = not record["orphanAliveBeforeStop"]
+            if record["orphanAliveBeforeStop"]:
+                checks["daemonLoggedCancel"] = bool(record["daemonCalls"])
+                checks["stopAccepted"] = record["stop"][0] in (200, 202)
+                checks["stopConfirmed"] = bool((after["lifecycle"] or {}).get("cancelConfirmed"))
+            else:
+                checks["daemonLoggedSweep"] = bool(record["sweepCalls"])
+                checks["settledWithoutUserStop"] = after["state"] not in (
+                    None, "running", "executing")
         else:
+            checks["daemonLoggedReap"] = bool(record["daemonCalls"])
             checks["childLiveWhileDaemonDead"] = record["daemonDead"]["childLive"]
         record["verdict"] = "PASS" if all(checks.values()) else "FAIL"
     except Exception as exc:  # noqa: BLE001 — save failed drills

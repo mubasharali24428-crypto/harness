@@ -116,6 +116,12 @@ def main():
             "SELECT string_agg(type || coalesce(':' || (payload->>'reason'), ''), ',' "
             f"ORDER BY seq) FROM agent_events WHERE run_id='{run_id}'").stdout.strip()
         record["bigTxtLines"] = file_lines(run_id, "big.txt")
+        # W17 asks for outage AND recovery *without a downgrade*: a provider failure
+        # must fail the run, never re-route it to another model behind the user's back.
+        record["routedModels"] = sh(
+            "docker", "exec", "harness-db-1", "psql", "-U", "harness", "-d", "harness", "-Atc",
+            "SELECT DISTINCT coalesce(payload->>'model', '') FROM agent_events "
+            f"WHERE run_id='{run_id}' AND type='model_routed'").stdout.split()
         time.sleep(10)
         record["leftContainers"] = run_containers(run_id)
 
@@ -129,6 +135,7 @@ def main():
             "runBlocked": state == "blocked",
             "engineError": record["engineStatus"] == "error",
             "noPartialFile": record["bigTxtLines"] == -1,
+            "noModelDowngrade": len(set(record["routedModels"])) <= 1,
             "noLiveWorkerOrRelay": not record["leftContainers"],
             "recoveryCompleted": record["recovery"]["state"] in {"done", "awaiting_done_signal"}
             and record["recovery"]["okTxtLines"] == 1,

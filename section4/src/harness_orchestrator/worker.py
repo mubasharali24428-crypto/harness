@@ -73,6 +73,10 @@ _DEFAULT_MIN_POLL_SECONDS = 0.01
 _DEFAULT_BACKOFF_FACTOR = 2.0
 #: W8 slice 2: how often the worker tries to reclaim abandoned boundary networks.
 _DEFAULT_BOUNDARY_SWEEP_SECONDS = 600.0
+#: W22: a sweep that judged nothing (daemon down, no socket) retries on this clock.
+#: Idling the full interval after a skipped sweep is how an orphan outlived its
+#: run: the orchestrator restart that skipped it was the only chance it got.
+_SWEEP_RETRY_SECONDS = 30.0
 #: W22: suspend detection and the reap deferral after it, sized from the
 #: service's 10s heartbeat interval (two missed beats plus margin).
 _SUSPEND_SLACK_SECONDS = 10.0
@@ -200,13 +204,21 @@ class RunQueueWorker:
                     "worker loop was suspended %.0fs; reaping deferred", now - cycle_started
                 )
             cycle_started = now
+            reaped: list[str] = []
             try:
                 # M13-H1b: release timed-out claims every cycle so a dead
                 # worker's run is blocked + emitted instead of stuck 'running'.
                 if hasattr(self.service, "reap_zombies") and now >= reap_after:
-                    await self.service.reap_zombies()
+                    reaped = await self.service.reap_zombies() or []
             except Exception:  # noqa: BLE001 — one bad sweep must never kill the worker
                 logger.exception("zombie reaper sweep failed")
+            if reaped:
+                # W22: these runs were just proven dead by the durable reaper, so
+                # their boundaries are garbage now — not after the ~10 min sweep
+                # interval. This is what closes the window when the orchestrator
+                # restarted and lost its in-memory `/reap` loop: the terminal event
+                # the reaper just wrote is the settlement proof the sweep reads.
+                self._last_boundary_sweep = 0.0
             claimed = 0
             try:
                 # W8 slice 2: reclaim boundary networks of runs the lifecycle says
@@ -222,6 +234,11 @@ class RunQueueWorker:
                     if report.get("count"):
                         logger.info("boundary sweep removed %s network(s)", report["count"])
                     elif report.get("error") or report.get("skipped"):
+                        # W22: nothing was judged, so nothing was gained by starting
+                        # the interval — retry on the short clock instead.
+                        self._last_boundary_sweep = (
+                            time.monotonic() - self.boundary_sweep_seconds + _SWEEP_RETRY_SECONDS
+                        )
                         logger.debug(
                             "boundary sweep did nothing: %s",
                             report.get("error") or report.get("skipped"),

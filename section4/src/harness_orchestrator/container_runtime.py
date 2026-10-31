@@ -46,6 +46,10 @@ def docker(*args: str, check: bool = True) -> subprocess.CompletedProcess:
 #: is using. See `sweep_orphan_boundaries`.
 RUN_LABEL = "harness-run"
 BOUNDARY_NET_RE = re.compile(r"^harness-[0-9a-f]{32}-net$")
+# W22: a run the durable log already calls finished cannot be resumed, so its
+# leftover boundary needs no 5-minute benefit of the doubt - only the short window
+# in which a normal `close()` may still be tearing the same network down.
+SETTLED_GRACE_SECONDS = 10.0
 
 
 class ContainerBoundary:
@@ -327,6 +331,9 @@ def sweep_orphan_boundaries(
 
     Every candidate is labelled, older than `older_than_seconds`, and NOT held by
     this process (`held_run_ids`: the boundaries of the runs it is executing).
+    A settled candidate only has to be older than `SETTLED_GRACE_SECONDS`: the age
+    gate exists to spare a boundary that might still be in flight, and the durable
+    log has already answered that question for it.
     Then two independent proofs, because a deployment gives the sweeper only one
     of them:
 
@@ -372,7 +379,13 @@ def sweep_orphan_boundaries(
         if not run_id or run_id in held_run_ids:
             kept.append(name)  # anonymous, or ours to keep: not ours to destroy
             continue
-        if older_than_seconds > 0:
+        settled = settled_run_ids is not None and run_id in settled_run_ids
+        # W22: the age gate answers "could this still be in flight?". For a settled
+        # run that question is already answered, so only the close() race needs
+        # covering - otherwise a corpse from a killed orchestrator waited grace +
+        # interval (~15 min) for no proof it ever needed.
+        grace = min(older_than_seconds, SETTLED_GRACE_SECONDS) if settled else older_than_seconds
+        if grace > 0:
             created = docker(
                 "network", "inspect", "--format", "{{json .Created}}", name, check=False
             ).stdout.strip()
@@ -383,7 +396,7 @@ def sweep_orphan_boundaries(
             except (ValueError, TypeError):
                 kept.append(name)
                 continue
-            if age < older_than_seconds:
+            if age < grace:
                 kept.append(name)
                 continue
         base = name[: -len("-net")]
@@ -395,7 +408,6 @@ def sweep_orphan_boundaries(
         # allow-list gateway down for the live runs beside this one. (`close()`
         # disconnects it for exactly this reason.)
         running = [cid for cid, name in _running_containers(attached) if name != proxy]
-        settled = settled_run_ids is not None and run_id in settled_run_ids
         if not settled and running:
             kept.append(name)  # rule 1 alone cannot judge a container that is still up
             continue
