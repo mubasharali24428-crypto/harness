@@ -371,6 +371,11 @@ drill now records the mismatch (`A.mismatch`). Part A uses the WebSocket path,
 which the fix did not change. Still open, not fixed: the frontend's
 `useEventStream` ignores the truncation marker and does not backfill.
 
+> Superseded: backfill landed in `211e740` and is verified deployed with
+> `useEventStream.test.ts` 20 passed; the replay drill re-passed 8/8 at
+> `0df3e5a` (9/10 consecutive). See
+> [`replay-load-9b9e224aa3a7.json`](briefs/evidence/w22/replay-load-9b9e224aa3a7.json).
+
 ### Stop, then restart orchestrator and identity — PASS
 
 [`w22-restart-8bc3c7cdbdb1.json`](briefs/evidence/w22/w22-restart-8bc3c7cdbdb1.json),
@@ -456,6 +461,12 @@ a relay that outlives its worker is seen.
 Residual, not fixed: between the daemon's death and the next sweep, an orphan
 can run for up to grace + interval (about 15 min by default). During that time
 lifecycle reports `mutationPossible: false` while the orphan can still write.
+
+> Superseded 2026-10-31 at `0df3e5a` / `vw22fix4`: the engine-side `POST /reap`
+> retry loop stops the orphan ~17 s after the daemon returns, and lifecycle
+> truthfully reports `mutationPossible: true` while any container of the run is
+> live. See [`gap-reconciliation-2026-10-31`](reviews/gap-reconciliation-2026-10-31.md)
+> and [`w22-dkill-76b5633be5b3.json`](briefs/evidence/w22/w22-dkill-76b5633be5b3.json).
 
 ### Verification and spend
 
