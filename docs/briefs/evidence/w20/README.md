@@ -162,6 +162,202 @@ Section 11 56; MCP 18. Section 7: `tsc --noEmit`, `vitest run` and
 passes. The `agent_events` table has partitions through 2026-12-31, so the
 2026-11-01 write cliff is covered.
 
+## Owner-readiness refill (prepared 2026-10-30 evening, for the authorized owner)
+
+An engineering session wrote this after W21 and W22 so the release decision is
+easy and honest. **It is evidence, not a decision.** The decision record in
+[`docs/m2-w20-plan.md`](../../../m2-w20-plan.md#decision-record) was not edited and
+is still blank; nothing below ticks, signs or approves anything for an owner.
+The checklist boxes in that plan were also left as they were, so some are now
+stale (M01 is closed by W21 but still unticked there). One-page companion:
+[`owner-brief.md`](owner-brief.md). Commands and raw results of this pass:
+[`refill-20261030/verification-log.md`](refill-20261030/verification-log.md).
+
+Status words. **PASS@rev** was measured in this pass. **PASS (older)** passed at
+a different revision or model and was **not** re-measured; it is not a pass of
+the current revision. **FAIL**, **NOT RUN**, **OWNER-GATE** (a person must
+decide or act), **IN PROGRESS** (another session is changing it).
+
+### Which revision is which
+
+| Evidence | Revision | Model |
+|---|---|---|
+| W20 checklist as written (images, fixed set, journey) | `12fb221` | `qwen/qwen3.7-flash` |
+| W20 vision gate (the pass) | `9e34f42` + uncommitted fixes, committed as `53924be` | `anthropic/claude-haiku-5.5` |
+| W21 M01 drills | `7341d50`; native-tool-confinement rerun on `2adb551` | scripted stub, $0 |
+| W22 drills | overlays `w22-v3`/`v5`, clean build `w22clean` (`2adb551`), `w22fix`, `w22fix2` (tree `e5bc4856` = `2adb551` + fix files; runtime source identical to `e9e5589`) | `anthropic/claude-haiku-5.5` |
+| Running stack, read 2026-10-30 23:07 PDT | `harness-backend:vw22fix2`, `harness-worker-daemon:vw22fix2`; `DSH_MODEL` in the orchestrator is `anthropic/claude-haiku-5.5` | Haiku |
+| Committed HEAD during this pass | `e9e5589` until 23:24:08 PDT, then `55ad4b1` (W13 commit) | none |
+| Built, not running | `vw22fix3` images exist; their source edits are uncommitted | |
+
+Seven runtime files changed between the gate commit `53924be` and `e9e5589`
+(identity `app.py`; Section 4 `confine.py`, `container_runtime.py`, `engine.py`,
+`service.py`, `worker.py`, `worker_daemon.py`; +178/−19 lines), and `55ad4b1`
+changed more (`runner_api.py`, `run_queue.py`, `service.py`, `byo_runner.py`,
+`policy_enforce.py`). `engine.py` is on every agent run's path, so the vision
+gate's pass does not automatically carry to HEAD. `docs/m2-w20-plan.md` keeps
+`9e34f42` as the gate revision.
+
+### Release checklist refilled
+
+Numbering follows the plan's checklist. "Evidence" paths are relative to this
+directory.
+
+| # | Item (as written in the plan) | Status | Measured at | Evidence and note |
+|---|---|---|---|---|
+| 1 | Images verified against HEAD by hash, daemon included; clean build matches | **FAIL now** (PASS older) | older: `12fb221`. Now: `e9e5589`, 23:07 PDT | `run_eval.py --verify-only` printed `verified: false` ([`refill-20261030/verify-only-e9e5589.json`](refill-20261030/verify-only-e9e5589.json)). The only mismatch is `engine.py`: the worktree copy (`3498333f…`, uncommitted W22 follow-up) differs from the deployed one (`bcf995d5…`), which equals `e9e5589`'s committed file. The running images were built from tree `e5bc4856`, whose runtime source dirs are identical to `e9e5589`. HEAD has since moved to `55ad4b1`, which changed runtime source, so deployed ≠ HEAD again ([`verify-only-55ad4b1.json`](refill-20261030/verify-only-55ad4b1.json)). Older pass: [`rerun-fixed-infra.json`](rerun-fixed-infra.json). |
+| 2 | Fixed set rerun: 15/15 PASS; six tasks deferred (local model) and `native-tool-confinement` | **PASS (older)** | `12fb221`, qwen | [`rerun-fixed-infra.json`](rerun-fixed-infra.json), `-r2`, `-r3`. Not re-run at HEAD (see "Not run on purpose"). `run_eval.py --check` now: 39 tasks, 33 implemented, 6 held-out; the six blocked tasks are unchanged (`m03-scope`, `m04-streaming`, `m07-api-run`, `m07-daemon-topology`, `w3-rewind`, `w3-partial-write`). `native-tool-confinement` is implemented and passes (item 6). |
+| 3 | Held-out set rerun, live tasks 3 independent runs with the pinned model; gate | **PASS (older revision and model); not re-measured at HEAD** | `9e34f42` + uncommitted (→ `53924be`), Haiku. `code-search-heldout` again on `7341d50` | `w11-vision` 3/3 ([`haiku-r1`](haiku-r1-w11-vision.json), [`r2`](haiku-r2-w11-vision.json), [`r3`](haiku-r3-w11-vision.json); pixel diff ≤ 0.32% vs 3% gate). `w14-design-heldout` 3/3 ([`r1`](haiku-r1-w14-design-heldout.json), [`r2`](haiku-r2-w14-design-heldout.json), [`r3`](haiku-r3-w14-design-heldout.json)). `code-search-heldout`, `stale-edit`, `tenant-isolation-api`, `w8-crash-cleanup` 1/1 each ([`haiku-heldout-*`](haiku-heldout-code-search-heldout.json)). Only `code-search-heldout` was repeated later: PASS, n=1, on `7341d50` with W22 overlays ([`../eval/baseline-20261030T171246Z.json`](../eval/baseline-20261030T171246Z.json)). The qwen results stay: vision 0/3 each, `fix-r1-w11-vision` FAIL ([`fix-r1-w11-vision.json`](fix-r1-w11-vision.json)). Disclosed in the README above: a post-hoc RATIO-parser fix, one void run (host sleep), one invalid run (port interference). **Model attribution caveat below.** |
+| 4 | The follow-up's fixes committed | **PASS@rev** | `53924be` | `git show 53924be --stat`: `loop_guard.py`, its tests, both drills, `openrouter-vision.patch.yml`. Byte equality between the earlier overlay images and this commit was not re-checked. |
+| 5 | Fixed live set rerun on Haiku | **NOT RUN** | - | Scheduled for W25 (`docs/m2-continuation-plan.md`); `w11-grounding` pins its own model. |
+| 6 | M01 native-tool confinement closed | **PASS (older)**; box in the plan is stale | `7341d50`, rerun on `2adb551` | 5 backend cases pass ([`../w21/`](../w21/native-confinement-container.json), `-open`, `off`, `off-open`, `seatbelt`); runner PASS with revision verified ([`../eval/baseline-20261030T171026Z.json`](../eval/baseline-20261030T171026Z.json), [`…T174419Z.json`](../eval/baseline-20261030T174419Z.json)). Limits recorded by W21: a secret file created after launch or a hard link to one is not masked; `tool-fs-search` is not advertised so untested; seatbelt is refused before start. Not re-run here (see below). |
+| 7 | Compose live journey passes on the verified stack | **PASS (older)** | `12fb221` | [`rerun-compose-journey.json`](rerun-compose-journey.json). Not re-run at HEAD. |
+| 8 | `make static-gates`, every section's pytest and Ruff, Section 7 typecheck/tests/build | **PASS@rev with caveats** | committed `55ad4b1` (exported), plus `e9e5589` and the dirty worktree | See "Verification re-run". `next build` was **not** run. Two test-hygiene problems found (below); no product failure. |
+| 9 | No unsafe action | **PASS (older), qualified** | `12fb221`; W21/W22 later | Boundary tasks passed and live failures stopped `blocked`. Qualification from W22: after a worker-daemon SIGKILL the orphan can run up to grace + interval (~15 min) while lifecycle reports `mutationPossible: false` ([`../w22/w22-dkill-ae686d336065.json`](../w22/w22-dkill-ae686d336065.json) reproduced it; fixed once on `w22fix2`, [`…4ac502b1bf2c`](../w22/w22-dkill-4ac502b1bf2c.json); the residual window remains). |
+| 10 | W17 owner's SLOs defined and measured; capacity envelope | **NOT MET; OWNER-GATE; IN PROGRESS** | W17 work on `35f3ce5` + uncommitted `eventbus.py` | Proposed targets only. Dry-engine load: 100 users control p95 1.4 s against the proposed 250 ms ([`../w17/README.md`](../w17/README.md)). No real-agent capacity figure exists. |
+| 11 | Restore drill on the real deployment; scheduled restore observed | **NOT RUN** (scratch drills pass) | W17 scratch drill, 2026-10-30 | [`../w17/pitr.json`](../w17/pitr.json) (MinIO scratch project; `result: pass`). The file was rewritten at 23:06:59 PDT by the W17 session, saying `backupRecorded: true`, while the README beside it, written earlier, says the backup could not be recorded. Treat it as unreviewed. Not the real deployment. |
+| 12 | Backup monitoring and on-call/status ownership assigned to named people | **OWNER-GATE; NOT MET** | - | `docs/runbooks/w17-reliability.md`: no roster, no public status page; `../w17/README.md`: backup-freshness monitoring "not proven". |
+| 13 | W16 documentation claims match the code | **PASS (older, static)** | as recorded in the plan | Not re-audited in this pass. |
+| 14 | W13 execution leg proven with a real BYO runner | **NOT MET (partial)** | `55ad4b1`, committed 23:24:08 PDT | The commit says the gate "stays PARTIAL: same-host, test commands only, no agent loop"; evidence in `../w13/` was written by that session and not reviewed here. Not proven with a customer-controlled host. |
+| 15 | W15 scheduled restore observed | **NOT MET** (not yet due) | - | Next run 2026-11-01T12:00Z; earlier trigger hit an account credit limit. |
+| 16 | `agent_events` partitions through 2026-12-31 | **PASS@rev** | live DB, 2026-10-31 06:10 UTC | `pg_inherits` read-only query: `agent_events_2026_09` … `_2026_12`; the last ends `2027-01-01 00:00+00`. The next write cliff is therefore 2027-01-01; whether partitions are created automatically was not checked. |
+| 17 | Package publish credentials and publish step | **OWNER-GATE** | - | No decision found in the records read. |
+| 18 | Pricing amounts approved by counsel | **OWNER-GATE** | - | W18 plan: amounts still `[PLACEHOLDER: counsel review]`. |
+| 19 | SSO/OIDC (R-45) pilot need-by | **OWNER-GATE** | OIDC drill 2026-10-25 | Engineering shipped and drilled 14/14 (`STATUS.md`); the need-by is the owner's. |
+| 20 | W18 release-candidate review by someone other than the author | **NOT MET; OWNER-GATE** | - | Unfinished per the W19 open-gates table; reviewer unassigned. |
+| 21 | External security review scheduled or done | **OWNER-GATE; NOT MET** | - | No scheduling evidence found. |
+| 22 | Hermes rights evidence, or launch claim narrowed | **OWNER-GATE** | - | W6 audit: written rights evidence absent. |
+| 23 | No auto-merge; plan approval and rollback documented and drilled at this revision | **NOT RUN** (documented) | - | Documented in `docs/runbooks/degraded-mode.md` ("No auto-merge"), `rollback.md`, `release-compatibility.md`. No rollback drill at this revision; image-tag rollback was only used incidentally in W22. |
+| 24 | Every removed item recorded with an owner and a follow-up | **NOT VERIFIABLE by engineering** | - | The W19 table assigns roles, not named people; no "removed items" register was found in the W19–W22 records. |
+
+Tally by primary status (24 items): measured as passing in this pass 3 (4, 8,
+16); failing now 1 (1); passed only at an older revision or model 6 (2, 3, 6, 7,
+9, 13); not run 3 (5, 11, 23); not met 4 (10, 14, 15, 20); owner decisions 6 (12,
+17, 18, 19, 21, 22); not verifiable by engineering 1 (24).
+
+### Beyond the W20 checklist: W21, W22, W7, W13
+
+| Gate | Result | n | Evidence | Residual |
+|---|---|---|---|---|
+| W21 M01 confinement | 5 backends pass after fix; 2 leaks found first (container `.env` read, `off` mode reads/writes) | 1 per backend | [`../w21/`](../w21/native-confinement-container.json) | limits listed in item 6; the container JSON in the worktree was rewritten by a later rerun and is uncommitted |
+| W22 worker and child cancellation | PASS: stop removed the selected worker and relay, neighbour kept; stop then restart of orchestrator and identity 8/8 | 1 each | [`../w22/stop-bc2a3406679e.json`](../w22/stop-bc2a3406679e.json), [`w22-restart-8bc3c7cdbdb1.json`](../w22/w22-restart-8bc3c7cdbdb1.json) | spend unknown for stopped runs |
+| W22 partial-write reconciliation | PASS once (attempt 4) after 3 attempts that were a false pass, a verifier error and a miss | 1 of 4 | [`../w22/partial-write-attempt-4.json`](../w22/partial-write-attempt-4.json) | overlay images, not the final build |
+| W22 crash cleanup | launcher-client crash 11/11 (2nd attempt; 1st failed the neighbour check); daemon SIGKILL: FAIL, false pass, FAIL, then PASS 8/8 on `w22fix2` | 1 pass after 3 non-passes | [`../w22/w22-dkill-4ac502b1bf2c.json`](../w22/w22-dkill-4ac502b1bf2c.json) | orphan lifetime up to grace + interval; two real bugs fixed (settled-run sweep, network-age parse) |
+| W22 event replay | 8 of 9 runs passed every check | 9 | [`../w22/replay-load-*.json`](../w22/replay-load-b9b25e1510e2.json) | one unexplained ordering failure; frontend `replayTruncated` backfill is uncommitted and in progress |
+| W22 provider outage | in-flight cut: run `blocked`, no partial file, fresh run recovered; network-path outage blocked and recovered | 1 each | [`../w22/w22-cut-6002596d294d.json`](../w22/w22-cut-6002596d294d.json), [`w22-outage-045f99d07d7f.json`](../w22/w22-outage-045f99d07d7f.json) | a real upstream 5xx cannot be produced on demand and is not claimed; no fallback model |
+| W22 lease/heartbeat | cause found (host sleep; the reaper beat the orchestrator's own heartbeats), reproduced, fixed in `worker.py`, passed once | 1 | [`../w22/w22-suspend-7d886b237c25.json`](../w22/w22-suspend-7d886b237c25.json) | overlay image at the time; a possible-lease-weakness note from W20 is explained, not a long-tool-call defect |
+| W7 `.vsix` and real window | activated, four commands registered, no errors | 1 | [`../w7/vsix-smoke.md`](../w7/vsix-smoke.md) | **end-to-end task in the window not run**; `clients/vscode/package.json`, `package-lock.json` and `.vscodeignore` that produced the `.vsix` are uncommitted |
+
+### Verification re-run in this pass
+
+Cheap and safe only: no model calls, no compose restarts, no live-stack writes.
+Exact commands, directories and per-section counts are in the
+[verification log](refill-20261030/verification-log.md). Summary:
+
+* **Committed `55ad4b1`, exported and run with empty workspace directories:**
+  Ruff clean in all ten trees; `spec_drift.py`, its pytest wrapper, the env-knob
+  catalogue and the TS mirror pass; `run_eval.py --check` ok. pytest: Section 1
+  1208 passed, 1 failed, 66 skipped; Section 2 48; Section 3 146; Section 4 1904
+  passed, 1 failed, 60 skipped; Section 5 451 passed, 8 skipped; Section 6 123;
+  Section 8 91; Section 10 91; Section 11 56; MCP 18. The two failures are not
+  product defects we could show: Section 1's version-pin test only refuses an
+  *export* (the venvs are editable installs of the real tree), and the Section 4
+  failure (`test_lifecycle_recovery`) passed 5 of 5 alone.
+* **Committed `e9e5589`, exported:** the same, with Section 1 1193 passed and
+  Section 4 1894 passed and one failure each time (a different timing-sensitive
+  test on each full run; all pass alone).
+* **Dirty shared worktree:** Section 7 `tsc --noEmit` and `vitest run` (93 files,
+  1015 tests) pass; the Ruff and pytest failures there are all in other
+  sessions' unfinished files (W13's, W17's), and spec drift flipped from PASS to
+  FAIL within five minutes as W13 added routes.
+* **`run_eval.py --verify-only`: `verified: false`** on `e9e5589` and again on
+  `55ad4b1`. The mismatch is the uncommitted `engine.py`; the running image
+  equals committed `engine.py`. The check only hashes three files per target,
+  so it says nothing about the identity image still carrying the pre-W13
+  `runner_api.py`.
+* Net: no failure attributable to the product at a committed revision, and three
+  test-hygiene findings (shared default workspace, timing-sensitive Section 4
+  tests, export-sensitive version-pin test), described in the log.
+
+### Not run on purpose
+
+* **Live and stack-touching eval tasks** (`stack-compose-journey`, the fixed
+  infra set, the held-out tasks, `native-tool-confinement`): they write to the
+  running stack, the credential edge allows about 5 logins a minute per IP so
+  they would collide with the W22 follow-up session's imminent deploy and drill,
+  and the live ones spend money. They are listed as "not re-run at HEAD", not as
+  passing.
+* **`next build`** and the opt-in live-Postgres/Docker tests (skips are not
+  passes).
+* Anything that edits or restarts the shared stack.
+
+### State of the other sessions when read (2026-10-30 23:05–23:30 PDT, read only)
+
+* **W22 follow-up (deploy and drill):** uncommitted edits to
+  `container_runtime.py`, `engine.py`, `worker_daemon.py`, their two unit test
+  files, `scripts/e2e/w22_daemon_kill_drill.py`, and Section 7 `api.ts`,
+  `useEventStream.ts` and its test. The running stack is still `vw22fix2`;
+  `vw22fix3` images exist. `vitest` passes with those edits in the tree.
+* **W13 execution leg:** `runner_api.py`, `tests/test_runner_exec.py`,
+  `byo_runner.py` were mid-edit at 23:07–23:13 (14 of that file's tests
+  failing, spec drift failing because two new routes were missing from
+  `identity.openapi.json`); committed as `55ad4b1` at 23:24:08, after which the
+  drift and Ruff failures were gone in the exported commit.
+* **W17:** `eventbus.py` guard uncommitted since 00:01; `pitr_drill.sh` edited at
+  23:05; PITR scratch containers (`harness-pitr-20261031t060635z-*`) were up at
+  23:07; `docs/runbooks/backup-and-pitr.md`, `scripts/loadtest/run_ladder.sh`,
+  `summarize_ladder.py`, `audit_terminals.sql`, `deploy/docker-compose.yml`
+  (unattributed) and Section 5 sandbox files were being edited. The W17 plan and
+  evidence directory are still untracked.
+
+### Open risks carried from W1–W22
+
+1. **W7 end-to-end editor task not run** (activation only; packaging config
+   uncommitted).
+2. **W13:** execution leg committed but PARTIAL (same host, test commands only);
+   no real customer host.
+3. **W17:** in progress; no SLO met or owned; dry-engine, one host.
+4. **W22 residuals:** orphan lifetime up to grace + interval while lifecycle says
+   no mutation is possible; frontend `replayTruncated` handling not yet
+   committed or deployed; the unexplained 1-in-9 replay ordering failure; the
+   follow-up images are built but not deployed or drilled.
+5. **Single observations:** live gates are n = 1 to 3; each W22 drill passed
+   once, some after several failed attempts that remain in the pack.
+6. **Speed claims come only from fixtures;** no live-agent capacity and no
+   comparison with another harness.
+7. **Spend recorded as unknown** where turns after a daemon death, stopped or
+   killed runs have no ledger row; recorded W22 spend $0.008640 is a floor.
+8. **Vision gate not re-measured at HEAD** (above), and the model attribution
+   rests on README and ledger.
+9. **Moving target:** three sessions edit this tree; HEAD changed during this
+   pass; `verify-only` cannot be `true` until the W22 follow-up is committed and
+   deployed and the stack is rebuilt from the W13 commit.
+10. **No fallback model:** a provider outage blocks runs.
+11. **`agent_events` write cliff moves to 2027-01-01.**
+12. **`STATUS.md`** was last updated 2026-10-24 and still says NOT READY; it does
+    not describe W20–W22.
+
+### Evidence caveats
+
+* **Model attribution.** The raw runner files under this directory do not name
+  Haiku: their `model` field is the corpus's declared label (`qwen/qwen3.7-flash
+  (OpenRouter, vision patch)` or "the stack DSH_MODEL"). That Haiku produced the
+  gate runs rests on this README, the patch commit `53924be`, and the cost
+  ledger, which shows `anthropic/claude-haiku-5.5` rows in the 16:00 UTC hour
+  (12 rows, $0.053030) matching the runs' start times (16:04–16:20 UTC), and
+  qwen rows before and after. A reviewer should treat it as consistent, not as
+  proven by the runner files.
+* **Dirty-tree runs.** Every W20 follow-up file records `dirty: true`. The
+  committed fixes are `53924be`; equality with the overlays that ran was not
+  re-hashed.
+* **Moving worktree.** A test run on the shared worktree measures other
+  sessions' unfinished edits. For that reason the numbers that count are from
+  `git archive` exports of committed revisions.
+* **Test hygiene.** See the verification log: Section 4's default workspace is
+  the shared `/tmp/harness-dsh-workspace`, and a second full run fails three
+  tests until it is empty; one other Section 4 test failed once in a full run
+  and passed in isolation.
+
 ## Files
 
 | file | sha256 (first 16) | bytes |
@@ -236,3 +432,17 @@ passes. The `agent_events` table has partitions through 2026-12-31, so the
 
 Driver-native evidence named in each file's `stdoutTail` lives under
 `docs/briefs/evidence/eval/` and `docs/briefs/evidence/pilot-prep/`.
+
+### Files added by the owner-readiness refill
+
+Hashes taken when these files were written (2026-10-30, 23:37 PDT); this README is not hashed because it contains the table.
+
+| file | sha256 (first 16) | bytes |
+|---|---|---|
+| `owner-brief.md` | `37874f42c8ff5f9b` | 7648 |
+| `refill-20261030/verification-log.md` | `4d8b055c460d7345` | 7409 |
+| `refill-20261030/pytest-results.txt` | `592fdaaeac73418f` | 4070 |
+| `refill-20261030/verify-only-e9e5589.json` | `a8243619efffa62f` | 2460 |
+| `refill-20261030/verify-only-55ad4b1.json` | `c61f0d98a5cdc539` | 2487 |
+| `refill-20261030/worktree-snapshot-start.txt` | `3e92ffc7caf9ea0b` | 1279 |
+| `refill-20261030/worktree-snapshot-end.txt` | `df37e173785f271b` | 1799 |

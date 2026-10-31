@@ -1,0 +1,64 @@
+{
+  "git": {
+    "head": "e9e5589523f2205eaa484e6fe4a0419864364ed0",
+    "branch": "w1-engine-tools",
+    "dirty": true
+  },
+  "revisionCheck": {
+    "orchestratorContainer": "harness-orchestrator-1",
+    "workerImage": "harness-engine-worker:vw22fix2",
+    "workerDaemonContainer": "harness-worker-daemon-1",
+    "backend": {
+      "engine.py": {
+        "host": "3498333f5aa8a2eab6d55bf537f73dfb40ee713339eb2d56fc4a9fda5c8e4af4",
+        "deployed": "bcf995d508ba2fad58b72c65f1fc45055a4f12b000c78640bb966fb3b833ca3a",
+        "match": false
+      },
+      "image_gate.py": {
+        "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+        "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+        "match": true
+      },
+      "harness-images.js": {
+        "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+        "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+        "match": true
+      }
+    },
+    "worker": {
+      "image_gate.py": {
+        "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+        "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+        "match": true
+      },
+      "engine.py": {
+        "host": "3498333f5aa8a2eab6d55bf537f73dfb40ee713339eb2d56fc4a9fda5c8e4af4",
+        "deployed": "bcf995d508ba2fad58b72c65f1fc45055a4f12b000c78640bb966fb3b833ca3a",
+        "match": false
+      },
+      "harness-images.js": {
+        "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+        "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+        "match": true
+      }
+    },
+    "daemon": {
+      "engine.py": {
+        "host": "3498333f5aa8a2eab6d55bf537f73dfb40ee713339eb2d56fc4a9fda5c8e4af4",
+        "deployed": "bcf995d508ba2fad58b72c65f1fc45055a4f12b000c78640bb966fb3b833ca3a",
+        "match": false
+      },
+      "image_gate.py": {
+        "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+        "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+        "match": true
+      },
+      "harness-images.js": {
+        "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+        "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+        "match": true
+      }
+    },
+    "verified": false
+  }
+}
