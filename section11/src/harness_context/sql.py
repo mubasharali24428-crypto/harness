@@ -42,3 +42,18 @@ CREATE TABLE IF NOT EXISTS context_chunks (
     UNIQUE (project_id, path, start_line)
 )
 """
+
+# M2-W19: durable context-index admission (mirror of migration 0072). Portable
+# across PG and SQLite: TEXT ISO-8601 timestamps compared lexicographically, and
+# the acquire upsert (INSERT ... ON CONFLICT DO UPDATE ... WHERE lease expired)
+# works on both. Kept here so a test/dev bootstrap that never ran 0072 still
+# gets the table, exactly like ensure_schema does for context_chunks.
+RESERVATION_DDL = """
+CREATE TABLE IF NOT EXISTS project_index_reservations (
+    project_id       VARCHAR(36) PRIMARY KEY,
+    job_id           VARCHAR(36) NOT NULL,
+    worker_id        VARCHAR(64),
+    lease_expires_at TEXT NOT NULL,
+    updated_at       TEXT NOT NULL
+)
+"""

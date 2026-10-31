@@ -71,6 +71,10 @@ async def db(tmp_path):
     engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'context.db'}")
     async with engine.begin() as conn:
         await conn.execute(text(DDL_SQLITE))
+        # M2-W19: durable admission table (two replicas share it on one DB).
+        from harness_context.sql import RESERVATION_DDL
+
+        await conn.execute(text(RESERVATION_DDL))
         await conn.execute(text(_AUTH_DDL_SESSIONS))
         await conn.execute(text(_AUTH_DDL_MEMBERS))
         await conn.execute(text(_AUTH_DDL_USERS))

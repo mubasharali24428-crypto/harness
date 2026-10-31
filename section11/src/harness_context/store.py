@@ -65,11 +65,72 @@ class ContextStore:
     async def ensure_schema(self, conn: AsyncSession | AsyncConnection, dims: int) -> None:
         """Test/dev convenience: create context_chunks if absent (SQLite suites;
         on PG prefer migration 0030, but CREATE TABLE IF NOT EXISTS keeps dev
-        bootstraps working either way)."""
-        from .sql import DDL_PG_TEMPLATE, DDL_SQLITE
+        bootstraps working either way). Also creates the W19 admission table."""
+        from .sql import DDL_PG_TEMPLATE, DDL_SQLITE, RESERVATION_DDL
 
         ddl = DDL_PG_TEMPLATE.format(dims=dims) if self._is_pg(conn) else DDL_SQLITE
         await conn.execute(text(ddl))
+        await conn.execute(text(RESERVATION_DDL))
+
+    async def acquire_reservation(
+        self,
+        conn: AsyncSession | AsyncConnection,
+        project_id: str,
+        job_id: str,
+        worker_id: str | None,
+        lease_seconds: int,
+        now: str,
+    ) -> bool:
+        """Durable cross-process admission (M2-W19). Take the project's lease
+        unless a NOT-yet-expired lease is already held. One atomic upsert, so two
+        replicas racing for the same project cannot both win: the loser's WHERE
+        matches no row and RETURNING yields nothing.
+        """
+        from datetime import UTC, datetime
+
+        until = datetime.fromisoformat(now).timestamp() + lease_seconds
+        until_iso = datetime.fromtimestamp(until, tz=UTC).isoformat()
+        result = await conn.execute(
+            text(
+                "INSERT INTO project_index_reservations "
+                "(project_id, job_id, worker_id, lease_expires_at, updated_at) "
+                "VALUES (:pid, :job, :worker, :until, :now) "
+                "ON CONFLICT (project_id) DO UPDATE "
+                "SET job_id = :job, worker_id = :worker, lease_expires_at = :until, "
+                "updated_at = :now "
+                "WHERE project_index_reservations.lease_expires_at < :now "
+                "RETURNING job_id"
+            ),
+            {"pid": project_id, "job": job_id, "worker": worker_id,
+             "until": until_iso, "now": now},
+        )
+        return result.first() is not None
+
+    async def current_reservation(
+        self, conn: AsyncSession | AsyncConnection, project_id: str
+    ) -> dict | None:
+        row = (
+            await conn.execute(
+                text(
+                    "SELECT job_id, worker_id, lease_expires_at FROM project_index_reservations "
+                    "WHERE project_id = :pid"
+                ),
+                {"pid": project_id},
+            )
+        ).mappings().first()
+        return dict(row) if row else None
+
+    async def release_reservation(
+        self, conn: AsyncSession | AsyncConnection, project_id: str, job_id: str
+    ) -> None:
+        """Free the lease, but only this job's — a reaped/expired owner releasing
+        after a fresh holder took over must not delete the new reservation."""
+        await conn.execute(
+            text(
+                "DELETE FROM project_index_reservations WHERE project_id = :pid AND job_id = :job"
+            ),
+            {"pid": project_id, "job": job_id},
+        )
 
     async def load_hashes(
         self, conn: AsyncSession | AsyncConnection, project_id: str
