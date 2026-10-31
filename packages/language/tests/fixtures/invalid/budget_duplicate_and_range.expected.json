@@ -25,6 +25,6 @@
     "col": 54,
     "kind": "error",
     "code": "HX5004",
-    "message": "unsupported currency 'EUR' (only USD in spec 0.1.0)"
+    "message": "unsupported currency 'EUR' (the budget currency is USD)"
   }
 ]

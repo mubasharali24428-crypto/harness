@@ -32,6 +32,8 @@ python -m venv .venv
 ./.venv/bin/hxr plan app.hx                       # may this run here? (exit 3 = no)
 ./.venv/bin/hxr plan app.hx --grant repo.read
 ./.venv/bin/hxr run app.hx --grant repo.read --root . --evidence evidence.json
+./.venv/bin/hxr run app.hx --grant repo.read --root . --prices prices.json
+                                                  # makes budget.cost a limit (exit 4 = spent)
 ```
 
 `hxr run` exits `0` ok, `1` refused/error, `2` usage, `3` denied, `4` budget,
@@ -61,6 +63,8 @@ Driver guarantees (`harness_hx_host`):
 | Grants are computed from the manifest, consulted again at every call site, and human-only permissions are never grantable | `authority.py`, `runtime.py` (`HXH401`) |
 | Every host reply is validated against the declared nominal type; missing, extra or mistyped fields fail closed | `boundary.py` (`HXH301`) |
 | `steps`, `tool_calls`, `tasks` and `duration` stop the run that exceeds them | `runtime.py` (`HXH501`) |
+| `cost` is reserved *before* the crossing, against a price table only the host can supply; an unpriced operation is refused rather than free, and no table is announced as `declared-not-enforced` | `pricing.py`, `runtime.py` (`HXH501`/`HXH502`/`HXH503`) |
+| A grant can be revoked mid-run: the next crossing is denied, completed ones stand, the revision is logged with its reason, and handed-in authority is verified instead of trusted | `authority.py` (`RevisableDecision`), `runtime.py` (`HXH401`, `HXH404`) |
 | Cancellation takes effect at the next step; a spawned call costs one tool call, not two | `runtime.py` (`HXH601`) |
 | Secret-shaped arguments are redacted before any event; evidence says `review.required: true`, `autoMerge: false` | `runtime.py`, `run.py` |
 | A secret is found by *content* — on the prompt, the log, the event and the evidence — and reported as a count by kind, never as a value | `secrets.py`, `run.py` |
@@ -87,7 +91,8 @@ src/harness_hx_host/
   errors.py        typed failures; closed status vocabulary; HXH codes
   boundary.py      nominal validation of everything the host returns
   secrets.py       the one detector: PEM, provider keys, tokens, JWTs, URL credentials
-  authority.py     manifest → Decision; digest binding; human-only permissions
+  authority.py     manifest → Decision (or RevisableDecision); digest binding
+  pricing.py       the host's price table and the cost reservation (USD, exact)
   bridge.py        the one door out (fake, section-2/5, local, record, replay)
   model_relay.py   model.invoke → the host's ModelRouter; roles, scrub-in/out, downgrades
   contract_runner.py  the driver as a harness_contracts WorkflowRunner
@@ -118,7 +123,11 @@ tests/
 
 ## Non-goals
 
-No general interpreter, VM, scheduler, module system, loops, mutation, struct
-literals or user-defined generics in 0.1.0. The driver executes the workflow
-construct set and nothing else; confinement belongs to `section5`, event
-semantics to `section4`, and the manifest only asks.
+No general interpreter, VM or scheduler: `hxc` checks, `hxr` executes the workflow
+construct set and refuses anything else with `HXH102`. No module system, no
+assignment or mutable binding, no `while`, no user-defined generics, and money
+and durations are bounded but not computable — all of it is listed with its reason
+in the spec (§12), and the absence is the security boundary rather than a to-do.
+Confinement belongs to `section5`, event semantics to `section4`, model selection
+to `section3`, and the manifest only asks: a price list, a grant set and a policy
+answer all arrive from the host.

@@ -159,12 +159,12 @@ but no test proves the property.
 
 | Capability | Status | Evidence |
 |---|---|---|
-| Lexer, parser with error recovery, AST with positions | implemented | `test_lexer.py`, `test_parser.py` (15) |
+| Lexer, parser with error recovery, AST with positions | implemented | `test_lexer.py`, `test_parser.py` (16) |
 | Names, types, effects, budgets, profiles (39 codes `HX1xxx`–`HX7xxx`) | implemented | `test_types.py`, `test_checker_effects.py`, `test_profiles.py`, `test_budget.py` (39) |
 | Closed capability and host-operation tables | implemented | `test_contract_vocabulary.py` (9) |
 | Policy-request manifest, sorted JSON, digest-pinned | implemented | `test_manifest.py` (14) |
 | Section 5 wire compatibility (`{path,line,col,kind,message}`) | implemented | `test_wire_contract.py`, `test_message_stability.py` (14) |
-| Golden fixtures a human reviews | implemented | `test_fixtures.py` (40) |
+| Golden fixtures a human reviews | implemented | `test_fixtures.py` (48) |
 | Rules are load-bearing (seeded faults) | implemented | `test_seeded_faults.py` (7) |
 | `hxc check` CLI with profiles and manifest output | implemented | `test_cli.py` (14) |
 | Loops, mutation, modules, struct literals, generics | planned (refused by design) | spec §12 |
@@ -189,8 +189,9 @@ but no test proves the property.
 | `model.invoke` routed with the declared role; downgrade recorded, never performed | implemented (M4) | `test_host_model_relay.py` |
 | The driver IS Section 4's `WorkflowRunner`; its events reach Section 1 | implemented (M2) | `test_host_contract_runner.py` (10); `section4/tests/unit/test_workflow_*.py` (13) |
 | `for` over a list, one `budget.steps` per pass | implemented (M5) | `test_language_growth.py` (15) |
-| `cost` budget enforced | **partial** — parsed and reported, never enforced (no price model in the driver) | `runtime.py` `Budget` |
-| Mid-run revocation of a grant | **partial** — the per-call check consults the same immutable `Decision`; revocation means a new decision | `runtime.py` `_require` |
+| `cost` budget enforced against a host price table (`HXH501`/`HXH502`/`HXH503`) | implemented (M6) | `test_host_cost.py` (13) — priced before the crossing, unpriced refused, exact decimals, parallel reservations |
+| Mid-run revocation of a grant, with the revision in the log (`HXH401` `revoked`, `HXH404`) | implemented (M6) | `test_host_revocation.py` (12) — next crossing only, cannot widen the request, handed-in authority verified |
+| The driver's code set is closed and each code has one status | implemented (M6) | `test_host_codes.py` (6) — the §13 "closed-set assertion" the spec requires for an added code |
 
 ### 4.3 Host adapters
 
@@ -233,7 +234,7 @@ but no test proves the property.
 
 ## 5. Tests, and what each one is for
 
-`packages/language`: **261 passed**, `ruff check` clean.
+`packages/language`: **295 passed**, `ruff check` clean.
 
 | File | Tests | What it proves |
 |---|---|---|
@@ -245,7 +246,10 @@ but no test proves the property.
 | `test_host_contract_runner.py` | 10 | the driver is a `WorkflowRunner`; a replay reproduces the digest without reaching the live host; a replay missing an exchange fails honestly |
 | `test_host_model_relay.py` | 10 | the secret is absent from the captured prompt, the log, the events and the evidence; an echoed secret is scrubbed on the way back; no router fails closed; a downgrade is recorded once and not retried; a provider error is scrubbed on all three surfaces |
 | `test_language_growth.py` | 15 | enums, record construction and `for` each have code + fixture + golden; 500 files under `budget { steps: 5 }` ends as `budget`/`HXH501` with its performed iterations still in the log; no `while`, no modules |
-| checker suites | 160 | lexer, parser, types, effects, budgets, profiles, manifest, wire, goldens (incl. the three demo programs), seeded faults, growth |
+| `test_host_cost.py` | 15 | the next crossing is priced before it happens; an unpriced operation is refused, not free; the ceiling is spendable to the cent and one cent over stops; no table says `declared-not-enforced`; a bad table crosses nothing; money adds exact where a float would drift; two parallel reservations cannot both break the ceiling; the CLI reads a price file and refuses an unreadable one |
+| `test_host_revocation.py` | 12 | a revoked capability denies the next crossing and not a completed one; never-granted says so instead; the revision sits in the log between the crossings; restore cannot widen the request; evidence holds the starting grant and the live one; handed-in authority for another program, or carrying a human-only permission, is refused (`HXH404`) |
+| `test_host_codes.py` | 6 | the driver's code set equals the spec's table, every code has exactly one status, statuses come from the closed vocabulary, and `HXH000` never surfaces |
+| checker suites | 161 | lexer, parser, types, effects, budgets, profiles, manifest, wire, goldens (incl. the four demo programs), seeded faults, growth, the closed driver-code set |
 
 Determinism: every driver test uses an injected clock, an in-memory bridge and no
 network, container or model — with exactly two exceptions, both deliberate: §3's
@@ -284,11 +288,18 @@ OS boundary; it never weakens into a fake.
    and records a key; a host that wants exactly-once must implement it against
    that key. This is deliberate — a silent retry of a side effect is the thing
    the evidence bundle exists to prevent.
-7. **`cost` is declared, not enforced.** There is no price model in the driver;
-   the number appears in evidence so a reviewer can check it.
-8. **Revocation is coarse.** A grant set is fixed for the run; revoking mid-run
-   means passing a different `Decision`, which `run_source` does not expose as an
-   API.
+7. **Cost is enforced against a price list the host supplies — and that list is
+   an estimate, not a bill.** Prices are per crossing in USD (`pricing.py`); with
+   no table the run is recorded as `declared-not-enforced`. The driver cannot know
+   what a provider actually charged, so a deployment that needs billed-amount
+   accuracy must settle against Section 3's cost ledger and treat the table as the
+   reservation it is. What is guaranteed is arithmetic, ordering and the refusal
+   to cross unpriced — not that the number matches an invoice.
+8. **Revocation is per capability, and it stops effects rather than work.** A
+   revoked grant denies the *next* crossing; already-completed crossings stay, and
+   pure computation runs on until the program returns, its budget ends or `cancel`
+   is set. There is no preemptive kill of a call in flight: that belongs to the
+   host's own cancellation (Section 5's stop path), not to the language driver.
 9. **Single workflow per run.** A program with several workflows must be asked
    for one by name; no composition, no calls between workflows.
 10. **The two grammars drift risk is real.** Hx and Hermes share names, not a
@@ -306,6 +317,8 @@ OS boundary; it never weakens into a fake.
 | **M3** ✅ | Live Section 5: `SandboxHostBridge` over a real confined `exec_structured`, allow-listed commands from policy | one real read + one real test suite run through the shipped runner; confinement tests unchanged; a refused path is refused for the same reason as before |
 | **M4** ✅ | Model relay: `model.invoke` routed by the Harness, roles from the manifest, no forced downgrade | no secret value in any prompt, log, event or evidence (the test asserts on captured prompts); downgrade attempt is recorded, not performed |
 | **M5** ✅ | Language growth: `enum` values in source; record construction; loops with a `budget.steps` termination story | each addition ships a code, a fixture, a golden and a test that the closed set changed deliberately (`test_language_growth.py`) |
+| **M6** ✅ | The limits bind: `budget.cost` enforced against a host price table; a grant revocable mid-run with the revision recorded | a run stops *before* the crossing it cannot pay for, and an unpriced operation is refused rather than free; no table is announced in the evidence as `declared-not-enforced`; revocation bites the next crossing and cannot widen the request; the driver's code set is pinned closed. 295 language tests, `ruff` clean, `spec_drift` clean, sections 4/5 unaffected — see §9 |
+| **M7** | Failure replay and complete recordings: a recorded failing run reproduces its failure, and an incomplete recording fails closed | replay of a failed run raises the recorded failure, not `HXH403`; a missing or altered record is refused; the recording format is versioned |
 
 Out of scope until M3 is green: any claim that a run is *confined*. Until M2 is
 green: any claim that a run is *audited*. Both are green now; the claims they
@@ -322,6 +335,8 @@ persists it and confined as far as the `LocalSandboxRunner` policy goes.
 | Driver, bridges, `hxr` | `packages/language/src/harness_hx_host/` |
 | Secret detector (prefixes, PEM, JWT, URL credentials) | `packages/language/src/harness_hx_host/secrets.py` |
 | Model relay (roles, scrubbing both ways, downgrade record) | `packages/language/src/harness_hx_host/model_relay.py` |
+| Price table and cost reservation (M6) | `packages/language/src/harness_hx_host/pricing.py` |
+| Revocable authority (M6) | `packages/language/src/harness_hx_host/authority.py` (`RevisableDecision`) |
 | `WorkflowRunner` adapter for Section 4 | `packages/language/src/harness_hx_host/contract_runner.py` |
 | Section 4 run + publish | `section4/src/harness_orchestrator/workflow_runs.py` |
 | Live Section 5 seam | `section5/tests/unit/test_hx_live_host_ops.py` |
@@ -393,8 +408,60 @@ list` (`HX3014` non-list, `HX4008` in a pure `fn`, `HX5006` without
 
 Suite totals after M5: `packages/language` **261 passed**, `ruff` clean.
 
-**What is still open**, so nobody reads this table as more than it says:
-`cost` is declared and reported, never enforced; a grant cannot be revoked
-mid-run; replay covers successes only; the detector knows prefixes, not entropy;
-and `for` has no `break` — a loop exits by returning or by exhausting its list
-or its budget. Each is in §6 or §4.2 as a named partial, not a footnote here.
+**M6 — the two limits that were notes in the evidence became checks.** Cost and
+revocation were listed as open in every review since M2, and both were the same
+kind of gap: the driver recorded a ceiling it never read, and recorded an
+authority it never re-asked after the start.
+
+- *Cost* is now reserved before the crossing, against a **price table the host
+  supplies** (`pricing.py`: `Pricing` + `CostAccount`). A program cannot name its
+  own prices — that would be the ceiling raising itself — so the table arrives as
+  `run_source(prices=...)`, `hxr run --prices FILE` or `ContractRunner(prices=...)`
+  and is fingerprinted in the evidence. Three decisions carry the milestone: an
+  operation the table does not price is **refused, not free** (`HXH502`); a table
+  that cannot be built stops the run before anything crosses (`HXH503`), and the
+  CLI treats an unreadable price file as a usage failure rather than as "no prices";
+  and a run with a ceiling but no table says `declared-not-enforced` in its own
+  evidence, because the dangerous failure is an unbounded run that reads as a
+  bounded one. Amounts are exact decimals: a `0.30` ceiling must not reject a run
+  that spent `0.10` then `0.20`, and the reservation is atomic, so two spawned
+  crossings cannot both pass a ceiling that only one of them can pay for.
+- *Revocation* is `RevisableDecision` in `authority.py`. The runtime already asked
+  `allows()` at every call site, so revocation needed no new check — only an
+  authority whose answer can change. It can narrow, never widen: `restore` returns
+  `False` for a capability the program did not request, so a run cannot grow its
+  ceiling by waiting. Revisions are logged as `grant.revoked` / `grant.restored`
+  **between** the crossings they separate, each carrying the host's reason, and a
+  denial says whether the capability was revoked or never granted — those are
+  different facts and a reviewer should not have to infer which.
+- Because handing authority in from outside is now possible, it is **checked, not
+  trusted**: a decision minted for a different request, or carrying a capability
+  that maps to a human-only permission, is refused with `HXH404`. The human-only
+  invariant is asserted against an injected bug, not just against today's table.
+- The code set is now pinned: `test_host_codes.py` reads the error classes and
+  fails if a code exists that §9.5 does not name, or a code's status moved. §13
+  has required that assertion for every added code since M5; it had no test.
+
+Spec and toolchain moved `0.1.0 → 0.2.0` (a minor change under §13: codes added,
+no existing code's meaning changed, no program that checked before fails now).
+One checker message embedded the version string, so it was reworded and its
+golden regenerated — the only golden the regeneration touched.
+
+> Gate: `test_host_cost.py` **15 passed**, `test_host_revocation.py` **12**,
+> `test_host_codes.py` **6**, plus the new `cost_ceiling.hx` fixture and its
+> golden. Suite total **295 passed**, `make lint-language` clean,
+> `scripts/spec_drift.py` clean, `contracts/ts/generate.py --check` clean,
+> `make guard-isolation` clean (275 src files, 10 sections), section 4 hx/workflow
+> tests **22 passed**, section 5 live host-op tests **4 passed**. Nothing outside
+> `packages/language` changed behaviour: with no table and no `authority`,
+> `run_source` does exactly what it did before M6 — which is why the pre-existing
+> 261 tests still pass untouched.
+
+Suite totals after M6: `packages/language` **295 passed**, `ruff` clean.
+
+**What is still open**, so nobody reads this table as more than it says: a price
+is the host's estimate, not a settled bill (§6.7); revocation stops effects, not
+computation (§6.8); replay covers successes only, so a failing run replays as
+`HXH403` rather than as its own failure — that is M7; the detector knows prefixes,
+not entropy; `for` has no `break`; and there are still no modules, mutation or
+generics. Each is in §6, §4.2 or spec §12 as a named limit, not a footnote here.

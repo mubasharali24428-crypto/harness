@@ -96,10 +96,16 @@ def _output_digest(value: Any) -> dict[str, str]:
 
 @dataclass
 class ContractRunner:
-    """``harness_contracts.workflow.WorkflowRunner`` over the Hx driver."""
+    """``harness_contracts.workflow.WorkflowRunner`` over the Hx driver.
+
+    ``prices`` is the deployment's own price table, deliberately a runner field and
+    not a ``WorkflowRequest`` field: a program that could name its own prices could
+    raise its own ceiling, and the request type is a frozen contract.
+    """
 
     bridge: HostBridge | Callable[[], HostBridge]
     clock: Callable[[], float] = time.monotonic
+    prices: Mapping[str, Any] | None = None
 
     def _bridge(self) -> HostBridge:
         return self.bridge() if callable(self.bridge) else self.bridge
@@ -123,6 +129,7 @@ class ContractRunner:
             run_id=request.runId,
             correlation_id=request.runId,
             clock=self.clock,
+            prices=self.prices,
         )
         return self._translate(result)
 

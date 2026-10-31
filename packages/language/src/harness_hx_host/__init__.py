@@ -22,7 +22,16 @@ Public surface::
 
 from __future__ import annotations
 
-from .authority import Decision, Denial, authorize, source_digest
+from .authority import (
+    Decision,
+    Denial,
+    RevisableDecision,
+    Revision,
+    as_revisable,
+    authority_problems,
+    authorize,
+    source_digest,
+)
 from .boundary import SchemaValue, validate
 from .bridge import (
     BridgeCall,
@@ -39,18 +48,22 @@ from .bridge import (
 from .contract_runner import ContractRunner
 from .errors import (
     STATUSES,
+    BadPriceTable,
     BudgetExhausted,
     Cancelled,
     CapabilityDenied,
     CheckRefused,
+    CostUnpriceable,
     DigestMismatch,
     HostUnavailable,
     HxHostError,
     InvalidHostResult,
     NotRunnable,
     ScriptError,
+    StaleAuthority,
 )
 from .model_relay import AgentPolicy, ModelRelay
+from .pricing import Pricing, PricingError
 from .run import RunResult, digest_of, inputs_digest, run_source
 from .runtime import Budget, Runtime
 from .secrets import REDACTED, Tally, find, scrub, scrub_text, scrub_value
@@ -59,6 +72,7 @@ __all__ = [
     "REDACTED",
     "STATUSES",
     "AgentPolicy",
+    "BadPriceTable",
     "BridgeCall",
     "BridgeExchange",
     "Budget",
@@ -69,6 +83,7 @@ __all__ = [
     "ConfinedCommandRunner",
     "ConfinedReader",
     "ContractRunner",
+    "CostUnpriceable",
     "Decision",
     "Denial",
     "DigestMismatch",
@@ -79,15 +94,22 @@ __all__ = [
     "InvalidHostResult",
     "ModelRelay",
     "NotRunnable",
+    "Pricing",
+    "PricingError",
     "ReadOnlyRepoBridge",
     "RecordingBridge",
     "ReplayBridge",
+    "RevisableDecision",
+    "Revision",
     "RunResult",
     "Runtime",
     "SandboxHostBridge",
     "SchemaValue",
     "ScriptError",
+    "StaleAuthority",
     "Tally",
+    "as_revisable",
+    "authority_problems",
     "authorize",
     "digest_of",
     "find",

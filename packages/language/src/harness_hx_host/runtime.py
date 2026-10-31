@@ -13,11 +13,13 @@ Three rules are enforced here that the checker can only *describe*:
 
 1. **Authorisation per call.** The decision is consulted at every call site, so
    a capability granted for one workflow is not authority for another, and a
-   revocation between calls takes effect.
+   revocation between calls takes effect (``RevisableDecision``).
 2. **Budgets are accounting, not advice.** ``steps``, ``tool_calls``, ``tasks``
    and ``duration`` are checked while running and terminate the run. Wall-clock
    duration is checked on every step and every join, so a slow host cannot
-   outlive the declared deadline.
+   outlive the declared deadline. ``cost`` is enforced against the host's price
+   table: the next crossing is priced *before* it happens, and an operation the
+   table does not price is refused rather than run for free.
 3. **Every crossing is recorded.** Each host call emits an ordered event with a
    run id, correlation id, operation id and idempotency key, redacted, so the
    evidence bundle can be replayed against a fake host and compared.
@@ -31,12 +33,13 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any
 
 from harness_hx import ast as A
 from harness_hx.capabilities import AGENT_OPERATIONS, HOST_OPERATIONS
 
-from .authority import Decision
+from .authority import Authorisation
 from .boundary import (
     SchemaValue,
     host_result,
@@ -55,6 +58,7 @@ from .errors import (
     NotRunnable,
     ScriptError,
 )
+from .pricing import CURRENCY, CostAccount, Pricing
 from .secrets import scrub_text
 
 _DURATION_UNITS_MS = {"ms": 1, "s": 1000, "m": 60_000, "h": 3_600_000}
@@ -99,10 +103,14 @@ class Budget:
     tool_calls: int | None = None
     tasks: int | None = None
     duration_ms: int | None = None
+    cost_usd: Decimal | None = None
     used_steps: int = 0
     used_tool_calls: int = 0
     used_tasks: int = 0
     started: float = field(default_factory=time.monotonic)
+    #: Cost needs a ceiling *and* a price list to be a limit; the account holds
+    #: both and reports which of them the host actually supplied.
+    cost: CostAccount = field(default_factory=lambda: CostAccount(None, None))
 
     @classmethod
     def from_decl(cls, decl: A.BudgetDecl | None) -> Budget:
@@ -120,7 +128,15 @@ class Budget:
             elif entry.key == "duration":
                 unit = raw[-2:] if raw.endswith("ms") else raw[-1:]
                 budget.duration_ms = int(raw[: -len(unit)]) * _DURATION_UNITS_MS[unit]
+            elif entry.key == "cost" and entry.value.currency:
+                # The checker already bound this to USD in (0, 1000.00]; parsing it
+                # here is what turns "declared" into "spendable".
+                budget.cost_usd = Decimal(str(raw))
+        budget.cost = CostAccount(budget.cost_usd, None)
         return budget
+
+    def attach_pricing(self, pricing: Pricing | None) -> None:
+        self.cost = CostAccount(self.cost_usd, pricing)
 
     def elapsed_ms(self, now: float) -> float:
         return (now - self.started) * 1000.0
@@ -147,6 +163,29 @@ class Budget:
         if self.tasks is not None and self.used_tasks > self.tasks:
             raise BudgetExhausted(f"budget.tasks ({self.tasks}) exhausted", line=line)
 
+    def charge(
+        self,
+        operation: str,
+        capability: str | None = None,
+        *,
+        line: int | None = None,
+        col: int | None = None,
+    ) -> Decimal:
+        """Price the next crossing and take the money, before the effect happens.
+
+        Settling at the crossing rather than after it is deliberate: a model call
+        that fails still cost what it cost, and a run that stops mid-effect must
+        report the spend it actually caused. The failure keeps the position of the
+        call site, because the line that asked is the line a reviewer must read.
+        """
+        try:
+            price = self.cost.reserve(operation, capability)
+        except HxHostError as error:
+            error.line = line if line is not None else error.line
+            error.col = col if col is not None else error.col
+            raise
+        return price
+
     def to_json(self) -> dict[str, Any]:
         return {
             "declared": {
@@ -154,12 +193,16 @@ class Budget:
                 "toolCalls": self.tool_calls,
                 "tasks": self.tasks,
                 "durationMs": self.duration_ms,
+                "cost": str(self.cost_usd) if self.cost_usd is not None else None,
+                "costCurrency": CURRENCY if self.cost_usd is not None else None,
             },
             "used": {
                 "steps": self.used_steps,
                 "toolCalls": self.used_tool_calls,
                 "tasks": self.used_tasks,
             },
+            "cost": self.cost.to_json(),
+            "pricing": self.cost.pricing.to_json() if self.cost.pricing else None,
         }
 
 
@@ -183,7 +226,7 @@ class Runtime:
         self,
         program: A.Program,
         workflow: A.WorkflowDecl,
-        decision: Decision,
+        decision: Authorisation,
         bridge: HostBridge,
         *,
         inputs: Mapping[str, Any] | None = None,
@@ -192,6 +235,7 @@ class Runtime:
         cancel: threading.Event | None = None,
         emit: Callable[[dict[str, Any]], None] | None = None,
         clock: Callable[[], float] = time.monotonic,
+        pricing: Pricing | None = None,
     ) -> None:
         self.program = program
         self.workflow = workflow
@@ -203,6 +247,9 @@ class Runtime:
         self.cancel = cancel
         self.clock = clock
         self.budget = Budget.from_decl(workflow.budget)
+        # A declared cost ceiling and a host price table are separate facts; the
+        # account is where they meet, and it reports honestly when only one exists.
+        self.budget.attach_pricing(pricing)
         # The budget's clock starts when the run does, not when the object was built.
         self.budget.started = self.clock()
         self.events: list[dict[str, Any]] = []
@@ -503,12 +550,52 @@ class Runtime:
         return name, operation.capability
 
     def _require(self, capability: str, operation: str, node: A.Expr) -> None:
+        self._report_revisions()
         if not self.decision.allows(capability):
+            revoked = capability in getattr(self.decision, "initial_granted", frozenset())
             raise CapabilityDenied(
-                f"'{operation}' needs capability '{capability}', which this host did not grant",
+                f"'{operation}' needs capability '{capability}', which "
+                + ("this host revoked mid-run" if revoked else "this host did not grant"),
                 line=node.line,
                 col=node.col,
-                detail={"capability": capability, "operation": operation},
+                detail={
+                    "capability": capability,
+                    "operation": operation,
+                    "revoked": revoked,
+                },
+            )
+
+    def _report_revisions(self) -> None:
+        """Turn grant changes the host made between crossings into events.
+
+        The event log is what a reviewer reads after the fact, so a revocation has
+        to appear *between* the crossings it separated — otherwise the log shows a
+        denial with no history, which looks like a bug in the host rather than a
+        decision somebody made.
+        """
+        pending = getattr(self.decision, "pending_revisions", None)
+        if pending is None:
+            return
+        for revision in pending():
+            self.event(
+                f"grant.{revision.action}",
+                capability=revision.capability,
+                reason=revision.reason,
+            )
+
+    def _charge(self, operation: str, capability: str, node: A.Call) -> None:
+        """Ask the price list before the crossing, and record what it said.
+
+        With no table supplied nothing is charged and nothing is emitted — which is
+        exactly the pre-M6 behaviour, and the evidence says
+        ``declared-not-enforced`` rather than pretending otherwise.
+        """
+        price = self.budget.charge(
+            operation, capability, line=node.line, col=node.col
+        )
+        if price:
+            self.event(
+                "cost.charged", operation=operation, capability=capability, costUsd=str(price)
             )
 
     def _bind_arguments(
@@ -588,6 +675,7 @@ class Runtime:
         self._require(capability, name, node)
         if spend:
             self.budget.spend_tool_call(line=node.line)
+        self._charge(name, capability, node)
         return self._invoke_bridge(node, operation)
 
     def _invoke_bridge(self, node: A.Call, operation: Any) -> Any:
@@ -664,6 +752,7 @@ class Runtime:
         self._require("model.invoke", name, node)
         if spend:
             self.budget.spend_tool_call(line=node.line)
+        self._charge(name, "model.invoke", node)
         bound, positional = self._bind_arguments(node, (("input", "Any"),))
         payload = _bridge_argument(bound["input"])
         self.event("call.start", operation=name, capability="model.invoke",
@@ -714,6 +803,9 @@ class Runtime:
                     where=f"input {name}",
                 )
             self.event("run.started", workflow=self.workflow.name, profile="agent")
+            # A host that revoked before the first crossing still gets its revision
+            # into the log, so the record starts where the authority actually did.
+            self._report_revisions()
             try:
                 self._block(self.workflow.body)
             except _Return as returned:

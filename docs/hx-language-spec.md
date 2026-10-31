@@ -1,11 +1,11 @@
-# Hx — the Harness language specification (v0.1.0)
+# Hx — the Harness language specification (v0.2.0)
 
-> **Status:** prototype, version `0.1.0`. The reference implementation lives in
+> **Status:** prototype, version `0.2.0`. The reference implementation lives in
 > [`packages/language`](../packages/language): `harness_hx` (console script
 > `hxc`, the checker) and `harness_hx_host` (console script `hxr`, the workflow
 > driver). This document describes what they accept, reject and execute — not an
 > aspiration. Where a rule is not implemented, it is listed under
-> [Not in 0.1](#not-in-01) rather than implied.
+> [Not in 0.2](#not-in-02) rather than implied.
 
 Hx is the Harness-owned dialect of Hermes. The proposal in
 [`hermes-agentic-language-plan.md`](hermes-agentic-language-plan.md) and the
@@ -107,7 +107,7 @@ recognised only to reject it (`HX6002`), with a message naming the host.
 | String | `"README.md"`, `"a\"b\n"` | Escapes: `\"`, `\\`, `\n`, `\t`, `\r`. Anything else is `HX1005`, reported at the backslash. |
 | Boolean | `true`, `false` | |
 | Duration | `250ms`, `90s`, `10m`, `24h` | No space between number and unit; units are `ms`, `s`, `m`, `h`. |
-| Money | `2.00 USD`, `0 USD` | Only inside `budget`; the amount is a float and the currency is a three-letter uppercase word. Spec 0.1.0 accepts **only** `USD` (`HX5004`). |
+| Money | `2.00 USD`, `0 USD` | Only inside `budget`; the amount is a decimal and the currency is a three-letter uppercase word. Hx accepts **only** `USD` (`HX5004`), and the driver enforces the amount against the host's price table (§8). |
 | List | `[1, 2, 3]`, `[]` | Element types must agree (`HX3002`). |
 
 ### 3.5 Punctuation and operators
@@ -117,7 +117,7 @@ recognised only to reject it (`HX6002`), with a message naming the host.
 ```
 
 `-`, `*` and `/` are reserved punctuation but have no expression meaning in
-0.1.0; `?` marks an optional type. An unexpected character is `HX1001`, and the
+0.2.0; `?` marks an optional type. An unexpected character is `HX1001`, and the
 lexer resumes at the next token so later declarations still get checked.
 
 ---
@@ -203,7 +203,7 @@ Primary      = Int | Float | String | Duration | "true" | "false"
 ```
 
 Precedence, loosest first: `or`, `and`, `not`, comparisons, `+`, `await`/`spawn`,
-member/call. There is no `if` **expression** in 0.1.0; `if` returns by
+member/call. There is no `if` **expression** in 0.2.0; `if` returns by
 `return`ing from both branches.
 
 ### 5.1 Declaration order inside a workflow
@@ -217,7 +217,7 @@ and for how long" by reading the top of it.
 
 - `let` binds a name for the rest of the declaration. An annotation is
   checked against the value (`HX3002`); without one, the value's type is used.
-  Scope is per declaration in 0.1.0 — a binding made inside an `if` branch stays
+  Scope is per declaration in 0.2.0 — a binding made inside an `if` branch stays
   visible after it. There is no block scoping and no shadowing, which keeps the
   rule simple enough to state and to test; a future version that adds it must
   say so in the manifest's `spec_version`.
@@ -344,6 +344,27 @@ let first = await a                            // join
 A task whose name is never awaited is `HX4007` — a workflow that leaves work
 running has no defined result.
 
+### 7.6 A grant can be revoked while the run is in flight
+
+Authority is the host's, and a host's circumstances change: a budget freeze, an
+incident, a reviewer who decides the next effect is not wanted. Because the
+driver asks the decision at **every call site**, a grant set that can change is
+all revocation needs — no new check, no new syntax, and nothing the program can
+see or influence.
+
+| Property | What it means | Refusal |
+|---|---|---|
+| A revocation bites the next crossing | Completed crossings stay as they were; the run keeps the work it was still allowed to finish. | `HXH401`, `revoked: true` |
+| The request set is fixed | `revoke` narrows authority; `restore` can only return a capability this program requested. A run cannot grow its own ceiling by waiting. | `restore` returns `False` |
+| The log tells the story | `grant.revoked` / `grant.restored` events are recorded between the crossings they separate, with the host's reason. | — |
+| Handed-in authority is checked, not trusted | A decision from another program, a capability outside the closed table, or one mapping to a human-only permission is refused before anything runs. | `HXH404` |
+| Revoking is not cancelling | A revoked capability stops effects, not computation: pure steps run on until the program's own return, its budget, or `cancel` ends them. | — |
+
+The host-facing shape is `as_revisable(authorize(...))` passed as
+`run_source(authority=...)`. A plain `Decision` still works and still means "fixed
+for this run"; the evidence distinguishes them (`policy.live`,
+`policy.initiallyGranted`, `policy.revisions`).
+
 ---
 
 ## 8. Budgets
@@ -365,6 +386,30 @@ Unknown keys are `HX5001` (message lists the five known keys); a duplicate is
 budget is a **warning** (`HX7002`) and does not fail the check: host defaults
 apply, and the reviewer still sees the omission. Budgets are recorded verbatim
 in the manifest.
+
+**What a budget does to a run.** `steps` is spent per statement and per loop
+pass; `tool_calls` per effect; `tasks` per spawn; `duration` is wall clock
+checked at every step and every join. All four stop the run with `HXH501`.
+`cost` is enforced against a **price table the host supplies** —
+`run_source(prices=...)`, `hxr run --prices FILE`, or `ContractRunner(prices=...)`
+— because a program that could name its own prices could raise its own ceiling:
+
+- the next crossing is priced **before** it happens, so a run that cannot pay
+  never produces the effect it could not afford (`HXH501`, `limit: cost`);
+- an operation the table prices neither by name nor by capability is refused
+  (`HXH502`) rather than run free — a ceiling with a hole in it is not a ceiling;
+- a table the host cannot build stops the run before anything crosses
+  (`HXH503`), and `hxr` treats an unreadable price file as a usage failure;
+- a run that declares `cost` with **no** table is recorded as
+  `declared-not-enforced` in its evidence. That phrase is deliberate: an
+  unbounded run must never be readable as a bounded one.
+
+Prices are per crossing in USD, keyed by operation name (`developer.plan`) with a
+fallback to the capability (`model.invoke`), so a host can price one call or one
+kind of effect. Amounts are exact decimals, not floats: a `0.30` ceiling must not
+reject a run that spent `0.10` then `0.20`. What a price *is* — a provider tariff,
+an internal charge-back, a placeholder — is the host's meaning; the driver only
+guarantees the arithmetic and that nothing crosses unpriced.
 
 ---
 
@@ -441,7 +486,10 @@ exactly one run status, so a caller never has to invent the mapping.
 | `HXH301` | `error` | A host reply did not match the type the program declared (missing, extra, or mistyped field). The host's bug, not the program's. |
 | `HXH401` | `denied` | A capability the run requested is not granted, or the principal lacks its permission, or it maps to a human-only permission. |
 | `HXH403` | `error` | The host has no adapter for this operation (no sandbox, no model relay, no recorded answer). Refused rather than faked. |
-| `HXH501` | `budget` | `steps`, `tool_calls`, `tasks` or `duration` exhausted; the message names the limit. |
+| `HXH404` | `denied` | Authority handed to the runner is not this program's: a different request set, a capability outside the closed table, or one that maps to a human-only permission. |
+| `HXH501` | `budget` | `steps`, `tool_calls`, `tasks`, `duration` or `cost` exhausted; the message names the limit. |
+| `HXH502` | `budget` | The run declares `budget.cost` and the host's table has no price for this crossing. Refused rather than run free. |
+| `HXH503` | `refused` | The host supplied a price table that cannot be built (empty, negative, non-numeric, blank key). Nothing crosses. |
 | `HXH601` | `cancelled` | The run was cancelled; observed at the next step. |
 
 `HXH000` is the base class's placeholder and never appears in output.
@@ -475,8 +523,8 @@ the diagnostics in a warnings-only run).
   },
   "profile": "agent",
   "source": {"bytes": 1012, "path": "fix_issue.hx", "sha256": "1f69…"},
-  "spec_version": "0.1.0",
-  "toolchain": {"name": "hxc", "version": "0.1.0"},
+  "spec_version": "0.2.0",
+  "toolchain": {"name": "hxc", "version": "0.2.0"},
   "workflows": [
     {
       "budget": {"cost": "2.00 USD", "duration": "10m", "steps": 200, "tasks": 4, "tool_calls": 12},
@@ -534,6 +582,9 @@ The reference implementation ships the tests that define conformance:
 | Driver: CLI | `tests/test_host_cli.py` | `hxr plan` / `hxr run` exit codes 0–5, stdout/stderr split, evidence file. |
 | Driver: contract runner | `tests/test_host_contract_runner.py` | `hxr` is a `WorkflowRunner` for Section 4; a replay reproduces the digest without reaching the live host. |
 | Driver: model relay | `tests/test_host_model_relay.py` | A secret never reaches the outbound prompt, the log, the event stream or the evidence bundle; a downgrade is recorded, never performed. |
+| Driver: cost enforcement | `tests/test_host_cost.py` | The next crossing is priced before it happens; an unpriced operation is refused rather than free; no table means `declared-not-enforced`, said out loud in the evidence; money adds exact, and two parallel crossings cannot both pass a ceiling one of them breaks. |
+| Driver: revocation | `tests/test_host_revocation.py` | A revoked capability denies the next crossing and not a completed one; the revision is in the log with its reason; handed-in authority is verified, and can never widen the request. |
+| Driver: code set | `tests/test_host_codes.py` | Every emitted code is in the §9.5 table, every table code is still emitted, and no code changed status. |
 | Growth | `tests/test_language_growth.py` | Each addition (enum values, record construction, loops) has code + fixture + golden, and what did not come in with them: no `while`, no modules. |
 | Live host | `section5/tests/unit/test_hx_live_host_ops.py` | One real `repo.read` and one real `verify.tests` through the shipped `LocalSandboxRunner`; skips loudly, never weakly, without an OS boundary. |
 
@@ -547,7 +598,7 @@ and assert the corresponding code disappears while the others remain.
 
 ---
 
-## 12. Not in 0.1
+## 12. Not in 0.2
 
 Deliberately absent, with the reason:
 

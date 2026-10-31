@@ -111,10 +111,33 @@ def _plan(args: argparse.Namespace) -> int:
     return 0 if decision.allowed else 3
 
 
+def _prices(path_text: str | None) -> tuple[dict[str, Any] | None, int]:
+    """Read the host's price table. A bad table is a usage failure, not a run.
+
+    It would be easy to treat an unreadable price file as "no prices" and let the
+    run go on unpriced — which is exactly the silent-free-crossing the enforcement
+    exists to prevent. So the CLI stops instead.
+    """
+    if path_text is None:
+        return None, 0
+    try:
+        loaded = json.loads(Path(path_text).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        sys.stderr.write(f"hxr: cannot read the price table {path_text}: {error}\n")
+        return None, 2
+    if not isinstance(loaded, dict):
+        sys.stderr.write("hxr: the price table must be a JSON object of operation -> amount\n")
+        return None, 2
+    return loaded, 0
+
+
 def _run(args: argparse.Namespace) -> int:
     source = _read(args.path)
     if source is None:
         return 2
+    prices, usage_failure = _prices(args.prices)
+    if usage_failure:
+        return usage_failure
     inputs: dict[str, Any] = {}
     if args.inputs is not None:
         try:
@@ -138,6 +161,7 @@ def _run(args: argparse.Namespace) -> int:
         principal=args.principal,
         policy=args.policy,
         expected_digest=args.digest,
+        prices=prices,
     )
     for diagnostic in outcome.diagnostics:
         sys.stderr.write(render_line(diagnostic) + "\n")
@@ -175,6 +199,12 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--root", default=None, help="repository root the program may read")
     run_parser.add_argument("--inputs", default=None, help="workflow inputs as a JSON object")
     run_parser.add_argument("--digest", default=None, help="expected sha256 of the source bytes")
+    run_parser.add_argument(
+        "--prices",
+        default=None,
+        metavar="FILE",
+        help="host price table (JSON: operation -> USD amount); makes budget.cost a limit",
+    )
     run_parser.add_argument("--evidence", default=None, help="write the evidence bundle here")
 
     try:

@@ -447,7 +447,7 @@ class Checker:
         if value.currency != "USD":
             self.report.error(
                 "HX5004",
-                f"unsupported currency '{value.currency}' (only USD in spec 0.1.0)",
+                f"unsupported currency '{value.currency}' (the budget currency is USD)",
                 value.line,
                 value.col,
             )

@@ -118,6 +118,35 @@ class BudgetExhausted(HxHostError):
     code = "HXH501"
 
 
+class CostUnpriceable(HxHostError):
+    """The run declares ``budget.cost`` but the host's table has no price for this
+    operation. Refused rather than run for free: an unpriced crossing is a hole in
+    the ceiling, and a ceiling with a hole in it is not a limit."""
+
+    status = "budget"
+    code = "HXH502"
+
+
+class BadPriceTable(HxHostError):
+    """The host supplied a price table that is not usable. Never a program's fault."""
+
+    status = "refused"
+    code = "HXH503"
+
+
+class StaleAuthority(HxHostError):
+    """A decision handed to the runner does not belong to this program.
+
+    Mid-run revocation means the host owns the decision object, and with that
+    comes the possibility of passing one built for a different request — or one
+    that grants a capability no program may hold. The runner refuses the
+    authority instead of borrowing it.
+    """
+
+    status = "denied"
+    code = "HXH404"
+
+
 class Cancelled(HxHostError):
     """A cancellation request or the declared duration ended the run."""
 

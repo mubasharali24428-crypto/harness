@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-SPEC_VERSION = "0.1.0"
-TOOLCHAIN_VERSION = "0.1.0"
+SPEC_VERSION = "0.2.0"
+TOOLCHAIN_VERSION = "0.2.0"
 PROFILES = ("core", "agent")
 SOURCE_SUFFIX = ".hx"

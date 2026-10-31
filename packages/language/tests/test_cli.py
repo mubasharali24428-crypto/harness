@@ -105,7 +105,7 @@ def test_an_unknown_profile_is_a_usage_failure(capsys):
 
 def test_version_reports_both_versions(capsys):
     assert main(["--version"]) == 0
-    assert "hxc 0.1.0 (hx spec 0.1.0)" in capsys.readouterr().out
+    assert "hxc 0.2.0 (hx spec 0.2.0)" in capsys.readouterr().out
 
 
 def test_no_subcommand_is_a_usage_failure(capsys):

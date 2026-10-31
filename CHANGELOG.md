@@ -10,6 +10,41 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Hx milestone M6 — the limits bind (2026-10-31)
+
+* **`budget.cost` is enforced.** The driver reserves the next crossing's price
+  *before* it happens, against a price table the **host** supplies
+  (`pricing.py`; `run_source(prices=…)`, `hxr run --prices FILE`,
+  `ContractRunner(prices=…)`) — never the program, because a program that could
+  name its own prices could raise its own ceiling. An operation the table does not
+  price is refused (`HXH502`) rather than run free; a table that cannot be built
+  stops the run before anything crosses (`HXH503`); a ceiling with no table is
+  recorded in its own evidence as `declared-not-enforced`, so an unbounded run can
+  never be read as a bounded one. Amounts are exact USD decimals and the
+  reservation is atomic — two spawned crossings cannot both pass a ceiling only one
+  of them can pay for.
+* **A grant can be revoked mid-run.** `RevisableDecision` lets the host narrow
+  authority while the workflow is in flight; the runtime already asked at every
+  call site, so the next crossing is denied and completed ones stand. Revisions
+  are logged (`grant.revoked` / `grant.restored`) with the host's reason, a denial
+  says whether the capability was revoked or never granted, and `restore` can
+  never return a capability the program did not request. Authority handed in from
+  outside is verified, not trusted: a decision for another program, or one
+  carrying a human-only permission, is refused (`HXH404`).
+* **The driver's code set is pinned.** `test_host_codes.py` reads the error
+  classes and fails if a code exists that the spec does not name, or if a code's
+  status moved — the closed-set assertion spec §13 has required since M5 and did
+  not have.
+* **Spec and toolchain move `0.1.0 → 0.2.0`** (minor: codes added, no existing
+  meaning changed, no program that checked before fails now). One checker message
+  embedded the version string, so it was reworded and its golden regenerated.
+* Gate: 295 language tests (33 new), `ruff` clean, `spec_drift.py` clean, TS mirror
+  up to date, `make guard-isolation` clean, section 4 hx/workflow 22 passed,
+  section 5 live host ops 4 passed. Nothing outside `packages/language` changed
+  behaviour: with no price table and no supplied authority, `run_source` does
+  exactly what it did before, which is why the 261 pre-existing tests are
+  untouched.
+
 ### Hx milestones M2–M5 — the driver becomes part of the Harness (2026-10-31)
 
 * **M2 — Section 4 runs a workflow, and the events land in Section 1.**

@@ -25,6 +25,7 @@ does.
 from __future__ import annotations
 
 import hashlib
+import threading
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -80,6 +81,175 @@ class Decision:
             "authority": "harness",
             "forgeable": False,
         }
+
+
+@dataclass(frozen=True)
+class Revision:
+    """One change the host made to a live grant set, and why.
+
+    Recorded because "the host revoked ``tool.test`` at 14:02" is a fact a reviewer
+    needs, and it is only knowable if the revocation carries its own reason.
+    """
+
+    capability: str
+    action: str
+    reason: str
+
+    def to_json(self) -> dict[str, str]:
+        return {"capability": self.capability, "action": self.action, "reason": self.reason}
+
+
+class RevisableDecision:
+    """A ``Decision`` the host can change between calls: M6's revocation surface.
+
+    A frozen ``Decision`` is the right shape for a run that starts and finishes
+    under one grant set. It is the wrong shape for a workflow that is already
+    running, because withdrawing authority mid-flight would then mean cancelling
+    and restarting — which loses the work the run was allowed to finish.
+
+    The runtime already asks ``allows()`` at every call site rather than once at
+    the start, so revocation needs only a decision whose answer can change. It
+    does not need a new check, and a capability revoked between two crossings
+    denies the second one and never touches the first.
+
+    The request set is fixed: this class can narrow what is granted, never widen
+    what the program asked for. A host that wants more authority re-authorize a
+    manifest; a run cannot grow its own ceiling by waiting.
+    """
+
+    def __init__(
+        self,
+        *,
+        requested: frozenset[str],
+        granted: frozenset[str],
+        denials: tuple[Denial, ...],
+        principal: str,
+        policy: str,
+    ) -> None:
+        self.requested = requested
+        self.denials = denials
+        self.principal = principal
+        self.policy = policy
+        self._granted: set[str] = set(granted)
+        #: What the host granted when the run was authorised. A denial is only a
+        #: revocation if the capability was in this set; ``granted`` has moved on.
+        self.initial_granted: frozenset[str] = frozenset(granted)
+        self._lock = threading.Lock()
+        self._revisions: list[Revision] = []
+        self._reported = 0
+
+    @property
+    def granted(self) -> frozenset[str]:
+        with self._lock:
+            return frozenset(self._granted)
+
+    @property
+    def allowed(self) -> bool:
+        """The original authorisation answer.
+
+        A revocation does not rewrite history: the run *was* authorised, and what
+        changed is the grant set. ``allows()`` is the live question, ``allowed``
+        is the record of the one asked at the start.
+        """
+        return not self.denials
+
+    def allows(self, capability: str | None) -> bool:
+        if capability is None:
+            return True
+        with self._lock:
+            return capability in self._granted
+
+    def revoke(self, capability: str, *, reason: str = "host revoked it") -> bool:
+        """Withdraw one capability from here on. False if it was not granted."""
+        with self._lock:
+            if capability not in self._granted:
+                return False
+            self._granted.discard(capability)
+            self._revisions.append(Revision(capability, "revoked", reason))
+        return True
+
+    def restore(self, capability: str, *, reason: str = "host restored it") -> bool:
+        """Grant a capability again — only one the program actually requested."""
+        with self._lock:
+            if capability in self._granted or capability not in self.requested:
+                return False
+            self._granted.add(capability)
+            self._revisions.append(Revision(capability, "restored", reason))
+        return True
+
+    def revisions(self) -> tuple[Revision, ...]:
+        with self._lock:
+            return tuple(self._revisions)
+
+    def pending_revisions(self) -> list[Revision]:
+        """Revisions the runtime has not yet turned into events.
+
+        Drained at call sites, so the event log tells the story in the order the
+        run learned it: a revocation appears between the crossings it separated.
+        """
+        with self._lock:
+            fresh = self._revisions[self._reported :]
+            self._reported = len(self._revisions)
+            return list(fresh)
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "principal": self.principal,
+            "policy": self.policy,
+            "requested": sorted(self.requested),
+            "granted": sorted(self.granted),
+            "denied": [denial.to_json() for denial in self.denials],
+            "allowed": self.allowed,
+            "authority": "harness",
+            "forgeable": False,
+            "live": True,
+            "initiallyGranted": sorted(self.initial_granted),
+            "revisions": [revision.to_json() for revision in self.revisions()],
+        }
+
+
+def as_revisable(decision: Decision) -> RevisableDecision:
+    """Hand a host an authority it can walk back without restarting the run."""
+    return RevisableDecision(
+        requested=decision.requested,
+        granted=decision.granted,
+        denials=decision.denials,
+        principal=decision.principal,
+        policy=decision.policy,
+    )
+
+
+#: The runtime asks one question of an authority object; both shapes answer it.
+Authorisation = Decision | RevisableDecision
+
+
+def authority_problems(authority: Authorisation, manifest: Mapping[str, Any]) -> list[str]:
+    """Why a decision handed in from outside must not be treated as authority.
+
+    Mid-run revocation moves the decision object outside ``run_source``, and that
+    opens two mistakes a caller can make: handing over an authority minted for a
+    different program, or one that grants a capability mapping to a human-only
+    permission. Both are checked here rather than trusted, because the invariant
+    "a program never holds approve/administer/billing/export" must hold on every
+    path into the runtime, not only the path that happens to call ``authorize``.
+    """
+    problems: list[str] = []
+    requested = requested_capabilities(manifest)
+    if frozenset(authority.requested) != requested:
+        missing = sorted(requested - frozenset(authority.requested))
+        extra = sorted(frozenset(authority.requested) - requested)
+        problems.append(
+            f"the decision was made for a different request (unrequested: {extra}, "
+            f"not-requested-by-the-program: {missing})"
+        )
+    for capability in authority.granted:
+        entry = CAPABILITIES.get(capability)
+        if entry is None:
+            problems.append(f"'{capability}' is not in the closed capability table")
+        elif entry.permission in HUMAN_ONLY:
+            problems.append(f"'{capability}' maps to the human-only permission "
+                            f"'{entry.permission}'")
+    return problems
 
 
 def requested_capabilities(manifest: Mapping[str, Any]) -> frozenset[str]:

@@ -30,17 +30,25 @@ from harness_hx.diagnostics import Diagnostic
 from harness_hx.manifest import build_manifest
 from harness_hx.version import SPEC_VERSION, TOOLCHAIN_VERSION
 
-from .authority import Decision, assert_checked_source, authorize
+from .authority import (
+    Authorisation,
+    assert_checked_source,
+    authority_problems,
+    authorize,
+)
 from .boundary import plain
 from .bridge import HostBridge
 from .errors import (
+    BadPriceTable,
     CapabilityDenied,
     CheckRefused,
     DigestMismatch,
     HxHostError,
     NotRunnable,
     ScriptError,
+    StaleAuthority,
 )
+from .pricing import Pricing, PricingError
 from .runtime import Runtime
 from .secrets import Tally, scrub_text, scrub_value
 
@@ -60,7 +68,7 @@ class RunResult:
     inputs_sha256: str | None = None
     output: Any = None
     manifest: dict[str, Any] = field(default_factory=dict)
-    decision: Decision | None = None
+    decision: Authorisation | None = None
     diagnostics: tuple[Diagnostic, ...] = ()
     events: tuple[dict[str, Any], ...] = ()
     budget: dict[str, Any] = field(default_factory=dict)
@@ -158,8 +166,21 @@ def run_source(
     cancel: threading.Event | None = None,
     emit: Callable[[dict[str, Any]], None] | None = None,
     clock: Callable[[], float] = time.monotonic,
+    prices: Mapping[str, Any] | None = None,
+    authority: Authorisation | None = None,
 ) -> RunResult:
-    """Check, authorise, run and record one Hx program."""
+    """Check, authorise, run and record one Hx program.
+
+    ``prices`` is the host's price table (operation name -> USD amount). Supplying
+    one is what makes ``budget.cost`` a limit: the next crossing is priced before
+    it happens and an operation with no price is refused instead of running free.
+    Supplying none leaves cost declared-and-reported, and the evidence says so.
+
+    ``authority`` is a decision the host already holds — normally a
+    ``RevisableDecision`` it can revoke into while the run is in flight. It is
+    checked against this manifest, not trusted: authority minted for a different
+    program, or one that carries a human-only permission, is refused here.
+    """
     started = clock()
     run_id = run_id or uuid4().hex
     correlation_id = correlation_id or run_id
@@ -200,6 +221,17 @@ def run_source(
         digest = assert_checked_source(manifest, source)
         if expected_digest is not None and expected_digest != digest:
             raise DigestMismatch("the supplied digest does not describe these bytes")
+        try:
+            pricing = Pricing.from_mapping(prices) if prices else None
+        except PricingError as bad:
+            raise BadPriceTable(f"the host's price table is not usable: {bad}") from bad
+        if authority is not None:
+            problems = authority_problems(authority, manifest)
+            if problems:
+                raise StaleAuthority(
+                    "the supplied authority does not belong to this program",
+                    detail={"problems": problems},
+                )
     except HxHostError as error:
         return RunResult(
             status=error.status,
@@ -212,7 +244,7 @@ def run_source(
             **base,
         )
 
-    decision = authorize(
+    decision: Authorisation = authority if authority is not None else authorize(
         manifest,
         granted=granted,
         principal_permissions=principal_permissions,
@@ -281,6 +313,7 @@ def run_source(
         cancel=cancel,
         emit=emit,
         clock=clock,
+        pricing=pricing,
     )
     try:
         output = runtime.run()
