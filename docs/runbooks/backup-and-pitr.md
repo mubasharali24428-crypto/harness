@@ -45,20 +45,53 @@ a scheduled drill cadence (monthly minimum).
 
 ## Scheduling
 
+**Installed (2026-10-31): a per-user launchd agent, `com.harness.nightly-backup`, 03:17 local.**
+Until that date nothing was scheduled at all: the cron lines that used to sit here were a
+`/path/to/harness` placeholder, and no crontab, launchd agent or scheduled task for backups could be found (the
+"monthly drill automation" named below was not found in any of those either; the drills on file were run by hand or by another tool). That is why the base backup was 6 days stale.
+
 ```
-# m  h dom mon dow  command
-17 2 * * * cd /path/to/harness && ./deploy/backup/backup.sh >> deploy/backup/backup.log 2>&1
-03 3 * * * cd /path/to/harness && docker compose -f deploy/docker-compose.yml --profile walg run --rm walg >> deploy/backup/walg.log 2>&1
+./deploy/backup/install-launchd.sh              # install / re-install
+./deploy/backup/install-launchd.sh --uninstall
+launchctl kickstart gui/$(id -u)/com.harness.nightly-backup   # run it now
+tail ~/harness-backups/nightly.log               # last line: nightly-backup RESULT=ok|FAILED steps=...
 ```
 
-(First line: nightly logical dump. Second: daily WAL-G base backup via the
-one-shot wrapper — since M17-B2 its `PGHOST` defaults to the LIVE `db`, so
-the scheduled backup protects the real cluster with zero overrides; point a
-one-off rehearsal back at the drill sidecar with `-e WALG_PGHOST=walg-db`.
-Host cron is deliberately preferred over any in-container sleep loop: exact
-timing, catch-up semantics, failures surface in cron mail.)
-macOS launchd equivalent: `StartCalendarInterval` agents running the same
-commands.
+`deploy/backup/nightly.sh` runs, each step independently (exit is nonzero if any fails):
+1. logical dump (`backup.sh`);
+2. WAL-G base backup of the live `db` (`walg run --rm --no-deps`, so no second cluster can
+   archive into the live prefix);
+3. artifact-store snapshot (`store-backup.sh`) straight after the base, then
+   `store_verify.py` checks every non-deleted `artifacts` row has its file in the snapshot with
+   a matching sha256;
+4. `rsync` of the WAL-G archive from `/tmp/harness-walg-live` to `~/harness-backups/walg-live`.
+
+The agent runs `nightly.sh --if-due` at 03:17 **and hourly**, wrapped in `caffeinate -i`: a run happens
+only when the newest base backup is older than 23 h, so a Mac that slept through 03:17 or had Docker
+down catches up on wake or on the next hourly tick. It cannot wake a sleeping Mac; that needs
+`sudo pmset repeat wakeorpoweron MTWRFSU 03:15:00` (a system setting, owner's call). A failed or skipped
+night is also detected by `HarnessBackupStale` (> 25 h).
+
+**Retention:** `WALG_RETENTION_KEEP` defaults to **7** in `nightly.sh`, so the live archive keeps the 7
+newest base backups plus the WAL after the oldest (a 7-day recovery window, roughly 4-5 GB); the
+`walg` wrapper itself refuses to prune while run-retention holds exist. The mirror follows with
+`rsync --delete`, but only while the source still contains a base backup. Verified on a scratch copy
+first: `delete retain 1` removed 3 317 objects (3.7 GB to 54 MB) and the remaining base still restored.
+Logical dumps keep 7, store snapshots 14.
+
+**Off-machine copy:** not configured. `nightly.sh` runs an `rsync` to `OFFSITE_RSYNC_TARGET` (set in
+`~/harness-backups/offsite.env`) when present and prints `WARN offsite` and `offsite=NONE` on every
+run until it is. Nothing leaves this machine today.
+
+Restore the store into a NEW volume with `deploy/backup/store-restore.sh <store-*.tgz> <volume>`
+(refuses an existing volume; cutover onto `harness_store` is a manual stop-the-stack step).
+Snapshots are in `~/harness-backups/store/` (newest 14 kept).
+
+Original cron form, for hosts without launchd (replace the path):
+
+```
+17 2 * * * cd /path/to/harness && ./deploy/backup/nightly.sh >> ~/harness-backups/nightly.log 2>&1
+```
 
 ### Scheduled restore drill (W15)
 

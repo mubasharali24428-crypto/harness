@@ -202,9 +202,71 @@ Limits that matter to the owner:
 - The scheduled monthly drill uses a MinIO image pinned by digest and cached locally; it
   was reported unpullable from public registries during the October S3 drill (not re-checked today), so a pruned cache would break the next run.
 
+## Unit G — backup schedule (installed)
+
+Why the base backup was 6 days stale: **nothing had ever been scheduled.** The runbook's cron lines
+were a `/path/to/harness` placeholder; there was no crontab, no launchd agent and no scheduled task,
+and the last logical dump was 2026-10-17. Fix: `deploy/backup/nightly.sh` (logical dump, live WAL-G
+base backup with `--no-deps`, artifact-store snapshot + verify, archive mirror) run by a launchd agent
+`com.harness.nightly-backup` at 03:17, installed with `deploy/backup/install-launchd.sh`. It ran by hand
+(31 s, 4/4 steps) and again **through launchd itself** (`runs = 1`, exit 0), which is the run that proves
+launchd's PATH and Docker access. `HarnessBackupStale` remains the detector if a night is missed.
+5 tests (`test_backup_schedule.py`: scripts parse, every step present, `--no-deps` kept, restore refuses an
+existing volume, catch-up/retention/mirror guard/off-site warning, launchd catch-up and caffeinate). Evidence `stage2-ops-20261031.json`.
+
+**Follow-up the same day (Unit G2).**
+- *Pruning:* `nightly.sh` now sets `WALG_RETENTION_KEEP=7` (the wrapper's existing retention, which
+  refuses while run-retention holds exist; 0 holds today). Proved on a **scratch copy** of the archive
+  first, never the live one: `delete retain 1 --confirm` removed 3 317 objects (3.7 GB to 54 MB), then
+  `restore-walg.sh` fetched the single remaining base in 10 s and replayed to 14:57:35 with the data
+  matching live. My prediction that this would also show a before/after difference was wrong (my data
+  fix was applied before the target time), so it proves a pruned archive restores, not a rewind. First
+  live run with the setting: 4 bases kept, nothing deleted (limit 7). The mirror follows with `--delete`
+  only while the source still holds a base backup. Window is 7 days, about 4-5 GB.
+- *Sleep:* the agent now runs `nightly.sh --if-due` at 03:17 and hourly under `caffeinate -i`; a run
+  happens only if the newest base is over 23 h old, so a missed night catches up on wake or the next tick
+  (skip path verified through `launchctl`; due path verified with `DUE_AFTER_HOURS=0`, 4/4 steps). It
+  **cannot wake a sleeping Mac**; that needs `sudo pmset repeat wakeorpoweron ...`, a system setting I
+  did not change.
+- *Off-machine:* a hook exists (`~/harness-backups/offsite.env`, `OFFSITE_RSYNC_TARGET`) and every run
+  prints `WARN offsite` and `offsite=NONE` until it is set. **No off-machine copy exists**, because it
+  needs a destination and credentials that are the owner's to choose.
+- *Owner decisions:* prepared, not made: [`stage2-owner-decisions-2026-10-31.md`](stage2-owner-decisions-2026-10-31.md).
+
+## Unit H — artifact store backup and restore (closed)
+
+`store-backup.sh` snapshots `harness_harness_store` (read-only mount, newest 14 kept);
+`store_verify.py` checks every non-deleted `artifacts` row created before the snapshot has its file
+with a matching sha256; `store-restore.sh` unpacks into a **new** volume. Result: 127/127 rows verified;
+a one-byte tamper on a copy is caught (exit 1); a restore into a scratch volume has a tree hash
+identical to live. The store is run inside `nightly.sh` straight after the base backup. Honest limit: the
+blobs are content-addressed and write-once, so a restore holds everything that existed at snapshot time,
+but there is no single transaction spanning the database and the store; a blob written between the two
+steps (seconds) would be in the database restore but not the snapshot, and the verifier would report it.
+
+## Unit I — the two firing alerts (explained, one data fix, one product bug open)
+
+`HarnessRunQueueStalled` (value 5 824 987 s, **67 days**) and `HarnessEventBusLag` (5 559 s) were both
+caused by **one row**: `run_claims` `run-3b3c1c3049c0`, `queued` since 2026-08-25, `project_id = ''`. The
+claim query `JOIN`s `projects ON rc.project_id = p.id`, so a claim with no project can never be claimed;
+the run has no `agent_runs`, attempt or event rows. Its presence also made `harness_queue_depth > 0`,
+which is the "runs are active" guard on EventBusLag, so an idle system looked like a stalled one. The
+alerts were telling the truth about a stuck claim; the 93-minute bus lag is just the idle gap.
+
+Action (reversible, one row): `state = 'queued'` to `'orphaned'`, the queue's own parking state, which
+nothing claims and the gauges ignore. Original row in the evidence file. Prometheus then showed **no
+active alerts**.
+
+**Open product bug (not fixed, needs a decision):** both enqueue callers in `service.py` (lines ~1333 and
+~2011) pass `run_data.get("projectId") or ""`, so a run started without a project is still queued under
+`''`, silently never runs, and will fire this alert again. Returning `False` from `enqueue_run` would not
+help (the callers read that as "already queued"). The options are to reject such a start with a 400, or to
+give it a real claimable path; that is a behaviour change in the orchestrator the concurrent W23 lane is
+editing, so I left it.
+
 ## Verification
 
-- `section1`: **1228 passed, 63 skipped** (was 1225; +3 volume-isolation tests), `ruff check src tests scripts` clean.
+- `section1`: **1233 passed, 63 skipped** (was 1225; +3 volume-isolation, +5 backup-schedule tests), `ruff check src tests scripts` clean.
 - `promtool`: 19 rules, unit tests SUCCESS (`scripts/test-alerts.sh`).
 - `section4` observability unit tests: 15 passed (Unit B).
 - Image provenance checked *inside* the image: `observe_replay_age` present,
@@ -234,7 +296,7 @@ Two things that need recording because they will bite the next builder:
 | Exit item | Status | By whom |
 |---|---|---|
 | Failure-outcome measurement (W17 drills) | Terminal-event retry, cross-replica NOTIFY, durable admission, Linux shell cleanup, MCP cleanup, **real 5xx generation (Unit F)**: **done**. | engineering |
-| Backup/alert verification | **Closed as mechanism**: backup gauge + alert state verified live; routing verified to a live target; three PITR drill passes. **Open as operations**: the real destination is unset and the receiver is dead; the live base backup is stale; the artifact store has no backup at all. | engineering did its half |
+| Backup/alert verification | **Closed as mechanism**: backup gauge + alert state verified live; routing verified to a live target; three PITR drill passes. Base backup taken, restore from the live archive verified, nightly schedule installed and run through launchd, artifact store now backed up and restore-verified (Units G, H). **Still open**: the page destination is unset and the receiver is dead (owner); no off-machine copy of any backup (hook ready, destination is the owner's); a product bug that can re-create a stuck queue claim (Unit I). | engineering did its half |
 | SLO *measurement* (eligible-request denominator, bounded-lag histogram, both alerted on) | **Closed** — Units B and C. | engineering |
 | Named SLO adopted, on-call owner, escalation, page destination, public-status decision | **Cannot be closed by engineering.** The roadmap: "No engineering milestone implicitly closes these decisions." | human owner |
 | Measured capacity on the target topology, real provider | **Cannot be closed here.** Requires the approved budget and a target topology; only the laptop dry-engine figure exists. | human owner |
@@ -243,10 +305,11 @@ Two things that need recording because they will bite the next builder:
 spend is closed and verified at a named revision, including both items the previous
 revision of this record left open (the real-5xx drill and the volume hazard). What
 remains: a human owner (SLO adoption, on-call, page destination, status page), an
-approved budget and target topology (capacity), and two **operational** items found
-while reviewing the restore evidence: take a real base backup on the live stack, and
-decide how `harness_store` is backed up. Inventing any of these would be the failure mode
-this repo exists to prevent.
+approved budget and target topology (capacity). The operational items found while
+reviewing the restore evidence (stale base backup, no schedule, no store backup, two unexplained
+alerts) are now closed or explained; what is left there is an off-machine copy,
+and the projectless-run enqueue bug (Unit I). Inventing any of the human decisions would be the
+failure mode this repo exists to prevent.
 
 **Live-stack caveat at the time of writing.** Around 13:22 UTC every backend container of
 the live `harness` project was stopped within 1.4 s of each other while another lane was
@@ -259,8 +322,8 @@ reading at 05:32 stands for the cadence finding.
 **Re-run after the stack came back (live, read-only): PASS** — `w17-backup-freshness-1793453952.json`.
 Newest base backup is 532 317 s (~6.2 days) old, `HarnessBackupStale` firing, `HarnessBackupNeverRan`
 quiet. The same reading also showed `HarnessEventBusLag` and `HarnessRunQueueStalled` firing a few
-minutes after the redeploy; not investigated here (possibly restart transients) and not part of Stage 2's
-evidence, so treat them as unexplained rather than as noise.
+minutes after the redeploy. **Correction:** I first called these possible restart transients. They were not:
+they were already firing in the 05:32 reading and are explained under Unit I.
 
 **Live base backup taken (2026-10-31 13:46 UTC, at the user's instruction).** `walg run --rm
 --no-deps` (so no second cluster could archive into the live prefix) against the live `db`,

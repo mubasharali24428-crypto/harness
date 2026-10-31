@@ -1,0 +1,37 @@
+{
+  "executedAt": "2026-10-31T14:54Z-15:10Z",
+  "schedule": {
+    "agent": "~/Library/LaunchAgents/com.harness.nightly-backup.plist (03:17 local)",
+    "priorState": "no crontab, no launchd agent, no scheduled task; runbook cron lines were a /path/to/harness placeholder",
+    "manualRun": "nightly-backup RESULT=ok, 31 s, 4/4 steps",
+    "launchdRun": "launchctl kickstart: runs=1, last exit code 0, RESULT=ok at 14:54:15Z (proves launchd's environment, PATH and docker access)"
+  },
+  "storeBackup": {
+    "snapshot": "store-20261031T145238Z.tgz (127 non-deleted artifact rows)",
+    "verify": "ok=127 missing=0 corrupt=0",
+    "negativeControl": "one byte appended to a copied blob: corrupt=1, exit 1",
+    "restore": "unpacked into scratch volume; find|sha256sum tree hash identical to live (47d37acb...3554); scratch removed, live volume intact"
+  },
+  "alerts": {
+    "before": {
+      "HarnessRunQueueStalled": "value 5824987 s (67 days)",
+      "HarnessEventBusLag": "value 5559 s, kept armed by the same claim"
+    },
+    "rootCause": "run_claims row run-3b3c1c3049c0: state queued since 2026-08-25T04:50:48Z, worker enqueuer, project_id '' . claim_next_run INNER JOINs projects ON rc.project_id = p.id, so it can never be claimed; no agent_runs/run_attempts/agent_events rows exist for it. harness_queue_depth > 0 also satisfied EventBusLag's 'runs active' guard.",
+    "originalRow": "run-3b3c1c3049c0 | '' | queued | 2026-08-25T04:50:48.640974+00:00 | 2026-08-25T04:50:48.640974+00:00 | enqueuer",
+    "action": "UPDATE run_claims SET state='orphaned' WHERE run_id='run-3b3c1c3049c0' AND state='queued' AND project_id='' (1 row). Revert: set state back to 'queued' (or a resume of that run re-queues it).",
+    "after": "Prometheus /api/v1/alerts empty; oldest_queued_run_age_seconds 0, queue_depth 0"
+  },
+  "followUp": {
+    "prune": {
+      "method": "scratch copy of the live archive (3.7 GB), wal-g delete retain 1 --confirm",
+      "deleted": 3317,
+      "sizeAfter": "54 MB",
+      "restoreFromPruned": "fetch 10 s, replayed to 14:57:35, claim state matches live",
+      "livePolicy": "WALG_RETENTION_KEEP=7, run-retention holds=0, first live run kept 4 bases"
+    },
+    "catchUp": "nightly.sh --if-due at 03:17 + hourly under caffeinate; skip path via launchctl exit 0; due path DUE_AFTER_HOURS=0 4/4 steps",
+    "offsite": "hook only; offsite=NONE warning on every run; destination is the owner's",
+    "ownerDecisions": "docs/reviews/stage2-owner-decisions-2026-10-31.md"
+  }
+}
