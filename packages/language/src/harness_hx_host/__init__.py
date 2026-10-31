@@ -34,6 +34,7 @@ from .authority import (
 )
 from .boundary import SchemaValue, validate
 from .bridge import (
+    RECORDING_KIND,
     BridgeCall,
     BridgeExchange,
     ConfinedCommandRunner,
@@ -44,6 +45,8 @@ from .bridge import (
     RecordingBridge,
     ReplayBridge,
     SandboxHostBridge,
+    recording_from_json,
+    recording_to_json,
 )
 from .contract_runner import ContractRunner
 from .errors import (
@@ -59,6 +62,7 @@ from .errors import (
     HxHostError,
     InvalidHostResult,
     NotRunnable,
+    RecordingMismatch,
     ScriptError,
     StaleAuthority,
 )
@@ -96,8 +100,10 @@ __all__ = [
     "NotRunnable",
     "Pricing",
     "PricingError",
+    "RECORDING_KIND",
     "ReadOnlyRepoBridge",
     "RecordingBridge",
+    "RecordingMismatch",
     "ReplayBridge",
     "RevisableDecision",
     "Revision",
@@ -118,6 +124,8 @@ __all__ = [
     "scrub",
     "scrub_text",
     "scrub_value",
+    "recording_from_json",
+    "recording_to_json",
     "source_digest",
     "validate",
 ]

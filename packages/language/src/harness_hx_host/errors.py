@@ -18,6 +18,7 @@ on, so they are a closed set and not free text:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from .secrets import scrub_text, scrub_value
@@ -86,6 +87,20 @@ class DigestMismatch(HxHostError):
     code = "HXH103"
 
 
+class RecordingMismatch(HxHostError):
+    """A replay was asked to answer from a recording it cannot honour.
+
+    Three causes, one code: the recording was written by another format version,
+    it is truncated (a call has no recorded outcome), or the run asked for a
+    crossing that is not in it. Refusing is the whole point — a replay that falls
+    back to the live host, or that fills a gap with a guess, produces evidence
+    that looks like the original run and is not.
+    """
+
+    status = "refused"
+    code = "HXH104"
+
+
 class ScriptError(HxHostError):
     """The program itself failed: ``ensure`` was false, a value did not fit its type."""
 
@@ -152,3 +167,50 @@ class Cancelled(HxHostError):
 
     status = "cancelled"
     code = "HXH601"
+
+
+#: Every driver failure, by code. A recording stores codes, not classes, so a
+#: replay rebuilds the failure from this table — which is also the list the
+#: conformance test pins against the spec's §9.5 table.
+BY_CODE: dict[str, type[HxHostError]] = {
+    cls.code: cls
+    for cls in (
+        CheckRefused,
+        NotRunnable,
+        DigestMismatch,
+        RecordingMismatch,
+        ScriptError,
+        CapabilityDenied,
+        HostUnavailable,
+        InvalidHostResult,
+        BudgetExhausted,
+        CostUnpriceable,
+        BadPriceTable,
+        StaleAuthority,
+        Cancelled,
+    )
+}
+
+
+def from_record(record: Mapping[str, Any]) -> HxHostError:
+    """Rebuild a recorded failure so a replay raises what the live run raised.
+
+    The class comes from the code, and the position and detail come from the
+    record, so the replayed run reports the same line the original did. An unknown
+    code is not silently mapped to the base class: it is `HXH104`, because a
+    recording naming a code this build does not know is a version problem.
+    """
+    code = str(record.get("code") or "")
+    cls = BY_CODE.get(code)
+    if cls is None:
+        raise RecordingMismatch(
+            f"the recording names failure code {code!r}, which this build does not "
+            "emit; refusing to guess what it meant",
+            detail={"code": code, "known": sorted(BY_CODE)},
+        )
+    return cls(
+        str(record.get("message") or ""),
+        line=record.get("line"),
+        col=record.get("col"),
+        detail=dict(record.get("detail") or {}),
+    )

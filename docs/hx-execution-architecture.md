@@ -189,9 +189,12 @@ but no test proves the property.
 | `model.invoke` routed with the declared role; downgrade recorded, never performed | implemented (M4) | `test_host_model_relay.py` |
 | The driver IS Section 4's `WorkflowRunner`; its events reach Section 1 | implemented (M2) | `test_host_contract_runner.py` (10); `section4/tests/unit/test_workflow_*.py` (13) |
 | `for` over a list, one `budget.steps` per pass | implemented (M5) | `test_language_growth.py` (15) |
-| `cost` budget enforced against a host price table (`HXH501`/`HXH502`/`HXH503`) | implemented (M6) | `test_host_cost.py` (13) — priced before the crossing, unpriced refused, exact decimals, parallel reservations |
+| `cost` budget enforced against a host price table (`HXH501`/`HXH502`/`HXH503`) | implemented (M6) | `test_host_cost.py` (15) — priced before the crossing, unpriced refused, exact decimals, parallel reservations |
 | Mid-run revocation of a grant, with the revision in the log (`HXH401` `revoked`, `HXH404`) | implemented (M6) | `test_host_revocation.py` (12) — next crossing only, cannot widen the request, handed-in authority verified |
-| The driver's code set is closed and each code has one status | implemented (M6) | `test_host_codes.py` (6) — the §13 "closed-set assertion" the spec requires for an added code |
+| The driver's code set is closed and each code has one status | implemented (M6) | `test_host_codes.py` (8) — the §13 "closed-set assertion" the spec requires for an added code |
+| A recorded failure replays as itself: same code, status, line, message, contract digest | implemented (M7) | `test_host_failure_replay.py` (13) — including the control that removes the failure and expects a refusal |
+| Recordings are versioned (`hx.recording/v2`) and an unsettled exchange is refused (`HXH104`) | implemented (M7) | `test_host_failure_replay.py`, `test_host_cli.py` (`--record`/`--replay`, v1 refusal) |
+| Evidence states whether the trace is complete and where the answers came from | implemented (M7) | `recording` block: `origin` (live / recording / replay), settled, failures, unanswered |
 
 ### 4.3 Host adapters
 
@@ -234,7 +237,7 @@ but no test proves the property.
 
 ## 5. Tests, and what each one is for
 
-`packages/language`: **295 passed**, `ruff check` clean.
+`packages/language`: **315 passed**, `ruff check` clean.
 
 | File | Tests | What it proves |
 |---|---|---|
@@ -242,13 +245,14 @@ but no test proves the property.
 | `test_host_boundary.py` | 10 | Bool ≠ Int; optional/`Any`; nominal identity; missing/extra/nested-index failures; unknown schema |
 | `test_host_bridge.py` | 13 | call ordering; content-addressed proposals; settled exit code → evidence; streaming-only refusal; unlisted suite; repository protocol; missing adapter; root escape; secret paths; no deadlock inside a running loop |
 | `test_host_authority.py` | 9 | deny-by-default; grants; permission mapping; human-only invariant; the driver's permission names are the frozen contract's; corrupt manifest; pure op; digest binding; decision JSON |
-| `test_host_cli.py` | 10 | plan/deny/grant/JSON; run + evidence file; denial; missing file; check errors; wrong digest; host refusal; inputs must be an object |
+| `test_host_cli.py` | 15 | plan/deny/grant/JSON; run + evidence file; denial; missing file; check errors; wrong digest; host refusal; inputs must be an object; price file read and refused-when-unreadable; `--record` then `--replay` after the underlying file is deleted; a v1 recording refused by name |
 | `test_host_contract_runner.py` | 10 | the driver is a `WorkflowRunner`; a replay reproduces the digest without reaching the live host; a replay missing an exchange fails honestly |
 | `test_host_model_relay.py` | 10 | the secret is absent from the captured prompt, the log, the events and the evidence; an echoed secret is scrubbed on the way back; no router fails closed; a downgrade is recorded once and not retried; a provider error is scrubbed on all three surfaces |
 | `test_language_growth.py` | 15 | enums, record construction and `for` each have code + fixture + golden; 500 files under `budget { steps: 5 }` ends as `budget`/`HXH501` with its performed iterations still in the log; no `while`, no modules |
 | `test_host_cost.py` | 15 | the next crossing is priced before it happens; an unpriced operation is refused, not free; the ceiling is spendable to the cent and one cent over stops; no table says `declared-not-enforced`; a bad table crosses nothing; money adds exact where a float would drift; two parallel reservations cannot both break the ceiling; the CLI reads a price file and refuses an unreadable one |
 | `test_host_revocation.py` | 12 | a revoked capability denies the next crossing and not a completed one; never-granted says so instead; the revision sits in the log between the crossings; restore cannot widen the request; evidence holds the starting grant and the live one; handed-in authority for another program, or carrying a human-only permission, is refused (`HXH404`) |
-| `test_host_codes.py` | 6 | the driver's code set equals the spec's table, every code has exactly one status, statuses come from the closed vocabulary, and `HXH000` never surfaces |
+| `test_host_codes.py` | 8 | the driver's code set equals the spec's table, every code has exactly one status, statuses come from the closed vocabulary, every code can be rebuilt from a recording, and `HXH000` never surfaces |
+| `test_host_failure_replay.py` | 13 | a recorded failure replays with the same code, status, line and message; the contract digest matches for a failing run; the live host is never reached; removing the failure makes the replay refuse instead of inventing; a tampered argument is not a match; a spawned failure keeps its slot; an unsettled call is refused (`HXH104`); v1 is not re-read; a foreign failure code is refused; the file carries no secret; unplayed exchanges are counted |
 | checker suites | 161 | lexer, parser, types, effects, budgets, profiles, manifest, wire, goldens (incl. the four demo programs), seeded faults, growth, the closed driver-code set |
 
 Determinism: every driver test uses an injected clock, an in-memory bridge and no
@@ -282,8 +286,12 @@ OS boundary; it never weakens into a fake.
    nobody has seen yet still gets through: the detector recognises prefixes, not
    entropy, so undetected shapes are a listed gap rather than a claim of
    completeness.
-5. **Replay covers successes only.** A failed exchange is not recorded, so a
-   replay of a failing run re-raises `HXH403` rather than the original failure.
+5. **Replay substitutes recorded answers, it does not undo effects.** Since M7 a
+   failure replays as the failure it was and an unsettled exchange is refused
+   (`HXH104`), so a replay can no longer hide the original outcome behind its own.
+   What it still cannot do is reverse a side effect the first run performed, or
+   re-derive an answer the host never gave — a run that died mid-call leaves a gap,
+   and the recording marks it incomplete rather than filling it in.
 6. **No retries, no idempotency beyond keys.** The driver issues each call once
    and records a key; a host that wants exactly-once must implement it against
    that key. This is deliberate — a silent retry of a side effect is the thing
@@ -318,7 +326,8 @@ OS boundary; it never weakens into a fake.
 | **M4** ✅ | Model relay: `model.invoke` routed by the Harness, roles from the manifest, no forced downgrade | no secret value in any prompt, log, event or evidence (the test asserts on captured prompts); downgrade attempt is recorded, not performed |
 | **M5** ✅ | Language growth: `enum` values in source; record construction; loops with a `budget.steps` termination story | each addition ships a code, a fixture, a golden and a test that the closed set changed deliberately (`test_language_growth.py`) |
 | **M6** ✅ | The limits bind: `budget.cost` enforced against a host price table; a grant revocable mid-run with the revision recorded | a run stops *before* the crossing it cannot pay for, and an unpriced operation is refused rather than free; no table is announced in the evidence as `declared-not-enforced`; revocation bites the next crossing and cannot widen the request; the driver's code set is pinned closed. 295 language tests, `ruff` clean, `spec_drift` clean, sections 4/5 unaffected — see §9 |
-| **M7** | Failure replay and complete recordings: a recorded failing run reproduces its failure, and an incomplete recording fails closed | replay of a failed run raises the recorded failure, not `HXH403`; a missing or altered record is refused; the recording format is versioned |
+| **M7** ✅ | Failure replay and complete recordings: a recorded failing run reproduces its failure, and an incomplete recording fails closed | replay of a failed run raises the recorded failure, not `HXH403`; a missing or altered record is refused; the recording format is versioned — measured at `3637e3f`+M7: 315 language tests, see §9 |
+| **M8** | Multi-file programs and safe iteration: a module construct with digest binding per file, `for … accumulate`, and record update (`with`) — deliberately no assignment, which would remove the termination argument | code + fixture + golden per construct; swapping one module file fails closed (`HXH103`); the termination story still holds with no `while`; spec `0.4.0` |
 
 Out of scope until M3 is green: any claim that a run is *confined*. Until M2 is
 green: any claim that a run is *audited*. Both are green now; the claims they
@@ -336,6 +345,7 @@ persists it and confined as far as the `LocalSandboxRunner` policy goes.
 | Secret detector (prefixes, PEM, JWT, URL credentials) | `packages/language/src/harness_hx_host/secrets.py` |
 | Model relay (roles, scrubbing both ways, downgrade record) | `packages/language/src/harness_hx_host/model_relay.py` |
 | Price table and cost reservation (M6) | `packages/language/src/harness_hx_host/pricing.py` |
+| Recording format, in-flight marker, replay of failures (M7) | `packages/language/src/harness_hx_host/bridge.py` (`BridgeExchange`, `recording_to_json`, `ReplayBridge`) |
 | Revocable authority (M6) | `packages/language/src/harness_hx_host/authority.py` (`RevisableDecision`) |
 | `WorkflowRunner` adapter for Section 4 | `packages/language/src/harness_hx_host/contract_runner.py` |
 | Section 4 run + publish | `section4/src/harness_orchestrator/workflow_runs.py` |
@@ -459,9 +469,65 @@ golden regenerated — the only golden the regeneration touched.
 
 Suite totals after M6: `packages/language` **295 passed**, `ruff` clean.
 
+**M7 — a recording now tells the truth about failures.** Replay had one honest
+limitation and one honest gap: successes replayed, failures did not exist. A run
+that died at crossing three replayed as `HXH403` — "nothing recorded" — so the
+replay's own complaint replaced the original failure, and a reviewer comparing the
+two could not tell a broken host from a missing record.
+
+- `BridgeExchange` carries an `outcome` (`ok` / `failure` / `in-flight`) and a
+  code-named failure. Codes travel between builds; classes do not, so a recording
+  naming a failure this build does not emit is refused rather than reinterpreted.
+- `RecordingBridge` writes the request **before** the host answers and settles it
+  by replacing the entry (the dataclass stays frozen: a recorded fact is not
+  editable after the fact). A host that disappears mid-call therefore leaves an
+  `in-flight` exchange, which is the only honest thing a trace can say about a
+  crossing whose result nobody knows.
+- `ReplayBridge` re-raises a recorded failure through `errors.from_record`, so the
+  replayed run reports the same code, status, message, line and column — and, over
+  the contract adapter, the same digest. M2's replay claim was proven for
+  successes; it now holds for failures too.
+- Removing a failure from a recording does **not** make the replay succeed: it
+  refuses with `HXH403`, because the record no longer answers that call. That
+  negative control is the difference between "the replay reproduces the record" and
+  "the replay does whatever it likes when the record is thin".
+- Evidence gains a `recording` block — `origin` (live / recording / replay),
+  settled, failures, and the unanswered crossings. "It replayed" now has to mean
+  "it replayed up to here", in the artifact rather than in prose.
+- The format is declared `hx.recording/v2` and a v1 or unlabelled file is refused
+  (`HXH104`, status `refused`): v1's silence meant "no failure happened", and under
+  v2 the same silence can mean "no answer arrived". Reading one as the other is
+  exactly the quiet reinterpretation a version field exists to block.
+- `hxr run --record FILE` / `--replay FILE` make it operable, not just testable.
+  The strongest test is the simple one: record a run, **delete the file it read**,
+  replay, and the run still answers correctly — proof the reply came from the
+  recording and not from a host it could still reach. A replay whose recording
+  cannot be read exits `2` instead of quietly running live.
+- A recording leaves the process, so it obeys the same law as the evidence: the
+  serialised file is scrubbed, and a test proves the token is not in it.
+
+Spec and toolchain moved `0.2.0 -> 0.3.0` (another §13 minor change: one code
+added, no existing code's meaning changed, no previously-checking program now
+fails). One checker message embedded the version string, so it was reworded once —
+that single golden is the only fixture regenerated.
+
+> Gate: `test_host_failure_replay.py` **13 passed**, `test_host_cli.py` **15**
+> (five new: record/replay round trip, recorded failure survives the file
+> reappearing, v1 refused by name, unreadable recording is a usage failure,
+> `--record` and `--replay` are alternatives), `test_host_codes.py` **8** (two new:
+> `HXH104` is a refusal, and every code in the table can be rebuilt from a
+> recording). Suite **315 passed**, `make lint-language` clean,
+> `scripts/spec_drift.py` clean, TS mirror up to date, `make guard-isolation`
+> clean, section 4 hx/workflow subset **22 passed**, section 5 live host ops
+> **4 passed**. The 261 pre-M6 tests and all 295 post-M6 tests still pass
+> untouched — the replay change is additive to the exchange shape, and an all-
+> successful recording behaves exactly as it did before.
+
+Suite totals after M7: `packages/language` **315 passed**, `ruff` clean.
+
 **What is still open**, so nobody reads this table as more than it says: a price
 is the host's estimate, not a settled bill (§6.7); revocation stops effects, not
-computation (§6.8); replay covers successes only, so a failing run replays as
-`HXH403` rather than as its own failure — that is M7; the detector knows prefixes,
-not entropy; `for` has no `break`; and there are still no modules, mutation or
-generics. Each is in §6, §4.2 or spec §12 as a named limit, not a footnote here.
+computation (§6.8); replay substitutes recorded answers but cannot undo an effect
+the first run performed (§6.5); the detector knows prefixes, not entropy; `for`
+has no `break`; and there are still no modules, mutation or generics — M8. Each
+is in §6, §4.2 or spec §12 as a named limit, not a footnote here.

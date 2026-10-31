@@ -10,6 +10,40 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Hx milestone M7 — a recording tells the truth about failures (2026-10-31)
+
+* **A recorded failure replays as that failure.** Before M7, `RecordingBridge` kept
+  answers and dropped errors, so replaying a run that ended badly answered `HXH403`
+  ("nothing recorded") — the replay's own complaint standing in for the original
+  failure. Exchanges now carry an outcome (`ok` / `failure` / `in-flight`) and a
+  code-named failure, and a replay re-raises it through `errors.from_record`: same
+  code, same status, same line, same message — and, over the Section 4 contract
+  adapter, the same digest.
+* **An unfinished recording is refused, not guessed.** The request is written down
+  *before* the host answers, so a host that disappears mid-call leaves an
+  `in-flight` exchange. Replaying one refuses with `HXH104` (`refused`) instead of
+  inventing an answer, and the evidence names the crossing it could not honour.
+* **The format is versioned**: `hx.recording/v2`, with `kind` in the file. A v1 or
+  unlabelled recording is refused rather than re-read under v2 rules — v1's silence
+  meant "no failure happened", and under v2 the same silence can mean "no answer
+  arrived".
+* **Evidence states its own completeness**: a `recording` block with `origin`
+  (live / recording / replay), settled count, failure count and the unanswered
+  crossings, so "it replayed" cannot be read as more than "it replayed up to here".
+* **Operable, not just testable**: `hxr run --record FILE` and
+  `hxr run --replay FILE`. The replay proves itself by the blunt test — record a
+  run, delete the file it read, replay it, and the answer still arrives. A
+  recording that cannot be read is a usage failure (exit `2`), never a silent fall
+  back to the live host.
+* Recorded facts are immutable: an exchange is settled by replacing the entry, not
+  mutating it, and the serialised recording is scrubbed like every other surface.
+* Spec and toolchain move `0.2.0 → 0.3.0` (a §13 minor change: `HXH104` added, no
+  existing code's meaning changed). Gate: 315 language tests (13 failure-replay,
+  5 CLI, 2 code-set), `ruff` clean, `spec_drift.py` clean, TS mirror up to date,
+  `guard-isolation` clean, section 4 hx/workflow 22 passed, section 5 live host ops
+  4 passed. Every pre-existing test still passes untouched: an all-successful
+  recording replays exactly as it did before.
+
 ### Hx milestone M6 — the limits bind (2026-10-31)
 
 * **`budget.cost` is enforced.** The driver reserves the next crossing's price

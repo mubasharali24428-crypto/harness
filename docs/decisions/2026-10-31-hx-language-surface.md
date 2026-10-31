@@ -26,8 +26,8 @@ Two candidate "languages" have been live in this project at once:
   milestones H0–H7 are proposals, not shipped functionality.
 * **Hx** — the Harness-owned dialect derived from the Hermes *plan*: `hxc` (checker)
   and `hxr` (workflow driver) in [`packages/language`](../../packages/language),
-  versioned `harness-hx 0.2.0` (the spec's §13 minor-change rule; it was 0.1.0 when
-  this record was written).
+  versioned `harness-hx`, moving by the spec's §13 minor-change rule — `0.1.0` when
+  this record was written, `0.2.0` at M6, `0.3.0` at M7.
 
 Leaving that ambiguity unresolved is not free: the two share vocabulary but not a
 parser, so every future feature request risks being read as "make Hermes work here".

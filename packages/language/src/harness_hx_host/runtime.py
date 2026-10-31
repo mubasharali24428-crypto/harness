@@ -30,6 +30,7 @@ from __future__ import annotations
 import hashlib
 import threading
 import time
+from collections import defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -597,6 +598,48 @@ class Runtime:
             self.event(
                 "cost.charged", operation=operation, capability=capability, costUsd=str(price)
             )
+
+    def recording(self) -> dict[str, Any]:
+        """Is this trace complete, and if not: which call never got an answer?
+
+        Read from the events the run wrote, not from what the bridge chose to
+        remember: every ``call.start`` must be answered by a ``call.finished`` or a
+        ``call.failed``. A start with no answer is a crossing whose outcome nobody
+        knows — the host died, the thread was killed, the deadline passed — and a
+        recording that contains one must be refused, not replayed around.
+
+        Pairing is FIFO per operation, the same rule ``contract_runner`` uses to
+        rebuild operations from events, so the evidence and the contract result
+        cannot disagree about which call was left open.
+        """
+        open: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        settled = failures = 0
+        for event in self.events:
+            kind = event["kind"]
+            operation = event.get("operation")
+            if not isinstance(operation, str):
+                continue
+            if kind == "call.start":
+                open[operation].append(event)
+            elif kind in ("call.finished", "call.failed"):
+                if open[operation]:
+                    open[operation].pop(0)
+                settled += 1
+                failures += kind == "call.failed"
+        unanswered = [entry for queue in open.values() for entry in queue]
+        return {
+            "complete": not unanswered,
+            "settled": settled,
+            "failures": failures,
+            "unanswered": [
+                {
+                    "operation": entry["operation"],
+                    "operationId": entry.get("operationId"),
+                    "idempotencyKey": entry.get("idempotencyKey"),
+                }
+                for entry in unanswered
+            ],
+        }
 
     def _bind_arguments(
         self, node: A.Call, params: tuple[tuple[str, str], ...]

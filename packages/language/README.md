@@ -34,6 +34,9 @@ python -m venv .venv
 ./.venv/bin/hxr run app.hx --grant repo.read --root . --evidence evidence.json
 ./.venv/bin/hxr run app.hx --grant repo.read --root . --prices prices.json
                                                   # makes budget.cost a limit (exit 4 = spent)
+./.venv/bin/hxr run app.hx --grant repo.read --root . --record run.json
+./.venv/bin/hxr run app.hx --grant repo.read --replay run.json
+                                                  # answers from the recording; exit 1 if a call in it never settled
 ```
 
 `hxr run` exits `0` ok, `1` refused/error, `2` usage, `3` denied, `4` budget,
@@ -72,6 +75,8 @@ Driver guarantees (`harness_hx_host`):
 | The driver is a `WorkflowRunner`: Section 4 runs it and publishes its events | `contract_runner.py`, `section4/src/harness_orchestrator/workflow_runs.py` |
 | A patch is a proposal with a content-addressed id; nothing merges, approves or applies | `bridge.py` |
 | A recorded run replays from its exchanges and never reaches a live host | `bridge.py` (`RecordingBridge`, `ReplayBridge`) |
+| A recorded **failure** replays as that failure — same code, status, line, message — and a recording whose call never settled is refused instead of guessed (`HXH104`) | `bridge.py` (`hx.recording/v2`), `errors.py` (`from_record`) |
+| Evidence says whether its own trace is complete and where the answers came from | `run.py` (`recording`: `origin`, `settled`, `failures`, `unanswered`) |
 
 ## Layout
 
@@ -93,7 +98,8 @@ src/harness_hx_host/
   secrets.py       the one detector: PEM, provider keys, tokens, JWTs, URL credentials
   authority.py     manifest → Decision (or RevisableDecision); digest binding
   pricing.py       the host's price table and the cost reservation (USD, exact)
-  bridge.py        the one door out (fake, section-2/5, local, record, replay)
+  bridge.py        the one door out (fake, section-2/5, local, record, replay);
+                   the recording format itself: `hx.recording/v2`, outcomes per exchange
   model_relay.py   model.invoke → the host's ModelRouter; roles, scrub-in/out, downgrades
   contract_runner.py  the driver as a harness_contracts WorkflowRunner
   runtime.py       the workflow driver and its budgets

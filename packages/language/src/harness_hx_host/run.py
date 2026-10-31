@@ -37,7 +37,7 @@ from .authority import (
     authorize,
 )
 from .boundary import plain
-from .bridge import HostBridge
+from .bridge import RECORDING_KIND, HostBridge
 from .errors import (
     BadPriceTable,
     CapabilityDenied,
@@ -72,6 +72,7 @@ class RunResult:
     diagnostics: tuple[Diagnostic, ...] = ()
     events: tuple[dict[str, Any], ...] = ()
     budget: dict[str, Any] = field(default_factory=dict)
+    recording: dict[str, Any] = field(default_factory=dict)
     error: HxHostError | None = None
     duration_ms: float = 0.0
 
@@ -119,6 +120,7 @@ class RunResult:
             "inputsSha256": self.inputs_sha256,
             "events": list(self.events),
             "usage": self.budget,
+            "recording": self.recording,
             "outcome": outcome,
             "redactions": tally.to_json(),
             "review": {"required": True, "approved": False, "autoMerge": False},
@@ -129,6 +131,28 @@ class RunResult:
         payload = self.evidence()
         payload["diagnostics"] = [record.wire() for record in self.diagnostics]
         return payload
+
+
+def _trace(bridge: HostBridge | None, runtime: Runtime | None) -> dict[str, Any]:
+    """What the recorded trace covers, and whether it is finished.
+
+    ``origin`` says where the answers came from — a live host, a recording bridge
+    wrapping one, or a replay of a saved recording — because "this run replayed
+    from evidence" is a different claim from "this run reached the world", and the
+    bundle has to let a reader tell them apart without asking the operator.
+    """
+    summary = (
+        runtime.recording()
+        if runtime is not None
+        else {"complete": True, "settled": 0, "failures": 0, "unanswered": []}
+    )
+    origin = "live"
+    if bridge is not None:
+        if hasattr(bridge, "exchanges"):
+            origin = "recording"
+        elif hasattr(bridge, "replayed"):
+            origin = "replay"
+    return {"kind": RECORDING_KIND, "origin": origin, **summary}
 
 
 def _select_workflow(
@@ -261,6 +285,7 @@ def run_source(
         error: HxHostError | None = None,
         events: Sequence[dict[str, Any]] = (),
         budget: dict[str, Any] | None = None,
+        recording: dict[str, Any] | None = None,
     ) -> RunResult:
         return RunResult(
             status=status,
@@ -269,6 +294,7 @@ def run_source(
             workflow=workflow_name,
             events=tuple(events),
             budget=budget or {},
+            recording=recording if recording is not None else _trace(bridge, None),
             error=error,
             source_digest=digest,
             source_bytes=len(source.encode("utf-8")),
@@ -317,13 +343,20 @@ def run_source(
     )
     try:
         output = runtime.run()
-        return finish("ok", output=output, events=runtime.events, budget=runtime.budget.to_json())
+        return finish(
+            "ok",
+            output=output,
+            events=runtime.events,
+            budget=runtime.budget.to_json(),
+            recording=_trace(bridge, runtime),
+        )
     except HxHostError as error:
         return finish(
             error.status,
             error=error,
             events=runtime.events,
             budget=runtime.budget.to_json(),
+            recording=_trace(bridge, runtime),
         )
     except Exception as error:  # noqa: BLE001 - an internal bug still becomes evidence
         return finish(
@@ -331,6 +364,7 @@ def run_source(
             error=ScriptError(f"internal runtime failure: {type(error).__name__}: {error}"),
             events=runtime.events,
             budget=runtime.budget.to_json(),
+            recording=_trace(bridge, runtime),
         )
 
 

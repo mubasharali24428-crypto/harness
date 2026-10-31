@@ -26,8 +26,8 @@ def manifest(source: str = SOURCE, path: str = "fix_issue.hx") -> dict[str, obje
 def test_the_manifest_names_the_language_and_pins_both_versions():
     payload = manifest()
     assert payload["language"] == "hx"
-    assert payload["spec_version"] == "0.2.0"
-    assert payload["toolchain"] == {"name": "hxc", "version": "0.2.0"}
+    assert payload["spec_version"] == "0.3.0"
+    assert payload["toolchain"] == {"name": "hxc", "version": "0.3.0"}
 
 
 def test_the_source_digest_is_content_addressed():

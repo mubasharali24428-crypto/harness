@@ -1,11 +1,11 @@
-# Hx — the Harness language specification (v0.2.0)
+# Hx — the Harness language specification (v0.3.0)
 
-> **Status:** prototype, version `0.2.0`. The reference implementation lives in
+> **Status:** prototype, version `0.3.0`. The reference implementation lives in
 > [`packages/language`](../packages/language): `harness_hx` (console script
 > `hxc`, the checker) and `harness_hx_host` (console script `hxr`, the workflow
 > driver). This document describes what they accept, reject and execute — not an
 > aspiration. Where a rule is not implemented, it is listed under
-> [Not in 0.2](#not-in-02) rather than implied.
+> [Not in 0.3](#not-in-03) rather than implied.
 
 Hx is the Harness-owned dialect of Hermes. The proposal in
 [`hermes-agentic-language-plan.md`](hermes-agentic-language-plan.md) and the
@@ -117,7 +117,7 @@ recognised only to reject it (`HX6002`), with a message naming the host.
 ```
 
 `-`, `*` and `/` are reserved punctuation but have no expression meaning in
-0.2.0; `?` marks an optional type. An unexpected character is `HX1001`, and the
+0.3.0; `?` marks an optional type. An unexpected character is `HX1001`, and the
 lexer resumes at the next token so later declarations still get checked.
 
 ---
@@ -203,7 +203,7 @@ Primary      = Int | Float | String | Duration | "true" | "false"
 ```
 
 Precedence, loosest first: `or`, `and`, `not`, comparisons, `+`, `await`/`spawn`,
-member/call. There is no `if` **expression** in 0.2.0; `if` returns by
+member/call. There is no `if` **expression** in 0.3.0; `if` returns by
 `return`ing from both branches.
 
 ### 5.1 Declaration order inside a workflow
@@ -217,7 +217,7 @@ and for how long" by reading the top of it.
 
 - `let` binds a name for the rest of the declaration. An annotation is
   checked against the value (`HX3002`); without one, the value's type is used.
-  Scope is per declaration in 0.2.0 — a binding made inside an `if` branch stays
+  Scope is per declaration in 0.3.0 — a binding made inside an `if` branch stays
   visible after it. There is no block scoping and no shadowing, which keeps the
   rule simple enough to state and to test; a future version that adds it must
   say so in the manifest's `spec_version`.
@@ -482,6 +482,7 @@ exactly one run status, so a caller never has to invent the mapping.
 | `HXH101` | `refused` | The program has check errors; nothing ran. The checker's own records are the diagnostics. |
 | `HXH102` | `refused` | Well formed but not runnable here: no workflow, several workflows and none named, a non-`agent` profile, a construct outside the driver's subset, no bridge. |
 | `HXH103` | `refused` | The supplied or manifest digest does not describe the bytes about to run. |
+| `HXH104` | `refused` | The recording a replay was asked to answer from cannot be honoured: another format version, a call that never settled, or a failure code this build does not emit. |
 | `HXH201` | `error` | The program itself failed: undefined name, wrong arity, `ensure` false, unreadable field. Carries the program's line. |
 | `HXH301` | `error` | A host reply did not match the type the program declared (missing, extra, or mistyped field). The host's bug, not the program's. |
 | `HXH401` | `denied` | A capability the run requested is not granted, or the principal lacks its permission, or it maps to a human-only permission. |
@@ -523,8 +524,8 @@ the diagnostics in a warnings-only run).
   },
   "profile": "agent",
   "source": {"bytes": 1012, "path": "fix_issue.hx", "sha256": "1f69…"},
-  "spec_version": "0.2.0",
-  "toolchain": {"name": "hxc", "version": "0.2.0"},
+  "spec_version": "0.3.0",
+  "toolchain": {"name": "hxc", "version": "0.3.0"},
   "workflows": [
     {
       "budget": {"cost": "2.00 USD", "duration": "10m", "steps": 200, "tasks": 4, "tool_calls": 12},
@@ -584,6 +585,7 @@ The reference implementation ships the tests that define conformance:
 | Driver: model relay | `tests/test_host_model_relay.py` | A secret never reaches the outbound prompt, the log, the event stream or the evidence bundle; a downgrade is recorded, never performed. |
 | Driver: cost enforcement | `tests/test_host_cost.py` | The next crossing is priced before it happens; an unpriced operation is refused rather than free; no table means `declared-not-enforced`, said out loud in the evidence; money adds exact, and two parallel crossings cannot both pass a ceiling one of them breaks. |
 | Driver: revocation | `tests/test_host_revocation.py` | A revoked capability denies the next crossing and not a completed one; the revision is in the log with its reason; handed-in authority is verified, and can never widen the request. |
+| Driver: failure replay | `tests/test_host_failure_replay.py` | A recorded failure replays as the same code, status, line and message (and the same contract digest); removing it from the recording makes the replay refuse rather than invent; an unsettled call makes the recording incomplete and `HXH104` refuses it; a v1 file is not re-read under v2 rules; the serialised recording carries no secret. |
 | Driver: code set | `tests/test_host_codes.py` | Every emitted code is in the §9.5 table, every table code is still emitted, and no code changed status. |
 | Growth | `tests/test_language_growth.py` | Each addition (enum values, record construction, loops) has code + fixture + golden, and what did not come in with them: no `while`, no modules. |
 | Live host | `section5/tests/unit/test_hx_live_host_ops.py` | One real `repo.read` and one real `verify.tests` through the shipped `LocalSandboxRunner`; skips loudly, never weakly, without an OS boundary. |
@@ -598,7 +600,7 @@ and assert the corresponding code disappears while the others remain.
 
 ---
 
-## 12. Not in 0.2
+## 12. Not in 0.3
 
 Deliberately absent, with the reason:
 
@@ -624,7 +626,12 @@ Deliberately absent, with the reason:
 - **Live replay.** A recorded run replays from its recorded exchanges
   (`RecordingBridge` / `ReplayBridge`) and never reaches a host; that is
   evidence replay, not effect replay — nothing is re-issued and nothing is
-  undone.
+  undone. Recorded failures replay as themselves since 0.3.0, so a replayed run
+  that ended badly ends badly again, at the same line, with the same code. What
+  still does not exist is *undo*: a replay cannot reverse an effect the original
+  performed, and it cannot re-derive an answer the host never gave — an
+  exchange that was written down but never settled makes the recording
+  incomplete, and a replay refuses it (`HXH104`) instead of guessing.
 
 ### 12.1 The workflow driver (`hxr`)
 
@@ -659,7 +666,9 @@ The order is the product claim, and it is the order of `run_source`:
 5. **Record.** `hx.evidence/v1`: source digest and size, manifest, policy
    decision, input digest (never values), every crossing with run id,
    correlation id and idempotency key, usage against declared limits, outcome,
-   and `review: {required: true, approved: false, autoMerge: false}`.
+   the shape of the trace (`recording`: settled, failures, unanswered crossings,
+   and whether the answers came from a live host, a recorder or a replay), and
+   `review: {required: true, approved: false, autoMerge: false}`.
 
 Statuses are closed: `ok`, `refused`, `denied`, `budget`, `cancelled`, `error`.
 The driver never merges, applies an edit, approves, or retries a side effect.
@@ -678,3 +687,15 @@ While the major version is `0`:
   migration note for programs already checked under the old version.
 - `contracts/` is frozen separately: if a permission name changes there, this
   package's bridge test fails before anything else does.
+
+History, so a reader can tell what a recorded run's version *meant*:
+
+| Version | What moved | Milestone |
+|---|---|---|
+| `0.1.0` | First published spec: checker, driver, evidence, M2–M5 integration | M1–M5 |
+| `0.2.0` | `HXH404`/`HXH502`/`HXH503` added; `budget.cost` enforced against a host price table; grants revocable mid-run; the driver code set pinned by a test | M6 |
+| `0.3.0` | `HXH104` added; recorded failures replay as themselves; `hx.recording/v2` names an outcome per exchange and refuses an unsettled one; evidence carries a `recording` block; `hxr --record` / `--replay` | M7 |
+
+Each of those rows is a *minor* change under the rules above: codes were added,
+no existing code's meaning moved, and no program that checked under the previous
+version fails to check now.

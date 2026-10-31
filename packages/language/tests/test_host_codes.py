@@ -21,6 +21,7 @@ SPEC_CODES: dict[str, str] = {
     "HXH101": "refused",
     "HXH102": "refused",
     "HXH103": "refused",
+    "HXH104": "refused",
     "HXH201": "error",
     "HXH301": "error",
     "HXH401": "denied",
@@ -94,3 +95,31 @@ def test_cost_codes_belong_to_the_budget_family():
     assert errors.StaleAuthority.status == "denied", (
         "authority that is not this program's is a policy answer, not a crash"
     )
+
+
+def test_recording_mismatch_is_a_refusal_not_an_error():
+    """M7: a replay that cannot honour its recording must not pretend to have run.
+
+    `refused` means "nothing ran", which is exactly the claim being made: the
+    recording is the wrong version, or a call in it never settled. An `error`
+    status would read as "the program failed", and the whole value of a replay is
+    that it reports the *original* run's status, never its own packaging.
+    """
+    assert errors.RecordingMismatch.status == "refused"
+    assert "HXH104" in SPEC_CODES
+
+
+def test_every_code_can_be_rebuilt_from_a_recording():
+    """A recording names codes, so replay must be able to raise each one.
+
+    If a failure class were missing from ``BY_CODE``, a recorded run of it would
+    replay as `HXH104` — the replay inventing a failure the original never had.
+    """
+    assert set(errors.BY_CODE) == set(SPEC_CODES), (
+        "the replay registry and the spec table must name the same codes"
+    )
+    for code, cls in errors.BY_CODE.items():
+        rebuilt = errors.from_record({"code": code, "message": "m", "line": 3, "col": 1})
+        assert isinstance(rebuilt, cls), code
+        assert rebuilt.code == code and rebuilt.status == cls.status
+        assert (rebuilt.line, rebuilt.col) == (3, 1)

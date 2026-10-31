@@ -151,3 +151,66 @@ def test_inputs_must_be_a_json_object(tmp_path: Path, capsys):
     program = project(tmp_path)
     assert main(["run", str(program), "--grant", "repo.read", "--inputs", "[1]"]) == 2
     assert "must be a JSON object" in capsys.readouterr().err
+
+
+def test_a_recorded_run_can_be_replayed_after_the_files_are_gone(tmp_path: Path, capsys):
+    """The whole point of `--record`/`--replay`, proven by removing the host's data.
+
+    The second run reads nothing from disk: the repository file has been deleted,
+    and the answer still arrives — so the replay demonstrably came from the
+    recording rather than from a host it could still reach.
+    """
+    program = project(tmp_path)
+    recording = tmp_path / "run.json"
+    assert main(["run", str(program), "--grant", "repo.read", "--record", str(recording)]) == 0
+    saved = json.loads(recording.read_text(encoding="utf-8"))
+    assert saved["kind"] == "hx.recording/v2"
+    assert [e["outcome"] for e in saved["exchanges"]] == ["ok"]
+
+    (tmp_path / "README.md").unlink()
+    capsys.readouterr()
+    assert main(["run", str(program), "--grant", "repo.read", "--replay", str(recording)]) == 0
+    assert "status: ok" in capsys.readouterr().out
+
+
+def test_recording_a_failing_run_saves_the_failure_too(tmp_path: Path, capsys):
+    """A run that failed is the interesting artifact; recording it is not optional."""
+    program = tmp_path / "read_missing.hx"
+    program.write_text(READ_ONE.replace('"README.md"', '"never-written.md"'), encoding="utf-8")
+    recording = tmp_path / "failed.json"
+    code = main(["run", str(program), "--grant", "repo.read", "--record", str(recording)])
+    assert code == 1, "the live run failed because the file does not exist"
+    saved = json.loads(recording.read_text(encoding="utf-8"))
+    assert saved["exchanges"][0]["outcome"] == "failure"
+    assert saved["exchanges"][0]["failure"]["code"] == "HXH301"
+
+    # Replaying it reproduces the recorded failure even though the file now exists:
+    # the answer comes from the recording, not from the filesystem behind it.
+    (tmp_path / "never-written.md").write_text("appeared later\n", encoding="utf-8")
+    capsys.readouterr()
+    assert main(["run", str(program), "--grant", "repo.read", "--replay", str(recording)]) == 1
+    assert "[HXH301]" in capsys.readouterr().err, "the recorded failure came back"
+
+
+def test_replaying_a_v1_recording_is_refused_by_name(tmp_path: Path, capsys):
+    program = project(tmp_path)
+    stale = tmp_path / "v1.json"
+    stale.write_text(json.dumps({"kind": "hx.recording/v1", "exchanges": []}), encoding="utf-8")
+    assert main(["run", str(program), "--grant", "repo.read", "--replay", str(stale)]) == 1
+    assert "[HXH104]" in capsys.readouterr().err
+
+
+def test_an_unreadable_recording_is_a_usage_failure_not_a_live_run(tmp_path: Path, capsys):
+    """Falling back to the host when the recording cannot be read would be the bug."""
+    program = project(tmp_path)
+    assert main(["run", str(program), "--grant", "repo.read",
+                 "--replay", str(tmp_path / "absent.json")]) == 2
+    assert "cannot read the recording" in capsys.readouterr().err
+
+
+def test_record_and_replay_are_alternatives(tmp_path: Path, capsys):
+    program = project(tmp_path)
+    both = tmp_path / "both.json"
+    assert main(["run", str(program), "--grant", "repo.read",
+                 "--record", str(both), "--replay", str(both)]) == 2
+    assert "alternatives" in capsys.readouterr().err

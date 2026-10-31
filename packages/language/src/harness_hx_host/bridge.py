@@ -30,12 +30,19 @@ import json
 import shlex
 import threading
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Protocol
 
 from .boundary import plain
-from .errors import HostUnavailable, InvalidHostResult
+from .errors import (
+    HostUnavailable,
+    HxHostError,
+    InvalidHostResult,
+    RecordingMismatch,
+    from_record,
+)
+from .secrets import scrub_value
 
 #: Refused by name even for a read-only local root. Same stance as Section 5:
 #: the refusal is a property of the path, not of the command that asked.
@@ -374,22 +381,110 @@ BridgeFactory = Callable[[], HostBridge]
 
 @dataclass(frozen=True)
 class BridgeExchange:
-    """One recorded request and response. A replay is these, and nothing else."""
+    """One recorded request and its outcome. A replay is these, and nothing else.
+
+    An exchange has three outcomes, and the third is why this class carries an
+    outcome at all: ``in-flight`` means the request was written down before the
+    host answered and the answer never arrived — because the process died mid-call.
+    A recording full of results is easy to trust; the honest part is saying when
+    one is not finished.
+
+    Frozen, and settled by *replacing* the entry rather than mutating it: a
+    recorded fact must not be editable after the fact, by this code or anything else.
+    """
 
     operation: str
     arguments: Mapping[str, Any]
     result: Any = None
+    outcome: str = "ok"
+    failure: Mapping[str, Any] | None = None
 
     def key(self) -> tuple[str, str]:
         return self.operation, json.dumps(plain(dict(self.arguments)), sort_keys=True, default=str)
+
+    @classmethod
+    def in_flight(cls, operation: str, arguments: Mapping[str, Any]) -> BridgeExchange:
+        return cls(operation=operation, arguments=dict(arguments), outcome="in-flight")
+
+    @property
+    def settled(self) -> bool:
+        return self.outcome in ("ok", "failure")
+
+    def to_json(self) -> dict[str, Any]:
+        """A durable form that can leave the process: scrubbed, and code-named.
+
+        Codes travel, classes do not. A recording written by a later build must be
+        refused by this one rather than reinterpreted by it.
+        """
+        return {
+            "operation": self.operation,
+            "arguments": scrub_value(plain(dict(self.arguments))),
+            "outcome": self.outcome,
+            "result": scrub_value(plain(self.result)) if self.outcome == "ok" else None,
+            "failure": scrub_value(dict(self.failure)) if self.failure else None,
+        }
+
+    @classmethod
+    def from_json(cls, record: Mapping[str, Any]) -> BridgeExchange:
+        failure = record.get("failure")
+        return cls(
+            operation=str(record.get("operation") or ""),
+            arguments=dict(record.get("arguments") or {}),
+            result=record.get("result"),
+            outcome=str(record.get("outcome") or "in-flight"),
+            failure=dict(failure) if isinstance(failure, Mapping) else None,
+        )
+
+    def answer(self) -> Any:
+        """What the host returned, or the failure it returned. Never a guess."""
+        if self.outcome == "ok":
+            return self.result
+        if self.outcome == "failure" and self.failure:
+            raise from_record(self.failure)
+        raise RecordingMismatch(
+            f"the recording's {self.operation} call never settled",
+            detail={"operation": self.operation, "outcome": self.outcome},
+        )
+
+
+RECORDING_KIND = "hx.recording/v2"
+
+
+def recording_to_json(exchanges: Sequence[BridgeExchange]) -> dict[str, Any]:
+    """Serialise a recording, versioned and self-describing.
+
+    v2 is the first format that names an outcome per exchange. v1 recorded
+    successes only, so its silence about a failure looked like a complete trace —
+    which is exactly the thing a reviewer of a replayed run must never have to
+    assume. A v1 file is refused rather than read under v2 semantics.
+    """
+    return {
+        "kind": RECORDING_KIND,
+        "exchanges": [exchange.to_json() for exchange in exchanges],
+    }
+
+
+def recording_from_json(payload: Mapping[str, Any]) -> list[BridgeExchange]:
+    kind = payload.get("kind")
+    if kind != RECORDING_KIND:
+        raise RecordingMismatch(
+            f"this recording is format {str(kind or 'v1 (unlabelled)')!r}; "
+            f"{RECORDING_KIND} is what this build replays",
+            detail={"found": kind, "expected": RECORDING_KIND},
+        )
+    raw = payload.get("exchanges")
+    if not isinstance(raw, list):
+        raise RecordingMismatch("the recording carries no exchange list")
+    return [BridgeExchange.from_json(record) for record in raw if isinstance(record, Mapping)]
 
 
 class RecordingBridge:
     """Wraps a live bridge and keeps every exchange, in completion order.
 
     Recording is what makes a run inspectable after the fact and re-runnable
-    without the host. Only successful exchanges are recorded: a failure is a
-    fact about the host, not a value that can be replayed.
+    without the host. Since M7 a failure is recorded too, and the request is
+    written down *before* the host answers: a host that dies mid-call leaves an
+    ``in-flight`` exchange, and a replay refuses to pretend that gap is data.
     """
 
     def __init__(self, inner: HostBridge) -> None:
@@ -397,35 +492,70 @@ class RecordingBridge:
         self.exchanges: list[BridgeExchange] = []
         self._lock = threading.Lock()
 
-    def _record(self, operation: str, arguments: Mapping[str, Any], result: Any) -> Any:
+    def _settle(self, index: int, entry: BridgeExchange, result: Any) -> Any:
         with self._lock:
-            self.exchanges.append(BridgeExchange(operation, arguments, result))
+            self.exchanges[index] = replace(entry, result=result, outcome="ok")
         return result
 
+    def _fail(self, index: int, entry: BridgeExchange, error: HxHostError) -> None:
+        with self._lock:
+            self.exchanges[index] = replace(
+                entry,
+                outcome="failure",
+                failure={
+                    "code": error.code,
+                    "status": error.status,
+                    "message": error.message,
+                    "line": error.line,
+                    "col": error.col,
+                    "detail": error.detail,
+                },
+            )
+
+    def _call(
+        self, operation: str, arguments: Mapping[str, Any], invoke: Callable[[], Any]
+    ) -> Any:
+        entry = BridgeExchange.in_flight(operation, arguments)
+        with self._lock:
+            self.exchanges.append(entry)
+            index = len(self.exchanges) - 1
+        try:
+            result = invoke()
+        except HxHostError as error:
+            self._fail(index, entry, error)
+            raise
+        return self._settle(index, entry, result)
+
     def read_file(self, path: str) -> Mapping[str, Any]:
-        return self._record("repo.read", {"path": path}, self.inner.read_file(path))
+        return self._call("repo.read", {"path": path}, lambda: self.inner.read_file(path))
 
     def list_files(self, prefix: str) -> Sequence[Mapping[str, Any]]:
-        return self._record("repo.list", {"prefix": prefix}, self.inner.list_files(prefix))
+        return self._call("repo.list", {"prefix": prefix}, lambda: self.inner.list_files(prefix))
 
     def propose_patch(self, changes: Any) -> Mapping[str, Any]:
-        return self._record(
-            "repo.propose_patch", {"changes": plain(changes)}, self.inner.propose_patch(changes)
+        arguments = {"changes": plain(changes)}
+        return self._call(
+            "repo.propose_patch", arguments, lambda: self.inner.propose_patch(changes)
         )
 
     def run_tests(self, target: Any, suite: str) -> Mapping[str, Any]:
-        return self._record(
-            "verify.tests",
-            {"target": plain(target), "suite": suite},
-            self.inner.run_tests(target, suite),
+        arguments = {"target": plain(target), "suite": suite}
+        return self._call(
+            "verify.tests", arguments, lambda: self.inner.run_tests(target, suite)
         )
 
     def invoke_agent(self, agent: str, operation: str, payload: Any) -> Any:
-        return self._record(
+        arguments = {"agent": agent, "operation": operation, "payload": plain(payload)}
+        return self._call(
             "model.invoke",
-            {"agent": agent, "operation": operation, "payload": plain(payload)},
-            self.inner.invoke_agent(agent, operation, payload),
+            arguments,
+            lambda: self.inner.invoke_agent(agent, operation, payload),
         )
+
+    def incomplete(self) -> list[str]:
+        """Operations recorded but never settled — a host that died mid-call."""
+        with self._lock:
+            return [entry.operation for entry in self.exchanges if not entry.settled]
 
 
 class ReplayBridge:
@@ -435,14 +565,24 @@ class ReplayBridge:
     quietly touch the world is not a replay. Exchanges are matched by operation
     and arguments, so a run whose spawned calls completed in a different order
     still replays; each recorded answer is consumed once.
+
+    A recorded **failure** is re-raised, not skipped: replaying a run that ended
+    in an error must reproduce that error, at the same line, with the same code.
+    Before M7 a replay of a failing run answered `HXH403` — "nothing recorded" —
+    which hid the original failure behind the replay's own.
     """
 
     def __init__(self, exchanges: Sequence[BridgeExchange]) -> None:
-        self._pending: dict[tuple[str, str], list[Any]] = {}
+        self._pending: dict[tuple[str, str], list[BridgeExchange]] = {}
         for exchange in exchanges:
-            self._pending.setdefault(exchange.key(), []).append(exchange.result)
+            self._pending.setdefault(exchange.key(), []).append(exchange)
         self._lock = threading.Lock()
         self.replayed: list[str] = []
+        self.replayed_failures: list[str] = []
+
+    @classmethod
+    def from_recording(cls, payload: Mapping[str, Any]) -> ReplayBridge:
+        return cls(recording_from_json(payload))
 
     def _take(self, operation: str, arguments: Mapping[str, Any]) -> Any:
         key = BridgeExchange(operation, arguments).key()
@@ -450,12 +590,15 @@ class ReplayBridge:
             recorded = self._pending.get(key)
             if not recorded:
                 raise HostUnavailable(
-                    f"replay has no recorded {operation} for these arguments; "
+                    f"replay has no recorded {operation} for these arguments; the "
+                    "recording is incomplete or this run asks for something else, and "
                     "a replay never falls back to a live host"
                 )
-            result = recorded.pop(0)
+            exchange = recorded.pop(0)
             self.replayed.append(operation)
-        return result
+            if exchange.outcome == "failure":
+                self.replayed_failures.append(operation)
+        return exchange.answer()
 
     def read_file(self, path: str) -> Any:
         return self._take("repo.read", {"path": path})
@@ -473,3 +616,17 @@ class ReplayBridge:
         return self._take(
             "model.invoke", {"agent": agent, "operation": operation, "payload": plain(payload)}
         )
+
+    def unplayed(self) -> list[str]:
+        """Recorded exchanges this replay never reached.
+
+        Not an error: a replay that stops earlier than the live run leaves answers
+        behind, and the evidence says how many, so "it replayed" can be read as
+        "it replayed up to here".
+        """
+        with self._lock:
+            return [
+                exchange.operation
+                for queue in self._pending.values()
+                for exchange in queue
+            ]

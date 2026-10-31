@@ -30,7 +30,13 @@ from harness_hx.diagnostics import render_json, render_line
 from harness_hx.manifest import build_manifest
 
 from .authority import authorize
-from .bridge import ReadOnlyRepoBridge
+from .bridge import (
+    ReadOnlyRepoBridge,
+    RecordingBridge,
+    ReplayBridge,
+    recording_from_json,
+    recording_to_json,
+)
 from .errors import HxHostError
 from .run import run_source
 
@@ -111,6 +117,24 @@ def _plan(args: argparse.Namespace) -> int:
     return 0 if decision.allowed else 3
 
 
+def _load_recording(path_text: str) -> dict[str, Any] | None:
+    """Read a saved recording. A file that cannot be read is a usage failure.
+
+    The *format* check is deliberately not here: `recording_from_json` raises
+    `HXH104` for a wrong or missing version, so a v1 file is reported as a refused
+    run with a code, not as a stack trace.
+    """
+    try:
+        loaded = json.loads(Path(path_text).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        sys.stderr.write(f"hxr: cannot read the recording {path_text}: {error}\n")
+        return None
+    if not isinstance(loaded, dict):
+        sys.stderr.write("hxr: the recording must be a JSON object\n")
+        return None
+    return loaded
+
+
 def _prices(path_text: str | None) -> tuple[dict[str, Any] | None, int]:
     """Read the host's price table. A bad table is a usage failure, not a run.
 
@@ -150,6 +174,16 @@ def _run(args: argparse.Namespace) -> int:
             return 2
     root = Path(args.root) if args.root else Path(args.path).resolve().parent
     bridge = ReadOnlyRepoBridge(root=root)
+    if args.record is not None and args.replay is not None:
+        sys.stderr.write("hxr: --record and --replay are alternatives; pick one\n")
+        return 2
+    if args.replay is not None:
+        loaded = _load_recording(args.replay)
+        if loaded is None:
+            return 2
+        bridge = ReplayBridge(recording_from_json(loaded))
+    elif args.record is not None:
+        bridge = RecordingBridge(bridge)
     outcome = run_source(
         source,
         path=args.path,
@@ -169,6 +203,14 @@ def _run(args: argparse.Namespace) -> int:
         sys.stderr.write(json.dumps(outcome.error.as_record(outcome.path)) + "\n")
 
     evidence = outcome.to_json()
+    if args.record is not None and isinstance(bridge, RecordingBridge):
+        # Written whether or not the run succeeded: the recording of a run that
+        # failed is the artifact M7 exists for, and an in-flight exchange has to
+        # survive to be refused by the next replay.
+        Path(args.record).write_text(
+            json.dumps(recording_to_json(bridge.exchanges), indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
     if args.evidence:
         Path(args.evidence).write_text(
             json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -204,6 +246,18 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         metavar="FILE",
         help="host price table (JSON: operation -> USD amount); makes budget.cost a limit",
+    )
+    run_parser.add_argument(
+        "--record",
+        default=None,
+        metavar="FILE",
+        help="write this run's exchanges (successes and failures) as a v2 recording",
+    )
+    run_parser.add_argument(
+        "--replay",
+        default=None,
+        metavar="FILE",
+        help="answer every crossing from a saved recording; never reaches a host",
     )
     run_parser.add_argument("--evidence", default=None, help="write the evidence bundle here")
 
