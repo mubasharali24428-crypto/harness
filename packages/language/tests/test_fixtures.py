@@ -11,12 +11,14 @@ from __future__ import annotations
 
 import pytest
 
-from support import case_ids, cases, check, errors, expected_for, records
+from support import case_ids, cases, check, errors, expected_for, modules_for, records
 
 
 @pytest.mark.parametrize(("directory", "profile", "source"), cases(), ids=case_ids())
 def test_fixture_matches_its_golden(directory, profile, source):
-    result = check(source.read_text(encoding="utf-8"), profile, path=source.name)
+    result = check(
+        source.read_text(encoding="utf-8"), profile, path=source.name, modules=modules_for(source)
+    )
     assert records(result) == expected_for(source)
 
 
@@ -26,7 +28,12 @@ def test_clean_fixtures_produce_no_errors_at_all():
     for directory, profile, source in cases():
         if directory == "invalid" or source.stem == "core_workflow":
             continue
-        result = check(source.read_text(encoding="utf-8"), profile, path=source.name)
+        result = check(
+            source.read_text(encoding="utf-8"),
+            profile,
+            path=source.name,
+            modules=modules_for(source),
+        )
         assert errors(result) == [], f"{source.name} should be clean"
 
 

@@ -60,7 +60,29 @@ def _common(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--principal", default="anonymous")
     parser.add_argument("--policy", default="local-dev")
+    parser.add_argument(
+        "--modules",
+        default="auto",
+        metavar="DIR|none",
+        help="where `use NAME` is read from: a directory, 'auto' for the program's own "
+        "directory (default), or 'none' to refuse any module at all",
+    )
     parser.add_argument("--json", action="store_true", help="emit JSON on stdout")
+
+
+def _modules(args: argparse.Namespace) -> Path | None:
+    """The module root this host resolves `use` names against.
+
+    The default is the program's own directory, because that is where a helper sits
+    in every layout this language has been used in. `'none'` is not a shortcut for a
+    single-file check — it is the reviewer's way of asking what the program means when
+    no helper is available, and it makes a `use` an error rather than a silent guess.
+    """
+    if args.modules == "none":
+        return None
+    if args.modules == "auto":
+        return Path(args.path).resolve().parent
+    return Path(args.modules)
 
 
 def _grants(raw: list[str]) -> list[str]:
@@ -88,7 +110,7 @@ def _plan(args: argparse.Namespace) -> int:
     source = _read(args.path)
     if source is None:
         return 2
-    result = check_source(source, args.path, args.profile)
+    result = check_source(source, args.path, args.profile, modules=_modules(args))
     if args.json:
         sys.stderr.write(render_json(result.diagnostics) + "\n")
     else:
@@ -195,7 +217,9 @@ def _run(args: argparse.Namespace) -> int:
         principal=args.principal,
         policy=args.policy,
         expected_digest=args.digest,
+        expected_program_digest=args.program_digest,
         prices=prices,
+        modules=_modules(args),
     )
     for diagnostic in outcome.diagnostics:
         sys.stderr.write(render_line(diagnostic) + "\n")
@@ -240,7 +264,18 @@ def main(argv: list[str] | None = None) -> int:
     _common(run_parser)
     run_parser.add_argument("--root", default=None, help="repository root the program may read")
     run_parser.add_argument("--inputs", default=None, help="workflow inputs as a JSON object")
-    run_parser.add_argument("--digest", default=None, help="expected sha256 of the source bytes")
+    run_parser.add_argument(
+        "--digest",
+        default=None,
+        help="expected sha256 of the source bytes (the entry file alone)",
+    )
+    run_parser.add_argument(
+        "--program-digest",
+        default=None,
+        metavar="SHA256",
+        help="expected program_sha256 of the approved manifest: pins every file the "
+        "program is built from, not just the entry",
+    )
     run_parser.add_argument(
         "--prices",
         default=None,

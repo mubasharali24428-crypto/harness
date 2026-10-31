@@ -27,7 +27,7 @@ Two candidate "languages" have been live in this project at once:
 * **Hx** — the Harness-owned dialect derived from the Hermes *plan*: `hxc` (checker)
   and `hxr` (workflow driver) in [`packages/language`](../../packages/language),
   versioned `harness-hx`, moving by the spec's §13 minor-change rule — `0.1.0` when
-  this record was written, `0.2.0` at M6, `0.3.0` at M7.
+  this record was written, `0.2.0` at M6, `0.3.0` at M7, `0.4.0` at M8.
 
 Leaving that ambiguity unresolved is not free: the two share vocabulary but not a
 parser, so every future feature request risks being read as "make Hermes work here".
@@ -76,6 +76,9 @@ This record removes the ambiguity.
   includes `import`, `exec`, `open`, `curl`, `os`, `net`, …). So when multi-file
   programs arrive (milestone M8), they get a **new** keyword and a digest binding
   across every file — not `import`, and not module loading at runtime.
+  M8 landed exactly that way on 2026-10-31: `use`, host-supplied bytes, `HX3015`–
+  `HX3019`, and one digest per file in the manifest. `import` is still refused by
+  name, now with a message that names what replaced it.
 - **Vocabulary stays closed.** Four capabilities (`model.invoke`, `repo.read`,
   `repo.propose_patch`, `tool.test`), five host operations (those plus the pure
   `review.bundle`), three agent operations (`plan`, `propose`, `review`). Growing
@@ -107,11 +110,16 @@ themselves — the agent must surface it and stop:
 
 ## What this decision does not claim
 
-- It does **not** say Hx is mature, production-ready, or a complete language: the
-  open limits (cost enforcement, mid-run revocation, failure replay, no modules, no
-  mutation, no formatter/LSP) are recorded in
-  [`hx-execution-architecture.md`](../hx-execution-architecture.md) §6 and drive the
-  M6–M10 milestones.
+- It does **not** say Hx is mature, production-ready, or a complete language. When
+  this record was written the open limits were cost enforcement, mid-run revocation,
+  failure replay, no modules, no mutation and no formatter/LSP; M6 shipped the first
+  two, M7 the third and M8 the modules — deliberately *not* mutation, which M8 replaced
+  with `for … accumulate` and `with` (spec §12). What is still open: the formatter
+  (M10a), capability parity (M9) and the language server (M10b), the numeric-arithmetic
+  gap M8 documented, and the fact that Section 4 cannot pin a multi-file program until
+  `WorkflowRequest` carries a program digest
+  ([`hx-execution-architecture.md`](../hx-execution-architecture.md) §6). None of that
+  is maturity; the M6–M10 milestones and the human gates below are what decide it.
 - It does **not** resolve Hermes rights. Those remain a human/legal gate, unchanged by
   this file; this record only says the Harness will not depend on that resolution.
 - It is **not** an independent review. The Hx milestones are gated by their own

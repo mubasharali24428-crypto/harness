@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 
 from harness_hx.diagnostics import Reporter
-from support import cases, check
+from support import cases, check, modules_for
 
 CODE_PREFIX = re.compile(r"^\[(HX[1-7]\d{3})\] ")
 FAMILY_BY_STEM = {
@@ -23,7 +23,12 @@ FAMILY_BY_STEM = {
 
 def every_fixture():
     for _directory, profile, source in cases():
-        result = check(source.read_text(encoding="utf-8"), profile, path=source.name)
+        result = check(
+            source.read_text(encoding="utf-8"),
+            profile,
+            path=source.name,
+            modules=modules_for(source),
+        )
         yield source, result
 
 
@@ -44,11 +49,26 @@ def test_every_record_is_one_line_of_plain_text():
             assert record.kind in {"error", "warning", "note"}, (source.name, record.kind)
 
 
+def module_names(source) -> set[str]:
+    """The files a fixture may be blamed in: itself plus its sidecar modules.
+
+    Since M8 a check spans files, so "one record, one file" is still the rule and
+    the set of legal files grew. A module's mistake is reported against the module —
+    pinning every record to the entry file would push authors to read a helper's
+    error as a bug in the program that called it.
+    """
+    modules = modules_for(source) or {}
+    return {source.name, *(f"{name}.hx" for name in modules)}
+
+
 def test_every_record_names_the_file_it_came_from_once_encoded():
     for source, result in every_fixture():
+        allowed = module_names(source)
         for record in result.diagnostics:
-            assert record.path == source.name
+            assert record.path in allowed, (source.name, record.path, record.text)
             assert source.name not in record.message
+            for name in allowed:
+                assert name not in record.message, (source.name, record.text)
 
 
 def test_a_fixture_announces_its_family_in_the_code():
@@ -64,11 +84,15 @@ def test_a_fixture_announces_its_family_in_the_code():
 
 
 def test_position_is_one_based_and_inside_the_file():
+    """The position is checked against the file the record names, not the entry."""
     for source, result in every_fixture():
-        lines = source.read_text(encoding="utf-8").splitlines()
+        texts = {source.name: source.read_text(encoding="utf-8")}
+        for name, text in (modules_for(source) or {}).items():
+            texts[f"{name}.hx"] = text
         for record in result.diagnostics:
             if record.line is None:
                 continue
+            lines = texts.get(str(record.path), texts[source.name]).splitlines()
             assert 1 <= record.line <= len(lines), (source.name, record.text)
             assert 1 <= record.col, (source.name, record.text)
 

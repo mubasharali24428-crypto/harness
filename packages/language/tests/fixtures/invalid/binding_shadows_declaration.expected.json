@@ -1,0 +1,9 @@
+[
+  {
+    "line": 14,
+    "col": 7,
+    "kind": "error",
+    "code": "HX3025",
+    "message": "this binding is named 'Note', which this file already declares as a schema; give the binding another name"
+  }
+]

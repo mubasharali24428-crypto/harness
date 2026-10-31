@@ -1,0 +1,10 @@
+[
+  {
+    "line": 2,
+    "col": 1,
+    "kind": "error",
+    "code": "HX3017",
+    "message": "module 'notes' uses 'deeper': modules are one level deep, so a helper cannot pull in helpers of its own",
+    "path": "notes.hx"
+  }
+]

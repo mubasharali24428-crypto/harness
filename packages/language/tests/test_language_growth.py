@@ -4,8 +4,9 @@ A construct is added here only when it has all four parts: the rule that accepts
 it, the rule that refuses it, a fixture, and a golden that records the refusal at
 a reviewed position. This file is the audit of that: it runs the additions end to
 end, points at the fixture and golden pair for each, and pins the boundary by
-showing what did *not* come in with them — there is still no ``while``, no
-assignment, no module system.
+showing what did *not* come in with them — there was still no ``while``, no
+assignment and no way to name another file. M8 added `use` and `for … accumulate`;
+what M8 did not add is pinned in `test_host_modules.py`, in the same style.
 
 The loop is the one with a story to tell. ``for`` iterates a list, so the list
 bounds the passes; it spends one step per pass, so ``budget.steps`` bounds the
@@ -192,5 +193,7 @@ def test_the_growth_is_by_three_constructs_and_not_by_a_language():
     assert not refused.ok
     assert all(record.code.startswith("HX2") or record.code.startswith("HX3")
                for record in refused.diagnostics)
-    # And the oldest refusal still holds: no module system.
+    # And the oldest refusal still holds: nothing is loaded while a run goes on.
+    # 0.4.0's `use` is resolved and pinned at check time (§5.3); `import` is the
+    # runtime load this language has never accepted.
     assert codes("invalid", "import_disabled") == ["HX4004"]

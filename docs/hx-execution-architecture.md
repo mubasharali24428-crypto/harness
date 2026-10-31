@@ -160,14 +160,17 @@ but no test proves the property.
 | Capability | Status | Evidence |
 |---|---|---|
 | Lexer, parser with error recovery, AST with positions | implemented | `test_lexer.py`, `test_parser.py` (16) |
-| Names, types, effects, budgets, profiles (39 codes `HX1xxx`–`HX7xxx`) | implemented | `test_types.py`, `test_checker_effects.py`, `test_profiles.py`, `test_budget.py` (39) |
+| Names, types, effects, budgets, profiles (55 codes `HX1xxx`–`HX7xxx`) | implemented | `test_types.py`, `test_checker_effects.py`, `test_profiles.py`, `test_budget.py` (39) |
 | Closed capability and host-operation tables | implemented | `test_contract_vocabulary.py` (9) |
 | Policy-request manifest, sorted JSON, digest-pinned | implemented | `test_manifest.py` (14) |
 | Section 5 wire compatibility (`{path,line,col,kind,message}`) | implemented | `test_wire_contract.py`, `test_message_stability.py` (14) |
-| Golden fixtures a human reviews | implemented | `test_fixtures.py` (48) |
+| Golden fixtures a human reviews | implemented | `test_fixtures.py` (60) |
 | Rules are load-bearing (seeded faults) | implemented | `test_seeded_faults.py` (7) |
 | `hxc check` CLI with profiles and manifest output | implemented | `test_cli.py` (14) |
-| Loops, mutation, modules, struct literals, generics | planned (refused by design) | spec §12 |
+| `use`, the module loader, and per-module qualified names | implemented (M8) | `test_host_modules.py` (28), spec §5.3 |
+| `for … accumulate` and `x with { … }` — a new value without assignment | implemented (M8) | `test_host_modules.py`, `fixtures/valid/update_and_accumulate.hx` |
+| The checker's code table and the source agree, both directions | implemented (M8) | `test_code_table.py` (3) — with a shrink-only "no fixture" ratchet |
+| Loops in a pure `fn`, mutation, `while`, runtime loading, generics | refused by design | spec §12; `test_language_growth.py` pins the absence |
 
 ### 4.2 Hx — workflow driver (`harness_hx_host`)
 
@@ -195,6 +198,9 @@ but no test proves the property.
 | A recorded failure replays as itself: same code, status, line, message, contract digest | implemented (M7) | `test_host_failure_replay.py` (13) — including the control that removes the failure and expects a refusal |
 | Recordings are versioned (`hx.recording/v2`) and an unsettled exchange is refused (`HXH104`) | implemented (M7) | `test_host_failure_replay.py`, `test_host_cli.py` (`--record`/`--replay`, v1 refusal) |
 | Evidence states whether the trace is complete and where the answers came from | implemented (M7) | `recording` block: `origin` (live / recording / replay), settled, failures, unanswered |
+| The run executes the file set the check was given; a swapped helper is refused (`HXH103`) | implemented (M8) | `test_host_modules.py`, `test_cli_modules.py` — `--program-digest` refuses and `--digest` alone does not |
+| `program_sha256` identifies the program, not the checkout | implemented (M8) | `test_cli_modules.py` — the same bytes in two directories give one digest |
+| `hxc`/`hxr` resolve `use` the same way, from a root the host chooses | implemented (M8) | `test_cli_modules.py` (9) — default, `--modules DIR`, `--modules none` |
 
 ### 4.3 Host adapters
 
@@ -237,7 +243,7 @@ but no test proves the property.
 
 ## 5. Tests, and what each one is for
 
-`packages/language`: **315 passed**, `ruff check` clean.
+`packages/language`: **367 passed**, `ruff check` clean.
 
 | File | Tests | What it proves |
 |---|---|---|
@@ -248,12 +254,15 @@ but no test proves the property.
 | `test_host_cli.py` | 15 | plan/deny/grant/JSON; run + evidence file; denial; missing file; check errors; wrong digest; host refusal; inputs must be an object; price file read and refused-when-unreadable; `--record` then `--replay` after the underlying file is deleted; a v1 recording refused by name |
 | `test_host_contract_runner.py` | 10 | the driver is a `WorkflowRunner`; a replay reproduces the digest without reaching the live host; a replay missing an exchange fails honestly |
 | `test_host_model_relay.py` | 10 | the secret is absent from the captured prompt, the log, the events and the evidence; an echoed secret is scrubbed on the way back; no router fails closed; a downgrade is recorded once and not retried; a provider error is scrubbed on all three surfaces |
-| `test_language_growth.py` | 15 | enums, record construction and `for` each have code + fixture + golden; 500 files under `budget { steps: 5 }` ends as `budget`/`HXH501` with its performed iterations still in the log; no `while`, no modules |
+| `test_language_growth.py` | 15 | enums, record construction and `for` each have code + fixture + golden; 500 files under `budget { steps: 5 }` ends as `budget`/`HXH501` with its performed iterations still in the log; no `while`, and nothing loaded while a run goes on |
 | `test_host_cost.py` | 15 | the next crossing is priced before it happens; an unpriced operation is refused, not free; the ceiling is spendable to the cent and one cent over stops; no table says `declared-not-enforced`; a bad table crosses nothing; money adds exact where a float would drift; two parallel reservations cannot both break the ceiling; the CLI reads a price file and refuses an unreadable one |
 | `test_host_revocation.py` | 12 | a revoked capability denies the next crossing and not a completed one; never-granted says so instead; the revision sits in the log between the crossings; restore cannot widen the request; evidence holds the starting grant and the live one; handed-in authority for another program, or carrying a human-only permission, is refused (`HXH404`) |
 | `test_host_codes.py` | 8 | the driver's code set equals the spec's table, every code has exactly one status, statuses come from the closed vocabulary, every code can be rebuilt from a recording, and `HXH000` never surfaces |
 | `test_host_failure_replay.py` | 13 | a recorded failure replays with the same code, status, line and message; the contract digest matches for a failing run; the live host is never reached; removing the failure makes the replay refuse instead of inventing; a tampered argument is not a match; a spawned failure keeps its slot; an unsettled call is refused (`HXH104`); v1 is not re-read; a foreign failure code is refused; the file carries no secret; unplayed exchanges are counted |
-| checker suites | 161 | lexer, parser, types, effects, budgets, profiles, manifest, wire, goldens (incl. the four demo programs), seeded faults, growth, the closed driver-code set |
+| `test_host_modules.py` | 28 | `use` resolves by name only; the reader sees `notes.Summary` and nothing else; the same helper runs identically in its own file; a look-alike local schema is refused; a module with an entry point, a nested `use`, a misnamed file and a self-use are each refused by code and named in the right file; the manifest pins every file; a swapped helper is refused by name; `with` leaves the base untouched; `accumulate` records the value each pass started with and still burns a too-small budget; and what did not arrive — no assignment, no `while`, no `import` |
+| `test_cli_modules.py` | 9 | `hxc` and `hxr` agree on where `use` is read from; `--modules none` blames the file that asked; the manifest lists every file; the program digest is unchanged by moving the same program to another directory; `--program-digest` refuses a swapped helper, and `--digest` on the entry alone lets it run |
+| `test_code_table.py` | 3 | §9.4 and the source agree on every code in both directions, each M8 code has a named fixture, and the "code with no fixture" list may only shrink |
+| checker suites | 173 | lexer, parser, types, effects, budgets, profiles, manifest, wire, goldens (incl. the demo programs and the M8 fixtures), seeded faults, growth, the closed driver-code set |
 
 Determinism: every driver test uses an injected clock, an in-memory bridge and no
 network, container or model — with exactly two exceptions, both deliberate: §3's
@@ -313,6 +322,19 @@ OS boundary; it never weakens into a fake.
 10. **The two grammars drift risk is real.** Hx and Hermes share names, not a
     parser. The mitigation is scope: Hx adds constructs only with a code, a
     fixture and a golden, and never claims to accept Hermes programs.
+11. **`use` is only as trustworthy as the resolver the host hands it** (M8). The
+    language names modules and never paths, so no source text can reach outside what
+    the host chose — but a resolver pointed at a directory anyone in the deployment
+    can write to makes "the checked program is the executed program" a claim about
+    that directory. What the driver guarantees is that the bytes verified after the
+    check are the bytes that were checked (`assert_checked_source`, every file
+    individually) and that an approved `program_sha256` that does not match is
+    `HXH103`; where the bytes came from stays the host's policy.
+12. **Section 4 cannot pin a multi-file program yet** (M8, and honest about it).
+    `run_source` takes `expected_program_digest`, but the frozen `WorkflowRequest`
+    has no field carrying it, so an engine-driven run checks and verifies its own
+    file set without a caller-supplied pin. Closing this needs a contract change
+    (new field + TS mirror + mocks in one commit), not a language change.
 
 ---
 
@@ -327,7 +349,7 @@ OS boundary; it never weakens into a fake.
 | **M5** ✅ | Language growth: `enum` values in source; record construction; loops with a `budget.steps` termination story | each addition ships a code, a fixture, a golden and a test that the closed set changed deliberately (`test_language_growth.py`) |
 | **M6** ✅ | The limits bind: `budget.cost` enforced against a host price table; a grant revocable mid-run with the revision recorded | a run stops *before* the crossing it cannot pay for, and an unpriced operation is refused rather than free; no table is announced in the evidence as `declared-not-enforced`; revocation bites the next crossing and cannot widen the request; the driver's code set is pinned closed. 295 language tests, `ruff` clean, `spec_drift` clean, sections 4/5 unaffected — see §9 |
 | **M7** ✅ | Failure replay and complete recordings: a recorded failing run reproduces its failure, and an incomplete recording fails closed | replay of a failed run raises the recorded failure, not `HXH403`; a missing or altered record is refused; the recording format is versioned — measured at `3637e3f`+M7: 315 language tests, see §9 |
-| **M8** | Multi-file programs and safe iteration: a module construct with digest binding per file, `for … accumulate`, and record update (`with`) — deliberately no assignment, which would remove the termination argument | code + fixture + golden per construct; swapping one module file fails closed (`HXH103`); the termination story still holds with no `while`; spec `0.4.0` |
+| **M8** ✅ | Multi-file programs and safe iteration: `use` with a digest per file, `for … accumulate`, and record update (`with`) — deliberately no assignment, which would remove the termination argument | code + fixture + golden per construct; swapping one module file fails closed (`HXH103`) while `--digest` on the entry alone does not; the approved digest survives moving the program to another directory; the termination story still holds with no `while`; spec `0.4.0` — 367 language tests, `ruff` clean, see §9 |
 
 Out of scope until M3 is green: any claim that a run is *confined*. Until M2 is
 green: any claim that a run is *audited*. Both are green now; the claims they
@@ -346,7 +368,8 @@ persists it and confined as far as the `LocalSandboxRunner` policy goes.
 | Model relay (roles, scrubbing both ways, downgrade record) | `packages/language/src/harness_hx_host/model_relay.py` |
 | Price table and cost reservation (M6) | `packages/language/src/harness_hx_host/pricing.py` |
 | Recording format, in-flight marker, replay of failures (M7) | `packages/language/src/harness_hx_host/bridge.py` (`BridgeExchange`, `recording_to_json`, `ReplayBridge`) |
-| Revocable authority (M6) | `packages/language/src/harness_hx_host/authority.py` (`RevisableDecision`) |
+| Revocable authority (M6) | `packages/language/src/harness_hx_host/authority.py` (`RevisableDecision`, `assert_checked_source`) |
+| Module resolver and the per-reader rename (M8) | `packages/language/src/harness_hx/loader.py` (`load_modules`, `module_program`, `directory_resolver`) |
 | `WorkflowRunner` adapter for Section 4 | `packages/language/src/harness_hx_host/contract_runner.py` |
 | Section 4 run + publish | `section4/src/harness_orchestrator/workflow_runs.py` |
 | Live Section 5 seam | `section5/tests/unit/test_hx_live_host_ops.py` |
@@ -525,9 +548,95 @@ that single golden is the only fixture regenerated.
 
 Suite totals after M7: `packages/language` **315 passed**, `ruff` clean.
 
-**What is still open**, so nobody reads this table as more than it says: a price
-is the host's estimate, not a settled bill (§6.7); revocation stops effects, not
-computation (§6.8); replay substitutes recorded answers but cannot undo an effect
-the first run performed (§6.5); the detector knows prefixes, not entropy; `for`
-has no `break`; and there are still no modules, mutation or generics — M8. Each
-is in §6, §4.2 or spec §12 as a named limit, not a footnote here.
+**What was still open after M7**, so nobody reads this table as more than it says:
+a price is the host's estimate, not a settled bill (§6.7); revocation stops effects,
+not computation (§6.8); replay substitutes recorded answers but cannot undo an effect
+the first run performed (§6.5); the detector knows prefixes, not entropy; `for` has no
+`break`; and there were no modules, mutation or generics — which is what M8 went at.
+Each is in §6, §4.2 or spec §12 as a named limit, not a footnote here.
+
+### The M8 record (multi-file programs, and two ways to compute a value)
+
+M8 answered the oldest "planned" row in §4.1 without buying a hole in the boundary
+the M1–M7 work had dug.
+
+- **`use` names a module; the host supplies the bytes.** `loader.py` resolves a name
+  to source through a mapping, a directory or a callable, and nothing else. A program
+  cannot write a path, cannot ask for a module mid-run, and cannot get an `import`
+  back by wanting one: `HX4004` still fires, with a message that now says what
+  replaced single-file programs instead of a runtime loader.
+- **The rename is the safety mechanism.** A used module's declarations are presented
+  to the reader as `notes.Summary`, `notes.Level`, `notes.shout` — in the checker's
+  tables *and* in the bodies — so one identifier means one thing across the file
+  boundary. The consequence tests check rather than assert in prose: a look-alike
+  `Summary` declared in the reading file is refused where the helper is called, and a
+  value the helper built carries the module's type name at the boundary in both
+  directions (`notes.Summary` to a reader, `Summary` in its own file).
+- **No-shadowing became load-bearing, so it became a rule.** `HX3025`: a binding,
+  parameter, loop variable or accumulator may not reuse a declared name or a used
+  module name. Without it the rename above is just a convention that a `let notes = 1`
+  can undo.
+- **One level deep, types and pure `fn` only, 16 files, 256 KiB.** A module that
+  declares a workflow or agent is `HX3019`, uses another module is `HX3017`, is named
+  differently than it is used (`HX3016`) or uses itself (`HX3017`) — refused, not
+  flattened.
+- **The manifest pins each file, and the pin survives a clone.** `sources[]` carries
+  the module name, path, digest and size per file; `program_sha256` digests the
+  `(module, sha256)` pairs only. Paths were in that digest in the first draft of this
+  milestone and are out of it now, because a digest that moves when the same program
+  is checked out elsewhere is not an approval an engineer can hand to a runner — the
+  test moves the identical files to a second directory and demands one digest.
+- **`assert_checked_source` verifies every file, not just the entry.** That closes the
+  gap a reviewer would otherwise have to remember: an unchanged `main.hx` with a
+  swapped `notes.hx` used to be a program that ran something nobody checked. Now the
+  run is `HXH103` with every path it compared, and `--program-digest` (from the
+  approved manifest) is the caller's pin. `--digest` alone still pins one file, so the
+  test suite says that out loud instead of leaving it as a surprise: with only
+  `--digest`, a swapped helper **runs**.
+- **`for … accumulate` and `x with { … }` are the two new ways to get a value, and
+  neither is assignment.** The accumulator is a binding the loop creates — one
+  `budget.steps` per pass as before, the value each pass *started* with recorded in the
+  `loop.iteration` event, the name visible only after the loop — and `with` builds a
+  new record with the base untouched. The same five-part program under `steps: 3` and
+  `steps: 20` ends `budget`/`HXH501` and `ok` respectively, which is M5's termination
+  story unchanged. There is still no `while`, no `n = 2` (the parser has no production
+  for it: `HX2001`) and no `break`.
+- **Diagnostics now say which file they mean, and the goldens record it.** A record
+  about a `use` clause that could not be honoured belongs to the file that wrote the
+  clause; a record about a module's own contents belongs to the module. `path` is
+  written into a golden only when it differs from the fixture's file, so of the 57
+  goldens exactly 2 gained one and the rest did not churn.
+- **A gap this milestone found and did not paper over.** `+` joins Strings and
+  nothing else, and a `List` has no members — so an `accumulate` loop can build a
+  report from parts but cannot sum a column. Adding arithmetic is an owner decision
+  about operators, not something to slip in beside a new keyword; the limit is in
+  spec §12 and the demo programs work around it visibly rather than by magic.
+- **Out of scope, deliberately:** `.hms`, Hermes, and any namespace story deeper than
+  one level (see the decision record, `docs/decisions/2026-10-31-hx-language-surface.md`).
+
+Spec and toolchain moved `0.3.0 -> 0.4.0` (§13 minor: codes added, no existing code's
+meaning moved, no previously-checking program now fails to check — the one message
+that changed is `HX4004`'s, and its single golden was regenerated and read).
+
+> Gate: `test_host_modules.py` **28 passed**, `test_cli_modules.py` **9**,
+> `test_code_table.py` **3**, `test_fixtures.py` **60** (11 invalid + 1 valid M8
+> fixtures with goldens, incl. the "what did not arrive" controls),
+> `test_message_stability.py` **7** (cross-file positions and the file-naming rule
+> generalised to multi-file programs). Suite **367 passed**, `make lint-language`
+> clean, `scripts/spec_drift.py` clean, TS mirror up to date, `make guard-isolation`
+> clean (276 src files, 10 sections), section 4 hx/workflow subset **22 passed** —
+> `pytest tests/unit -q -k "hx or workflow or runner"`, named because a bare count is
+> not reproducible — section 5 live host ops **4 passed**
+> (`tests/unit/test_hx_live_host_ops.py`). The 315 pre-M8 tests pass untouched:
+> `use`, `accumulate`, `with` and
+> the manifest's `sources[]` are additive, a program with no `use` keeps its old
+> single-entry behaviour, and the module path is opt-in for every caller.
+
+Suite totals after M8: `packages/language` **367 passed**, `ruff` clean.
+
+**What is still open after M8**: a price is the host's estimate, not a settled bill
+(§6.7); revocation stops effects, not computation (§6.8); replay cannot undo an effect
+(§6.5); a module is only as trustworthy as the resolver the host hands it (§6.11);
+Section 4 cannot pin a multi-file program until `WorkflowRequest` carries a digest
+(§6.12); `for` has no `break`; there is no numeric arithmetic; and the formatter,
+capability parity and the language server remain — M10a, M9, M10b.

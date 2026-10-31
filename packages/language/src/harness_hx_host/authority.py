@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from harness_hx.capabilities import CAPABILITIES
+from harness_hx.loader import Resolver
 
 from .errors import DigestMismatch
 
@@ -314,21 +315,64 @@ def source_digest(source: str) -> str:
     return hashlib.sha256(source.encode("utf-8")).hexdigest()
 
 
-def assert_checked_source(manifest: Mapping[str, Any], source: str) -> str:
+def assert_checked_source(
+    manifest: Mapping[str, Any], source: str, resolve: Resolver | None = None
+) -> str:
     """The host runs the program it checked, and only that program.
 
     The manifest pins the digest of the exact UTF-8 bytes that were checked.
     Re-checking that digest here is what makes "the checked program is the
     executed program" a property rather than a hope; a replay or a queued run
     that swapped the file fails closed.
+
+    Since M8 a program can be several files, and every one of them is verified
+    against `manifest["sources"]` — a helper swapped between the check and the run
+    would otherwise change what executes while the entry file's digest still
+    matched. `resolve` is the same host mapping the check was given; without it a
+    manifest that names modules cannot be honoured, which is a refusal, not a
+    permission.
     """
-    pinned = manifest.get("source")
-    pinned_digest = pinned.get("sha256") if isinstance(pinned, Mapping) else None
+    entry = manifest.get("source")
+    entry_path = entry.get("path") if isinstance(entry, Mapping) else None
+    pinned_digest = entry.get("sha256") if isinstance(entry, Mapping) else None
     actual = source_digest(source)
     if pinned_digest != actual:
         raise DigestMismatch(
             "the manifest was built for different source bytes "
             f"(manifest {str(pinned_digest)[:12]}…, supplied {actual[:12]}…)",
-            detail={"manifest_sha256": pinned_digest, "source_sha256": actual},
+            detail={"manifest_sha256": pinned_digest, "source_sha256": actual, "path": entry_path},
         )
+    for pinned in manifest.get("sources", ()) or ():
+        # Keyed by the module each file declares, not by the path it was read from: the
+        # manifest's `module` is the program's own name for the file, and it is what the
+        # program digest is built from. Matching on paths would make the check depend on
+        # how the file happened to be named on this machine.
+        name = str(pinned.get("module") or "") if isinstance(pinned, Mapping) else ""
+        if not isinstance(pinned, Mapping) or name == str(manifest.get("module") or ""):
+            continue
+        path = str(pinned.get("path") or f"{name}.hx")
+        if resolve is None:
+            raise DigestMismatch(
+                f"the program was checked with module {path!r}, but this run was given no "
+                "module source to match it against",
+                detail={"path": path, "module": name, "manifest_sha256": pinned.get("sha256")},
+            )
+        text = resolve(name)
+        if text is None:
+            raise DigestMismatch(
+                f"the program was checked with module {path!r}, which this run cannot resolve",
+                detail={"path": path, "module": name, "manifest_sha256": pinned.get("sha256")},
+            )
+        supplied = source_digest(text)
+        if supplied != pinned.get("sha256"):
+            raise DigestMismatch(
+                f"module {path!r} changed after the manifest was built "
+                f"(manifest {str(pinned.get('sha256'))[:12]}…, supplied {supplied[:12]}…)",
+                detail={
+                    "path": path,
+                    "module": name,
+                    "manifest_sha256": pinned.get("sha256"),
+                    "source_sha256": supplied,
+                },
+            )
     return actual

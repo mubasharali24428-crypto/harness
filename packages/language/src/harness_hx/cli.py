@@ -25,10 +25,22 @@ from .manifest import render_manifest
 from .version import SPEC_VERSION, TOOLCHAIN_VERSION
 
 
-def _check_one(path_text: str, profile: str) -> CheckResult:
+def _check_one(path_text: str, profile: str, modules: str) -> CheckResult:
+    """Check one file, resolving its `use` names the way the host was told to.
+
+    `modules` is the CLI token, not a mapping: the checker reads from disk, so the
+    answer to `use notes` is a directory of files rather than bytes someone held in
+    memory, and the default is the program's own directory.
+    """
     path = Path(path_text)
+    if modules == "none":
+        root: Path | None = None
+    elif modules == "auto":
+        root = path.resolve().parent
+    else:
+        root = Path(modules)
     source = path.read_text(encoding="utf-8")
-    return check_source(source, str(path), profile)
+    return check_source(source, str(path), profile, modules=root)
 
 
 def _emit(result: CheckResult, as_json: bool) -> None:
@@ -56,7 +68,7 @@ def _run_check(args: argparse.Namespace) -> int:
     status = 0
     for path_text in args.files:
         try:
-            result = _check_one(path_text, args.profile)
+            result = _check_one(path_text, args.profile, args.modules)
         except OSError as error:
             sys.stderr.write(f"hxc: cannot read {path_text}: {error}\n")
             status = 2
@@ -98,6 +110,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--manifest",
         metavar="PATH",
         help="write the policy-request manifest ('-' for stdout); one program only",
+    )
+    check.add_argument(
+        "--modules",
+        default="auto",
+        metavar="DIR|none",
+        help="where `use NAME` is read from: a directory, 'auto' for the program's own "
+        "directory (default), or 'none' to refuse any module at all",
     )
     return parser
 

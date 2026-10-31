@@ -121,6 +121,40 @@ def build_manifest(result: CheckResult, profile: str) -> dict[str, object]:
                 }
             )
     digest = hashlib.sha256(result.source.encode("utf-8")).hexdigest()
+    sources = [
+        {
+            "module": result.program.module,
+            "path": result.path,
+            "sha256": digest,
+            "bytes": len(result.source.encode("utf-8")),
+        }
+    ]
+    for module in getattr(result, "modules", ()):
+        sources.append(
+            {
+                "module": module.name,
+                "path": module.path,
+                "sha256": hashlib.sha256(module.source.encode("utf-8")).hexdigest(),
+                "bytes": len(module.source.encode("utf-8")),
+            }
+        )
+    # One digest over the whole file set. `source.sha256` still answers "is this the
+    # entry I checked"; this answers "is this the program I checked", which since M8
+    # is not the same question.
+    #
+    # It is taken over the *declared module names*, never the paths. A path says where a
+    # file happened to sit for this one run, so a digest that mixed paths in would move
+    # when the same program was checked out somewhere else — and an approved digest that
+    # cannot survive a clone or a container mount is not an approval. The path stays in
+    # `sources` because a person reading a manifest wants to know which file they are
+    # looking at; it is simply not part of what the program is.
+    by_module = sorted(sources, key=lambda entry: str(entry["module"]))
+    program_digest = hashlib.sha256(
+        json.dumps(
+            [{"module": entry["module"], "sha256": entry["sha256"]} for entry in by_module],
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
     requested = sorted(
         {
             capability
@@ -139,6 +173,11 @@ def build_manifest(result: CheckResult, profile: str) -> dict[str, object]:
             "sha256": digest,
             "bytes": len(result.source.encode("utf-8")),
         },
+        # M8: every file that built this tree, named by the module it declares, each
+        # with its own digest. A run bound to this manifest is bound to all of them, so
+        # swapping a helper is as refused as swapping the workflow itself.
+        "sources": by_module,
+        "program_sha256": program_digest,
         "agents": agents,
         "workflows": workflows,
         "policy_request": {

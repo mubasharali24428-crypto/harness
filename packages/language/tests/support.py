@@ -31,8 +31,30 @@ def case_ids() -> list[str]:
     return [f"{directory}/{source.stem}" for directory, _, source in cases()]
 
 
-def check(text: str, profile: str = "agent", rules: RuleSet | None = None, path: str = "<memory>"):
-    return check_source(text, path, profile, rules)
+def modules_for(source: Path) -> dict[str, str] | None:
+    """A fixture's sidecar modules, if it has one.
+
+    `use` needs bytes to resolve against, so a cross-file fixture ships a
+    `<name>.hx.modules.json` mapping of module name to source. Without the sidecar
+    a fixture is a single file, checked exactly as it always was.
+    """
+    sidecar = source.with_suffix(".hx.modules.json")
+    if not sidecar.exists():
+        return None
+    return {
+        name: text
+        for name, text in json.loads(sidecar.read_text(encoding="utf-8")).items()
+    }
+
+
+def check(
+    text: str,
+    profile: str = "agent",
+    rules: RuleSet | None = None,
+    path: str = "<memory>",
+    modules: dict[str, str] | None = None,
+):
+    return check_source(text, path, profile, rules, modules)
 
 
 def codes(result: CheckResult) -> list[str]:
@@ -44,16 +66,27 @@ def errors(result: CheckResult) -> list[Diagnostic]:
 
 
 def records(result: CheckResult) -> list[dict[str, object]]:
-    return [
-        {
+    """The golden shape for a check's records.
+
+    `path` is written only when a record comes from some other file. Before M8 every
+    record belonged to the checked file, so the fixture's own name was implied; now a
+    `use` can make a record land in a helper, and "which file" is part of what a
+    reviewer is agreeing to. Staying silent when the path is the obvious one keeps
+    that fact visible in the few goldens where it actually differs.
+    """
+    found: list[dict[str, object]] = []
+    for diagnostic in result.diagnostics:
+        record: dict[str, object] = {
             "line": diagnostic.line,
             "col": diagnostic.col,
             "kind": diagnostic.kind,
             "code": diagnostic.code,
             "message": diagnostic.message,
         }
-        for diagnostic in result.diagnostics
-    ]
+        if diagnostic.path != result.path:
+            record["path"] = diagnostic.path
+        found.append(record)
+    return found
 
 
 def expected_for(source: Path) -> list[dict[str, object]]:

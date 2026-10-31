@@ -14,6 +14,7 @@ should trust.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 
@@ -102,6 +103,7 @@ class Checker:
         profile: str,
         reporter: Reporter,
         rules: RuleSet | None = None,
+        modules: Mapping[str, tuple[A.Decl, ...]] | None = None,
     ) -> None:
         self.program = program
         self.profile = profile
@@ -112,6 +114,14 @@ class Checker:
         self.fns: dict[str, A.FnDecl] = {}
         self.agents: dict[str, A.AgentDecl] = {}
         self.field_types: dict[str, dict[str, str]] = {}
+        # M8: `use notes` gives this file a second, narrower namespace. Every name in
+        # it is reachable only as `notes.Name`, so a helper can never shadow or be
+        # shadowed by the program that reads it, and `notes.x` says which file `x`
+        # came from at every use site.
+        self.modules: dict[str, tuple[A.Decl, ...]] = dict(modules or {})
+        self.used_modules = {use.module for use in program.uses}
+        #: Filled by `_collect`; `_check_binding` refuses a binding that shadows one.
+        self.decl_kinds: dict[str, str] = {}
 
     # -- entry ------------------------------------------------------------
     def run(self) -> None:
@@ -142,6 +152,7 @@ class Checker:
                 )
                 continue
             seen[name] = kind
+            self.decl_kinds[name] = kind
             if isinstance(decl, A.SchemaDecl):
                 self.schemas[name] = decl
             elif isinstance(decl, A.EnumDecl):
@@ -150,6 +161,57 @@ class Checker:
                 self.fns[name] = decl
             elif isinstance(decl, A.AgentDecl):
                 self.agents[name] = decl
+        # Register every module's names before resolving any of them: a schema field
+        # may name an enum declared later in the same file, and the reader sees both.
+        for use in self.program.uses:
+            self._register_module(use)
+        for use in self.program.uses:
+            self._module_field_types(use)
+
+    def _module_key(self, use: A.UseDecl, name: str) -> str:
+        return name if name.startswith(f"{use.module}.") else f"{use.module}.{name}"
+
+    def _register_module(self, use: A.UseDecl) -> None:
+        """Register one used module's declarations under `module.Name` keys."""
+        for decl in self.modules.get(use.module, ()):
+            if not isinstance(decl, (A.SchemaDecl, A.EnumDecl, A.FnDecl)):
+                # The loader already refused a module with an entry point in it; this
+                # is the second lock, for a Checker handed a tree directly.
+                self.report.error(
+                    "HX3019",
+                    f"module {use.module!r} declares a "
+                    f"{type(decl).__name__.removesuffix('Decl').lower()}; another file may "
+                    "take types and pure functions from a module, not an entry point",
+                    use.line,
+                    use.col,
+                )
+                continue
+            key = self._module_key(use, decl.name)
+            if isinstance(decl, A.SchemaDecl):
+                self.schemas[key] = decl
+            elif isinstance(decl, A.EnumDecl):
+                self.enums[key] = decl
+            else:
+                self.fns[key] = decl
+
+    def _module_field_types(self, use: A.UseDecl) -> None:
+        """Resolve a used schema's fields in the reader's namespace.
+
+        The decl arrived already renamed, so `Summary.level: Level` now reads
+        `notes.Level` — the same key the reader writes by hand. Resolving them here
+        (rather than in the module's own pass) is what stops a record declared in one
+        file being accepted under a look-alike type from another.
+        """
+        for decl in self.modules.get(use.module, ()):
+            if not isinstance(decl, A.SchemaDecl):
+                continue
+            key = self._module_key(use, decl.name)
+            self.field_types[key] = {
+                schema_field.name: (
+                    self._resolve(schema_field.type, allow_agent=False) or "Any"
+                )
+                for schema_field in decl.fields
+            }
 
     # -- declarations -----------------------------------------------------
     def _check_schema(self, decl: A.SchemaDecl) -> None:
@@ -471,6 +533,7 @@ class Checker:
     def _bind_params(self, params: tuple[A.Param, ...], context: Context) -> None:
         for param in params:
             resolved = self._resolve(param.type, allow_agent=False) or "Any"
+            self._check_binding(param.name, param.line, param.col, "parameter")
             if context.scope.resolve(param.name) is not None:
                 self.report.error(
                     "HX3006",
@@ -480,6 +543,33 @@ class Checker:
                 )
                 continue
             context.scope.define(param.name, resolved)
+
+    def _check_binding(self, name: str, line: int, col: int, kind: str) -> None:
+        """A binding may not reuse a name this file already declares.
+
+        Hx has no block scoping, so a local that shadows a type or function would
+        leave one name with two meanings depending on where it is read. M8 gives a
+        second reason: a used module's declarations are renamed into the reader's
+        namespace by name, and that rewrite is only safe while a name in a file means
+        exactly one thing.
+        """
+        declared = self.decl_kinds.get(name)
+        if declared is not None:
+            self.report.error(
+                "HX3025",
+                f"this {kind} is named {name!r}, which this file already declares as a "
+                f"{declared}; give the {kind} another name",
+                line,
+                col,
+            )
+        elif name in self.used_modules:
+            self.report.error(
+                "HX3025",
+                f"this {kind} is named {name!r}, which this file uses as a module; a name "
+                "cannot be both a value and a namespace",
+                line,
+                col,
+            )
 
     def _block(self, block: A.Block, context: Context) -> None:
         for statement in block.statements:
@@ -520,14 +610,80 @@ class Checker:
             )
         outer = context.scope
         context.scope = Scope(parent=outer)
+        self._check_binding(statement.name, statement.line, statement.col, "loop variable")
         context.scope.define(statement.name, element)
+        accumulator: str | None = None
+        if statement.accumulate is not None:
+            self._check_binding(
+                statement.accumulate.name, statement.line, statement.col, "accumulator"
+            )
+            # Defined in the loop's own scope *before* the block is checked: inside
+            # the block, the accumulator is the value carried in from the previous
+            # pass, and a name the block cannot see could not produce it.
+            accumulator = self._resolve(statement.accumulate.type, allow_agent=False)
+            context.scope.define(statement.accumulate.name, accumulator or "Any")
+            accumulator = self._check_accumulate(statement, context, element)
+            # The name survives the loop in the enclosing scope, holding the final
+            # value: a binding created by the loop, not a variable the loop edits.
+            if accumulator is not None:
+                outer.define(statement.accumulate.name, accumulator)
         try:
             self._block(statement.body, context)
         finally:
             context.scope = outer
 
+    def _check_accumulate(self, statement: A.ForStmt, context: Context, element: str) -> str | None:
+        """The `accumulate` clause: a starting value, and one expression per pass.
+
+        The declared type is checked at both ends — the init before the loop, the
+        block's final expression inside it — because the whole point of an
+        accumulator is that the value after pass 3 is the same kind of thing as the
+        value before pass 1. A block that ends in a statement instead of an
+        expression produces nothing, which is the same defect as a wrong type and
+        gets the same code.
+        """
+        acc = statement.accumulate
+        assert acc is not None
+        declared = self._resolve(acc.type, allow_agent=False)
+        start, _ = self._expr(acc.init, context)
+        if declared is not None and not self._compatible(declared, start):
+            self.report.error(
+                "HX3024",
+                f"accumulator {acc.name!r} is declared as {declared} but starts as {start}",
+                acc.line,
+                acc.col,
+            )
+        final = statement.body.statements[-1] if statement.body.statements else None
+        if not isinstance(final, A.ExprStmt):
+            self.report.error(
+                "HX3024",
+                f"the accumulate block for {acc.name!r} must end with the expression that "
+                "produces its next value",
+                acc.line,
+                acc.col,
+            )
+            return declared
+        actual, effect = self._expr(final.value, context)
+        if effect:
+            self.report.error(
+                "HX4005",
+                f"the accumulate value for {acc.name!r} awaits an effect; await it before "
+                "the loop",
+                final.line,
+                final.col,
+            )
+        if declared is not None and not self._compatible(declared, actual):
+            self.report.error(
+                "HX3024",
+                f"the accumulate block for {acc.name!r} yields {actual}, not {declared}",
+                final.line,
+                final.col,
+            )
+        return declared
+
     def _stmt(self, statement: A.Stmt, context: Context) -> None:
         if isinstance(statement, A.LetStmt):
+            self._check_binding(statement.name, statement.line, statement.col, "binding")
             actual, _ = self._expr(statement.value, context)
             declared = (
                 self._resolve(statement.annotation, allow_agent=False)
@@ -609,6 +765,8 @@ class Checker:
             return self._ident(node, context)
         if isinstance(node, A.Member):
             return self._member(node, context)
+        if isinstance(node, A.WithExpr):
+            return self._with(node, context)
         if isinstance(node, A.Call):
             return self._call(node, context, allow_effect)
         if isinstance(node, A.Await):
@@ -667,6 +825,9 @@ class Checker:
         return resolved, False
 
     def _member(self, node: A.Member, context: Context) -> tuple[str, bool]:
+        dotted = self._dotted(node)
+        if dotted and dotted[0] in self.used_modules:
+            return self._module_member(node, dotted)
         if isinstance(node.base, A.Ident) and node.base.name in self.enums:
             decl = self.enums[node.base.name]
             members = [member.name for member in decl.members]
@@ -703,6 +864,126 @@ class Checker:
         )
         return "Any", False
 
+    def _module_member(self, node: A.Member, dotted: tuple[str, ...]) -> tuple[str, bool]:
+        """`notes.Severity.high` — an enum member reached through its module.
+
+        A two-segment path (`notes.Severity`) is a *type*, not a value, and a
+        function is only usable by calling it: both answers name the module, so a
+        mistake says which file it went wrong in.
+        """
+        module = dotted[0]
+        if len(dotted) == 3:
+            enum_key = f"{module}.{dotted[1]}"
+            decl = self.enums.get(enum_key)
+            if decl is None:
+                self._unknown_module_name(module, dotted[1], node)
+                return "Any", False
+            members = [member.name for member in decl.members]
+            if dotted[2] not in members:
+                self.report.error(
+                    "HX3013",
+                    f"enum '{enum_key}' has no member '{dotted[2]}' "
+                    f"(members: {', '.join(members)})",
+                    node.line,
+                    node.col,
+                )
+                return "Any", False
+            return enum_key, False
+        key = ".".join(dotted)
+        if key in self.enums or key in self.schemas:
+            self.report.error(
+                "HX3021",
+                f"'{key}' is a type, not a value; construct it ('{key}(...)') or name it "
+                "in an annotation",
+                node.line,
+                node.col,
+            )
+            return "Any", False
+        if key in self.fns:
+            self.report.error(
+                "HX3021",
+                f"'{key}' is a function of module {module!r}; call it to get a value",
+                node.line,
+                node.col,
+            )
+            return "Any", False
+        self._unknown_module_name(module, dotted[-1], node)
+        return "Any", False
+
+    def _unknown_module_name(self, module: str, name: str, node: A.Expr) -> None:
+        if module not in self.used_modules:
+            self.report.error(
+                "HX3020",
+                f"module {module!r} is not used by this file; add 'use {module}' to reach "
+                f"{name!r}",
+                node.line,
+                node.col,
+            )
+            return
+        self.report.error(
+            "HX3021",
+            f"module {module!r} declares no {name!r}",
+            node.line,
+            node.col,
+        )
+
+    def _with(self, node: A.WithExpr, context: Context) -> tuple[str, bool]:
+        """`base with { field: value }` — a new record, the old one untouched.
+
+        Only a declared record can be updated, and only with its own fields: the
+        result type is the base type, so a caller downstream cannot tell the copy
+        apart from the original except by the fields it was given.
+        """
+        base, _ = self._expr(node.base, context)
+        inner = self._optional_inner(base)
+        fields = self.field_types.get(inner)
+        if fields is None:
+            self.report.error(
+                "HX3022",
+                f"'with' updates a record; {base} is not one",
+                node.line,
+                node.col,
+            )
+        seen: set[str] = set()
+        for update in node.updates:
+            if update.name in seen:
+                self.report.error(
+                    "HX3023",
+                    f"'with' sets field {update.name!r} twice",
+                    update.line,
+                    update.col,
+                )
+                continue
+            seen.add(update.name)
+            actual, effect = self._expr(update.value, context)
+            if effect:
+                self.report.error(
+                    "HX4005",
+                    f"field {update.name!r} awaits an effect; await it before the 'with'",
+                    update.line,
+                    update.col,
+                )
+            if fields is None:
+                continue
+            if update.name not in fields:
+                self.report.error(
+                    "HX3023",
+                    f"record {inner} has no field {update.name!r} "
+                    f"(fields: {', '.join(fields)})",
+                    update.line,
+                    update.col,
+                )
+                continue
+            if not self._compatible(fields[update.name], actual):
+                self.report.error(
+                    "HX3002",
+                    f"field {update.name!r} of {inner} is {fields[update.name]}, "
+                    f"the update is {actual}",
+                    update.line,
+                    update.col,
+                )
+        return base, False
+
     def _call(self, node: A.Call, context: Context, allow_effect: bool) -> tuple[str, bool]:
         dotted = self._dotted(node.callee)
         if dotted is None:
@@ -732,6 +1013,8 @@ class Checker:
                 return "Any", True
             if name in HOST_OPERATIONS:
                 return self._host_call(node, context, name, allow_effect)
+            if base in self.used_modules:
+                return self._module_call(node, context, base, operation)
             if base in FORBIDDEN_AMBIENT and self.rules.forbid_ambient:
                 self.report.error(
                     "HX4004",
@@ -754,6 +1037,22 @@ class Checker:
         self.report.error("HX3005", f"unknown operation '{name}'", node.line, node.col)
         self._check_args_loose(node, context)
         return "Any", False
+
+    def _module_call(
+        self, node: A.Call, context: Context, module: str, operation: str
+    ) -> tuple[str, bool]:
+        """`notes.check(x)`: a helper function, or construction of a helper's record.
+
+        Both are pure. A module cannot declare an effect — host operations belong to
+        the workflow that awaits them — so nothing here can request a capability or
+        spend a tool call on the program's behalf.
+        """
+        key = f"{module}.{operation}"
+        if key not in self.fns and key not in self.schemas and key not in self.enums:
+            self._unknown_module_name(module, operation, node)
+            self._check_args_loose(node, context)
+            return "Any", False
+        return self._plain_call(node, context, key)
 
     def _plain_call(self, node: A.Call, context: Context, name: str) -> tuple[str, bool]:
         if name in FORBIDDEN_AMBIENT and self.rules.forbid_ambient:
@@ -1166,6 +1465,8 @@ class Checker:
     def _resolve_base(self, type_ref: A.TypeRef | None, allow_agent: bool) -> str | None:
         if type_ref is None:
             return None
+        if type_ref.qualifier:
+            return self._resolve_qualified(type_ref)
         base = type_ref.name
         if base == "Agent":
             if not allow_agent:
@@ -1226,6 +1527,37 @@ class Checker:
         )
         return None
 
+    def _resolve_qualified(self, type_ref: A.TypeRef) -> str | None:
+        """`notes.Summary`: the module must be used here, and must declare that name."""
+        module, _, rest = type_ref.key.partition(".")
+        if module not in self.used_modules:
+            self.report.error(
+                "HX3020",
+                f"module {module!r} is not used by this file; add 'use {module}' or name "
+                f"the type declared here ({rest})",
+                type_ref.line,
+                type_ref.col,
+            )
+            return None
+        key = type_ref.key
+        if key in self.schemas or key in self.enums:
+            if type_ref.args:
+                self.report.error(
+                    "HX3008",
+                    f"'{key}' does not take type arguments",
+                    type_ref.line,
+                    type_ref.col,
+                )
+                return "Any"
+            return key
+        self.report.error(
+            "HX3021",
+            f"module {module!r} declares no type {rest!r}",
+            type_ref.line,
+            type_ref.col,
+        )
+        return None
+
     def _compatible(self, expected: str | None, actual: str | None) -> bool:
         if expected is None or actual is None:
             return True
@@ -1256,6 +1588,10 @@ class Checker:
 
 
 def check(
-    program: A.Program, profile: str, reporter: Reporter, rules: RuleSet | None = None
+    program: A.Program,
+    profile: str,
+    reporter: Reporter,
+    rules: RuleSet | None = None,
+    modules: Mapping[str, tuple[A.Decl, ...]] | None = None,
 ) -> None:
-    Checker(program, profile, reporter, rules).run()
+    Checker(program, profile, reporter, rules, modules).run()

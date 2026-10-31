@@ -1,0 +1,9 @@
+[
+  {
+    "line": 9,
+    "col": 26,
+    "kind": "error",
+    "code": "HX3020",
+    "message": "module 'helper' is not used by this file; add 'use helper' or name the type declared here (Note)"
+  }
+]

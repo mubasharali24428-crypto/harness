@@ -1,0 +1,9 @@
+[
+  {
+    "line": 5,
+    "col": 1,
+    "kind": "error",
+    "code": "HX3015",
+    "message": "module 'helper' cannot be resolved: this check was given no module source, so a program that uses one cannot be compiled"
+  }
+]

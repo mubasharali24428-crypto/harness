@@ -12,11 +12,23 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class TypeRef:
+    """A type name, optionally qualified by a used module (`notes.Summary`).
+
+    `qualifier` is empty for everything declared in the file being read, which is
+    every program written before M8 — the default keeps those trees identical.
+    """
+
     name: str
     args: tuple[TypeRef, ...] = ()
     optional: bool = False
     line: int = 0
     col: int = 0
+    qualifier: tuple[str, ...] = ()
+
+    @property
+    def key(self) -> str:
+        """The single string every table in the checker and runtime keys on."""
+        return ".".join((*self.qualifier, self.name))
 
 
 @dataclass(frozen=True)
@@ -175,6 +187,11 @@ class ForStmt(Stmt):
     have to prove it terminates, and this language has no mutation. Over a list
     the bound is structural; over the budget it is declared; both are visible in
     the source.
+
+    ``accumulate`` is the one way a loop produces a value. It is a **binding**, not
+    an assignment: the accumulator names a fresh value per pass, so nothing that
+    existed before the loop is overwritten, and the loop still ends when the list
+    does or the budget does — never when a variable happens to change.
     """
 
     name: str
@@ -182,6 +199,7 @@ class ForStmt(Stmt):
     body: Block
     line: int
     col: int
+    accumulate: Accumulator | None = None
 
 
 @dataclass(frozen=True)
@@ -338,8 +356,64 @@ class ListLit(Expr):
 
 
 @dataclass(frozen=True)
+class UseDecl:
+    """`use notes` — this program reads the module named `notes`.
+
+    A name, not a path: the host resolves names to bytes (so a program cannot ask
+    for `../../etc/passwd`), and the resolved file's digest is bound into the
+    manifest like the entry file's.
+    """
+
+    module: str
+    line: int
+    col: int
+
+
+@dataclass(frozen=True)
+class Accumulator:
+    """The `accumulate total: Int = 0` clause of a `for` loop."""
+
+    name: str
+    type: TypeRef
+    init: Expr
+    line: int
+    col: int
+
+
+@dataclass(frozen=True)
+class WithExpr(Expr):
+    """`proposal with { summary: "done" }` — a new record, not an edit.
+
+    The base is untouched, which is why this exists instead of assignment: an
+    update expression says which value became which, and a mutation says nothing a
+    reviewer can check.
+    """
+
+    base: Expr
+    updates: tuple[KwArg, ...]
+    line: int
+    col: int
+
+
+@dataclass(frozen=True)
 class Program:
     module: str | None
     decls: tuple[Decl, ...]
     path: str | None = None
     diagnostics: tuple[object, ...] = field(default_factory=tuple)
+    uses: tuple[UseDecl, ...] = ()
+
+
+@dataclass(frozen=True)
+class LoadedModule:
+    """One module the loader resolved for a program: its text, its tree, its digest.
+
+    Kept beside the program rather than merged into it so the digest of every file
+    that shaped a run stays addressable — the manifest lists these, and a replay
+    that swapped one of them is refused by name.
+    """
+
+    name: str
+    path: str
+    source: str
+    program: Program

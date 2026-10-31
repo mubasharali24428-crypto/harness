@@ -1,0 +1,10 @@
+[
+  {
+    "line": 3,
+    "col": 1,
+    "kind": "error",
+    "code": "HX3019",
+    "message": "module 'notes' declares a workflow ('entry'); another file may take types and pure functions from a module, never an entry point or a capability request",
+    "path": "notes.hx"
+  }
+]

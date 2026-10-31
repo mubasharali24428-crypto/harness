@@ -39,6 +39,13 @@ KEYWORDS = frozenset(
         "and",
         "or",
         "not",
+        # M8. `use` names a module the host resolves; `accumulate` binds a value per
+        # loop pass without assignment; `with` builds a new record from an old one.
+        # Every module file is still read by the host, so none of these three is
+        # dynamic: there is no `import`, and no name can be resolved at run time.
+        "use",
+        "accumulate",
+        "with",
     }
 )
 

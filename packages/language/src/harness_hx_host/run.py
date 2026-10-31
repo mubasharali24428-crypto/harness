@@ -25,8 +25,9 @@ from typing import Any
 from uuid import uuid4
 
 from harness_hx import ast as A
-from harness_hx.api import CheckResult, check_source
+from harness_hx.api import CheckResult, check_source, resolver_for
 from harness_hx.diagnostics import Diagnostic
+from harness_hx.loader import Resolver
 from harness_hx.manifest import build_manifest
 from harness_hx.version import SPEC_VERSION, TOOLCHAIN_VERSION
 
@@ -184,6 +185,7 @@ def run_source(
     principal: str = "anonymous",
     policy: str = "local-dev",
     expected_digest: str | None = None,
+    expected_program_digest: str | None = None,
     workflow: str | None = None,
     run_id: str | None = None,
     correlation_id: str | None = None,
@@ -192,6 +194,7 @@ def run_source(
     clock: Callable[[], float] = time.monotonic,
     prices: Mapping[str, Any] | None = None,
     authority: Authorisation | None = None,
+    modules: Mapping[str, str] | str | Resolver | None = None,
 ) -> RunResult:
     """Check, authorise, run and record one Hx program.
 
@@ -204,14 +207,24 @@ def run_source(
     ``RevisableDecision`` it can revoke into while the run is in flight. It is
     checked against this manifest, not trusted: authority minted for a different
     program, or one that carries a human-only permission, is refused here.
+
+    ``modules`` is the host's answer to the program's `use` names (name -> source, or
+    a callable). Since M8 the digest lock covers every file it is given: the program
+    that runs is the program that was checked, helpers included.
+
+    ``expected_program_digest`` is the caller's pin on that whole file set — the
+    digest of the manifest it approved. `expected_digest` pins one file; this pins
+    the program. A host that approved a workflow with a helper and is about to run
+    it against different bytes says so here, and the run is refused.
     """
     started = clock()
     run_id = run_id or uuid4().hex
     correlation_id = correlation_id or run_id
     source_bytes = len(source.encode("utf-8"))
     inputs_sha256 = inputs_digest(inputs)
+    resolve = resolver_for(modules)
 
-    result = check_source(source, path, profile)
+    result = check_source(source, path, profile, modules=modules)
     if not result.ok:
         return RunResult(
             status="refused",
@@ -242,9 +255,21 @@ def run_source(
     }
 
     try:
-        digest = assert_checked_source(manifest, source)
+        digest = assert_checked_source(manifest, source, resolve)
         if expected_digest is not None and expected_digest != digest:
             raise DigestMismatch("the supplied digest does not describe these bytes")
+        if expected_program_digest is not None:
+            listed = [str(entry.get("path")) for entry in manifest.get("sources", ()) or ()]
+            actual = str(manifest.get("program_sha256"))
+            if expected_program_digest != actual:
+                raise DigestMismatch(
+                    "the authorised program digest does not describe these files",
+                    detail={
+                        "expected": expected_program_digest,
+                        "actual": actual,
+                        "paths": listed,
+                    },
+                )
         try:
             pricing = Pricing.from_mapping(prices) if prices else None
         except PricingError as bad:
@@ -340,6 +365,7 @@ def run_source(
         emit=emit,
         clock=clock,
         pricing=pricing,
+        modules=result.modules,
     )
     try:
         output = runtime.run()

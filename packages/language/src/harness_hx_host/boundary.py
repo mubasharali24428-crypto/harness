@@ -185,7 +185,8 @@ def type_name_text(type_ref: Any) -> str:
     """Render an AST ``TypeRef`` the way ``split_type`` reads it."""
     if isinstance(type_ref, str):
         return type_ref
-    name = type_ref.name
+    qualifier = tuple(getattr(type_ref, "qualifier", ()) or ())
+    name = ".".join((*qualifier, type_ref.name))
     if type_ref.args:
         name = f"{name}<{', '.join(type_name_text(arg) for arg in type_ref.args)}>"
     if type_ref.optional:

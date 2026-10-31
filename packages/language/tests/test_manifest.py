@@ -26,8 +26,8 @@ def manifest(source: str = SOURCE, path: str = "fix_issue.hx") -> dict[str, obje
 def test_the_manifest_names_the_language_and_pins_both_versions():
     payload = manifest()
     assert payload["language"] == "hx"
-    assert payload["spec_version"] == "0.3.0"
-    assert payload["toolchain"] == {"name": "hxc", "version": "0.3.0"}
+    assert payload["spec_version"] == "0.4.0"
+    assert payload["toolchain"] == {"name": "hxc", "version": "0.4.0"}
 
 
 def test_the_source_digest_is_content_addressed():
@@ -130,7 +130,11 @@ def test_the_top_level_keys_are_the_reviewed_set():
         "module",
         "policy_request",
         "profile",
+        # M8: `sources` lists every file that built the tree, and `program_sha256`
+        # digests that list. A run is now bound to a set of files, not one file.
+        "program_sha256",
         "source",
+        "sources",
         "spec_version",
         "toolchain",
         "workflows",

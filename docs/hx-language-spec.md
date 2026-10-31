@@ -1,11 +1,11 @@
-# Hx — the Harness language specification (v0.3.0)
+# Hx — the Harness language specification (v0.4.0)
 
-> **Status:** prototype, version `0.3.0`. The reference implementation lives in
+> **Status:** prototype, version `0.4.0`. The reference implementation lives in
 > [`packages/language`](../packages/language): `harness_hx` (console script
 > `hxc`, the checker) and `harness_hx_host` (console script `hxr`, the workflow
 > driver). This document describes what they accept, reject and execute — not an
 > aspiration. Where a rule is not implemented, it is listed under
-> [Not in 0.3](#not-in-03) rather than implied.
+> [Not in 0.4](#not-in-04) rather than implied.
 
 Hx is the Harness-owned dialect of Hermes. The proposal in
 [`hermes-agentic-language-plan.md`](hermes-agentic-language-plan.md) and the
@@ -72,9 +72,17 @@ surface and Hermes/`.hms` is out of scope until the owner amends
 
 ### 3.1 Source units
 
-A program is one UTF-8 file with the suffix `.hx`. There are no includes,
-imports or modules: `import` is an *ambient* name and is rejected by name
-(`HX4004`) with a message saying programs are single-file.
+A program is one UTF-8 file with the suffix `.hx`, and since 0.4.0 it may name
+other files with `use` (§5.3). There are no includes, no import form and no
+load-on-demand: `import` is an *ambient* name and is rejected by name (`HX4004`)
+with a message saying a program is built from the modules it names with `use`,
+and nothing is loaded while it runs.
+
+The distinction is deliberate. `use notes` is checked before anything runs, the
+bytes it names are pinned in the manifest, and the set of files is closed at
+that point. A load that happens *during* a run — which is what `import` proposes
+— cannot be in a manifest that was approved beforehand, so there is nothing to
+hold the run to what was reviewed.
 
 ### 3.2 Comments
 
@@ -92,7 +100,7 @@ be used as identifiers:
 
 ```
 module schema enum fn agent workflow requires budget let ensure return
-if else await spawn true false and or not
+if else await spawn true false and or not use accumulate with
 ```
 
 `profile` is **not** a keyword: a source line beginning `profile <name>` is
@@ -117,7 +125,7 @@ recognised only to reject it (`HX6002`), with a message naming the host.
 ```
 
 `-`, `*` and `/` are reserved punctuation but have no expression meaning in
-0.3.0; `?` marks an optional type. An unexpected character is `HX1001`, and the
+0.4.0; `?` marks an optional type. An unexpected character is `HX1001`, and the
 lexer resumes at the next token so later declarations still get checked.
 
 ---
@@ -156,8 +164,9 @@ A missing declaration is `HX3001` at the call, not a surprise at runtime.
 ## 5. Grammar
 
 ```ebnf
-Program      = [ Module ] { Declaration } EOF ;
+Program      = [ Module ] { Use } { Declaration } EOF ;
 Module       = "module" Ident ;
+Use          = "use" Ident ;
 
 Declaration  = Schema | Enum | Fn | Agent | Workflow ;
 
@@ -186,7 +195,10 @@ Let          = "let" Ident [ ":" Type ] "=" Expr ;
 Ensure       = "ensure" Expr ;
 Return       = "return" [ Expr ] ;
 If           = "if" Expr Block [ "else" Block ] ;
-For          = "for" Ident "in" Expr Block ;
+For          = "for" Ident "in" Expr [ Accumulate ] Block ;
+Accumulate   = "accumulate" Ident ":" Type "=" Expr ;
+
+Type         = [ Ident "." ] Ident [ "<" Type { "," Type } ">" ] [ "?" ] ;
 
 Expr         = Or ;
 Or           = And { "or" And } ;
@@ -195,32 +207,45 @@ Not          = [ "not" ] Comparison ;
 Comparison   = Addition { ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) Addition } ;
 Addition     = Unary { "+" Unary } ;
 Unary        = ( "await" | "spawn" ) Postfix | Postfix ;
-Postfix      = Primary { "." Ident | CallArgs } ;
+Postfix      = Primary { "." Ident | CallArgs | "with" Updates } ;
 CallArgs     = "(" [ Arg { "," Arg } ] ")" ;
+Updates      = "{" Ident ":" Expr { "," Ident ":" Expr } "}" ;
 Arg          = Expr | Ident ":" Expr ;
 Primary      = Int | Float | String | Duration | "true" | "false"
              | Ident | "(" Expr ")" | "[" [ Expr { "," Expr } ] "]" ;
 ```
 
 Precedence, loosest first: `or`, `and`, `not`, comparisons, `+`, `await`/`spawn`,
-member/call. There is no `if` **expression** in 0.3.0; `if` returns by
+member/call/`with`. There is no `if` **expression** in 0.4.0; `if` returns by
 `return`ing from both branches.
 
-### 5.1 Declaration order inside a workflow
+`Type` is the one production the grammar kept out of §4: since 0.4.0 a type or
+function from a used module is written qualified (`notes.Summary`), and a bare
+name never means a module's thing (§5.3).
 
-`requires`, then `budget`, then `agent` declarations, then the body. A section
-after the body is `HX2004`; a repeated section is `HX2005`. The order is
-enforced because a reviewer should be able to answer "what may this workflow do
-and for how long" by reading the top of it.
+### 5.1 Declaration order
+
+At the top of a file: `module`, then every `use`, then the declarations. A `use`
+below a declaration is `HX2006`, and so is naming the same module twice: which
+files a program is built from is answered before anything is read, because that
+set is what the manifest pins (§5.3).
+
+Inside a workflow: `requires`, then `budget`, then `agent` declarations, then the
+body. A section after the body is `HX2004`; a repeated section is `HX2005`. The
+order is enforced because a reviewer should be able to answer "what may this
+workflow do and for how long" by reading the top of it.
 
 ### 5.2 Statements
 
 - `let` binds a name for the rest of the declaration. An annotation is
   checked against the value (`HX3002`); without one, the value's type is used.
-  Scope is per declaration in 0.3.0 — a binding made inside an `if` branch stays
+  Scope is per declaration in 0.4.0 — a binding made inside an `if` branch stays
   visible after it. There is no block scoping and no shadowing, which keeps the
   rule simple enough to state and to test; a future version that adds it must
   say so in the manifest's `spec_version`.
+  A name may not reuse a declaration's name, a used module's name or another
+  binding (`HX3025`): the module rename that makes `use` work (§5.3) depends on
+  one identifier meaning one thing.
 - `ensure` asserts a `Bool` at that point (`HX3002` otherwise). It is the only
   assertion form — a workflow does not decide pass/fail, it states evidence.
 - `return` ends a declaration. A `fn` or `workflow` returning anything other
@@ -234,7 +259,100 @@ and for how long" by reading the top of it.
   the iterations it did perform still in the event log. There is no `while` and
   no mutation — the loop variable is a binding, not a cell — and a `for` inside a
   pure `fn` is `HX4008`, because a pure function has no budget to point at.
+- `for … accumulate name: T = init { … }` is the same loop with a value it
+  carries. The block's last expression becomes the accumulator for the next pass
+  and must fit the declared type (`HX3024`); the value each pass *started* with is
+  recorded in the `loop.iteration` event, so an unfinished loop shows how far it
+  got, and the binding appears in scope only after the loop completes. This is not
+  assignment wearing a hat: the accumulator is created by the loop, is not visible
+  inside the enclosing declaration before it, and there is no way to write `x = 1`
+  anywhere in the language (§12).
 - An expression statement is evaluated for its effect; its value is discarded.
+  Inside an `accumulate` block, the last expression's value is the one that carries.
+
+### 5.3 Modules and `use`
+
+```hx
+module main
+
+use notes
+
+workflow run() -> notes.Summary {
+  requires repo.read
+  budget { steps: 20; tool_calls: 1; duration: 1m }
+  let file = await repo.read("README.md")
+  return notes.shout(notes.Summary(text: file.text, level: notes.Level.high))
+}
+```
+
+What `use notes` means, exactly:
+
+- **A name, never a path.** The file is `notes.hx` by convention; the host decides
+  where its bytes come from (§5.4). A `use` clause cannot say `../notes` or
+  `lib/notes`, so nothing in the program reaches outside what the host chose.
+- **Types and pure functions only.** A module may declare `schema`, `enum` and
+  `fn`. A `workflow` or an `agent` in a module is `HX3019`: another file may take
+  a helper from a helper, but not an entry point or a capability request.
+- **One level deep.** A module may not `use` another (`HX3017`), and a file may not
+  use the module it declares (`HX3017`) — one name is one file.
+- **Names are qualified, always.** `notes.Summary` is the schema's name in the file
+  that reads it; a bare `Summary` there is unknown (`HX3001`/`HX3005`). In its own
+  file the same schema is `Summary`, and a workflow there returns `Summary`. There
+  is no re-export, no alias and no renaming at the use site, because an unqualified
+  name that could mean either the local thing or the module's thing is the exact
+  ambiguity this language refuses.
+- **The module's declarations are renamed for the reader.** The host presents
+  `notes.Summary`, `notes.Level` and `notes.shout` — in the checker's tables *and*
+  in the bodies that use them — so a value a helper builds is validated against the
+  same name the reader's annotation writes, and a look-alike schema declared in the
+  reading file cannot be passed to a helper that wants the module's one.
+- **A `use` the host cannot answer is an error, not a shrug** (`HX3015`). A program
+  whose helper did not arrive is not checked as if it were single-file.
+- **The name used must be the name declared** (`HX3016`): `main.hx` saying
+  `use notes` and getting a file that declares `module other` is refused, because a
+  run must be able to say which file it executed.
+- **Host limits.** At most 16 modules and 256 KiB each (`HX3018`). These are host
+  contract numbers, not language ones; a host that raises them raises them for
+  every profile.
+- **Where a diagnostic points.** A record about a `use` clause that could not be
+  honoured — unresolvable, too big, doubled, misnamed — is reported in the file that
+  wrote the clause, at the clause. A record about what a module says inside itself is
+  reported in that module's file. A record must name the file its line and column sit
+  in; blaming `notes.hx` for a file this check never received would send an editor to
+  nothing.
+
+### 5.4 Who supplies the bytes
+
+The language does not open files. A check is handed one of three things — a mapping
+of name to source, a directory, or a callable — and the same shape must be handed to
+the run. `hxc check` and `hxr` resolve against the program's own directory by default
+and take `--modules DIR` (or `--modules none`, which is how a reviewer asks "what is
+this program without its helpers?").
+
+This is the part that keeps §2's laws intact. A module is not a namespace the program
+reaches into at runtime; it is a set of files settled at check time, each with its own
+digest in the manifest (§10), so `use` cannot become the side channel that lets an
+approved workflow execute something nobody reviewed.
+
+### 5.5 Record update: `base with { field: value }`
+
+```hx
+let draft = Patch(summary: "before", diff: d)
+let final = draft with { summary: "after" }
+ensure draft.summary == "before"
+```
+
+`with` produces a **new record**. The base is never edited: every field keeps its
+value except the ones named, each named field must exist (`HX3023`) and must not be
+named twice in one `with` (`HX3023`), and each new value must fit the declared type
+(`HX3002`). The base must be a record — `with` on an `Int`, a `List` or a `Bool` is
+`HX3022` — and the result has the base's type, qualified name included (§5.3).
+
+The reason this exists instead of `draft.summary = "after"` is the same reason `for …
+accumulate` is a binding: a helper call that receives a record must not be able to be
+holding a different one afterwards. Copy-on-write keeps that true without needing a
+mutation analysis nobody has written yet, and it keeps every value in a run comparable
+with the value that was recorded when it crossed the boundary (§9.5, M7).
 
 ---
 
@@ -462,8 +580,8 @@ either.
 | Prefix | Area | Codes |
 |---|---|---|
 | `HX1xxx` | Lexical | `HX1001` unexpected character · `HX1002` unterminated string · `HX1003` unterminated block comment · `HX1005` invalid escape |
-| `HX2xxx` | Syntax | `HX2001` expected token/expression · `HX2002` unclosed brace (reported at the opener) · `HX2003` expected a declaration · `HX2004` section/agent after the body · `HX2005` duplicate section |
-| `HX3xxx` | Names and types | `HX3001` unknown type / undeclared boundary schema / `Agent` misuse · `HX3002` type mismatch · `HX3003` arity or argument name · `HX3004` unknown schema field · `HX3005` unknown identifier, function or operation · `HX3006` duplicate declaration/field/member/setting/parameter · `HX3007` missing final return · `HX3008` wrong type-argument arity · `HX3009` unknown agent setting · `HX3010` agent without `role` · `HX3011` not callable / unreadable member / unknown agent operation · `HX3012` operator type error · `HX3013` unknown enum member · `HX3014` `for` over a non-List |
+| `HX2xxx` | Syntax | `HX2001` expected token/expression · `HX2002` unclosed brace (reported at the opener) · `HX2003` expected a declaration · `HX2004` section/agent after the body · `HX2005` duplicate section · `HX2006` `use` misplaced or duplicated |
+| `HX3xxx` | Names and types | `HX3001` unknown type / undeclared boundary schema / `Agent` misuse · `HX3002` type mismatch · `HX3003` arity or argument name · `HX3004` unknown schema field · `HX3005` unknown identifier, function or operation · `HX3006` duplicate declaration/field/member/setting/parameter · `HX3007` missing final return · `HX3008` wrong type-argument arity · `HX3009` unknown agent setting · `HX3010` agent without `role` · `HX3011` not callable / unreadable member / unknown agent operation · `HX3012` operator type error · `HX3013` unknown enum member · `HX3014` `for` over a non-List · `HX3015` a `use` the host cannot resolve · `HX3016` the used name and the declared `module` differ · `HX3017` a module uses another module, one name is used twice, or a file uses the module it declares · `HX3018` a module is over the host's size or count limit · `HX3019` a module declares a workflow or agent · `HX3020` a qualified name whose module is not used here · `HX3021` the module declares no such name, or a type was used as a value · `HX3022` `with` on a value that is not a record · `HX3023` `with` names an unknown or repeated field · `HX3024` an `accumulate` value that does not fit the accumulator · `HX3025` a binding that reuses a declared or module name |
 | `HX4xxx` | Effects and capabilities | `HX4001` undeclared capability · `HX4002` unknown capability · `HX4003` effect in a pure `fn` · `HX4004` ambient operation · `HX4005` effect not awaited · `HX4006` authority from source · `HX4007` task never awaited · `HX4008` loop in a pure `fn` |
 | `HX5xxx` | Budgets | `HX5001` unknown key · `HX5002` duplicate key · `HX5003` out of range · `HX5004` wrong type/units/currency · `HX5005` spawns exceed `budget.tasks` · `HX5006` `for` without `budget.steps` |
 | `HX6xxx` | Profiles | `HX6001` construct requires the `agent` profile · `HX6002` source may not select the profile |
@@ -523,9 +641,13 @@ the diagnostics in a warnings-only run).
     "requested_capabilities": ["model.invoke", "repo.propose_patch", "repo.read", "tool.test"]
   },
   "profile": "agent",
+  "program_sha256": "a2721044278291cd95e5116eab263d19bb71fd37f2ef1fad8a77495c9cccee8d",
   "source": {"bytes": 1012, "path": "fix_issue.hx", "sha256": "1f69…"},
-  "spec_version": "0.3.0",
-  "toolchain": {"name": "hxc", "version": "0.3.0"},
+  "sources": [
+    {"bytes": 1012, "module": "maintenance", "path": "fix_issue.hx", "sha256": "1f69…"}
+  ],
+  "spec_version": "0.4.0",
+  "toolchain": {"name": "hxc", "version": "0.4.0"},
   "workflows": [
     {
       "budget": {"cost": "2.00 USD", "duration": "10m", "steps": 200, "tasks": 4, "tool_calls": 12},
@@ -547,6 +669,26 @@ Notes a host must not skip:
 
 - `source.sha256` is the digest of the exact UTF-8 bytes checked; the request
   describes *that* source, not a path.
+- `sources` lists every file that built the tree, each with its own digest, sorted by
+  the module it declares. For a program with no `use` it is a one-entry list and the
+  whole-program digest is the digest of that one entry — the single-file case is not
+  special-cased, so a host has one thing to verify either way. A program that uses
+  `notes` produces:
+
+  ```json
+  "sources": [
+    {"bytes": 322, "module": "main",  "path": "main.hx",  "sha256": "5ffc69886bf1…"},
+    {"bytes": 273, "module": "notes", "path": "notes.hx", "sha256": "c75a8bab2c0a…"}
+  ]
+  ```
+
+- `program_sha256` is the digest over those `(module, sha256)` pairs and nothing else.
+  It is taken over the **declared module names, never the paths**: a path says where a
+  file happened to sit for this one run, so a digest that mixed paths in would move
+  when the same program was checked out somewhere else, and an approved digest a
+  runner cannot recognise after a clone is not an approval. `hxr run
+  --program-digest` pins it; a run whose file set does not match is `HXH103` naming
+  every path it compared.
 - `requests` pairs each capability with one operation that used it, and omits
   pure operations (`review.bundle`) because they request nothing.
 - `budget` is `null` when the workflow declared none — the host's defaults, not
@@ -564,7 +706,7 @@ The reference implementation ships the tests that define conformance:
 
 | Layer | Where | What it pins |
 |---|---|---|
-| Golden fixtures | `tests/fixtures/{valid,invalid,warnings,core}` + `.expected.json` | Every fixture produces exactly the reviewed records, at the reviewed positions. |
+| Golden fixtures | `tests/fixtures/{valid,invalid,warnings,core}` + `.expected.json` | Every fixture produces exactly the reviewed records, at the reviewed positions — and, since 0.4.0, in the reviewed *file*: a golden writes `path` only when a record comes from another file. |
 | Regeneration | `scripts/capture_expected.py` | Goldens are regenerated deliberately and the diff is read; they are not updated by a passing test. |
 | Wire contract | `tests/test_wire_contract.py` | Key order, omitted keys, stderr rule, human line. |
 | Effect rules | `tests/test_checker_effects.py` | Declared, awaited, pure, ambient, authority, spawn. |
@@ -573,7 +715,7 @@ The reference implementation ships the tests that define conformance:
 | Profiles | `tests/test_profiles.py` | Host selects; source cannot. |
 | Seeded faults | `tests/test_seeded_faults.py` | Each `RuleSet` flag is load-bearing: disable it, the code vanishes, the rest stays. |
 | Contract bridge | `tests/test_contract_vocabulary.py` | Capability permissions are subset of `PERMISSIONS`; human-only permissions absent. |
-| Messages | `tests/test_message_stability.py` | One line, one code, family matches the fixture, positions in range. |
+| Messages | `tests/test_message_stability.py` | One line, one code, family matches the fixture, positions in range and in the file the record names. |
 | Manifest | `tests/test_manifest.py` | Versions, digest, typed budgets, request-not-grant shape. |
 | CLI | `tests/test_cli.py` | Exit codes, stderr/stdout separation, usage failures. |
 | Driver: authority | `tests/test_host_authority.py` | Deny-by-default, grants, permissions, human-only invariant, contract vocabulary, digest binding. |
@@ -587,7 +729,11 @@ The reference implementation ships the tests that define conformance:
 | Driver: revocation | `tests/test_host_revocation.py` | A revoked capability denies the next crossing and not a completed one; the revision is in the log with its reason; handed-in authority is verified, and can never widen the request. |
 | Driver: failure replay | `tests/test_host_failure_replay.py` | A recorded failure replays as the same code, status, line and message (and the same contract digest); removing it from the recording makes the replay refuse rather than invent; an unsettled call makes the recording incomplete and `HXH104` refuses it; a v1 file is not re-read under v2 rules; the serialised recording carries no secret. |
 | Driver: code set | `tests/test_host_codes.py` | Every emitted code is in the §9.5 table, every table code is still emitted, and no code changed status. |
-| Growth | `tests/test_language_growth.py` | Each addition (enum values, record construction, loops) has code + fixture + golden, and what did not come in with them: no `while`, no modules. |
+| Code table (checker) | `tests/test_code_table.py` | §9.4 and the source agree on every code in both directions, each M8 code has a named fixture, and the "code with no fixture" list may only shrink. |
+| Modules (M8) | `tests/test_host_modules.py` | `use` resolves by name and nothing else, the reader sees only qualified module names, a module's helper runs the same in its own file, a look-alike local schema is refused, the manifest pins every file and the program digest moves when only a helper changes, a swapped helper is refused by name, and what did not arrive: no assignment, no `while`, no `import`, no nested modules. |
+| Compute (M8) | `tests/test_host_modules.py`, `tests/fixtures/valid/update_and_accumulate.hx` | `with` leaves the base untouched and cannot invent a field; `accumulate` binds per pass, records the value each pass started with, spends one step per pass and still burns a too-small budget. |
+| CLI: modules | `tests/test_cli_modules.py` | `hxc` and `hxr` resolve `use` the same way by default, `--modules none` blames the file that asked, the manifest lists every file, the program digest is the same program in two directories, `--program-digest` refuses a swapped helper and `--digest` alone does not. |
+| Growth | `tests/test_language_growth.py` | Each addition (enum values, record construction, loops) has code + fixture + golden, and what did not come in with them: no `while`, no runtime loading. |
 | Live host | `section5/tests/unit/test_hx_live_host_ops.py` | One real `repo.read` and one real `verify.tests` through the shipped `LocalSandboxRunner`; skips loudly, never weakly, without an OS boundary. |
 
 To add a diagnostic: pick the namespace, add the code where it is emitted, add a
@@ -600,7 +746,7 @@ and assert the corresponding code disappears while the others remain.
 
 ---
 
-## 12. Not in 0.3
+## 12. Not in 0.4
 
 Deliberately absent, with the reason:
 
@@ -608,16 +754,34 @@ Deliberately absent, with the reason:
   `hxc` only checks; `hxr` executes the workflow subset in 12.1 and refuses
   anything else with `HXH102`. There is no ambient access of any kind: every
   effect crosses the host bridge.
-- **Module system.** Single file. `import` is rejected by name, not unknown.
+- **A module *system*.** 0.4.0 has `use` (§5.3) and deliberately nothing else: no
+  packages, no versions, no re-exports, no aliases, no nesting past one level, no
+  platform standard library, and nothing loaded while a run is going. A program names
+  the files it is built from, the host supplies their bytes, and the manifest pins
+  them; past that, `import` stays refused by name (`HX4004`).
 - **Mutation, `while`, and assignment.** `for` iterates a list and spends one
   `budget.steps` per pass, so the data bounds the passes and the budget bounds
   the spend. There is no `while` — it would need a termination proof this
-  language cannot offer — and no assignment or mutable binding.
+  language cannot offer — and no assignment or mutable binding. `for … accumulate`
+  and `x with { … }` (0.4.0) are the two ways to get a *new* value out of an old
+  one; neither is a way to change one in place. `n = 2` after a `let` is not even a
+  statement this grammar has: it is `HX2001` ("expected an expression, '='"), which
+  is the strongest form of "no assignment" — there is no production to make it
+  through the parser, let alone a rule to catch it later.
 - **Construction out of thin air.** A record can be built (`Summary(text: "…")`)
   from values the program already holds, and only for a type the program itself
   declared. There is no anonymous struct literal and no construction on the wire.
 - **User-defined generics, traits, pattern matching.** None.
 - **Money/duration arithmetic.** Parseable and bounded, not computable.
+- **Numeric arithmetic in general.** `+` joins `String` values and nothing else
+  (`1 + 2` is `HX3012`); `-`, `*` and `/` are reserved punctuation that no rule
+  accepts. Comparisons work on `Int`/`Float`/`String`/`Duration`/`Money`, and a
+  `List` has no members at all — no `length`, no `first` (`HX3011`) — so a loop that
+  wants to count what it is walking has to accumulate a `String` and let a reader
+  count, or ask the host. That is a real gap for a language whose loops now carry
+  values, and closing it is an owner decision about operators (§13), not something to
+  slip in beside a new keyword. Until then a program that needs arithmetic asks the
+  host, through a declared operation, and the number arrives typed.
 - **Approval verbs.** `approve`, `administer`, `billing`, `export` are not
   capabilities and no manifest key grants them.
 - **Model selection.** `agent { model: "..." }` is recorded as a string; the
@@ -695,6 +859,7 @@ History, so a reader can tell what a recorded run's version *meant*:
 | `0.1.0` | First published spec: checker, driver, evidence, M2–M5 integration | M1–M5 |
 | `0.2.0` | `HXH404`/`HXH502`/`HXH503` added; `budget.cost` enforced against a host price table; grants revocable mid-run; the driver code set pinned by a test | M6 |
 | `0.3.0` | `HXH104` added; recorded failures replay as themselves; `hx.recording/v2` names an outcome per exchange and refuses an unsettled one; evidence carries a `recording` block; `hxr --record` / `--replay` | M7 |
+| `0.4.0` | M8: programs of several files (`use`, the loader, `sources[]`, `program_sha256`), `for … accumulate`, `x with { … }`, codes `HX2006` and `HX3015`–`HX3025`, and the rule that a binding may not reuse a declared name. `program_sha256` is taken over module names rather than paths, so an approved digest survives a clone; `hxc`/`hxr` gain `--modules`, `hxr run` gains `--program-digest` | M8 |
 
 Each of those rows is a *minor* change under the rules above: codes were added,
 no existing code's meaning moved, and no program that checked under the previous

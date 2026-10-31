@@ -10,6 +10,57 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Hx milestone M8 — a program can be several files, and every one is pinned (2026-10-31)
+
+* **`use notes` brings another file's types and pure functions into this one.** A
+  module is named, never pathed: the host resolves the bytes (a mapping, a directory
+  or a callable) and `hxc`/`hxr` take `--modules DIR`, defaulting to the program's own
+  directory, with `--modules none` for the reviewer who wants to see what the program
+  means without its helpers. A `use` the host cannot answer is `HX3015`, not a silent
+  single-file check.
+* **The module arrives renamed.** In the reading file the schema is `notes.Summary`
+  and the helper is `notes.shout` — in the checker's tables *and* in the module's own
+  bodies — so one identifier means one thing across the file boundary and a look-alike
+  record declared locally cannot be passed to a helper that wants the module's type.
+  This is why `HX3025` now refuses a binding that reuses a declared or module name.
+* **Refused by design**: a module that declares a workflow or agent (`HX3019`), a
+  module that uses a module (`HX3017`, one level deep), a file used under a name it does
+  not declare (`HX3016`), a file that uses itself (`HX3017`), `use` below a declaration
+  (`HX2006`), and the 16-file / 256 KiB host limits (`HX3018`). `import` stays refused
+  by name (`HX4004`) — with a message that now says what replaced it.
+* **The manifest pins every file.** `sources[]` carries the module name, path, digest
+  and byte count of each file that built the tree, and `program_sha256` digests those
+  `(module, sha256)` pairs — module names, not paths, so an approved digest still means
+  the same program after a clone or a different mount. `assert_checked_source` verifies
+  each file before the run, so an unchanged entry with a swapped helper is `HXH103`
+  naming every path it compared, and `hxr run --program-digest` is the caller's pin on
+  the whole set. `--digest` alone still pins only the entry; a test says so by running
+  the swap past it.
+* **`for x in list accumulate name: T = init { … }`** binds a value per pass instead
+  of editing one: still one `budget.steps` per pass, still bounded by the list, with
+  the value each pass *started* recorded in the `loop.iteration` event so a stopped
+  loop shows how far it got. **`base with { field: value }`** yields a new record and
+  leaves the base untouched (`HX3022` on a non-record, `HX3023` on an unknown or
+  repeated field).
+* **Still no assignment**, and that is now a syntax fact rather than a rule: `n = 2`
+  is `HX2001` ("expected an expression, '='"). No `while`, no `break`, no nested
+  modules, no dynamic loading.
+* **A diagnostic names the file its position sits in.** Cross-file records were
+  briefly blaming a module file the check had never received; a refusal about a `use`
+  clause now belongs to the file that wrote the clause, and a defect inside a module
+  belongs to the module. Goldens record `path` when it differs from the fixture's file.
+* **A gap found, not papered over:** `+` joins Strings only and a `List` has no
+  members, so an `accumulate` loop can build a report but cannot sum a column. Numeric
+  arithmetic is an owner decision about operators, listed in the spec (§12) rather than
+  slipped in beside a new keyword.
+* Spec and toolchain move `0.3.0 → 0.4.0` (a §13 minor change: codes added, no existing
+  code's meaning moved, no program that checked before fails to check now).
+* Gate: `packages/language` **367 passed** (`test_host_modules.py` 28,
+  `test_cli_modules.py` 9, `test_code_table.py` 3, 12 new fixtures), `make
+  lint-language` clean, `scripts/spec_drift.py` clean, TS mirror current, `make
+  guard-isolation` clean, section 4 hx/workflow subset **22**, section 5 live host
+  ops **4**; the 315 pre-M8 tests pass untouched.
+
 ### Hx milestone M7 — a recording tells the truth about failures (2026-10-31)
 
 * **A recorded failure replays as that failure.** Before M7, `RecordingBridge` kept

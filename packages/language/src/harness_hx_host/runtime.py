@@ -237,6 +237,7 @@ class Runtime:
         emit: Callable[[dict[str, Any]], None] | None = None,
         clock: Callable[[], float] = time.monotonic,
         pricing: Pricing | None = None,
+        modules: Sequence[Any] = (),
     ) -> None:
         self.program = program
         self.workflow = workflow
@@ -262,6 +263,23 @@ class Runtime:
         # One nominal namespace at the boundary: schemas and enums validate alike.
         self.types: dict[str, Any] = {**self.schemas, **self.enums}
         self.functions = {decl.name: decl for decl in program.decls if isinstance(decl, A.FnDecl)}
+        # M8: a used module arrives already renamed — `notes.Summary` is its key here
+        # and in the tree it came from, so a value a helper builds validates against
+        # the same name the reader's annotation writes. Only types and pure functions
+        # are readable: the loader refused anything else.
+        self.used_modules: set[str] = set()
+        for module in modules or ():
+            self.used_modules.add(module.name)
+            for decl in module.program.decls:
+                if isinstance(decl, A.SchemaDecl):
+                    self.schemas[decl.name] = decl
+                elif isinstance(decl, A.EnumDecl):
+                    self.enums[decl.name] = decl
+                elif isinstance(decl, A.FnDecl):
+                    self.functions[decl.name] = decl
+        self.types.update(
+            {**self.schemas, **{key: self.enums[key] for key in self.enums}}
+        )
         self.agents = {agent.name: agent for agent in workflow.agents}
         # Spawned work is bounded twice: by budget.tasks (enforced) and by the pool.
         self._pool = ThreadPoolExecutor(max_workers=max(1, min(self.budget.tasks or 1, 16)))
@@ -285,6 +303,23 @@ class Runtime:
                 self._stmt(statement)
         finally:
             self._scopes.pop()
+
+    def _statements(self, statements: Sequence[A.Stmt]) -> None:
+        """Run statements in the *current* scope, for the loop bodies that need one."""
+        for statement in statements:
+            self._stmt(statement)
+
+    @staticmethod
+    def _dotted(node: A.Expr) -> tuple[str, ...] | None:
+        """`notes.Severity.high` -> ("notes", "Severity", "high"), or None."""
+        parts: list[str] = []
+        current: A.Expr = node
+        while isinstance(current, A.Member):
+            parts.append(current.name)
+            current = current.base
+        if not isinstance(current, A.Ident):
+            return None
+        return tuple(reversed([*parts, current.name]))
 
     # -- events -----------------------------------------------------------
 
@@ -370,6 +405,11 @@ class Runtime:
         budget bounds the spend, and whichever runs out first is the one the run
         reports. A long list is a budget stop at a recorded step, never a hang,
         and a cancelled run stops between passes rather than inside one.
+
+        With `accumulate`, the block's last expression is the next value of the
+        accumulator and the name is bound once, here, when the loop ends — a fresh
+        binding, not a variable being edited. The pass still counts as one step
+        whether or not a value comes out of it.
         """
         items = self._eval(statement.iterable)
         if isinstance(items, SchemaValue) or not isinstance(items, Sequence) or isinstance(
@@ -380,14 +420,58 @@ class Runtime:
                 line=statement.line,
                 col=statement.col,
             )
+        acc = statement.accumulate
+        body = statement.body.statements
+        value: Any = None
+        if acc is not None:
+            value = validate(
+                type_name_text(acc.type),
+                self._eval(acc.init),
+                self.types,
+                error=ScriptError,
+                where=f"accumulator {acc.name}",
+            )
+            if not body:
+                raise ScriptError(
+                    f"the accumulate block for {acc.name!r} must end with an expression",
+                    line=statement.line,
+                    col=statement.col,
+                )
+            head, final = body[:-1], body[-1]
+        else:
+            head, final = body, None
         for index, item in enumerate(items):
             self._tick(statement.line, statement.col)
-            self.event("loop.iteration", line=statement.line, index=index)
-            self._scopes.append({statement.name: item})
+            event: dict[str, Any] = {"line": statement.line, "index": index}
+            if acc is not None:
+                event["accumulator"] = acc.name
+                event["value"] = _redact(value)
+            self.event("loop.iteration", **event)
+            scope: dict[str, Any] = {statement.name: item}
+            if acc is not None:
+                # The block reads the value carried in from the previous pass; the
+                # name is bound again below, after the loop, with the final one.
+                scope[acc.name] = value
+            self._scopes.append(scope)
             try:
-                self._block(statement.body)
+                self._statements(head)
+                if acc is None or final is None:
+                    continue
+                # The last statement of an accumulate block *is* the next value, so it
+                # is evaluated rather than executed: an ExprStmt discards its value.
+                self._tick(final.line, final.col)
+                produced = final.value if isinstance(final, A.ExprStmt) else final
+                value = validate(
+                    type_name_text(acc.type),
+                    self._eval(produced),
+                    self.types,
+                    error=ScriptError,
+                    where=f"accumulator {acc.name}",
+                )
             finally:
                 self._scopes.pop()
+        if acc is not None:
+            self._bind(acc.name, value)
 
     # -- expressions ------------------------------------------------------
 
@@ -405,10 +489,20 @@ class Runtime:
         if isinstance(node, A.Ident):
             return self._lookup(node.name, node)
         if isinstance(node, A.Member):
+            dotted = self._dotted(node)
+            if dotted and len(dotted) == 3 and dotted[0] in self.used_modules:
+                return self._enum_member(f"{dotted[0]}.{dotted[1]}", dotted[2], node)
+            if dotted and len(dotted) == 2 and dotted[0] in self.used_modules:
+                raise ScriptError(
+                    f"'{'.'.join(dotted)}' is a type from module {dotted[0]!r}, not a value",
+                    line=node.line,
+                    col=node.col,
+                )
             if isinstance(node.base, A.Ident) and node.base.name in self.enums:
-                return self._enum_member(node)
-            base = self._eval(node.base)
-            return self._member(base, node)
+                return self._enum_member(node.base.name, node.name, node)
+            return self._member(self._eval(node.base), node)
+        if isinstance(node, A.WithExpr):
+            return self._update(node)
         if isinstance(node, A.Await):
             inner = node.value
             if not isinstance(inner, A.Call):
@@ -456,17 +550,50 @@ class Runtime:
             col=node.col,
         )
 
-    def _enum_member(self, node: A.Member) -> str:
-        """``Severity.high`` is the string ``high``, checked against the declaration."""
-        decl = self.enums[node.base.name]
-        members = [member.name for member in decl.members]
-        if node.name not in members:
+    def _enum_member(self, decl_name: str, member: str, node: A.Member) -> str:
+        """``Severity.high`` — the string ``high``, checked against the declaration.
+
+        `decl_name` may be qualified (`notes.Severity`): a module's enum arrives under
+        that key, and the value it yields is the same bare member string, so a helper
+        and its reader agree about which enum a value belongs to without a second name
+        for it.
+        """
+        decl = self.enums[decl_name]
+        members = [item.name for item in decl.members]
+        if member not in members:
             raise ScriptError(
-                f"enum '{decl.name}' has no member '{node.name}'",
+                f"enum '{decl_name}' has no member '{member}' (members: {', '.join(members)})",
                 line=node.line,
                 col=node.col,
             )
-        return node.name
+        return member
+
+    def _update(self, node: A.WithExpr) -> SchemaValue:
+        """`base with { text: "x" }` — a new record; `base` keeps what it was.
+
+        The checker already proved every field exists and every value fits; this is
+        where that promise is kept under execution, with the same nominal validation a
+        construction gets. Copying rather than writing in place is the whole point: no
+        value anywhere is changed by an update expression, so a helper that was handed
+        a record cannot be holding a different one afterwards.
+        """
+        base = self._eval(node.base)
+        if not isinstance(base, SchemaValue):
+            raise ScriptError(
+                f"'with' updates a record, found {type(base).__name__}",
+                line=node.line,
+                col=node.col,
+            )
+        values = dict(base.fields)
+        for update in node.updates:
+            if update.name not in values:
+                raise ScriptError(
+                    f"{base.name} has no field {update.name!r}", line=update.line, col=update.col
+                )
+            values[update.name] = self._eval(update.value)
+        return validate(
+            base.name, values, self.types, error=ScriptError, where=f"{base.name} update"
+        )
 
     def _member(self, base: Any, node: A.Member) -> Any:
         if isinstance(base, SchemaValue):
@@ -670,7 +797,12 @@ class Runtime:
 
     def _call(self, node: A.Call) -> Any:
         if isinstance(node.callee, A.Ident) and node.callee.name in self.schemas:
-            return self._record(node)
+            return self._record(node, node.callee.name)
+        dotted = self._dotted(node.callee)
+        # `notes.Summary(...)`: a record declared in a helper file is still built by
+        # name, and the name the reader writes is the name it is stored under.
+        if dotted is not None and len(dotted) > 1 and ".".join(dotted) in self.schemas:
+            return self._record(node, ".".join(dotted))
         name, capability = self._callee(node)
         if name in self.functions and capability is None:
             return self._user_call(self.functions[name], node)
@@ -678,9 +810,8 @@ class Runtime:
             return self._effect(node, name)
         return self._pure_call(node, name)
 
-    def _record(self, node: A.Call) -> Any:
+    def _record(self, node: A.Call, name: str) -> Any:
         """``Summary(text: "ok")``: every field named, then validated as written."""
-        name = node.callee.name
         if node.args:
             raise ScriptError(
                 f"'{name}' is constructed with named fields", line=node.line, col=node.col

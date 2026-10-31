@@ -13,7 +13,7 @@ from . import ast as A
 from .diagnostics import Reporter
 from .lexer import Lexer, Token
 
-_TOP_LEVEL = frozenset({"module", "schema", "enum", "fn", "agent", "workflow"})
+_TOP_LEVEL = frozenset({"module", "use", "schema", "enum", "fn", "agent", "workflow"})
 _STATEMENT_START = frozenset({"let", "ensure", "return", "if", "requires", "budget", "agent"})
 _COMPARISONS = frozenset({"==", "!=", "<", ">", "<=", ">="})
 
@@ -61,6 +61,7 @@ class Parser:
     def parse_program(self) -> A.Program:
         module: str | None = None
         decls: list[A.Decl] = []
+        uses: list[A.UseDecl] = []
         if self.at("module"):
             self.advance()
             if self.at("ident"):
@@ -68,6 +69,19 @@ class Parser:
             else:
                 self._report(ParseError(self.peek(), "HX2001", "expected a module name"))
             self.match(";")
+        # M8: `use` clauses come after `module` and before anything that could use
+        # them, so "which files is this program made of" is answerable from the top
+        # of the file — the same reason `requires` and `budget` sit where they do.
+        while self.at("use"):
+            keyword = self.advance()
+            try:
+                name = self.expect("ident", "expected a module name after 'use'")
+                uses.append(A.UseDecl(name.value, keyword.line, keyword.col))
+                self.match(";")
+            except ParseError as error:
+                self._report(error)
+                self._sync_top_level()
+                break
         while not self.at("eof"):
             start = self.i
             if self.match(";"):
@@ -81,13 +95,38 @@ class Parser:
                 self._sync_top_level()
             if self.i == start:
                 self.advance()
-        return A.Program(module, tuple(decls))
+        names = [decl.module for decl in uses]
+        for index, name in enumerate(names):
+            if name in names[:index]:
+                duplicate = next(decl for decl in uses if decl.module == name)
+                self.report.error(
+                    "HX2006", f"module {name!r} is used twice", duplicate.line, duplicate.col
+                )
+        unique = tuple(
+            decl for index, decl in enumerate(uses) if names.index(decl.module) == index
+        )
+        return A.Program(module, tuple(decls), uses=unique)
 
     def _report(self, error: ParseError) -> None:
         self.report.error(error.code, error.message, error.token.line, error.token.col)
 
     def _parse_decl(self) -> A.Decl | None:
         token = self.peek()
+        if token.kind == "use":
+            # A `use` that is not at the top of the file is a placement mistake, not an
+            # unknown declaration: say which rule it broke and keep parsing.
+            self.report.error(
+                "HX2006",
+                "'use' must appear before every other declaration; the files a program is "
+                "built from are not decided halfway down it",
+                token.line,
+                token.col,
+            )
+            self.advance()
+            if self.at("ident"):
+                self.advance()
+            self.match(";")
+            return None
         if token.kind == "schema":
             return self._parse_schema()
         if token.kind == "enum":
@@ -112,11 +151,11 @@ class Parser:
                 if self.at("ident") or self.at("agent"):
                     self.advance()
                 return None
-            if name in {"import", "use"}:
+            if name == "import":
                 self.report.error(
                     "HX4004",
-                    f"'{name}' is not available: module loading is disabled in every profile "
-                    "and programs are single-file",
+                    f"'{name}' is not available: a program is built from the modules it "
+                    "names with `use`, and nothing is loaded while it runs",
                     token.line,
                     token.col,
                 )
@@ -335,9 +374,18 @@ class Parser:
     # -- types and parameters --------------------------------------------
     def _parse_type(self) -> A.TypeRef:
         token = self.expect("ident", "expected a type name")
-        return self._parse_type_tail(token)
+        # M8: a type may be qualified by a used module (`notes.Summary`). Only the
+        # first segment is an identifier followed by '.', so `List<RepoFile>` and
+        # every pre-M8 type parse exactly as they did.
+        qualifier: tuple[str, ...] = ()
+        while self.at(".") and self.peek(1).kind == "ident" and not qualifier:
+            self.advance()
+            part = self.expect("ident", "expected a type name after '.'")
+            qualifier = (token.value,)
+            token = part
+        return self._parse_type_tail(token, qualifier)
 
-    def _parse_type_tail(self, token: Token) -> A.TypeRef:
+    def _parse_type_tail(self, token: Token, qualifier: tuple[str, ...] = ()) -> A.TypeRef:
         args: list[A.TypeRef] = []
         if self.match("<"):
             args.append(self._parse_type())
@@ -345,7 +393,7 @@ class Parser:
                 args.append(self._parse_type())
             self.expect(">", "expected '>' to close the type arguments")
         optional = self.match("?")
-        return A.TypeRef(token.value, tuple(args), optional, token.line, token.col)
+        return A.TypeRef(token.value, tuple(args), optional, token.line, token.col, qualifier)
 
     def _parse_params(self) -> tuple[A.Param, ...]:
         self.expect("(", "expected '(' to open the parameter list")
@@ -429,8 +477,19 @@ class Parser:
         name = self.expect("ident", "expected a loop variable name")
         self.expect("in", f"expected 'in' after loop variable {name.value!r}")
         iterable = self._parse_expr()
+        accumulate = self._parse_accumulator() if self.match("accumulate") else None
         body = self._parse_block()
-        return A.ForStmt(name.value, iterable, body, keyword.line, keyword.col)
+        return A.ForStmt(name.value, iterable, body, keyword.line, keyword.col, accumulate)
+
+    def _parse_accumulator(self) -> A.Accumulator:
+        """`accumulate total: Int = 0` — a binding per pass, never an assignment."""
+        token = self.tokens[self.i - 1]  # the `accumulate` keyword just consumed
+        name = self.expect("ident", "expected an accumulator name after 'accumulate'")
+        self.expect(":", f"expected ':' and a type after accumulator {name.value!r}")
+        declared = self._parse_type()
+        self.expect("=", f"expected '=' and a starting value for accumulator {name.value!r}")
+        init = self._parse_expr()
+        return A.Accumulator(name.value, declared, init, token.line, token.col)
 
     # -- expressions ------------------------------------------------------
     def _parse_expr(self) -> A.Expr:
@@ -493,7 +552,24 @@ class Parser:
             if self.at("("):
                 expression = self._parse_call(expression)
                 continue
+            if self.at("with"):
+                expression = self._parse_with(expression)
+                continue
             return expression
+
+    def _parse_with(self, base: A.Expr) -> A.WithExpr:
+        """`proposal with { summary: "done" }` — a new record, `proposal` unchanged."""
+        keyword = self.advance()
+        self.expect("{", "expected '{' after 'with'")
+        updates: list[A.KwArg] = []
+        while not self.at("}") and not self.at("eof"):
+            name = self.expect("ident", "expected a field name inside 'with'")
+            self.expect(":", f"expected ':' after field {name.value!r}")
+            updates.append(A.KwArg(name.value, self._parse_expr(), name.line, name.col))
+            if not self.match(","):
+                break
+        self.expect("}", "expected '}' to close the 'with' updates")
+        return A.WithExpr(base, tuple(updates), keyword.line, keyword.col)
 
     def _parse_call(self, callee: A.Expr) -> A.Call:
         self.expect("(", "expected '(' to open the argument list")
