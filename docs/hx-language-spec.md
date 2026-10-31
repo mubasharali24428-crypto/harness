@@ -37,7 +37,10 @@ requested, authorised, used once, checked and recorded.
 
 The name is deliberately different. The proposal's compiler rights and
 versioning are not settled (see roadmap H0), and a dialect that owns its spec,
-its effect table and its diagnostics does not depend on that settlement.
+its effect table and its diagnostics does not depend on that settlement. This is
+now a recorded decision, not a stylistic choice: Hx is the Harness language
+surface and Hermes/`.hms` is out of scope until the owner amends
+[the decision record](decisions/2026-10-31-hx-language-surface.md).
 
 ---
 

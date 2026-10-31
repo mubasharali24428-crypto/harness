@@ -4,6 +4,8 @@ Status: proposal, 2026-10-30. This document is a development plan, not a claim t
 
 Implementation: the Harness-owned dialect derived from this plan is Hx — spec in [`hx-language-spec.md`](hx-language-spec.md), reference checker in [`packages/language`](../packages/language). Where this plan and the Hx spec differ, section 1 of the spec records what changed and why (host-selected profiles, declared capabilities, typed host boundaries, the frozen Section 5 diagnostic contract, and a manifest that requests rather than grants).
 
+**Decided 2026-10-31:** Hx is the Harness language surface; Hermes and `.hms` are out of scope until the owner amends the record in [`decisions/2026-10-31-hx-language-surface.md`](decisions/2026-10-31-hx-language-surface.md). The phases below remain the reference plan for what maturity requires, but they are not a work order for Hermes integration, and nothing in this file may be cited as evidence that `.hms` support exists or is planned.
+
 ## Product goal
 
 Evolve the existing Hermes language into a dependable language for defining agent workflows, backend orchestration and verifiable automation. A Hermes program should describe goals, typed inputs and outputs, agent roles, permitted operations, resource limits, verification and human review. The Harness remains the authority for identity, policy, execution, events and approvals. Hermes is an opt-in surface; users can still use the product without learning it.
