@@ -59,6 +59,17 @@ on cancelled admission and after an indexing failure. This reservation is
 **per process**; it is not a distributed lock and does not prove replica-wide
 exclusion.
 
+> Resolved 2026-10-31 (commit `cb88801`): admission is now a **durable**
+> reservation — migration `0072 project_index_reservations` plus one atomic lease
+> upsert (`INSERT … ON CONFLICT DO UPDATE … WHERE lease expired RETURNING`), so
+> the exclusion spans processes. Proven two ways: two `ContextService` instances
+> over one shared DB (second refused / expired lease reclaimed / released on
+> completion) and on live Postgres-18 (first acquire `INSERT 0 1`, concurrent
+> second refused `INSERT 0 0`, owner unchanged). See
+> [`section11/tests/test_w19_replica_admission.py`](../section11/tests/test_w19_replica_admission.py).
+> Cross-replica event-bus **delivery** (Postgres NOTIFY) is also now proven
+> (`4b22ede`, `docs/briefs/evidence/w19/replica-notify-*.json`).
+
 After this change the Section 11 suite passed **54 tests, 1 skipped**; Ruff and
 `make static-gates` passed. The separately executed pgvector migration/vector test remains the
 earlier proof described above, not a distributed admission test.

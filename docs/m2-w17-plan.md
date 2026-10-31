@@ -177,6 +177,14 @@ Status after slice 2 (nothing here is a W17 exit claim):
    Linux host), and worker-daemon kill and cancellation (the W22 follow-up owns those files
    and was running its own daemon-kill drills). Event-bus behaviour across replicas on
    Postgres NOTIFY was not re-drilled.
+
+   > Resolved for the NOTIFY leg (2026-10-31, `4b22ede`): cross-replica delivery is
+   > now drilled — a second identity replica receives, purely via Postgres NOTIFY,
+   > events its own process never published (`docs/briefs/evidence/w19/replica-notify-*.json`,
+   > PASS 5/5). The terminal-publish defect candidate is also fixed (bounded retry in
+   > `_publish_safe`, landed in `332d273`). MCP cleanup, Linux shell cleanup and a real
+   > upstream 5xx remain open. See
+   > [`blocked-item-workorders-2026-10-31`](reviews/blocked-item-workorders-2026-10-31.md).
 4. **Restore: done except scheduling.** The drill is isolated and passes with the backup
    recorded. The W15 monthly automation lives in QoderWake and could not be inspected from
    here; its trigger was blocked by account credits when last recorded. Owner action:

@@ -304,6 +304,14 @@ Closed after the first live gate:
 
 ## Remaining (explicitly open)
 
+> Resolved since (2026-10-31, commits `4b22ede`/`cb88801`, see
+> [`blocked-item-workorders-2026-10-31`](reviews/blocked-item-workorders-2026-10-31.md)):
+> **accounting** (BYO tool calls now bounded by Part 44 `maxToolCalls`) and
+> **notifications** (the identity app carries the run-terminal tap, so a BYO
+> `engine_failed` reaches participants) are CLOSED with tests. The agent loop on
+> a remote host, re-dispatch, mid-command live drill, transport hardening and the
+> runner UI remain open as described below.
+
 * **Agent loop and a real remote host.** The execution leg (below) runs the approved plan's
   *test commands* on the host. A model-driven agent loop on the customer host (editing code,
   producing a diff/PR) is not built, and no run has yet crossed a real network to a machine
