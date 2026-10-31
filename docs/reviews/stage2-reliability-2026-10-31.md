@@ -272,7 +272,13 @@ verifier 111 s later: `harness_backup_last_success_timestamp_seconds` advanced, 
 **inactive** (`w17-backup-freshness-1793454490.json`, PASS). That is the *fresh -> clears* leg that
 was previously covered only by promtool and a PG test.
 
-Still not shown: a restore from *this* base into a scratch cluster (the three PITR passes used
-the drill instance, not this archive), and any recurring schedule. One manual backup does not
+**Restore from the live archive: PASS** (`live-archive-restore-20261031.json`). `restore-walg.sh` fetched this base (11 s) and
+replayed live WAL to 14:40:00 UTC (last commit 14:39:34) in a scratch container, paused, never promoted. `backup_runs` row 3,
+written after the base backup finished, is present (WAL replay on top of the base), `schema_migrations` 71/0072 and the counts of
+users 614, teams 616, projects 1031, agent_events 177 441 and artifacts 131 equal live. Scratch container and volume removed; live
+volume intact; no timeline-history file appeared in the live archive. Caveat: the stack was near idle from 13:21, so equal counts
+show completeness, not a rewind (the marker drills prove the rewind). This closes the live-archive gap above.
+
+Still not shown: any recurring schedule. One manual backup does not
 make the cadence healthy; the nightly job that should have produced one is still unexplained.
 `HarnessEventBusLag` and `HarnessRunQueueStalled` were still firing at that reading.

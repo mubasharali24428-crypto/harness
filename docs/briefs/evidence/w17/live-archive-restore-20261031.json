@@ -1,0 +1,30 @@
+{
+  "drill": "restore-from-live-archive",
+  "executedAt": "2026-10-31T14:47:55Z",
+  "storage": "file:///tmp/harness-walg-live (the LIVE archive the production db writes WAL into)",
+  "baseBackup": "base_000000010000001C00000087 (taken 2026-10-31T13:46:14Z, 48 MB)",
+  "target": "2026-10-31 14:40:00+00",
+  "lastReplayedCommit": "2026-10-31 14:39:34.874224+00",
+  "replayLsn": "1C/AD006788",
+  "state": "in recovery, paused at target (never promoted)",
+  "checks": {
+    "walReplayedOnTopOfBase": "backup_runs row 3 (written 13:46:18, after the base backup) present in restored cluster",
+    "schemaMigrations": "71 / max 0072, equal to live",
+    "rowCountsEqualLive": {"users": 614, "teams": 616, "projects": 1031, "agent_events": 177441, "artifacts": 131},
+    "latestAgentEventTs": "2026-10-31 13:21:16.597684+00, equal to live"
+  },
+  "timingsSeconds": {"fetch": 11, "replayToPause": 1},
+  "isolation": {
+    "scratchContainer": "harness-pitr-live-s2 (removed)",
+    "scratchVolume": "harness_pgdata_pitr_s2 (removed)",
+    "liveVolumeIntact": true,
+    "liveArchiveNewTimelineHistoryFiles": 0,
+    "liveArchiverFailedCount": 0
+  },
+  "caveats": [
+    "The live stack was nearly idle from 13:21 (latest agent event equals live's), so equal row counts show the restore is complete, not that it rewound anything. The rewind itself was proven by the marker drills.",
+    "Scratch cluster only; no cutover performed. 11 s fetch is for a 48 MB database, not an RTO claim at production size.",
+    "harness_store (artifact bytes) is not part of this restore; 131 artifact rows came back, their bytes were not tested."
+  ],
+  "result": "pass"
+}
