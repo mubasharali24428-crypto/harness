@@ -32,9 +32,9 @@ billing stays flag-off. Remaining blockers: a reviewed dedicated sandbox
 worker/daemon, host certification, the first native-Linux drill run, and
 counsel-approved terms (a review packet now exists under `docs/legal/`).
 
-Updated 2026-10-31: the **Hx execution track** (M1–M6, design in
-`docs/hx-execution-architecture.md`) is complete through M6, committed at `332d273`
-(M2–M5) and `3637e3f` (M6). A
+Updated 2026-10-31: the **Hx execution track** (M1–M7, design in
+`docs/hx-execution-architecture.md`) is complete through M7, committed at `332d273`
+(M2–M5), `3637e3f` (M6) and `746a2d2` (M7). A
 program in the `agent` profile now checks, is authorised against its own
 manifest, runs inside its declared budget across a host bridge, and produces
 evidence that says `approved: false` / `autoMerge: false`. Section 4 executes a
@@ -48,13 +48,19 @@ checked actually check: `budget.cost` is reserved against a **host-supplied pric
 table** before each crossing (an unpriced crossing is refused rather than free, and
 a ceiling with no table is announced in its own evidence as `declared-not-enforced`),
 and a grant can be **revoked mid-run** — the next crossing is denied, completed ones
-stand, and the revision is logged with the host's reason. Suites at `3637e3f`:
-language 295 (spec/toolchain now `0.2.0`), section 1 1223,
+stand, and the revision is logged with the host's reason. M7 closed the last gap
+in that story's honesty: a recorded **failure** now replays as itself (same code,
+status, line, message and contract digest) instead of being masked by the replay's
+own "nothing recorded" error, recordings are versioned (`hx.recording/v2`) with an
+explicit outcome per exchange, and a call that never settled makes the recording
+incomplete — which a replay refuses (`HXH104`) rather than fills in. Suites at
+`746a2d2`:
+language 315 (spec/toolchain now `0.3.0`), section 1 1223,
 section 4 1933, section 5 459, `make guard-isolation` clean. This does **not**
 move the verdict above: the driver bounds host calls, not CPU; a price is the
 host's estimate, not a settled bill from Section 3's ledger; a revoked capability
-stops effects but does not kill a call in flight; and the track adds no approval
-surface of its own.
+stops effects but does not kill a call in flight; a replay can reproduce an effect
+it recorded but cannot undo one; and the track adds no approval surface of its own.
 
 ## PROGRAM CLOSE — Mission 23 (2026-08-26)
 
