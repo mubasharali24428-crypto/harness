@@ -195,6 +195,31 @@ async def test_identity_app_serves_request_ids_and_metrics_over_real_factory(
             sys.path.remove(runn)
 
 
+async def test_identity_assembly_taps_run_terminal_events_for_notifications(monkeypatch):
+    """M2-W13 fix: the runner control plane publishes run-terminal events on the
+    IDENTITY app's bus, so identity — not only the orchestrator — must carry the
+    notification tap. Without this a BYO engine_failed blocks a run silently."""
+    import os
+
+    monkeypatch.setenv("HARNESS_ALLOW_DEV_MASTER_KEY", "1")
+    os.environ.setdefault("HARNESS_ALLOW_DEV_MASTER_KEY", "1")
+
+    runn = str(RUNNERS)
+    if runn not in sys.path:
+        sys.path.insert(0, runn)
+    try:
+        services = _load_module("svc_w13_notify", _SERVICES)
+        app = services.app_identity()
+        bus = app.state.event_bus
+        assert app.state.event_notifier in bus._event_listeners, (
+            "identity bus must carry the notification tap (W13): a run-terminal "
+            "event published by the runner path would otherwise notify nobody"
+        )
+    finally:
+        if runn in sys.path:
+            sys.path.remove(runn)
+
+
 # ---------------------------------------------------------------------------
 # 2. Middleware behaviour — request ids, JSON access log, anonymized user
 # ---------------------------------------------------------------------------

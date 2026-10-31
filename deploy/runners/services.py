@@ -281,6 +281,16 @@ def app_identity():
 
     _wire_observability(
         app, lambda: identity_domain_metrics.render() + realtime_metrics.render())
+    # M2-W13 fix: the runner control plane publishes run-terminal events
+    # (engine_completed / engine_failed) on THIS app's bus, so a BYO run that
+    # settles must reach the same notification tap the orchestrator's own
+    # publishes get. Enqueue outbox rows here; the orchestrator's single
+    # NotificationWorker drains the shared notification_outbox table. No second
+    # worker on identity, so an event is never double-sent.
+    from harness_identity.notifier import make_event_notifier
+
+    app.state.event_notifier = make_event_notifier(get_factory(), base_settings())
+    app.state.event_bus.add_event_listener(app.state.event_notifier)
     # M20-T3: /ready gates on db + migrations; compose healthcheck hits it.
     _install_probes(app, 8001)
 

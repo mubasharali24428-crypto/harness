@@ -777,6 +777,28 @@ async def _tool_events(db, run_id: str) -> list[AgentEvent]:
     )
 
 
+async def _max_tool_calls(db, run_id: str) -> int | None:
+    """The run's Part 44 maxToolCalls, or None when unset / pre-0048 schema.
+
+    Same tolerance contract as ``execution.remaining_tool_calls``: a missing row
+    or a missing table means "no limit", never a crash inside the write path.
+    """
+    try:
+        row = (
+            await db.execute(
+                text("SELECT max_tool_calls FROM run_execution_limits WHERE run_id = :r"),
+                {"r": run_id},
+            )
+        ).first()
+    except Exception:  # noqa: BLE001 — absent table/column ⇒ free of a tool-call cap
+        if db.in_transaction():
+            await db.rollback()
+        return None
+    if row is None or row[0] is None:
+        return None
+    return int(row[0])
+
+
 def _calls_of(events: list[AgentEvent]) -> dict[str, str]:
     """callId -> command, parsed from the TOOL_CALL rows this endpoint wrote."""
     calls: dict[str, str] = {}
@@ -935,8 +957,25 @@ async def post_job_events(
                     )
                 )
         bus = request.app.state.event_bus
+        project_id = job.project_id  # read before the extra query below expires `job`
+        # Part 44: the run's own tool calls count against its maxToolCalls, exactly
+        # as the engine's shell plugin bounds them. The per-job event cap above bounds
+        # transcript SIZE; this bounds the budget the plan approved. Checked on the
+        # validated batch BEFORE any write, and after `plan` was already read so the
+        # extra query cannot expire the ORM row this path still touches.
+        # Absent row / null column (pre-0048 or unset) = no limit, like `remaining_tool_calls`.
+        used_calls = sum(1 for e in existing if e.type == EventType.TOOL_CALL.value)
+        new_calls = sum(1 for e in body.events if e.phase == "call")
+        cap = await _max_tool_calls(db, run_id)
+        if cap is not None and used_calls + new_calls > cap:
+            raise _refuse(
+                409,
+                "TOOL_CALL_LIMIT",
+                f"this batch exceeds the run's maxToolCalls ({cap}): "
+                f"{used_calls} used, {new_calls} in this batch",
+            )
         for event_type, payload in planned:
-            await bus.publish(event_type, job.project_id, payload, run_id=run_id)
+            await bus.publish(event_type, project_id, payload, run_id=run_id)
         return {"accepted": len(planned), "total": len(existing) + len(planned)}
 
 

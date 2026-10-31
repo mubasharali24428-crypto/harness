@@ -54,6 +54,14 @@ async def exec_client(runner_factory):
                 "scope_paths TEXT NOT NULL DEFAULT '[]')"
             )
         )
+        # Part 44 execution limits: only max_tool_calls is read by the runner path;
+        # an absent row means "no tool-call cap", so existing tests are unaffected.
+        await conn.execute(
+            text(
+                "CREATE TABLE IF NOT EXISTS run_execution_limits (run_id TEXT PRIMARY KEY, "
+                "max_tool_calls INTEGER)"
+            )
+        )
     app = FastAPI()
     app.include_router(router)
     app.state.session_factory = runner_factory
@@ -274,6 +282,39 @@ async def test_event_batch_and_job_caps(exec_client, runner_factory):
     over = await _post(exec_client, job, "events", {"events": [_call("last", CMD_A)]})
     assert over.status_code == 409
     assert over.json()["detail"]["error"]["code"] == "EVENT_CAP_REACHED"
+
+
+async def test_run_tool_call_limit_bounds_byo_events(exec_client, runner_factory):
+    """Part 44: a BYO run counts its tool calls against maxToolCalls, before any write."""
+    env = await _seed(runner_factory)
+    run_id = await _stage_run(runner_factory, env)
+    job = await _leased(exec_client, runner_factory, env)
+    async with runner_factory() as db:
+        await db.execute(
+            text("INSERT INTO run_execution_limits (run_id, max_tool_calls) VALUES (:r, 2)"),
+            {"r": run_id},
+        )
+        await db.commit()
+
+    # Fill exactly to the cap: two calls + their results land.
+    ok = await _post(exec_client, job, "events", {"events": [
+        _call("c1", CMD_A), _result("c1"), _call("c2", CMD_B), _result("c2")]})
+    assert ok.status_code == 200, ok.text
+    assert len(await _log(runner_factory, run_id, "tool_call")) == 2
+
+    # A third call exceeds the cap; the whole batch is refused and NOTHING is written.
+    over = await _post(exec_client, job, "events", {"events": [_call("c3", CMD_A)]})
+    assert over.status_code == 409, over.text
+    assert over.json()["detail"]["error"]["code"] == "TOOL_CALL_LIMIT"
+    assert len(await _log(runner_factory, run_id, "tool_call")) == 2
+
+    # Negative control: no limits row means no cap, not a hidden default.
+    async with runner_factory() as db:
+        await db.execute(
+            text("DELETE FROM run_execution_limits WHERE run_id = :r"), {"r": run_id})
+        await db.commit()
+    free = await _post(exec_client, job, "events", {"events": [_call("c3", CMD_A)]})
+    assert free.status_code == 200, free.text
 
 
 async def test_events_refuse_foreign_unleased_and_stopped_runs(exec_client, runner_factory):
