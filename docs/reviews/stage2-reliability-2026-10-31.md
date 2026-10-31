@@ -261,3 +261,18 @@ Newest base backup is 532 317 s (~6.2 days) old, `HarnessBackupStale` firing, `H
 quiet. The same reading also showed `HarnessEventBusLag` and `HarnessRunQueueStalled` firing a few
 minutes after the redeploy; not investigated here (possibly restart transients) and not part of Stage 2's
 evidence, so treat them as unexplained rather than as noise.
+
+**Live base backup taken (2026-10-31 13:46 UTC, at the user's instruction).** `walg run --rm
+--no-deps` (so no second cluster could archive into the live prefix) against the live `db`,
+prefix `/tmp/harness-walg-live`: `base_000000010000001C00000087`, 4 s, 48 MB, LSN 1C/87000028 to
+1C/87000158, `backup_runs` id 3, `pg_stat_archiver` 3165 archived / **0 failed**. Before it, that
+prefix held 3 252 WAL segments and **no `basebackups_005` directory**, i.e. WAL with no base to
+replay it onto: the live archive could not have been restored from. Re-running the freshness
+verifier 111 s later: `harness_backup_last_success_timestamp_seconds` advanced, `HarnessBackupStale`
+**inactive** (`w17-backup-freshness-1793454490.json`, PASS). That is the *fresh -> clears* leg that
+was previously covered only by promtool and a PG test.
+
+Still not shown: a restore from *this* base into a scratch cluster (the three PITR passes used
+the drill instance, not this archive), and any recurring schedule. One manual backup does not
+make the cadence healthy; the nightly job that should have produced one is still unexplained.
+`HarnessEventBusLag` and `HarnessRunQueueStalled` were still firing at that reading.
