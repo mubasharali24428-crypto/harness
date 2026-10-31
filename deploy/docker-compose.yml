@@ -658,7 +658,10 @@ services:
       NEXT_PUBLIC_REVIEW_URL: http://localhost:8008
       NEXT_PUBLIC_IDENTITY_WS_URL: ws://localhost:8001
     ports:
-      - "3000:3000"
+      # Host port is a knob, not a fork: the documented default is :3000, but a
+      # busy 3000 on a developer box is answered by HARNESS_FRONTEND_PORT in the
+      # (untracked) env file rather than by editing this line.
+      - "${HARNESS_FRONTEND_PORT:-3000}:3000"
     healthcheck:
       # M20-T3 (OPS-05): frontend was the ONE long-running service with NO
       # healthcheck — a wedged Next.js looked healthy to proxy/humans and the
