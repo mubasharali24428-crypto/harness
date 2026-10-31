@@ -1,0 +1,39 @@
+{
+  "afterLive": {
+    "harness_event_delivery_lag_seconds_bucket{le=\"5.0\"}": 1.0,
+    "harness_event_delivery_lag_seconds_count": 1.0,
+    "harness_event_delivery_lag_seconds_sum": 0.011031,
+    "harness_event_replay_age_seconds_count": 0.0
+  },
+  "before": {
+    "harness_event_delivery_lag_seconds_bucket{le=\"5.0\"}": 0.0,
+    "harness_event_delivery_lag_seconds_count": 0.0,
+    "harness_event_delivery_lag_seconds_sum": 0.0,
+    "harness_event_replay_age_seconds_count": 0.0
+  },
+  "boundSeconds": 5.0,
+  "checks": {
+    "histogramExported": true,
+    "liveDeliveryObserved": true,
+    "liveDeliveryWithin5s": true,
+    "replayLegObserved": true
+  },
+  "identity": "http://127.0.0.1:18001",
+  "live": {
+    "frameSeq": 1,
+    "frameType": "plan_proposed",
+    "meanLagSeconds": 0.011,
+    "observations": 1.0,
+    "wallClockToFrameSeconds": 0.0973,
+    "within5s": 1.0
+  },
+  "orchestrator": "http://127.0.0.1:18006",
+  "projectId": "c75b97a5-0d58-4421-932e-a2694957fd41",
+  "replay": {
+    "exported": true,
+    "framesRead": 1.0,
+    "observations": 1.0
+  },
+  "runId": "w17fresh-1bcc774d5b53",
+  "verdict": "PASS"
+}
