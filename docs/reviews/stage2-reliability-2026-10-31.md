@@ -254,4 +254,10 @@ building a separate `harnessfresh` project. I did not stop them and did not rest
 `scripts/e2e/w17_backup_freshness_verify.py` therefore **failed** at that moment
 (`w17-backup-freshness-1793453049.json`: series absent, `HarnessBackupNeverRan` still
 `pending`). That is the orchestrator being down, not a backup regression; the passing
-reading at 05:32 stands for the cadence finding. Re-run it once the stack is back.
+reading at 05:32 stands for the cadence finding.
+
+**Re-run after the stack came back (live, read-only): PASS** — `w17-backup-freshness-1793453952.json`.
+Newest base backup is 532 317 s (~6.2 days) old, `HarnessBackupStale` firing, `HarnessBackupNeverRan`
+quiet. The same reading also showed `HarnessEventBusLag` and `HarnessRunQueueStalled` firing a few
+minutes after the redeploy; not investigated here (possibly restart transients) and not part of Stage 2's
+evidence, so treat them as unexplained rather than as noise.
