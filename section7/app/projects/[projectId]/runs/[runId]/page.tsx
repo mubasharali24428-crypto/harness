@@ -32,6 +32,7 @@ import { loadSession } from "@/lib/auth";
 import {
   type RunAggregateDto,
   getRunAggregate,
+  pauseOrResumeRun,
   runSettled,
 } from "../../../../runs/runsApi";
 import { RunDetailAggregate } from "./runDetailAggregate";
@@ -129,6 +130,26 @@ export default function RunDetailPage({
 
   // Keep the summary live (stop/done change the state after first load).
   // ponytail: 3s polling like the shared panel; push delivery is P4.
+  const [controlBusy, setControlBusy] = useState(false);
+  const [controlNote, setControlNote] = useState<string | null>(null);
+  const pauseResume = useCallback(async (action: "pause" | "resume") => {
+    if (!token || !runId) return;
+    setControlBusy(true);
+    try {
+      const r = await pauseOrResumeRun(runId, token, action);
+      setControlNote(action === "resume"
+        ? "Resumed: the agent continues from where it stopped, with any direction sent while paused."
+        : r.status === "paused"
+          ? "Paused: the agent's process is stopped; it cannot change files until you resume."
+          : "Pausing: the agent may still finish the step it is on.");
+      await fetchAgg(true);
+    } catch (e) {
+      setControlNote(`Could not ${action}: ${String((e as Error)?.message ?? e)}`);
+    } finally {
+      setControlBusy(false);
+    }
+  }, [token, runId, fetchAgg]);
+
   const terminal = runSettled(agg);
   useEffect(() => {
     if (!token || !runId || terminal) return;
@@ -179,7 +200,8 @@ export default function RunDetailPage({
         )}
         {loading && !agg && !notFound && <LoadingState label="Loading run…" rows={4} />}
         {agg && (
-          <RunDetailAggregate agg={agg} now={Date.now()} conn={stale ? "reconnecting" : "polling"} />
+          <RunDetailAggregate agg={agg} now={Date.now()} conn={stale ? "reconnecting" : "polling"}
+            onPauseResume={(a) => void pauseResume(a)} controlBusy={controlBusy} controlNote={controlNote} />
         )}
       </RunTabPanel>
 

@@ -151,6 +151,9 @@ export function vscodeEditor(deps: EditorDeps): EditorPort {
           });
       });
       await vscode.commands.executeCommand("setContext", "harness.reviewing", false);
+      // A keyboard answer leaves this file's toast on screen over the next file's prompt; the API
+      // cannot dismiss one, so hide toasts (they stay in the notification center).
+      await vscode.commands.executeCommand("notifications.hideToasts");
       return verdict;
     },
 

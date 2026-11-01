@@ -41,7 +41,12 @@ const CODE = `${CODE_APP}/Contents/Resources/app/bin/code`;
 const PROFILE = "/tmp/hvd24"; // short on purpose: macOS limits unix socket paths to ~104 characters
 const WORKSPACE = "/tmp/w24ws";
 const PROVIDER_VARS = ["DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL", "DSH_MODEL", "DSH_PATCH_FILES"];
-const TASK = "Fix add() in calc.py so that `python -m unittest` passes, then run `python -m unittest` to confirm.";
+// --demo: the recorded demo's path. Two buggy files; the review rejects shout.py (Alt+N) and approves the rest (Alt+Y).
+const DEMO = process.argv.includes("--demo");
+const REJECT = "shout.py";
+const TASK = DEMO
+  ? "Fix add() in calc.py and shout() in shout.py so that `python -m unittest` passes, then run `python -m unittest` to confirm."
+  : "Fix add() in calc.py so that `python -m unittest` passes, then run `python -m unittest` to confirm.";
 
 const args = process.argv.slice(2);
 const flag = (name, fallback) => {
@@ -189,6 +194,14 @@ async function main() {
       "class AddTest(unittest.TestCase):", "    def test_add(self):", "        self.assertEqual(add(2, 3), 5)", "", "",
       'if __name__ == "__main__":', "    unittest.main()", "",
     ].join("\n"));
+    if (DEMO) {
+      writeFileSync(join(WORKSPACE, REJECT), "def shout(s):\n    return s.lower() + \"!\"\n");
+      writeFileSync(join(WORKSPACE, "test_shout.py"), [
+        "import unittest", "", "from shout import shout", "", "",
+        "class ShoutTest(unittest.TestCase):", "    def test_shout(self):", '        self.assertEqual(shout("hi"), "HI!")', "", "",
+        'if __name__ == "__main__":', "    unittest.main()", "",
+      ].join("\n"));
+    }
     const before = sh("python3", ["-m", "unittest", "-q"], { cwd: WORKSPACE });
     if (before.status === 0) throw new Error("the scratch test passes before the run; the task would prove nothing");
     evidence.workspace = { calcBefore: sha256(readFileSync(join(WORKSPACE, "calc.py"))), testFailsBeforeRun: true };
@@ -306,11 +319,43 @@ async function main() {
       return s.toasts.find((t) => /write the reviewed change/i.test(t.message));
     }, { timeoutMs: 120000 });
     evidence.captures.reviewPrompt = { toasts: state.toasts, status: state.status.filter((t) => /Harness/.test(t)), tabs: state.tabs };
-    if (!state.status.some((t) => /Harness review 1\/1: calc\.py/.test(t))) throw new Error("the status bar does not show the review position");
+    const position = DEMO ? /Harness review 1\/\d+: / : /Harness review 1\/1: calc\.py/;
+    if (!state.status.some((t) => position.test(t))) throw new Error("the status bar does not show the review position");
     await shot("review-prompt");
   });
 
-  await step("Alt+Y applies the reviewed change from the keyboard", async () => {
+  if (DEMO) await step(`Alt+N rejects ${REJECT}, Alt+Y approves every other file`, async () => {
+    // Keyboard only, no fallbacks: this is exactly what the demo shows.
+    const done = (s) => s.toasts.find((t) => /Harness: run .* applied/.test(t.message));
+    evidence.captures.decisions = [];
+    for (;;) {
+      const { state } = await window_.waitFor("the next review prompt or the final notice", (s) => {
+        failOnError(s);
+        return done(s) || s.status.some((t) => /Harness review \d+\/\d+: /.test(t));
+      }, { timeoutMs: 60000 });
+      const final = done(state);
+      if (final) {
+        evidence.captures.finalNotice = final.message;
+        evidence.runId = /run (\S+) /.exec(final.message)?.[1] ?? null;
+        break;
+      }
+      const [, where, path] = /Harness review (\d+\/\d+): (\S+)/.exec(state.status.find((t) => /Harness review \d+\/\d+: /.test(t)));
+      if (evidence.captures.decisions.some((d) => d.where === where)) { await sleep(500); continue; }
+      const reject = path === REJECT;
+      await shot(`review-${where.replace("/", "-of-")}-${reject ? "reject" : "apply"}`);
+      await window_.press(reject ? "n" : "y", { alt: true });
+      evidence.captures.decisions.push({ where, path, key: reject ? "Alt+N" : "Alt+Y" });
+    }
+    const rejected = evidence.captures.decisions.filter((d) => d.key === "Alt+N").length;
+    if (rejected !== 1) throw new Error(`expected to reject ${REJECT} once, rejected ${rejected}: ${JSON.stringify(evidence.captures.decisions)}`);
+    if (!new RegExp(`${evidence.captures.decisions.length - 1} applied, 0 deleted, 1 refused`).test(evidence.captures.finalNotice)) {
+      throw new Error(`unexpected outcome: ${evidence.captures.finalNotice}`);
+    }
+    await shot("applied");
+    return evidence.captures.decisions;
+  });
+
+  if (!DEMO) await step("Alt+Y applies the reviewed change from the keyboard", async () => {
     // Keyboard first. If the keystroke does not register through the protocol, fall back to the
     // command palette and then the notification's button, and record which one actually answered.
     const answered = (s) => s.toasts.some((t) => /Harness: run .* applied/.test(t.message));
@@ -342,7 +387,9 @@ async function main() {
   // ----- checks outside the window
   await step("the file, the test and the server's records agree", async () => {
     const calc = readFileSync(join(WORKSPACE, "calc.py"), "utf8");
-    const after = sh("python3", ["-m", "unittest", "-q"], { cwd: WORKSPACE });
+    // In the demo shout.py was rejected on purpose, so only calc's test must pass and shout.py must be untouched.
+    const after = sh("python3", ["-m", "unittest", "-q", ...(DEMO ? ["test_calc"] : [])], { cwd: WORKSPACE });
+    if (DEMO && !/s\.lower\(\)/.test(readFileSync(join(WORKSPACE, REJECT), "utf8"))) throw new Error(`${REJECT} was rejected but changed on disk`);
     evidence.workspace = { ...evidence.workspace, calcAfter: sha256(calc), calcAfterContent: calc, testPassesAfterRun: after.status === 0, unittestTail: `${after.stdout}${after.stderr}`.trim().slice(-200) };
     if (!/return a \+ b/.test(calc) || after.status !== 0) throw new Error(`the fix is not in the file or the test still fails: ${JSON.stringify(calc)}`);
 
@@ -356,8 +403,9 @@ async function main() {
       changes: items.map((c) => ({ path: c.path, changeKind: c.changeKind, reviewState: c.reviewState, diffSha: c.diffSha })),
       diff: files.map((f) => ({ path: f.path, diffSha: f.diffSha, patchSha256: sha256(f.patch ?? ""), digestMatchesPatch: sha256(f.patch ?? "") === f.diffSha })),
     };
-    if (run.status !== 200 || items.length !== 1 || items[0].reviewState !== "approved") throw new Error(`server records disagree: ${JSON.stringify(evidence.server)}`);
-    if (!evidence.server.diff.every((f) => f.digestMatchesPatch) || files[0]?.diffSha !== items[0].diffSha) throw new Error("the approved digest is not the digest of the recorded patch");
+    const expected = (c) => (DEMO && c.path === REJECT ? "rejected" : "approved");
+    if (run.status !== 200 || (!DEMO && items.length !== 1) || !items.length || items.some((c) => c.reviewState !== expected(c))) throw new Error(`server records disagree: ${JSON.stringify(evidence.server)}`);
+    if (!evidence.server.diff.every((f) => f.digestMatchesPatch) || items.some((c) => files.find((f) => f.path === c.path)?.diffSha !== c.diffSha)) throw new Error("the approved digest is not the digest of the recorded patch");
     // A local run is not metered by the orchestrator (the model call is made from the machine, not
     // through the router), so zero rows is the expected answer. Read-only, and never fails the run.
     const ledger = sh("docker", ["exec", "harness-db-1", "sh", "-c", `psql -U "\${POSTGRES_USER:-postgres}" -d "\${POSTGRES_DB:-harness}" -Atc "select count(*) from cost_ledger where run_id='${evidence.runId}'"`]);

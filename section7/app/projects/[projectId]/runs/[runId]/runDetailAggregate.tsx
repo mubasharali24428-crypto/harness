@@ -8,6 +8,7 @@
 // extension; Next's compiler accepts this import too, so one source fits both.
 import * as React from "react";
 import { formatTimestamp } from "@/lib/format";
+import { Button } from "@/components/ui";
 import {
   type RunAggregateDto,
   formatCostUsdExact,
@@ -35,20 +36,39 @@ export function RunDetailAggregate({
   agg,
   now,
   conn = "live",
+  onPauseResume,
+  controlBusy = false,
+  controlNote,
 }: {
   agg: RunAggregateDto;
   now: number;
   /** How fresh `agg` is; the page passes `reconnecting` after a failed refresh. */
   conn?: ConnStatus;
+  /** Run-level pause/resume; without it no button is shown. */
+  onPauseResume?: (action: "pause" | "resume") => void;
+  controlBusy?: boolean;
+  /** What the last pause/resume answered, or why it failed. */
+  controlNote?: string | null;
 }) {
   const timeline = stepsNewestFirst(agg.steps);
   const status = liveStatus(agg.lifecycle?.userStatus, conn);
+  const control = agg.state === "executing" ? "pause" : agg.state === "paused" ? "resume" : null;
   return (
     <section className="card" style={sectionStyle} aria-label="Run summary">
       <h1 style={{ marginTop: 0 }}>
         Run <span title={agg.runId}>{agg.runId}</span>{" "}
         <span className={statePillClass(agg.state)} title={agg.state}>{stateLabel(agg.state)}</span>
+        {onPauseResume && control && (
+          <>
+            {" "}
+            <Button size="sm" variant={control === "pause" ? undefined : "primary"} disabled={controlBusy}
+              onClick={() => onPauseResume(control)}>
+              {control === "pause" ? "Pause" : "Resume"}
+            </Button>
+          </>
+        )}
       </h1>
+      {controlNote && <p role="status" style={{ ...mutedStyle, margin: "4px 0", fontSize: 13 }}>{controlNote}</p>}
 
       {/* W23: one of five user states. An older server sends no userStatus: show nothing. */}
       {status && (

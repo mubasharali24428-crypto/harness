@@ -87,8 +87,9 @@ export function buildRunsQueryString(query: RunsQuery): string {
   return params.toString();
 }
 
-async function request<T>(path: string, token: string): Promise<T> {
+async function request<T>(path: string, token: string, method: "GET" | "POST" = "GET"): Promise<T> {
   const res = await fetch(`${ORCHESTRATOR_BASE}${path}`, {
+    method,
     headers: { authorization: `Bearer ${token}` },
   });
   const text = await res.text();
@@ -299,6 +300,17 @@ export function stepsNewestFirst(
 
 function asStringOrNull(value: unknown): string | null {
   return typeof value === "string" ? value : null;
+}
+
+/** POST runs/{runId}/pause | resume. Pause kills the engine process and releases the run's claim;
+ *  resume re-queues it and the agent continues its own session. Pause answers `pausing` while the
+ *  engine can still write files, `paused` once it has stopped. */
+export async function pauseOrResumeRun(
+  runId: string,
+  token: string,
+  action: "pause" | "resume",
+): Promise<{ status?: string; state?: string }> {
+  return request(`/api/v1/orchestrator/runs/${encodeURIComponent(runId)}/${action}`, token, "POST");
 }
 
 /** GET /api/v1/orchestrator/runs/{runId} — W4-C2 aggregate (F3a server side).
