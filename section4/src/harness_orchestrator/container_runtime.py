@@ -219,21 +219,24 @@ def labelled_boundary_runs() -> dict[str, str]:
     return found
 
 
-def _attached_container_ids(network: str) -> list[str]:
+def _attached_container_ids(network: str) -> list[str] | None:
+    """Ids attached to ``network``; None when Docker could not say (unknown, not empty)."""
     out = docker("network", "inspect", network, check=False)
     if out.returncode != 0:
-        return []
+        return None
     try:
         import json
 
         info = json.loads(out.stdout)[0]
     except (ValueError, IndexError, KeyError):
-        return []  # unreadable: the caller treats it as "in use", which is the safe side
+        return None
     return sorted((info.get("Containers") or {}).keys())
 
 
-def _running_containers(ids: list[str]) -> list[tuple[str, str]]:
+def _running_containers(ids: list[str]) -> list[tuple[str, str]] | None:
     """``(id, name)`` for the given container ids that are currently running.
+
+    None when Docker could not list containers: unknown is not "none running".
 
     Piped, not space-separated: a container NAME may contain spaces, and a
     space-delimited line was mis-parsed into "no container is running" — which
@@ -245,6 +248,8 @@ def _running_containers(ids: list[str]) -> list[tuple[str, str]]:
     out = docker(
         "ps", "--all", "--no-trunc", "--format", "{{.ID}}|{{.Names}}|{{.State}}", check=False
     )
+    if out.returncode != 0:
+        return None
     wanted = set(ids)
     found: list[tuple[str, str]] = []
     for line in out.stdout.splitlines():
@@ -403,11 +408,18 @@ def sweep_orphan_boundaries(
         proxy = os.environ.get(EGRESS_PROXY_CONTAINER_ENV, "harness-sandbox-egress-1")
         stopped: list[str] = []
         attached = _attached_container_ids(name)
+        live = None if attached is None else _running_containers(attached)
+        if live is None and not settled:
+            # R3-S1: "Docker could not say" is not "nothing runs". Without the durable proof
+            # the weak rule has nothing to stand on, and removal would kill a live worker.
+            kept.append(name)
+            continue
+        attached = attached or []
         # The egress proxy is attached here ON PURPOSE and serves every run: it
         # may LEAVE this network, but stopping or removing it would take the
         # allow-list gateway down for the live runs beside this one. (`close()`
         # disconnects it for exactly this reason.)
-        running = [cid for cid, name in _running_containers(attached) if name != proxy]
+        running = [cid for cid, cname in live or [] if cname != proxy]
         if not settled and running:
             kept.append(name)  # rule 1 alone cannot judge a container that is still up
             continue

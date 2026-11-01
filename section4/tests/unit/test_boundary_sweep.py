@@ -19,9 +19,14 @@ PROXY = "harness-sandbox-egress-1"
 class FakeDocker:
     """networks: {name: {"run": label, "containers": {cid: "running"|"exited"}}}"""
 
-    def __init__(self, networks, *, created_ago=3600.0, listing_fails=False):
+    def __init__(
+        self, networks, *, created_ago=3600.0, listing_fails=False, inspect_fails=False,
+        ps_fails=False,
+    ):
         self.calls = []
         self.listing_fails = listing_fails
+        self.inspect_fails = inspect_fails  # endpoint listing only; the Created read still works
+        self.ps_fails = ps_fails
         self.created_ago = created_ago
         self.now = datetime.now(UTC)
         self.net = {
@@ -51,6 +56,8 @@ class FakeDocker:
                 # What `--format '{{json .Created}}'` really prints: quoted RFC 3339, 9 digits.
                 created = self.now - timedelta(seconds=self.created_ago)
                 return done(stdout=json.dumps(created.strftime("%Y-%m-%dT%H:%M:%S.%f") + "123Z"))
+            if self.inspect_fails:
+                return done(1, stderr="Cannot connect to the Docker daemon")
             # Real Docker lists only running endpoints here — the reason the
             # sweeper cannot rely on inspect alone and must disconnect by name.
             running = {
@@ -60,6 +67,8 @@ class FakeDocker:
             }
             return done(stdout=json.dumps([{"Containers": running}]))
         if argv[0] == "ps":
+            if self.ps_fails:
+                return done(1, stderr="Cannot connect to the Docker daemon")
             lines = []
             for info in self.net.values():
                 for cid, st in info["containers"].items():
@@ -76,11 +85,12 @@ class FakeDocker:
                 info["containers"].pop(argv[-1], None)
             return done()
         if argv[0] == "rm":
-            # `docker rm --force` drops the container and its endpoints with it;
-            # a plain `rm` of a running one would fail, and nothing here does that.
+            # `docker rm --force` kills a running container and drops it with its
+            # endpoints; a plain `rm` of a running one fails.
             cid = argv[-1]
+            force = "--force" in argv
             for info in self.net.values():
-                if cid in info["containers"] and info["containers"][cid] != "running":
+                if cid in info["containers"] and (force or info["containers"][cid] != "running"):
                     del info["containers"][cid]
             return done()
         if argv[:2] == ["network", "rm"]:
@@ -189,6 +199,44 @@ def test_an_unknown_run_with_a_live_container_is_kept(monkeypatch):
     fake = _install(monkeypatch, FakeDocker({name: spec}))
     report = container_runtime.sweep_orphan_boundaries(set(), None)
     assert report["kept"] == [name] and name in fake.net
+
+
+def _worker_survives(fake, name, run_spec_name):
+    base = name[: -len("-net")]
+    return (
+        run_spec_name in fake.net
+        and fake.net[run_spec_name]["containers"].get(base) == "running"
+        and not any(call[0] == "rm" for call in fake.calls)
+    )
+
+
+def test_an_unreadable_network_inspect_is_not_a_quiet_network(monkeypatch):
+    """R3-S1: the daemon's sweep has no settled proof. If Docker cannot say what is attached,
+    "nothing is attached" is a guess, and the guess used to be a licence to
+    `docker rm --force` a live worker by name. Unknown must keep the network."""
+    name, spec = _boundary("run-9", "a")
+    fake = _install(monkeypatch, FakeDocker({name: spec}, inspect_fails=True))
+    report = container_runtime.sweep_orphan_boundaries(set(), None)
+    assert report["kept"] == [name] and report["count"] == 0
+    assert _worker_survives(fake, name, name)
+
+
+def test_a_failed_container_listing_is_not_a_quiet_network(monkeypatch):
+    """R3-S1: same rule when the endpoints are known but `docker ps` fails."""
+    name, spec = _boundary("run-10", "b")
+    fake = _install(monkeypatch, FakeDocker({name: spec}, ps_fails=True))
+    report = container_runtime.sweep_orphan_boundaries(set(), None)
+    assert report["kept"] == [name] and report["count"] == 0
+    assert _worker_survives(fake, name, name)
+
+
+def test_a_settled_run_is_still_reaped_when_docker_state_is_unreadable(monkeypatch):
+    """The durable log is the licence for a settled run, so unreadable endpoints do not
+    stop its reap: removal goes by name, as `close()` does."""
+    name, spec = _boundary("run-11", "c")
+    fake = _install(monkeypatch, FakeDocker({name: spec}, inspect_fails=True, ps_fails=True))
+    report = container_runtime.sweep_orphan_boundaries(set(), {"run-11"})
+    assert report["count"] == 1 and name not in fake.net
 
 
 def test_the_weak_rule_still_reclaims_a_quiet_leftover_without_a_database(monkeypatch):
