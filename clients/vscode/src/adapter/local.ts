@@ -43,6 +43,7 @@ interface RunnerRecord {
     local?: { confinement?: string; image?: string; workspace?: string };
     changed?: string[];
     deleted?: string[];
+    reviewSummary?: unknown;
   };
   diff?: string;
   diffOmitted?: string | null;
@@ -158,6 +159,7 @@ export function localEngineExecution(options: LocalEngineOptions): Execution {
         diffOmitted: final.diffOmitted ?? null,
         confinement: result.local?.confinement,
         image: result.local?.image,
+        reviewSummary: result.reviewSummary,
       };
     },
 

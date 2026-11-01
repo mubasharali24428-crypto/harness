@@ -18,6 +18,7 @@ import type { Harness } from "harness-ts-sdk";
 
 import type { ChangeView, HarnessTransport, PlanOffer } from "../core/run.js";
 import type { RunDiffItem } from "../core/diff.js";
+import type { PriceEstimate } from "../core/summary.js";
 
 export interface PlanShape {
   goal?: string;
@@ -91,6 +92,16 @@ export function sdkTransport(harness: Harness, projectId: string | null = null):
     },
     async reviewChange(runId, changeId, decision, diffSha, note): Promise<void> {
       await harness.orchestrator.review_change(runId, changeId, { decision, diffSha, note });
+    },
+    async priceTokens(model, inputTokens, outputTokens): Promise<PriceEstimate> {
+      const answer = await harness.router.estimate_cost({
+        role: "primary",
+        model,
+        inputTokens,
+        outputTokens,
+      });
+      // `priced: false` is the rate card saying it has no rate for this model.
+      return { priced: answer.priced === true, usd: Number(answer.estimatedCostUsd) };
     },
   };
 }

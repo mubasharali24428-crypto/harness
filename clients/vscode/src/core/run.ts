@@ -17,6 +17,7 @@
 
 import type { ContextItem, ContextPlan } from "./context.js";
 import { ContextError, planContext, renderGoal } from "./context.js";
+import { parseSummary, priceSummary, type PriceEstimate, type ReviewSummary } from "./summary.js";
 import {
   applyParsedPatch,
   parseFilePatch,
@@ -59,6 +60,11 @@ export interface HarnessTransport {
     diffSha: string,
     note?: string,
   ): Promise<void>;
+  /**
+   * The rate card's price for a token count, so a local run is priced the way a queued one is.
+   * Optional: without it the cost stays unknown, never zero.
+   */
+  priceTokens?(model: string, inputTokens: number, outputTokens: number): Promise<PriceEstimate | null>;
 }
 
 export interface EditorPort {
@@ -81,10 +87,17 @@ export interface EditorPort {
   ): Promise<void>;
   /** Show a patch this editor cannot apply locally (drifted base, binary, …). */
   showPatch(path: string, patch: string): Promise<void>;
-  /** The operator's done-signal decision, after seeing the proposed result. */
-  confirmResult(summary: { files: string[]; chars: number }): Promise<boolean>;
+  /**
+   * The operator's done-signal decision, after seeing the proposed result and the review summary
+   * (null when the runner sent none this editor understands).
+   */
+  confirmResult(summary: {
+    files: string[];
+    chars: number;
+    review: ReviewSummary | null;
+  }): Promise<boolean>;
   /** The operator's decision on one file, after seeing its diff. */
-  decide(change: ChangeView): Promise<"approve" | "reject">;
+  decide(change: ChangeView, position: { index: number; total: number }): Promise<"approve" | "reject">;
   readFile(path: string): Promise<string | null>;
   writeFile(path: string, content: string): Promise<void>;
   deleteFile(path: string): Promise<void>;
@@ -101,6 +114,8 @@ export interface ExecutionResult {
   confinement?: string;
   image?: string;
   detail?: string;
+  /** W24: the runner's review summary, as sent; parsed and priced before it is shown. */
+  reviewSummary?: unknown;
 }
 
 /**
@@ -145,6 +160,8 @@ export interface RunOutcome {
   /** Named so evidence can say what bounded the run, not just that it ran. */
   confinement: string | null;
   image: string | null;
+  /** W24: what the operator was shown beside the diff; null when there was none to show. */
+  reviewSummary: ReviewSummary | null;
   reviewed: Array<{ path: string; decision: "approved" | "rejected"; diffSha: string }>;
   applied: string[];
   deleted: string[];
@@ -191,6 +208,7 @@ export async function runFromEditor(
     confirmed: false,
     confinement: executed.confinement ?? null,
     image: executed.image ?? null,
+    reviewSummary: null,
     reviewed: [],
     applied: [],
     deleted: [],
@@ -201,6 +219,18 @@ export async function runFromEditor(
       `the confined run ended ${executed.state}: ${executed.detail || executed.summary || "(no reason given)"}`,
     );
   }
+
+  // What the operator sees beside the diff. The runner cannot price tokens, so the cost is
+  // filled from the rate card here; a model it does not cover stays unpriced.
+  let review = parseSummary(executed.reviewSummary);
+  if (review && review.cost.usd === null && review.cost.model && transport.priceTokens
+      && review.cost.inputTokens !== null && review.cost.outputTokens !== null) {
+    const estimate = await transport
+      .priceTokens(review.cost.model, review.cost.inputTokens, review.cost.outputTokens)
+      .catch(() => null);
+    review = priceSummary(review, estimate);
+  }
+  outcome.reviewSummary = review;
 
   // The engine finishing is not the run finishing: the product records a diff
   // only when a human confirms it (`done-signal`). The editor shows the patch
@@ -237,6 +267,7 @@ export async function runFromEditor(
     const confirmed = await editor.confirmResult({
       files: files.map((f) => f.path),
       chars: executed.diff.length,
+      review,
     });
     if (!confirmed) {
       outcome.refused.push({
@@ -297,7 +328,10 @@ export async function runFromEditor(
       // verify they are still the bytes on disk.
       verdict = "approve";
     } else {
-      verdict = await editor.decide(change);
+      verdict = await editor.decide(change, {
+        index: changes.indexOf(change) + 1,
+        total: changes.length,
+      });
       const decisionWord = verdict === "approve" ? "approved" : "rejected";
       await transport.reviewChange(
         runId,

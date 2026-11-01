@@ -255,6 +255,7 @@ async def record_engine_tool_calls(
 
         from harness_orchestrator.agent_tree import _SECRETISH
         from harness_orchestrator.collab import db_now
+        from harness_orchestrator.review_summary import call_summary
 
         run_id = str(run_data["runId"])
         team_id = await service._team_for_run(run_data)
@@ -274,7 +275,8 @@ async def record_engine_tool_calls(
                     {
                         "id": str(uuid4()), "r": run_id, "t": team_id,
                         "tool": str(call.get("tool") or "unknown")[:80], "tg": target,
-                        "s": f"engine {call.get('tool')} call", "o": call.get("outcome") or "error",
+                        "s": call_summary(call.get("tool"), call.get("exitCode")),
+                        "o": call.get("outcome") or "error",
                         "q": str(call.get("callId"))[:64], "n": db_now(),
                     },
                 )

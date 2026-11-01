@@ -310,6 +310,19 @@ export interface ReactBody {
     present?: boolean;
     reaction: "thumbs_up" | "thumbs_down" | "heart" | "eyes" | "celebrate" | "question" | "check";
 }
+/** ReadinessCheckOut. Required keys: check, component, detail, reason, status. */
+export interface ReadinessCheckOut {
+    check: "provider" | "model" | "worker" | "revision" | "repository" | "permissions";
+    component: string;
+    detail: string;
+    reason: string;
+    status: "ok" | "fail" | "unknown";
+}
+/** ReadinessResponse. Required keys: checks, ok. */
+export interface ReadinessResponse {
+    checks: ReadinessCheckOut[];
+    ok: boolean;
+}
 /** ReasonBody. */
 export interface ReasonBody {
     reason?: string | null;
@@ -627,6 +640,9 @@ export declare class OrchestratorClient {
     /** Put Settings
      *  PUT /api/v1/orchestrator/presence-settings */
     put_settings(body: SettingsRequest): Promise<Record<string, unknown>>;
+    /** Get Readiness
+     *  GET /api/v1/orchestrator/readiness */
+    get_readiness(project_id?: string): Promise<ReadinessResponse>;
     /** List Runs
      *  GET /api/v1/orchestrator/runs */
     list_runs(project_id?: string | null, status?: string | null, limit?: number, offset?: number | null, cursor?: string | null): Promise<RunsPage>;
@@ -894,6 +910,9 @@ export declare class OrchestratorClient {
     /** Retry Route
      *  POST /api/v1/orchestrator/runs/{runId}/retry */
     retry_route(run_id: string, body: RetryBody): Promise<unknown>;
+    /** Review Summary
+     *  GET /api/v1/orchestrator/runs/{runId}/review-summary */
+    review_summary(run_id: string): Promise<unknown>;
     /** Run Rewind
      *  POST /api/v1/orchestrator/runs/{runId}/rewind */
     run_rewind(run_id: string, body: RewindBody): Promise<Record<string, unknown>>;

@@ -112,6 +112,13 @@ export class OrchestratorClient {
         const _path = `/api/v1/orchestrator/presence-settings`;
         return this.http.request(this.baseUrl, _path, "PUT", body);
     }
+    /** Get Readiness
+     *  GET /api/v1/orchestrator/readiness */
+    get_readiness(project_id) {
+        const _path = `/api/v1/orchestrator/readiness`;
+        const params = { "projectId": project_id };
+        return this.http.request(this.baseUrl, _path, "GET", undefined, params);
+    }
     /** List Runs
      *  GET /api/v1/orchestrator/runs */
     list_runs(project_id, status, limit, offset, cursor) {
@@ -654,6 +661,12 @@ export class OrchestratorClient {
         const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/retry`;
         return this.http.request(this.baseUrl, _path, "POST", body);
     }
+    /** Review Summary
+     *  GET /api/v1/orchestrator/runs/{runId}/review-summary */
+    review_summary(run_id) {
+        const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/review-summary`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
     /** Run Rewind
      *  POST /api/v1/orchestrator/runs/{runId}/rewind */
     run_rewind(run_id, body) {
@@ -916,6 +929,8 @@ export class OrchestratorClient {
  * export interface/type ProposePlanRequest
  * export interface/type ProposePlanResponse
  * export interface/type ReactBody
+ * export interface/type ReadinessCheckOut
+ * export interface/type ReadinessResponse
  * export interface/type ReasonBody
  * export interface/type ReassignBody
  * export interface/type RedirectRequest

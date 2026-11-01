@@ -370,6 +370,24 @@ def _content_preview(content: Any, limit: int = 4000) -> str:
     return "\n".join(parts)[:limit]
 
 
+_EXIT_MARKER = re.compile(r"\[exit code: (-?\d+|timeout)\]\s*\Z")
+
+
+def _exit_code(content: Any) -> int | str | None:
+    """The shell tool's exit status, read from the full result text (W24).
+
+    The `bash` tool does not fail on a non-zero exit: it returns the output with a
+    trailing ``[exit code: N]`` (``timeout`` when killed). The result's ``isError`` is
+    set only for a refusal or a tool fault, so a failing test run arrives as ``ok``,
+    and the 4 000-character preview keeps the head of the output and loses this tail.
+    ``None`` when there is no marker (another tool, a refusal, a crashed tool).
+    """
+    found = _EXIT_MARKER.search(_content_preview(content, limit=10_000_000))
+    if found is None:
+        return None
+    return found.group(1) if found.group(1) == "timeout" else int(found.group(1))
+
+
 def _prompt_input(
     goal: str, images: list[dict[str, Any]] | None
 ) -> str | list[dict[str, Any]]:
@@ -1272,6 +1290,9 @@ class DeepSeekHarnessWrapper:
                 call = calls.get(str(data["message"].get("toolCallId")))
                 if call is not None:
                     call["outcome"] = "error" if data["message"].get("isError") else "ok"
+                    code = _exit_code(data["message"].get("content"))
+                    if code is not None:
+                        call["exitCode"] = code
         return list(calls.values())
 
     @staticmethod
@@ -1318,7 +1339,7 @@ class DeepSeekHarnessWrapper:
             reason = None
             if error:
                 reason = str(error.get("reason") or error.get("code") or "tool error")
-            return {
+            record = {
                 **base,
                 "phase": "result",
                 "callId": str(call_id),
@@ -1326,6 +1347,10 @@ class DeepSeekHarnessWrapper:
                 "error": reason,
                 "output": _content_preview(message.get("content")),
             }
+            code = _exit_code(message.get("content"))
+            if code is not None:
+                record["exitCode"] = code
+            return record
         return None
 
     @classmethod

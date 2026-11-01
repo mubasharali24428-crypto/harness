@@ -1427,6 +1427,13 @@ export class OrchestratorClient {
     return this.http.request<unknown>(this.baseUrl, _path, "POST", body);
   }
 
+  /** Review Summary
+   *  GET /api/v1/orchestrator/runs/{runId}/review-summary */
+  review_summary(run_id: string): Promise<unknown> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/review-summary`;
+    return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined);
+  }
+
   /** Run Rewind
    *  POST /api/v1/orchestrator/runs/{runId}/rewind */
   run_rewind(run_id: string, body: RewindBody): Promise<Record<string, unknown>> {

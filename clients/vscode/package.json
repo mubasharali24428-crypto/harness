@@ -1,8 +1,8 @@
 {
   "name": "harness-vscode",
   "displayName": "Harness",
-  "description": "Run the AI Engineering Harness from the editor: inline diff, context picking, status bar, approve/reject.",
-  "version": "0.1.0",
+  "description": "Run the AI Engineering Harness from the editor: review summary, inline diff, keyboard-first review, context picking, status bar.",
+  "version": "0.2.0",
   "publisher": "harness",
   "private": true,
   "license": "MIT",
@@ -33,6 +33,18 @@
       {
         "command": "harness.status",
         "title": "Harness: Show run status"
+      },
+      {
+        "command": "harness.review.apply",
+        "title": "Harness: Apply reviewed change"
+      },
+      {
+        "command": "harness.review.skip",
+        "title": "Harness: Skip reviewed change"
+      },
+      {
+        "command": "harness.review.skipAll",
+        "title": "Harness: Skip all remaining reviewed changes"
       }
     ],
     "configuration": {
@@ -71,6 +83,39 @@
           "description": "Wall-clock deadline for one confined engine run."
         }
       }
+    },
+    "keybindings": [
+      {
+        "command": "harness.review.apply",
+        "key": "alt+y",
+        "when": "harness.reviewing"
+      },
+      {
+        "command": "harness.review.skip",
+        "key": "alt+n",
+        "when": "harness.reviewing"
+      },
+      {
+        "command": "harness.review.skipAll",
+        "key": "alt+shift+n",
+        "when": "harness.reviewing"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "harness.review.apply",
+          "when": "harness.reviewing"
+        },
+        {
+          "command": "harness.review.skip",
+          "when": "harness.reviewing"
+        },
+        {
+          "command": "harness.review.skipAll",
+          "when": "harness.reviewing"
+        }
+      ]
     }
   },
   "scripts": {

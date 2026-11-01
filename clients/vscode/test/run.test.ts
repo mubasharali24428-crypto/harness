@@ -356,3 +356,94 @@ test("context is rendered into the goal, and a reduction is visible there", asyn
   assert.match(goal, /--- @sel \(selection, lines 1-2\) ---/);
   assert.ok(!goal.includes("b".repeat(50)), "the dropped item's text never reaches the wire");
 });
+
+// ------------------------------------------------------------ W24: review summary and review keys
+
+const RUNNER_SUMMARY = {
+  schema: 1,
+  basis: "recorded from the agent's own tool calls and token usage; the harness re-ran nothing",
+  files: [{ path: "src/a.py", change: "modified", added: 2, removed: 1 }],
+  tests: { known: true, runs: [{ command: "pytest -q", result: "passed" }], note: "exit status only" },
+  failures: [],
+  cost: { usd: null, source: null, model: "anthropic/claude-haiku-5.5", inputTokens: 7045, outputTokens: 64 },
+  elapsedSeconds: 12.3,
+  uncertainty: [{ code: "COST_UNPRICED", text: "no price" }],
+};
+
+test("the operator sees the summary, priced from the rate card, before the result is recorded", async () => {
+  const priced: Array<[string, number, number]> = [];
+  const { transport } = scriptedTransport({
+    async priceTokens(model, input, output) {
+      priced.push([model, input, output]);
+      return { priced: true, usd: 0.000736 };
+    },
+  });
+  const { editor } = fakeEditor({ "src/a.py": SOURCE });
+  let seen: Parameters<EditorPort["confirmResult"]>[0] | undefined;
+  const confirm = editor.confirmResult;
+  editor.confirmResult = async (summary) => {
+    seen = summary;
+    return confirm(summary);
+  };
+
+  const outcome = await runFromEditor(transport, editor, {
+    task: "x",
+    execution: fakeExecution({ reviewSummary: RUNNER_SUMMARY }),
+  });
+
+  assert.deepEqual(priced, [["anthropic/claude-haiku-5.5", 7045, 64]]);
+  assert.equal(seen?.review?.cost.usd, 0.000736);
+  assert.deepEqual(seen?.review?.uncertainty, [], "the unpriced note goes once the price is known");
+  assert.equal(outcome.reviewSummary?.cost.usd, 0.000736, "the evidence keeps what was shown");
+});
+
+test("an unpriced model, a failing rate card or no price call leaves the cost unknown", async () => {
+  for (const priceTokens of [
+    async () => ({ priced: false, usd: 0 }),
+    async () => { throw new Error("rate card unreachable"); },
+    undefined,
+  ]) {
+    const { transport } = scriptedTransport(priceTokens ? { priceTokens } : {});
+    const { editor } = fakeEditor({ "src/a.py": SOURCE });
+    const outcome = await runFromEditor(transport, editor, {
+      task: "x",
+      execution: fakeExecution({ reviewSummary: RUNNER_SUMMARY }),
+    });
+    assert.equal(outcome.reviewSummary?.cost.usd, null);
+    assert.equal(outcome.reviewSummary?.uncertainty[0]?.code, "COST_UNPRICED");
+    assert.equal(outcome.state, "done", "a pricing failure never blocks the review");
+  }
+});
+
+test("a result with no usable summary still reviews, and says there was none", async () => {
+  for (const reviewSummary of [undefined, { schema: 99 }, "nonsense"]) {
+    const { transport } = scriptedTransport();
+    const { editor } = fakeEditor({ "src/a.py": SOURCE });
+    let review: unknown = "untouched";
+    const confirm = editor.confirmResult;
+    editor.confirmResult = async (summary) => {
+      review = summary.review;
+      return confirm(summary);
+    };
+    const outcome = await runFromEditor(transport, editor, {
+      task: "x",
+      execution: fakeExecution({ reviewSummary }),
+    });
+    assert.equal(review, null);
+    assert.equal(outcome.reviewSummary, null);
+    assert.deepEqual(outcome.applied, ["src/a.py"]);
+  }
+});
+
+test("each file's decision is asked with its place in the review", async () => {
+  const { transport } = scriptedTransport();
+  const { editor } = fakeEditor({ "src/a.py": SOURCE });
+  const positions: Array<{ index: number; total: number }> = [];
+  const decide = editor.decide;
+  editor.decide = async (change, position) => {
+    positions.push(position);
+    return decide(change, position);
+  };
+  await runFromEditor(transport, editor, { task: "x", execution: fakeExecution() });
+  assert.deepEqual(positions, [{ index: 1, total: 1 }]);
+});

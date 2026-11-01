@@ -17,9 +17,11 @@ import {
   hunkItemsFor,
   pickSymbols,
   PreviewProvider,
+  reviewGate,
   selectionItem,
   vscodeEditor,
 } from "./adapter/vscode.js";
+import type { Verdict } from "./core/gate.js";
 import type { ContextItem } from "./core/context.js";
 import { RunError, runFromEditor } from "./core/run.js";
 
@@ -150,6 +152,15 @@ async function run(context: vscode.ExtensionContext): Promise<void> {
   }
 }
 
+/** The three review commands (W24); each answers the decision that is waiting, if any. */
+function reviewAnswer(verdict: Verdict): () => void {
+  return () => {
+    if (!reviewGate.answer(verdict)) {
+      void vscode.window.showInformationMessage("Harness: no review decision is waiting.");
+    }
+  };
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   output = vscode.window.createOutputChannel("Harness");
   status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
@@ -169,6 +180,9 @@ export function activate(context: vscode.ExtensionContext): void {
       void vscode.window.showInformationMessage("Harness: signed out.");
     }),
     vscode.commands.registerCommand("harness.run", () => run(context)),
+    vscode.commands.registerCommand("harness.review.apply", reviewAnswer("approve")),
+    vscode.commands.registerCommand("harness.review.skip", reviewAnswer("reject")),
+    vscode.commands.registerCommand("harness.review.skipAll", reviewAnswer("stop")),
     vscode.commands.registerCommand("harness.status", async () => {
       const last = context.globalState.get<string>(LAST_RUN_KEY);
       if (!last) {

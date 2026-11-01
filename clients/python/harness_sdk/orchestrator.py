@@ -1456,6 +1456,14 @@ class OrchestratorClient:
         _path = f"/api/v1/orchestrator/runs/{run_id}/retry"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
+    def review_summary(self, run_id: str) -> typing.Any:
+        """Review Summary
+
+        GET /api/v1/orchestrator/runs/{runId}/review-summary
+        """
+        _path = f"/api/v1/orchestrator/runs/{run_id}/review-summary"
+        return self._http.request(self.base_url, "GET", _path)
+
     def run_rewind(self, run_id: str, body: RewindBody) -> dict[str, typing.Any]:
         """Run Rewind
 

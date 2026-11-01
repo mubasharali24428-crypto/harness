@@ -5,6 +5,7 @@ import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AnnounceContext, LiveRegions, useAnnouncer } from "@/components/LiveAnnouncer";
 import { Button } from "@/components/ui";
 import { ORCHESTRATOR_BASE } from "@/lib/api";
+import { ReviewSummaryCard, readReviewSummary } from "./reviewSummaryCard";
 
 type AnyRow = Record<string, any>;
 const base = `${ORCHESTRATOR_BASE}/api/v1/orchestrator`;
@@ -63,7 +64,7 @@ export function SessionSixWorkbench({ runId, token }: { runId: string; token: st
     const paths: Record<string, string> = {
       task: `/runs/${pid}/task`, plans: `/runs/${pid}/plan/versions`, subtasks: `/runs/${pid}/subtasks`,
       limits: `/runs/${pid}/execution-limits`, status: `/runs/${pid}/execution-status`, completion: `/runs/${pid}/completion`,
-      artifacts: `/runs/${pid}/artifacts`, changes: `/runs/${pid}/changes`, git: `/runs/${pid}/git-state`,
+      artifacts: `/runs/${pid}/artifacts`, changes: `/runs/${pid}/changes`, reviewSummary: `/runs/${pid}/review-summary`, git: `/runs/${pid}/git-state`,
       permissions: `/runs/${pid}/git-permissions`, lineage: `/runs/${pid}/lineage`, exports: "/exports", deletions: "/deletion-requests", searchStatus: "/search/status",
     };
     const entries = await Promise.all(Object.entries(paths).map(async ([key, path]) => {
@@ -81,6 +82,7 @@ export function SessionSixWorkbench({ runId, token }: { runId: string; token: st
   }, [pid, token]);
 
   useEffect(() => { void reload(); }, [reload]);
+  const reviewSummary = readReviewSummary(data.reviewSummary);
 
   const act = async (label: string, work: () => Promise<any>) => {
     setBusy(true); setError(""); setNotice("");
@@ -182,6 +184,7 @@ export function SessionSixWorkbench({ runId, token }: { runId: string; token: st
         <Button onClick={() => void act("Artifact preview loaded", async () => { const p = await call(`/runs/${pid}/artifacts/${safe(a.id)}/preview`, token); setData((d) => ({ ...d, preview: p })); })}>Preview</Button>
       </li>)}</ul>
       {data.preview && <pre aria-label="Safe artifact preview" tabIndex={0} style={{ maxHeight: 240, overflow: "auto", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{typeof data.preview === "string" ? data.preview : JSON.stringify(data.preview, null, 2)}</pre>}
+      {reviewSummary && <ReviewSummaryCard summary={reviewSummary} />}
       <h4>Change review</h4><ul>{listOf(data.changes, "items", "changes").map((c) => <li key={c.id}>{c.path} · {c.reviewState}
         {c.reviewState === "pending" && <>
           <Button disabled={busy} onClick={() => void act("Change approved", () => send(`/runs/${pid}/changes/${safe(c.id)}/review`, token, "POST", { decision: "approved", diffSha: c.diffSha }))}>Approve change</Button>{" "}

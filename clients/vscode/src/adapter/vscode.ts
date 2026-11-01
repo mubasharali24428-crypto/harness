@@ -12,9 +12,22 @@ import { execFileSync } from "node:child_process";
 import * as vscode from "vscode";
 
 import { hunkContextItems, type ContextItem } from "../core/context.js";
+import { DecisionGate } from "../core/gate.js";
 import type { EditorPort, PlanOffer } from "../core/run.js";
+import { renderSummary } from "../core/summary.js";
 
 const PREVIEW_SCHEME = "harness-preview";
+
+/**
+ * The review decision (W24). Three commands answer it, so the keyboard, the command palette and the
+ * notification's buttons all reach the same gate; the keybindings are in `package.json` and are
+ * live only while `harness.reviewing` is set.
+ */
+export const reviewGate = new DecisionGate();
+const REVIEW_KEYS =
+  process.platform === "darwin"
+    ? "\u2325Y apply \u00b7 \u2325N skip \u00b7 \u2325\u21e7N skip all"
+    : "Alt+Y apply \u00b7 Alt+N skip \u00b7 Alt+Shift+N skip all";
 
 /** Virtual documents for the right-hand side of an inline diff. */
 export class PreviewProvider implements vscode.TextDocumentContentProvider {
@@ -60,6 +73,7 @@ export interface EditorDeps {
 
 /** The EditorPort the core drives, backed by VS Code and the operator. */
 export function vscodeEditor(deps: EditorDeps): EditorPort {
+  reviewGate.reset();
   return {
     async showPlan(offer: PlanOffer): Promise<"approve" | "reject"> {
       const answer = await vscode.window.showInformationMessage(
@@ -101,23 +115,43 @@ export function vscodeEditor(deps: EditorDeps): EditorPort {
     },
 
     async confirmResult(summary): Promise<boolean> {
+      const detail = summary.review
+        ? renderSummary(summary.review)
+        : "No review summary came with this result.";
       const answer = await vscode.window.showInformationMessage(
         `Record this result (${summary.files.length} file(s), ${summary.chars} diff chars)?`,
-        { modal: true },
+        { modal: true, detail },
         "Confirm",
         "Stop here",
       );
       return answer === "Confirm";
     },
 
-    async decide(change): Promise<"approve" | "reject"> {
-      const answer = await vscode.window.showInformationMessage(
-        `Write the reviewed change to ${change.path}?`,
-        { modal: true },
-        "Apply",
-        "Skip",
-      );
-      return answer === "Apply" ? "approve" : "reject";
+    async decide(change, position): Promise<"approve" | "reject"> {
+      const where = `${position.index}/${position.total}`;
+      const verdict = await reviewGate.ask((id) => {
+        void vscode.commands.executeCommand("setContext", "harness.reviewing", true);
+        deps.status.text = `$(eye) Harness review ${where}: ${change.path}`;
+        deps.status.tooltip = REVIEW_KEYS;
+        // The buttons quote this prompt's id, so a notification left over from the previous
+        // file cannot answer this one.
+        void vscode.window
+          .showInformationMessage(
+            `Harness ${where}: write the reviewed change to ${change.path}? ${REVIEW_KEYS}`,
+            "Apply",
+            "Skip",
+            "Skip all remaining",
+          )
+          .then((label) => {
+            if (!label) return;
+            reviewGate.answer(
+              label === "Apply" ? "approve" : label === "Skip" ? "reject" : "stop",
+              id,
+            );
+          });
+      });
+      await vscode.commands.executeCommand("setContext", "harness.reviewing", false);
+      return verdict;
     },
 
     readFile: readText,

@@ -2,7 +2,8 @@
 
 > **Status:** Batch A (items 1, 2, 3, 4, 6, 7, 8, 9) is implemented and verified
 > live — see "Batch A outcome" at the bottom. Batches B–D and the contracts
-> decision (item 11) are still awaiting review.
+> decision (item 11) are still awaiting review. **2026-10-31 (W24):** all 25 items rechecked
+> against the code — 7 closed, 8 partly, 10 open; see "W24 recheck" at the bottom.
 
 Scope: the `section7` frontend, run against the live compose stack
 (`http://localhost:3000`) plus a full read of the run, settings and entry
@@ -182,3 +183,52 @@ the Command Center's "CURRENT PLAN" card does render steps, estimate and
 forbidden paths. What is still true is that the *gate itself* (where Approve
 lives) shows only the goal, so Batch B should surface the plan inside the gate
 rather than duplicate it.
+
+---
+
+## W24 recheck (2026-10-31)
+
+All 25 items re-read against the code at `67378d8` plus the working tree (`section7/` has no
+uncommitted change except the new review-summary card). **Static reading only**: no browser, no
+live page, no new measurement; a "closed" here means the code no longer does what the audit
+described, and where a test pins it the test is named. `npm test` in `section7/` passes (98 files,
+1062 tests) and `tsc --noEmit` is clean, so every pin named below holds today.
+
+Method note: items 1, 2, 4, 5, 6, 7, 8 and 10 were first ruled by a read-only agent; I re-opened
+the cited lines myself for 4, 5 and 10 only. Items 3, 9 and 11–25 are my own reading. Paths below
+are under `section7/`.
+
+**Result: 7 closed, 8 partly, 10 open.**
+
+| # | Status | Evidence (where it is now) | What is left |
+|---|--------|----------------------------|--------------|
+| 1 | closed | `src/components/DiffPanel.tsx:41` empty state from `diff_progress`; `PlanPanel.tsx:32` estimate only; `CommentsNudges.tsx:43` "Private to this browser tab"; pinned by `tests/unit/auditBatchA.test.ts:19,42,49` | The "Give direction" link goes to `#direction` (`CommentsNudges.tsx:44`), which no element defines. Other pages still print internal section names: `app/onboarding/page.tsx:275` ("Section 6, not yet deployed"), `app/review/page.tsx:283` ("via Section 1"). |
+| 2 | closed | `src/components/TerminalPanel.tsx:62-66` empty line only when there are no transcript lines; pinned by `tests/unit/terminalPanel.test.tsx:22` | `WorkingArea.tsx:90` still passes `results={[]}`, so the pass/fail view (`TerminalPanel.tsx:72`) never shows in the product. |
+| 3 | closed | `app/settings/page.tsx:60-68` uses `var(--accent)` / `var(--red)` tokens; `src/lib/themeContrast.test.ts:53-58` asserts AA (4.5) for token pairs in both themes | none |
+| 4 | partly | Banner overflow fixed: `app/projects/[projectId]/runs/[runId]/page.tsx:161` (`whiteSpace: normal`) | Tab bar still wraps instead of scrolling with snap (`src/components/RunTabs.tsx:63-65`); breadcrumbs do not collapse (`src/components/Breadcrumbs.tsx:28`); no test pins the 390 px layout. |
+| 5 | open | `app/projects/[projectId]/runs/[runId]/page.tsx:215` mounts `ChangeReview` with the project only; `src/components/ChangeReview.tsx:261` lists every project snapshot | Not scoped to the run (the sandbox's checkpoint API has no run id), Revert still unconfirmed, the empty state still says "for this project". |
+| 6 | closed | `src/components/Controls.tsx:68` toggle only sets local state; the single `submitHumanEdit` call is the Save button (`:209`), disabled until a path is typed (`:206`) | none |
+| 7 | closed | `src/components/AppShell.tsx:169-170` read-only TEAM value; pinned by `tests/unit/auditBatchA.test.ts:75` | The value is the literal "My team", not the principal's team. |
+| 8 | closed | `src/components/ModelPrefs.tsx:106` snapshot, `:126-127` rollback then error | none (the guard is a source-level test, not a rendered one) |
+| 9 | closed | `app/review/page.tsx:58-59` load error state, `:128-129` 404 vs failure, `:155-157` note required for "Request changes", `:295-299` "Try again" | none |
+| 10 | open | `app/dashboard/planGate.tsx:410` the gate prints only `Goal:`; `:426` Reject takes no reason; `app/dashboard/planGateApi.ts:105` posts `{}` | Plan steps, tests, risks, forbidden paths and estimate are not in the gate; no reject reason. |
+| 11 | partly | The contract now has the events: `contracts/ts/src/events.ts:19-20` (`tool_call`, `tool_result`); `src/lib/deriveView.ts:119-132` pairs them; `src/components/WorkingArea.tsx:89` renders "Tool activity" on the Working tab | Overview is still the raw step list, capped ("N latest of M", `runDetailAggregate.tsx:121-130`); no persistent model · tokens · cost · elapsed footer (only a cost line, `:66-69`). |
+| 12 | partly | Overview shows a live status and connection state (`runDetailAggregate.tsx:45`, `page.tsx:182`) and tells the user when a refresh failed (`page.tsx:60,107-112`) | Default tab is still Overview (`page.tsx:55`); no elapsed clock found; Pause/Stop still live under Working. |
+| 13 | partly | Reconnects back off and surface the attempt count (`src/lib/useEventStream.ts:261-267`) | No REST fallback or manual retry in the stream hook, no list virtualization found. I did not re-check the replay-from-seq-0 claim. |
+| 14 | open | `app/projects/[projectId]/runs/[runId]/sessionSixWorkbench.tsx:48` the raw JSON-patch box is still pre-filled; only three `<details>` groups (`:164,167,194`) | Still one long column of admin forms at equal weight. I did not establish whether those three groups predate the audit. |
+| 15 | partly | Stop now reports whether the cancel was confirmed (`src/components/Controls.tsx:73`, `app/runs/runsApi.ts:190`) | Direction still applies "the next time it starts or resumes" (`sharedRunPanel.tsx:246`); the agent tree still says pause/cancel do not stop a running process (`agentTree.tsx:78`); nudges are browser-local. |
+| 16 | open | `grep clipboard` over `src/` and `app/` finds nothing | No copy affordance for run id, sha, error text, diff or PR link. |
+| 17 | open | No key handler in `app/review/page.tsx` or `src/components/ChangeReview.tsx`; `discussionView.tsx:63,88,121,136` handle only cancel | The web review loop has no keyboard model or line comments. (The VS Code extension got one in W24; that is a different surface.) |
+| 18 | partly | A readiness view exists on onboarding (`app/onboarding/readinessView.tsx`, `app/onboarding/page.tsx`) | The Command Center (`app/page.tsx:14-21`) has no readiness strip and the composer is not gated. |
+| 19 | open | Only `src/lib/api.ts:143` handles 401; seven feature clients keep their own `request()` (`src/lib/contextApi.ts:58`, `demoApi.ts:34`, `modelPrefs.ts:85`, `app/settings/{project/projectRulesApi.ts:20,team/teamApi.ts:58,integrations/integrationsApi.ts:34,governance/governanceApi.ts:43}`) | No shared client; the named error codes appear only in comments (server text is shown verbatim). |
+| 20 | partly | Key revoke has an inline confirm and an undo window (`app/settings/keys/revokeCell.tsx:3-5`); member removal is an inline confirm (`app/settings/team/tables.tsx:161-162`) and role changes can be undone (`:131-141`) | Webhook delete still uses `window.confirm` (`app/settings/integrations/page.tsx:104`). I found no role-change `<select>` on the governance page. |
+| 21 | partly | `settingsCrumbs` is used by models, team, keys and account | Integrations, governance and notifications use `Breadcrumbs` without it; billing and project settings have no breadcrumb at all. |
+| 22 | open | Run page crumb is `Run ${runId}` (`page.tsx:147`); cost prints with `formatCostUsdExact` (`runDetailAggregate.tsx:66-69`) | Heading is not the goal; cost still prints in full precision. |
+| 23 | open | One `busy` flag gates the workbench (`sessionSixWorkbench.tsx:42`, 21 uses); no `beforeunload` / unsaved-changes guard anywhere in `src/` or `app/` | Both parts of the item stand. |
+| 24 | open | `src/lib/api.ts:9-24` every service base still defaults to `localhost` | No startup assertion found; this remains a deployment-config item, not a bug. |
+| 25 | open | `window.prompt` for the abandon reason (`sessionSixWorkbench.tsx:170`); `JSON.parse(planText)` / `JSON.parse(editPatch)` (`:140,145`) with the `SyntaxError` text shown to the user | Both parts of the item stand. |
+
+**Still open after Batch A, in the audit's own order:** Batch B (10 open, 18 partly), Batch C
+(12 partly, 13 partly, 14 open, 16 open), Batch D (15 partly, 17 open, and Tier 3: 19, 22, 23,
+24, 25 open; 20, 21 partly), plus 5 (open; in no batch) and the rest of 4 (tab bar and breadcrumbs, which Batch A did not do). Item 11's
+contract decision has landed; the Overview transcript it asked for has not.

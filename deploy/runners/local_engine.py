@@ -35,6 +35,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -46,6 +47,8 @@ for _src in (_SECTION4_SRC, _CONTRACTS_SRC):
         sys.path.insert(0, str(_src))
 
 from harness_orchestrator import confine
+from harness_orchestrator.review_summary import build_review_summary, diff_files
+from harness_orchestrator.run_metering import resolve_engine_model
 
 _IMAGE_ENV = "HARNESS_ENGINE_IMAGE"
 _IMAGE_TAG_ENV = "HARNESS_IMAGE_TAG"
@@ -286,9 +289,11 @@ def run_local(
         wrapper.daemon_url = ""  # THIS process is the launcher; workers are ours to make
         if shell_policy:
             wrapper.set_shell_policy(run_id, shell_policy)
+        started = time.monotonic()
         result = wrapper.execute_goal(
             goal, session_id=run_id, on_progress=on_progress,
         )
+        elapsed = time.monotonic() - started
         names = _changed_names(run_dir, baseline_dir, image)
         text = raw_diff(image, run_dir, baseline_dir)
         diff_text, omitted = normalize_diff(text, run_dir, baseline_dir)
@@ -306,6 +311,20 @@ def run_local(
         # rather than silently overwrite another result or an editor save.
         result["changed"] = names
         result["deleted"] = deleted
+        # W24: the facts a reviewer needs beside the diff. Cost is left unpriced on purpose:
+        # this process holds no price list, and the editor prices the tokens from the server's
+        # rate card so a local run and a queued run are priced the same way.
+        result["reviewSummary"] = build_review_summary(
+            files=diff_files(diff_text, names, deleted),
+            tool_calls=result.get("toolCalls"),
+            usage=result.get("usage"),
+            model=resolve_engine_model(wrapper, result),
+            cost_usd=None,
+            cost_source=None,
+            elapsed_seconds=elapsed,
+            status=str(result.get("status") or ""),
+            diff_omitted=omitted,
+        )
         result["baseHashes"] = base_hashes(baseline_dir, [*names, *deleted])
         result["diff"] = diff_text
         if omitted:

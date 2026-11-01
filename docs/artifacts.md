@@ -19,6 +19,7 @@ authenticated Principal, team ownership of the run, role. A foreign or unknown r
 | `GET runs/{r}/artifacts/{a}/content` | read (quarantined: administer) | attachment download |
 | `GET runs/{r}/artifacts/{a}/preview` | read | JSON text only |
 | `GET runs/{r}/diff` | read | the done-signal diff as safe JSON |
+| `GET runs/{r}/review-summary` | read | W24: changed files, tests run and how each ended, failures, cost, elapsed time, what is unknown; recorded facts only, 404 until the run has a diff |
 | `GET runs/{r}/changes` | read | changed files; also records new ones (section 3) |
 | `POST runs/{r}/changes/{c}/review` | approve | `{decision, diffSha, note?}` |
 | `GET\|PUT runs/{r}/git-state` | read \| write | repo/branch/base facts (section 6) |

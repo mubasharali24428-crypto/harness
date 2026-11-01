@@ -9225,6 +9225,49 @@
     ]
    }
   },
+  "/api/v1/orchestrator/runs/{runId}/review-summary": {
+   "get": {
+    "description": "What a reviewer should know beside the diff (W24): the changed files, the tests the agent\nran and how each exited, what failed, cost, elapsed time and what is still unknown.\n\nBuilt only from rows the run recorded. A fact with no record is reported as unknown, never as\nzero or as passing, and nothing is re-run. A run that executed on the operator's machine has\nonly its diff here, so most of the rest reads unknown. 404 until the run has a recorded diff.",
+    "operationId": "review_summary_api_v1_orchestrator_runs__runId__review_summary_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Review Summary Api V1 Orchestrator Runs  Runid  Review Summary Get"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Summary",
+    "tags": [
+     "artifacts"
+    ]
+   }
+  },
   "/api/v1/orchestrator/runs/{runId}/rewind": {
    "post": {
     "description": "W3: restore the run's workspace to a checkpoint (default: the newest).\n\nRefused while the run is live \u2014 files cannot be reset under a worker that is\nstill writing them.",
