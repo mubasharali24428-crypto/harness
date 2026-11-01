@@ -128,12 +128,10 @@ claimed.
 
 ### Findings kept (not fixed here)
 
-1. **The IDE agent cannot verify its own work on macOS Docker Desktop.** On a host bind mount
-   Landlock denies the shell gate every workspace read (`docs/m2-w21-plan.md`, "Drill
-   artifact"), so `python -m unittest` and `ls` inside the confined run fail with permission
-   denied. The summary reports exactly that (tests *failed*), while the host check passes. In
-   both runs the model still produced the right edit. A reviewer will see "tests failed" on a
-   correct change until this is fixed.
+1. **The IDE agent could not verify its own work on macOS Docker Desktop. Fixed after the first
+   commit; see "After the commit" below.** On a host bind mount Landlock denied the shell gate
+   every workspace read, so `python -m unittest` and `ls` inside the confined run failed with
+   permission denied, and the summary showed "tests failed" for a correct change.
 2. **A server run stays `executing` after an IDE run.** There is no `engine_completed`, because
    the local run is not the server's run. The server-side summary of such a run has no end
    time, so it reports the elapsed time as unknown.
@@ -165,7 +163,7 @@ tests, section7 tests, `check_ts_dist.sh`.
 
 * A person using the installed extension: only an automated run.
 * The server endpoint on the live stack.
-* That the IDE agent's tests mean anything on macOS Docker Desktop (finding 1).
+* The volume staging on any host other than Docker Desktop on macOS (arm64, Docker 29 daemon here).
 * Pass or fail counts: only exit status is recorded.
 * Stage 1's exit gate, W23's separate-machine run, or F2's provider check: all still open.
 
@@ -177,3 +175,86 @@ tests, section7 tests, `check_ts_dist.sh`.
 * The live stack is shared with another session's drill batches: no redeploy, and no
   run that is not named in this plan.
 * Keep failures. A cost that cannot be priced is reported as unpriced, never as zero.
+
+## After the commit (2026-10-31, same day)
+
+Two follow-ups from the first commit's open list, and one deploy.
+
+### The agent's own tests on Docker Desktop (finding 1, fixed)
+
+Root cause, measured: Docker Desktop shares host folders as a mount of type `fakeowner`, and
+Landlock cannot match it. Inside the container the shell gate denied `ls`, `cat` and `echo >` on
+a bind-mounted workspace, even with a rule on `/` itself; the same mount reads and writes fine
+without Landlock (control run, same user). A Docker volume works: bound through its own
+directory, the same gate lets `ls`, `cat` and a write through.
+
+Fix, in `deploy/runners/local_engine.py` only: on Docker Desktop the launcher stages the run
+copy into a per-run volume, runs the worker on the volume's directory (the same
+`HARNESS_RUNS_VOLUME` path translation the worker daemon uses), reads the result back through a
+tar stream with the `data` extraction filter and a 256 MiB cap, and removes the volume.
+Confinement flags and Landlock rules are untouched. `__pycache__` is no longer copied in or
+back, because the agent's test runs now create it. `HARNESS_LOCAL_WORKSPACE=volume|bind`
+overrides the detection.
+
+Verified by one real task run three times (about $0.004 each, not named in this plan): the
+agent's `python -m unittest` ran inside the container and exited 0, the summary said *passed*
+with no failures, the diff was `calc.py` only, and no volume was left behind. Six unit tests
+cover detection, the read-back (replaces the tree, refuses names that leave it, refuses an
+oversized tree, reports a failed helper) and the bytecode rule. **Not verified:** the extension
+window run was not repeated on the fixed launcher, and no host other than Docker Desktop on
+macOS (arm64) was tried.
+
+### F2: the provider check (opt-in)
+
+The question was whether the provider accepts the configured key, URL and model. Today's real
+runs already answered it on this host: the two window runs and three launcher runs all completed
+on the live `.env` configuration with `anthropic/claude-haiku-5.5`.
+
+For the product, the spend rule is "only when asked". `harness doctor --probe` calls
+`POST /api/v1/orchestrator/readiness/probe`, which sends **one** request with `max_tokens: 1`
+(OpenAI chat completions when `DSH_PATCH_FILES` is set, the Anthropic Messages API otherwise),
+no retry, 20 s timeout, at most one a minute per process (`429 PROBE_TOO_SOON`), only for a
+caller who may start runs (`403 ROLE_DENIED` otherwise), and nothing is sent unless the free
+configuration checks already pass. The result is a `provider-call` check: `PROVIDER_ACCEPTED`
+(tokens and cost, or "cost unknown" for an unpriced model, never `$0`), `PROVIDER_REJECTED_KEY`,
+`PROVIDER_NO_CREDIT`, `MODEL_REJECTED`, or `unknown` for a rate limit, a 5xx, an odd response or
+an unreachable host. The provider's own error text is shown shortened with the key removed. The
+probe is not metered in `cost_ledger`.
+
+**What a pass means:** the provider accepts this key, URL and model id. It does not prove the
+runtime's own request (tools, thinking settings), so it is not "a run will work"; that stays the
+job of a run. 17 server tests and 3 CLI tests cover the formats, each answer, key redaction, the
+spend limits and the route.
+
+### Deployed to the live stack (tag `w24a1`, 2026-10-31)
+
+The stack was idle first: no running session, no drill process. Thirteen services were
+recreated from the root `.env` with `--no-deps`; the database, Keycloak, Prometheus and
+Alertmanager were not touched, and no volume was removed. The backend, worker-daemon and
+engine-worker images are **overlays**: the `vw23f24` image with `harness_orchestrator`
+replaced by the package from the working tree (a full rebuild would have re-downloaded every
+dependency and chromium over a connection measured at about 50 KB/s; it was stopped).
+Dependencies and the sandbox gate files are unchanged between the two tags, and the only
+`section4` code that differs since `vw23f24` is W24's. All three images report the same
+`code_digest` (`38c9019e73df`), which is what the readiness `revision` check compares. The
+frontend image `vw24a1` was built normally from the first W24 commit.
+
+Checked live, as a throwaway admin account:
+
+* `GET runs/run-945fda24e938/review-summary` → 200. It lists `calc.py` (+1 −1) and says what it
+  does not know: no tool calls were recorded for an IDE run, so tests are *unknown* (not
+  "none"), and cost, model, tokens and elapsed time are all `null`. Nothing reads as passed or
+  zero.
+* `GET readiness`: worker reachable, `revision` MATCH, permissions `CAN_RUN`; the only failure
+  is the throwaway project's missing repository.
+* `POST readiness/probe` → 200, `provider-call` ok: `openrouter.ai accepted
+  anthropic/claude-haiku-5.5: one request, 10 in / 1 out tokens, $0.000002, 2268 ms`. An
+  immediate second call → 429 `PROBE_TOO_SOON`, nothing sent.
+* `harness doctor --probe` through the real CLI printed the same `provider-call` line (a second
+  paid request, $0.000002, 2171 ms) and exited 1 for the missing repository only.
+* Frontend answers 200 on port 3010.
+
+**Not checked:** the review-summary card in a browser (the component has 3 tests, and the
+endpoint it reads is verified above); the images are not what `git archive HEAD` would build
+until this work is committed, and a full rebuild from scratch on a faster network is still
+owed. Probe spend today: two requests, about $0.000004.

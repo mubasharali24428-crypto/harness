@@ -363,7 +363,7 @@ export interface ReactBody {
 
 /** ReadinessCheckOut. Required keys: check, component, detail, reason, status. */
 export interface ReadinessCheckOut {
-  check: "provider" | "model" | "worker" | "revision" | "repository" | "permissions";
+  check: "provider" | "model" | "worker" | "revision" | "repository" | "permissions" | "provider-call";
   component: string;
   detail: string;
   reason: string;
@@ -794,6 +794,13 @@ export class OrchestratorClient {
     const _path = `/api/v1/orchestrator/readiness`;
     const params: Record<string, unknown> = {"projectId": project_id};
     return this.http.request<ReadinessResponse>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** Post Readiness Probe
+   *  POST /api/v1/orchestrator/readiness/probe */
+  post_readiness_probe(): Promise<ReadinessResponse> {
+    const _path = `/api/v1/orchestrator/readiness/probe`;
+    return this.http.request<ReadinessResponse>(this.baseUrl, _path, "POST", undefined);
   }
 
   /** List Runs

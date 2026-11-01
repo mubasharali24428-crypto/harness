@@ -312,7 +312,7 @@ export interface ReactBody {
 }
 /** ReadinessCheckOut. Required keys: check, component, detail, reason, status. */
 export interface ReadinessCheckOut {
-    check: "provider" | "model" | "worker" | "revision" | "repository" | "permissions";
+    check: "provider" | "model" | "worker" | "revision" | "repository" | "permissions" | "provider-call";
     component: string;
     detail: string;
     reason: string;
@@ -643,6 +643,9 @@ export declare class OrchestratorClient {
     /** Get Readiness
      *  GET /api/v1/orchestrator/readiness */
     get_readiness(project_id?: string): Promise<ReadinessResponse>;
+    /** Post Readiness Probe
+     *  POST /api/v1/orchestrator/readiness/probe */
+    post_readiness_probe(): Promise<ReadinessResponse>;
     /** List Runs
      *  GET /api/v1/orchestrator/runs */
     list_runs(project_id?: string | null, status?: string | null, limit?: number, offset?: number | null, cursor?: string | null): Promise<RunsPage>;

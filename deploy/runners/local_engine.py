@@ -34,8 +34,10 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -53,6 +55,8 @@ from harness_orchestrator.run_metering import resolve_engine_model
 _IMAGE_ENV = "HARNESS_ENGINE_IMAGE"
 _IMAGE_TAG_ENV = "HARNESS_IMAGE_TAG"
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+_WORKSPACE_ENV = "HARNESS_LOCAL_WORKSPACE"  # auto | volume | bind
+_PULL_LIMIT = 256 * 1024 * 1024  # most the launcher will take back from a run's workspace
 
 
 def default_image(env: dict[str, str] | None = None) -> str:
@@ -108,10 +112,13 @@ def preflight(confinement_env: dict[str, str] | None = None) -> str:
 
 
 def copy_tree(src: Path, dst: Path) -> None:
-    """Workspace copy without .git — the agent gets files, never repo history/hooks."""
+    """Workspace copy without .git — the agent gets files, never repo history/hooks.
+
+    ``__pycache__`` is left out as well: compiled bytecode is never a change a person reviews, and
+    the agent's own test runs create it (see :func:`pull_from_volume`)."""
     dst.mkdir(parents=True, exist_ok=True)
     for item in src.iterdir():
-        if item.name == ".git":
+        if item.name in {".git", "__pycache__"}:
             continue
         target = dst / item.name
         if item.is_dir() and not item.is_symlink():
@@ -124,6 +131,96 @@ def _touch_tree(path: Path) -> None:
     for p in sorted(path.rglob("*")):
         if p.is_file():
             os.utime(p, None)
+
+
+def stages_in_volume(env: dict[str, str] | None = None) -> bool:
+    """True when the run's workspace must live in a Docker volume for the shell gate to work.
+
+    Docker Desktop shares host folders through a mount of type ``fakeowner`` that Landlock cannot
+    match: inside the container the shell gate denies every read and write of a bind-mounted
+    workspace, even with a rule on ``/`` (reproduced 2026-10-31; without Landlock the same mount
+    reads and writes fine), so the agent could not run its own tests. A volume is an ordinary
+    directory inside the VM, where Landlock works, and the confinement stays the same. Native Linux
+    binds are unaffected. ``HARNESS_LOCAL_WORKSPACE=volume|bind`` overrides the detection.
+    """
+    env = os.environ if env is None else env
+    choice = (env.get(_WORKSPACE_ENV) or "auto").strip().lower()
+    if choice in {"volume", "bind"}:
+        return choice == "volume"
+    info = _docker("info", "--format", "{{.OperatingSystem}}")
+    return info.returncode == 0 and "docker desktop" in info.stdout.lower()
+
+
+def _helper(*flags: str) -> list[str]:
+    """A one-shot, network-less, read-only helper container on the worker image."""
+    return [
+        "docker", "run", "--rm", "--network", "none", "--read-only",
+        "--security-opt", "no-new-privileges", "--pids-limit", "32", "--memory", "128m",
+        *flags,
+    ]
+
+
+def stage_into_volume(image: str, volume: str, run_dir: Path, run_id: str) -> None:
+    """Copy the run directory into ``volume`` at ``/<run_id>``, owned by the user the worker runs as."""
+    uid, gid = os.getuid(), os.getgid() or 10001
+    created = _docker("volume", "create", volume)
+    if created.returncode != 0:
+        raise Refusal(f"cannot create the workspace volume: {(created.stderr or '').strip()[:200]}")
+    helper = subprocess.Popen(
+        _helper(
+            "-i", "--cap-drop=ALL", "--cap-add=CHOWN", "--user", "0",
+            "--mount", f"type=volume,src={volume},dst=/v", "--entrypoint", "sh",
+        ) + [image, "-c", (
+            f"mkdir /v/{run_id} && tar -x --no-same-owner -f - -C /v/{run_id}"
+            f" && chown -R {uid}:{gid} /v/{run_id}"
+        )],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    try:
+        with tarfile.open(fileobj=helper.stdin, mode="w|") as archive:
+            archive.add(run_dir, arcname=".")
+    except BrokenPipeError:
+        pass  # the helper stopped reading: its exit status below says why
+    _, err = helper.communicate(timeout=300)
+    if helper.returncode != 0:
+        raise Refusal(f"could not stage the workspace into its volume: {err.decode()[:300]}")
+
+
+def pull_from_volume(image: str, volume: str, run_dir: Path, run_id: str) -> None:
+    """Replace ``run_dir`` with what the run left in ``volume``, so the diff sees the agent's work.
+
+    The agent wrote these bytes, so they are extracted with the ``data`` filter (no absolute or
+    parent-relative names, no links that leave the tree, no device files) and capped in size.
+    """
+    uid, gid = os.getuid(), os.getgid() or 10001
+    proc = subprocess.Popen(
+        _helper(
+            "--cap-drop=ALL", "--user", f"{uid}:{gid}",
+            "--mount", f"type=volume,src={volume},dst=/v,readonly", "--entrypoint", "tar",
+        ) + [image, "-c", "-C", f"/v/{run_id}", "."],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    shutil.rmtree(run_dir, ignore_errors=True)
+    run_dir.mkdir(parents=True)
+    total = 0
+    try:
+        with tarfile.open(fileobj=proc.stdout, mode="r|") as archive:
+            for member in archive:
+                if "__pycache__" in Path(member.name).parts:
+                    continue  # byte-code from the agent's test runs, not a change to review
+                total += max(member.size, 0)
+                if total > _PULL_LIMIT:
+                    raise Refusal(f"the run's workspace is over {_PULL_LIMIT >> 20} MiB: not taking it back")
+                archive.extract(member, run_dir, filter="data")
+    except tarfile.TarError as exc:
+        proc.kill()
+        raise Refusal(f"the run's workspace could not be read back safely: {exc}") from exc
+    except Refusal:
+        proc.kill()
+        raise
+    err = proc.stderr.read().decode()[:300] if proc.stderr else ""
+    if proc.wait(timeout=60) != 0:
+        raise Refusal(f"could not read the workspace back from its volume: {err}")
 
 
 def raw_diff(image: str, run_dir: Path, baseline_dir: Path, name_only: bool = False) -> str:
@@ -261,7 +358,9 @@ def run_local(
         raise Refusal(f"workspace {src} is not a directory")
     image = preflight(env)
 
-    scratch = Path(tempfile.mkdtemp(prefix=f"harness-local-{run_id}-"))
+    in_volume = stages_in_volume(env)
+    scratch = Path(tempfile.mkdtemp(prefix=f"harness-local-{run_id}-")).resolve()
+    volume = f"harness-local-{run_id}-{uuid.uuid4().hex[:8]}" if in_volume else None
     try:
         root = scratch / "ws"
         run_dir = root / run_id
@@ -269,6 +368,12 @@ def run_local(
         copy_tree(src, run_dir)
         copy_tree(src, baseline_dir)
         _touch_tree(run_dir)  # copies land with source mtimes; git needs to see content
+        if volume:
+            # confine._mount re-expresses a path under HARNESS_RUNS_ROOT as a bind of this
+            # volume's own directory, so the worker sees the staged copy at the same path.
+            stage_into_volume(image, volume, run_dir, run_id)
+            os.environ[confine.RUNS_VOLUME_ENV] = volume
+            os.environ[confine.RUNS_ROOT_ENV] = str(root)
 
         os.environ[confine.CONFINEMENT_ENV] = "container"
         os.environ["HARNESS_ENGINE_IMAGE"] = image
@@ -294,6 +399,8 @@ def run_local(
             goal, session_id=run_id, on_progress=on_progress,
         )
         elapsed = time.monotonic() - started
+        if volume:
+            pull_from_volume(image, volume, run_dir, run_id)
         names = _changed_names(run_dir, baseline_dir, image)
         text = raw_diff(image, run_dir, baseline_dir)
         diff_text, omitted = normalize_diff(text, run_dir, baseline_dir)
@@ -334,9 +441,14 @@ def run_local(
             "image": image,
             "workspace": str(src),
             "confinement": "container",
+            "staging": "volume" if volume else "bind",
         }
         return result
     finally:
+        if volume:
+            os.environ.pop(confine.RUNS_VOLUME_ENV, None)
+            os.environ.pop(confine.RUNS_ROOT_ENV, None)
+            _docker("volume", "rm", "-f", volume)
         shutil.rmtree(scratch, ignore_errors=True)
 
 

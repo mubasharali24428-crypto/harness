@@ -103,10 +103,10 @@ DevTools protocol, so no person used the editor. Repeat it by hand once:
 
 Known limits, none fixed by W24:
 
-* **On macOS Docker Desktop the agent cannot read the workspace from inside the confined run**
-  (Landlock denies the shell gate on host bind mounts, `docs/m2-w21-plan.md`), so its own
-  `python -m unittest` fails there. The review summary says so (tests *failed*) even when the
-  edit is right; the host's test run is the check.
+* On Docker Desktop the local run stages its workspace in a Docker volume (a bind-mounted host
+  folder is unreadable to the shell gate there, see `docs/sandbox-isolation.md`), so the agent's
+  own `python -m unittest` runs for real. Other hosts that share folders the same way were not
+  tested: set `HARNESS_LOCAL_WORKSPACE=volume`.
 * A test result is its exit status; pass and fail counts are not recorded.
 * A local run is not metered in the server's cost ledger, and the server run stays `executing`.
 * The plan text shown for approval is a fixed template.

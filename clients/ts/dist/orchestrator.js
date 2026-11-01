@@ -119,6 +119,12 @@ export class OrchestratorClient {
         const params = { "projectId": project_id };
         return this.http.request(this.baseUrl, _path, "GET", undefined, params);
     }
+    /** Post Readiness Probe
+     *  POST /api/v1/orchestrator/readiness/probe */
+    post_readiness_probe() {
+        const _path = `/api/v1/orchestrator/readiness/probe`;
+        return this.http.request(this.baseUrl, _path, "POST", undefined);
+    }
     /** List Runs
      *  GET /api/v1/orchestrator/runs */
     list_runs(project_id, status, limit, offset, cursor) {

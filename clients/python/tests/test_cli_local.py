@@ -573,3 +573,95 @@ def test_a_session_keeps_its_directory_across_resume(config_dir, workspace, tmp_
     session.save()
     again = session_store.load_session(session.session_id)
     assert again.local_dir == str(workspace)
+
+
+# --- W24: Docker Desktop cannot run the shell gate on a bind-mounted host folder ---------------
+
+
+def test_volume_staging_follows_the_override_then_the_daemon(monkeypatch):
+    def daemon(os_name, rc=0):
+        return lambda *a: subprocess.CompletedProcess(a, rc, stdout=f"{os_name}\n", stderr="")
+
+    monkeypatch.setattr(local_engine, "_docker", daemon("Docker Desktop"))
+    assert local_engine.stages_in_volume({}) is True
+    assert local_engine.stages_in_volume({"HARNESS_LOCAL_WORKSPACE": "bind"}) is False
+    monkeypatch.setattr(local_engine, "_docker", daemon("Ubuntu 24.04.1 LTS"))
+    assert local_engine.stages_in_volume({}) is False
+    assert local_engine.stages_in_volume({"HARNESS_LOCAL_WORKSPACE": "volume"}) is True
+    monkeypatch.setattr(local_engine, "_docker", daemon("Docker Desktop", rc=1))
+    assert local_engine.stages_in_volume({}) is False  # an unanswered daemon never switches modes
+
+
+class _Proc:
+    """The slice of Popen that pull_from_volume reads: a tar on stdout, a status on wait()."""
+
+    def __init__(self, payload: bytes, rc: int = 0):
+        self.stdout, self.stderr, self._rc = io.BytesIO(payload), io.BytesIO(b"tar: boom"), rc
+        self.killed = False
+
+    def kill(self):
+        self.killed = True
+
+    def wait(self, timeout=None):
+        return self._rc
+
+
+def _tar(*members):
+    import tarfile
+
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as archive:
+        for name, data in members:
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            archive.addfile(info, io.BytesIO(data))
+    return buf.getvalue()
+
+
+def test_pull_from_volume_replaces_the_run_dir_with_what_the_agent_left(monkeypatch, tmp_path):
+    run_dir = tmp_path / "run"
+    (run_dir / "old").mkdir(parents=True)
+    (run_dir / "old" / "stale.txt").write_text("gone")
+    monkeypatch.setattr(
+        local_engine.subprocess, "Popen", lambda *a, **k: _Proc(_tar(("./calc.py", b"a + b\n")))
+    )
+    local_engine.pull_from_volume("img", "vol", run_dir, "run-1")
+    assert (run_dir / "calc.py").read_text() == "a + b\n"
+    assert not (run_dir / "old").exists()  # a file the agent deleted must not survive the pull
+
+
+def test_pull_from_volume_refuses_a_name_that_leaves_the_tree(monkeypatch, tmp_path):
+    run_dir = tmp_path / "run"
+    proc = _Proc(_tar(("../escaped.txt", b"x")))
+    monkeypatch.setattr(local_engine.subprocess, "Popen", lambda *a, **k: proc)
+    with pytest.raises(local_engine.Refusal, match="read back safely"):
+        local_engine.pull_from_volume("img", "vol", run_dir, "run-1")
+    assert proc.killed and not (tmp_path / "escaped.txt").exists()
+
+
+def test_pull_from_volume_refuses_an_oversized_workspace(monkeypatch, tmp_path):
+    monkeypatch.setattr(local_engine, "_PULL_LIMIT", 10)
+    proc = _Proc(_tar(("big.bin", b"x" * 11)))
+    monkeypatch.setattr(local_engine.subprocess, "Popen", lambda *a, **k: proc)
+    with pytest.raises(local_engine.Refusal, match="not taking it back"):
+        local_engine.pull_from_volume("img", "vol", tmp_path / "run", "run-1")
+    assert proc.killed
+
+
+def test_pull_from_volume_reports_a_failed_helper(monkeypatch, tmp_path):
+    monkeypatch.setattr(local_engine.subprocess, "Popen", lambda *a, **k: _Proc(_tar(), rc=2))
+    with pytest.raises(local_engine.Refusal, match="tar: boom"):
+        local_engine.pull_from_volume("img", "vol", tmp_path / "run", "run-1")
+
+
+def test_bytecode_from_the_agents_test_runs_is_not_a_change(monkeypatch, tmp_path, workspace):
+    (workspace / "__pycache__").mkdir()
+    (workspace / "__pycache__" / "a.cpython-312.pyc").write_bytes(b"\0")
+    copy = tmp_path / "copy"
+    local_engine.copy_tree(workspace, copy)
+    assert not (copy / "__pycache__").exists()
+
+    payload = _tar(("./calc.py", b"a + b\n"), ("./__pycache__/calc.cpython-312.pyc", b"\0"))
+    monkeypatch.setattr(local_engine.subprocess, "Popen", lambda *a, **k: _Proc(payload))
+    local_engine.pull_from_volume("img", "vol", tmp_path / "run", "run-1")
+    assert (tmp_path / "run" / "calc.py").exists() and not (tmp_path / "run" / "__pycache__").exists()

@@ -269,7 +269,9 @@ project `harnessfresh`:
   by DSH_PATCH_FILES` (`w23-fresh-f2live-9719c90a`). Still open: proving the
   provider accepts the *model* costs one call per check and needs a spend rule.
   The `/v1` test is a heuristic: a gateway that is OpenAI-shaped on another
-  path is not caught.
+  path is not caught. **Update (W24):** the spend rule is "only when asked":
+  `harness doctor --probe` sends one one-token request, at most one a minute
+  (see `docs/m2-w24-plan.md`, "After the commit").
 * **F4, fixed.** `_execute` meters the cancelled call from the transcript
   (`allow_estimate=False`, shielded) before returning. Delta metering keeps a
   resume from billing it twice. Live: the stop drill on `vw23f24`

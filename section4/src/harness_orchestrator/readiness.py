@@ -10,7 +10,8 @@ answered ``401`` to every dispatch (ops runbook §3.11) — is the case it exist
 Every entry is ``ok``, ``fail`` or ``unknown``, names its component and never
 carries a secret: variables are named, tokens and keys are never echoed. The
 provider is checked from configuration only, including the request format the
-engine will send (W23 F2); nothing here calls a model.
+engine will send (W23 F2); nothing here calls a model, except :func:`probe_provider`,
+which sends one one-token request and only when a person asks for it.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -41,6 +43,9 @@ from harness_orchestrator.live_mode import (
 OK, FAIL, UNKNOWN = "ok", "fail", "unknown"
 _PACKAGE = Path(__file__).resolve().parent
 PATCH_ENV = "DSH_PATCH_FILES"
+#: Seconds between paid probes from one process: the whole spend rule for W23 F2.
+PROBE_MIN_INTERVAL = 60.0
+_last_probe: float | None = None
 
 
 def _entry(check: str, status: str, component: str, reason: str, detail: str) -> dict[str, str]:
@@ -127,6 +132,126 @@ def check_engine(env: Mapping[str, str],
                f"{host}; {wire}; configured, reachability not probed"),
         _entry("model", OK, "model", "CONFIGURED", f"runs use {live['model']} only"),
     ]
+
+
+class ProbeTooSoon(RuntimeError):
+    """A paid probe was asked for again inside :data:`PROBE_MIN_INTERVAL`."""
+
+    def __init__(self, retry_after: float):
+        super().__init__(f"a provider probe was sent {PROBE_MIN_INTERVAL - retry_after:.0f} s ago; "
+                         f"wait {retry_after:.0f} s")
+        self.retry_after = retry_after
+
+
+def _send(url: str, headers: dict[str, str], body: dict[str, Any],
+          timeout: float) -> tuple[int, bytes]:
+    request = urllib.request.Request(url, data=json.dumps(body).encode(), headers=headers,
+                                     method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
+            return response.status, response.read(65536)
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read(65536)
+
+
+def _provider_words(raw: bytes, key: str) -> str:
+    """The provider's own error message, shortened, with the key and control characters removed."""
+    try:
+        body = json.loads(raw or b"{}")
+        error = body.get("error")
+        message = error.get("message") if isinstance(error, dict) else error or body.get("message")
+    except (ValueError, AttributeError):
+        return ""
+    return " ".join(str(message or "").split()).replace(key, "[key]")[:160]
+
+
+def _probe_cost(model: str, tokens_in: int, tokens_out: int) -> str:
+    from harness_contracts.pricing import MODEL_PRICING_CATALOG, PricingEngine
+    from harness_contracts.rate_card import overlay_pricing
+
+    if overlay_pricing(model) is None and model not in MODEL_PRICING_CATALOG:
+        return "cost unknown (no price for this model)"  # never the fallback rate, never $0
+    return f"${PricingEngine.calculate_cost(model, tokens_in, tokens_out)}"
+
+
+def probe_provider(
+    env: Mapping[str, str],
+    exists: Callable[[str], bool] = os.path.exists,
+    send: Callable[..., tuple[int, bytes]] = _send,
+    clock: Callable[[], float] = time.monotonic,
+    timeout: float = 20.0,
+) -> dict[str, str]:
+    """W23 F2: one paid request, answering "does the provider accept this key, URL and model?".
+
+    Only a person asking for it calls this (``harness doctor --probe``). The spend rule is the
+    code: one request, ``max_tokens`` 1, no retry, at most one per :data:`PROBE_MIN_INTERVAL`
+    seconds per process, and it is not metered in the cost ledger. It sends the wire format
+    the engine's configuration implies (OpenAI chat completions when ``DSH_PATCH_FILES`` is set,
+    the Anthropic Messages API otherwise). It proves the key, the URL and the model id, not the
+    runtime's own request (tools, thinking), so a pass is "the provider accepts the model", not "a
+    run will work". Nothing is sent unless the configuration is already a valid live one.
+    """
+    global _last_probe
+    entries = {e["check"]: e for e in check_engine(env, exists)}
+    if entries["provider"]["status"] != OK:
+        return _entry("provider-call", UNKNOWN, "provider", "NOT_CHECKED",
+                      "the provider is not configured for live runs, so nothing was sent")
+    live = validate_live_credentials(api_key=env.get(API_KEY_ENV), model=env.get(MODEL_ENV),
+                                     base_url=env.get(BASE_URL_ENV))
+    key, model = str(env.get(API_KEY_ENV)), str(live["model"])
+    base = str(live["base_url"] or "").rstrip("/")
+    host = urllib.parse.urlsplit(base).hostname or "unknown host"
+    now = clock()
+    if _last_probe is not None and now - _last_probe < PROBE_MIN_INTERVAL:
+        raise ProbeTooSoon(PROBE_MIN_INTERVAL - (now - _last_probe))
+    _last_probe = now
+
+    body: dict[str, Any] = {"model": model, "max_tokens": 1,
+                            "messages": [{"role": "user", "content": "ping"}]}
+    if env.get(PATCH_ENV):
+        url, headers = base + "/chat/completions", {"Authorization": f"Bearer {key}"}
+    else:
+        url, headers = base + "/v1/messages", {"x-api-key": key, "anthropic-version": "2023-06-01"}
+    headers["Content-Type"] = "application/json"
+
+    started = time.monotonic()
+    try:
+        status, raw = send(url, headers, body, timeout)
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        return _entry("provider-call", UNKNOWN, "provider", "PROVIDER_UNREACHABLE",
+                      f"{host} did not answer ({type(exc).__name__}); one request was attempted")
+    ms = round((time.monotonic() - started) * 1000)
+    words = _provider_words(raw, key)
+    said = f': "{words}"' if words else ""
+    if 200 <= status < 300:
+        try:
+            reply = json.loads(raw or b"{}")
+            usage = reply.get("usage") or {}
+            answered = "choices" in reply or "content" in reply
+        except (ValueError, AttributeError):
+            usage, answered = {}, False
+        if not answered:
+            return _entry("provider-call", UNKNOWN, "provider", "PROVIDER_ODD_RESPONSE",
+                          f"{host} answered HTTP {status} but not with a completion{said}")
+        tin = int(usage.get("prompt_tokens", usage.get("input_tokens", 0)) or 0)
+        tout = int(usage.get("completion_tokens", usage.get("output_tokens", 0)) or 0)
+        return _entry("provider-call", OK, "provider", "PROVIDER_ACCEPTED",
+                      f"{host} accepted {model}: one request, {tin} in / {tout} out tokens, "
+                      f"{_probe_cost(model, tin, tout)}, {ms} ms; not metered in the cost ledger")
+    if status in (401, 403):
+        return _entry("provider-call", FAIL, "provider", "PROVIDER_REJECTED_KEY",
+                      f"{host} refused the API key (HTTP {status}){said}")
+    if status == 402:
+        return _entry("provider-call", FAIL, "provider", "PROVIDER_NO_CREDIT",
+                      f"{host} reports no credit for this key (HTTP 402){said}")
+    if status in (400, 404, 422):
+        return _entry("provider-call", FAIL, "provider", "MODEL_REJECTED",
+                      f"{host} rejected the request for {model} (HTTP {status}){said}")
+    if status == 429:
+        return _entry("provider-call", UNKNOWN, "provider", "PROVIDER_RATE_LIMITED",
+                      f"{host} is rate limiting this key (HTTP 429){said}")
+    return _entry("provider-call", UNKNOWN, "provider", "PROVIDER_ERROR",
+                  f"{host} answered HTTP {status}{said}")
 
 
 def check_worker(

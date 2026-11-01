@@ -416,17 +416,25 @@ def format_stop(payload: dict[str, Any], wait: float) -> str:
             f"change files. Check with `harness status {payload['runId']}`.")
 
 
-def readiness(sdk: Any, project_id: str | None) -> dict[str, Any]:
-    """W23: what would stop a run in this project, named by component."""
+def readiness(sdk: Any, project_id: str | None, probe: bool = False) -> dict[str, Any]:
+    """W23: what would stop a run in this project, named by component.
+
+    ``probe`` adds one paid request to the provider (W23 F2) after the free checks; it is never
+    sent unless the caller asks, and the server allows one a minute."""
     project = pick_project(sdk, project_id)
     body = sdk.orchestrator.get_readiness(project_id=project) or {}
-    return {"projectId": project, "ready": bool(body.get("ok")),
-            "checks": list(body.get("checks") or [])}
+    checks = list(body.get("checks") or [])
+    ok = bool(body.get("ok"))
+    if probe:
+        sent = sdk.orchestrator.post_readiness_probe() or {}
+        checks += list(sent.get("checks") or [])
+        ok = ok and bool(sent.get("ok"))
+    return {"projectId": project, "ready": ok, "checks": checks}
 
 
 def format_readiness(payload: dict[str, Any]) -> str:
     lines = [
-        f"{c.get('status', '?'):>7}  {c.get('check', '?'):<11} "
+        f"{c.get('status', '?'):>7}  {c.get('check', '?'):<13} "
         f"{c.get('component', '?')}: {c.get('detail', '')}"
         for c in payload.get("checks") or []
     ]

@@ -36,6 +36,17 @@ Scope: `LocalSandboxRunner` and the `/api/v1/sandbox/tasks*` routes. Threat IDs 
   directory must stay unreadable. The `HARNESS_ENGINE_CONFINEMENT=off`
   diagnostic opt-in makes the worker write normally but removes the OS
   boundary.
+- **Why Docker Desktop host folders fail, and the local launcher's workaround (W24,
+  2026-10-31).** Docker Desktop shares host folders as a mount of type `fakeowner`. Landlock
+  cannot match it: inside the container every read and write of such a bind-mounted directory is
+  denied, even with a rule on `/` (`ls`, `cat` and `echo >` all fail; the same mount reads and
+  writes fine without Landlock). A Docker volume is an ordinary directory in the VM and works.
+  `deploy/runners/local_engine.py` (the IDE and CLI local launcher) therefore stages its workspace
+  copy into a per-run volume on Docker Desktop, runs the worker on the volume's own directory
+  (through `confine._mount`'s `HARNESS_RUNS_VOLUME` translation), and reads the result back with
+  a size cap and the `data` tar filter. The confinement rules are unchanged. Override with
+  `HARNESS_LOCAL_WORKSPACE=volume|bind`. Other hosts that share folders the same way (Colima,
+  Rancher Desktop, OrbStack) were not tested; set `volume` there.
 - **Read allow-list bootstrap (fixed 2026-10-25).** `confine_argv` used to add
   the target program's grandparent to the readable roots whenever its directory
   was named `bin`. Since the engine shell gate always runs `/bin/sh`, that

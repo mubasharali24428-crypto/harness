@@ -993,7 +993,9 @@ async def get_plan(runId: str, reader: RunReader) -> dict[str, Any]:
 
 
 class ReadinessCheckOut(BaseModel):
-    check: Literal["provider", "model", "worker", "revision", "repository", "permissions"]
+    check: Literal[
+        "provider", "model", "worker", "revision", "repository", "permissions", "provider-call"
+    ]
     status: Literal["ok", "fail", "unknown"]
     component: str
     reason: str
@@ -1050,6 +1052,41 @@ async def get_readiness(projectId: str, principal: RequirePrincipal) -> dict[str
         readiness.check_repository(repo, known=known),
         readiness.check_permissions(principal),
     ])
+
+
+@router.post(
+    "/readiness/probe",
+    status_code=status.HTTP_200_OK,
+    response_model=ReadinessResponse,
+    responses={
+        403: {"model": ErrorEnvelope, "description": "the caller may not start runs"},
+        429: {"model": ErrorEnvelope, "description": "a probe was sent less than a minute ago"},
+    },
+)
+async def post_readiness_probe(principal: RequirePrincipal) -> dict[str, Any]:
+    """W23 F2: send one one-token request to the provider and say whether it accepts the model.
+
+    Opt-in and paid (a fraction of a cent): `harness doctor --probe` is the only caller, and the
+    server allows one a minute. A caller who may not start runs may not spend on the provider."""
+    import asyncio
+
+    from harness_orchestrator import readiness
+
+    gate = readiness.check_permissions(principal)
+    if gate["status"] != readiness.OK:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": {"code": "ROLE_DENIED", "message": gate["detail"]}},
+        )
+    try:
+        entry = await asyncio.to_thread(readiness.probe_provider, os.environ)
+    except readiness.ProbeTooSoon as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"error": {"code": "PROBE_TOO_SOON", "message": str(exc)}},
+            headers={"Retry-After": str(int(exc.retry_after) + 1)},
+        ) from exc
+    return readiness.report([entry])
 
 
 # ---------------------------------------------------------------------------

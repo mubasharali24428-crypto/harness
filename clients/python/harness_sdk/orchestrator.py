@@ -323,7 +323,7 @@ class ReactBody(typing.TypedDict, total=False):
 
 class ReadinessCheckOut(typing.TypedDict, total=False):
     """ReadinessCheckOut. Required keys: check, status, component, reason, detail."""
-    check: typing.Literal['provider', 'model', 'worker', 'revision', 'repository', 'permissions']  # required
+    check: typing.Literal['provider', 'model', 'worker', 'revision', 'repository', 'permissions', 'provider-call']  # required
     component: str  # required
     detail: str  # required
     reason: str  # required
@@ -735,6 +735,14 @@ class OrchestratorClient:
         _path = "/api/v1/orchestrator/readiness"
         _params: dict[str, typing.Any] = {"projectId": project_id}
         return self._http.request(self.base_url, "GET", _path, params=_params)
+
+    def post_readiness_probe(self) -> ReadinessResponse:
+        """Post Readiness Probe
+
+        POST /api/v1/orchestrator/readiness/probe
+        """
+        _path = "/api/v1/orchestrator/readiness/probe"
+        return self._http.request(self.base_url, "POST", _path)
 
     def list_runs(self, project_id: str | None = None, status: str | None = None, limit: int | None = None, offset: int | None = None, cursor: str | None = None) -> RunsPage:
         """List Runs

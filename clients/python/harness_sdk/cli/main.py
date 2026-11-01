@@ -6,7 +6,7 @@
     harness status <runId> [--json]
     harness diff <runId> [--json]
     harness stop <runId> [--wait 30] [--json]  # W23: exit 0 only once confirmed
-    harness doctor [--project <id>] [--json]   # W23 first-run readiness
+    harness doctor [--project <id>] [--probe] [--json]   # W23 first-run readiness
 
 Output policy: human text by default; `--json` prints exactly one object to
 stdout (progress notes go to stderr), so `harness run --json | jq` is safe.
@@ -105,6 +105,9 @@ def build_parser() -> argparse.ArgumentParser:
     doctor = subs.add_parser("doctor", parents=[common],
                              help="check provider, model, worker, revision, repository and role")
     doctor.add_argument("--project", help="project id (required when you belong to several)")
+    doctor.add_argument("--probe", action="store_true",
+                        help="also send ONE one-token request to the model provider (a fraction "
+                             "of a cent, at most one a minute) to prove it accepts the model")
     doctor.add_argument("--json", action="store_true")
     doctor.add_argument("--capture", metavar="PATH",
                         help="also write the JSON object to PATH (0600)")
@@ -281,7 +284,7 @@ def main(
             _deliver(out, as_json, payload, lambda: format_stop(payload, args.wait), capture)
             return exit_code
         if command == "doctor":
-            report = readiness(client, args.project)
+            report = readiness(client, args.project, probe=args.probe)
             exit_code = diagnostics.OK if report["ready"] else diagnostics.FAILURE
             payload = diagnostics.contract("doctor", report, exit_code)
             _deliver(out, as_json, payload, lambda: format_readiness(payload), capture)

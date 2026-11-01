@@ -498,6 +498,47 @@ def test_doctor_names_the_failing_component_and_exits_nonzero():
     assert "not ready" in human.getvalue()
 
 
+class _ProbeOrch(_ReadyOrch):
+    def __init__(self, ok=True, probe_ok=True):
+        super().__init__(ok)
+        self.probe_ok, self.probed = probe_ok, 0
+
+    def post_readiness_probe(self):
+        self.probed += 1
+        return {"ok": self.probe_ok, "checks": [{
+            "check": "provider-call", "status": "ok" if self.probe_ok else "fail",
+            "component": "provider",
+            "reason": "PROVIDER_ACCEPTED" if self.probe_ok else "MODEL_REJECTED",
+            "detail": "accepted" if self.probe_ok else "rejected the request for m"}]}
+
+
+def test_doctor_never_spends_unless_asked_to_probe():
+    sdk = _Sdk()
+    sdk.orchestrator = _ProbeOrch()
+    out = io.StringIO()
+    assert main(["doctor", "--json"], sdk=sdk, stdout=out) == 0
+    assert sdk.orchestrator.probed == 0
+    assert [c["check"] for c in json.loads(out.getvalue())["checks"]] == ["worker"]
+
+
+def test_doctor_probe_adds_one_provider_call_check_to_the_report():
+    sdk = _Sdk()
+    sdk.orchestrator = _ProbeOrch()
+    out = io.StringIO()
+    assert main(["doctor", "--probe", "--json"], sdk=sdk, stdout=out) == 0
+    payload = json.loads(out.getvalue())
+    assert sdk.orchestrator.probed == 1
+    assert [c["check"] for c in payload["checks"]] == ["worker", "provider-call"]
+
+
+def test_a_refused_probe_makes_the_machine_not_ready():
+    sdk = _Sdk()
+    sdk.orchestrator = _ProbeOrch(ok=True, probe_ok=False)
+    human = io.StringIO()
+    assert main(["doctor", "--probe"], sdk=sdk, stdout=human) == 1
+    assert "not ready: provider-call" in human.getvalue()
+
+
 # ------------------------------------------------------------- W23 stop confirmation
 
 

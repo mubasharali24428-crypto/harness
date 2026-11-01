@@ -1719,7 +1719,8 @@
        "worker",
        "revision",
        "repository",
-       "permissions"
+       "permissions",
+       "provider-call"
       ],
       "title": "Check",
       "type": "string"
@@ -4200,6 +4201,48 @@
      }
     },
     "summary": "Get Readiness",
+    "tags": [
+     "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/readiness/probe": {
+   "post": {
+    "description": "W23 F2: send one one-token request to the provider and say whether it accepts the model.\n\nOpt-in and paid (a fraction of a cent): `harness doctor --probe` is the only caller, and the\nserver allows one a minute. A caller who may not start runs may not spend on the provider.",
+    "operationId": "post_readiness_probe_api_v1_orchestrator_readiness_probe_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReadinessResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "the caller may not start runs"
+     },
+     "429": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "a probe was sent less than a minute ago"
+     }
+    },
+    "summary": "Post Readiness Probe",
     "tags": [
      "orchestrator"
     ]
