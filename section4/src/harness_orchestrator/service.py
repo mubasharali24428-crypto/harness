@@ -1329,6 +1329,15 @@ class OrchestratorService(Orchestrator):
             # emission, so the shared log carries exactly one announcement
             # no matter how many replicas answer the request. (The winner's
             # worker loop performs the actual claim + spawn.)
+            if not run_data.get("projectId"):
+                # R3-S2: the claim query joins projects on project_id, so a claim queued
+                # under '' can never be claimed. It would answer "executing" and wait forever
+                # (and keep the stalled-queue alerts firing). POST /plans leaves a run unbound
+                # when the team has no project, or several, and the propose named none.
+                raise InvalidStateTransitionError(
+                    f"Cannot execute run '{run_id}': it is not bound to a project. "
+                    "Propose the plan again with a projectId."
+                )
             byo = await has_runner_job(self.run_queue_factory, run_id)
             elected = await enqueue_run(
                 self.run_queue_factory, run_id, run_data.get("projectId") or ""

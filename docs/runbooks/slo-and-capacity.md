@@ -1,6 +1,10 @@
 # Service objectives and capacity envelope
 
-Status: proposed operating objectives for Session 9, not production SLO attainment. The current
+Status: **adopted as pilot objectives on 2026-10-31** by Mubashar Ali (owner, in chat), with a review
+on **2026-11-30**; not a customer promise, and not attained: no 30-day window exists yet. The three
+objectives below are unchanged from the Session 9 proposal. Re-baseline on the release candidate
+before promising them externally. Session 9 originally proposed them as operating objectives, not
+production SLO attainment. The current
 benchmark is a historical, single-replica, closed-loop dry-engine run; see
 [`docs/benchmarks/BASELINE.md`](../benchmarks/BASELINE.md). Re-baseline on the release candidate
 and deployed topology before promising these objectives externally.

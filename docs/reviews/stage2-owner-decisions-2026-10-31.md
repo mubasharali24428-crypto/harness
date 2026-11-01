@@ -26,7 +26,9 @@ nothing has been *attained*, only instrumented.
 **Recommendation:** adopt the three as *pilot objectives* with a 30-day review date, not as a customer
 promise; re-baseline on the release candidate first (the runbook says so).
 
-DECISION: ______________________  Owner: ______________  Date: __________  Review on: __________
+DECISION: adopt the three as pilot objectives  Owner: Mubashar Ali (chat)  Date: 2026-10-31  Review on: 2026-11-30
+
+Recorded by an assistant from the owner's answer in chat; applied in `slo-and-capacity.md`.
 
 **Then:** replace "proposed" in the runbook's status line with the decision and date; nothing in code changes.
 
@@ -39,7 +41,9 @@ Four alerts are `severity="page"` and want a human now: `HarnessServiceDown`, `H
 paged when the primary does not acknowledge within a set time. One person is acceptable for a pilot if
 that is written down.
 
-DECISION: Primary ______________  Backup ______________  Escalate after ____ min to ______________
+DECISION: Primary Mubashar Ali  Backup none  Escalate after n/a (no escalation) to n/a
+
+Recorded by an assistant from the owner's answer in chat on 2026-10-31; applied in `alerting.md` section 6b.
 
 **Then:** put the names in [`alerting.md`](../runbooks/alerting.md); no code change.
 
@@ -53,7 +57,9 @@ Options: (a) real SMTP + a real address; (b) a webhook (`HARNESS_ALERT_WEBHOOK_U
 Discord, PagerDuty-style endpoint); (c) both. **Recommendation:** a webhook to a phone-push service plus
 email, because a laptop-hosted stack cannot rely on one path.
 
-DECISION: ______________________  Destination: ______________________
+DECISION: webhook + email  Destination: not given; the owner sets the URL and address in the gitignored `.env`
+
+Recorded by an assistant from the owner's answer in chat on 2026-10-31. **Not configured or proven**: the delivery drill against the real destination is still owed.
 
 **Then:** set the variables in `deploy/.env`, recreate Alertmanager, run
 `python3 scripts/e2e/w17_alert_delivery_drill.py` against the real destination and confirm a human
@@ -90,7 +96,9 @@ about $3.80 before headroom. These are measured anchors, not a quote for your wo
 **Recommendation:** a small capped first experiment (hundreds of runs, single-digit dollars) to learn the
 real shape, then a larger one only if it passes.
 
-DECISION: ______________________  Budget cap: $________  Approved by: ______________
+DECISION: approve a capped real-provider experiment  Budget cap: $5  Approved by: Mubashar Ali (chat, 2026-10-31)
+
+Recorded by an assistant. The experiment has **not started**: topology, target load and the stop condition are still unanswered (the table above), and the live stack is shared with a rebuild.
 
 ## 6. Where do off-machine backups go
 

@@ -41,3 +41,42 @@ def test_isolated_teardown_scripts_scope_the_runs_volume():
         assert "down -v" in text, rel
         scoped = re.search(r"^export HARNESS_RUNS_VOLUME=", text, re.M)
         assert scoped, f"{rel} does not scope harness_runs"
+
+
+# R3-S2: the list above only covers scripts someone remembered. Scan instead.
+_TEARDOWN = re.compile(r"down\s+(-v\b|--volumes\b)|\"down\",\s*\"(-v|--volumes)\"")
+
+
+# `export HARNESS_RUNS_VOLUME=...` in shell, or `env["HARNESS_RUNS_VOLUME"] = ...` in Python.
+_SCOPED = re.compile(r"^\s*export HARNESS_RUNS_VOLUME=|\[[\"']HARNESS_RUNS_VOLUME[\"']\]\s*=", re.M)
+
+
+def _unscoped_teardowns(root: Path) -> list[str]:
+    """Scripts under scripts/ and deploy/ that run `down -v` without scoping the runs volume."""
+    bad = []
+    for top in ("scripts", "deploy"):
+        for path in sorted((root / top).rglob("*")):
+            if path.suffix not in (".sh", ".py", ".mk") or not path.is_file():
+                continue
+            text = path.read_text(errors="ignore")
+            if _TEARDOWN.search(text) and not _SCOPED.search(text):
+                bad.append(str(path.relative_to(root)))
+    return bad
+
+
+def test_the_scan_flags_a_teardown_that_forgets_to_scope_the_runs_volume(tmp_path):
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "new_drill.sh").write_text("docker compose -p x down -v\n")
+    (tmp_path / "scripts" / "ok.sh").write_text(
+        "export HARNESS_RUNS_VOLUME=x_runs\ndocker compose -p x down -v\n"
+    )
+    (tmp_path / "scripts" / "py_drill.py").write_text('run(["docker", "compose", "down", "-v"])\n')
+    (tmp_path / "scripts" / "py_ok.py").write_text(
+        'env["HARNESS_RUNS_VOLUME"] = "x_runs"\nrun(["docker", "compose", "down", "-v"])\n'
+    )
+    (tmp_path / "deploy").mkdir()
+    assert _unscoped_teardowns(tmp_path) == ["scripts/new_drill.sh", "scripts/py_drill.py"]
+
+
+def test_every_script_that_tears_down_with_volumes_scopes_the_runs_volume():
+    assert _unscoped_teardowns(REPO_ROOT) == []
