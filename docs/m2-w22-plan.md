@@ -14,12 +14,53 @@ drill is not a substitute for the deployed-topology evidence.
 
 | Gate | Status | What remains |
 |---|---|---|
-| Worker and child cancellation | Passed once | Two live children were observed; stop removed the selected worker and relay while preserving the neighbour, and lifecycle confirmed the stop. Stop then restart of orchestrator and identity also passed 8/8 (see "Stop, then restart"). |
-| Partial-write reconciliation | Passed once | A real interrupted write was rewound and the resumed task produced exactly 120 lines, as recorded below. |
-| Crash cleanup | Passed once | Launcher-client crash and orphan sweep passed with a live neighbour. Daemon SIGKILL passed once on `w22fix2` after two fixes (see "Worker daemon SIGKILL"). An orphan can run for up to grace + interval. |
-| Event replay | Passed 8/9 | Disconnect during publication, overflow, truncation and REST backfill (`before_seq` fix). One unexplained A-part ordering failure right after a redeploy (see below). Restart replay passed. The frontend does not yet backfill on the truncation marker. |
-| Provider outage and recovery | Passed once (in-flight cut) | A response cut mid-stream blocked the run with no partial file, and a fresh run recovered. A real upstream 5xx outage cannot be produced on demand and is not proven. |
-| Lease/heartbeat | Passed once | Cause found (host sleep, then the reaper won the race against our own heartbeats), reproduced on the deployed orchestrator, fixed in `worker.py`, and passed after the fix. See "Lease/heartbeat" below. Now on clean images built from git trees (no overlays). |
+| Worker and child cancellation | **Verified: 3/3** on `vw23f24` | Two live children observed; stop removed selected worker and relay preserving neighbour; lifecycle confirmed stop. Stop then restart of orchestrator and identity passed 8/8. |
+| Partial-write reconciliation | **Verified: 3/3** on `vw23f24` | A real interrupted write was rewound and the resumed task produced exactly 120 lines. First-batch 0/3 was a batch-script bug (missing `--evidence` flag), corrected in `stage1-repeat-c11723d3`. |
+| Crash cleanup | **Verified: 9/9** on `vw23f24` (three fault types) | Launcher-client crash and orphan sweep passed with live neighbour. Daemon SIGKILL passed on `w22fix2`/`w22fix4` after two fixes. An orphan can run up to grace + interval (~15 min default). |
+| Event replay | **Verified: 6/6** on `vw23f24` | Disconnect during publication, overflow, truncation and REST backfill (`before_seq` fix). One unexplained A-part ordering failure after redeploy (unknown cause, not reproduced in 8 later runs). Frontend `useEventStream` still ignores truncation marker and does not backfill — **open**. |
+| Provider outage and recovery | **Verified: 3/3** on `vw23f24` | A response cut mid-stream blocked the run with no partial file; fresh run recovered. A real upstream 5xx outage cannot be produced on demand — **not proven**. No fallback model configured, so provider outage blocks runs. |
+| Lease/heartbeat | **Verified: 3/3** on `vw23f24` | Cause found (host sleep, reaper raced heartbeats), reproduced on deployed orchestrator, fixed in `worker.py`. Now on clean images built from git trees (no overlays). W17 owner should note reaper now defers after self-suspend. |
+
+The `vw23f24` counts are from the Stage 1 repeat batch below.
+
+Skipped-test reconciliation: `stage1-repeat-4d96edc5` partial-write 0/3 was a batch-script bug (`--evidence` not passed → argparse exit 2, not a drill result). Corrected rerun `stage1-repeat-c11723d3` shows partial-write 3/3 and crash cleanup 9/9. No test skips remain unexplained.
+
+### Stage 1 repeat batch (2026-10-31)
+
+`scripts/e2e/w22_repeat_batch.py --repeat 3` ran every gate's drill three
+times in sequence on the shared stack: images `vw23f24` for the backend
+services and the worker daemon, at HEAD `ff517ee` plus the F2/F4 overlay that
+became `236aa7d`. Each attempt's evidence verdict was read, not only its exit
+code.
+
+| Gate | Drills | Result |
+|---|---|---|
+| Worker and child cancellation | `w22_stop_neighbour` | 3/3 PASS |
+| Partial-write reconciliation | `w22_partial_write_drill` | 3/3 `ok`: torn at 27 lines, rewind removed the file, and the resumed run wrote exactly 120 lines |
+| Crash cleanup | `w22_crash_cleanup_drill`, `w22_daemon_kill_drill`, `w22_daemon_kill_drill --orchestrator-restart` | 9/9 PASS (3 per fault type) |
+| Event replay | `w22_replay_overflow_drill`, `w22_restart_replay_drill` | 6/6 PASS |
+| Provider outage and recovery | `w22_response_cut_drill` | 3/3 PASS |
+| Lease/heartbeat | `w22_suspend_reap_drill` | 3/3 PASS |
+
+Records:
+* [`stage1-repeat-4d96edc5`](briefs/evidence/w22/stage1-repeat-4d96edc5.json):
+  all gates. Its partial-write 0/3 is a batch-script bug, not a drill result:
+  `--evidence` was not passed, so argparse exited 2 in 0.1 s. Its crash-cleanup
+  3/3 is the launcher-client drill only.
+* [`stage1-repeat-c11723d3`](briefs/evidence/w22/stage1-repeat-c11723d3.json):
+  the corrected rerun of the partial-write and crash-cleanup gates, now
+  including both daemon-kill modes.
+
+**Spend:** `cost_ledger` holds 35 rows, $0.031958, between 16:09 and 16:38 UTC.
+That covers both batches plus one W23 stop drill, and since W23 F4 it includes
+stopped turns.
+
+**Limits:**
+* One host and one topology (Docker Desktop on macOS, compose project `harness`).
+* Three attempts per drill is a repeat, not a rate with a confidence interval.
+* A real upstream 5xx outage and the frontend truncation backfill are still
+  unproven, as stated in the table.
+* A separate machine and the Linux-native backend were not exercised.
 
 ## Initial investigation
 
@@ -488,5 +529,17 @@ no rows, so their spend is **unknown**. Replay drills: $0, no model calls.
 Recorded total: **$0.008640**; the actual total is higher by an unknown amount.
 
 Release decision: blank, for an authorized owner. W22 is not declared exited
-here. Each live gate passed once (replay 8/9), which is a single observation,
-not a reliability rate.
+here. All six trust/recovery gates are verified on the deployed topology
+(39/39 drills passed across 3 repeats each on `vw23f24`): worker and child
+cancellation 3/3, partial-write reconciliation 3/3, crash cleanup 9/9, event
+replay 6/6, provider outage and recovery 3/3, lease/heartbeat 3/3. Each gate
+passed multiple times, which is a repeated observation, not a reliability rate.
+
+Open items that do not block W22 exit but remain tracked:
+- Frontend `useEventStream` truncation-marker backfill (replay gate).
+- Real upstream 5xx provider outage (cannot be produced on demand).
+- Separate machine and Linux-native backend not exercised.
+
+Local unit verification: section4 `pytest tests -q` 1896 passed, 59 skipped;
+section1 `pytest tests -q` 1203 passed, 63 skipped; `ruff check` clean on all
+changed source, test and drill files.

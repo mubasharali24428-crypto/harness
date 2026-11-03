@@ -75,3 +75,73 @@ These stay open whatever the weeks deliver; the W20 checklist tracks them:
 * Pre-registered thresholds are not loosened to make a gate pass.
 * Every week records spend from `cost_ledger` and keeps its failures.
 * Model changes rerun the vision tasks (W20 limitation).
+
+## Integration track — added 2026-10-31
+
+This track turns the local-project and open-source survey into staged work. It
+is a proposal, not a completed audit or a claim that any candidate is safe,
+owned, licensed for the intended use, or compatible. Preserve the W21–W29
+trust, benchmark and release gates above; integrations do not waive them.
+The Scheduler below is an academic timetabling optimizer, not the Harness run
+queue. Hx M1–M5 are already complete at `332d273`; their documented limits
+remain in `hx-execution-architecture.md`.
+
+| Stage | Work and dependencies | Exit evidence |
+|---|---|---|
+| **W30 — candidate audit and architecture** | Inventory candidate provenance, revisions, licenses, dependencies, tests, data flows and operating costs. Inspect Scheduler, Drift Workbench, Headroom and agentic-immunity first; review Hermes rights. Compare with existing Harness services and W13/W17/W22 evidence. | An independently reviewable decision record for each candidate: adopt, pilot, defer or reject, with evidence and unresolved ownership/license/security questions. No integration on a README claim alone. |
+| **W31 — Scheduler planning experiment** | After W22 recovery gates, prototype a resource-allocation adapter using synthetic tasks. Inspect `/Users/user/scheduler/solver/` and compare adapting its timetable-specific contracts with a new model using OR-Tools. The existing queue, policy, approvals and worker lifecycle remain authoritative. | Tests for feasible/infeasible problems, dependency and capacity constraints, timeouts, independent validation and explanation; measured latency; no real execution or expanded permissions. Record whether the adapter is worth shipping. |
+| **W32 — governed execution and observability** | Only after W31's decision and W28 delegation gate: connect an approved scheduling proposal to existing Hx/Section 4 execution. Evaluate OpenTelemetry for run/worker/tool correlation; audit telemetry for secrets and tenant isolation. | End-to-end approved task, policy denial, cancellation, recovery and review on a verified deployment; trace redaction and cross-team isolation tests; no unapproved dispatch or automatic merge. |
+| **W33 — optional tools and readiness** | Evaluate Drift Workbench as a permissioned diagnostic; Headroom against the W25 benchmark; Tree-sitter against the existing index/LSP; immunity-layer ideas against existing identity and policy; Langfuse and Temporal only against a demonstrated gap. Reassess BYO runner, VS Code and readiness. | Candidate-specific security, license and quality results with failures retained; no forced model downgrade; owner-reviewed release decision at an identified revision. Reject candidates that fail the gates or add unjustified duplicate control planes. |
+
+### Candidate boundaries and decisions pending
+
+* **Scheduler / OR-Tools:** an optimizer proposes assignments, never grants
+  authority, relaxes forbidden paths, or substitutes for the queue. Its
+  domain-specific frozen contract and Python/dependency compatibility need review.
+* **Hx / Hermes:** Hx is the existing governed workflow surface. Hermes is a
+  separate proprietary project; rights and distribution clearance precede any
+  runtime integration. Do not treat Hx as proof of Hermes language support.
+* **Drift Workbench:** optional diagnostics must use Section 5's allow-list,
+  explicit network permissions and bounded, redacted evidence.
+* **Headroom:** compare quality, cost and recovery with and without compression;
+  do not remove review-critical context or expose secrets to another service.
+* **Agentic immunity:** evaluate revocation and attestation ideas against existing
+  controls; its prototype is not a replacement for Section 1/3/5 authorization.
+* **Odysseus and Dify:** feature/UX study only until architecture, ownership and
+  license review; avoid merging duplicate platforms. **book-to-skill:** optional
+  untrusted-content import, with review and policy enforcement before use.
+* **Temporal, Langfuse, Tree-sitter and OpenTelemetry:** evaluate specific
+  components, licenses and deployment costs. Temporal is an alternative to be
+  compared with existing durable execution, not an additional authority by default.
+* **FreeLLMAPI and free-claude-code:** no automatic provider/model failover that
+  violates the no-forced-downgrade rule. Other unrelated local projects remain
+  outside scope unless a concrete user need and audit justify them.
+
+### Current handoff and immediate next work
+
+At `8531033`, Hx M1–M5 and W17 terminal-publish retry are committed; subsequent
+commits record W13 accounting/notifications and W19 cross-replica admission and
+NOTIFY evidence. Read their work orders before repeating earlier gap claims. W13
+still needs its documented remote agent loop and other remaining gates; W20's
+release decision and human ownership gates remain open. `STATUS.md` retains the
+NOT READY verdict. W7 activation smoke exists; its real-window task is still owed.
+
+The working tree on 2026-10-31 contains uncommitted W22 drill/runtime changes
+and a staged resolution of the `section7/app/login/page.tsx` merge conflict.
+The local auto-sign-in behavior in that resolution needs deployment review. These
+changes are not validated or claimed complete by this plan; coordinate with their
+owner and verify the exact resulting revision.
+First reconcile W22 evidence and skipped-test reasons — DONE (2026-11-02): all
+six trust/recovery gates verified on deployed topology (39/39 drills passed;
+partial-write 0/3 in the first batch was a missing-`--evidence` batch-script bug,
+corrected to 3/3 in `stage1-repeat-c11723d3`). W22 release decision remains
+blank for an authorized owner. Local unit verification: section4 1896 passed /
+59 skipped; section1 1203 passed / 63 skipped; ruff clean.
+
+W17 gates are **blocked on W17's owner**: W17's changes (runner job attempts,
+evidence-from-seq in `section1/src/harness_identity/{models.py,runner_api.py}`)
+are stashed/uncommitted on `w1-engine-tools` (stash@{0}) and must not be touched
+until W17's owner commits or hands them over. W17 still needs its documented
+remote agent loop and other remaining gates.
+
+Only after W17 gates complete should the Scheduler experiment (W31) start.
