@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import uuid
+from datetime import datetime
 from typing import Any
 
 from harness_contracts.brief import EngineeringBrief
@@ -165,7 +166,7 @@ class MeetingService:
                     "project_id": project_id,
                     "title": title,
                     "status": meeting.status,
-                    "created_at": meeting.createdAt,
+                    "created_at": datetime.fromisoformat(meeting.createdAt),
                 },
             )
             await db.commit()
@@ -293,7 +294,7 @@ class MeetingService:
                         "kind": "ai" if is_ai else "human",
                         "body": content,
                         "is_ai": is_ai,
-                        "created_at": message.timestamp,
+                        "created_at": datetime.fromisoformat(message.timestamp),
                     },
                 )
                 await db.commit()
@@ -536,7 +537,7 @@ class MeetingService:
                         "meeting_id": summary.meetingId,
                         "content": summary.content,
                         "format": summary.format,
-                        "created_at": summary.createdAt,
+                        "created_at": datetime.fromisoformat(summary.createdAt),
                     },
                 )
                 await db.commit()
@@ -604,7 +605,7 @@ class MeetingService:
                 ),
                 {
                     "status": MEETING_CLOSED,
-                    "closed_at": closed_at,
+                    "closed_at": datetime.fromisoformat(closed_at),
                     "meeting_id": meeting_id,
                 },
             )
@@ -786,7 +787,7 @@ class MeetingService:
                     "risks": data["risks"],
                     "open_questions": data["openQuestions"],
                     "status": str(data["status"]),
-                    "created_at": now_utc().isoformat(),
+                    "created_at": now_utc(),
                 },
             )
             await db.commit()
@@ -907,14 +908,15 @@ class MeetingService:
         await self.aget_meeting(meeting_id)
         from sqlalchemy import text
 
+        brief_filter = " AND id = :brief_id" if brief_id is not None else ""
         async with self.db_factory() as db:
             row = (
                 await db.execute(
                     text(
                         "SELECT id, meeting_id, project_id, requirements, constraints, "
                         "acceptance_criteria, risks, open_questions, status "
-                        "FROM engineering_briefs WHERE meeting_id = :meeting_id "
-                        "AND (:brief_id IS NULL OR id = :brief_id) "
+                        "FROM engineering_briefs WHERE meeting_id = :meeting_id"
+                        + brief_filter + " "
                         "ORDER BY created_at DESC LIMIT 1"
                     ),
                     {"meeting_id": meeting_id, "brief_id": brief_id},
@@ -967,7 +969,7 @@ class MeetingService:
                     "meeting_id": summary.meetingId,
                     "content": summary.content,
                     "format": summary.format,
-                    "created_at": summary.createdAt,
+                    "created_at": datetime.fromisoformat(summary.createdAt),
                 },
             )
             await db.commit()
@@ -1018,7 +1020,7 @@ class MeetingService:
                     "version": prompt.version,
                     "content": content,
                     "created_by": user_id,
-                    "created_at": prompt.createdAt,
+                    "created_at": datetime.fromisoformat(prompt.createdAt),
                 },
             )
             await db.commit()

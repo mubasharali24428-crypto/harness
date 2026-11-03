@@ -14,7 +14,7 @@ WORKDIR /opt/harness
 ARG PIP_FIND_LINKS=""
 ENV PIP_FIND_LINKS=${PIP_FIND_LINKS}
 # AGENTS.md rule: PIN the DeepSeek Harness SDK version; bump deliberately.
-RUN pip install --no-cache-dir "deepseek-harness-sdk==0.1.1rc1"
+RUN pip install --no-cache-dir "deepseek-harness-sdk==0.2.1rc2"
 
 COPY contracts/ ./contracts/
 COPY section1/ ./section1/

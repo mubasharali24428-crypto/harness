@@ -254,7 +254,45 @@ Checked live, as a throwaway admin account:
   paid request, $0.000002, 2171 ms) and exited 1 for the missing repository only.
 * Frontend answers 200 on port 3010.
 
-**Not checked:** the review-summary card in a browser (the component has 3 tests, and the
-endpoint it reads is verified above); the images are not what `git archive HEAD` would build
-until this work is committed, and a full rebuild from scratch on a faster network is still
-owed. Probe spend today: two requests, about $0.000004.
+Probe spend on `w24a1`: two requests, about $0.000004.
+
+### Rebuilt from scratch and redeployed (tag `w24b1`, 2026-11-01)
+
+The owed rebuild was done from `git archive 3a2c7ad` (the committed source, not the working
+tree) with `docker compose build`, so the overlay shortcut is gone. The first attempt failed on
+`pip` (`No matching distribution found for sqlalchemy>=2.0`, a network drop; the worker-daemon
+and frontend images had built). The retry of the backend and engine images took about 3 hours on
+this connection, almost all of it chromium's `apt` layer (the Debian mirror delivered roughly
+10–30 KB/s).
+
+* All four images report the same `code_digest` as the overlays: `38c9019e73df` for
+  `harness-backend`, `harness-worker-daemon` and `harness-engine-worker`, so the overlay code
+  was the committed code. The engine image carries `shell_gate.py`, `web_gate.py` and
+  chromium 156.0.8078.73.
+* The stack was idle first (no session running, no drill, no run containers). The same 13
+  services were recreated with `--no-build --no-deps` on `HARNESS_IMAGE_TAG=w24b1`; the
+  database, Keycloak, Prometheus and Alertmanager were not touched and no volume was removed.
+  The worker-daemon's `HARNESS_ENGINE_IMAGE` is `harness-engine-worker:vw24b1`, which exists.
+* Re-checked live as the throwaway admin: `GET runs/run-945fda24e938/review-summary` → 200 with
+  the same body as before (tests *unknown*, cost `null`); `GET readiness` → worker reachable,
+  `revision` MATCH `38c9019e73df`, permissions `CAN_RUN`, the only failure the throwaway
+  project's missing repository; `/readiness/probe` and the review-summary route are in the live
+  OpenAPI; the frontend answers 200.
+* **Not re-run on `w24b1`:** the paid probe (it was verified on `w24a1` with identical code, and
+  a probe spends only when asked), and a real agent run through the new engine image (digest and
+  contents match; no run was started).
+
+### The review-summary card in a browser (2026-11-01)
+
+Seen in the built-in browser on the live frontend as the throwaway account, at
+`/projects/<id>/runs/run-945fda24e938?tab=plan`, under "Artifacts and changes":
+`docs/briefs/evidence/w24/web-review-summary-card.jpg`. It shows `calc.py · modified · +1 −1`,
+Tests *unknown (no tool calls were recorded for this run)*, Failures *none recorded*, Cost and
+Time *unknown*, the "Still unknown" list and the basis line. Nothing reads as passed or `$0`.
+
+* Only the **unknown** case was seen: an IDE run has no server-side tool calls or usage. The
+  card with recorded tests and a priced cost has its unit tests but was not viewed in a browser.
+* The web app must be opened as `http://localhost:3010`: from `http://127.0.0.1:3010` the
+  sign-in request fails its CORS preflight (400), because the API allows only the `localhost`
+  origin.
+* Cosmetic: the labels (Changed files, Tests, Cost, Time) are not set apart from their values.

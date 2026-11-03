@@ -1156,6 +1156,16 @@ async def sync_changes(db: Any, p: Principal, run_id: str) -> tuple[bool, int]:
     return True, len([f for f in files if not f["path"]])
 
 
+async def record_done_changes(run_id: str, p: Principal) -> None:
+    """Record the changes as soon as the done signal lands, so review never waits for the first
+    read of the changes list. Idempotent with the lazy path in list_changes."""
+    factory = _factory()
+    if factory is None:
+        return
+    async with factory() as db:
+        await sync_changes(db, p, run_id)
+
+
 @router.get("/runs/{runId}/changes")
 async def list_changes(runId: str, p: Reader) -> Any:
     """Changed files of the run, each bound to the plan version and a review state. Reading

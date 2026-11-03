@@ -192,6 +192,14 @@ async def test_service_without_a_store_returns_the_default_model():
     assert decision["enabled"] is False
 
 
+async def test_decision_names_the_deployment_model_when_none_is_configured(monkeypatch):
+    monkeypatch.setenv("DSH_MODEL", "anthropic/claude-haiku-5.5")
+    service = OrchestratorService()
+    model, decision = await service._routed_model_for_run("r1", _plan(9, 6))
+    assert model is None  # the engine still picks its own default
+    assert decision["model"] == "anthropic/claude-haiku-5.5"
+
+
 async def test_partial_plan_object_never_aborts_execution():
     """Regression: some callers hand a duck-typed plan with only `goal`.
 

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import threading
 from collections import defaultdict
 from typing import Annotated, Any, Literal
@@ -297,6 +298,14 @@ def _with_reasoning(opts: ModelCallOpts | None, effort: str, model: str) -> Mode
     return opts.model_copy(update={"extra": extra})
 
 
+def _operator_key_for(role: ModelRole) -> str | None:
+    """The deployment's own provider key, for reviewer calls only: the done-signal review is
+    made on the signer's request, which carries no team key. Every other role still needs one."""
+    if role != ModelRole.REVIEWER:
+        return None
+    return os.environ.get("DEEPSEEK_API_KEY") or None
+
+
 @router.post("/call", response_model=ModelResult, status_code=status.HTTP_200_OK)
 async def call_model(
     req: CallModelRequest, principal: Writer, request: Request = None  # noqa: RUF013
@@ -366,7 +375,7 @@ async def call_model(
             # FIX-LOOP E1: the decrypted team key survives the REST seam and
             # reaches the provider layer (real-mode gate). The simulated
             # fallback stays keyless-only and dev-gated.
-            api_key=req.apiKey,
+            api_key=req.apiKey or _operator_key_for(req.role),
             model_name=effective_model,
             team_id=principal.teamId,
         )

@@ -42,6 +42,7 @@ from harness_orchestrator.logging_utils import (  # noqa: E402
     reset_request_id,
     set_request_id,
 )
+from harness_orchestrator.model_client import ModelsServiceRouter  # noqa: E402
 from harness_orchestrator.planner import PlanNotApprovedError  # noqa: E402
 from harness_orchestrator.service import (  # noqa: E402
     OrchestratorService,
@@ -906,7 +907,9 @@ async def submit_human_edit(
         409: {"model": ErrorEnvelope, "description": "RUN_NOT_LIVE"},
     },
 )
-async def signal_done(runId: str, req: DoneSignalRequest, actor: RunReader) -> dict:
+async def signal_done(
+    runId: str, req: DoneSignalRequest, actor: RunReader, request: Request
+) -> dict:
     # H-007: the done-gate is enforced HERE, before any transition or review
     # spend. The route still declares RunReader so read-only principals reach
     # this handler — and get the gate's explicit 403 instead of a generic
@@ -929,7 +932,13 @@ async def signal_done(runId: str, req: DoneSignalRequest, actor: RunReader) -> d
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"error": {"code": e.code, "message": e.message}},
         ) from e
-    findings = await _service.signal_done(runId, diff_text=req.diffText)
+    # The reviewer's model call runs as the person who signalled done: their token, role, budget.
+    auth = request.headers.get("authorization", "")
+    model_router = None
+    if auth.startswith("Bearer "):
+        model_router = ModelsServiceRouter(auth.removeprefix("Bearer "))
+    findings = await _service.signal_done(runId, diff_text=req.diffText, model_router=model_router)
+    await _artifacts.record_done_changes(runId, principal)
     dump = findings.model_dump(by_alias=True)
     return {"runId": runId, "findings": dump}
 
@@ -1094,6 +1103,7 @@ async def post_readiness_probe(principal: RequirePrincipal) -> dict[str, Any]:
 # Every route is guarded by the run-ownership dependency (foreign run => 404);
 # the acting identity is always the authenticated Principal, never the body.
 # ---------------------------------------------------------------------------
+from harness_orchestrator import artifacts as _artifacts  # noqa: E402
 from harness_orchestrator import collab, delivery  # noqa: E402
 
 CollabReader = Annotated[Principal, Depends(_authz_dep("read", audit=True))]

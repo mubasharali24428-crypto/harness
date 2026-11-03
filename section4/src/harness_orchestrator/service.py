@@ -1509,6 +1509,9 @@ class OrchestratorService(Orchestrator):
         files = getattr(plan, "filesLikelyToChange", None) or []
         plan_class = classify_plan(len(steps), len(files))
         model, decision = resolve(primary, policy, plan_class)
+        if decision["model"] is None:
+            # No team model, no policy: the engine runs on DSH_MODEL. Name it, so the event says so.
+            decision["model"] = os.environ.get("DSH_MODEL", "deepseek-chat")
         if decision["enabled"]:
             logger.info("run %s routed: %s", run_id, decision)
         return model, decision
@@ -2389,12 +2392,14 @@ class OrchestratorService(Orchestrator):
             return {
                 "sessionId": run_id,
                 "engine": "replayed",
+                "source": "event-log",
                 "status": "error",
                 "finalResponse": f"DeepSeek Harness run failed: {reason}",
             }
         return {
             "sessionId": run_id,
             "engine": "replayed",
+            "source": "event-log",  # rebuilt from the run's log, not from a live engine call
             "status": "completed",
             "finalResponse": summary,
         }
@@ -2912,7 +2917,9 @@ class OrchestratorService(Orchestrator):
                 "Resolve and apply staged changes before completing this run or opening a PR."
             )
 
-    async def signal_done(self, run_id: str, diff_text: str = "") -> ReviewFindings:
+    async def signal_done(
+        self, run_id: str, diff_text: str = "", model_router: Any = None
+    ) -> ReviewFindings:
         await self._gate_staged_completion(run_id)
         run_data = await self._ensure_run(run_id)
         sm: AgentStateMachine = run_data["state_machine"]
@@ -2925,6 +2932,9 @@ class OrchestratorService(Orchestrator):
         # via get_done_diff. Plain-text callers keep working unchanged.
         diff_ref = save_diff(diff_text)
         run_data["done_diff_ref"] = diff_ref
+        # The caller's model router (the requesting user's, see api.signal_done) reviews this one
+        # signal; without one the reviewer stays on its deterministic checks.
+        reviewer = self.reviewer if model_router is None else ReviewerSubAgent(model_router)
 
         # Wave 9 node B / M18-C2: the reviewer's model_router call is a real
         # spend — check the cap BEFORE invoking it. Over budget OR a degraded
@@ -2932,7 +2942,7 @@ class OrchestratorService(Orchestrator):
         # to deterministic heuristics and records why.
         budget_block: str | None = None
         factory = self.run_queue_factory or self.session_factory
-        if factory is not None and self.reviewer.model_router is not None:
+        if factory is not None and reviewer.model_router is not None:
             team_id = await self._team_for_run(run_data)
             if team_id:
                 status: BudgetStatus = await check_budget(factory, team_id)
@@ -2955,7 +2965,9 @@ class OrchestratorService(Orchestrator):
                     if self._note_budget_warning(run_data, status):
                         await deliver_budget_warning(factory, team_id)
 
-        findings = self.reviewer.evaluate_changes(
+        # The model call is blocking HTTP: run it off the event loop.
+        findings = await asyncio.to_thread(
+            reviewer.evaluate_changes,
             brief_summary=run_data["goal"],
             diff_text=diff_text,
             budget_blocked_reason=budget_block,
