@@ -26,4 +26,37 @@ regexes = [
     # "(no key, HARNESS_ENV=dev ONLY)", matched by the generic-api-key
     # heuristic; a public env var name and value, not a secret.
     '''HARNESS_ENV=dev''',
+    # Full-history (schedule) scan findings, hand-verified 2026-11-04 at their
+    # source commits. Every value below is a synthetic fixture or a public
+    # documentation example, never a live credential. Push-diff scans never
+    # surfaced them because they live in historical revisions.
+    # AWS's own docs example access key id, used by several test suites.
+    '''AKIAIOSFODNN7EXAMPLE''',
+    # integrations/editors leak-gate fixtures.
+    '''AKIAABCDEFGHIJKLMNOP''',
+    # integrations/connectors redaction fixtures.
+    '''sk_live_abcdef1234567890''',
+    # docs/briefs/evidence/s12/part52-probe wrapper fixture.
+    '''sk-probe0123456789''',
+    # packages/security-policy scanner fixtures.
+    '''sk-abcdefghijklmnopqrstuvwxyz0123456789''',
+    '''A1b2C3d4E5f6G7h8I9j0''',
+    # Slack token fixtures (prefix match also covers the 12-digit variant).
+    '''xoxb-1234567890''',
+    # packages/telemetry and section2 gitflow scrub fixtures.
+    '''ghp_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789''',
+    '''ghp_abcdefghijklmnopqrstuvwxyz0123456789''',
+    # integrations/editors/vscode extension fixture.
+    '''tok-SECRET-12345678''',
+    # PEM bodies: importer, agent-config, secret-hygiene and secret-scan fixtures.
+    '''SYNTHETIC-KEY-BODY''',
+    '''MIIEvQIBADANBgkqhkiG9w0BAQEFAASC''',
+    '''MIIEowIBAAKCAQEA1234567890abcdef''',
+    '''MIIEow\.\.\.''',
+    # section11 secret-hygiene fixture: the jwt.io sample token.
+    '''eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiIxMjM0NTY3ODkwIn0\.SflKxwRJSMeKKF2QT4''',
+    # Newer gitleaks default rules (8.30) flag these two code/prose fragments
+    # under generic-api-key; neither is a credential shape.
+    '''presence/typing/cursor''',
+    '''reserved_usd=amount''',
 ]
