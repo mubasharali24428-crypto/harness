@@ -313,7 +313,14 @@ async def env(tmp_path, monkeypatch):
     monkeypatch.delenv("HARNESS_PILOT_TEAMS", raising=False)
     clock = {"t": T0}
     monkeypatch.setattr(collab, "db_now", lambda: clock["t"])
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path}/x.db")
+    # File-backed sqlite shared by every fixture session (plus the bus's own
+    # session): a busy-lock under fleet sweeps must wait, not error out.
+    # sqlite's driver timeout turns SQLITE_BUSY into a busy-wait/retry instead
+    # of an immediate OperationalError; without it the sweep and pause races
+    # fail the test under load with "database is locked".
+    engine = create_async_engine(
+        f"sqlite+aiosqlite:///{tmp_path}/x.db", connect_args={"timeout": 30}
+    )
     async with engine.begin() as conn:
         for d in (*statements(DDL), *migration_statements()):
             await conn.execute(text(d))
