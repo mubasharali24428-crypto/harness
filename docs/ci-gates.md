@@ -38,6 +38,28 @@ works end-to-end and fails loudly with exit 2 while specs are absent).
 | `make e2e` | `cd section7 && npx playwright test` | *(CI job joins via ATLAS when the suite stabilizes)* | Live since H3a's scaffolding landed: requires the compose stack (frontend :3000); exits **246** (skip, distinguishable from failure) if the stack health-check fails. |
 | `make e2e-compose` | `python3 scripts/e2e/compose_journey.py` — 12-check zero-key journey against the booted stack: readiness · passwordless login · demo seed (+idempotency) · run aggregate · engine `replayed` truth · event replay · audit · sandbox create→exec→destroy · cross-tenant no-oracle 404s · metrics families · frontend HTML | `e2e-compose` (every PR + push + dispatch) | OPS-20 release gate. The job boots the real compose stack with a generated `HARNESS_MASTER_KEY` (`openssl rand -hex 32` — migrate refuses an empty secret by design), verifies the migrate one-shot exited 0 before the journey, uploads compose logs as an artifact on failure, and always tears down with `down -v`. Catches live-only bug classes the SQLite/macOS lanes structurally cannot: it found **M18-C8** (demo-seed FK insert order on PG) and **M18-C9** (landlock version-heuristic vs. Docker seccomp — every in-container exec died in preexec_fn). |
 
+## Nightly-only coverage (`schedule` / `workflow_dispatch`)
+
+The `nightly-pg-probe` job is the only lane with a real Postgres service and
+sibling venvs, so it is where the deliberately-skipped suites actually run.
+Normal PR jobs skip these with an honest `reason=` string; nothing is silently
+green.
+
+| Step | Runs | Why it cannot be a PR gate |
+|---|---|---|
+| `make pg-probe-integration` | `integration/test_checkpoint1.py` — fanout + rehydration against real PG | needs `HARNESS_TEST_PG=1` and a migrated PG instance |
+| `make pg-probe-s1` | whole section1 suite with `HARNESS_TEST_PG=1` | ~40 PG-marked tests (`HARNESS_TEST_PG not set` on PRs) |
+| `pytest tests/unit -k live_pg` (section4) | every `*_live_pg.py` probe — session 4/5/6, collab chaos, approvals, race codes, budget delivery, workspace jobs, cost rollup, demo seed, purge/lease sweep | each builds its own scratch database via `docker exec psql` |
+| `pytest tests/test_live_pg.py` (section11) | context index live-PG probe | spins up its own `pgvector/pgvector:pg18` container on :5591 |
+| `pytest tests/test_context_resolver.py -k roundtrip` (section4) | the @refs round-trip against the REAL section11 app over HTTP | needs the section11 venv, which only this job installs |
+
+Still environment-gated on purpose (no lane can satisfy them everywhere, and
+they are not coverage holes): landlock tests (`sys.platform != "linux"`),
+Seatbelt tests (`macOS sandbox-exec` only), `HARNESS_P0_DOCKER` /
+`HARNESS_P0_LIVE` opt-ins, `promtool`-dependent alert-rule checks, and
+provider-key live tests. On `ubuntu-latest` the landlock half runs for real in
+`pytest (section5)`; the Seatbelt half runs on a macOS contributor machine.
+
 Aggregators: `make lint`, `make test`, `make frontend`, `make pg-probe`,
 `make gate`. Per-section targets exist so you can iterate exactly like the CI
 matrix does: `make test-section6`, `make lint-section8`, … Non-section packages
