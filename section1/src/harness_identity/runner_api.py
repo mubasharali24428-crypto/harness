@@ -1166,7 +1166,7 @@ async def claim_job(
                 {"runId": job.run_id, "runnerId": auth.id, "attempt": job.attempt},
                 run_id=job.run_id,
             )
-        except Exception as exc:  # noqa: BLE001 — loud, then fail-safe at settle
+        except Exception:  # noqa: BLE001 — loud, then fail-safe at settle
             logger.exception(
                 "runner_job.execution_started.emit_failed runId=%s attempt=%s",
                 job.run_id, job.attempt,
