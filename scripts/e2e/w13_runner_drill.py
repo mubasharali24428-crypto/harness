@@ -174,11 +174,21 @@ def ensure_project(token: str, name: str) -> str:
     return body["id"]
 
 
-def propose_run(token: str, run_id: str, project_id: str) -> None:
+def propose_run(token: str, run_id: str, project_id: str) -> str:
     plan = api("POST", f"/runs/{run_id}/plan", token,
                {"goal": "W13 runner drill: no model executes this", "projectId": project_id})
     if plan["status"] != 201 or not plan["body"].get("planId"):
         raise SystemExit(f"plan proposal failed for {run_id}: {plan!r}")
+    return plan["body"]["planId"]
+
+
+def approve_run(token: str, run_id: str, plan_id: str) -> None:
+    """The human-approval step the BYO path exists behind: the plan must be
+    approved before any host may run it, and before ``finish`` may settle the
+    run to anything but a never-resurrect failure."""
+    resp = api("POST", f"/runs/{run_id}/plan/approve", token, {"planId": plan_id})
+    if resp["status"] != 200 or resp["body"].get("status") != "approved":
+        raise SystemExit(f"plan approval failed for {run_id}: {resp!r}")
 
 
 def saturate_team(project_id: str, count: int = 8) -> None:
@@ -231,13 +241,14 @@ def main() -> int:
     run_a = f"w13a-{stamp}".ljust(36, "0")
     run_b = f"w13b-{stamp}".ljust(36, "0")
     run_c = f"w13c-{stamp}".ljust(36, "0")
-    propose_run(token_a, run_a, project_a)
+    plan_a = propose_run(token_a, run_a, project_a)
     propose_run(token_b, run_b, project_b)
     propose_run(token_a, run_c, project_a)
     # Saturate BEFORE queueing: the orchestrator polls every 0.5 s.
     saturate_team(project_a)
     queue_run(run_a, project_a)
     queue_run(run_c, project_a)
+    approve_run(token_a, run_a, plan_a)
 
     checks: dict[str, bool] = {}
     anonymous = runner_http("POST", "/api/v1/runner/heartbeat", None,
@@ -354,6 +365,24 @@ def main() -> int:
     checks["secondClaimRefused"] = second["status"] == 409 and second["code"] == "JOB_NOT_OFFERED"
     renewed = runner_http("POST", f"/api/v1/runner/jobs/{run_a}/heartbeat", token_r)
     checks["leaseHeartbeatRenews"] = renewed["status"] == 200 and renewed["body"]["state"] == "running"
+
+    planned_tests = json.loads(psql(
+        f"SELECT tests FROM agent_plans WHERE run_id = '{run_a}' "
+        f"ORDER BY created_at DESC LIMIT 1"
+    ))
+    tool_events: list[dict] = []
+    for index, command in enumerate(planned_tests):
+        call_id = f"drill-{stamp}-{index}"
+        tool_events.append({"phase": "call", "callId": call_id, "command": command})
+        tool_events.append({"phase": "result", "callId": call_id, "ok": True,
+                            "exitCode": 0,
+                            "output": "drill: simulated host reported all pass",
+                            "durationMs": 12})
+    recorded = runner_http("POST", f"/api/v1/runner/jobs/{run_a}/events", token_r,
+                           {"events": tool_events})
+    checks["toolEventsAccepted"] = recorded["status"] == 200 and (
+        recorded["body"].get("accepted") == len(tool_events)
+    )
 
     finished = runner_http("POST", f"/api/v1/runner/jobs/{run_a}/finish", token_r,
                            {"status": "completed",
