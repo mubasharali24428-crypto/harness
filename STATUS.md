@@ -105,6 +105,70 @@ For the merge decision's legibility: runs `41774029511` (green) and `41774372699
 
 Open items carried forward: W17 lost-lease re-dispatch (`stash@{0}`; migration 0073 absent; attempt-scoped tests unwritten) still blocks W31; W7 real-window VS Code task owed; external human gates (counsel TERMS/PRIVACY, SLO/on-call adoption, dedicated sandbox worker certification, Hermes rights) untouched; status of the master CI cadence post-merge to be confirmed by the next 06:17 nightly.
 
+## 2026-11-04 — CI repair wave: nightly lane green, three PRs merged (CI, not product)
+
+The CI red that had been carried since the PR #7 merge was not one defect but a
+stack of them. Fixed and merged in `ci-nightly-greens` (**PR #14**, merge
+`5f827ff`), verified by master push run `41848168032` **success** and by a
+dispatch-only nightly run `41847074335` **all jobs green** (the nightly job is
+`schedule`/`dispatch` only, so a push run can never prove it):
+
+1. **Nightly PG probe could not boot.** It started a second Postgres on :5499
+   while the job's own service container already owned that port — every run
+   died `address already in use`. It now targets the service container
+   (`HARNESS_TEST_PG_EXTERNAL=1` + `HARNESS_TEST_PG_CONTAINER`) and applies
+   `deploy/runners/migrate.py` first, because the service DB starts empty.
+2. **Real EventBus race.** `subscribe()` returned before `LISTEN` was attached,
+   so a publish landing in that window was delivered to nobody. It now awaits a
+   `_listener_ready` event set only after the listener connection is armed. This
+   was a product bug, found by a test that had been flaky rather than skipped.
+3. **Wall-clock-dependent rate-limit bursts.** Fixed-window burst tests read
+   real time and failed when the window rolled mid-test; a `fixed_window`
+   fixture now pins `harness_identity.ratelimit.time`. Same class fixed in
+   `test_ratelimit_expensive_ops.py`.
+4. **Partition-retention test depended on today's date.** It now detaches
+   partitions outside its frozen assertion window in the scratch DB, so it is
+   calendar-independent.
+5. **gitleaks full-history findings (16).** Each was traced to a synthetic
+   fixture or a public docs example before being allowlisted by path — no
+   blanket suppression, and nothing that looked like a live credential was left
+   unexamined.
+
+**PR #15** (`live-pg-probes`, merge `0ab9aa6`) un-skipped the section-4 live-PG
+suites by giving the nightly job the venv they need: 11 `*_live_pg.py` files
+(session 4/5/6, collab chaos/approvals/race codes, budget delivery, workspace
+jobs, cost rollup, demo seed, purge/lease sweep). Their hand-split migrations
+missed `ensure_forward_partitions`, so a fresh service DB failed them; each now
+calls it, and the cost-rollup proof compares all closed history instead of the
+current month. Verified on nightly run `41852048029` — the new
+`Section4 live-PG probes` and `Section11 live-PG probe` steps both green.
+
+**PR #16** (`portable-container-proof-tests`, merge `bc2edbb`) fixed the two
+container mount proofs that had been skipping: they pinned historical local image
+tags (`harness-engine-worker:m03`/`:b1`) and now use `python:3.13-alpine`, which
+any Docker host can pull. The first CI run then failed on a real portability
+assumption — Linux returns `EACCES` where macOS returns `EROFS` for the same
+read-only bind — and the assertion now accepts either, since both prove the
+write did not land (run `41853953406`, section4 green in 2m43s).
+
+Master CI is green for all three merges (`41848168032`, `41854647290`,
+`41854662877`).
+**PR #17** (`nightly-context-roundtrip`) closes the last skipped-but-real test:
+the @refs round-trip drives the real section11 app (its ASGI routes, auth
+dependency and index job) through that section's own venv, which normal CI never
+provisions, so it now runs in the nightly job where section11 is installed
+anyway; `docs/ci-gates.md` gained a table of exactly what that lane un-skips and
+why. Nightly dispatch `41855968014` passed every job, including that step, the
+11-file section-4 live-PG set and the section11 live-PG probe (job 6m7s).
+
+Remaining skips are environment gates, not coverage holes: landlock
+(`sys.platform != linux`), Seatbelt (macOS only), `HARNESS_P0_DOCKER` /
+`HARNESS_P0_LIVE` opt-ins, `promtool`, and provider-key live tests. On
+`ubuntu-latest` the landlock half runs for real inside `pytest (section5)`.
+
+**This entry changes no product verdict.** The verdict below still stands: green
+CI says the gates that exist now pass, not that the product is pilot-ready.
+
 
 
 The 10x program (missions 11–23, per docs/briefs/mission17-10x-plan.md) is
