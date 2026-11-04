@@ -263,6 +263,10 @@ class EventBus:
         self._event_listeners: list = []  # wave9D: sync taps on committed envelopes
         self._lock = asyncio.Lock()
         self._listener_task: asyncio.Task | None = None
+        # Set once the LISTEN connection is attached (or when no PG listener is
+        # needed). `subscribe` waits on this so a caller that publishes right
+        # after subscribing cannot miss the NOTIFY.
+        self._listener_ready = asyncio.Event()
         # M19-N2: seqs this instance already delivered via the direct publish
         # path (bounded FIFO), so the notify wake-up path skips re-fetch +
         # re-fan-out of events it sent itself. Clients dedup by seq anyway;
@@ -284,12 +288,14 @@ class EventBus:
     # Duplicates between direct + notify paths are harmless: clients dedup by seq.
 
     def _maybe_start_listener(self) -> None:
-        if self._listener_task is not None and not self._listener_task.done():
-            return
         engine = getattr(self._sessions, "kw", {}).get("bind")
         dsn = _pg_dsn(engine)
         if dsn is None:
-            return  # sqlite tests: direct fan-out covers same-instance delivery
+            self._listener_ready.set()  # sqlite tests: direct fan-out is enough
+            return
+        if self._listener_task is not None and not self._listener_task.done():
+            return
+        self._listener_ready.clear()
         self._listener_task = asyncio.get_running_loop().create_task(self._listen(dsn))
 
     async def _fetch_envelopes(self, seqs: list[int]) -> dict[int, EventEnvelope]:
@@ -408,10 +414,12 @@ class EventBus:
                 collab_coro = self._attach_listener(conn, _on_collab_notify, COLLAB_CHANNEL)
                 if collab_coro is not None:
                     await collab_coro
+                self._listener_ready.set()
                 await asyncio.Event().wait()  # park forever; callbacks drive us
             except asyncio.CancelledError:
                 raise
             except Exception:  # noqa: BLE001 — DB restarts etc.; reconnect
+                self._listener_ready.clear()
                 logger.exception("eventbus listener reconnecting")
                 await asyncio.sleep(1)
 
@@ -530,6 +538,9 @@ class EventBus:
         delivery to it was dropped. Consumers (project_ws) use this instead of
         seq arithmetic — seq is table-GLOBAL, so per-project jumps are normal."""
         self._maybe_start_listener()
+        # A NOTIFY published immediately after subscribe must not vanish because
+        # the LISTEN connection was still attaching.
+        await asyncio.wait_for(self._listener_ready.wait(), timeout=5.0)
         q: asyncio.Queue[EventEnvelope] = asyncio.Queue(maxsize=self._queue_maxsize)
         q.overflowed = False
         async with self._lock:

@@ -114,6 +114,20 @@ async def _post(ip: str, app, path: str, json_body=None):
         return await c.post(path, json=json_body)
 
 
+@pytest.fixture
+def fixed_window(monkeypatch):
+    """Pin the limiter's fixed window for a burst.
+
+    The burst tests fire 21–61 sequential requests. Against the real clock a
+    burst that straddles a 60 s boundary resets the counter mid-run, so the
+    request meant to prove the cap lands in a fresh window and passes through
+    to the router (404 instead of 429). What these tests assert is the cap,
+    not that a burst fits inside a wall-clock minute, so the window is frozen
+    here; boundary behaviour has its own test (test_new_window_resets_start_bucket).
+    """
+    monkeypatch.setattr(rl, "time", _Clock(2_000_000.0))
+
+
 # ---------------------------------------------------------------------------
 # 1+2: contract shape of the shipped set / budget table
 # ---------------------------------------------------------------------------
@@ -178,7 +192,7 @@ def test_expensive_op_budgets_are_generous():
 # ---------------------------------------------------------------------------
 
 
-async def test_run_start_burst_over_limit_429(rl_engine):
+async def test_run_start_burst_over_limit_429(rl_engine, fixed_window):
     """30/min start budget: #31 answers 429 RATE_LIMITED with Retry-After."""
     app = _limited_app(_factory(rl_engine))
     ip = "10.21.0.1"
@@ -198,7 +212,7 @@ async def test_run_start_burst_over_limit_429(rl_engine):
     assert 1 <= int(retry_after) <= 60
 
 
-async def test_model_call_burst_over_limit_429(rl_engine):
+async def test_model_call_burst_over_limit_429(rl_engine, fixed_window):
     """60/min call budget: #61 answers 429 — S3 spend can't be farmed."""
     app = _limited_app(_factory(rl_engine))
     ip = "10.22.0.1"
@@ -210,7 +224,7 @@ async def test_model_call_burst_over_limit_429(rl_engine):
     assert blocked.headers["retry-after"].isdigit()
 
 
-async def test_brief_generate_burst_over_limit_429(rl_engine):
+async def test_brief_generate_burst_over_limit_429(rl_engine, fixed_window):
     """20/min generate budget with a forged meeting id — the TEMPLATE keys the
     bucket, so the forged ids share one budget and the burst stops at #21."""
     app = _limited_app(_factory(rl_engine))
@@ -223,7 +237,7 @@ async def test_brief_generate_burst_over_limit_429(rl_engine):
     assert blocked.json()["error"]["code"] == "RATE_LIMITED"
 
 
-async def test_per_route_budgets_apply_together(rl_engine):
+async def test_per_route_budgets_apply_together(rl_engine, fixed_window):
     """One install enforces each template's OWN budget: start blocks at 30
     while model-call still has room (its budget is 60)."""
     app = _limited_app(_factory(rl_engine))
@@ -242,7 +256,7 @@ async def test_per_route_budgets_apply_together(rl_engine):
 # ---------------------------------------------------------------------------
 
 
-async def test_other_routes_unaffected_by_start_budget(rl_engine):
+async def test_other_routes_unaffected_by_start_budget(rl_engine, fixed_window):
     """Draining the start budget never throttles an unrelated route from the
     same IP (bucketed per route template; /me is not in the protected set)."""
     app = _limited_app(_factory(rl_engine))
@@ -255,7 +269,7 @@ async def test_other_routes_unaffected_by_start_budget(rl_engine):
     assert resp.status_code != 429
 
 
-async def test_auth_edge_budget_independent_of_expensive_ops(rl_engine):
+async def test_auth_edge_budget_independent_of_expensive_ops(rl_engine, fixed_window):
     """Rebalance, not merge: burning the OTP-request budget leaves the same
     IP's run-start budget intact (and vice versa)."""
     app = _limited_app(_factory(rl_engine), limit=2)
@@ -337,7 +351,7 @@ async def test_expensive_op_fails_open_when_store_down(rl_engine, caplog):
 # ---------------------------------------------------------------------------
 
 
-async def test_template_keying_defeats_id_farming(rl_engine):
+async def test_template_keying_defeats_id_farming(rl_engine, fixed_window):
     """Fresh run ids cannot mint fresh budgets: one IP drains ONE start bucket
     across every forged id, then every further id is throttled too."""
     app = _limited_app(_factory(rl_engine))
@@ -352,7 +366,7 @@ async def test_template_keying_defeats_id_farming(rl_engine):
         ).status_code == 429
 
 
-async def test_different_ips_have_independent_start_budgets(rl_engine):
+async def test_different_ips_have_independent_start_budgets(rl_engine, fixed_window):
     """Second client IP starts from a clean bucket mid-window of the first."""
     app = _limited_app(_factory(rl_engine))
     first, second = "10.30.0.1", "10.30.0.2"

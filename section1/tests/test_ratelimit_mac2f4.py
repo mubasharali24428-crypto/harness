@@ -27,6 +27,28 @@ from harness_identity.ratelimit import (
     install_rate_limit,
 )
 
+
+class _Clock:
+    """Replaceable time source: lets tests keep a burst inside one window."""
+
+    def __init__(self, start: float) -> None:
+        self.now_value = start
+
+    def time(self) -> float:
+        return self.now_value
+
+
+@pytest.fixture
+def fixed_window(monkeypatch):
+    """Freeze the fixed window for burst cap assertions.
+
+    These tests assert that a budget trips, not that a wall-clock minute
+    contains the whole burst; a boundary crossing would reset the counter
+    mid-run.
+    """
+    monkeypatch.setattr(rl, "time", _Clock(2_000_000.0))
+
+
 MASTER = b"test-master-key-0123456789abcdef"
 
 RATE_BUCKETS_DDL = """
@@ -86,7 +108,7 @@ def test_shipped_set_and_budget_shape():
     assert WS_TICKET_LIMIT > rl.DEFAULT_LIMIT
 
 
-async def test_redeem_burst_trips_429_with_envelope(engine):
+async def test_redeem_burst_trips_429_with_envelope(engine, fixed_window):
     """Middleware counts before the handler: 3 auth-required 401s, then the
     frozen envelope. Unauthenticated spray cannot skip the budget."""
     app = _limited_app(_factory(engine), limit=3, window_seconds=60)
@@ -103,7 +125,7 @@ async def test_redeem_burst_trips_429_with_envelope(engine):
     assert 1 <= int(retry_after) <= 60
 
 
-async def test_ws_ticket_rides_the_wider_override(engine):
+async def test_ws_ticket_rides_the_wider_override(engine, fixed_window):
     """With the middleware-wide limit at 10, request #11 still passes the
     guard (401 from auth) because the ticket mint's override is 60/min —
     then #61 trips it."""
@@ -116,7 +138,7 @@ async def test_ws_ticket_rides_the_wider_override(engine):
     assert blocked.json()["error"]["code"] == "RATE_LIMITED"
 
 
-async def test_redeem_buckets_are_per_ip(engine):
+async def test_redeem_buckets_are_per_ip(engine, fixed_window):
     app = _limited_app(_factory(engine), limit=1, window_seconds=60)
     assert (await _post("10.9.9.3", app, REDEEM_ROUTE, REDEEM_BODY)).status_code == 401
     assert (await _post("10.9.9.3", app, REDEEM_ROUTE, REDEEM_BODY)).status_code == 429
