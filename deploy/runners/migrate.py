@@ -103,6 +103,37 @@ async def check_drift(engine) -> None:
     )
 
 
+async def check_drift_with_retry(
+    engine, attempts: int = 12, delay_seconds: float = 5.0
+) -> None:
+    """Boot-time twin of ``check_drift`` used by the entrypoint gates.
+
+    Compose can report the db healthy a moment before it is really accepting
+    post-initdb connections, and a freshly (re)started cluster can bounce once
+    during its archive bring-up; a connection refused in that window is not
+    drift and must never be reported as it (2026-11-04 e2e: the db began its
+    post-initdb shutdown 0.6s after Healthy and the gate refused boot on
+    ECONNREFUSED, the exact inverse of the rollback case this gate exists
+    for). Genuine SchemaDriftError is deterministic and never retried;
+    anything else (connect refused, reset, protocol error) is retried for up
+    to ``attempts * delay_seconds`` before the boot refuses with the last
+    error it saw.
+    """
+    last_exc: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            await check_drift(engine)
+            return
+        except SchemaDriftError:
+            raise  # deterministic — refusing immediately is the honest answer
+        except Exception as exc:  # noqa: BLE001 — boot gate: any connect-side failure is transient
+            last_exc = exc
+            if attempt < attempts:
+                await asyncio.sleep(delay_seconds)
+    assert last_exc is not None
+    raise last_exc
+
+
 def split_statements(sql: str) -> list[str]:
     """Semicolon-split that is dollar-quote ($$) aware and strips comment LINES
     (never whole statements) so leading comments can't eat a statement."""

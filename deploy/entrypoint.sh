@@ -39,7 +39,7 @@ import sys
 
 sys.path.insert(0, "/opt/harness/deploy/runners")
 
-from migrate import check_drift
+from migrate import check_drift_with_retry as check_drift
 from services import get_factory
 
 
@@ -123,7 +123,7 @@ import sys
 
 sys.path.insert(0, "/opt/harness/deploy/runners")
 
-from migrate import check_drift
+from migrate import check_drift_with_retry as check_drift
 from services import get_factory
 
 
