@@ -62,3 +62,20 @@ cd scripts/loadtest && ./.venv/bin/locust -f locustfile.py --headless \
 
 Dry engine measures PLATFORM throughput (API + queue + executor + DB + events),
 not provider latency or multi-replica behavior — see BASELINE.md §Limits.
+
+
+## Repeatable ladder (W17)
+
+```sh
+LADDER_REV=<commit> scripts/loadtest/run_ladder.sh [vus ...]   # default rungs 4 8 16 32 64 100
+```
+
+Pins `LADDER_REV` with `git archive` (always set it explicitly), builds once under the
+image tag `w17-<rev7>` in its own compose project, runs each rung with `--no-build`,
+waits for the queue to drain, audits the event log with `audit_terminals.sql`
+(lost or duplicate terminal transitions, leftover claims) and writes `SUMMARY.md` plus raw
+consoles, samples and service logs to `docs/briefs/evidence/w17/ladder-<rev7>/`
+(`LADDER_OUT` overrides, `LADDER_HOLD` sets the seconds per rung, `LADDER_KEEP=1` leaves
+the stack up). Do not edit the scripts while it runs: bash reads them incrementally.
+Each VU is one team, and the product limits a team to 60 run starts per minute, so low
+rungs of unpaced journeys can be refused with 429; set `HARNESS_TASK_PACING_S` to avoid it.

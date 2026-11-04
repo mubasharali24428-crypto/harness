@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from harness_identity.audit import write_audit
 from harness_identity.audit_anchor import anchor_head, read_anchors, verify_anchors
-from harness_identity.audit_chain import verify_chain
+from harness_identity.audit_chain import verify_chain, verify_window
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "section1" / "scripts" / "verify_audit_chain.py"
@@ -372,3 +372,126 @@ async def test_the_verify_command_exits_1_only_after_an_anchored_row_is_altered(
     broken = verify()
     assert broken.returncode == 1, broken.stdout + broken.stderr
     assert "altered after anchoring" in broken.stdout
+
+
+# ------------------------------------------------------------------ W16 slice 4
+# The customer-facing window verdict (POST /api/v1/audit/verify) is this
+# function; the SQLite lane can only prove the endpoint refuses, so the checks
+# that actually re-derive hashes live here, on the engine that seals them.
+
+
+async def _window(db, **over):
+    async with db["engine"].connect() as c:
+        return await verify_window(c, **over)
+
+
+async def test_a_clean_window_answers_row_by_row(db):
+    await _seed(db["factory"], 6)
+    verdict = await _window(db)
+    assert verdict["ok"] is True, verdict["problems"]
+    assert verdict["rowsChecked"] == 6
+    assert [row["chainPos"] for row in verdict["rows"]] == list(range(1, 7))
+    assert all(row["ok"] and row["rowHash"] for row in verdict["rows"])
+    assert verdict["prunedPrefix"] is False and verdict["anchored"] is False
+    assert verdict["windowComplete"] is True
+    assert verdict["head"]["chainPos"] == 6
+
+
+async def test_the_window_starts_where_the_caller_asked(db):
+    await _seed(db["factory"], 6)
+    tail = await _window(db, after_chain_pos=4)
+    assert [row["chainPos"] for row in tail["rows"]] == [5, 6]
+    assert tail["ok"] is True and tail["windowComplete"] is True
+    assert tail["anchored"] is False, "a chosen start is not a pruned prefix"
+    capped = await _window(db, max_rows=3)
+    assert capped["rowsChecked"] == 3 and capped["windowComplete"] is False
+
+
+async def test_an_edited_row_is_named_and_only_that_row_is_accused(db):
+    await _seed(db["factory"], 6)
+    await _tamper(db["engine"], "UPDATE audit_log SET target_id = 'rewritten' WHERE chain_pos = 3")
+    verdict = await _window(db)
+    assert verdict["ok"] is False
+    assert [row["chainPos"] for row in verdict["rows"] if not row["ok"]] == [3]
+    assert any("row content was modified" in p for p in verdict["problems"])
+    # The edit is not re-sealed, so the NEXT row's link is untouched: the trail is
+    # provably the one the database wrote everywhere else.
+    assert verdict["windowComplete"] is True
+
+
+async def test_a_row_removed_from_the_middle_breaks_the_link_ahead_of_it(db):
+    await _seed(db["factory"], 6)
+    async with db["engine"].begin() as c:
+        await c.execute(text("ALTER TABLE audit_log DISABLE TRIGGER ALL"))
+        await c.execute(text("DELETE FROM audit_log WHERE chain_pos = 4"))
+    verdict = await _window(db)
+    assert verdict["ok"] is False
+    assert any("gap in chain: positions 3 -> 5" in p for p in verdict["problems"])
+
+
+async def test_a_pruned_prefix_is_declared_instead_of_invented(db):
+    await _seed(db["factory"], 6)
+    async with db["engine"].begin() as c:
+        await c.execute(text("ALTER TABLE audit_log DISABLE TRIGGER ALL"))
+        await c.execute(text("DELETE FROM audit_log WHERE chain_pos <= 2"))
+    verdict = await _window(db)
+    assert verdict["prunedPrefix"] is True
+    assert verdict["firstChainPos"] == 3 and verdict["rowsChecked"] == 4
+    assert verdict["anchored"] is True, "the missing predecessor must be said out loud"
+    # The surviving suffix is intact: retention is not tampering, and a verdict
+    # that called it broken would train an operator to ignore broken verdicts.
+    assert verdict["ok"] is True, verdict["problems"]
+
+
+async def test_a_resealed_chain_is_honest_about_what_the_window_can_prove(db):
+    """A privileged attacker who re-derives every hash from the edit onward makes
+    the chain internally consistent. The window cannot see that — the anchors
+    can — so the endpoint must not be sold as tamper-PROOF, only tamper-evident
+    against a rewrite that did not re-seal. Pinned here so the docs stay honest."""
+    await _seed(db["factory"], 6)
+    await _tamper(db["engine"], "UPDATE audit_log SET target_id = 'rewritten' WHERE chain_pos = 3")
+    await _rebuild_from(db["engine"], 3)
+    verdict = await _window(db)
+    assert verdict["ok"] is True, verdict["problems"]
+    async with db["engine"].connect() as c:
+        rep = await verify_chain(c)
+    assert rep.ok
+
+
+async def test_a_deleted_newest_row_is_caught_by_the_window(db):
+    """Tail deletion is the case a hash chain alone cannot show (nothing links to
+    the removed row). The stored head can, so the window uses it — otherwise a
+    customer would export yesterday's trail, someone would delete today's rows,
+    and every verdict would still read clean."""
+    await _seed(db["factory"], 6)
+    async with db["engine"].begin() as c:
+        await c.execute(text("ALTER TABLE audit_log DISABLE TRIGGER ALL"))
+        await c.execute(text("DELETE FROM audit_log WHERE chain_pos = 6"))
+    verdict = await _window(db)
+    assert verdict["ok"] is False
+    assert verdict["windowComplete"] is False
+    assert any("newest rows removed" in p for p in verdict["problems"])
+
+
+async def test_a_forged_link_is_caught_even_when_the_rows_are_self_consistent(db):
+    """Each row's own hash covers its own ``prev_hash``, so a splice can be
+    re-sealed row by row and still be internally correct. This is the case only
+    the seam check can see: row 4 is rewritten to hang off the genesis hash and
+    re-sealed, so rows 4 and 5 each hash correctly against their own stored
+    predecessor — and the trail is nonetheless not the one the database wrote.
+    Without a link check, a window verdict here would read clean over a splice."""
+    await _seed(db["factory"], 6)
+    await _tamper(
+        db["engine"],
+        "UPDATE audit_log SET prev_hash = CAST(:g AS varchar),"
+        " row_hash = audit_row_hash(CAST(:g AS varchar), seq, chain_pos, ts,"
+        "                           actor_member_id, actor_kind, action, target_type,"
+        "                           target_id, detail)"
+        " WHERE chain_pos = 4",
+        {"g": "0" * 64},
+    )
+    verdict = await _window(db)
+    assert verdict["ok"] is False
+    assert all(row["ok"] is False for row in verdict["rows"] if row["chainPos"] in (4, 5))
+    assert all(row["ok"] is True for row in verdict["rows"] if row["chainPos"] not in (4, 5))
+    assert any("prev_hash does not link" in p for p in verdict["problems"])

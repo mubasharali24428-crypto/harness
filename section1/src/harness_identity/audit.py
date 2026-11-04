@@ -182,6 +182,9 @@ APPEND_ONLY_ACTIONS = frozenset(
         "approval.self_denied",
         # Part 11.009: an admin exported the team's audit/event evidence.
         "audit.exported",
+        # Marathon 2.0 W16 slice 4: an admin asked whether the chain still
+        # verifies — reading the verdict is reading the evidence.
+        "audit.verified",
         "forbidden.command_blocked",
         # S1-R05a: denied-but-unprovable ownership checks (raw-SQL writer in
         # section4 authz.py; canonical allowlist lives here).
@@ -192,12 +195,52 @@ APPEND_ONLY_ACTIONS = frozenset(
         # Mission 12 G10: user-authored project rules lifecycle.
         "rules.saved",
         "rules.deleted",
+        # Marathon 2.0 W12: governed skill catalog lifecycle.
+        "skill.created",
+        "skill.reviewed",
+        "skill.enabled",
+        "skill.disabled",
+        "skill.removed",
+        # Marathon 2.0 W12: project-scoped memory lifecycle.
+        "memory.created",
+        "memory.reviewed",
+        "memory.deleted",
+        # Marathon 2.0 W13: bring-your-own runner lifecycle. A runner registers,
+        # attests its confinement, is assigned an already-approved run, completes
+        # it, or is revoked. None of these actions grants capability.
+        "runner.registered",
+        "runner.revoked",
+        "runner.rotated",
+        "runner.attested",
+        "runner.job_assigned",
+        "runner.job_completed",
+        # Marathon 2.0 W14: opt-in per-team model routing policy lifecycle.
+        "routing.saved",
+        "routing.deleted",
         # M15-G6b: per-team reviewer-threshold tuning lifecycle.
         "reviewer_thresholds.saved",
         "reviewer_thresholds.deleted",
         # Mission 22 M4: team OIDC IdP configuration lifecycle.
         "sso.config_saved",
         "sso.config_deleted",
+        # Marathon 2.0 W16: an OIDC login minted a session; detail records the
+        # role used and whether a group claim or the stored membership chose it.
+        "sso.login",
+        # Marathon 2.0 W16: SCIM 2.0 subset — a directory credential's lifecycle
+        # and the seat changes it made. scim.user_changed carries the token id,
+        # never a secret.
+        # Marathon 2.0 W16: SIEM sink lifecycle. `siem.delivered` is written by
+        # the push worker at the milestones an operator must be able to see — a
+        # collector that blocked after MAX_ATTEMPTS, or one an admin resumed —
+        # never per batch, or the trail would describe itself to death.
+        "siem.created",
+        "siem.updated",
+        "siem.deleted",
+        "siem.blocked",
+        "siem.resumed",
+        "scim.token_created",
+        "scim.token_revoked",
+        "scim.user_changed",
         # Multiplayer pilot S2: shared-run collaboration + high-impact approvals
         # (raw-SQL writer in section4 collab.py; canonical allowlist is here).
         "participant.joined",

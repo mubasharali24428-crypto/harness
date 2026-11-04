@@ -1,0 +1,64 @@
+{
+  "date": "2026-10-29T16:56:31Z",
+  "milestone": "W16 slice 1 \u2014 a revoked seat is revoked everywhere",
+  "email": "w16-revocation-1793292990@example.com",
+  "userId": "cc5aae0d-c24e-4c28-9b7f-71c7a43d66b6",
+  "note": "no auth_sessions row was deleted at any point: the token in step 3 is the same one that worked in step 1, refused only because users.is_active changed",
+  "checks": [
+    {
+      "check": "identity /me accepts the active seat",
+      "got": 200,
+      "want": 200,
+      "ok": true
+    },
+    {
+      "check": "the shared dependency accepts it too (404 = authorized, missing run)",
+      "got": 404,
+      "want": 404,
+      "ok": true
+    },
+    {
+      "check": "the store says the seat is revoked",
+      "got": "f",
+      "want": "f",
+      "ok": true
+    },
+    {
+      "check": "identity /me refuses the revoked seat",
+      "got": 401,
+      "want": 401,
+      "ok": true
+    },
+    {
+      "check": "the shared dependency refuses it too (401, not 404)",
+      "got": 401,
+      "want": 401,
+      "ok": true
+    },
+    {
+      "check": "a new session cannot be minted",
+      "got": 403,
+      "want": 403,
+      "ok": true
+    },
+    {
+      "check": "and the refusal names the reason",
+      "got": "ACCOUNT_DISABLED",
+      "want": "ACCOUNT_DISABLED",
+      "ok": true
+    },
+    {
+      "check": "re-enabling the seat restores login",
+      "got": 200,
+      "want": 200,
+      "ok": true
+    },
+    {
+      "check": "and the new token works on the shared door",
+      "got": 404,
+      "want": 404,
+      "ok": true
+    }
+  ],
+  "verdict": "PASS"
+}

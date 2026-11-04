@@ -12,6 +12,7 @@ import {
   type Conflict, type ConflictsView, type ControlView, type QueuedInstruction,
   decideControl, getConflicts, getControl, postHow, releaseControl, resolveConflict,
 } from "./controlApi";
+import { takesEffectText } from "./collabModel";
 import { useAction, usePolled } from "./usePolled";
 
 const muted = { color: "var(--muted)" } as const;
@@ -170,7 +171,9 @@ export function RunControlSection({ runId, token, tick, isAdmin, onChanged }: {
         items={control.queuedInstructions} me={control.viewer.userId} holder={control.holder?.userId ?? null}
         isHolder={isHolder} busy={busy}
         onDecide={(id, decision) => void run(() => decideControl(runId, token, { instructionId: id, decision }),
-          () => (decision === "accept" ? "Suggestion accepted and sent to the agent" : "Suggestion rejected"))}
+          (r) => (decision === "accept"
+            ? `Suggestion accepted. ${takesEffectText((r as { takesEffect?: unknown } | null)?.takesEffect) ?? ""}`.trim()
+            : "Suggestion rejected"))}
       />
       <ControlStatus
         control={control} busy={busy}

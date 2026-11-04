@@ -1,0 +1,164 @@
+{
+  "runId": "w22-heartbeat-a79c9e725a80",
+  "samples": [
+    {
+      "elapsed": 0.2,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:10:39.814018+00:00|8",
+      "workerLive": true
+    },
+    {
+      "elapsed": 10.4,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:10:49.818909+00:00|8",
+      "workerLive": true
+    },
+    {
+      "elapsed": 20.6,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:10:59.828558+00:00|9",
+      "workerLive": true
+    },
+    {
+      "elapsed": 30.9,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:11:09.842942+00:00|9",
+      "workerLive": true
+    },
+    {
+      "elapsed": 41.1,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:11:19.860769+00:00|9",
+      "workerLive": true
+    },
+    {
+      "elapsed": 51.3,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:11:29.870135+00:00|9",
+      "workerLive": true
+    },
+    {
+      "elapsed": 61.5,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:11:39.874866+00:00|9",
+      "workerLive": true
+    },
+    {
+      "elapsed": 71.8,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:11:49.889029+00:00|10",
+      "workerLive": true
+    },
+    {
+      "elapsed": 82.1,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:11:59.893878+00:00|10",
+      "workerLive": true
+    },
+    {
+      "elapsed": 92.3,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:12:19.904813+00:00|0",
+      "workerLive": true
+    },
+    {
+      "elapsed": 102.5,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:12:29.912483+00:00|0",
+      "workerLive": true
+    },
+    {
+      "elapsed": 112.7,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:12:39.917727+00:00|1",
+      "workerLive": true
+    },
+    {
+      "elapsed": 123.0,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:12:49.922607+00:00|1",
+      "workerLive": true
+    },
+    {
+      "elapsed": 133.2,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:12:59.928551+00:00|1",
+      "workerLive": true
+    },
+    {
+      "elapsed": 143.5,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:13:09.937109+00:00|1",
+      "workerLive": true
+    },
+    {
+      "elapsed": 153.7,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:13:19.954447+00:00|1",
+      "workerLive": true
+    },
+    {
+      "elapsed": 163.9,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:13:29.972615+00:00|2",
+      "workerLive": true
+    },
+    {
+      "elapsed": 174.2,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:13:39.982411+00:00|2",
+      "workerLive": true
+    },
+    {
+      "elapsed": 184.4,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:13:49.989746+00:00|2",
+      "workerLive": true
+    },
+    {
+      "elapsed": 194.6,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:13:59.995112+00:00|2",
+      "workerLive": true
+    },
+    {
+      "elapsed": 204.8,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:14:10.000152+00:00|3",
+      "workerLive": true
+    },
+    {
+      "elapsed": 215.0,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:14:20.012986+00:00|3",
+      "workerLive": true
+    },
+    {
+      "elapsed": 225.3,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:14:30.024456+00:00|3",
+      "workerLive": true
+    },
+    {
+      "elapsed": 235.5,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:14:40.035615+00:00|3",
+      "workerLive": true
+    },
+    {
+      "elapsed": 245.7,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:14:50.016086+00:00|3",
+      "workerLive": true
+    },
+    {
+      "elapsed": 256.0,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:15:00.019868+00:00|4",
+      "workerLive": true
+    },
+    {
+      "elapsed": 266.2,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:15:10.028990+00:00|4",
+      "workerLive": true
+    },
+    {
+      "elapsed": 276.4,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:15:20.036333+00:00|4",
+      "workerLive": true
+    },
+    {
+      "elapsed": 286.6,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:15:30.043966+00:00|4",
+      "workerLive": true
+    },
+    {
+      "elapsed": 296.8,
+      "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:15:40.056594+00:00|4",
+      "workerLive": true
+    },
+    {
+      "elapsed": 307.0,
+      "claim": "",
+      "workerLive": false
+    }
+  ],
+  "verdict": "FAIL",
+  "worker": "cf2a8d629922",
+  "error": "RuntimeError: worker or claim lost",
+  "stopStatus": 200
+}

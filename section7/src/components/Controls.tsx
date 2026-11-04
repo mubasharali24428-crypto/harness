@@ -1,8 +1,9 @@
 "use client";
 
+import * as React from "react";
 import { useState } from "react";
 import type { RunStatus } from "@contracts/api";
-import { pauseAgent, resumeAgent, stopAgent, submitHumanEdit, signalDone, ApiError } from "@/lib/api";
+import { pauseAgent, resumeAgent, resumeWithChanges, stopAgent, submitHumanEdit, signalDone, ApiError } from "@/lib/api";
 import { useEditorView } from "@/lib/codemirror";
 import {
   panelStyle,
@@ -12,6 +13,14 @@ import {
   dangerButtonStyle,
   inputStyle,
 } from "@/lib/styles";
+
+/** W23: what a stop answer means. Only `stopped` is a confirmed end (the engine is gone);
+ *  `stopping` and anything unknown say the agent may still change files. */
+export function stopNotice(status: string | undefined): string {
+  if (status === "stopped") return "Stopped. Confirmed: the agent can no longer change files.";
+  if (status === "completed") return "This run had already finished.";
+  return "Stop requested, not confirmed yet: the agent may still change files. The status reads Finished once it is confirmed.";
+}
 
 export function Controls({
   runId,
@@ -33,6 +42,8 @@ export function Controls({
   const [takeover, setTakeover] = useState(false);
   const [editPath, setEditPath] = useState("");
   const [editContent, setEditContent] = useState("");
+  const [change, setChange] = useState("");
+  const [stopNote, setStopNote] = useState<string | null>(null);
   const editorRef = useEditorView(editContent, { onChange: setEditContent, label: "New file content" });
 
   async function run(action: string, fn: () => Promise<unknown>) {
@@ -48,17 +59,19 @@ export function Controls({
     }
   }
 
-  // ponytail: the backend only exposes a submit-shaped human-edit endpoint (no
-  // separate "started editing" signal), so checking the box IS the implicit-pause
-  // trigger - the closest honest match to "pause the moment a human starts editing"
-  // without inventing a keystroke-level API that doesn't exist server-side.
+  // M-A6: this used to POST the human edit the instant the box was ticked,
+  // against a placeholder path and whatever the editor held — so merely peeking
+  // at the controls paused the run and recorded an empty edit against it. The
+  // checkbox now only reveals the editor; the pause + edit happen together on
+  // "Save edit", which is the endpoint's submit-shaped semantics.
   function handleTakeoverToggle(checked: boolean) {
     setTakeover(checked);
-    if (checked) {
-      run("human-edit", () => submitHumanEdit(runId, editPath || "(unspecified)", editContent, token));
-    }
+    if (!checked) setError(null);
   }
 
+  // The wire status carries the Part 10 lifecycle (contracts' RunStatus does not type it yet).
+  const confirmed = (status as { lifecycle?: { cancelConfirmed?: boolean } } | null)?.lifecycle?.cancelConfirmed === true;
+  const stopShown = stopNote && confirmed ? stopNotice("stopped") : stopNote;
   const state = status?.state;
   const canPause = state === "executing";
   const canResume = state === "paused" || state === "blocked";
@@ -85,7 +98,7 @@ export function Controls({
         <button
           style={dangerButtonStyle}
           disabled={!canStop || busy !== null}
-          onClick={() => run("stop", () => stopAgent(runId, token))}
+          onClick={() => run("stop", async () => setStopNote(stopNotice((await stopAgent(runId, token)).status)))}
         >
           Stop
         </button>
@@ -103,8 +116,55 @@ export function Controls({
         </button>
       </div>
 
+      {/* W2 (N04): the visible retry. A stuck run is resumed *with a change* —
+          the text is recorded as durable guidance before the resume call, so the
+          agent reads it on the next attempt. Disabled with nothing typed,
+          because resuming without a change is what the Resume button already
+          does and a second button for it would be decoration. */}
+      {canResume && (
+        <div
+          style={{
+            marginBottom: 12,
+            paddingTop: 12,
+            borderTop: "1px solid var(--border-soft)",
+          }}
+        >
+          <label
+            htmlFor="resume-change"
+            style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 4 }}
+          >
+            Resume with changes
+          </label>
+          <p style={{ color: "var(--muted)", fontSize: 12, margin: "0 0 8px" }}>
+            Saved as guidance the agent reads before the agent continues — not a chat
+            message, and not a restart.
+          </p>
+          <input
+            id="resume-change"
+            value={change}
+            onChange={(e) => setChange(e.target.value)}
+            placeholder="e.g. use the existing helper instead of a new module"
+            aria-label="What should change before resuming"
+            style={inputStyle}
+          />
+          <button
+            style={{ ...secondaryButtonStyle, marginTop: 8 }}
+            disabled={busy !== null || !change.trim()}
+            onClick={() =>
+              run("resume-with-changes", async () => {
+                await resumeWithChanges(runId, change, token);
+                setChange("");
+              })
+            }
+          >
+            Resume with changes
+          </button>
+        </div>
+      )}
+
       {stagedPending && <p role="status">Resolve staged changes before completing this run.</p>}
       {error && <p style={{ color: "var(--red)", fontSize: 13 }}>{error}</p>}
+      {stopShown && <p role="status" data-testid="stop-notice" style={{ fontSize: 13 }}>{stopShown}</p>}
 
       <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 8 }}>
         <input
@@ -112,8 +172,13 @@ export function Controls({
           checked={takeover}
           onChange={(e) => handleTakeoverToggle(e.target.checked)}
         />
-        Human takeover / manual edit
+        Edit a file myself
       </label>
+      {takeover && (
+        <p style={{ color: "var(--muted)", fontSize: 12, margin: "0 0 8px" }}>
+          Saving pauses the run so the agent can't overwrite your change.
+        </p>
+      )}
 
       {takeover && (
         <div>

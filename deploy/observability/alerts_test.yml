@@ -95,6 +95,51 @@ tests:
               runbook: docs/runbooks/alerting.md#6-pilot-alerts-session-2
 
   - interval: 1m
+    name: freshness alerts when fewer than 99% of live frames land within 5 s
+    input_series:
+      # 49 of every 50 observations fall in the le=5.0 bucket (98% < 99%).
+      - series: 'harness_event_delivery_lag_seconds_bucket{le="5.0"}'
+        values: '0+49x30'
+      - series: 'harness_event_delivery_lag_seconds_count'
+        values: '0+50x30'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: HarnessEventFreshnessSlo
+        exp_alerts: []
+      - eval_time: 16m
+        alertname: HarnessEventFreshnessSlo
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: "Live collaboration events missed the 5 s freshness bound"
+              description: "Fewer than 99% of eligible live frames were written within 5 s for 10m; check notify latency, slow consumers and the identity host."
+              runbook: docs/runbooks/slo-and-capacity.md#objectives
+
+  - interval: 1m
+    name: freshness stays quiet at 100% and with no traffic
+    input_series:
+      - series: 'harness_event_delivery_lag_seconds_bucket{le="5.0"}'
+        values: '0+50x30'
+      - series: 'harness_event_delivery_lag_seconds_count'
+        values: '0+50x30'
+      - series: 'up{job="harness-backends"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: HarnessEventFreshnessSlo
+        exp_alerts: []
+
+  - interval: 1m
+    name: freshness does not page on a stack with no live traffic
+    input_series:
+      - series: 'up{job="harness-backends"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: HarnessEventFreshnessSlo
+        exp_alerts: []
+
+  - interval: 1m
     name: a stack that never ran a backup alerts, one that did does not
     input_series:
       - series: 'up{job="x"}'

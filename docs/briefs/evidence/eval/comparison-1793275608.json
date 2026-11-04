@@ -1,0 +1,104 @@
+{
+  "kind": "comparison",
+  "assembledAt": "2026-10-29T12:06:48Z",
+  "startedAt": "2026-10-29T12:02:30.194400+00:00",
+  "finishedAt": "2026-10-29T12:05:34.824236+00:00",
+  "models": [
+    "deepseek/deepseek-chat",
+    "openai/gpt-4o-mini"
+  ],
+  "passRule": "each task's own verifier, judged per model; never a relative win",
+  "assembly": "two single-model deployments: this stack declares ONE engine model per deployment (the OpenRouter patch reads DSH_MODEL), so each model ran in its own deployment and the runner refused a single-invocation comparison",
+  "revisionCheck": {
+    "orchestratorContainer": "harness-orchestrator-1",
+    "workerImage": "harness-engine-worker:vdev-local",
+    "backend": {
+      "engine.py": {
+        "host": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+        "deployed": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+        "match": true
+      },
+      "image_gate.py": {
+        "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+        "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+        "match": true
+      },
+      "harness-images.js": {
+        "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+        "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+        "match": true
+      }
+    },
+    "worker": {
+      "image_gate.py": {
+        "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+        "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+        "match": true
+      },
+      "engine.py": {
+        "host": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+        "deployed": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+        "match": true
+      },
+      "harness-images.js": {
+        "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+        "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+        "match": true
+      }
+    },
+    "verified": true
+  },
+  "budget": {
+    "repeats": 1,
+    "timeoutScale": 1.0
+  },
+  "tasks": {
+    "code-search-heldout": {
+      "deepseek/deepseek-chat": {
+        "verdict": "FAIL",
+        "durationSec": 12.99,
+        "attempts": 1,
+        "failedChecks": [
+          "targetHasNewValue",
+          "onlyTargetChanged"
+        ],
+        "state": "awaiting_done_signal",
+        "toolsUsed": [
+          "bash"
+        ],
+        "toolCalls": 1,
+        "changedFiles": [],
+        "answer": "FILE: ./pkg/telemetry/flush.py",
+        "stackModel": "deepseek/deepseek-chat",
+        "runEvidence": "docs/briefs/evidence/eval/w14-compare-deepseek-chat.json",
+        "driverEvidence": "docs/briefs/evidence/eval/code-search-heldout-1793275352.json"
+      },
+      "openai/gpt-4o-mini": {
+        "verdict": "FAIL",
+        "durationSec": 37.05,
+        "attempts": 1,
+        "failedChecks": [
+          "targetHasNewValue",
+          "onlyTargetChanged",
+          "answerNamesTheFile"
+        ],
+        "state": "blocked",
+        "toolsUsed": [
+          "read"
+        ],
+        "toolCalls": 21,
+        "changedFiles": [],
+        "answer": "DeepSeek Harness run failed: tool_budget_exhausted after 21 tool calls",
+        "stackModel": "openai/gpt-4o-mini",
+        "runEvidence": "docs/briefs/evidence/eval/w14-compare-gpt-4o-mini.json",
+        "driverEvidence": "docs/briefs/evidence/eval/code-search-heldout-1793275497.json"
+      }
+    }
+  },
+  "outcome": "NO_MODEL_PASSED",
+  "notes": [
+    "Both models FAILED code-search-heldout under their own verifier: deepseek/deepseek-chat answered with the right file after one grep call but never edited it; openai/gpt-4o-mini read files until the 21-call budget was exhausted without an edit.",
+    "A relative win is not computed: with zero passes there is no winner, and the pass rule never compares models to each other.",
+    "The first --compare-model invocation (comparison-1793275156.json) produced two identical FAILs because the engine refused both ids ('provider has no configured model'). run_eval.py now refuses that case up front (SINGLE_MODEL_STACK, exit 2) instead of reporting a fake comparison."
+  ]
+}

@@ -182,6 +182,12 @@ async def claim_next_run(factory, worker_id: str, max_per_team: int) -> dict[str
         except Exception:  # noqa: BLE001 — pre-0052 scratch schema uses the worker default
             if db.in_transaction():
                 await db.rollback()
+        try:
+            await db.execute(text("SELECT 1 FROM runner_jobs LIMIT 0"))
+            sql = sql.replace("WHERE rc.state = 'queued'\n", _BYO_EXCLUSION, 1)
+        except Exception:  # noqa: BLE001 — no runner_jobs table: nothing is ever offered to a runner
+            if db.in_transaction():
+                await db.rollback()
         if db.bind.dialect.name == "postgresql":
             # Lock the candidate row inside its subquery, before RETURNING.
             sql = _inject_skip_locked(sql)
@@ -260,11 +266,28 @@ WHERE run_id = (
            FROM run_claims r2
            JOIN projects p2 ON r2.project_id = p2.id
            WHERE p2.team_id = p.team_id AND r2.state = 'running') < :max_per_team
-    ORDER BY rc.claimed_at ASC
+    -- W15 slice 1: a team holding fewer running claims goes first, so one
+    -- team's long queue cannot occupy every worker slot while another team
+    -- waits. Fairness is ordering only — the COUNT(*) guard above stays the
+    -- hard per-team cap, and a saturated team is skipped, never preempted.
+    ORDER BY (SELECT COUNT(*)
+              FROM run_claims r3
+              JOIN projects p3 ON r3.project_id = p3.id
+              WHERE p3.team_id = p.team_id AND r3.state = 'running') ASC,
+             rc.claimed_at ASC
     LIMIT 1
 )
 RETURNING run_id, project_id
 """
+
+# W13: a run offered to a bring-your-own runner is claimed by that runner, never by this
+# worker. ANY runner_jobs row excludes it - including released/completed/failed - so a
+# lease that was lost, or a finished job's retry, cannot silently move customer code onto
+# the harness host. A lost lease is re-dispatched by a human (docs/m2-w13-plan.md).
+_BYO_EXCLUSION = (
+    "WHERE rc.state = 'queued'\n"
+    "      AND NOT EXISTS (SELECT 1 FROM runner_jobs j WHERE j.run_id = rc.run_id)\n"
+)
 
 _CLAIM_SQL_CONFIGURABLE = _CLAIM_SQL.replace(
     "< :max_per_team",
@@ -288,6 +311,26 @@ async def heartbeat_run(factory, run_id: str, worker_id: str) -> bool:
         ).rowcount
         await db.commit()
         return bool(matched)
+
+
+async def has_runner_job(factory, run_id: str) -> bool:
+    """True when the run was offered to a bring-your-own runner (Section 1 ``runner_jobs``).
+
+    Such a run is still announced and queued by ``start_execution`` - the queued row is what
+    the runner claims - but the local worker never spawns it. No table means no BYO runners.
+    """
+    from sqlalchemy import text
+
+    try:
+        async with factory() as db:
+            row = (
+                await db.execute(
+                    text("SELECT 1 FROM runner_jobs WHERE run_id = :r"), {"r": run_id}
+                )
+            ).first()
+    except Exception:  # noqa: BLE001 — no runner_jobs table (pre-0068 / scratch schema)
+        return False
+    return row is not None
 
 
 async def queue_available(factory) -> bool:
@@ -366,6 +409,33 @@ async def reclaim_orphans(factory, stale_seconds: int = 90) -> list[str]:
         ).fetchall()
         await db.commit()
         return [row[0] for row in rows]
+
+
+async def executing_run_ids(factory) -> set[str] | None:
+    """Runs with a ``running`` claim — the boundary sweeper's "live" set.
+
+    Only ``running`` counts. An ``orphaned`` row means its worker was detected
+    dead, and the resume path builds a **fresh** boundary (the network name is a
+    per-call uuid in :class:`ContainerBoundary`), so nothing will ever use the
+    dead run's network again — keeping it "live" would leak exactly the orphans
+    :func:`container_runtime.sweep_orphan_boundaries` exists to remove.
+
+    Returns ``None`` when the claim table cannot be read. That is *not* an empty
+    set: an empty set would tell the sweeper that every boundary is orphaned, so
+    the caller must skip the sweep instead of guessing (see
+    :meth:`HarnessOrchestratorService.recover_boundaries`).
+    """
+    from sqlalchemy import text
+
+    try:
+        async with factory() as db:
+            rows = (
+                await db.execute(text("SELECT run_id FROM run_claims WHERE state = 'running'"))
+            ).fetchall()
+    except Exception:  # noqa: BLE001 — no queue table (bare test DB): nothing is proven live
+        logger.info("run_claims unavailable; executing_run_ids returning None")
+        return None
+    return {row[0] for row in rows}
 
 
 async def get_queue_snapshot(factory) -> list[dict[str, Any]]:

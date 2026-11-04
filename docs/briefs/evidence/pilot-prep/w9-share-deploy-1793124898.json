@@ -1,0 +1,190 @@
+{
+  "date": "2026-10-27",
+  "week": "W9",
+  "claim": "preview/share URLs enforce access; deployment approval binds the reviewed revision",
+  "runId": "w9-1793124898",
+  "drive": "HTTP only (no engine execution; the diff is supplied through the done-gate)",
+  "share": {
+    "artifactId": "9e0e7bcf-d888-4951-84d8-10cb8523e6ae",
+    "artifactSha256": "3262e94e9e02b613ee62fc91d4df88cd19b31a1daeb1708e513435e13ef7e653",
+    "listShowsToken": false,
+    "anonymous": {
+      "status": 200,
+      "bytesMatch": true,
+      "contentType": "application/octet-stream",
+      "contentDisposition": "attachment; filename=\"report.txt\"; filename*=UTF-8''report.txt",
+      "nosniff": "nosniff",
+      "csp": "sandbox; default-src 'none'",
+      "cacheControl": "private, no-store",
+      "shaHeader": "3262e94e9e02b613ee62fc91d4df88cd19b31a1daeb1708e513435e13ef7e653",
+      "expectedSha": "3262e94e9e02b613ee62fc91d4df88cd19b31a1daeb1708e513435e13ef7e653"
+    },
+    "list": {
+      "count": 1,
+      "keys": [
+        "active",
+        "artifactId",
+        "createdAt",
+        "createdBy",
+        "expiresAt",
+        "id",
+        "lastUsedAt",
+        "revokedAt",
+        "revokedBy",
+        "runId",
+        "uses"
+      ],
+      "carriesToken": false,
+      "uses": 1,
+      "lastUsedAt": "2026-10-27T18:14:58.877247+00:00"
+    },
+    "foreignTeam": {
+      "listShares": {
+        "status": 404,
+        "code": "NOT_FOUND"
+      },
+      "mintShare": {
+        "status": 404,
+        "code": "NOT_FOUND"
+      },
+      "revokeShare": {
+        "status": 404,
+        "code": "NOT_FOUND"
+      },
+      "tokenAloneOpens": 200
+    },
+    "revocation": {
+      "revokeStatus": 200,
+      "revokedAt": "2026-10-27T18:14:58.979635+00:00",
+      "secondRevokeStatus": 200,
+      "secondRevokeSameTimestamp": true,
+      "anonymousAfterRevoke": 404,
+      "anonymousAfterRevokeCode": "NOT_FOUND",
+      "foreignAfterRevoke": 404
+    },
+    "expiry": {
+      "skipped": false,
+      "requestedTtlSeconds": 60,
+      "expiresAt": "2026-10-27T18:15:58.996960+00:00",
+      "openedWhileLive": 200,
+      "expiredStatus": 410,
+      "expiredCode": "SHARE_EXPIRED",
+      "revokeAfterExpiry": 200
+    }
+  },
+  "deploy": {
+    "request": {
+      "status": 201,
+      "binding": {
+        "changesDigest": "34f8bfbe23392d8c9cc4904400cbf00c96ef315219ce9de979007f788a2ee152",
+        "runHeadSha": "cccccccccccccccccccccccccccccccccccccccc",
+        "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "planVersion": 1
+      },
+      "digestMatches": true,
+      "headMatches": true,
+      "planVersion": 1,
+      "expectedPlanVersion": 1
+    },
+    "wrongClientDigest": {
+      "status": 409,
+      "code": "DEPLOYMENT_STALE",
+      "staleFields": [
+        "clientDigest"
+      ]
+    },
+    "approval": {
+      "status": 200,
+      "state": "approved",
+      "decidedBy": "ef17bc95-fcd5-440e-8e3d-d3393872a554"
+    },
+    "afterHeadMoved": {
+      "approvedRequestStale": true,
+      "staleFields": [
+        "runHeadSha"
+      ]
+    },
+    "staleRefusal": {
+      "requestStatus": 201,
+      "approveStatus": 409,
+      "code": "DEPLOYMENT_STALE",
+      "staleFields": [
+        "runHeadSha"
+      ],
+      "refusedInList": [
+        "runHeadSha"
+      ],
+      "stillRequested": "requested"
+    },
+    "revocation": {
+      "revokeStatus": 200,
+      "state": "revoked",
+      "secondRevokeSameTimestamp": true,
+      "approveAfterRevokeStatus": 409,
+      "approveAfterRevokeCode": "DEPLOYMENT_REVOKED"
+    }
+  },
+  "audit": {
+    "ok": true,
+    "rows": "artifact.shared|2\nartifact.share_revoked|2\ndeployment.approved|1\ndeployment.requested|2\ndeployment.revoked|1\nshare.opened|3"
+  },
+  "checks": {
+    "changesRecorded": true,
+    "headRecorded": true,
+    "shareMinted": true,
+    "anonymousFetchServesBytes": true,
+    "servedAsDownloadNotDocument": true,
+    "anonymousHashMatchesArtifact": true,
+    "listNeverCarriesToken": true,
+    "anonymousOpenIsCounted": true,
+    "foreignTeamCannotSeeRegistry": true,
+    "tokenAloneIsAuthority": true,
+    "revocationKillsTheSameToken": true,
+    "revocationIsIdempotent": true,
+    "expiryEnforced": true,
+    "requestBindsReviewedRevision": true,
+    "wrongClientDigestRefused": true,
+    "approvalSucceedsOnTheBoundRevision": true,
+    "movedHeadMarksApprovalStale": true,
+    "staleApprovalRefused": true,
+    "refusalIsNotADecision": true,
+    "revokeFinal": true,
+    "everyStepAudited": true
+  },
+  "verdict": "PASS",
+  "failedChecks": [],
+  "steps": [
+    {
+      "step": "login owner",
+      "ok": true
+    },
+    {
+      "step": "approve plan version",
+      "ok": true,
+      "status": 200,
+      "version": 1
+    },
+    {
+      "step": "done-signal records the diff",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "step": "changes recorded",
+      "ok": true,
+      "count": 2,
+      "digest": "34f8bfbe23392d8c9cc4904400cbf00c96ef315219ce9de979007f788a2ee152"
+    },
+    {
+      "step": "record run head",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "step": "mint share",
+      "ok": true,
+      "status": 201,
+      "expiresAt": "2026-11-03T18:14:58.873736+00:00"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-28T14:18:13Z",
+  "goal": "Reply with the single word: present",
+  "cli": {
+    "runId": "run-f0f60ad7966c",
+    "state": "awaiting_done_signal",
+    "events": [
+      "plan_proposed",
+      "plan_approved",
+      "execution_started",
+      "engine_completed"
+    ]
+  },
+  "http": {
+    "runId": "run-1ccfd65d65da",
+    "state": "awaiting_done_signal",
+    "events": [
+      "plan_proposed",
+      "plan_approved",
+      "execution_started",
+      "engine_completed"
+    ]
+  },
+  "identicalSequence": true,
+  "identicalState": true,
+  "credentialPermissions": "0600 file in 0700 dir",
+  "jsonSingleObject": true
+}

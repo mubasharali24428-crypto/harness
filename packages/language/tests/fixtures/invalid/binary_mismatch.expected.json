@@ -1,0 +1,9 @@
+[
+  {
+    "line": 2,
+    "col": 16,
+    "kind": "error",
+    "code": "HX3012",
+    "message": "'+' concatenates String values; found Int and String"
+  }
+]

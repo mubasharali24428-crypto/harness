@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>W11 grounding fixture</title>
+<style>
+  body { margin: 0; font-family: system-ui, sans-serif; background: #0f1115; color: #eef2f8; }
+  h1 { margin: 0; padding: 20px 40px 0; font-size: 22px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px 40px; }
+  .card { background: #171a21; border: 1px solid #2a3140; padding: 20px; height: 110px; }
+  .card h2 { margin: 0 0 16px; font-size: 15px; color: #9aa7bd; font-weight: 600; }
+  button { font-size: 15px; padding: 8px 14px; border: 0; border-radius: 6px;
+           background: #4f7cff; color: #ffffff; }
+  .tools { margin: 20px 40px; }
+  canvas { display: block; width: 200px; height: 64px; border-radius: 8px; }
+  .fake { display: inline-block; margin-top: 16px; padding: 10px 16px; background: #2b3345;
+          color: #eef2f8; border-radius: 6px; cursor: pointer; font-size: 15px; }
+  #log { margin: 16px 40px; color: #9aa7bd; font-size: 14px; }
+  @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<h1>Workspace</h1>
+<div class="grid">
+  <div class="card"><h2>Files</h2><button id="del-file" type="button">Delete file</button></div>
+  <div class="card"><h2>Folders</h2><button id="del-folder" type="button">Delete folder</button></div>
+</div>
+<div class="tools">
+  <!-- Canvas control: an image to the accessibility tree, a switch to a person. -->
+  <canvas id="auto" width="200" height="64" role="img" aria-label="Auto-save switch"></canvas>
+  <!-- Looks like a button, clicks like a button, is not a button to assistive tech. -->
+  <div class="fake" id="export">Export CSV</div>
+</div>
+<p id="log">LOG: none</p>
+<script>
+  // Optional grounding aid: a labelled 100 px grid drawn over the page.
+  if (new URLSearchParams(location.search).get('grid') === '1') {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9';
+    const add = (html) => { overlay.insertAdjacentHTML('beforeend', html); };
+    for (let x = 0; x <= innerWidth; x += 100) {
+      add(`<div style="position:absolute;left:${x}px;top:0;bottom:0;width:1px;background:#ff4d6d"></div>`);
+      add(`<div style="position:absolute;left:${x + 2}px;top:2px;font:11px monospace;color:#ff4d6d">x${x}</div>`);
+    }
+    for (let y = 0; y <= innerHeight; y += 100) {
+      add(`<div style="position:absolute;top:${y}px;left:0;right:0;height:1px;background:#ff4d6d"></div>`);
+      add(`<div style="position:absolute;left:2px;top:${y + 2}px;font:11px monospace;color:#ff4d6d">y${y}</div>`);
+    }
+    document.body.appendChild(overlay);
+  }
+
+  const log = (m) => { document.getElementById('log').textContent = 'LOG: ' + m; };
+  document.getElementById('del-file').onclick = () => log('delete-file');
+  document.getElementById('del-folder').onclick = () => log('delete-folder');
+  document.getElementById('export').onclick = () => log('export');
+  const canvas = document.getElementById('auto');
+  const ctx = canvas.getContext('2d');
+  let on = false;
+  const paint = () => {
+    ctx.fillStyle = on ? '#1a7f37' : '#444b5a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  };
+  paint();
+  canvas.addEventListener('click', () => {
+    on = !on;
+    paint();
+    log(on ? 'auto:on' : 'auto:off');
+  });
+</script>
+</body>
+</html>

@@ -24,10 +24,12 @@
 # so KeyVault boots with b"" and identity crash-loops ("master_key must be
 # non-empty"). Default here to the PUBLIC dev constant — legal because the
 # isolated stack sets HARNESS_ALLOW_DEV_MASTER_KEY=1 (services.py F9 gate).
-set -uo pipefail
+set -euo pipefail
 export PROBE_MASTER_KEY="${PROBE_MASTER_KEY:-dev-master-key-change-me-in-prod!}"
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# `down -v` must never resolve to the live pinned harness_runs volume (compose pins its name).
+export HARNESS_RUNS_VOLUME="${PROBE_PROJECT:-harness-loadtest}_runs"
 # Function, not a string var: the repo path contains spaces ("untitled folder 2")
 # and word-splitting a command string mangles it.
 compose() {
@@ -51,7 +53,11 @@ wait_healthy() {
 
 stack_up() {
   echo "[probe] booting isolated load-test stack (db+migrate+identity+orchestrator, dry engine)"
-  compose up -d --build --scale "orchestrator-loadtest=${PROBE_ORCH_REPLICAS:-1}" \
+  # PROBE_NO_BUILD=1: reuse the image already built (run_ladder.sh builds once, so every rung
+  # measures one immutable image and a rung never recreates the containers).
+  local build_flag=--build
+  [ -z "${PROBE_NO_BUILD:-}" ] || build_flag=--no-build
+  compose up -d "$build_flag" --scale "orchestrator-loadtest=${PROBE_ORCH_REPLICAS:-1}" \
     --scale "identity-loadtest=${PROBE_IDENTITY_REPLICAS:-1}" \
     db-loadtest migrate-loadtest identity-loadtest orchestrator-loadtest
   IDENTITY="http://$(compose port --index 1 identity-loadtest 8001)"

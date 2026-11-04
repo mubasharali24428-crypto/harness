@@ -3,12 +3,12 @@ import uuid
 from typing import Annotated, Literal
 
 import harness_contracts as contracts
-import httpx
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.security import HTTPBearer
 from harness_contracts import KeyVault, Principal, make_bearer_dep
+from harness_contracts.http_client import env_client
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
@@ -180,7 +180,7 @@ async def oauth_start(request: Request, ticket: str = ""):
 
 
 async def _exchange_token(settings: Settings, code: str, request: Request) -> dict:
-    async with httpx.AsyncClient(timeout=30, transport=request.app.state.transport) as client:
+    async with env_client(timeout=30, transport=request.app.state.transport) as client:
         token_resp = await client.post(
             f"{GITHUB_WEB}/login/oauth/access_token",
             json={

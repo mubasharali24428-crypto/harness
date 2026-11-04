@@ -1,0 +1,27 @@
+{
+  "runId": "w22-suspend-d52cbb89af02",
+  "pauseSeconds": 120,
+  "verdict": "FAIL",
+  "image": "harness-backend:vdev-local sha256:1c184627288c00e8ebab08e883457a8bc1f4426ec77083da99b4e0e0faff4c05",
+  "worker": "ffce3288ff57",
+  "before": {
+    "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:20:51.433581+00:00|4",
+    "runState": "idle",
+    "workerLive": true,
+    "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call"
+  },
+  "duringPause": {
+    "claim": "running|366108fcda9d:1:7e5053|2026-10-30T17:20:51.433581+00:00|124",
+    "runState": "idle",
+    "workerLive": true,
+    "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call"
+  },
+  "after": {
+    "claim": "",
+    "runState": "idle",
+    "workerLive": false,
+    "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call,engine_failed:heartbeat_lost",
+    "childLive": false
+  },
+  "stopStatus": 200
+}

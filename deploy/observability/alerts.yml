@@ -90,6 +90,27 @@ groups:
           description: "harness_event_bus_lag_seconds is {{ $value }}; event pipeline or DB stalled."
           runbook: docs/runbooks/alerting.md#b-event-bus-lag-event-pipeline-stalled
 
+      # The second half of the freshness objective: commit -> live socket write on
+      # the identity service (section1 realtime_metrics). An event is durable, and so
+      # replayable, the moment it commits; this histogram is the only variable part of
+      # "delivered or replayable within 5 s". The 5.0 bucket is that bound. The
+      # `and on()` guard keeps absent traffic (a freshly restarted process, or a quiet
+      # stack) from paging as a violation: no observations means no ratio, not 0%.
+      - alert: HarnessEventFreshnessSlo
+        expr: |
+          (
+            sum(rate(harness_event_delivery_lag_seconds_bucket{le="5.0"}[5m]))
+              / sum(rate(harness_event_delivery_lag_seconds_count[5m]))
+          ) < 0.99
+            and on() (sum(rate(harness_event_delivery_lag_seconds_count[5m])) > 0)
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Live collaboration events missed the 5 s freshness bound"
+          description: "Fewer than 99% of eligible live frames were written within 5 s for 10m; check notify latency, slow consumers and the identity host."
+          runbook: docs/runbooks/slo-and-capacity.md#objectives
+
       - alert: HarnessDbPoolSaturated
         expr: |
           histogram_quantile(1,

@@ -1,0 +1,241 @@
+{
+  "batchId": "stage1-repeat-4d96edc5",
+  "repeat": 3,
+  "runs": [
+    {
+      "gate": "worker and child cancellation",
+      "drill": "w22_stop_neighbour.py",
+      "attempt": 1,
+      "exitCode": 0,
+      "seconds": 10.5,
+      "evidence": [
+        "docs/briefs/evidence/w22/stop-a54af8dd3dda.json"
+      ],
+      "tail": "{\"verdict\": \"PASS\", \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/stop-a54af8dd3dda.json\"}\n"
+    },
+    {
+      "gate": "worker and child cancellation",
+      "drill": "w22_stop_neighbour.py",
+      "attempt": 2,
+      "exitCode": 0,
+      "seconds": 10.4,
+      "evidence": [
+        "docs/briefs/evidence/w22/stop-ed1e5be1a0f4.json"
+      ],
+      "tail": "{\"verdict\": \"PASS\", \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/stop-ed1e5be1a0f4.json\"}\n"
+    },
+    {
+      "gate": "worker and child cancellation",
+      "drill": "w22_stop_neighbour.py",
+      "attempt": 3,
+      "exitCode": 0,
+      "seconds": 10.6,
+      "evidence": [
+        "docs/briefs/evidence/w22/stop-d3940af5a434.json"
+      ],
+      "tail": "{\"verdict\": \"PASS\", \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/stop-d3940af5a434.json\"}\n"
+    },
+    {
+      "gate": "partial-write reconciliation",
+      "drill": "w22_partial_write_drill.py",
+      "attempt": 1,
+      "exitCode": 2,
+      "seconds": 0.1,
+      "evidence": [],
+      "tail": ""
+    },
+    {
+      "gate": "partial-write reconciliation",
+      "drill": "w22_partial_write_drill.py",
+      "attempt": 2,
+      "exitCode": 2,
+      "seconds": 0.1,
+      "evidence": [],
+      "tail": ""
+    },
+    {
+      "gate": "partial-write reconciliation",
+      "drill": "w22_partial_write_drill.py",
+      "attempt": 3,
+      "exitCode": 2,
+      "seconds": 0.1,
+      "evidence": [],
+      "tail": ""
+    },
+    {
+      "gate": "crash cleanup",
+      "drill": "w22_crash_cleanup_drill.py",
+      "attempt": 1,
+      "exitCode": 0,
+      "seconds": 28.3,
+      "evidence": [
+        "docs/briefs/evidence/w22/w8-crash-cleanup-1793463029.json"
+      ],
+      "tail": "{\n \"checks\": {\n  \"bothStarted\": true,\n  \"crashObserved\": true,\n  \"orphanExisted\": true,\n  \"orphanContainerWasRunning\": true,\n  \"victimSettled\": true,\n  \"claimReleased\": true,\n  \"heldLiveRunRefused\": true,\n  \"orphanNetworkRemoved\": true,\n  \"orphanContainersStopped\": true,\n  \"neighbourUntouched\": true,\n  \"victimNetworkGone\": true\n },\n \"removed\": [\n  \"harness-0e80f45b5e164de39bb07a1a594cda2a-net\"\n ],\n \"victimState\": \"blocked\",\n \"neighbourAfter\": \"harness-51feaf33aaec4f569b9eb43ffffd83f6-net\",\n \"verdict\": \"PASS\"\n}\nPASS  evidence -> docs/briefs/evidence/w22/w8-crash-cleanup-1793463029.json\n"
+    },
+    {
+      "gate": "crash cleanup",
+      "drill": "w22_crash_cleanup_drill.py",
+      "attempt": 2,
+      "exitCode": 0,
+      "seconds": 28.2,
+      "evidence": [
+        "docs/briefs/evidence/w22/w8-crash-cleanup-1793463057.json"
+      ],
+      "tail": "{\n \"checks\": {\n  \"bothStarted\": true,\n  \"crashObserved\": true,\n  \"orphanExisted\": true,\n  \"orphanContainerWasRunning\": true,\n  \"victimSettled\": true,\n  \"claimReleased\": true,\n  \"heldLiveRunRefused\": true,\n  \"orphanNetworkRemoved\": true,\n  \"orphanContainersStopped\": true,\n  \"neighbourUntouched\": true,\n  \"victimNetworkGone\": true\n },\n \"removed\": [\n  \"harness-27ef51b16ca74e7187548be6b6b3e23e-net\"\n ],\n \"victimState\": \"blocked\",\n \"neighbourAfter\": \"harness-6004f7d734984ef08bf9b3d493cfd09b-net\",\n \"verdict\": \"PASS\"\n}\nPASS  evidence -> docs/briefs/evidence/w22/w8-crash-cleanup-1793463057.json\n"
+    },
+    {
+      "gate": "crash cleanup",
+      "drill": "w22_crash_cleanup_drill.py",
+      "attempt": 3,
+      "exitCode": 0,
+      "seconds": 28.3,
+      "evidence": [
+        "docs/briefs/evidence/w22/w8-crash-cleanup-1793463085.json"
+      ],
+      "tail": "{\n \"checks\": {\n  \"bothStarted\": true,\n  \"crashObserved\": true,\n  \"orphanExisted\": true,\n  \"orphanContainerWasRunning\": true,\n  \"victimSettled\": true,\n  \"claimReleased\": true,\n  \"heldLiveRunRefused\": true,\n  \"orphanNetworkRemoved\": true,\n  \"orphanContainersStopped\": true,\n  \"neighbourUntouched\": true,\n  \"victimNetworkGone\": true\n },\n \"removed\": [\n  \"harness-571ac60b695c452687db1b3549df5dc0-net\"\n ],\n \"victimState\": \"blocked\",\n \"neighbourAfter\": \"harness-47a3bb2ae1264f8bbef7fdde3c8d77fd-net\",\n \"verdict\": \"PASS\"\n}\nPASS  evidence -> docs/briefs/evidence/w22/w8-crash-cleanup-1793463085.json\n"
+    },
+    {
+      "gate": "event replay",
+      "drill": "w22_replay_overflow_drill.py",
+      "attempt": 1,
+      "exitCode": 0,
+      "seconds": 12.2,
+      "evidence": [
+        "docs/briefs/evidence/w22/replay-load-33933a5ee3af.json"
+      ],
+      "tail": "{\"verdict\": \"PASS\", \"checks\": {\"A_no_seq_at_or_below_cursor\": true, \"A_union_exact\": true, \"A_rows_arrived_while_disconnected\": true, \"B_overflow_closed_socket\": true, \"B_live_prefix_in_order\": true, \"B_truncation_marked\": true, \"B_resume_is_newest_cap\": true, \"B_recovered_everything\": true}, \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/replay-load-33933a5ee3af.json\"}\n"
+    },
+    {
+      "gate": "event replay",
+      "drill": "w22_replay_overflow_drill.py",
+      "attempt": 2,
+      "exitCode": 0,
+      "seconds": 11.9,
+      "evidence": [
+        "docs/briefs/evidence/w22/replay-load-880c86ae1d7f.json"
+      ],
+      "tail": "{\"verdict\": \"PASS\", \"checks\": {\"A_no_seq_at_or_below_cursor\": true, \"A_union_exact\": true, \"A_rows_arrived_while_disconnected\": true, \"B_overflow_closed_socket\": true, \"B_live_prefix_in_order\": true, \"B_truncation_marked\": true, \"B_resume_is_newest_cap\": true, \"B_recovered_everything\": true}, \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/replay-load-880c86ae1d7f.json\"}\n"
+    },
+    {
+      "gate": "event replay",
+      "drill": "w22_replay_overflow_drill.py",
+      "attempt": 3,
+      "exitCode": 0,
+      "seconds": 12.2,
+      "evidence": [
+        "docs/briefs/evidence/w22/replay-load-905b3d288cca.json"
+      ],
+      "tail": "{\"verdict\": \"PASS\", \"checks\": {\"A_no_seq_at_or_below_cursor\": true, \"A_union_exact\": true, \"A_rows_arrived_while_disconnected\": true, \"B_overflow_closed_socket\": true, \"B_live_prefix_in_order\": true, \"B_truncation_marked\": true, \"B_resume_is_newest_cap\": true, \"B_recovered_everything\": true}, \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/replay-load-905b3d288cca.json\"}\n"
+    },
+    {
+      "gate": "event replay",
+      "drill": "w22_restart_replay_drill.py",
+      "attempt": 1,
+      "exitCode": 0,
+      "seconds": 44.4,
+      "evidence": [
+        "docs/briefs/evidence/w22/w22-restart-3a37e087b8eb.json"
+      ],
+      "tail": "{\"runId\": \"w22-restart-3a37e087b8eb\", \"verdict\": \"PASS\", \"checks\": {\"stoppedBefore\": true, \"lifecycleSame\": true, \"stateSame\": true, \"restEventsSame\": true, \"wsMatchesRest\": true, \"noNewEvents\": true, \"noWorkerOrRelay\": true, \"noClaim\": true}, \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/w22-restart-3a37e087b8eb.json\"}\n"
+    },
+    {
+      "gate": "event replay",
+      "drill": "w22_restart_replay_drill.py",
+      "attempt": 2,
+      "exitCode": 0,
+      "seconds": 43.0,
+      "evidence": [
+        "docs/briefs/evidence/w22/w22-restart-e476d0841251.json"
+      ],
+      "tail": "{\"runId\": \"w22-restart-e476d0841251\", \"verdict\": \"PASS\", \"checks\": {\"stoppedBefore\": true, \"lifecycleSame\": true, \"stateSame\": true, \"restEventsSame\": true, \"wsMatchesRest\": true, \"noNewEvents\": true, \"noWorkerOrRelay\": true, \"noClaim\": true}, \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/w22-restart-e476d0841251.json\"}\n"
+    },
+    {
+      "gate": "event replay",
+      "drill": "w22_restart_replay_drill.py",
+      "attempt": 3,
+      "exitCode": 0,
+      "seconds": 43.1,
+      "evidence": [
+        "docs/briefs/evidence/w22/w22-restart-ca994dc2d2dd.json"
+      ],
+      "tail": "{\"runId\": \"w22-restart-ca994dc2d2dd\", \"verdict\": \"PASS\", \"checks\": {\"stoppedBefore\": true, \"lifecycleSame\": true, \"stateSame\": true, \"restEventsSame\": true, \"wsMatchesRest\": true, \"noNewEvents\": true, \"noWorkerOrRelay\": true, \"noClaim\": true}, \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/w22-restart-ca994dc2d2dd.json\"}\n"
+    },
+    {
+      "gate": "provider outage and recovery",
+      "drill": "w22_response_cut_drill.py",
+      "attempt": 1,
+      "exitCode": 0,
+      "seconds": 49.2,
+      "evidence": [
+        "docs/briefs/evidence/w22/w22-cut-e1df1205de21.json"
+      ],
+      "tail": "{\"runId\": \"w22-cut-e1df1205de21\", \"verdict\": \"PASS\", \"checks\": {\"cutMidStream\": true, \"runBlocked\": true, \"engineError\": true, \"noPartialFile\": true, \"noModelDowngrade\": true, \"noLiveWorkerOrRelay\": true, \"recoveryCompleted\": true}, \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/w22-cut-e1df1205de21.json\"}\n"
+    },
+    {
+      "gate": "provider outage and recovery",
+      "drill": "w22_response_cut_drill.py",
+      "attempt": 2,
+      "exitCode": 0,
+      "seconds": 51.1,
+      "evidence": [
+        "docs/briefs/evidence/w22/w22-cut-59fa96d9f9ec.json"
+      ],
+      "tail": "{\"runId\": \"w22-cut-59fa96d9f9ec\", \"verdict\": \"PASS\", \"checks\": {\"cutMidStream\": true, \"runBlocked\": true, \"engineError\": true, \"noPartialFile\": true, \"noModelDowngrade\": true, \"noLiveWorkerOrRelay\": true, \"recoveryCompleted\": true}, \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/w22-cut-59fa96d9f9ec.json\"}\n"
+    },
+    {
+      "gate": "provider outage and recovery",
+      "drill": "w22_response_cut_drill.py",
+      "attempt": 3,
+      "exitCode": 0,
+      "seconds": 48.6,
+      "evidence": [
+        "docs/briefs/evidence/w22/w22-cut-d64ac4bbe8f8.json"
+      ],
+      "tail": "{\"runId\": \"w22-cut-d64ac4bbe8f8\", \"verdict\": \"PASS\", \"checks\": {\"cutMidStream\": true, \"runBlocked\": true, \"engineError\": true, \"noPartialFile\": true, \"noModelDowngrade\": true, \"noLiveWorkerOrRelay\": true, \"recoveryCompleted\": true}, \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/w22-cut-d64ac4bbe8f8.json\"}\n"
+    },
+    {
+      "gate": "lease/heartbeat",
+      "drill": "w22_suspend_reap_drill.py",
+      "attempt": 1,
+      "exitCode": 0,
+      "seconds": 164.8,
+      "evidence": [
+        "docs/briefs/evidence/w22/w22-suspend-9c74080d4e91.json"
+      ],
+      "tail": "{\"runId\": \"w22-suspend-9c74080d4e91\", \"verdict\": \"PASS\", \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/w22-suspend-9c74080d4e91.json\"}\n"
+    },
+    {
+      "gate": "lease/heartbeat",
+      "drill": "w22_suspend_reap_drill.py",
+      "attempt": 2,
+      "exitCode": 0,
+      "seconds": 165.0,
+      "evidence": [
+        "docs/briefs/evidence/w22/w22-suspend-0e025d47022b.json"
+      ],
+      "tail": "{\"runId\": \"w22-suspend-0e025d47022b\", \"verdict\": \"PASS\", \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/w22-suspend-0e025d47022b.json\"}\n"
+    },
+    {
+      "gate": "lease/heartbeat",
+      "drill": "w22_suspend_reap_drill.py",
+      "attempt": 3,
+      "exitCode": 0,
+      "seconds": 167.5,
+      "evidence": [
+        "docs/briefs/evidence/w22/w22-suspend-c4d35a0eeee9.json"
+      ],
+      "tail": "{\"runId\": \"w22-suspend-c4d35a0eeee9\", \"verdict\": \"PASS\", \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/w22-suspend-c4d35a0eeee9.json\"}\n"
+    }
+  ],
+  "rates": {
+    "worker and child cancellation": "3/3",
+    "partial-write reconciliation": "0/3",
+    "crash cleanup": "3/3",
+    "event replay": "6/6",
+    "provider outage and recovery": "3/3",
+    "lease/heartbeat": "3/3"
+  },
+  "git": "ff517eef9d98b9db3cdffddb67ad1c85a31003d7",
+  "image": "harness-backend:vw23f24"
+}

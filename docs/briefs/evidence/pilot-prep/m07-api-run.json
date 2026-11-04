@@ -1,0 +1,112 @@
+{
+ "date": "2026-10-26",
+ "milestone": "M07 API-driven run",
+ "runId": "m07api-1793033241",
+ "drive": "HTTP only",
+ "projectId": "49e1d0a7-389c-4939-90b0-ee94b286bd88",
+ "planId": "plan-4c3944fd",
+ "engine": {
+  "keys": [
+   "engine",
+   "finalResponse",
+   "sessionId",
+   "status"
+  ],
+  "status": "completed",
+  "usedModel": null,
+  "model": null,
+  "usage": null,
+  "engineField": "replayed",
+  "finalResponse": "DONE",
+  "replayLosesModelAndUsage": true
+ },
+ "statePath": [
+  "executing",
+  "awaiting_done_signal"
+ ],
+ "workersObserved": [
+  {
+   "name": "harness-64da03270a5346efb1fba99867da5ac6-relay",
+   "role": "relay",
+   "image": "harness-engine-worker:vdev-local",
+   "user": "10001:10001",
+   "readonlyRootfs": true,
+   "capDrop": [
+    "ALL"
+   ],
+   "networks": [
+    "bridge",
+    "harness-64da03270a5346efb1fba99867da5ac6-net"
+   ],
+   "mounts": []
+  },
+  {
+   "name": "harness-64da03270a5346efb1fba99867da5ac6",
+   "role": "worker",
+   "image": "harness-engine-worker:vdev-local",
+   "user": "999:999",
+   "readonlyRootfs": true,
+   "capDrop": [
+    "ALL"
+   ],
+   "networks": [
+    "harness-64da03270a5346efb1fba99867da5ac6-net"
+   ],
+   "mounts": [
+    {
+     "type": "volume",
+     "src": "harness_runs",
+     "dst": "/var/lib/harness-runs/workspace/m07api-1793033241",
+     "readOnly": false,
+     "subpath": "workspace/m07api-1793033241"
+    },
+    {
+     "type": "volume",
+     "src": "harness_runs",
+     "dst": "/var/lib/harness-runs/sessions/m07api-1793033241",
+     "readOnly": false,
+     "subpath": "sessions/m07api-1793033241"
+    }
+   ]
+  }
+ ],
+ "calcAfter": "def add(a, b):\n    return a + b\n\n",
+ "readmeUnchanged": true,
+ "orchestratorHasNoDockerSocket": true,
+ "steps": [
+  {
+   "step": "login",
+   "ok": true
+  },
+  {
+   "step": "create project",
+   "ok": "49e1d0a7-389c-4939-90b0-ee94b286bd88",
+   "status": 201
+  },
+  {
+   "step": "seed fixture",
+   "ok": true
+  },
+  {
+   "step": "propose plan",
+   "ok": "plan-4c3944fd",
+   "status": 201
+  },
+  {
+   "step": "approve plan",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "start",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "terminal state",
+   "ok": true,
+   "state": "awaiting_done_signal"
+  }
+ ],
+ "ok": true
+}

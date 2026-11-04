@@ -1,0 +1,85 @@
+{
+  "kind": "comparison",
+  "startedAt": "2026-10-29T12:26:36.555578+00:00",
+  "git": {
+    "head": "f84eae8384de00104e3aa49ff11774039f7e15d1",
+    "branch": "w1-engine-tools",
+    "dirty": true
+  },
+  "revisionCheck": {
+    "orchestratorContainer": "harness-orchestrator-1",
+    "workerImage": "harness-engine-worker:vdev-local",
+    "backend": {
+      "engine.py": {
+        "host": "375b27699c2fc349d14ca468b3145d3adc08fc257b3eb37b71cf5aae7d1ced01",
+        "deployed": "95e868d33f4150e88e5a189a413242581e5a925a3200204c782f301469413caa",
+        "match": false
+      },
+      "image_gate.py": {
+        "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+        "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+        "match": true
+      },
+      "harness-images.js": {
+        "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+        "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+        "match": true
+      }
+    },
+    "worker": {
+      "image_gate.py": {
+        "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+        "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+        "match": true
+      },
+      "engine.py": {
+        "host": "375b27699c2fc349d14ca468b3145d3adc08fc257b3eb37b71cf5aae7d1ced01",
+        "deployed": "375b27699c2fc349d14ca468b3145d3adc08fc257b3eb37b71cf5aae7d1ced01",
+        "match": true
+      },
+      "harness-images.js": {
+        "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+        "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+        "match": true
+      }
+    },
+    "verified": false
+  },
+  "models": [
+    "deepseek/deepseek-chat",
+    "openai/gpt-4o-mini"
+  ],
+  "passRule": "each task's own verifier, judged per model; never a relative win",
+  "budget": {
+    "repeats": 1,
+    "timeoutScale": 1.0
+  },
+  "tasks": {
+    "code-search-heldout": {
+      "deepseek/deepseek-chat": {
+        "verdict": "FAIL",
+        "driverVerdict": "FAIL",
+        "durationSec": 12.91,
+        "exitCode": 1,
+        "attempts": 1,
+        "failedChecks": [
+          "targetHasNewValue",
+          "onlyTargetChanged"
+        ]
+      },
+      "openai/gpt-4o-mini": {
+        "verdict": "FAIL",
+        "driverVerdict": "FAIL",
+        "durationSec": 32.97,
+        "exitCode": 1,
+        "attempts": 1,
+        "failedChecks": [
+          "targetHasNewValue",
+          "onlyTargetChanged",
+          "answerNamesTheFile"
+        ]
+      }
+    }
+  },
+  "finishedAt": "2026-10-29T12:27:24.803167+00:00"
+}

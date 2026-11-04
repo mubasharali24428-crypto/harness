@@ -1,0 +1,9 @@
+[
+  {
+    "line": 13,
+    "col": 35,
+    "kind": "error",
+    "code": "HX3021",
+    "message": "module 'notes' declares no 'Missing'"
+  }
+]

@@ -106,6 +106,53 @@ export async function rejectPlan(planId: string, token: string): Promise<RejectP
   });
 }
 
+/** M06 — a screenshot attached to the goal. This is Section 4's documented
+ *  artifact upload (raw body, server derives the media type from the bytes);
+ *  it needs the server-minted run id, so it runs between approve and start.
+ *  The run's image artifacts are what the engine puts into the model call. */
+export function goalImageUrl(runId: string, name: string): string {
+  return `${PLAN_GATE_BASE}/api/v1/orchestrator/runs/${encodeURIComponent(runId)}/artifacts`
+    + `?name=${encodeURIComponent(name)}&kind=upload`;
+}
+
+export const GOAL_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+/** Mirrors the server's DEFAULT (HARNESS_GOAL_IMAGE_MAX_BYTES). The server is
+ *  the authority: if a deployment raises its cap, this client still rejects at
+ *  4 MiB (advisory UX), and an image that is too big for the model call is
+ *  reported on the run page as skipped rather than failing the upload. */
+export const GOAL_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
+
+/** Client-side guard only: the server re-verifies type and size. Saying "this
+ *  cannot work" before the request is cheaper than a 413 the user must read. */
+export function goalImageRejection(file: File): string | null {
+  if (!GOAL_IMAGE_TYPES.includes(file.type)) {
+    return `only ${GOAL_IMAGE_TYPES.map((t) => t.replace("image/", "")).join(", ")} can be attached`;
+  }
+  if (file.size > GOAL_IMAGE_MAX_BYTES) {
+    return `image is larger than ${Math.floor(GOAL_IMAGE_MAX_BYTES / 1024 / 1024)} MiB`;
+  }
+  return null;
+}
+
+export async function uploadGoalImage(runId: string, token: string, file: File): Promise<void> {
+  const res = await fetch(goalImageUrl(runId, file.name), {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": file.type || "application/octet-stream",
+    },
+    body: file,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new ApiError(
+      `goal image upload failed (${res.status})`,
+      text.slice(0, 200) || "UPLOAD_FAILED",
+      res.status,
+    );
+  }
+}
+
 /** Wire shape of `POST /runs/{runId}/start` → 200 (Section 4's existing route,
  *  section4/src/harness_orchestrator/api.py::start_execution). Owned here
  *  because src/lib/api.ts is outside this lane's paths and S-005 asks for a

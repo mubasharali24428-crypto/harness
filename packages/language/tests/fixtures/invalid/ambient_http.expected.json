@@ -1,0 +1,16 @@
+[
+  {
+    "line": 7,
+    "col": 12,
+    "kind": "warning",
+    "code": "HX7001",
+    "message": "capability 'repo.read' is declared but never used"
+  },
+  {
+    "line": 10,
+    "col": 25,
+    "kind": "error",
+    "code": "HX4004",
+    "message": "'http.get' is an ambient host operation; no profile provides it"
+  }
+]

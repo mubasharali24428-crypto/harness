@@ -1,0 +1,39 @@
+[project]
+name = "harness-hx"
+version = "0.4.0"
+description = "Hx — the Harness dialect of Hermes: checker and host runner for typed agent workflows, capabilities, budgets and the frozen diagnostic contract."
+requires-python = ">=3.11"
+dependencies = [
+    "harness-contracts",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+hxc = "harness_hx.cli:main"
+hxr = "harness_hx_host.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests", "../../contracts/src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["harness_hx", "harness_hx_host", "support"]

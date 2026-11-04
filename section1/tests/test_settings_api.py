@@ -299,3 +299,116 @@ async def test_partial_document_fills_missing_keys_with_defaults(
     thresholds = r.json()["thresholds"]
     assert thresholds["maxMediumRiskFlags"] == 7
     assert thresholds["maxCriticalRiskFlags"] == 0  # untouched knob keeps default
+
+
+# ---------------------------------------------------- W14: model routing policy
+
+ROUTING_DOC = {
+    "enabled": True,
+    "mechanicalModel": "deepseek/deepseek-chat",
+    "reasoningModel": "deepseek/deepseek-r1-0528",
+}
+
+
+async def test_model_routing_defaults_then_admin_round_trip(settings_client, settings_factory):
+    env = await _seed_team(settings_factory)
+    admin = _bearer(env["admin"]["token"])
+    team_id = env["teamId"]
+
+    default = await settings_client.get(
+        f"/api/v1/teams/{team_id}/settings/model-routing", headers=admin
+    )
+    assert default.status_code == 200
+    assert default.json()["routingSource"] == "defaults"
+    assert default.json()["routing"] == {
+        "enabled": False,
+        "mechanicalModel": None,
+        "reasoningModel": None,
+    }
+
+    saved = await settings_client.put(
+        f"/api/v1/teams/{team_id}/settings/model-routing",
+        json={"routing": ROUTING_DOC},
+        headers=admin,
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["routingSource"] == "team"
+    assert saved.json()["routing"] == ROUTING_DOC
+
+    readback = await settings_client.get(
+        f"/api/v1/teams/{team_id}/settings/model-routing", headers=admin
+    )
+    assert readback.json()["routing"] == ROUTING_DOC
+
+    async with settings_factory() as db:
+        actions = (
+            await db.execute(select(AuditLog.action).where(AuditLog.action == "routing.saved"))
+        ).scalars().all()
+    assert actions
+
+
+async def test_model_routing_is_admin_only_and_team_scoped(settings_client, settings_factory):
+    env = await _seed_team(settings_factory)
+    team_id = env["teamId"]
+    for role in ("engineer", "viewer", "guest"):
+        response = await settings_client.put(
+            f"/api/v1/teams/{team_id}/settings/model-routing",
+            json={"routing": ROUTING_DOC},
+            headers=_bearer(env[role]["token"]),
+        )
+        assert response.status_code == 403, role
+    foreign = await settings_client.put(
+        f"/api/v1/teams/{team_id}/settings/model-routing",
+        json={"routing": ROUTING_DOC},
+        headers=_bearer(env["foreignAdmin"]["token"]),
+    )
+    assert foreign.status_code == 404
+    assert (
+        await settings_client.get(
+            f"/api/v1/teams/{team_id}/settings/model-routing",
+            headers=_bearer(env["viewer"]["token"]),
+        )
+    ).status_code == 200  # members read
+
+
+async def test_model_routing_rejects_malformed_documents(settings_client, settings_factory):
+    env = await _seed_team(settings_factory)
+    admin = _bearer(env["admin"]["token"])
+    url = f"/api/v1/teams/{env['teamId']}/settings/model-routing"
+    for document in (
+        {"enabled": "yes"},
+        {"enabled": True},
+        {"enabled": True, "mechanicalModel": "   "},
+        {"enabled": True, "mechanicalModel": "cheap/x", "surprise": 1},
+        {"mechanicalModel": "cheap/x"},
+    ):
+        response = await settings_client.put(
+            url, json={"routing": document}, headers=admin
+        )
+        assert response.status_code == 422, document
+        assert response.json()["detail"]["error"]["code"] == "VALIDATION_ERROR"
+
+    async with settings_factory() as db:
+        from harness_identity.models import TeamSetting
+
+        assert (
+            await db.execute(select(TeamSetting).where(TeamSetting.key == "model_routing"))
+        ).scalar_one_or_none() is None
+
+
+async def test_model_routing_delete_is_idempotent(settings_client, settings_factory):
+    env = await _seed_team(settings_factory)
+    admin = _bearer(env["admin"]["token"])
+    url = f"/api/v1/teams/{env['teamId']}/settings/model-routing"
+    await settings_client.put(url, json={"routing": ROUTING_DOC}, headers=admin)
+    first = await settings_client.delete(url, headers=admin)
+    second = await settings_client.delete(url, headers=admin)
+    assert (first.status_code, second.status_code) == (204, 204)
+    readback = await settings_client.get(url, headers=admin)
+    assert readback.json()["routingSource"] == "defaults"
+
+    async with settings_factory() as db:
+        actions = (
+            await db.execute(select(AuditLog.action).where(AuditLog.action == "routing.deleted"))
+        ).scalars().all()
+    assert len(actions) == 1  # only the delete that removed a row

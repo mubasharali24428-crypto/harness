@@ -195,6 +195,31 @@ async def test_identity_app_serves_request_ids_and_metrics_over_real_factory(
             sys.path.remove(runn)
 
 
+async def test_identity_assembly_taps_run_terminal_events_for_notifications(monkeypatch):
+    """M2-W13 fix: the runner control plane publishes run-terminal events on the
+    IDENTITY app's bus, so identity — not only the orchestrator — must carry the
+    notification tap. Without this a BYO engine_failed blocks a run silently."""
+    import os
+
+    monkeypatch.setenv("HARNESS_ALLOW_DEV_MASTER_KEY", "1")
+    os.environ.setdefault("HARNESS_ALLOW_DEV_MASTER_KEY", "1")
+
+    runn = str(RUNNERS)
+    if runn not in sys.path:
+        sys.path.insert(0, runn)
+    try:
+        services = _load_module("svc_w13_notify", _SERVICES)
+        app = services.app_identity()
+        bus = app.state.event_bus
+        assert app.state.event_notifier in bus._event_listeners, (
+            "identity bus must carry the notification tap (W13): a run-terminal "
+            "event published by the runner path would otherwise notify nobody"
+        )
+    finally:
+        if runn in sys.path:
+            sys.path.remove(runn)
+
+
 # ---------------------------------------------------------------------------
 # 2. Middleware behaviour — request ids, JSON access log, anonymized user
 # ---------------------------------------------------------------------------
@@ -592,6 +617,56 @@ def test_env_knobs_pass_through_compose():
     assert env_anchor.get("HARNESS_METRICS_DB_POLL_SECONDS") is not None
 
 
+def test_every_backend_service_inherits_the_pricing_and_budget_knobs():
+    """Operator env drift must not split one deployment into two price sets.
+
+    2026-10-29: a backend was recreated with a different ``--env-file``, so it
+    booted without ``HARNESS_RATE_CARD_JSON``. The router quoted the frozen
+    catalog while Section 4's metering booked the operator card for the same
+    call — a ~16x divergence on the money path, invisible in the code. The
+    guard is structural: every backend service that runs the shared API runner
+    (``deploy/runners/services.py``, i.e. the image default entrypoint) must
+    merge the env anchor, and may not redefine these knobs with a private
+    value. The only way to opt out is to run a different process by
+    overriding entrypoint/command.
+    """
+    compose = yaml.safe_load(_COMPOSE.read_text())
+    anchor = compose["x-backend-env"]
+    shared = (
+        "HARNESS_RATE_CARD_JSON",
+        "HARNESS_TEAM_RUN_START_LIMIT",
+        "HARNESS_TEAM_MODEL_CALL_LIMIT",
+    )
+    for key in shared:
+        assert key in anchor, f"x-backend-env no longer carries {key}"
+
+    backend_services = [
+        (name, svc)
+        for name, svc in compose["services"].items()
+        if str((svc.get("build") or {}).get("dockerfile", "")).endswith("backend.Dockerfile")
+    ]
+    assert backend_services, "compose no longer builds any backend service"
+
+    api_runners = [
+        (name, svc)
+        for name, svc in backend_services
+        if not svc.get("entrypoint") and not svc.get("command")
+    ]
+    assert len(api_runners) >= 5, f"only {len(api_runners)} services run the shared runner"
+
+    for name, svc in api_runners:
+        env = svc.get("environment") or {}
+        for key in shared:
+            assert key in env, (
+                f"{name} runs the shared API runner but does not receive {key}; "
+                f"it would resolve prices/budgets differently from its peers"
+            )
+            assert env[key] == anchor[key], (
+                f"{name} redefines {key} privately; pricing and team budgets must "
+                f"resolve identically across the deployment"
+            )
+
+
 async def test_orchestrator_domain_poll_works_over_deployed_async_factory(
     obs, monkeypatch, tmp_path
 ):
@@ -708,6 +783,170 @@ async def test_stall_gauges_flag_old_queued_and_stale_running(obs, tmp_path, mon
     assert 590 <= age <= 700
     assert stale == 1
     await engine.dispose()
+
+
+async def test_cost_and_call_gauges_render_from_ledger(obs, tmp_path, monkeypatch):
+    """W14: the cost dashboard's six series come from the frozen cost_ledger.
+
+    Seeded through the frozen attribution chain (cost_ledger.run_id ->
+    agent_runs -> projects -> teams) plus one unresolvable row that must be
+    reported as ``unattributed`` instead of vanishing. Latency quantiles are
+    PostgreSQL-only and must be absent here, not zero.
+    """
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    monkeypatch.setenv("HARNESS_METRICS_DB_POLL_SECONDS", "0")
+    monkeypatch.delenv("HARNESS_TEAM_BUDGET_USD", raising=False)
+
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path}/cost.db")
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with engine.begin() as conn:
+        await conn.execute(
+            text("CREATE TABLE teams (id TEXT PRIMARY KEY, budget_usd NUMERIC)")
+        )
+        await conn.execute(
+            text(
+                "CREATE TABLE billing_plans (team_id TEXT PRIMARY KEY,"
+                " monthly_budget_usd NUMERIC)"
+            )
+        )
+        await conn.execute(
+            text("CREATE TABLE projects (id TEXT PRIMARY KEY, team_id TEXT)")
+        )
+        await conn.execute(
+            text("CREATE TABLE agent_runs (id TEXT PRIMARY KEY, project_id TEXT)")
+        )
+        await conn.execute(
+            text(
+                "CREATE TABLE cost_ledger (seq INTEGER PRIMARY KEY AUTOINCREMENT,"
+                " run_id TEXT, agent_role TEXT NOT NULL, model TEXT NOT NULL,"
+                " input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL,"
+                " cost_usd NUMERIC NOT NULL, latency_ms INTEGER NOT NULL,"
+                " created_at TIMESTAMP)"
+            )
+        )
+        # The poller also refreshes the queue/bus gauges; empty tables keep
+        # those from warning without influencing the cost assertions.
+        await conn.execute(
+            text(
+                "CREATE TABLE run_claims (run_id TEXT PRIMARY KEY, state TEXT,"
+                " claimed_at TEXT, heartbeat_at TEXT)"
+            )
+        )
+        await conn.execute(
+            text("CREATE TABLE agent_events (seq INTEGER PRIMARY KEY, ts TIMESTAMP)")
+        )
+        await conn.execute(
+            text("INSERT INTO teams (id, budget_usd) VALUES ('t1', 10), ('t2', NULL), ('t3', NULL)")
+        )
+        await conn.execute(text("INSERT INTO billing_plans VALUES ('t2', 50)"))
+        await conn.execute(
+            text("INSERT INTO projects (id, team_id) VALUES ('p1','t1'), ('p2','t2')")
+        )
+        await conn.execute(
+            text(
+                "INSERT INTO agent_runs (id, project_id)"
+                " VALUES ('r1','p1'), ('r2','p1'), ('r3','p2')"
+            )
+        )
+        await conn.execute(
+            text(
+                "INSERT INTO cost_ledger"
+                " (run_id, agent_role, model, input_tokens, output_tokens,"
+                "  cost_usd, latency_ms, created_at)"
+                " VALUES ('r1','engineer','m-a',10,10,0.5,120,datetime('now')),"
+                " ('r2','reviewer','m-b',10,10,1.25,240,datetime('now')),"
+                " ('r3','engineer','m-a',10,10,0.75,300,datetime('now')),"
+                " (NULL,'engineer','m-orphan',10,10,2.0,90,datetime('now'))"
+            )
+        )
+
+    app = FastAPI()
+    obs.install_domain_metrics(app, factory=factory, engine=engine, bus=None)
+    await app.state.domain_metrics_poll()
+
+    body = obs.METRICS.render()
+
+    def series(name: str, labels: str) -> float | None:
+        match = re.search(rf"^{name}\{{{labels}\}} (\S+)$", body, re.M)
+        return None if match is None else float(match.group(1))
+
+    assert series("harness_model_cost_usd", 'team_id="t1",model="m-a"') == pytest.approx(0.5)
+    assert series("harness_model_cost_usd", 'team_id="t2",model="m-a"') == pytest.approx(0.75)
+    assert series("harness_model_cost_usd", 'team_id="t1",model="m-b"') == pytest.approx(1.25)
+    # A row whose run cannot be attributed still appears, labelled honestly.
+    assert series(
+        "harness_model_cost_usd", 'team_id="unattributed",model="m-orphan"'
+    ) == pytest.approx(2.0)
+    assert series(
+        "harness_model_calls", 'team_id="t1",model="m-b",role="reviewer"'
+    ) == 1
+
+    # Month-to-date spend; an idle team is 0, not missing.
+    assert series("harness_team_spend_usd_month", 'team_id="t1"') == pytest.approx(1.75)
+    assert series("harness_team_spend_usd_month", 'team_id="t2"') == pytest.approx(0.75)
+    assert series("harness_team_spend_usd_month", 'team_id="t3"') == 0.0
+
+    # Cap resolution: team override wins, plan is the fallback, unlimited absent.
+    assert series("harness_team_budget_usd", 'team_id="t1"') == pytest.approx(10.0)
+    assert series("harness_team_budget_usd", 'team_id="t2"') == pytest.approx(50.0)
+    assert series("harness_team_budget_usd", 'team_id="t3"') is None
+
+    # percentile_cont is PostgreSQL-only: no samples must be emitted (the
+    # renderer still prints HELP/TYPE for every registered family).
+    assert not re.search(r"^harness_model_latency_p50_seconds\{", body, re.M)
+    assert not re.search(r"^harness_model_latency_p95_seconds\{", body, re.M)
+
+    await engine.dispose()
+
+
+def test_cost_window_hours_env(obs, monkeypatch):
+    monkeypatch.delenv("HARNESS_COST_METRICS_WINDOW_HOURS", raising=False)
+    assert obs.resolve_cost_window_hours() == 24.0
+    monkeypatch.setenv("HARNESS_COST_METRICS_WINDOW_HOURS", "6")
+    assert obs.resolve_cost_window_hours() == 6.0
+    for bad in ("nope", "0", "-5"):
+        monkeypatch.setenv("HARNESS_COST_METRICS_WINDOW_HOURS", bad)
+        assert obs.resolve_cost_window_hours() == 24.0
+
+
+def test_cost_latency_dashboard_covers_metering():
+    """The W14 dashboard ships structurally valid and names every ledger series.
+
+    Shape only — rendering against a live Grafana is not verified here (noted
+    in the panel itself and in docs/runbooks/cost-latency-dashboard.md).
+    """
+    path = DEPLOY / "observability" / "dashboards" / "harness-cost-latency.json"
+    dashboard = json.loads(path.read_text())
+    overview = json.loads(_DASHBOARD.read_text())
+    assert dashboard["uid"] == "harness-cost-latency"
+    assert dashboard["uid"] != overview["uid"]
+    panels = dashboard["panels"]
+    assert len(panels) >= 6
+    assert len({panel["id"] for panel in panels}) == len(panels)
+    for panel in panels:
+        assert panel["title"].strip()
+        assert panel["datasource"]["uid"] == "${DS_PROMETHEUS}"
+        assert isinstance(panel["gridPos"], dict)
+        for target in panel.get("targets", []):
+            assert target["expr"].strip()
+            assert target["refId"]
+    expressions = " ".join(
+        target["expr"] for panel in panels for target in panel.get("targets", [])
+    )
+    for metric in (
+        "harness_team_spend_usd_month",
+        "harness_team_budget_usd",
+        "harness_model_cost_usd",
+        "harness_model_calls",
+        "harness_model_latency_p50_seconds",
+        "harness_model_latency_p95_seconds",
+    ):
+        assert metric in expressions, f"dashboard does not cover {metric}"
+    assert "and on(team_id) (harness_team_budget_usd > 0)" in expressions, (
+        "utilisation must be restricted to positive caps, not clamped to a fake 10000%"
+    )
 
 
 def test_metrics_endpoint_appends_extra_domain_counters(obs):

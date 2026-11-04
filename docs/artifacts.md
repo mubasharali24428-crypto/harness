@@ -19,6 +19,7 @@ authenticated Principal, team ownership of the run, role. A foreign or unknown r
 | `GET runs/{r}/artifacts/{a}/content` | read (quarantined: administer) | attachment download |
 | `GET runs/{r}/artifacts/{a}/preview` | read | JSON text only |
 | `GET runs/{r}/diff` | read | the done-signal diff as safe JSON |
+| `GET runs/{r}/review-summary` | read | W24: changed files, tests run and how each ended, failures, cost, elapsed time, what is unknown; recorded facts only, 404 until the run has a diff |
 | `GET runs/{r}/changes` | read | changed files; also records new ones (section 3) |
 | `POST runs/{r}/changes/{c}/review` | approve | `{decision, diffSha, note?}` |
 | `GET\|PUT runs/{r}/git-state` | read \| write | repo/branch/base facts (section 6) |
@@ -46,6 +47,18 @@ What exists in the system today, read from the code, not defined here:
 
 So the relation is: one project is connected to one repository; each run has its own branch (by convention) and its own workspace
 directory; a PR is opened from the run branch by section2; a human merges on GitHub.
+
+**Worktree decision (W8, 2026-10-27).** No worktree will be introduced for
+concurrency. The W8 gate was met and shown without one
+(`w8-concurrency-1793123190.json`: three concurrent runs, three distinct
+boundary networks, one run directory per worker, each run's change and
+checkpoint manifests containing only its own file). A worktree would have to be
+created inside the confined worker — the only process that writes the tree — and
+that changes the boundary the confinement tests pin; the isolation the gate asks
+for is already a property of the per-run directory, and adding a second
+mechanism for the same guarantee would widen the surface without removing the
+directory. Runs therefore continue to be one plain directory per run id, and a
+run that needs git history gets it from `HARNESS_WORKSPACE_SEED`.
 
 What Harness did **not** know before this lane and still cannot find out by itself: which commit the run branched from, the current tip
 of the base branch, the tip of the run branch. Those are **recorded by a caller** through `PUT git-state` (section 6) and are marked
@@ -198,6 +211,8 @@ is listed in `missing`, never invented. Tables owned by other lanes (`task_specs
 `GIT_STATE_MISSING`, `BASE_STALE`, `CHANGES_NOT_RECORDED`, `CHANGES_REJECTED`, `CHANGES_NOT_REVIEWED` (409), `ARTIFACT_QUARANTINED`, `NOT_ARTIFACT_OWNER`, `AGENT_CANNOT_APPROVE_MERGE` (403),
 `ARTIFACT_DELETED`, `ARTIFACT_EXPIRED`, `ARTIFACT_CONTENT_MISSING` (410), `ARTIFACTS_UNAVAILABLE` (503). Request-shape errors (an unknown `kind`, a bad `limit`) are FastAPI's standard 422.
 
+Visual evidence (W9) adds: `VISUAL_TYPE_NOT_ALLOWED` (415), `VISUAL_TYPE_MISMATCH`, `VISUAL_DIMENSIONS`, `VISUAL_PAIR_INVALID` (422), `VISUAL_REVISION_UNBOUND`, `VISUAL_PAIR_UNAVAILABLE`, `VISUAL_PAIR_REVISION_MISMATCH`, `VISUAL_PAIR_TAKEN` (409).
+
 ## 13. Audit
 
 Rows are appended in the same transaction as the change, `actor_kind human`, detail = `userId`, `teamId` and ids / states / digests / counts only, passed through the secret-key scrub: no file content, no file names, no notes. Actions used (all in the reserved list):
@@ -218,3 +233,43 @@ Rows are appended in the same transaction as the change, `actor_kind human`, det
 - No malware scanning, no archive inspection, no secret scanning, no inline image/PDF preview (sections 2 and 10).
 - Postgres-only behaviour is mostly untested here (sqlite): since Session 11 `test_session6_live_pg.py` passes on PostgreSQL 18 for an upload and its request-id replay, but partial unique indexes, `begin_nested` savepoints around optional-table reads and the other unique-violation paths still have no PostgreSQL test of their own.
 - The UI (lane X) and the OpenAPI / SDK files are not part of this lane.
+
+## 15. Visual evidence (W9)
+
+A screenshot is not just another file: it is a claim about **which reviewed revision** it
+shows and **what changed**. `POST /runs/{runId}/visuals?name=&role=&pairOf=&capturedFrom=&retentionDays=&requestId=`
+stores one image as an artifact (`kind=upload`, so shares, content, retention and audit all
+behave as §3–§8) and records the visual semantics in `visual_artifacts` (migration 0065).
+
+* **Raster only, by magic bytes.** PNG, JPEG and WebP are accepted; the declared content type
+  is ignored. SVG, GIF (animated), PDF and anything else is refused with
+  `415 VISUAL_TYPE_NOT_ALLOWED` — a screenshot pipeline fails loudly instead of storing
+  something a reviewer cannot see. A suffix that disagrees with the bytes is
+  `422 VISUAL_TYPE_MISMATCH`.
+* **Bounded before storage.** Empty → `422 EMPTY_ARTIFACT`; over `HARNESS_VISUAL_MAX_BYTES`
+  (default 4 MiB) → `413 ARTIFACT_TOO_LARGE` on the declared length, before the body is read;
+  a side under 16 px or over 8192 px → `422 VISUAL_DIMENSIONS` with the parsed `width`/`height`.
+  Dimensions come from the header, not from the client.
+* **Bound to the reviewed revision.** Attach refuses when the run has no recorded head
+  (`409 VISUAL_REVISION_UNBOUND`); otherwise it snapshots `runHeadSha`, `baseSha`, `repo`,
+  the latest approved `planVersion`, the current `changesDigest` and `stale` into
+  `provenance`. Evidence with no revision is not evidence.
+* **Paired explicitly.** `role=before` takes no `pairOf`; `role=after` must name a `before` of
+  the same run that is available and carries the **same** provenance snapshot
+  (`409 VISUAL_PAIR_REVISION_MISMATCH`), and only one `after` per `before`
+  (`409 VISUAL_PAIR_TAKEN`, also enforced by a partial unique index; a losing race tombstones
+  its own artifact). `GET visuals` returns `items` plus resolved `pairs`.
+* **Same access as artifacts.** Reads are team- and run-scoped through the artifact store: a
+  foreign team gets `404`, exactly like an unknown run; sharing a visual uses the existing
+  share route (download-only: `application/octet-stream`, `Content-Disposition: attachment`,
+  `nosniff`, `CSP sandbox`, `X-Artifact-Sha256`). A retried `requestId` returns the visual it
+  already recorded (`200`, `replayed: true`) instead of colliding or tombstoning it.
+* **Retention applies.** `retentionDays` sets `retention_until`; an expired visual is listed
+  as `expired`, its content and share answer `410 ARTIFACT_EXPIRED`, and the same
+  `purge_expired` sweep tombstones the row and removes the blob.
+
+Honest limits: no OCR, no pixel-diff, no malware scan; the provenance binds to the run's
+*recorded* head (a caller who records a false head has evidence of a false revision), and
+`capturedFrom` is opaque text. The drill renders the fixture with the product's browser gate
+inside a `--network none`, cap-dropped, read-only container; it does not claim that every
+screenshot an engine produces went through this path.

@@ -20,6 +20,7 @@ a whole). Everything outside the allow-list is unreadable, which is also what
 isolates sibling task workspaces on Linux.
 """
 
+import json
 import logging
 import os
 import struct
@@ -140,15 +141,18 @@ def seatbelt_profile(
     tmpdir: Path | None = None,
     forbidden_paths: list[str] | None = None,
     denied_task_dirs: list[Path] | None = None,
+    write_roots: list[Path] | None = None,
 ) -> str:
     """deny-default profile; writes confined to the task workspace + its private tmp.
 
     T7b: the shared system temp dir is NOT writable, and file CONTENTS under the
     storage root (every task's workspace) are unreadable except this task's own
     directory. Metadata (stat) stays readable so cwd resolution keeps working.
+    ``write_roots`` (M03) narrows the writable part of the workspace to the run
+    intent's scope; ``[]`` leaves none of it writable.
     """
-    ws = str(Path(workspace).resolve())
-    writable = [f'(subpath "{ws}")']
+    roots = [workspace] if write_roots is None else write_roots
+    writable = [f'(subpath "{Path(r).resolve()}")' for r in roots]
     if tmpdir is not None:
         writable.append(f'(subpath "{Path(tmpdir).resolve()}")')
     writable.append('(subpath "/dev/null")')
@@ -363,6 +367,7 @@ def apply_landlock_in_child(
     tmpdir: Path | None = None,
     forbidden_paths: list[str] | None = None,
     extra_read_roots: list[Path] | None = None,
+    write_roots: list[Path] | None = None,
 ) -> bool:
     """Runs INSIDE the forked child (preexec_fn). Returns True when enforced.
 
@@ -409,7 +414,8 @@ def apply_landlock_in_child(
         handled |= LL_TRUNCATE  # ABI 3+: truncate(2) by path is a write too
     write_ruleset = create_ruleset(handled)
     # T7b: writes only to the workspace and this task's private tmp (never the shared temp).
-    writable = {_resolved(workspace)}
+    # M03: or only to the run intent's scope inside it, when the caller narrows it.
+    writable = {_resolved(p) for p in ([workspace] if write_roots is None else write_roots)}
     if tmpdir is not None:
         writable.add(_resolved(tmpdir))
     for p in writable:
@@ -456,16 +462,18 @@ class ConfinementUnavailableError(RuntimeError):
 # The target's own directory is added to the readable roots only when it is
 # outside every root the allow-list already covers (see exec_read_roots).
 _LANDLOCK_EXEC = (
-    "import importlib.util, os, sys\n"
+    "import importlib.util, json, os, sys\n"
     "from pathlib import Path\n"
     "spec = importlib.util.spec_from_file_location('confinement', sys.argv[1])\n"
     "module = importlib.util.module_from_spec(spec)\n"
     "spec.loader.exec_module(module)\n"
-    "_roots = module.exec_read_roots(sys.argv[5])\n"
+    "_writes = json.loads(sys.argv[5])\n"
+    "_roots = module.exec_read_roots(sys.argv[6])\n"
     "module.apply_landlock_in_child(\n"
-    "    Path(sys.argv[2]), sys.argv[3] == '1', Path(sys.argv[4]), None, _roots\n"
+    "    Path(sys.argv[2]), sys.argv[3] == '1', Path(sys.argv[4]), None, _roots,\n"
+    "    None if _writes is None else [Path(p) for p in _writes],\n"
     ")\n"
-    "os.execvp(sys.argv[5], sys.argv[5:])\n"
+    "os.execvp(sys.argv[6], sys.argv[6:])\n"
 )
 
 
@@ -491,18 +499,26 @@ def exec_read_roots(program: str) -> list[Path]:
 
 
 def confine_argv(
-    argv: list[str], *, workspace: Path, tmpdir: Path, allow_network: bool = False
+    argv: list[str],
+    *,
+    workspace: Path,
+    tmpdir: Path,
+    allow_network: bool = False,
+    write_roots: list[Path] | None = None,
 ) -> list[str]:
     """Wrap ``argv`` so the process writes only under ``workspace`` and ``tmpdir``.
 
     macOS runs the command under a Seatbelt profile written into ``tmpdir``; Linux
     applies Landlock in a bootstrap before exec. Raises ConfinementUnavailableError
     when neither is usable: callers must refuse to launch, never run unconfined.
+    ``write_roots`` replaces the workspace as the writable set (M03 intent scope).
     """
     if seatbelt_available():
         tmpdir.mkdir(parents=True, exist_ok=True)
         profile = tmpdir / "confine.sb"
-        profile.write_text(seatbelt_profile(workspace, allow_network, None, tmpdir))
+        profile.write_text(
+            seatbelt_profile(workspace, allow_network, None, tmpdir, write_roots=write_roots)
+        )
         return [SEATBELT_BIN, "-f", str(profile), *argv]
     if landlock_supported():
         return [
@@ -514,6 +530,7 @@ def confine_argv(
             str(workspace),
             "1" if allow_network else "0",
             str(tmpdir),
+            json.dumps(None if write_roots is None else [str(p) for p in write_roots]),
             *argv,
         ]
     raise ConfinementUnavailableError("no OS confinement is available on this host")

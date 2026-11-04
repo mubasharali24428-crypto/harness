@@ -1,0 +1,381 @@
+{
+  "schema": 1,
+  "kind": "marathon2-baseline",
+  "corpusRevision": "m2-w8",
+  "startedAt": "2026-10-30T10:48:10.455821+00:00",
+  "finishedAt": "2026-10-30T11:01:31.466481+00:00",
+  "environment": {
+    "git": {
+      "head": "12fb2213152a1079369c2f120ed6cf16cb16df37",
+      "branch": "w1-engine-tools",
+      "dirty": true
+    },
+    "revisionCheck": {
+      "orchestratorContainer": "harness-orchestrator-1",
+      "workerImage": "harness-engine-worker:vdev-local",
+      "workerDaemonContainer": "harness-worker-daemon-1",
+      "backend": {
+        "engine.py": {
+          "host": "2bca7251e3076c96b344929ef5082c502324d8a8964489fb9ac1a0d6a7f4feef",
+          "deployed": "2bca7251e3076c96b344929ef5082c502324d8a8964489fb9ac1a0d6a7f4feef",
+          "match": true
+        },
+        "image_gate.py": {
+          "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "match": true
+        }
+      },
+      "worker": {
+        "image_gate.py": {
+          "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "match": true
+        },
+        "engine.py": {
+          "host": "2bca7251e3076c96b344929ef5082c502324d8a8964489fb9ac1a0d6a7f4feef",
+          "deployed": "2bca7251e3076c96b344929ef5082c502324d8a8964489fb9ac1a0d6a7f4feef",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "match": true
+        }
+      },
+      "daemon": {
+        "engine.py": {
+          "host": "2bca7251e3076c96b344929ef5082c502324d8a8964489fb9ac1a0d6a7f4feef",
+          "deployed": "2bca7251e3076c96b344929ef5082c502324d8a8964489fb9ac1a0d6a7f4feef",
+          "match": true
+        },
+        "image_gate.py": {
+          "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "match": true
+        }
+      },
+      "verified": true
+    },
+    "images": {
+      "backend": "sha256:5973222fefd58569010b807d5e1822d74edffccfa5194f4acf979d1bc976aa7c",
+      "engineWorker": "sha256:a5f587aeb1f00106d73f395bc5481b42f456d4c43c325a8f1f6156370ee53a9c"
+    },
+    "model": null,
+    "repeats": 1,
+    "gapSeconds": 0.0
+  },
+  "selection": {
+    "includeLive": true,
+    "costs": [],
+    "tasks": [
+      "w14-design-heldout"
+    ],
+    "categories": []
+  },
+  "summary": {
+    "executed": 1,
+    "passed": 0,
+    "failed": 1,
+    "errors": 0,
+    "deferred": 38,
+    "corpus": 39,
+    "revisionVerified": true
+  },
+  "results": [
+    {
+      "id": "w14-design-heldout",
+      "category": "visual_interaction",
+      "kind": "agent",
+      "cost": "live",
+      "heldOut": true,
+      "status": "executed",
+      "verdict": "FAIL",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-30T10:48:14.042488+00:00",
+          "durationSec": 384.28,
+          "exitCode": 1,
+          "timedOut": false,
+          "verdict": "FAIL",
+          "driverVerdict": "FAIL",
+          "failedChecks": [
+            "agentScreenshottedItsPage",
+            "agentUsedTheDiff",
+            "agentWroteThePage",
+            "tokenOnlyInPixelsWasTranscribed",
+            "pageRendersAtMockupSize",
+            "independentDiffWithinThreshold",
+            "flatColoursSurvived",
+            "agentRatioAgreesWithBytes"
+          ],
+          "stdoutTail": "{\n  \"verdict\": \"FAIL\",\n  \"failed\": [\n    \"agentScreenshottedItsPage\",\n    \"agentUsedTheDiff\",\n    \"agentWroteThePage\",\n    \"tokenOnlyInPixelsWasTranscribed\",\n    \"pageRendersAtMockupSize\",\n    \"independentDiffWithinThreshold\",\n    \"flatColoursSurvived\",\n    \"agentRatioAgreesWithBytes\"\n  ],\n  \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/eval/w14-design-1793357294.json\"\n}\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 384.28,
+      "budget": {
+        "timeoutSeconds": 1200,
+        "maxToolCalls": 50,
+        "maxCostUsd": 0.12
+      },
+      "model": "qwen/qwen3.7-flash (OpenRouter, vision patch)",
+      "fixture": {
+        "repo": "fresh mockup PNG rendered by the driver",
+        "revision": "w14",
+        "seed": [
+          "mockup.png"
+        ]
+      },
+      "expected": "fixture leg every check true, then live leg: ratio <= 0.03, all seven flat colours within 12 and the agent's reported ratio within 0.005",
+      "driver": "scripts/e2e/w14_design_heldout_drill.py",
+      "verifier": "fixture leg (no model): 960x640 decode, seven flat colours exact, title text drawn, zero self-diff, deterministic re-render; live leg: agent opens the mockup, measures colour, screenshots, diffs; independent re-render ratio <= 0.03 with colours within 12 and the agent's reported ratio agreeing within 0.005"
+    }
+  ],
+  "deferred": [
+    {
+      "id": "stack-compose-journey",
+      "category": "stack_health",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-egress-deny",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "m03-scope",
+      "category": "confinement",
+      "status": "blocked",
+      "reason": "blocked 2026-10-28: local Ollama has only nomic-embed-text, no chat model. Prerequisite: pull a local chat model or point the drill at a compatible endpoint."
+    },
+    {
+      "id": "m04-streaming",
+      "category": "streaming",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent (nomic-embed-text only)"
+    },
+    {
+      "id": "m07-api-run",
+      "category": "bug_fix",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "m07-daemon-topology",
+      "category": "confinement",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "m07-vision-api",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w3-rewind",
+      "category": "cancellation_recovery",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "w3-partial-write",
+      "category": "cancellation_recovery",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "w4-web-fetch",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-install",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-mcp-client",
+      "category": "mcp",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-credential-leak",
+      "category": "tenant_isolation",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-concurrency",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-crash-cleanup",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-apply-conflict",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-agent-quotas",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-quotas-isolation",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w9-share-deploy",
+      "category": "artifact_authz",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w10-browser-repro",
+      "category": "ui_screenshot",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w11-vision",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "cli-parity",
+      "category": "cli_parity",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "cli-diagnostics",
+      "category": "cli_parity",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "skills-governance",
+      "category": "skills",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "stale-edit",
+      "category": "stale_edit",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "code-search",
+      "category": "code_search",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "multi-file-refactor",
+      "category": "refactor",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "tests-written",
+      "category": "tests",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "tenant-isolation-api",
+      "category": "tenant_isolation",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "native-tool-confinement",
+      "category": "confinement",
+      "status": "fixture-owed",
+      "reason": "owed: this is M01, still open; no access is widened until it closes"
+    },
+    {
+      "id": "ast-lsp-confinement",
+      "category": "confinement",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "lsp-real-server",
+      "category": "confinement",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "code-search-heldout",
+      "category": "code_search",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w9-visuals",
+      "category": "artifact_authz",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w10-browser-session",
+      "category": "ui_screenshot",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w11-grounding",
+      "category": "ui_screenshot",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w12-skills-memory",
+      "category": "skills",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w13-byo-runner",
+      "category": "tenant_isolation",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    }
+  ],
+  "limitations": [
+    "n=1 unless --repeats was raised; a single pass is an existence proof, not a rate.",
+    "A task is deferred, blocked or fixture-owed is not a pass.",
+    "Revision verification compares runtime files inside the deployed containers/images with this worktree; a mismatch makes every result stale for HEAD."
+  ]
+}

@@ -42,46 +42,44 @@
     "title": "ApplyBody",
     "type": "object"
    },
-   "AssignBody": {
+   "AttestBody": {
     "properties": {
-     "expiresAt": {
-      "anyOf": [
-       {
-        "format": "date-time",
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Expiresat"
+     "attestation": {
+      "additionalProperties": true,
+      "title": "Attestation",
+      "type": "object"
      },
-     "level": {
-      "title": "Level",
-      "type": "string"
-     },
-     "role": {
-      "title": "Role",
-      "type": "string"
-     },
-     "scopeId": {
+     "signature": {
       "maxLength": 64,
-      "minLength": 1,
-      "title": "Scopeid",
-      "type": "string"
-     },
-     "userId": {
-      "title": "Userid",
+      "minLength": 64,
+      "title": "Signature",
       "type": "string"
      }
     },
     "required": [
-     "userId",
-     "level",
-     "scopeId",
-     "role"
+     "attestation",
+     "signature"
     ],
-    "title": "AssignBody",
+    "title": "AttestBody",
+    "type": "object"
+   },
+   "AuditVerifyRequest": {
+    "properties": {
+     "afterChainPos": {
+      "default": 0,
+      "minimum": 0.0,
+      "title": "Afterchainpos",
+      "type": "integer"
+     },
+     "maxRows": {
+      "default": 500,
+      "maximum": 1000.0,
+      "minimum": 1.0,
+      "title": "Maxrows",
+      "type": "integer"
+     }
+    },
+    "title": "AuditVerifyRequest",
     "type": "object"
    },
    "BindingBody": {
@@ -556,6 +554,24 @@
     "title": "EventReplayResponse",
     "type": "object"
    },
+   "EventsBody": {
+    "properties": {
+     "events": {
+      "items": {
+       "$ref": "#/components/schemas/RunnerEvent"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "Events",
+      "type": "array"
+     }
+    },
+    "required": [
+     "events"
+    ],
+    "title": "EventsBody",
+    "type": "object"
+   },
    "ExecutionControlBody": {
     "properties": {
      "disabled": {
@@ -574,6 +590,31 @@
      "reason"
     ],
     "title": "ExecutionControlBody",
+    "type": "object"
+   },
+   "FinishBody": {
+    "properties": {
+     "resultDigest": {
+      "anyOf": [
+       {
+        "maxLength": 64,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Resultdigest"
+     },
+     "status": {
+      "title": "Status",
+      "type": "string"
+     }
+    },
+    "required": [
+     "status"
+    ],
+    "title": "FinishBody",
     "type": "object"
    },
    "GlobalPrefsBody": {
@@ -1087,6 +1128,33 @@
     "title": "MemberRoleBody",
     "type": "object"
    },
+   "MemoryBody": {
+    "properties": {
+     "expiresAt": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expiresat"
+     },
+     "memoryText": {
+      "maxLength": 65536,
+      "minLength": 1,
+      "title": "Memorytext",
+      "type": "string"
+     }
+    },
+    "required": [
+     "memoryText"
+    ],
+    "title": "MemoryBody",
+    "type": "object"
+   },
    "MuteBody": {
     "additionalProperties": false,
     "properties": {
@@ -1280,6 +1348,32 @@
      "expectedOwnerUserId"
     ],
     "title": "OwnerTransferBody",
+    "type": "object"
+   },
+   "PatchOp": {
+    "description": "One RFC 7644 \u00a73.5.2 operation. `path` may be omitted, in which case\n`value` is an attribute map \u2014 the shape Okta's deprovisioning patch uses.",
+    "properties": {
+     "op": {
+      "default": "",
+      "title": "Op",
+      "type": "string"
+     },
+     "path": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Path"
+     },
+     "value": {
+      "title": "Value"
+     }
+    },
+    "title": "PatchOp",
     "type": "object"
    },
    "PlanUpdateBody": {
@@ -1566,6 +1660,52 @@
     "title": "ProjectOut",
     "type": "object"
    },
+   "PutBody": {
+    "properties": {
+     "active": {
+      "default": true,
+      "title": "Active",
+      "type": "boolean"
+     },
+     "externalId": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Externalid"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "schemas": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Schemas",
+      "type": "array"
+     },
+     "userName": {
+      "default": "",
+      "title": "Username",
+      "type": "string"
+     }
+    },
+    "title": "PutBody",
+    "type": "object"
+   },
    "ReadAllBody": {
     "additionalProperties": false,
     "properties": {
@@ -1609,6 +1749,22 @@
      "toVersion"
     ],
     "title": "RevertBody",
+    "type": "object"
+   },
+   "RoutingBody": {
+    "additionalProperties": false,
+    "description": "Raw PUT payload; the document is validated before any write.",
+    "properties": {
+     "routing": {
+      "additionalProperties": true,
+      "title": "Routing",
+      "type": "object"
+     }
+    },
+    "required": [
+     "routing"
+    ],
+    "title": "RoutingBody",
     "type": "object"
    },
    "Rule": {
@@ -1670,6 +1826,128 @@
      "rulesText"
     ],
     "title": "RulesBody",
+    "type": "object"
+   },
+   "RunnerBody": {
+    "properties": {
+     "confinement": {
+      "default": "none",
+      "title": "Confinement",
+      "type": "string"
+     },
+     "description": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+     },
+     "name": {
+      "maxLength": 40,
+      "minLength": 2,
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name",
+     "description"
+    ],
+    "title": "RunnerBody",
+    "type": "object"
+   },
+   "RunnerEvent": {
+    "properties": {
+     "callId": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Callid",
+      "type": "string"
+     },
+     "command": {
+      "anyOf": [
+       {
+        "maxLength": 4000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Command"
+     },
+     "durationMs": {
+      "anyOf": [
+       {
+        "minimum": 0.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Durationms"
+     },
+     "error": {
+      "anyOf": [
+       {
+        "maxLength": 1000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Error"
+     },
+     "exitCode": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Exitcode"
+     },
+     "ok": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ok"
+     },
+     "output": {
+      "anyOf": [
+       {
+        "maxLength": 30000,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Output"
+     },
+     "phase": {
+      "enum": [
+       "call",
+       "result"
+      ],
+      "title": "Phase",
+      "type": "string"
+     }
+    },
+    "required": [
+     "phase",
+     "callId"
+    ],
+    "title": "RunnerEvent",
     "type": "object"
    },
    "ScopePrefsBody": {
@@ -1862,6 +2140,179 @@
     "title": "SettingsBody",
     "type": "object"
    },
+   "SinkCreateBody": {
+    "properties": {
+     "collectorUrl": {
+      "maxLength": 2048,
+      "minLength": 12,
+      "title": "Collectorurl",
+      "type": "string"
+     },
+     "label": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Label",
+      "type": "string"
+     },
+     "sharedSecret": {
+      "maxLength": 128,
+      "minLength": 16,
+      "title": "Sharedsecret",
+      "type": "string"
+     },
+     "startFrom": {
+      "default": "latest",
+      "enum": [
+       "latest",
+       "earliest"
+      ],
+      "title": "Startfrom",
+      "type": "string"
+     }
+    },
+    "required": [
+     "label",
+     "collectorUrl",
+     "sharedSecret"
+    ],
+    "title": "SinkCreateBody",
+    "type": "object"
+   },
+   "SinkPatchBody": {
+    "properties": {
+     "active": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Active"
+     },
+     "collectorUrl": {
+      "anyOf": [
+       {
+        "maxLength": 2048,
+        "minLength": 12,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Collectorurl"
+     },
+     "expectedVersion": {
+      "minimum": 1.0,
+      "title": "Expectedversion",
+      "type": "integer"
+     },
+     "label": {
+      "anyOf": [
+       {
+        "maxLength": 120,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Label"
+     },
+     "resume": {
+      "default": false,
+      "title": "Resume",
+      "type": "boolean"
+     },
+     "sharedSecret": {
+      "anyOf": [
+       {
+        "maxLength": 128,
+        "minLength": 16,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Sharedsecret"
+     }
+    },
+    "required": [
+     "expectedVersion"
+    ],
+    "title": "SinkPatchBody",
+    "type": "object"
+   },
+   "SkillBody": {
+    "properties": {
+     "author": {
+      "anyOf": [
+       {
+        "maxLength": 200,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Author"
+     },
+     "description": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+     },
+     "expiresAt": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expiresat"
+     },
+     "instructions": {
+      "maxLength": 65536,
+      "minLength": 1,
+      "title": "Instructions",
+      "type": "string"
+     },
+     "name": {
+      "maxLength": 32,
+      "minLength": 2,
+      "title": "Name",
+      "type": "string"
+     },
+     "source": {
+      "default": "team-authored",
+      "maxLength": 200,
+      "title": "Source",
+      "type": "string"
+     },
+     "version": {
+      "maxLength": 16,
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+     }
+    },
+    "required": [
+     "name",
+     "version",
+     "description",
+     "instructions"
+    ],
+    "title": "SkillBody",
+    "type": "object"
+   },
    "SnoozeBody": {
     "additionalProperties": false,
     "properties": {
@@ -1956,6 +2407,20 @@
       "title": "Enabled",
       "type": "boolean"
      },
+     "groupRoles": {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "title": "Grouproles",
+      "type": "array"
+     },
+     "groupsClaim": {
+      "default": "",
+      "maxLength": 120,
+      "title": "Groupsclaim",
+      "type": "string"
+     },
      "idpDisplayName": {
       "default": "",
       "maxLength": 200,
@@ -2047,6 +2512,17 @@
      "thresholds"
     ],
     "title": "ThresholdsBody",
+    "type": "object"
+   },
+   "TokenBody": {
+    "properties": {
+     "label": {
+      "default": "",
+      "title": "Label",
+      "type": "string"
+     }
+    },
+    "title": "TokenBody",
     "type": "object"
    },
    "UnsubscribeBody": {
@@ -2391,6 +2867,48 @@
     "title": "RoleBody",
     "type": "object"
    },
+   "harness_identity__policy__AssignBody": {
+    "properties": {
+     "expiresAt": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expiresat"
+     },
+     "level": {
+      "title": "Level",
+      "type": "string"
+     },
+     "role": {
+      "title": "Role",
+      "type": "string"
+     },
+     "scopeId": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Scopeid",
+      "type": "string"
+     },
+     "userId": {
+      "title": "Userid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "userId",
+     "level",
+     "scopeId",
+     "role"
+    ],
+    "title": "AssignBody",
+    "type": "object"
+   },
    "harness_identity__policy__RoleBody": {
     "properties": {
      "permissions": {
@@ -2405,6 +2923,41 @@
      "permissions"
     ],
     "title": "RoleBody",
+    "type": "object"
+   },
+   "harness_identity__runner_api__AssignBody": {
+    "properties": {
+     "runId": {
+      "maxLength": 36,
+      "minLength": 36,
+      "title": "Runid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "runId"
+    ],
+    "title": "AssignBody",
+    "type": "object"
+   },
+   "harness_identity__scim__PatchBody": {
+    "properties": {
+     "Operations": {
+      "items": {
+       "$ref": "#/components/schemas/PatchOp"
+      },
+      "title": "Operations",
+      "type": "array"
+     },
+     "schemas": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Schemas",
+      "type": "array"
+     }
+    },
+    "title": "PatchBody",
     "type": "object"
    },
    "harness_identity__sessions__CreateBody": {
@@ -3226,7 +3779,7 @@
   },
   "/api/v1/audit/export": {
    "get": {
-    "description": "Admin-only evidence export for the CALLER's team (there is no team parameter, so a\nforeign team's rows can never be requested). ``stream=audit`` is the security audit\nlog; ``stream=collab`` is the product event history of shared runs (optionally one\n``runId``). Ascending by ``seq`` from ``afterSeq``; at most EXPORT_PAGE_MAX rows per\ncall; follow ``nextCursor`` while ``hasMore``. Each export is itself audited.",
+    "description": "Admin-only evidence export for the CALLER's team (there is no team parameter, so a\nforeign team's rows can never be requested). ``stream=audit`` is the security audit\nlog; ``stream=collab`` is the product event history of shared runs (optionally one\n``runId``). Ascending by ``seq`` from ``afterSeq``; at most EXPORT_PAGE_MAX rows per\ncall; follow ``nextCursor`` while ``hasMore``. Each export is itself audited.\n\n``format=ndjson`` streams the same rows one JSON object per line for a SIEM\ncollector that appends lines. A stream of lines has no place to put a cursor, so\n``X-Harness-Next-Cursor`` / ``X-Harness-More`` carry it; the rows themselves are\nbyte-identical to the JSON body's `items` entries, chain fields included.",
     "operationId": "export_audit_api_v1_audit_export_get",
     "parameters": [
      {
@@ -3268,6 +3821,16 @@
        "title": "Runid",
        "type": "string"
       }
+     },
+     {
+      "in": "query",
+      "name": "format",
+      "required": false,
+      "schema": {
+       "default": "json",
+       "title": "Format",
+       "type": "string"
+      }
      }
     ],
     "responses": {
@@ -3295,6 +3858,47 @@
      }
     },
     "summary": "Export Audit"
+   }
+  },
+  "/api/v1/audit/verify": {
+   "post": {
+    "description": "W16 slice 4: verify the hash chain over a window of the trail, so a\ncustomer holding an export can be told \u2014 row by row \u2014 whether it is still\nwhat the database sealed. Admin only, like every other evidence door.\n\nThe verdict can only come from re-deriving the hashes with the same trigger\nfunction the chain was sealed by. That function is PostgreSQL-only; on a lane\nwithout it the endpoint refuses (503) rather than reporting a check it did not\nperform, because ``ok: true`` from a code path that verified nothing is the\nmost dangerous answer this endpoint could give.",
+    "operationId": "verify_audit_api_v1_audit_verify_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AuditVerifyRequest"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Verify Audit Api V1 Audit Verify Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Verify Audit"
    }
   },
   "/api/v1/auth/login": {
@@ -5371,7 +5975,7 @@
      "content": {
       "application/json": {
        "schema": {
-        "$ref": "#/components/schemas/AssignBody"
+        "$ref": "#/components/schemas/harness_identity__policy__AssignBody"
        }
       }
      },
@@ -6300,6 +6904,16 @@
        "title": "Limit",
        "type": "integer"
       }
+     },
+     {
+      "in": "query",
+      "name": "before_seq",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "title": "Before Seq",
+       "type": "integer"
+      }
      }
     ],
     "responses": {
@@ -6345,6 +6959,191 @@
      }
     },
     "summary": "Replay Events"
+   }
+  },
+  "/api/v1/projects/{project_id}/memory": {
+   "get": {
+    "description": "Every note of an owned project, drafts included.",
+    "operationId": "list_memory_api_v1_projects__project_id__memory_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Memory Api V1 Projects  Project Id  Memory Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Memory"
+   },
+   "post": {
+    "description": "Author a draft note. A draft is visible to the team but never injected.",
+    "operationId": "create_memory_api_v1_projects__project_id__memory_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/MemoryBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Memory Api V1 Projects  Project Id  Memory Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Memory"
+   }
+  },
+  "/api/v1/projects/{project_id}/memory/{entry_id}": {
+   "delete": {
+    "description": "Remove a note. Idempotent: deleting what is absent is 204.",
+    "operationId": "delete_memory_api_v1_projects__project_id__memory__entry_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "entry_id",
+      "required": true,
+      "schema": {
+       "title": "Entry Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Memory"
+   }
+  },
+  "/api/v1/projects/{project_id}/memory/{entry_id}/review": {
+   "post": {
+    "description": "Make a note injectable. The text is unchanged; the status is the act.",
+    "operationId": "review_memory_api_v1_projects__project_id__memory__entry_id__review_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "entry_id",
+      "required": true,
+      "schema": {
+       "title": "Entry Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review Memory Api V1 Projects  Project Id  Memory  Entry Id  Review Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Memory"
    }
   },
   "/api/v1/projects/{project_id}/rules": {
@@ -6468,6 +7267,294 @@
      }
     },
     "summary": "Save Rules"
+   }
+  },
+  "/api/v1/runner/heartbeat": {
+   "post": {
+    "operationId": "runner_heartbeat_api_v1_runner_heartbeat_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AttestBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Runner Heartbeat Api V1 Runner Heartbeat Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Runner Heartbeat"
+   }
+  },
+  "/api/v1/runner/jobs": {
+   "get": {
+    "operationId": "list_my_jobs_api_v1_runner_jobs_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List My Jobs Api V1 Runner Jobs Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "List My Jobs"
+   }
+  },
+  "/api/v1/runner/jobs/{run_id}/claim": {
+   "post": {
+    "operationId": "claim_job_api_v1_runner_jobs__run_id__claim_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "run_id",
+      "required": true,
+      "schema": {
+       "title": "Run Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Claim Job Api V1 Runner Jobs  Run Id  Claim Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Claim Job"
+   }
+  },
+  "/api/v1/runner/jobs/{run_id}/events": {
+   "post": {
+    "description": "Append bounded, scrubbed tool events to the run's log.\n\nThe whole batch is validated before anything is written, so a refused batch\nleaves no partial transcript. The server names the tool and rebuilds each\npayload; the runner supplies only the command, outcome and output text.",
+    "operationId": "post_job_events_api_v1_runner_jobs__run_id__events_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "run_id",
+      "required": true,
+      "schema": {
+       "title": "Run Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/EventsBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Post Job Events Api V1 Runner Jobs  Run Id  Events Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Post Job Events"
+   }
+  },
+  "/api/v1/runner/jobs/{run_id}/finish": {
+   "post": {
+    "description": "Release the lease and settle the run exactly as a local engine would.\n\nThe terminal verdict is re-derived from the recorded tool results: a runner\nthat says ``completed`` without a passing result for every approved command is\nsettled ``failed``. A run that is no longer executing (human stop) only loses\nits lease - ``finish`` never resurrects it.",
+    "operationId": "finish_job_api_v1_runner_jobs__run_id__finish_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "run_id",
+      "required": true,
+      "schema": {
+       "title": "Run Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/FinishBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Finish Job Api V1 Runner Jobs  Run Id  Finish Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Finish Job"
+   }
+  },
+  "/api/v1/runner/jobs/{run_id}/heartbeat": {
+   "post": {
+    "operationId": "heartbeat_job_api_v1_runner_jobs__run_id__heartbeat_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "run_id",
+      "required": true,
+      "schema": {
+       "title": "Run Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Heartbeat Job Api V1 Runner Jobs  Run Id  Heartbeat Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Heartbeat Job"
+   }
+  },
+  "/api/v1/runner/jobs/{run_id}/spec": {
+   "get": {
+    "description": "What the host may execute, read from the approved plan - never from the runner.",
+    "operationId": "job_spec_api_v1_runner_jobs__run_id__spec_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "run_id",
+      "required": true,
+      "schema": {
+       "title": "Run Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Job Spec Api V1 Runner Jobs  Run Id  Spec Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Job Spec"
    }
   },
   "/api/v1/sessions": {
@@ -7636,6 +8723,191 @@
     "summary": "Stepup Verify"
    }
   },
+  "/api/v1/team-runners": {
+   "get": {
+    "operationId": "list_runners_api_v1_team_runners_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Runners Api V1 Team Runners Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "List Runners"
+   },
+   "post": {
+    "description": "Mint a runner. The token is returned ONCE and never stored in clear.",
+    "operationId": "register_runner_api_v1_team_runners_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RunnerBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Register Runner Api V1 Team Runners Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Register Runner"
+   }
+  },
+  "/api/v1/team-runners/{runner_id}/jobs": {
+   "post": {
+    "description": "Offer a QUEUED run of the caller's team to one of its runners.",
+    "operationId": "assign_job_api_v1_team_runners__runner_id__jobs_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runner_id",
+      "required": true,
+      "schema": {
+       "title": "Runner Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/harness_identity__runner_api__AssignBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Assign Job Api V1 Team Runners  Runner Id  Jobs Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Assign Job"
+   }
+  },
+  "/api/v1/team-runners/{runner_id}/revoke": {
+   "post": {
+    "operationId": "revoke_runner_api_v1_team_runners__runner_id__revoke_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runner_id",
+      "required": true,
+      "schema": {
+       "title": "Runner Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Revoke Runner"
+   }
+  },
+  "/api/v1/team-runners/{runner_id}/rotate": {
+   "post": {
+    "description": "Mint a fresh token for an active runner; the old token dies immediately.\n\nRotation rewrites the token hash AND the derived attestation key, so the\nrunner must re-attest with the new token before its claims verify again.\nThere is no overlap window: a leaked token is worthless the moment the\nadmin rotates, and a runner holding work keeps its lease until expiry.",
+    "operationId": "rotate_runner_api_v1_team_runners__runner_id__rotate_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runner_id",
+      "required": true,
+      "schema": {
+       "title": "Runner Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Rotate Runner Api V1 Team Runners  Runner Id  Rotate Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Rotate Runner"
+   }
+  },
   "/api/v1/teams/{team_id}/invites": {
    "get": {
     "description": "M14-F2a \u2014 full invite lifecycle list for the admin UI.\n\nEvery status is returned (draft/sent/redeemed/expired/revoked derived per\ninvite via _invite_status); ``?status=<s>`` narrows to one bucket. The old\npending-only behavior stays available as ``?status=sent``.\n\nAdmin-only: any other caller (foreign OR in-team non-admin) gets 404/403\nwithout leaking whether any invites exist (enumeration guard, M13-G5a).",
@@ -7991,6 +9263,140 @@
      }
     },
     "summary": "Change Member Role"
+   }
+  },
+  "/api/v1/teams/{team_id}/scim/tokens": {
+   "get": {
+    "description": "List the team's SCIM tokens \u2014 hints only, no credential material.",
+    "operationId": "list_scim_tokens_api_v1_teams__team_id__scim_tokens_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Scim Tokens Api V1 Teams  Team Id  Scim Tokens Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Scim Tokens"
+   },
+   "post": {
+    "description": "Mint a SCIM bearer token (admin + Team tier). The raw token is returned\nexactly once; only its SHA-256 is stored.",
+    "operationId": "create_scim_token_api_v1_teams__team_id__scim_tokens_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TokenBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Scim Token Api V1 Teams  Team Id  Scim Tokens Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Scim Token"
+   }
+  },
+  "/api/v1/teams/{team_id}/scim/tokens/{token_id}": {
+   "delete": {
+    "description": "Revoke a SCIM token. Idempotent: an already-revoked or unknown id answers\n204 and writes nothing, exactly like the runner revoke.",
+    "operationId": "revoke_scim_token_api_v1_teams__team_id__scim_tokens__token_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "token_id",
+      "required": true,
+      "schema": {
+       "title": "Token Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Revoke Scim Token"
    }
   },
   "/api/v1/teams/{team_id}/seats/agent": {
@@ -8363,6 +9769,129 @@
     "summary": "Rotate Secret"
    }
   },
+  "/api/v1/teams/{team_id}/settings/model-routing": {
+   "delete": {
+    "description": "Disable routing by removing the document. Idempotent.",
+    "operationId": "delete_model_routing_api_v1_teams__team_id__settings_model_routing_delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Model Routing"
+   },
+   "get": {
+    "description": "Read the team's routing policy (absent = disabled defaults).",
+    "operationId": "get_model_routing_api_v1_teams__team_id__settings_model_routing_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Model Routing Api V1 Teams  Team Id  Settings Model Routing Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Model Routing"
+   },
+   "put": {
+    "description": "Upsert the routing policy (admin-only). Validation precedes any write.",
+    "operationId": "put_model_routing_api_v1_teams__team_id__settings_model_routing_put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RoutingBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Put Model Routing Api V1 Teams  Team Id  Settings Model Routing Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put Model Routing"
+   }
+  },
   "/api/v1/teams/{team_id}/settings/reviewer-thresholds": {
    "delete": {
     "description": "Reset to defaults by removing the stored document. Idempotent.",
@@ -8484,6 +10013,534 @@
      }
     },
     "summary": "Put Reviewer Thresholds"
+   }
+  },
+  "/api/v1/teams/{team_id}/siem/sinks": {
+   "get": {
+    "description": "List the team's collectors with their lag, so a stalled SIEM is visible.",
+    "operationId": "list_sinks_api_v1_teams__team_id__siem_sinks_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Sinks Api V1 Teams  Team Id  Siem Sinks Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Sinks"
+   },
+   "post": {
+    "description": "Register a collector endpoint (admin + Team tier). The shared secret is\nstored encrypted and never returned again.",
+    "operationId": "create_sink_api_v1_teams__team_id__siem_sinks_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SinkCreateBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Sink Api V1 Teams  Team Id  Siem Sinks Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Sink"
+   }
+  },
+  "/api/v1/teams/{team_id}/siem/sinks/{sink_id}": {
+   "delete": {
+    "description": "Remove a collector. Idempotent 204, like the other integration deletes.",
+    "operationId": "delete_sink_api_v1_teams__team_id__siem_sinks__sink_id__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "sink_id",
+      "required": true,
+      "schema": {
+       "title": "Sink Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Delete Sink"
+   },
+   "get": {
+    "operationId": "get_sink_api_v1_teams__team_id__siem_sinks__sink_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "sink_id",
+      "required": true,
+      "schema": {
+       "title": "Sink Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get Sink Api V1 Teams  Team Id  Siem Sinks  Sink Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Sink"
+   },
+   "patch": {
+    "description": "Change a collector's settings. `expectedVersion` is required: a cursor or\nendpoint changed by a stale UI click would silently re-point live evidence.",
+    "operationId": "patch_sink_api_v1_teams__team_id__siem_sinks__sink_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "sink_id",
+      "required": true,
+      "schema": {
+       "title": "Sink Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SinkPatchBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Patch Sink Api V1 Teams  Team Id  Siem Sinks  Sink Id  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Patch Sink"
+   }
+  },
+  "/api/v1/teams/{team_id}/skills": {
+   "get": {
+    "description": "Every skill of the caller's own team, including drafts and disabled.",
+    "operationId": "list_skills_api_v1_teams__team_id__skills_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Skills Api V1 Teams  Team Id  Skills Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Skills"
+   },
+   "post": {
+    "description": "Author a draft. A draft is visible to the team but never injectable.",
+    "operationId": "create_skill_api_v1_teams__team_id__skills_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SkillBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Create Skill Api V1 Teams  Team Id  Skills Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Create Skill"
+   }
+  },
+  "/api/v1/teams/{team_id}/skills/{name}": {
+   "delete": {
+    "description": "Delete a skill entirely. Idempotent: removing what is absent is 204.",
+    "operationId": "remove_skill_api_v1_teams__team_id__skills__name__delete",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "name",
+      "required": true,
+      "schema": {
+       "title": "Name",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Remove Skill"
+   }
+  },
+  "/api/v1/teams/{team_id}/skills/{name}/disable": {
+   "post": {
+    "description": "Switch a reviewed skill off. It stays reviewed; the pin is untouched.",
+    "operationId": "disable_skill_api_v1_teams__team_id__skills__name__disable_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "name",
+      "required": true,
+      "schema": {
+       "title": "Name",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Disable Skill Api V1 Teams  Team Id  Skills  Name  Disable Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Disable Skill"
+   }
+  },
+  "/api/v1/teams/{team_id}/skills/{name}/enable": {
+   "post": {
+    "description": "Switch a reviewed skill back on. Non-reviewed skills cannot be enabled.",
+    "operationId": "enable_skill_api_v1_teams__team_id__skills__name__enable_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "name",
+      "required": true,
+      "schema": {
+       "title": "Name",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Enable Skill Api V1 Teams  Team Id  Skills  Name  Enable Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Enable Skill"
+   }
+  },
+  "/api/v1/teams/{team_id}/skills/{name}/review": {
+   "post": {
+    "description": "Pin the digest of the current content and make the skill injectable.",
+    "operationId": "review_skill_api_v1_teams__team_id__skills__name__review_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "team_id",
+      "required": true,
+      "schema": {
+       "title": "Team Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "name",
+      "required": true,
+      "schema": {
+       "title": "Name",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Review Skill Api V1 Teams  Team Id  Skills  Name  Review Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Skill"
    }
   },
   "/api/v1/teams/{team_id}/sso/config": {
@@ -9966,6 +12023,220 @@
      }
     },
     "summary": "Ready"
+   }
+  },
+  "/scim/v2/Users": {
+   "get": {
+    "description": "SCIM list, bounded, filtered only by the equality forms connectors send.",
+    "operationId": "list_users_scim_v2_Users_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "filter",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Filter"
+      }
+     },
+     {
+      "in": "query",
+      "name": "startIndex",
+      "required": false,
+      "schema": {
+       "default": 1,
+       "minimum": 1,
+       "title": "Startindex",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "query",
+      "name": "count",
+      "required": false,
+      "schema": {
+       "default": 100,
+       "maximum": 200,
+       "minimum": 1,
+       "title": "Count",
+       "type": "integer"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response List Users Scim V2 Users Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "List Users"
+   }
+  },
+  "/scim/v2/Users/{user_id}": {
+   "get": {
+    "description": "Read one seat. A member of another team answers exactly what no member\nanswers \u2014 this surface must not confirm that an id exists elsewhere.",
+    "operationId": "get_user_scim_v2_Users__user_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Get User Scim V2 Users  User Id  Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get User"
+   },
+   "patch": {
+    "description": "PATCH \u2014 the verb every deprovisioning connector actually sends.",
+    "operationId": "patch_user_scim_v2_Users__user_id__patch",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/harness_identity__scim__PatchBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Patch User Scim V2 Users  User Id  Patch",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Patch User"
+   },
+   "put": {
+    "description": "PUT \u2014 replace the attributes this service models.\n\nA full replace means `userName` must be present (SCIM requires it of a User)\nand an omitted `active` means true. An omitted `externalId` leaves the\nexisting directory link in place rather than guessing that absent meant\ndelete \u2014 clearing it takes `\"externalId\": null`. Fields we do not model\n(name, emails,\ngroups) are accepted and IGNORED: they are not stored anywhere, so a\nconnector that sends them gets a resource back without them rather than an\nerror about a field this service never had.",
+    "operationId": "put_user_scim_v2_Users__user_id__put",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "user_id",
+      "required": true,
+      "schema": {
+       "title": "User Id",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PutBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Put User Scim V2 Users  User Id  Put",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Put User"
    }
   }
  }

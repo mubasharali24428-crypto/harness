@@ -16,7 +16,7 @@
 /** Extraction of section7/src/lib/backoff.ts constants (H-012). */
 export declare const BACKOFF_BASE_MS = 1000;
 export declare const BACKOFF_CAP_MS = 30000;
-export declare const SDK_USER_AGENT = "harness-ts-sdk/0.1.0";
+export declare const SDK_USER_AGENT = "harness-ts-sdk/1.0.0rc1";
 /** Section service name -> default local port (deploy/docker-compose.yml). */
 export declare const SERVICE_PORTS: Record<string, number>;
 /** Default base URL for a section: HARNESS_<NAME>_URL env var, else

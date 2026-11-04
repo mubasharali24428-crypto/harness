@@ -7,7 +7,15 @@ from datetime import UTC, datetime
 from typing import Annotated, Any
 
 import harness_contracts as contracts
-from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Request,
+    Response,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from harness_contracts import Principal as ContractsPrincipal
 from harness_contracts import Role, error_body
 from harness_contracts.policy_enforce import socket_decision
@@ -17,6 +25,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from . import domain_metrics, realtime_metrics
 from .audit import register_append_only_guard
+from .audit_chain import verify_window
+from .audit_rows import read_audit_page
 from .auth import get_principal, hash_token, issue_otp, login_or_register, verify_otp
 from .config import Settings
 from .crypto import KeyVault
@@ -47,7 +57,7 @@ from .limits import (
     PROJECT_REPO_FULL_NAME_MAX,
     WS_TICKET_PROJECT_ID_MAX,
 )
-from .models import AuthSession, TeamMember
+from .models import AuthSession, TeamMember, User
 from .models import Role as DbRole
 from .ratelimit import effective_client_ip
 from .webhooks import router as webhooks_router
@@ -239,6 +249,23 @@ def make_app(session_factory, settings: Settings):
 
     app.include_router(sso_router)
 
+    # Marathon 2.0 W16 slice 3: SCIM 2.0 subset. Two mounts, because the protocol
+    # path is not ours to rename — `router` is the admin-facing token CRUD under
+    # /api/v1, `scim_router` is the RFC-pinned /scim/v2 surface an external IdP
+    # calls (deploy/Caddyfile routes it to this service).
+    from .scim import router as scim_router
+    from .scim import scim_router as scim_protocol_router
+
+    app.include_router(scim_router)
+    app.include_router(scim_protocol_router)
+
+    # Marathon 2.0 W16 slice 4: SIEM sinks. The API is admin-only configuration;
+    # the delivery step itself runs in the `siem-push` worker, which imports the
+    # same module rather than a second copy of the batching rules.
+    from .siem_sink import router as siem_router
+
+    app.include_router(siem_router)
+
     # Mission12-E3a merge wiring: roster removal/role-change (W2-C1 server).
     from .teams_api import router as teams_api_router
 
@@ -249,6 +276,21 @@ def make_app(session_factory, settings: Settings):
     from .rules_api import router as rules_router
 
     app.include_router(rules_router)
+
+    # Marathon 2.0 W12: governed team skill catalog (migration 0066) and
+    # project-scoped memory (0067) — both advisory prompt blocks via S4 loaders.
+    from .memory_api import router as memory_router
+    from .skills_api import router as skills_router
+
+    app.include_router(skills_router)
+    app.include_router(memory_router)
+
+    # Marathon 2.0 W13: bring-your-own runner control plane (migration 0068).
+    # Admin registration/revocation/assignment; token-authenticated runner
+    # heartbeat, job claim, lease heartbeat and finish with nonce replay proof.
+    from .runner_api import router as runner_router
+
+    app.include_router(runner_router)
 
     # M15-G6b: per-team settings CRUD (reviewer thresholds, admin-gated).
     from .settings_api import router as settings_api_router
@@ -329,6 +371,15 @@ async def _principal_from_token(
             )
         ).scalar_one_or_none()
         if member is None:
+            return None
+        account = (
+            await db.execute(select(User).where(User.id == row.user_id))
+        ).scalar_one_or_none()
+        if account is None or not account.is_active:
+            # W16: the socket is a fourth door, and it obeys the same rule as
+            # `get_principal` and the shared bearer dependency — the seat decides,
+            # not the session row. A deactivated user must not keep streaming a
+            # project's events on a connection minted while they still had one.
             return None
         return ContractsPrincipal(
             userId=row.user_id, teamId=row.team_id, role=DbRole(member.role)
@@ -707,11 +758,18 @@ async def list_audit(
 EXPORT_PAGE_MAX = 1000
 EXPORT_PAGE_DEFAULT = 200
 EXPORT_STREAMS = ("audit", "collab")
+# W16 slice 4: `ndjson` exists for machines that append lines to a log store.
+EXPORT_FORMATS = ("json", "ndjson")
+NDJSON_MEDIA = "application/x-ndjson"
 
-_AUDIT_TEAM_SCOPE = (
-    "(actor_member_id IN (SELECT id FROM team_members WHERE team_id = :team)"
-    " OR (actor_member_id IS NULL AND CAST(detail AS TEXT) LIKE '%' || :needle || '%'))"
-)
+# W16 slice 4: the customer-facing chain check. Bounded because the response
+# carries a per-row verdict — an unbounded window would be a way to pull the
+# whole trail out through an integrity endpoint.
+VERIFY_ROWS_MAX = 1000
+VERIFY_ROWS_DEFAULT = 500
+
+# The team-scope SQL rule lives in audit_rows.py (W16 slice 4): the export
+# endpoint and the SIEM push must not carry two copies of it.
 
 
 def _as_dict(value: Any) -> dict:
@@ -731,16 +789,28 @@ async def export_audit(
     afterSeq: int = 0,
     limit: int = EXPORT_PAGE_DEFAULT,
     runId: str = "",
-) -> dict:
+    format: str = "json",
+) -> dict:  # an ndjson request returns a Response; FastAPI passes it through
+    
     """Admin-only evidence export for the CALLER's team (there is no team parameter, so a
     foreign team's rows can never be requested). ``stream=audit`` is the security audit
     log; ``stream=collab`` is the product event history of shared runs (optionally one
     ``runId``). Ascending by ``seq`` from ``afterSeq``; at most EXPORT_PAGE_MAX rows per
-    call; follow ``nextCursor`` while ``hasMore``. Each export is itself audited."""
+    call; follow ``nextCursor`` while ``hasMore``. Each export is itself audited.
+
+    ``format=ndjson`` streams the same rows one JSON object per line for a SIEM
+    collector that appends lines. A stream of lines has no place to put a cursor, so
+    ``X-Harness-Next-Cursor`` / ``X-Harness-More`` carry it; the rows themselves are
+    byte-identical to the JSON body's `items` entries, chain fields included."""
     if principal.role != Role.ADMIN:
         raise HTTPException(status_code=403, detail="admin only")
     if stream not in EXPORT_STREAMS:
         raise HTTPException(status_code=422, detail=f"stream must be one of {EXPORT_STREAMS}")
+    if format not in EXPORT_FORMATS:
+        raise HTTPException(
+            status_code=422,
+            detail=error_body("VALIDATION_ERROR", f"format must be one of {EXPORT_FORMATS}"),
+        )
     limit = max(1, min(int(limit), EXPORT_PAGE_MAX))
     after = max(0, int(afterSeq))
     factory = request.app.state.session_factory
@@ -750,42 +820,13 @@ async def export_audit(
 
         await require_team_stepup(db, request, principal, principal.teamId, "export")
         if stream == "audit":
-            rows = (
-                (
-                    await db.execute(
-                        text(
-                            "SELECT seq, actor_member_id, actor_kind, action, target_type,"
-                            " target_id, detail, ts, chain_pos, prev_hash, row_hash"
-                            f" FROM audit_log WHERE seq > :after AND {_AUDIT_TEAM_SCOPE}"
-                            " ORDER BY seq ASC LIMIT :n"
-                        ),
-                        {
-                            "after": after,
-                            "team": principal.teamId,
-                            "needle": f'"teamId": "{principal.teamId}"',
-                            "n": limit + 1,
-                        },
-                    )
-                )
-                .mappings()
-                .all()
+            # W16 slice 4: the reader moved to audit_rows.py because the SIEM
+            # pusher must hand a collector EXACTLY what an auditor exports. Two
+            # copies of a team-scoping rule eventually disagree, and the
+            # disagreement is invisible from the receiving side.
+            items, has_more = await read_audit_page(
+                db, principal.teamId, after_seq=after, limit=limit
             )
-            items = [
-                {
-                    "seq": r["seq"],
-                    "actorMemberId": r["actor_member_id"],
-                    "actorKind": r["actor_kind"],
-                    "action": r["action"],
-                    "targetType": r["target_type"],
-                    "targetId": r["target_id"],
-                    "detail": _as_dict(r["detail"]),
-                    "ts": str(r["ts"]) if r["ts"] is not None else None,
-                    "chainPos": r["chain_pos"],
-                    "prevHash": r["prev_hash"],
-                    "rowHash": r["row_hash"],
-                }
-                for r in rows[:limit]
-            ]
         else:
             try:
                 rows = (
@@ -820,8 +861,19 @@ async def export_audit(
                 }
                 for r in rows[:limit]
             ]
-        has_more = len(rows) > limit
+            has_more = len(rows) > limit
     await _audit_export_access(request, principal, stream, after, len(items))
+    if format == "ndjson":
+        cursor = items[-1]["seq"] if items else after
+        body = "".join(json.dumps(item, separators=(",", ":")) + "\n" for item in items)
+        return Response(
+            content=body,
+            media_type=NDJSON_MEDIA,
+            headers={
+                "X-Harness-Next-Cursor": str(cursor),
+                "X-Harness-More": "true" if has_more else "false",
+            },
+        )
     return {
         "stream": stream,
         "items": items,
@@ -829,6 +881,97 @@ async def export_audit(
         "hasMore": has_more,
         "nextCursor": items[-1]["seq"] if items else after,
     }
+
+
+class AuditVerifyRequest(BaseModel):
+    afterChainPos: int = Field(default=0, ge=0)
+    maxRows: int = Field(default=VERIFY_ROWS_DEFAULT, ge=1, le=VERIFY_ROWS_MAX)
+
+
+@router.post("/audit/verify")
+async def verify_audit(
+    body: AuditVerifyRequest,
+    request: Request,
+    principal: Annotated[object, Depends(get_principal)],
+) -> dict:
+    """W16 slice 4: verify the hash chain over a window of the trail, so a
+    customer holding an export can be told — row by row — whether it is still
+    what the database sealed. Admin only, like every other evidence door.
+
+    The verdict can only come from re-deriving the hashes with the same trigger
+    function the chain was sealed by. That function is PostgreSQL-only; on a lane
+    without it the endpoint refuses (503) rather than reporting a check it did not
+    perform, because ``ok: true`` from a code path that verified nothing is the
+    most dangerous answer this endpoint could give.
+    """
+    if principal.role != Role.ADMIN:
+        raise HTTPException(
+            status_code=403, detail=error_body("FORBIDDEN", "admin only")
+        )
+    async with request.app.state.session_factory() as db:
+        have_chain = db.bind is not None and db.bind.dialect.name == "postgresql"
+        verdict = None
+        if have_chain:
+            try:
+                verdict = await verify_window(
+                    db, after_chain_pos=body.afterChainPos, max_rows=body.maxRows
+                )
+            except Exception:  # noqa: BLE001 - no chain functions => no verdict
+                logger.warning("audit chain verification unavailable", exc_info=True)
+        if verdict is None:
+            # Asked and answered: the question is recorded even when the engine
+            # cannot answer it, so an admin probing the trail's integrity is
+            # traceable either way.
+            await _audit_verify_access(
+                request, principal, body, rows_checked=0, ok=False, checked=False
+            )
+            raise HTTPException(
+                status_code=503,
+                detail=error_body(
+                    "AUDIT_CHAIN_UNAVAILABLE",
+                    "chain verification needs the deployment's PostgreSQL database",
+                ),
+            )
+    verdict["verifiedAt"] = datetime.now(UTC).isoformat()
+    await _audit_verify_access(
+        request,
+        principal,
+        body,
+        rows_checked=verdict["rowsChecked"],
+        ok=verdict["ok"],
+        checked=True,
+    )
+    return verdict
+
+
+async def _audit_verify_access(
+    request: Request,
+    principal,
+    body: "AuditVerifyRequest",
+    *,
+    rows_checked: int,
+    ok: bool,
+    checked: bool,
+) -> None:
+    """Asking whether the evidence was tampered with is a consequential read."""
+    from .audit_emit import emit_audit_verified
+
+    try:
+        async with request.app.state.session_factory() as db:
+            await emit_audit_verified(
+                db,
+                actor_user_id=principal.userId,
+                team_id=principal.teamId,
+                detail={
+                    "afterChainPos": body.afterChainPos,
+                    "maxRows": body.maxRows,
+                    "rowsChecked": rows_checked,
+                    "ok": ok,
+                    "performed": checked,
+                },
+            )
+    except Exception:  # noqa: BLE001 - never fail the verdict on the audit write
+        logger.warning("audit verification access row not written", exc_info=True)
 
 
 async def _audit_export_access(
@@ -1104,6 +1247,9 @@ async def project_ws(
         for envelope in page.envelopes:
             await guard.send(envelope.model_dump(), throttle=False)
             last_seq = max(last_seq, envelope.seq)
+            lag = _lag_seconds(envelope.ts)
+            if lag is not None:
+                realtime_metrics.observe_replay_age(lag)
         domain_metrics.inc("replayed", len(page.envelopes))
         if int(afterSeq) > 0:
             realtime_metrics.inc(
@@ -1239,6 +1385,9 @@ async def run_collab_ws(
         for frame in page.frames:
             await guard.send(frame, throttle=False)
             last_seq = max(last_seq, frame["seq"])
+            lag = _lag_seconds(frame["ts"])
+            if lag is not None:
+                realtime_metrics.observe_replay_age(lag)
         domain_metrics.inc("replayed", len(page.frames))
         if start > 0:
             realtime_metrics.inc(
@@ -1336,10 +1485,22 @@ async def replay_events(
     request: Request,
     after_seq: int = 0,
     limit: int = 0,
+    before_seq: int = 0,
     principal: Annotated[object, Depends(get_principal)] = None,
 ) -> dict:
     await _require_project_access(request.app.state.session_factory, principal, project_id)
     bus: EventBus = request.app.state.event_bus
+    if before_seq > 0:
+        # W22 backfill: the default page keeps the NEWEST events of the gap, so a client
+        # paging a truncated gap (after_seq, oldestSeqSent) never reaches its start.
+        # Bounded pages go oldest-first; an empty page means the range is complete.
+        items = [
+            e for e in await bus.replay(project_id, after_seq, limit or 500) if e.seq < before_seq
+        ]
+        return {
+            "items": [e.model_dump() for e in items],
+            "nextCursor": items[-1].seq if items else after_seq,
+        }
     page = await bus.replay_page(project_id, after_seq, limit or 500)
     return {
         "items": [e.model_dump() for e in page.envelopes],

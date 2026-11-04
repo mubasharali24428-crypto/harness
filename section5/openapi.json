@@ -65,6 +65,63 @@
     "title": "CreateTaskRequest",
     "type": "object"
    },
+   "Diagnostic": {
+    "description": "One diagnostic record \u2014 the Hermes ``--json`` field set, verbatim.",
+    "properties": {
+     "col": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Col"
+     },
+     "kind": {
+      "default": "error",
+      "enum": [
+       "error",
+       "warning",
+       "note"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "line": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Line"
+     },
+     "message": {
+      "title": "Message",
+      "type": "string"
+     },
+     "path": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Path"
+     }
+    },
+    "required": [
+     "message"
+    ],
+    "title": "Diagnostic",
+    "type": "object"
+   },
    "ExecCommandRequest": {
     "properties": {
      "command": {
@@ -135,10 +192,26 @@
      "diagnostics": {
       "default": [],
       "items": {
-       "type": "string"
+       "$ref": "#/components/schemas/Diagnostic"
       },
       "title": "Diagnostics",
       "type": "array"
+     },
+     "diagnostics_source": {
+      "default": "none",
+      "enum": [
+       "protocol",
+       "located",
+       "scan",
+       "none"
+      ],
+      "title": "Diagnostics Source",
+      "type": "string"
+     },
+     "diagnostics_truncated": {
+      "default": false,
+      "title": "Diagnostics Truncated",
+      "type": "boolean"
      },
      "duration_ms": {
       "default": 0,

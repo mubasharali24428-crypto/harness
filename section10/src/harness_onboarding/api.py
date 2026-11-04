@@ -7,6 +7,7 @@ Follows contracts/api-conventions.md: camelCase JSON bodies, error bodies shaped
 import httpx
 from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from harness_contracts.http_client import env_client
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -135,7 +136,7 @@ async def get_checklist(request: Request) -> dict:
 async def get_state(request: Request) -> dict:
     settings: Settings = request.app.state.settings
     services = []
-    async with httpx.AsyncClient(timeout=settings.probe_timeout_seconds) as client:
+    async with env_client(timeout=settings.probe_timeout_seconds) as client:
         for key, (name, url_field, health_path) in SERVICE_PROBES.items():
             if url_field is None:
                 services.append({"key": key, "name": name, "url": "self", "available": True})

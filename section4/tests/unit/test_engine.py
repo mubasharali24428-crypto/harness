@@ -25,7 +25,10 @@ def test_stub_mode_is_honest_not_faked():
     assert out["engine"] == "stub"
 
 
-def test_injected_backend_still_works():
+def test_injected_backend_still_works(monkeypatch):
+    # N02 repo-context appends the workspace baseline to the goal on every path;
+    # these assertions pin goal pass-through, so use the designed kill-switch.
+    monkeypatch.setenv("HARNESS_REPO_CONTEXT", "0")
     w = DeepSeekHarnessWrapper(backend_runner=lambda g: f"ran:{g}")
     out = w.execute_goal("x")
     assert out["status"] == "completed" and out["finalResponse"] == "ran:x"
@@ -300,7 +303,9 @@ def test_provision_workspace_empty_then_seeded_and_resume_keeps_edits(tmp_path, 
 
     monkeypatch.setenv("HARNESS_WORKSPACE_SEED", str(seed))
     ws = Path(w.provision_workspace("r-seeded"))
-    assert (ws / "src" / "a.py").read_text() == "one" and not (ws / ".git").exists()
+    assert (ws / "src" / "a.py").read_text() == "one"
+    # W1: .git is copied with the seed — checkpoints and diffs need real history.
+    assert (ws / ".git" / "config").read_text() == "x"
     (ws / "src" / "a.py").write_text("edited")
     assert w.provision_workspace("r-seeded") == str(ws)  # resume does not re-seed
     assert (ws / "src" / "a.py").read_text() == "edited"
@@ -308,3 +313,86 @@ def test_provision_workspace_empty_then_seeded_and_resume_keeps_edits(tmp_path, 
     monkeypatch.setenv("HARNESS_WORKSPACE_SEED", str(tmp_path / "missing"))
     with pytest.raises(ValueError, match="not a directory"):
         w.provision_workspace("r-bad")
+
+
+def test_per_run_model_override_wins_over_the_configured_default(monkeypatch):
+    """A team's saved model reaches the SDK call; the default stays intact."""
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
+    monkeypatch.setenv("DEEPSEEK_BASE_URL", "http://localhost:11434/v1")
+    monkeypatch.setenv("DSH_MODEL", "deployment-default")
+    w = DeepSeekHarnessWrapper(live_mode="live")
+    seen: list[str] = []
+
+    def fake_live(goal, session_id, model):  # noqa: ARG001
+        seen.append(model)
+        return "ok", "completed", model, []
+
+    monkeypatch.setattr(w, "_run_live_events", fake_live)
+    w.execute_goal("goal", "s1", model="team-choice")
+    w.execute_goal("goal", "s2")
+    assert seen == ["team-choice", "deployment-default"]
+
+
+def test_output_ceiling_is_the_operators_choice_not_a_hardcoded_4096(monkeypatch):
+    """W1: max_tokens=4096 was hardcoded, silently truncating long answers."""
+    from harness_orchestrator.engine import _sdk_max_tokens
+
+    monkeypatch.delenv("HARNESS_SDK_MAX_TOKENS", raising=False)
+    assert _sdk_max_tokens() is None  # unset = let the provider decide
+
+    monkeypatch.setenv("HARNESS_SDK_MAX_TOKENS", "8192")
+    assert _sdk_max_tokens() == 8192
+
+    monkeypatch.setenv("HARNESS_SDK_MAX_TOKENS", "  ")
+    assert _sdk_max_tokens() is None
+
+    for bad in ("lots", "0", "-5"):
+        monkeypatch.setenv("HARNESS_SDK_MAX_TOKENS", bad)
+        with pytest.raises(ValueError, match="HARNESS_SDK_MAX_TOKENS"):
+            _sdk_max_tokens()
+
+
+def test_seeded_history_keeps_commits_and_drops_executable_or_escaping_git_state(
+    tmp_path, monkeypatch
+):
+    """M05: a seed's .git travels with history only — no hooks that would run on
+    our checkpoint commits, no credential-bearing config, no gitdir escape."""
+    seed = tmp_path / "seed"
+    (seed / ".git" / "objects").mkdir(parents=True)
+    (seed / ".git" / "refs" / "heads").mkdir(parents=True)
+    (seed / ".git" / "hooks").mkdir()
+    (seed / ".git" / "hooks" / "pre-commit").write_text("#!/bin/sh\nexfiltrate\n")
+    (seed / ".git" / "worktrees" / "wt").mkdir(parents=True)
+    (seed / ".git" / "config").write_text(
+        "[core]\n\trepositoryformatversion = 0\n"
+        "[credential]\n\thelper = osxkeychain\n"
+        "[http]\n\textraheader = AUTHORIZATION: Bearer sk-secret\n"
+        "[remote \"origin\"]\n\turl = https://user:token@example.com/repo.git\n"
+        "[branch \"main\"]\n\tremote = origin\n",
+        encoding="utf-8",
+    )
+    (seed / "app.py").write_text("print(1)")
+
+    monkeypatch.setenv("HARNESS_WORKSPACE_SEED", str(seed))
+    wrapper = DeepSeekHarnessWrapper(workspace_dir=str(tmp_path / "ws"))
+    ws = Path(wrapper.provision_workspace("run-seed"))
+
+    assert (ws / ".git" / "objects").is_dir() and (ws / ".git" / "refs" / "heads").is_dir()
+    assert not (ws / ".git" / "hooks").exists()
+    assert not (ws / ".git" / "worktrees").exists()
+    config = (ws / ".git" / "config").read_text()
+    assert "repositoryformatversion" in config and "branch" in config
+    for banned in ("helper", "extraheader", "sk-secret", "token@"):
+        assert banned not in config
+
+
+def test_a_gitdir_pointer_file_is_never_followed(tmp_path, monkeypatch):
+    seed = tmp_path / "seed"
+    seed.mkdir()
+    (seed / ".git").write_text("gitdir: /somewhere/else/.git\n")
+    (seed / "a.txt").write_text("x")
+    monkeypatch.setenv("HARNESS_WORKSPACE_SEED", str(seed))
+    wrapper = DeepSeekHarnessWrapper(workspace_dir=str(tmp_path / "ws"))
+    ws = Path(wrapper.provision_workspace("run-pointer"))
+    assert not (ws / ".git").exists()
+    assert (ws / "a.txt").read_text() == "x"

@@ -1,0 +1,78 @@
+{
+  "runId": "w22-restart-ca994dc2d2dd",
+  "verdict": "PASS",
+  "images": {
+    "harness-orchestrator-1": "harness-backend:vw23f24 sha256:5366d3de4670da431a22d56e302a5cd4acc0c87266e05bf5c2a6113f193779d0",
+    "harness-identity-1": "harness-backend:vw23f24 sha256:5366d3de4670da431a22d56e302a5cd4acc0c87266e05bf5c2a6113f193779d0"
+  },
+  "childObserved": true,
+  "stopStatus": 200,
+  "beforeRestart": {
+    "state": "done",
+    "lifecycle": {
+      "phase": "stopped",
+      "cancelRequested": true,
+      "cancelConfirmed": true,
+      "mutationPossible": false,
+      "userStatus": "finished"
+    },
+    "restEvents": [
+      "214564:plan_proposed",
+      "214565:plan_approved",
+      "214566:execution_started",
+      "214567:model_routed",
+      "214568:tool_call",
+      "214569:paused"
+    ],
+    "wsSeqs": [
+      214564,
+      214565,
+      214566,
+      214567,
+      214568,
+      214569
+    ],
+    "claim": "",
+    "containers": {}
+  },
+  "healthyAfterRestart": true,
+  "restartSeconds": 7.8,
+  "afterRestart": {
+    "state": "done",
+    "lifecycle": {
+      "phase": "stopped",
+      "cancelRequested": true,
+      "cancelConfirmed": true,
+      "mutationPossible": false,
+      "userStatus": "finished"
+    },
+    "restEvents": [
+      "214564:plan_proposed",
+      "214565:plan_approved",
+      "214566:execution_started",
+      "214567:model_routed",
+      "214568:tool_call",
+      "214569:paused"
+    ],
+    "wsSeqs": [
+      214564,
+      214565,
+      214566,
+      214567,
+      214568,
+      214569
+    ],
+    "claim": "",
+    "containers": {}
+  },
+  "checks": {
+    "stoppedBefore": true,
+    "lifecycleSame": true,
+    "stateSame": true,
+    "restEventsSame": true,
+    "wsMatchesRest": true,
+    "noNewEvents": true,
+    "noWorkerOrRelay": true,
+    "noClaim": true
+  }
+}

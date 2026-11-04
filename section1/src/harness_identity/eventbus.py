@@ -253,6 +253,10 @@ class EventBus:
         session_factory: async_sessionmaker[AsyncSession],
         subscriber_queue_maxsize: int = 1000,
     ) -> None:
+        # asyncio treats zero or negative maxsize as unbounded. A misconfigured
+        # subscriber must not silently remove the slow-consumer memory limit.
+        if subscriber_queue_maxsize <= 0:
+            raise ValueError("subscriber_queue_maxsize must be positive")
         self._sessions = session_factory
         self._queue_maxsize = subscriber_queue_maxsize
         self._subscribers: dict[str, set[asyncio.Queue[EventEnvelope]]] = {}

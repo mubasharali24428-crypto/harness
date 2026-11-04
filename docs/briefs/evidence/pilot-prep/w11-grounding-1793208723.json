@@ -1,0 +1,587 @@
+{
+  "date": "2026-10-28",
+  "week": "W11",
+  "claim": "every model pick is executed and independently judged; misses are recorded as false clicks, AX locates accessible controls, and canvas/div controls are reported as inaccessible rather than counted as success",
+  "model": "qwen/qwen3.7-flash",
+  "runId": "w11ground-1793208723",
+  "drive": "one Chromium session per step in a network-none worker container; one image per model call; verification from the re-rendered page",
+  "coordinateContract": "0..1000 normalized; converted by the harness",
+  "pixelContractProbe": {
+    "asked": {
+      "ok": true,
+      "choice": {
+        "x": 724,
+        "y": 497,
+        "label": "Continue button",
+        "confidence": 1.0
+      },
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": 200,
+          "finish": "length",
+          "content": null,
+          "latencySeconds": 45.3,
+          "costUsd": 0.00040945,
+          "completionTokens": 3001
+        },
+        {
+          "attempt": 2,
+          "status": 200,
+          "finish": "stop",
+          "content": "```json\n{\n    \"x\": 724,\n    \"y\": 497,\n    \"label\": \"Continue button\",\n    \"confidence\": 1.0\n}\n```",
+          "latencySeconds": 19.6,
+          "costUsd": 0.00017753,
+          "completionTokens": 1217
+        }
+      ],
+      "model": "qwen/qwen3.7-flash"
+    },
+    "space": {
+      "space": "unknown",
+      "raw": {
+        "x": 724,
+        "y": 497
+      },
+      "expectedPixels": {
+        "x": 650,
+        "y": 500
+      },
+      "pixelError": 74.1,
+      "normalizedError": 284.3,
+      "tolPixels": 22.1,
+      "tolNormalized": 28.3
+    }
+  },
+  "deterministic": {
+    "axDeleteFolder": {
+      "log": "delete-folder",
+      "clicked": {
+        "action": "clickAx",
+        "ok": true,
+        "target": "button:Delete folder",
+        "ms": 9.2,
+        "x": 543,
+        "y": 137,
+        "backendNodeId": 23,
+        "ariaPressed": null,
+        "stillThere": true
+      }
+    },
+    "canvasByPixels": {
+      "box": {
+        "action": "box",
+        "ok": true,
+        "target": "image:Auto-save switch",
+        "ms": 2.2,
+        "x": 140,
+        "y": 289,
+        "width": 200,
+        "height": 64,
+        "backendNodeId": 25
+      },
+      "log": "auto:on",
+      "pixel": [
+        26,
+        127,
+        55
+      ]
+    },
+    "exportByPixels": {
+      "box": {
+        "action": "box",
+        "ok": true,
+        "target": "StaticText:Export CSV",
+        "ms": 1.9,
+        "x": 98,
+        "y": 356,
+        "width": 85,
+        "height": 18,
+        "backendNodeId": 7
+      },
+      "log": "export"
+    },
+    "falseClickControl": {
+      "instruction": "Delete folder",
+      "clicked": "Delete file",
+      "observedLog": "delete-file",
+      "expectedLog": "delete-folder",
+      "flaggedAsFalseClick": true
+    }
+  },
+  "tasks": [
+    {
+      "task": "easy-target",
+      "viewport": [
+        900,
+        640
+      ],
+      "surface": "dom",
+      "prompt": "Click the Publish release button.",
+      "expectedLog": "publish",
+      "model": {
+        "picked": {
+          "x": 508,
+          "y": 492,
+          "label": "Publish release",
+          "confidence": 0.99
+        },
+        "executed": {
+          "x": 457,
+          "y": 315
+        },
+        "ok": true,
+        "attempts": [
+          {
+            "attempt": 1,
+            "status": 200,
+            "finish": "stop",
+            "content": "```json\n{\n    \"x\": 508,\n    \"y\": 492,\n    \"label\": \"Publish release\",\n    \"confidence\": 0.99\n}\n```",
+            "latencySeconds": 29.4,
+            "costUsd": 0.00028874,
+            "completionTokens": 2063
+          }
+        ],
+        "labelMatched": true
+      },
+      "answered": true,
+      "observedLog": "publish",
+      "canvasPixel": null,
+      "verified": true,
+      "displacement": {
+        "dx": 7,
+        "dy": -5
+      },
+      "truthBox": {
+        "action": "box",
+        "ok": true,
+        "target": "button:Publish release",
+        "ms": 1.1,
+        "x": 450,
+        "y": 320,
+        "width": 288,
+        "height": 118,
+        "backendNodeId": 13
+      },
+      "screenshotAfterWidth": 900,
+      "afterActions": [
+        "navigate",
+        "click",
+        "wait",
+        "inspect",
+        "screenshot"
+      ],
+      "ax": {
+        "node": {
+          "role": "button",
+          "name": "Publish release",
+          "backendNodeId": 13
+        },
+        "truthBoxOk": true,
+        "operateBoxOk": true,
+        "operateBoxError": null,
+        "operateRole": "button"
+      }
+    },
+    {
+      "task": "delete-folder",
+      "viewport": [
+        900,
+        640
+      ],
+      "surface": "dom",
+      "prompt": "Click the button that deletes a FOLDER (not the one that deletes a file). Some controls look alike; use the labels.",
+      "expectedLog": "delete-folder",
+      "model": {
+        "picked": {
+          "x": 675,
+          "y": 328,
+          "label": "Delete folder",
+          "confidence": 1.0
+        },
+        "executed": {
+          "x": 608,
+          "y": 210
+        },
+        "ok": true,
+        "attempts": [
+          {
+            "attempt": 1,
+            "status": 200,
+            "finish": "stop",
+            "content": "```json\n{\"x\": 675, \"y\": 328, \"label\": \"Delete folder\", \"confidence\": 1.0}\n```",
+            "latencySeconds": 25.6,
+            "costUsd": 0.00024566,
+            "completionTokens": 1727
+          }
+        ],
+        "labelMatched": true
+      },
+      "answered": true,
+      "observedLog": "none",
+      "canvasPixel": null,
+      "verified": false,
+      "displacement": {
+        "dx": 65,
+        "dy": 73
+      },
+      "truthBox": {
+        "action": "box",
+        "ok": true,
+        "target": "button:Delete folder",
+        "ms": 1.7,
+        "x": 543,
+        "y": 137,
+        "width": 97.609375,
+        "height": 18,
+        "backendNodeId": 23
+      },
+      "screenshotAfterWidth": 900,
+      "afterActions": [
+        "navigate",
+        "click",
+        "wait",
+        "inspect",
+        "screenshot"
+      ],
+      "ax": {
+        "node": {
+          "role": "button",
+          "name": "Delete folder",
+          "backendNodeId": 23
+        },
+        "truthBoxOk": true,
+        "operateBoxOk": true,
+        "operateBoxError": null,
+        "operateRole": "button"
+      }
+    },
+    {
+      "task": "canvas-switch",
+      "viewport": [
+        900,
+        640
+      ],
+      "surface": "canvas",
+      "prompt": "Click the Auto-save switch to turn it ON.",
+      "expectedLog": "auto:on",
+      "model": {
+        "picked": {
+          "x": 179,
+          "y": 697,
+          "label": "Auto-save switch",
+          "confidence": 0.85
+        },
+        "executed": {
+          "x": 161,
+          "y": 446
+        },
+        "ok": true,
+        "attempts": [
+          {
+            "attempt": 1,
+            "status": 200,
+            "finish": "stop",
+            "content": "```json\n{\n    \"x\": 179,\n    \"y\": 697,\n    \"label\": \"Auto-save switch\",\n    \"confidence\": 0.85\n}\n```",
+            "latencySeconds": 38.1,
+            "costUsd": 0.00033033,
+            "completionTokens": 2382
+          }
+        ],
+        "labelMatched": true
+      },
+      "answered": true,
+      "observedLog": "none",
+      "canvasPixel": [
+        15,
+        17,
+        21
+      ],
+      "verified": false,
+      "displacement": {
+        "dx": 21,
+        "dy": 157
+      },
+      "truthBox": {
+        "action": "box",
+        "ok": true,
+        "target": "image:Auto-save switch",
+        "ms": 1.6,
+        "x": 140,
+        "y": 289,
+        "width": 200,
+        "height": 64,
+        "backendNodeId": 25
+      },
+      "screenshotAfterWidth": 900,
+      "afterActions": [
+        "navigate",
+        "click",
+        "wait",
+        "inspect",
+        "screenshot"
+      ],
+      "ax": {
+        "node": {
+          "role": "image",
+          "name": "Auto-save switch",
+          "backendNodeId": 25
+        },
+        "truthBoxOk": true,
+        "operateBoxOk": false,
+        "operateBoxError": "no AX node with role='button' name='Auto-save switch'",
+        "operateRole": "button"
+      }
+    },
+    {
+      "task": "export-div",
+      "viewport": [
+        900,
+        640
+      ],
+      "surface": "div",
+      "prompt": "Click the Export CSV control.",
+      "expectedLog": "export",
+      "model": {
+        "picked": {
+          "x": 116,
+          "y": 549,
+          "label": "Export CSV",
+          "confidence": 0.95
+        },
+        "executed": {
+          "x": 104,
+          "y": 351
+        },
+        "ok": true,
+        "attempts": [
+          {
+            "attempt": 1,
+            "status": 200,
+            "finish": "stop",
+            "content": "```json\n{\n    \"x\": 116,\n    \"y\": 549,\n    \"label\": \"Export CSV\",\n    \"confidence\": 0.95\n}\n```",
+            "latencySeconds": 33.9,
+            "costUsd": 0.00034165,
+            "completionTokens": 2470
+          }
+        ],
+        "labelMatched": true
+      },
+      "answered": true,
+      "observedLog": "export",
+      "canvasPixel": null,
+      "verified": true,
+      "displacement": {
+        "dx": 6,
+        "dy": -5
+      },
+      "truthBox": {
+        "action": "box",
+        "ok": true,
+        "target": "StaticText:Export CSV",
+        "ms": 1.4,
+        "x": 98,
+        "y": 356,
+        "width": 85,
+        "height": 18,
+        "backendNodeId": 7
+      },
+      "screenshotAfterWidth": 900,
+      "afterActions": [
+        "navigate",
+        "click",
+        "wait",
+        "inspect",
+        "screenshot"
+      ],
+      "ax": {
+        "node": {
+          "role": "StaticText",
+          "name": "Export CSV",
+          "backendNodeId": 7
+        },
+        "truthBoxOk": true,
+        "operateBoxOk": false,
+        "operateBoxError": "no AX node with role='button' name='Export CSV'",
+        "operateRole": "button"
+      }
+    },
+    {
+      "task": "canvas-narrow",
+      "viewport": [
+        480,
+        800
+      ],
+      "surface": "canvas",
+      "prompt": "Click the Auto-save switch to turn it ON.",
+      "expectedLog": "auto:on",
+      "model": {
+        "picked": {},
+        "executed": null,
+        "ok": false,
+        "attempts": [
+          {
+            "attempt": 1,
+            "status": 200,
+            "finish": "length",
+            "content": null,
+            "latencySeconds": 46.2,
+            "costUsd": 0.00040525,
+            "completionTokens": 3001
+          },
+          {
+            "attempt": 2,
+            "status": 200,
+            "finish": "length",
+            "content": null,
+            "latencySeconds": 45.7,
+            "costUsd": 0.00040525,
+            "completionTokens": 3001
+          }
+        ],
+        "labelMatched": false
+      },
+      "answered": false,
+      "observedLog": "none",
+      "canvasPixel": null,
+      "verified": false,
+      "displacement": null,
+      "truthBox": {
+        "action": "box",
+        "ok": true,
+        "target": "image:Auto-save switch",
+        "ms": 1.9,
+        "x": 140,
+        "y": 461,
+        "width": 200,
+        "height": 64,
+        "backendNodeId": 25
+      },
+      "screenshotAfterWidth": 480,
+      "afterActions": [
+        "navigate",
+        "click",
+        "wait",
+        "inspect",
+        "screenshot"
+      ],
+      "ax": {
+        "node": {
+          "role": "image",
+          "name": "Auto-save switch",
+          "backendNodeId": 25
+        },
+        "truthBoxOk": true,
+        "operateBoxOk": false,
+        "operateBoxError": "no AX node with role='button' name='Auto-save switch'",
+        "operateRole": "button"
+      }
+    }
+  ],
+  "unsupportedModel": {
+    "model": "deepseek/deepseek-chat",
+    "product": {
+      "ok": true,
+      "refused": "model deepseek/deepseek-chat is not in HARNESS_VISION_MODELS; goal images were not sent",
+      "attached": 0
+    },
+    "provider": {
+      "status": 404,
+      "accepted": false,
+      "error": "{\"error\":{\"message\":\"No endpoints found that support image input\",\"code\":404,\"metadata\":{\"routing_funnel\":[{\"step\":\"Initial Endpoints\",\"endpoint_count\":3}],\"failed_routing_step\":\"Filter by Image Support\"}}}"
+    }
+  },
+  "modelAccuracy": {
+    "answered": 4,
+    "hits": 2,
+    "total": 5,
+    "ratio": 0.4,
+    "labelsMatched": 4,
+    "misses": [
+      {
+        "task": "delete-folder",
+        "displacement": {
+          "dx": 65,
+          "dy": 73
+        }
+      },
+      {
+        "task": "canvas-switch",
+        "displacement": {
+          "dx": 21,
+          "dy": 157
+        }
+      }
+    ],
+    "noAnswer": [
+      "canvas-narrow"
+    ]
+  },
+  "usage": {
+    "calls": 8,
+    "costUsd": 0.002604
+  },
+  "accessibilityGap": {
+    "canvas": {
+      "axRole": "image",
+      "operableByPixels": true,
+      "operableByAx": false
+    },
+    "exportDiv": {
+      "axNode": {
+        "role": "StaticText",
+        "name": "Export CSV",
+        "backendNodeId": 7
+      },
+      "operableByPixels": true,
+      "operableByAx": false
+    }
+  },
+  "visualPair": {
+    "before": {
+      "status": 201,
+      "id": "203fbc48-46c9-49bb-89d7-61c6370fce79"
+    },
+    "after": {
+      "status": 201,
+      "id": "b6896f42-9e81-4382-9570-1816087803fa",
+      "pairId": "203fbc48-46c9-49bb-89d7-61c6370fce79"
+    },
+    "pairs": 1,
+    "provenance": {
+      "runHeadSha": "cccccccccccccccccccccccccccccccccccccccc",
+      "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "repo": "",
+      "planVersion": 1,
+      "changesDigest": "6327bea2660509cd5e40ab7a2c0d09b54d60b6bffe9f78449bdd0783a9e19c36",
+      "stale": false,
+      "recordedAt": "2026-10-28T17:37:01.790855+00:00"
+    },
+    "afterSha256": "470cbbc81d0498a32fa1b0e5cdfb24105eb1d61746f2195a7f6af9781b86d3f8"
+  },
+  "checks": {
+    "modelAccuracyMeasured": true,
+    "pixelContractProbeRecorded": true,
+    "modelAnsweredMostTasks": true,
+    "picksExecutedAndJudged": true,
+    "noFalseSuccess": true,
+    "missesRecordedAsFalseClicks": true,
+    "noAnswerRecorded": true,
+    "falseClickDetectorWorks": true,
+    "axBaselineLandsFolder": true,
+    "visualOnlyCanvasWorks": true,
+    "visualOnlyExportWorks": true,
+    "axCannotOperateCanvas": true,
+    "axCannotOperateExportDiv": true,
+    "canvasIsAnImageToAx": true,
+    "exportDivIsTextToAx": true,
+    "responsiveViewportHonoured": true,
+    "productRefusesTextOnlyModel": true,
+    "providerRejectsImageForTextOnly": true,
+    "modelCostRecorded": true,
+    "everyActionAudited": true,
+    "visualPairAttached": true,
+    "pairCarriesRevision": true
+  },
+  "verdict": "PASS"
+}

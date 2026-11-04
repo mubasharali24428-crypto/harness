@@ -1,0 +1,110 @@
+{
+  "schema": 1,
+  "kind": "w5-cli-diagnostics",
+  "takenAt": "2026-10-30T09:52:55.993611+00:00",
+  "runId": "w5-cli-1793353973",
+  "model": "none (CLI contract + API read)",
+  "checks": {
+    "notLoggedInExit3": true,
+    "usageExit2": true,
+    "unknownRunExit1": true,
+    "captureMatchesStdout": true,
+    "captureIsOwnerOnly": true,
+    "tokenStoreOwnerOnly": true,
+    "logoutRemovesStore": true,
+    "tokenAbsentFromOutput": true,
+    "realRunReadableExit0": true,
+    "successCaptureMatches": true
+  },
+  "observations": {
+    "notLoggedInExit3": {
+      "ok": true,
+      "detail": {
+        "code": 3,
+        "error": {
+          "code": "NOT_LOGGED_IN",
+          "message": "not logged in; run `harness login --email \u2026` or set HARNESS_TOKEN",
+          "retryable": false
+        }
+      }
+    },
+    "usageExit2": {
+      "ok": true,
+      "detail": {
+        "code": 2,
+        "error": {
+          "code": "USAGE",
+          "message": "invalid command line",
+          "retryable": false
+        }
+      }
+    },
+    "unknownRunExit1": {
+      "ok": true,
+      "detail": {
+        "code": 1,
+        "error": {
+          "code": "NOT_FOUND",
+          "message": "run not found",
+          "retryable": false,
+          "status": 404
+        }
+      }
+    },
+    "captureMatchesStdout": {
+      "ok": true,
+      "detail": {
+        "captured": {
+          "code": "NOT_FOUND",
+          "message": "run not found",
+          "retryable": false,
+          "status": 404
+        },
+        "mode": "0o600"
+      }
+    },
+    "captureIsOwnerOnly": {
+      "ok": true,
+      "detail": {
+        "mode": "0o600"
+      }
+    },
+    "tokenStoreOwnerOnly": {
+      "ok": true,
+      "detail": {
+        "file": "0o600",
+        "dir": "0o700"
+      }
+    },
+    "logoutRemovesStore": {
+      "ok": true,
+      "detail": {
+        "code": 0
+      }
+    },
+    "tokenAbsentFromOutput": {
+      "ok": true,
+      "detail": {
+        "checkedBytes": 725
+      }
+    },
+    "realRunReadableExit0": {
+      "ok": true,
+      "detail": {
+        "project": 201,
+        "plan": 201,
+        "code": 0,
+        "state": "awaiting_plan_approval",
+        "stderr": "30: RuntimeWarning: 'harness_sdk.cli.main' found in sys.modules after import of package 'harness_sdk.cli', but prior to execution of 'harness_sdk.cli.main'; this may result in unpredictable behaviour\n"
+      }
+    },
+    "successCaptureMatches": {
+      "ok": true,
+      "detail": {
+        "exists": true
+      }
+    }
+  },
+  "verdict": "PASS",
+  "failedChecks": []
+}

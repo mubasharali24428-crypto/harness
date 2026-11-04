@@ -7,11 +7,90 @@
  *     python scripts/sdk-gen/fetch_specs.py && \
  *         python scripts/sdk-gen/generate.py --target ts
  */
+/** AbandonBody. Required keys: reason. */
+export interface AbandonBody {
+    outcome?: "abandoned" | "failed";
+    reason: string;
+    requestId?: string | null;
+}
 /** AggregateStepOut. Required keys: seq, ts, type. */
 export interface AggregateStepOut {
+    reason?: string | null;
     seq: number;
     ts: string;
     type: string;
+}
+/** ApprovalDecision. Required keys: approve, digest. */
+export interface ApprovalDecision {
+    approve: boolean;
+    digest: string;
+}
+/** ApprovalDigest. Required keys: digest. */
+export interface ApprovalDigest {
+    digest: string;
+}
+/** ApprovalOutcome. Required keys: ok. */
+export interface ApprovalOutcome {
+    ok: boolean;
+    outcome?: string;
+}
+/** ApprovalRequest. Required keys: action, paths, summary. */
+export interface ApprovalRequest {
+    action: "delete" | "modify";
+    diff?: string;
+    paths: string[];
+    summary: string;
+}
+/** BlockBody. Required keys: reason. */
+export interface BlockBody {
+    reason: string;
+}
+/** BudgetDegradedOut. */
+export interface BudgetDegradedOut {
+    degraded?: boolean;
+    warned?: boolean;
+}
+/** CommentBody. Required keys: body. */
+export interface CommentBody {
+    body: string;
+    fieldPath?: string | null;
+    requestId?: string | null;
+}
+/** CompleteBody. Required keys: expectedVersion. */
+export interface CompleteBody {
+    expectedVersion: number;
+}
+/** CreateBody. Required keys: body. */
+export interface CreateBody {
+    body: string;
+    mentions?: string[];
+    parentId?: string | null;
+    refId?: string | null;
+    refKind?: "plan" | "file" | "diff" | "approval" | "event" | null;
+    refPos?: number | null;
+    requestId?: string | null;
+}
+/** DecisionBody. */
+export interface DecisionBody {
+    note?: string | null;
+}
+/** DeletionBody. */
+export interface DeletionBody {
+    reason?: string | null;
+    requestId?: string | null;
+}
+/** DemoSeedResponse. Required keys: planId, prId, projectId, projectName, runId, state. */
+export interface DemoSeedResponse {
+    costUsd?: number | null;
+    planId: string;
+    prId: string;
+    prUrl?: string | null;
+    projectId: string;
+    projectName: string;
+    replay?: boolean;
+    repoFullName?: string | null;
+    runId: string;
+    state: string;
 }
 /** DoneSignalRequest. */
 export interface DoneSignalRequest {
@@ -22,6 +101,12 @@ export interface DoneSignalResponse {
     findings: ReviewFindingsOut;
     runId: string;
 }
+/** EditBody. Required keys: body, expectedVersion. */
+export interface EditBody {
+    body: string;
+    expectedVersion: number;
+    mentions?: string[] | null;
+}
 /** ErrorDetail. Required keys: code, message. */
 export interface ErrorDetail {
     code: string;
@@ -31,14 +116,107 @@ export interface ErrorDetail {
 export interface ErrorEnvelope {
     error: ErrorDetail;
 }
+/** EvidenceBody. Required keys: kind, ref. */
+export interface EvidenceBody {
+    kind: "file" | "diff" | "test" | "output" | "link" | "note" | "artifact";
+    note?: string | null;
+    ref: string;
+}
+/** ExportBody. Required keys: kind. */
+export interface ExportBody {
+    format?: "json" | "ndjson";
+    "from"?: string | null;
+    includeActors?: boolean;
+    kind: "session_history" | "run_history" | "audit_evidence";
+    requestId?: string | null;
+    scopeId?: string | null;
+    to?: string | null;
+}
+/** GitStateBody. */
+export interface GitStateBody {
+    baseBranch?: string | null;
+    baseSha?: string | null;
+    headBranch?: string | null;
+    observedHeadSha?: string | null;
+    repoFullName?: string | null;
+    runHeadSha?: string | null;
+}
 /** HTTPValidationError. */
 export interface HTTPValidationError {
     detail?: ValidationError[];
+}
+/** HandoffDecision. Required keys: accept. */
+export interface HandoffDecision {
+    accept: boolean;
+}
+/** HandoffRequest. Required keys: toUserId. */
+export interface HandoffRequest {
+    toUserId: string;
+}
+/** HeartbeatRequest. Required keys: deviceId. */
+export interface HeartbeatRequest {
+    deviceId: string;
+    state?: "online" | "idle";
 }
 /** HumanEditRequest. Required keys: content, path. */
 export interface HumanEditRequest {
     content: string;
     path: string;
+}
+/** IntentBody. Required keys: expectedVersion. */
+export interface IntentBody {
+    expectedVersion: number;
+    goal?: string | null;
+    permissions?: string[] | null;
+    requestId?: string | null;
+    scopePaths?: string[] | null;
+}
+/** LeaseBody. */
+export interface LeaseBody {
+    ttlSeconds?: number | null;
+}
+/** LeaveRequest. */
+export interface LeaveRequest {
+    deviceId?: string | null;
+}
+/** LimitsBody. */
+export interface LimitsBody {
+    expectedVersion?: number | null;
+    maxCostMicrousd?: number | null;
+    maxModelCalls?: number | null;
+    maxSeconds?: number | null;
+    maxToolCalls?: number | null;
+}
+/** MergeBody. Required keys: changesDigest. */
+export interface MergeBody {
+    changesDigest: string;
+    decision?: "approved" | "rejected";
+    headSha?: string | null;
+    note?: string | null;
+    requestId?: string | null;
+}
+/** MergedIntent. */
+export interface MergedIntent {
+    goal?: string | null;
+    permissions?: string[] | null;
+    scopePaths?: string[] | null;
+}
+/** ModerateBody. Required keys: action, reason. */
+export interface ModerateBody {
+    action: "hide" | "restore" | "delete";
+    reason: string;
+}
+/** OutputRef. Required keys: kind, ref. */
+export interface OutputRef {
+    kind: "file" | "diff" | "artifact" | "test" | "log" | "link";
+    note?: string | null;
+    ref: string;
+}
+/** PatchOp. Required keys: op, path. */
+export interface PatchOp {
+    op: "replace" | "add" | "remove";
+    path: string;
+    value?: unknown;
 }
 /** PlanActionRequest. Required keys: planId. */
 export interface PlanActionRequest {
@@ -47,6 +225,17 @@ export interface PlanActionRequest {
 /** PlanActionResponse. Required keys: runId. */
 export interface PlanActionResponse {
     runId: string;
+}
+/** PlanContent. Required keys: goal. */
+export interface PlanContent {
+    estimatedCostUsd?: number;
+    expectedResult?: string;
+    filesLikelyToChange?: string[];
+    forbiddenPaths?: string[];
+    goal: string;
+    risks?: string[];
+    steps?: string[];
+    tests?: string[];
 }
 /** PlanDecisionResponse. Required keys: planId, runId, status. */
 export interface PlanDecisionResponse {
@@ -77,9 +266,34 @@ export interface PlanRejectedResponse {
     runId: string;
     status: string;
 }
+/** PrefsRequest. */
+export interface PrefsRequest {
+    muted?: boolean | null;
+    notify?: boolean | null;
+    sharePresence?: "everyone" | "team" | "nobody" | null;
+}
+/** ProgressBody. Required keys: percent. */
+export interface ProgressBody {
+    note?: string;
+    percent: number;
+}
+/** PromoteBody. Required keys: action, expectedVersion. */
+export interface PromoteBody {
+    action: string;
+    expectedVersion: number;
+    reason?: string | null;
+    runId?: string | null;
+}
+/** ProposeBody. Required keys: patch. */
+export interface ProposeBody {
+    patch: PatchOp[];
+    rationale?: string | null;
+    requestId?: string | null;
+}
 /** ProposePlanGateRequest. Required keys: goal. */
 export interface ProposePlanGateRequest {
     goal: string;
+    projectId?: string | null;
 }
 /** ProposePlanRequest. */
 export interface ProposePlanRequest {
@@ -91,6 +305,68 @@ export interface ProposePlanResponse {
     planId: string;
     runId: string;
 }
+/** ReactBody. Required keys: reaction. */
+export interface ReactBody {
+    present?: boolean;
+    reaction: "thumbs_up" | "thumbs_down" | "heart" | "eyes" | "celebrate" | "question" | "check";
+}
+/** ReadinessCheckOut. Required keys: check, component, detail, reason, status. */
+export interface ReadinessCheckOut {
+    check: "provider" | "model" | "worker" | "revision" | "repository" | "permissions" | "provider-call";
+    component: string;
+    detail: string;
+    reason: string;
+    status: "ok" | "fail" | "unknown";
+}
+/** ReadinessResponse. Required keys: checks, ok. */
+export interface ReadinessResponse {
+    checks: ReadinessCheckOut[];
+    ok: boolean;
+}
+/** ReasonBody. */
+export interface ReasonBody {
+    reason?: string | null;
+}
+/** ReassignBody. Required keys: agentId. */
+export interface ReassignBody {
+    agentId: string;
+    reason?: string | null;
+}
+/** RedirectRequest. Required keys: content. */
+export interface RedirectRequest {
+    content: string;
+    kind?: "guidance" | "scope_change" | "permission_change";
+    reason?: string | null;
+    requestId?: string | null;
+}
+/** RejectBody. Required keys: reason, reportDigest. */
+export interface RejectBody {
+    reason: string;
+    reportDigest: string;
+}
+/** ReportBody. Required keys: summary. */
+export interface ReportBody {
+    outputs?: OutputRef[];
+    requestId?: string | null;
+    summary: string;
+}
+/** ResolveBody. Required keys: expectedVersion, resolution. */
+export interface ResolveBody {
+    expectedVersion: number;
+    merged?: MergedIntent | null;
+    resolution: "keep_current" | "take_proposed" | "merge";
+}
+/** RetryBody. Required keys: requestId. */
+export interface RetryBody {
+    reason?: string | null;
+    requestId: string;
+}
+/** ReviewBody. Required keys: decision, diffSha. */
+export interface ReviewBody {
+    decision: "approved" | "rejected";
+    diffSha: string;
+    note?: string | null;
+}
 /** ReviewFindingsOut. Required keys: passed. */
 export interface ReviewFindingsOut {
     briefAligned?: boolean;
@@ -101,19 +377,38 @@ export interface ReviewFindingsOut {
     summary?: string;
     syntaxOk?: boolean;
 }
+/** RevokeBody. Required keys: reason. */
+export interface RevokeBody {
+    reason: string;
+}
+/** RewindBody. */
+export interface RewindBody {
+    checkpoint?: string | null;
+}
 /** RunAggregateResponse. Required keys: runId, state. */
 export interface RunAggregateResponse {
+    budget?: BudgetDegradedOut;
     costUsd?: number | null;
     engineMode?: string | null;
     executing?: boolean;
     isHumanEditing?: boolean;
+    lifecycle?: {
+        [key: string]: unknown;
+    } | null;
     planApproved?: boolean;
     planId?: string | null;
     prId?: string | null;
+    routing?: {
+        [key: string]: unknown;
+    } | null;
     runId: string;
     state: string;
     steps?: AggregateStepOut[];
+    upgrade?: UpgradeCtaOut | null;
     url?: string | null;
+    workspace?: {
+        [key: string]: unknown;
+    } | null;
 }
 /** RunIdStatusResponse. Required keys: runId, status. */
 export interface RunIdStatusResponse {
@@ -139,21 +434,111 @@ export interface RunStatusResponse {
     engineMode?: string | null;
     executing?: boolean;
     isHumanEditing?: boolean;
+    lifecycle?: {
+        [key: string]: unknown;
+    } | null;
     planApproved?: boolean;
     planId?: string | null;
     prId?: string | null;
     runId: string;
     state: string;
+    workspace?: {
+        [key: string]: unknown;
+    } | null;
 }
 /** RunsPage. Required keys: items. */
 export interface RunsPage {
     items: RunItem[];
     nextCursor?: string | null;
 }
+/** ScopeBody. */
+export interface ScopeBody {
+    credentialRefs?: string[];
+    network?: string[];
+    paths?: string[];
+    permissions?: string[];
+    tools?: string[];
+}
+/** SettingsBody. */
+export interface SettingsBody {
+    auditSensitive?: "auto" | "always" | null;
+    editWindowSeconds?: number | null;
+    retentionDays?: number | null;
+}
+/** SettingsRequest. */
+export interface SettingsRequest {
+    maxParticipants?: number | null;
+    mode?: "full" | "limited" | "off" | null;
+    staleSeconds?: number | null;
+}
+/** SpawnBody. Required keys: agentId, title. */
+export interface SpawnBody {
+    agentId: string;
+    budgetUsd?: number | string;
+    parentAssignmentId?: string | null;
+    requestId?: string | null;
+    scope?: ScopeBody;
+    title: string;
+}
 /** StartRunResponse. Required keys: runId, state. */
 export interface StartRunResponse {
     runId: string;
     state: string;
+}
+/** SubtaskCreate. Required keys: title. */
+export interface SubtaskCreate {
+    dependsOn?: string[];
+    description?: string;
+    requestId?: string | null;
+    title: string;
+}
+/** SubtaskPatch. Required keys: expectedVersion. */
+export interface SubtaskPatch {
+    dependsOn?: string[] | null;
+    description?: string | null;
+    expectedVersion: number;
+    state?: "todo" | "in_progress" | "cancelled" | null;
+    title?: string | null;
+}
+/** TaskBody. Required keys: expectedVersion, statement. */
+export interface TaskBody {
+    constraints?: string[];
+    expectedVersion: number;
+    ownerUserId?: string | null;
+    statement: string;
+    successCriteria?: string[];
+}
+/** ToolCallBody. Required keys: outcome, summary, tool. */
+export interface ToolCallBody {
+    costUsd?: number | string;
+    durationMs?: number | null;
+    finish?: "completed" | "failed" | null;
+    outcome: "ok" | "error" | "unavailable";
+    progress?: ProgressBody | null;
+    requestId?: string | null;
+    summary: string;
+    target?: string | null;
+    tool: string;
+}
+/** TransferBody. Required keys: toUserId. */
+export interface TransferBody {
+    toUserId: string;
+}
+/** UnblockBody. */
+export interface UnblockBody {
+    blockerId?: string | null;
+    resolution?: string | null;
+}
+/** UpgradeCtaOut. Required keys: cap, capField, tier, used. */
+export interface UpgradeCtaOut {
+    cap: number;
+    capField: string;
+    cta?: {
+        [key: string]: unknown;
+    };
+    tier: string;
+    upgradeTo?: string | null;
+    used: number;
 }
 /** ValidationError. Required keys: loc, msg, type. */
 export interface ValidationError {
@@ -165,6 +550,12 @@ export interface ValidationError {
     msg: string;
     type: string;
 }
+/** VersionBody. Required keys: content, expectedVersion. */
+export interface VersionBody {
+    content: PlanContent;
+    expectedVersion: number;
+    requestId?: string | null;
+}
 /** _ErrorDetail. Required keys: code, message. */
 export interface _ErrorDetail {
     code: string;
@@ -174,6 +565,23 @@ export interface _ErrorDetail {
 export interface _ErrorEnvelope {
     error: _ErrorDetail;
 }
+/** harness_orchestrator__control__DecideBody. Required keys: decision. */
+export interface harness_orchestrator__control__DecideBody {
+    decision: "grant" | "decline" | "cancel" | "accept" | "reject";
+    instructionId?: string | null;
+    reason?: string | null;
+    requestId?: string | null;
+}
+/** harness_orchestrator__execution__DecideBody. Required keys: reportDigest. */
+export interface harness_orchestrator__execution__DecideBody {
+    reason?: string | null;
+    reportDigest: string;
+}
+/** harness_orchestrator__plans__DecideBody. Required keys: decision. */
+export interface harness_orchestrator__plans__DecideBody {
+    decision: "accept" | "reject";
+    note?: string | null;
+}
 import { HarnessHttp } from "./runtime.js";
 /** Client for the harness-orchestrator service (default http://localhost:8004). */
 export declare class OrchestratorClient {
@@ -181,6 +589,42 @@ export declare class OrchestratorClient {
     readonly baseUrl: string;
     /** @param http  shared transport; @param baseUrl resolved by Harness. */
     constructor(http: HarnessHttp, baseUrl?: string);
+    /** Deletion List
+     *  GET /api/v1/orchestrator/deletion-requests */
+    deletion_list(state?: "pending" | "approved" | "rejected" | "executed" | null, limit?: number): Promise<Record<string, unknown>>;
+    /** Deletion Create
+     *  POST /api/v1/orchestrator/deletion-requests */
+    deletion_create(body: DeletionBody): Promise<Record<string, unknown>>;
+    /** Deletion Approve
+     *  POST /api/v1/orchestrator/deletion-requests/{requestId}/approve */
+    deletion_approve(request_id: string, body?: DecisionBody): Promise<Record<string, unknown>>;
+    /** Deletion Reject
+     *  POST /api/v1/orchestrator/deletion-requests/{requestId}/reject */
+    deletion_reject(request_id: string, body?: DecisionBody): Promise<Record<string, unknown>>;
+    /** Seed Demo
+     *  POST /api/v1/orchestrator/demo/seed */
+    seed_demo(): Promise<DemoSeedResponse>;
+    /** Discussion Settings Get
+     *  GET /api/v1/orchestrator/discussion-settings */
+    discussion_settings_get(): Promise<Record<string, unknown>>;
+    /** Discussion Settings Put
+     *  PUT /api/v1/orchestrator/discussion-settings */
+    discussion_settings_put(body: SettingsBody): Promise<Record<string, unknown>>;
+    /** Discussions Search
+     *  GET /api/v1/orchestrator/discussions/search */
+    discussions_search(q?: string, scope_kind?: "run" | "session" | null, limit?: number, before?: string | null): Promise<Record<string, unknown>>;
+    /** Exports List
+     *  GET /api/v1/orchestrator/exports */
+    exports_list(limit?: number): Promise<Record<string, unknown>>;
+    /** Exports Create
+     *  POST /api/v1/orchestrator/exports */
+    exports_create(body: ExportBody): Promise<Record<string, unknown>>;
+    /** Exports Get
+     *  GET /api/v1/orchestrator/exports/{exportId} */
+    exports_get(export_id: string): Promise<Record<string, unknown>>;
+    /** Exports Download
+     *  GET /api/v1/orchestrator/exports/{exportId}/download */
+    exports_download(export_id: string): Promise<unknown>;
     /** Propose Plan
      *  POST /api/v1/orchestrator/plans */
     propose_plan(body: ProposePlanGateRequest): Promise<PlanProposedResponse>;
@@ -190,21 +634,222 @@ export declare class OrchestratorClient {
     /** Reject Plan
      *  POST /api/v1/orchestrator/plans/{planId}/reject */
     reject_plan(plan_id: string): Promise<unknown>;
+    /** Get Settings
+     *  GET /api/v1/orchestrator/presence-settings */
+    get_settings(): Promise<Record<string, unknown>>;
+    /** Put Settings
+     *  PUT /api/v1/orchestrator/presence-settings */
+    put_settings(body: SettingsRequest): Promise<Record<string, unknown>>;
+    /** Get Readiness
+     *  GET /api/v1/orchestrator/readiness */
+    get_readiness(project_id?: string): Promise<ReadinessResponse>;
+    /** Post Readiness Probe
+     *  POST /api/v1/orchestrator/readiness/probe */
+    post_readiness_probe(): Promise<ReadinessResponse>;
     /** List Runs
      *  GET /api/v1/orchestrator/runs */
     list_runs(project_id?: string | null, status?: string | null, limit?: number, offset?: number | null, cursor?: string | null): Promise<RunsPage>;
     /** Get Run
      *  GET /api/v1/orchestrator/runs/{runId} */
     get_run(run_id: string): Promise<RunAggregateResponse>;
+    /** Abandon Route
+     *  POST /api/v1/orchestrator/runs/{runId}/abandon */
+    abandon_route(run_id: string, body: AbandonBody): Promise<Record<string, unknown>>;
+    /** List Agents
+     *  GET /api/v1/orchestrator/runs/{runId}/agents */
+    list_agents(run_id: string): Promise<Record<string, unknown>>;
+    /** Spawn
+     *  POST /api/v1/orchestrator/runs/{runId}/agents/spawn */
+    spawn(run_id: string, body: SpawnBody): Promise<Record<string, unknown>>;
+    /** Cancel
+     *  POST /api/v1/orchestrator/runs/{runId}/agents/{assignmentId}/cancel */
+    cancel(run_id: string, assignment_id: string, body?: ReasonBody): Promise<Record<string, unknown>>;
+    /** Pause
+     *  POST /api/v1/orchestrator/runs/{runId}/agents/{assignmentId}/pause */
+    pause(run_id: string, assignment_id: string, body?: ReasonBody): Promise<Record<string, unknown>>;
+    /** Reassign
+     *  POST /api/v1/orchestrator/runs/{runId}/agents/{assignmentId}/reassign */
+    reassign(run_id: string, assignment_id: string, body: ReassignBody): Promise<Record<string, unknown>>;
+    /** Resume
+     *  POST /api/v1/orchestrator/runs/{runId}/agents/{assignmentId}/resume */
+    resume(run_id: string, assignment_id: string): Promise<Record<string, unknown>>;
+    /** Record Tool Call
+     *  POST /api/v1/orchestrator/runs/{runId}/agents/{assignmentId}/tool-calls */
+    record_tool_call(run_id: string, assignment_id: string, body: ToolCallBody): Promise<Record<string, unknown>>;
+    /** Collab Approval List
+     *  GET /api/v1/orchestrator/runs/{runId}/approvals */
+    collab_approval_list(run_id: string): Promise<Record<string, unknown>>;
+    /** Collab Approval Request
+     *  POST /api/v1/orchestrator/runs/{runId}/approvals */
+    collab_approval_request(run_id: string, body: ApprovalRequest): Promise<Record<string, unknown>>;
+    /** Collab Approval Amend
+     *  PUT /api/v1/orchestrator/runs/{runId}/approvals/{approvalId} */
+    collab_approval_amend(run_id: string, approval_id: string, body: ApprovalRequest): Promise<Record<string, unknown>>;
+    /** Collab Apply Staged
+     *  POST /api/v1/orchestrator/runs/{runId}/approvals/{approvalId}/apply */
+    collab_apply_staged(run_id: string, approval_id: string, body: ApprovalDigest): Promise<Record<string, unknown>>;
+    /** Collab Approval Claim
+     *  POST /api/v1/orchestrator/runs/{runId}/approvals/{approvalId}/claim */
+    collab_approval_claim(run_id: string, approval_id: string, body: ApprovalDigest): Promise<Record<string, unknown>>;
+    /** Collab Approval Complete
+     *  POST /api/v1/orchestrator/runs/{runId}/approvals/{approvalId}/complete */
+    collab_approval_complete(run_id: string, approval_id: string, body: ApprovalOutcome): Promise<Record<string, unknown>>;
+    /** Collab Approval Decide
+     *  POST /api/v1/orchestrator/runs/{runId}/approvals/{approvalId}/decision */
+    collab_approval_decide(run_id: string, approval_id: string, body: ApprovalDecision): Promise<Record<string, unknown>>;
+    /** List Artifacts
+     *  GET /api/v1/orchestrator/runs/{runId}/artifacts */
+    list_artifacts(run_id: string, state?: "available" | "quarantined" | "deleted" | "expired" | null, kind?: "upload" | "output" | "diff" | "log" | null, limit?: number, cursor?: string | null): Promise<unknown>;
+    /** Upload Artifact
+     *  POST /api/v1/orchestrator/runs/{runId}/artifacts */
+    upload_artifact(run_id: string, name?: string, kind?: "upload" | "output" | "diff" | "log", request_id?: string | null, retention_days?: number | null, derived_from?: string | null, change_id?: string | null): Promise<unknown>;
+    /** Get Artifact
+     *  GET /api/v1/orchestrator/runs/{runId}/artifacts/{artifactId} */
+    get_artifact(run_id: string, artifact_id: string): Promise<unknown>;
+    /** Delete Artifact
+     *  DELETE /api/v1/orchestrator/runs/{runId}/artifacts/{artifactId} */
+    delete_artifact(run_id: string, artifact_id: string): Promise<unknown>;
+    /** Artifact Content
+     *  GET /api/v1/orchestrator/runs/{runId}/artifacts/{artifactId}/content */
+    artifact_content(run_id: string, artifact_id: string): Promise<unknown>;
+    /** Artifact Preview
+     *  GET /api/v1/orchestrator/runs/{runId}/artifacts/{artifactId}/preview */
+    artifact_preview(run_id: string, artifact_id: string): Promise<unknown>;
+    /** List Changes
+     *  GET /api/v1/orchestrator/runs/{runId}/changes */
+    list_changes(run_id: string): Promise<unknown>;
+    /** Review Change
+     *  POST /api/v1/orchestrator/runs/{runId}/changes/{changeId}/review */
+    review_change(run_id: string, change_id: string, body: ReviewBody): Promise<unknown>;
+    /** Run Checkpoints List
+     *  GET /api/v1/orchestrator/runs/{runId}/checkpoints */
+    run_checkpoints_list(run_id: string): Promise<Record<string, unknown>>;
+    /** Collab History
+     *  GET /api/v1/orchestrator/runs/{runId}/collab-history */
+    collab_history(run_id: string, after?: number, limit?: number, schema_version?: number): Promise<Record<string, unknown>>;
+    /** Completion Read
+     *  GET /api/v1/orchestrator/runs/{runId}/completion */
+    completion_read(run_id: string): Promise<Record<string, unknown>>;
+    /** Completion Accept
+     *  POST /api/v1/orchestrator/runs/{runId}/completion/accept */
+    completion_accept(run_id: string, body: harness_orchestrator__execution__DecideBody): Promise<Record<string, unknown>>;
+    /** Completion Reject
+     *  POST /api/v1/orchestrator/runs/{runId}/completion/reject */
+    completion_reject(run_id: string, body: RejectBody): Promise<Record<string, unknown>>;
+    /** Completion Report Route
+     *  POST /api/v1/orchestrator/runs/{runId}/completion/report */
+    completion_report_route(run_id: string, body: ReportBody): Promise<Record<string, unknown>>;
+    /** Control View
+     *  GET /api/v1/orchestrator/runs/{runId}/control */
+    control_view(run_id: string): Promise<Record<string, unknown>>;
+    /** Control Acquire
+     *  POST /api/v1/orchestrator/runs/{runId}/control/acquire */
+    control_acquire(run_id: string, body?: LeaseBody): Promise<Record<string, unknown>>;
+    /** Control Decide
+     *  POST /api/v1/orchestrator/runs/{runId}/control/decide */
+    control_decide(run_id: string, body: harness_orchestrator__control__DecideBody): Promise<Record<string, unknown>>;
+    /** Control Release
+     *  POST /api/v1/orchestrator/runs/{runId}/control/release */
+    control_release(run_id: string): Promise<Record<string, unknown>>;
+    /** Control Renew
+     *  POST /api/v1/orchestrator/runs/{runId}/control/renew */
+    control_renew(run_id: string, body?: LeaseBody): Promise<Record<string, unknown>>;
+    /** Control Request
+     *  POST /api/v1/orchestrator/runs/{runId}/control/request */
+    control_request(run_id: string): Promise<Record<string, unknown>>;
+    /** Control Revoke
+     *  POST /api/v1/orchestrator/runs/{runId}/control/revoke */
+    control_revoke(run_id: string, body: RevokeBody): Promise<Record<string, unknown>>;
+    /** Control Transfer
+     *  POST /api/v1/orchestrator/runs/{runId}/control/transfer */
+    control_transfer(run_id: string, body: TransferBody): Promise<Record<string, unknown>>;
+    /** Run Diff
+     *  GET /api/v1/orchestrator/runs/{runId}/diff */
+    run_diff(run_id: string, limit?: number, offset?: number): Promise<unknown>;
     /** Signal Done
      *  POST /api/v1/orchestrator/runs/{runId}/done-signal */
     signal_done(run_id: string, body: DoneSignalRequest): Promise<DoneSignalResponse>;
     /** Get Engine Result
      *  GET /api/v1/orchestrator/runs/{runId}/engine */
     get_engine_result(run_id: string): Promise<Record<string, unknown>>;
+    /** Execution Limits Get
+     *  GET /api/v1/orchestrator/runs/{runId}/execution-limits */
+    execution_limits_get(run_id: string): Promise<Record<string, unknown>>;
+    /** Execution Limits Put
+     *  PUT /api/v1/orchestrator/runs/{runId}/execution-limits */
+    execution_limits_put(run_id: string, body: LimitsBody): Promise<Record<string, unknown>>;
+    /** Execution Status
+     *  GET /api/v1/orchestrator/runs/{runId}/execution-status */
+    execution_status(run_id: string): Promise<Record<string, unknown>>;
+    /** Git Permissions
+     *  GET /api/v1/orchestrator/runs/{runId}/git-permissions */
+    git_permissions(run_id: string): Promise<unknown>;
+    /** Get Git State
+     *  GET /api/v1/orchestrator/runs/{runId}/git-state */
+    get_git_state(run_id: string): Promise<unknown>;
+    /** Put Git State
+     *  PUT /api/v1/orchestrator/runs/{runId}/git-state */
+    put_git_state(run_id: string, body: GitStateBody): Promise<unknown>;
+    /** Collab Handoff
+     *  POST /api/v1/orchestrator/runs/{runId}/handoff */
+    collab_handoff(run_id: string, body: HandoffRequest): Promise<Record<string, unknown>>;
+    /** Collab Handoff Decide
+     *  POST /api/v1/orchestrator/runs/{runId}/handoff/{handoffId} */
+    collab_handoff_decide(run_id: string, handoff_id: string, body: HandoffDecision): Promise<Record<string, unknown>>;
     /** Submit Human Edit
      *  POST /api/v1/orchestrator/runs/{runId}/human-edit */
     submit_human_edit(run_id: string, body: HumanEditRequest): Promise<Record<string, unknown>>;
+    /** Intent Get
+     *  GET /api/v1/orchestrator/runs/{runId}/intent */
+    intent_get(run_id: string): Promise<Record<string, unknown>>;
+    /** Intent Put
+     *  PUT /api/v1/orchestrator/runs/{runId}/intent */
+    intent_put(run_id: string, body: IntentBody): Promise<Record<string, unknown>>;
+    /** Intent Conflicts
+     *  GET /api/v1/orchestrator/runs/{runId}/intent/conflicts */
+    intent_conflicts(run_id: string, state?: string): Promise<Record<string, unknown>>;
+    /** Intent Resolve
+     *  POST /api/v1/orchestrator/runs/{runId}/intent/conflicts/{conflictId}/resolve */
+    intent_resolve(run_id: string, conflict_id: string, body: ResolveBody): Promise<Record<string, unknown>>;
+    /** Collab Join
+     *  POST /api/v1/orchestrator/runs/{runId}/join */
+    collab_join(run_id: string): Promise<Record<string, unknown>>;
+    /** Collab Claim Leader
+     *  POST /api/v1/orchestrator/runs/{runId}/leader */
+    collab_claim_leader(run_id: string): Promise<Record<string, unknown>>;
+    /** Lineage
+     *  GET /api/v1/orchestrator/runs/{runId}/lineage */
+    lineage(run_id: string): Promise<unknown>;
+    /** Merge Approval
+     *  POST /api/v1/orchestrator/runs/{runId}/merge-approval */
+    merge_approval(run_id: string, body: MergeBody): Promise<unknown>;
+    /** Collab Roster
+     *  GET /api/v1/orchestrator/runs/{runId}/participants */
+    collab_roster(run_id: string): Promise<Record<string, unknown>>;
+    /** Leave
+     *  POST /api/v1/orchestrator/runs/{runId}/participation/leave */
+    leave(run_id: string): Promise<Record<string, unknown>>;
+    /** Mute
+     *  POST /api/v1/orchestrator/runs/{runId}/participation/mute */
+    mute(run_id: string): Promise<Record<string, unknown>>;
+    /** Observe
+     *  POST /api/v1/orchestrator/runs/{runId}/participation/observe */
+    observe(run_id: string): Promise<Record<string, unknown>>;
+    /** Participate
+     *  POST /api/v1/orchestrator/runs/{runId}/participation/participate */
+    participate(run_id: string): Promise<Record<string, unknown>>;
+    /** Get Prefs
+     *  GET /api/v1/orchestrator/runs/{runId}/participation/prefs */
+    get_prefs(run_id: string): Promise<Record<string, unknown>>;
+    /** Put Prefs
+     *  PUT /api/v1/orchestrator/runs/{runId}/participation/prefs */
+    put_prefs(run_id: string, body: PrefsRequest): Promise<Record<string, unknown>>;
+    /** Rejoin
+     *  POST /api/v1/orchestrator/runs/{runId}/participation/rejoin */
+    rejoin(run_id: string): Promise<Record<string, unknown>>;
+    /** Unmute
+     *  POST /api/v1/orchestrator/runs/{runId}/participation/unmute */
+    unmute(run_id: string): Promise<Record<string, unknown>>;
     /** Pause Agent
      *  POST /api/v1/orchestrator/runs/{runId}/pause */
     pause_agent(run_id: string): Promise<RunIdStatusResponse>;
@@ -220,9 +865,63 @@ export declare class OrchestratorClient {
     /** Reject Plan
      *  POST /api/v1/orchestrator/runs/{runId}/plan/reject */
     reject_plan_2(run_id: string, body: PlanActionRequest): Promise<PlanDecisionResponse>;
+    /** Plans Versions List
+     *  GET /api/v1/orchestrator/runs/{runId}/plan/versions */
+    plans_versions_list(run_id: string): Promise<Record<string, unknown>>;
+    /** Plans Versions Create
+     *  POST /api/v1/orchestrator/runs/{runId}/plan/versions */
+    plans_versions_create(run_id: string, body: VersionBody): Promise<Record<string, unknown>>;
+    /** Plans Version Get
+     *  GET /api/v1/orchestrator/runs/{runId}/plan/versions/{n} */
+    plans_version_get(run_id: string, n: string): Promise<Record<string, unknown>>;
+    /** Plans Version Approve
+     *  POST /api/v1/orchestrator/runs/{runId}/plan/versions/{n}/approve */
+    plans_version_approve(run_id: string, n: string): Promise<Record<string, unknown>>;
+    /** Plans Comments List
+     *  GET /api/v1/orchestrator/runs/{runId}/plan/versions/{n}/comments */
+    plans_comments_list(run_id: string, n: string, limit?: number, after?: string | null): Promise<Record<string, unknown>>;
+    /** Plans Comments Create
+     *  POST /api/v1/orchestrator/runs/{runId}/plan/versions/{n}/comments */
+    plans_comments_create(run_id: string, n: string, body: CommentBody): Promise<Record<string, unknown>>;
+    /** Plans Version Diff
+     *  GET /api/v1/orchestrator/runs/{runId}/plan/versions/{n}/diff */
+    plans_version_diff(run_id: string, n: string, against?: number | null): Promise<Record<string, unknown>>;
+    /** Plans Edits List
+     *  GET /api/v1/orchestrator/runs/{runId}/plan/versions/{n}/edits */
+    plans_edits_list(run_id: string, n: string): Promise<Record<string, unknown>>;
+    /** Plans Edits Propose
+     *  POST /api/v1/orchestrator/runs/{runId}/plan/versions/{n}/edits */
+    plans_edits_propose(run_id: string, n: string, body: ProposeBody): Promise<Record<string, unknown>>;
+    /** Plans Edits Decide
+     *  POST /api/v1/orchestrator/runs/{runId}/plan/versions/{n}/edits/{editId}/decide */
+    plans_edits_decide(run_id: string, n: string, edit_id: string, body: harness_orchestrator__plans__DecideBody): Promise<Record<string, unknown>>;
+    /** Get Presence
+     *  GET /api/v1/orchestrator/runs/{runId}/presence */
+    get_presence(run_id: string): Promise<Record<string, unknown>>;
+    /** Heartbeat
+     *  POST /api/v1/orchestrator/runs/{runId}/presence/heartbeat */
+    heartbeat(run_id: string, body: HeartbeatRequest): Promise<Record<string, unknown>>;
+    /** Presence Leave
+     *  POST /api/v1/orchestrator/runs/{runId}/presence/leave */
+    presence_leave(run_id: string, body?: LeaveRequest): Promise<Record<string, unknown>>;
+    /** Collab Redirect
+     *  POST /api/v1/orchestrator/runs/{runId}/redirect */
+    collab_redirect(run_id: string, body: RedirectRequest): Promise<Record<string, unknown>>;
     /** Resume Agent
      *  POST /api/v1/orchestrator/runs/{runId}/resume */
     resume_agent(run_id: string): Promise<RunStateResponse>;
+    /** Retry Route
+     *  POST /api/v1/orchestrator/runs/{runId}/retry */
+    retry_route(run_id: string, body: RetryBody): Promise<unknown>;
+    /** Review Summary
+     *  GET /api/v1/orchestrator/runs/{runId}/review-summary */
+    review_summary(run_id: string): Promise<unknown>;
+    /** Run Rewind
+     *  POST /api/v1/orchestrator/runs/{runId}/rewind */
+    run_rewind(run_id: string, body: RewindBody): Promise<Record<string, unknown>>;
+    /** Collab Staged Approvals
+     *  POST /api/v1/orchestrator/runs/{runId}/staged/approvals */
+    collab_staged_approvals(run_id: string): Promise<Record<string, unknown>>;
     /** Start Run
      *  POST /api/v1/orchestrator/runs/{runId}/start */
     start_run(run_id: string): Promise<StartRunResponse>;
@@ -232,7 +931,91 @@ export declare class OrchestratorClient {
     /** Stop Agent
      *  POST /api/v1/orchestrator/runs/{runId}/stop */
     stop_agent(run_id: string): Promise<RunIdStatusResponse>;
-    /** Health
-     *  GET /health */
-    health(): Promise<unknown>;
+    /** Subtasks Get
+     *  GET /api/v1/orchestrator/runs/{runId}/subtasks */
+    subtasks_get(run_id: string): Promise<Record<string, unknown>>;
+    /** Subtasks Post
+     *  POST /api/v1/orchestrator/runs/{runId}/subtasks */
+    subtasks_post(run_id: string, body: SubtaskCreate): Promise<Record<string, unknown>>;
+    /** Subtasks Patch
+     *  PATCH /api/v1/orchestrator/runs/{runId}/subtasks/{subtaskId} */
+    subtasks_patch(run_id: string, subtask_id: string, body: SubtaskPatch): Promise<Record<string, unknown>>;
+    /** Subtasks Block
+     *  POST /api/v1/orchestrator/runs/{runId}/subtasks/{subtaskId}/block */
+    subtasks_block(run_id: string, subtask_id: string, body: BlockBody): Promise<Record<string, unknown>>;
+    /** Subtasks Complete
+     *  POST /api/v1/orchestrator/runs/{runId}/subtasks/{subtaskId}/complete */
+    subtasks_complete(run_id: string, subtask_id: string, body: CompleteBody): Promise<Record<string, unknown>>;
+    /** Subtasks Evidence
+     *  POST /api/v1/orchestrator/runs/{runId}/subtasks/{subtaskId}/evidence */
+    subtasks_evidence(run_id: string, subtask_id: string, body: EvidenceBody): Promise<Record<string, unknown>>;
+    /** Subtasks Unblock
+     *  POST /api/v1/orchestrator/runs/{runId}/subtasks/{subtaskId}/unblock */
+    subtasks_unblock(run_id: string, subtask_id: string, body: UnblockBody): Promise<Record<string, unknown>>;
+    /** Plans Task Get
+     *  GET /api/v1/orchestrator/runs/{runId}/task */
+    plans_task_get(run_id: string, version?: number | null): Promise<Record<string, unknown>>;
+    /** Plans Task Put
+     *  PUT /api/v1/orchestrator/runs/{runId}/task */
+    plans_task_put(run_id: string, body: TaskBody): Promise<Record<string, unknown>>;
+    /** Run Comments List
+     *  GET /api/v1/orchestrator/runs/{scopeId}/comments */
+    run_comments_list(scope_id: string, limit?: number, after?: string | null): Promise<Record<string, unknown>>;
+    /** Run Comments Create
+     *  POST /api/v1/orchestrator/runs/{scopeId}/comments */
+    run_comments_create(scope_id: string, body: CreateBody): Promise<Record<string, unknown>>;
+    /** Run Comments Export
+     *  GET /api/v1/orchestrator/runs/{scopeId}/comments/export */
+    run_comments_export(scope_id: string): Promise<Record<string, unknown>>;
+    /** Run Comments Delete
+     *  DELETE /api/v1/orchestrator/runs/{scopeId}/comments/{commentId} */
+    run_comments_delete(scope_id: string, comment_id: string): Promise<Record<string, unknown>>;
+    /** Run Comments Edit
+     *  PATCH /api/v1/orchestrator/runs/{scopeId}/comments/{commentId} */
+    run_comments_edit(scope_id: string, comment_id: string, body: EditBody): Promise<Record<string, unknown>>;
+    /** Run Comments History
+     *  GET /api/v1/orchestrator/runs/{scopeId}/comments/{commentId}/history */
+    run_comments_history(scope_id: string, comment_id: string): Promise<Record<string, unknown>>;
+    /** Run Comments Moderate
+     *  POST /api/v1/orchestrator/runs/{scopeId}/comments/{commentId}/moderate */
+    run_comments_moderate(scope_id: string, comment_id: string, body: ModerateBody): Promise<Record<string, unknown>>;
+    /** Run Comments Promote
+     *  POST /api/v1/orchestrator/runs/{scopeId}/comments/{commentId}/promote */
+    run_comments_promote(scope_id: string, comment_id: string, body: PromoteBody): Promise<Record<string, unknown>>;
+    /** Run Comments React
+     *  POST /api/v1/orchestrator/runs/{scopeId}/comments/{commentId}/reactions */
+    run_comments_react(scope_id: string, comment_id: string, body: ReactBody): Promise<Record<string, unknown>>;
+    /** Search Route
+     *  GET /api/v1/orchestrator/search */
+    search_route(q?: string | null, kind?: "run" | "session" | "comment" | "event" | "artifact" | "approval" | null, project_id?: string | null, participant_id?: string | null, status?: string | null, approval_state?: string | null, from_?: string | null, to?: string | null, limit?: number, cursor?: string | null): Promise<Record<string, unknown>>;
+    /** Search Status Route
+     *  GET /api/v1/orchestrator/search/status */
+    search_status_route(): Promise<Record<string, unknown>>;
+    /** Session Comments List
+     *  GET /api/v1/orchestrator/sessions/{scopeId}/comments */
+    session_comments_list(scope_id: string, limit?: number, after?: string | null): Promise<Record<string, unknown>>;
+    /** Session Comments Create
+     *  POST /api/v1/orchestrator/sessions/{scopeId}/comments */
+    session_comments_create(scope_id: string, body: CreateBody): Promise<Record<string, unknown>>;
+    /** Session Comments Export
+     *  GET /api/v1/orchestrator/sessions/{scopeId}/comments/export */
+    session_comments_export(scope_id: string): Promise<Record<string, unknown>>;
+    /** Session Comments Delete
+     *  DELETE /api/v1/orchestrator/sessions/{scopeId}/comments/{commentId} */
+    session_comments_delete(scope_id: string, comment_id: string): Promise<Record<string, unknown>>;
+    /** Session Comments Edit
+     *  PATCH /api/v1/orchestrator/sessions/{scopeId}/comments/{commentId} */
+    session_comments_edit(scope_id: string, comment_id: string, body: EditBody): Promise<Record<string, unknown>>;
+    /** Session Comments History
+     *  GET /api/v1/orchestrator/sessions/{scopeId}/comments/{commentId}/history */
+    session_comments_history(scope_id: string, comment_id: string): Promise<Record<string, unknown>>;
+    /** Session Comments Moderate
+     *  POST /api/v1/orchestrator/sessions/{scopeId}/comments/{commentId}/moderate */
+    session_comments_moderate(scope_id: string, comment_id: string, body: ModerateBody): Promise<Record<string, unknown>>;
+    /** Session Comments Promote
+     *  POST /api/v1/orchestrator/sessions/{scopeId}/comments/{commentId}/promote */
+    session_comments_promote(scope_id: string, comment_id: string, body: PromoteBody): Promise<Record<string, unknown>>;
+    /** Session Comments React
+     *  POST /api/v1/orchestrator/sessions/{scopeId}/comments/{commentId}/reactions */
+    session_comments_react(scope_id: string, comment_id: string, body: ReactBody): Promise<Record<string, unknown>>;
 }

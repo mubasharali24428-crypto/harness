@@ -14,11 +14,16 @@ kwargs = dict(
     provider=os.environ.get("DSH_PROVIDER", "deepseek-official"),
     model=os.environ["DSH_MODEL"],
     max_tokens=4096,
+    profile="sdk-minimal",
     cwd=str(workspace),
-    session_root=str(sessions),
+    dsh_home=str(sessions),
 )
+if os.environ.get("DEEPSEEK_BASE_URL"):
+    kwargs["base_url"] = os.environ["DEEPSEEK_BASE_URL"]
+if os.environ.get("DEEPSEEK_API_KEY"):
+    kwargs["api_key"] = os.environ["DEEPSEEK_API_KEY"]
 if (here / "minimal.cordis.yml").exists():
-    kwargs["cordis"] = str(here / "minimal.cordis.yml")
+    kwargs["patches"] = (str(here / "minimal.cordis.yml"),)
 
 with DeepSeekHarness(**kwargs) as harness:
     result = harness.run(
@@ -27,8 +32,11 @@ with DeepSeekHarness(**kwargs) as harness:
     )
     print("FINAL RESPONSE:")
     print(result.final_response)
+    print("FINISH REASON:", result.finish_reason)
 
 hello_file = workspace / "hello.txt"
 print("FILE EXISTS:", hello_file.exists())
 if hello_file.exists():
     print("FILE CONTENT:", hello_file.read_text())
+if not hello_file.is_file() or hello_file.read_text().strip() != "task0 ok":
+    sys.exit("Task0 verification failed: expected file and content were not produced.")

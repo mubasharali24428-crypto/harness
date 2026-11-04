@@ -106,7 +106,9 @@ def test_hung_worker_is_killed_at_the_operator_bound(tmp_path, worker_env, monke
 def test_worker_env_is_allowlisted(tmp_path, worker_env):
     e = engine(tmp_path)
     res = json.loads(e._run_live_events("probe", "run-e", "m")[0])
-    assert res["env"] == []  # no HARNESS_* / AWS_* secrets
+    # no HARNESS_* / AWS_* secrets; the one exception is the boundary's own name (M03),
+    # so the worker's write-capability check sees the confinement its parent chose
+    assert res["env"] == ["HARNESS_ENGINE_CONFINEMENT"]
     assert res["has_key"] is True  # only the provider key crosses
 
 

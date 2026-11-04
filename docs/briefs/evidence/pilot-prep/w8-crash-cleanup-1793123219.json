@@ -1,0 +1,67 @@
+{
+  "date": "2026-10-27",
+  "week": "W8",
+  "claim": "a crashed run's boundary network and containers are reclaimed, while a live neighbour's are not",
+  "drive": "two live runs on the compose stack; the victim's docker-run client SIGKILLed inside the worker daemon; sweep executed inside the daemon (its socket)",
+  "projectId": "db885508-c4f6-4f57-84ac-66b74f485c78",
+  "runs": {
+    "victim": {
+      "runId": "w8crash-victim-1793123219",
+      "network": "harness-6a6d9bf81bd44fc29284edbedc5d9a8f-net"
+    },
+    "neighbour": {
+      "runId": "w8crash-neighbour-1793123219",
+      "network": "harness-805c03f1a1cb41d5bc7e9cea61f48dae-net"
+    }
+  },
+  "victim": {
+    "settledState": "blocked",
+    "claimRowAfterSettle": null,
+    "engineFinalResponse": "DeepSeek Harness run failed: DeepSeek Harness worker exited -9: ",
+    "orphanNetworkSurvivedCrash": false,
+    "orphanContainersRunning": [],
+    "killedClients": "1"
+  },
+  "sweeps": {
+    "heldRefusal": {
+      "removed": [],
+      "kept": [
+        "harness-6a6d9bf81bd44fc29284edbedc5d9a8f-net",
+        "harness-805c03f1a1cb41d5bc7e9cea61f48dae-net"
+      ],
+      "count": 0,
+      "containersStopped": 0
+    },
+    "real": {
+      "removed": [],
+      "kept": [
+        "harness-805c03f1a1cb41d5bc7e9cea61f48dae-net"
+      ],
+      "count": 0,
+      "containersStopped": 0
+    }
+  },
+  "neighbour": {
+    "stateDuringSweep": "executing",
+    "networkBefore": "harness-805c03f1a1cb41d5bc7e9cea61f48dae-net",
+    "networkAfter": "harness-805c03f1a1cb41d5bc7e9cea61f48dae-net",
+    "stillRunningAfterSweep": true
+  },
+  "networksAfterSweep": {
+    "harness-805c03f1a1cb41d5bc7e9cea61f48dae-net": "w8crash-neighbour-1793123219"
+  },
+  "checks": {
+    "bothStarted": true,
+    "crashObserved": true,
+    "orphanExisted": false,
+    "orphanContainerWasRunning": false,
+    "victimSettled": true,
+    "claimReleased": true,
+    "heldLiveRunRefused": true,
+    "orphanNetworkRemoved": false,
+    "orphanContainersStopped": false,
+    "neighbourUntouched": true,
+    "victimNetworkGone": true
+  },
+  "verdict": "FAIL"
+}

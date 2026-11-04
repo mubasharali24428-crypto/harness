@@ -32,6 +32,8 @@ import { loadSession } from "@/lib/auth";
 import {
   type RunAggregateDto,
   getRunAggregate,
+  pauseOrResumeRun,
+  runSettled,
 } from "../../../../runs/runsApi";
 import { RunDetailAggregate } from "./runDetailAggregate";
 import { PlanGateCard } from "../../../../dashboard/planGate";
@@ -56,6 +58,7 @@ export default function RunDetailPage({
   const [agg, setAgg] = useState<RunAggregateDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [stale, setStale] = useState(false); // W23: last background refresh failed
   const [notFound, setNotFound] = useState(false);
 
   // Next 15 hands route params as a Promise; accept both shapes so tests can
@@ -102,9 +105,14 @@ export default function RunDetailPage({
     }
     try {
       setAgg(await getRunAggregate(runId, token));
+      setStale(false);
     } catch (e) {
-      // A failed background refresh keeps the last good summary on screen.
-      if (quiet) return;
+      // A failed background refresh keeps the last good summary on screen,
+      // marked as reconnecting (W23) so it is not read as current.
+      if (quiet) {
+        setStale(true);
+        return;
+      }
       setAgg(null);
       if (e instanceof ApiError && e.status === 404) {
         setNotFound(true);
@@ -122,7 +130,27 @@ export default function RunDetailPage({
 
   // Keep the summary live (stop/done change the state after first load).
   // ponytail: 3s polling like the shared panel; push delivery is P4.
-  const terminal = /^(done|stopped|failed|completed|cancelled)$/i.test(agg?.state ?? "");
+  const [controlBusy, setControlBusy] = useState(false);
+  const [controlNote, setControlNote] = useState<string | null>(null);
+  const pauseResume = useCallback(async (action: "pause" | "resume") => {
+    if (!token || !runId) return;
+    setControlBusy(true);
+    try {
+      const r = await pauseOrResumeRun(runId, token, action);
+      setControlNote(action === "resume"
+        ? "Resumed: the agent continues from where it stopped, with any direction sent while paused."
+        : r.status === "paused"
+          ? "Paused: the agent's process is stopped; it cannot change files until you resume."
+          : "Pausing: the agent may still finish the step it is on.");
+      await fetchAgg(true);
+    } catch (e) {
+      setControlNote(`Could not ${action}: ${String((e as Error)?.message ?? e)}`);
+    } finally {
+      setControlBusy(false);
+    }
+  }, [token, runId, fetchAgg]);
+
+  const terminal = runSettled(agg);
   useEffect(() => {
     if (!token || !runId || terminal) return;
     const id = setInterval(() => void fetchAgg(true), 3000);
@@ -149,7 +177,9 @@ export default function RunDetailPage({
           role="status"
           data-testid="demo-replay-banner"
           className="pill blue"
-          style={{ padding: "8px 12px", marginBottom: 16 }}
+          // .pill is nowrap by design; a banner-length sentence must wrap or it
+          // forces the whole page to scroll sideways on phones (M-A4).
+          style={{ padding: "8px 12px", marginBottom: 16, whiteSpace: "normal", display: "block" }}
         >
           Demo replay — a recorded session, clearly labeled. No provider keys,
           no live execution.
@@ -169,7 +199,10 @@ export default function RunDetailPage({
           <ErrorState title="Run didn’t load" message={error} onRetry={() => void fetchAgg()} />
         )}
         {loading && !agg && !notFound && <LoadingState label="Loading run…" rows={4} />}
-        {agg && <RunDetailAggregate agg={agg} now={Date.now()} />}
+        {agg && (
+          <RunDetailAggregate agg={agg} now={Date.now()} conn={stale ? "reconnecting" : "polling"}
+            onPauseResume={(a) => void pauseResume(a)} controlBusy={controlBusy} controlNote={controlNote} />
+        )}
       </RunTabPanel>
 
       <RunTabPanel id="plan" active={tab === "plan"}>

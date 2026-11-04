@@ -1,0 +1,8 @@
+revision: e9e5589523f2205eaa484e6fe4a0419864364ed0
+image: harness-backend:vw17-e9e5589   project: harness-w17ladder-e9e5589
+host: macOS 26.7.2, docker 29.5.3
+knobs: engine_max_concurrency=8 run_concurrency=4 poll=0.5 hold=60s spawn_rate=2/s
+rungs: 4 8 16 32 64 100
+started: 2026-10-31T06:31:50Z
+image id: sha256:02695acdd7e5174a44926aaed23356135a0cf3bf6b810943acdefd291125c2d4
+finished: 2026-10-31T06:41:52Z

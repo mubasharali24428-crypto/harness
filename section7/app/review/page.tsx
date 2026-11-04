@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 // extension; Next's compiler accepts this import too — same as meeting/page.
 import * as React from "react";
 import AppShell from "@/components/AppShell";
-import { approvePr, getReviewData, requestChanges, type ReviewDto } from "@/lib/api";
+import { ApiError, approvePr, getReviewData, requestChanges, type ReviewDto } from "@/lib/api";
 import { getUserId, getPrId, setPrId, getToken, getProjectId } from "@/lib/auth";
 import { useEventStream } from "@/lib/useEventStream";
 import {
@@ -29,11 +29,37 @@ import { Notice } from "@/components/ui/Notice";
 
 const RISKY_FILES = ["auth/", "payment/", "migrations", ".env", "secrets"];
 
+// Hoisted so the M16-X4 zero-inline-style audit stays meaningful (M-A9).
+const fieldLabelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: 12,
+  color: "var(--muted)",
+  marginBottom: 4,
+};
+
+const changeRequestStyle: React.CSSProperties = {
+  width: "100%",
+  background: "var(--input)",
+  border: "1px solid var(--border-soft)",
+  borderRadius: 8,
+  color: "inherit",
+  font: "inherit",
+  fontSize: 13,
+  padding: 8,
+  resize: "vertical",
+};
+
 export default function Review() {
   const [decision, setDecision] = useState<null | "approved" | "changes_requested">(null);
   const [liveReview, setLiveReview] = useState<ReviewDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // M-A9: a failed review load used to be swallowed, leaving "loading diff…"
+  // on screen forever. Load failures are now their own state, with a retry.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [prMissing, setPrMissing] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [changeRequest, setChangeRequest] = useState("");
 
   // --- prId acquisition (W2-C2 consumer side) -----------------------------
   // Path 1: deep link /review?pr=<prId>, resolved once on mount. Also the
@@ -87,15 +113,29 @@ export default function Review() {
   useEffect(() => {
     const t = getToken();
     if (!prId || !t) return;
+    let cancelled = false;
+    setLoadError(null);
+    setPrMissing(false);
     getReviewData(prId, t)
       .then((r) => {
+        if (cancelled) return;
         setLiveReview(r);
         setError(null);
       })
-      .catch(() => {
-        /* stay on honest empty state until the PR exists */
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        // A PR that does not exist yet is the honest empty state; anything
+        // else (auth, offline, 5xx) is a failure the reviewer can retry.
+        if (err instanceof ApiError && err.status === 404) {
+          setPrMissing(true);
+        } else {
+          setLoadError(err instanceof Error ? err.message : String(err));
+        }
       });
-  }, [prId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [prId, reloadKey]);
 
   const touchesRisky =
     liveReview?.changed_files?.some((f) =>
@@ -112,13 +152,22 @@ export default function Review() {
       setError("Not signed in — go to /login first.");
       return;
     }
+    // M-A9: "Request changes" used to POST an empty comment array and still
+    // report a recorded decision, so the agent received a rejection with no
+    // reason. The note is now required and travels as the review comment.
+    const note = changeRequest.trim();
+    if (kind === "changes_requested" && !note) {
+      setError("Say what needs to change — the agent only gets what you write here.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       const reviewer = getUserId() ?? "ui-user";
       if (kind === "approved") await approvePr(prId, reviewer, t);
-      else await requestChanges(prId, [], reviewer, t);
+      else await requestChanges(prId, [{ body: note }], reviewer, t);
       setDecision(kind);
+      setChangeRequest("");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -192,8 +241,19 @@ export default function Review() {
 
           <Card as="div" title="Human Gate">
             <p>Merge happens on GitHub, by a human, manually. This app never merges.</p>
+            <label htmlFor="change-request" style={fieldLabelStyle}>
+              What should change? (required to request changes; the agent sees only this)
+            </label>
+            <textarea
+              id="change-request"
+              value={changeRequest}
+              onChange={(e) => setChangeRequest(e.target.value)}
+              rows={3}
+              aria-label="Changes you are requesting"
+              style={changeRequestStyle}
+            />
             {/* M16-X4: the flex row is the one-off layout exception (above). */}
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
               <Button
                 type="button"
                 variant="primary"
@@ -205,7 +265,7 @@ export default function Review() {
               <Button
                 type="button"
                 variant="danger"
-                disabled={busy}
+                disabled={busy || changeRequest.trim() === ""}
                 onClick={() => void decide("changes_requested")}
               >
                 Request changes
@@ -226,11 +286,22 @@ export default function Review() {
           </Card>
         </div>
       )}
-      {!liveReview && prId && !decision && (
+      {!liveReview && prId && !decision && !prMissing && (
         <p className="status-line">
           <span>PR {prId}</span>
-          <span>loading diff…</span>
+          <span>{loadError ? "not loaded" : "loading diff…"}</span>
         </p>
+      )}
+      {loadError && (
+        <Notice tone="danger">
+          Review data for PR {prId} could not be loaded: {loadError}{" "}
+          <Button type="button" size="sm" variant="secondary" onClick={() => setReloadKey((k) => k + 1)}>
+            Try again
+          </Button>
+        </Notice>
+      )}
+      {prMissing && !liveReview && (
+        <PrEmptyState />
       )}
       {error && <Notice tone="danger">{error}</Notice>}
     </AppShell>

@@ -23,6 +23,11 @@ def test_router_lifecycle_call_and_history():
 
     # 1. List available models
     models = service.list_available_models()
+    # The golden list IS the catalog (every entry must be served); lock both
+    # directions so renaming a model cannot leave this fixture behind.
+    from harness_router.config import MODEL_PRICING_CATALOG
+
+    assert set(GOLDEN_EXPECTED_MODELS) == set(MODEL_PRICING_CATALOG)
     for m in GOLDEN_EXPECTED_MODELS:
         assert m in models
 
@@ -66,7 +71,7 @@ def test_rest_api_conformance():
     assert res.status_code == 200
     model_list = res.json()
     assert isinstance(model_list, list)
-    assert "deepseek/deepseek-coder" in model_list
+    assert "deepseek/deepseek-v4-flash" in model_list
     assert "local/qwen3:14b-ablated" in model_list
 
     # 2. POST /api/v1/models/estimate-cost

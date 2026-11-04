@@ -1,0 +1,374 @@
+{
+  "date": "2026-10-30",
+  "week": "W11",
+  "claim": "a mockup becomes a matching page, an error dialog is triaged from its pixels, and image diffing measures the result \u2014 all inside the run boundary",
+  "runs": {
+    "design": "w11-design-1793376737",
+    "triage": "w11-triage-1793376737"
+  },
+  "drive": "HTTP only",
+  "model": "the configured DSH_MODEL through the OpenRouter vision patch",
+  "fixtures": {
+    "token": "HAVEN-16",
+    "subtitle": "design review 37",
+    "errorCode": "E_UPSTREAM_837",
+    "dialogMessage": "Snapshot c1e1 could not be uploaded.",
+    "mockupBytes": 5436,
+    "mockupSha256": "e349f8241c0274e24c8e62fcb5f3dee9c53f0bc4ffcb73fe134d83b18eeb9c4c",
+    "dialogBytes": 15578,
+    "dialogSha256": "e252ce1196444789b21319d7e0f5aa51cd410d0bf7e1617f470c6f7c6b888509",
+    "note": "the HTML that produced these PNGs was written to a temp dir outside the workspace and deleted; only the bytes above are seeded"
+  },
+  "seededFiles": [
+    "mockup.png"
+  ],
+  "design": {
+    "startStatus": 200,
+    "states": [
+      "executing",
+      "awaiting_done_signal"
+    ],
+    "state": "awaiting_done_signal",
+    "engine": "replayed",
+    "engineStatus": "completed",
+    "answer": "TOKEN: HAVEN-16\nRATIO: 0.00207\nFILES: index.html, style.css"
+  },
+  "designTrail": {
+    "toolsUsed": [
+      "browser",
+      "image",
+      "read_image",
+      "write"
+    ],
+    "imageDiffCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "toolu_01UMcut8WJ617Xsp5oj2HJHt",
+        "arguments": "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imageSampleCalls": [],
+    "imagePaletteCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "toolu_01KcjoLnZSHawApahMPyJJrc",
+        "arguments": "{\"action\":\"palette\",\"path\":\"mockup.png\",\"maxColors\":12}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "screenshotCalls": [
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "toolu_01GUR6eNv1wbLcGMSTjBEPp9",
+        "arguments": "{\"action\":\"screenshot\",\"url\":\"index.html\",\"path\":\"shots/render.png\",\"width\":800,\"height\":600}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "mockupReads": [
+      {
+        "type": "tool_call",
+        "tool": "read_image",
+        "callId": "toolu_011wcSiy5bzLPDi2YbMh7y5M",
+        "arguments": "{\"file_path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "dialogReads": [],
+    "writes": [
+      {
+        "type": "tool_call",
+        "tool": "write",
+        "callId": "toolu_017fz42hFiTdLRKyWWH4eiaq",
+        "arguments": "{\"file_path\":\"/var/lib/harness-runs/workspace/w11-design-1793376737/index.html\",\"content\":\"<!DOCTYPE html>\\n<html>\\n<head>\\n<meta charset=\\\"utf-8\\\">\\n<title>HAVEN-16</title>\\n<link rel=\\\"stylesheet\\\" href=\\\"style.css\\\">\\n</head>\\n<body>\\n<div class=\\\"page\\\">\\n  <div class=\\\"panel\\\"></div>\\n  <div class=\\\"bar\\\"></div>\\n  <div class=\\\"block green\\\"></div>\\n  <div class=\\\"block orange\\\"></div>\\n  <div class=\\\"title\\\">HAVEN-16</div>\\n</div>\\n</body>\\n</html>\\n\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "write",
+        "callId": "toolu_016qhVmzXvjLXSHUnLyBfifx",
+        "arguments": "{\"file_path\":\"/var/lib/harness-runs/workspace/w11-design-1793376737/style.css\",\"content\":\"html, body {\\n  margin: 0;\\n  padding: 0;\\n  width: 800px;\\n  height: 600px;\\n  overflow: hidden;\\n  background: #0f1115;\\n}\\n\\n.page {\\n  position: absolute;\\n  left: 0;\\n  top: 0;\\n  width: 800px;\\n  height: 600px;\\n  background: #0f1115;\\n  font-family: \\\"DejaVu Sans\\\", sans-serif;\\n}\\n\\n.panel, .bar, .block {\\n  position: absolute;\\n}\\n\\n.panel {\\n  left: 100px;\\n  top: 80px;\\n  width: 600px;\\n  height: 460px;\\n  background: #171a21;\\n}\\n\\n.bar {\\n  left: 140px;\\n  top: 130px;\\n  width: 520px;\\n  height: 40px;\\n  background: #4f7cff;\\n}\\n\\n.green {\\n  left: 140px;\\n  top: 230px;\\n  width: 240px;\\n  height: 120px;\\n  background: #3ecf8e;\\n}\\n\\n.orange {\\n  left: 420px;\\n  top: 230px;\\n  width: 240px;\\n  height: 120px;\\n  background: #f2b84b;\\n}\\n\\n.title {\\n  position: absolute;\\n  left: 140px;\\n  top: 398px;\\n  font-family: \\\"DejaVu Sans\\\", sans-serif;\\n  font-weight: bold;\\n  font-size: 28px;\\n  line-height: 34px;\\n  color: #eef2f8;\\n  white-space: nowrap;\\n}\\n\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imageArguments": [
+      "{\"action\":\"palette\",\"path\":\"mockup.png\",\"maxColors\":12}",
+      "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\"}"
+    ]
+  },
+  "pageFiles": {
+    "index.html": 335,
+    "style.css": 911
+  },
+  "measurement": {
+    "mockupSize": [
+      800,
+      600
+    ],
+    "renderSize": [
+      800,
+      600
+    ],
+    "changedPixels": 992,
+    "totalPixels": 480000,
+    "ratio": 0.002067,
+    "sampledColours": {
+      "canvas": [
+        15,
+        17,
+        21
+      ],
+      "bar": [
+        79,
+        124,
+        255
+      ],
+      "card": [
+        23,
+        26,
+        33
+      ],
+      "green": [
+        62,
+        207,
+        142
+      ],
+      "amber": [
+        242,
+        184,
+        75
+      ]
+    },
+    "gateResult": {
+      "ok": true,
+      "changedPixels": 992,
+      "ratio": 0.002067,
+      "bbox": [
+        142,
+        403,
+        155,
+        23
+      ],
+      "maxDelta": 216
+    }
+  },
+  "triageSeededFiles": [
+    "dialog.png"
+  ],
+  "triage": {
+    "startStatus": 200,
+    "states": [
+      "executing",
+      "awaiting_done_signal"
+    ],
+    "state": "awaiting_done_signal",
+    "engine": "replayed",
+    "engineStatus": "completed",
+    "answer": "CODE: E_UPSTREAM_837\nMESSAGE: Snapshot c1e1 could not be uploaded."
+  },
+  "triageTrail": {
+    "toolsUsed": [
+      "read",
+      "read_image"
+    ],
+    "imageDiffCalls": [],
+    "imageSampleCalls": [],
+    "imagePaletteCalls": [],
+    "screenshotCalls": [],
+    "mockupReads": [],
+    "dialogReads": [
+      {
+        "type": "tool_call",
+        "tool": "read",
+        "callId": "toolu_01R1TyrRmbpLTUqSeqVBKayc",
+        "arguments": "{\"file_path\":\"dialog.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "read_image",
+        "callId": "toolu_01HJv1TTPF8JQLpY6PjQAP57",
+        "arguments": "{\"file_path\":\"dialog.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "writes": [],
+    "imageArguments": []
+  },
+  "gateProbe": {
+    "image": "harness-engine-worker:vdev-local",
+    "network": "none",
+    "diff": {
+      "ok": true,
+      "before": "before.png",
+      "after": "after.png",
+      "width": 100,
+      "height": 50,
+      "changedPixels": 100,
+      "totalPixels": 5000,
+      "ratio": 0.02,
+      "tolerance": 16,
+      "bbox": [
+        20,
+        10,
+        10,
+        10
+      ],
+      "maxDelta": 190,
+      "changedMeanBefore": [
+        10,
+        20,
+        30
+      ],
+      "changedMeanAfter": [
+        200,
+        40,
+        40
+      ],
+      "out": "before.diff.png",
+      "outBytes": 200,
+      "hint": "open the out image with the read tool to see where it differs"
+    },
+    "escape": {
+      "denied": "before '../../etc/passwd' escapes the workspace"
+    },
+    "palette": {
+      "ok": true,
+      "path": "after.png",
+      "width": 100,
+      "height": 50,
+      "pixels": 5000,
+      "distinctBuckets": 2,
+      "colors": [
+        {
+          "rgb": [
+            10,
+            20,
+            30
+          ],
+          "hex": "#0a141e",
+          "meanRgb": [
+            10,
+            20,
+            30
+          ],
+          "pixels": 4900,
+          "share": 0.98,
+          "bbox": [
+            0,
+            0,
+            100,
+            50
+          ]
+        },
+        {
+          "rgb": [
+            200,
+            40,
+            40
+          ],
+          "hex": "#c82828",
+          "meanRgb": [
+            200,
+            40,
+            40
+          ],
+          "pixels": 100,
+          "share": 0.02,
+          "bbox": [
+            20,
+            10,
+            10,
+            10
+          ]
+        }
+      ],
+      "hint": "one call answers the layout's colours; sample exact points only to disambiguate"
+    },
+    "paletteEscape": {
+      "denied": "path '../../etc/passwd' escapes the workspace"
+    },
+    "paletteCap": {
+      "denied": "maxColors must be 1..24"
+    },
+    "routes": ""
+  },
+  "network": {
+    "skipped": false,
+    "noProxyRender": {
+      "network": "w10-probe-1793376782-30",
+      "proxy": null,
+      "verdict": "FETCH FAILED",
+      "gateOk": true,
+      "gateError": null,
+      "domChars": 305
+    }
+  },
+  "artifacts": {
+    "mockup": {
+      "status": 201,
+      "sha256": "e349f8241c0274e24c8e62fcb5f3dee9c53f0bc4ffcb73fe134d83b18eeb9c4c"
+    },
+    "render": {
+      "status": 201,
+      "sha256": "52dd53a290ab60b4bc35ef8376a5ac63bb55659a3d1924f2c14bd34cf57426e2"
+    },
+    "diff": {
+      "status": 201,
+      "sha256": "d91fc12015bc8b8c16110c9eee3f82e14781a87369d309fefdc1a875d342a06a"
+    },
+    "dialog": {
+      "status": 201,
+      "sha256": "e252ce1196444789b21319d7e0f5aa51cd410d0bf7e1617f470c6f7c6b888509"
+    }
+  },
+  "designLoop": {
+    "paletteCalls": 1,
+    "sampleCalls": 0,
+    "colourCallsTotal": 1,
+    "goalAskedFor": "one palette call, then at most one sample call",
+    "withinBound": true
+  },
+  "checks": {
+    "designRunSettled": true,
+    "agentOpenedTheMockup": true,
+    "agentSampledColours": true,
+    "agentScreenshottedItsPage": true,
+    "agentUsedTheDiff": true,
+    "agentWroteThePage": true,
+    "tokenOnlyInPixelsWasTranscribed": true,
+    "pageRendersAtMockupSize": true,
+    "independentDiffWithinThreshold": true,
+    "flatColoursSurvived": true,
+    "agentRatioAgreesWithBytes": true,
+    "diffImageAttached": true,
+    "mockupAttached": true,
+    "gateReportsTheExactPatch": true,
+    "gateRefusesPathsOutsideTheWorkspace": true,
+    "gateReportsThePalette": true,
+    "gateRefusesPalettePathsOutsideTheWorkspace": true,
+    "gateCapsPaletteColours": true,
+    "gateContainerHasNoNetwork": true,
+    "triageRunSettled": true,
+    "triageOpenedTheDialog": true,
+    "triageReportedTheExactCode": true,
+    "triageReportedTheExactMessage": true,
+    "triageHadNoTextSource": true,
+    "browserStillHasNoNetworkWithoutProxy": true
+  },
+  "verdict": "PASS",
+  "failedChecks": [],
+  "designAnswer": "TOKEN: HAVEN-16\nRATIO: 0.00207\nFILES: index.html, style.css",
+  "triageAnswer": "CODE: E_UPSTREAM_837\nMESSAGE: Snapshot c1e1 could not be uploaded."
+}

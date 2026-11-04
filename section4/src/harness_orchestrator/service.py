@@ -3,9 +3,11 @@ import inspect
 import json
 import logging
 import os
+import queue
 import secrets
 import socket
 import time
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -14,9 +16,17 @@ from harness_contracts.events import EventType
 from harness_contracts.plan import AgentPlan
 from harness_contracts.signatures import Orchestrator
 from harness_contracts.timeutil import db_now
+from harness_contracts.workflow import WorkflowRequest, WorkflowResult, WorkflowRunner
 from sqlalchemy import text
 
-from harness_orchestrator import collab, domain_metrics, staging
+from harness_orchestrator import (
+    collab,
+    domain_metrics,
+    memory_loader,
+    run_checkpoints,
+    skills_loader,
+    staging,
+)
 from harness_orchestrator.budget import (
     BudgetStatus,
     check_budget,
@@ -35,8 +45,11 @@ from harness_orchestrator.engine_runtime import (
     CircuitOpenError,
     EngineRuntime,
     EngineRunTimeout,
+    accepts_keyword,
 )
+from harness_orchestrator.goal_images import GoalImages, resolve_goal_images
 from harness_orchestrator.lifecycle import lifecycle_view
+from harness_orchestrator.loop_guard import LoopGuard, loop_repeat_limit
 from harness_orchestrator.planner import PlanNotApprovedError, PlanService
 from harness_orchestrator.redact import scrub_secrets
 from harness_orchestrator.reviewer import ReviewerSubAgent, ReviewFindings
@@ -45,7 +58,9 @@ from harness_orchestrator.run_metering import record_engine_tool_calls, record_r
 from harness_orchestrator.run_queue import (
     claim_next_run,
     enqueue_run,
+    executing_run_ids,
     finish_run,
+    has_runner_job,
     heartbeat_age_seconds,
     heartbeat_run,
     queue_available,
@@ -69,9 +84,25 @@ from harness_orchestrator.state_machine import (
     approved_at_from_wire,
     plan_approval_ttl_seconds,
 )
+from harness_orchestrator.workflow_runs import WorkflowRuns
 from harness_orchestrator.workspace_gate import check_run_start, enforce_run_start
 
 logger = logging.getLogger(__name__)
+
+
+def durable_event_text(value: Any) -> str:
+    """Text that can actually be stored as an event payload.
+
+    PostgreSQL's text/JSONB types cannot hold U+0000, and asyncpg raises
+    ``UntranslatableCharacterError`` — the *whole* event insert fails. Observed
+    in the W4 credential drill: a bash call whose result was
+    ``cat /proc/self/environ`` produced a NUL-separated dump, the tool_result
+    row was dropped, and the transcript showed a tool call with no result. A
+    lost result is worse than a lossy one, so NUL becomes U+FFFD (visible) and
+    lone surrogates are normalised; everything else is preserved verbatim.
+    """
+    text = str(value if value is not None else "").replace("\x00", "\ufffd")
+    return text.encode("utf-8", "replace").decode("utf-8")
 
 
 class PlanAlreadyDecidedError(Exception):
@@ -204,6 +235,7 @@ class OrchestratorService(Orchestrator):
         stale_seconds: int = 90,
         engine_runtime: EngineRuntime | None = None,
         context_transport=None,
+        workflow_runner: WorkflowRunner | None = None,
     ) -> None:
         self.planner = planner or PlanService()
         self.reviewer = reviewer or ReviewerSubAgent()
@@ -220,6 +252,14 @@ class OrchestratorService(Orchestrator):
         # env var overrides per deployment (resolved at construction so a
         # restart re-reads the deployment's current value).
         self.heartbeat_timeout_seconds = resolve_heartbeat_timeout_seconds()
+        # W8 slice 2: minimum age of a per-run network before the boundary
+        # sweeper may judge it. It is NOT the safety argument (only runs the
+        # durable lifecycle calls terminal are ever touched) — it is protection
+        # for the window between a peer creating a boundary and that peer's run
+        # row being readable. Env-tuned per deployment like the heartbeat knob.
+        self.boundary_sweep_grace_seconds = float(
+            os.environ.get("BOUNDARY_SWEEP_GRACE_SECONDS", "300") or 300
+        )
 
         # M17-B5 (PBC1 F2): engine calls leave the inherited default thread
         # pool for a DEDICATED bounded executor with a hard per-run deadline
@@ -233,10 +273,19 @@ class OrchestratorService(Orchestrator):
         # without touching sibling code (isolation law) or ports.
         self.context_transport = context_transport
 
+        # M2: program runs. The runner is a contract implementation injected by
+        # the assembly point — this section never imports the Hx driver, so a
+        # workflow executes here without a section-to-section dependency.
+        self.workflows = WorkflowRuns(workflow_runner, self._emit, self._clean_event_text)
+
         # M19-N1: terminal runs are evicted from this cache — the durable
         # lifecycle (agent_events/agent_plans/agent_runs) is the source of
         # truth and replays deterministically, so RAM holds only live runs.
         self.runs: dict[str, dict[str, Any]] = {}
+        # M2: a run may execute at most one program at a time. Two concurrent
+        # runs would interleave their transcript events under the same runId,
+        # and a reviewer could not tell which call produced which result.
+        self._workflow_runs_in_flight: set[str] = set()
         self._bg_tasks: set[asyncio.Task] = set()
         self._fence_tasks: set[asyncio.Task] = set()  # claim-lost fences in flight
         # run_id -> monotonic deadline: another replica's worker held this run when it was
@@ -251,6 +300,199 @@ class OrchestratorService(Orchestrator):
         self._publish_chains: dict[str, asyncio.Task] = {}
 
     # ------------------------------------------------------------------ events
+
+    async def _guard_stopped(
+        self,
+        run_id: str,
+        run_data: dict[str, Any],
+        sm: Any,
+        reason: str,
+        guard: LoopGuard,
+        set_shell_policy: Any,
+        shell_policy: dict[str, Any] | None,
+    ) -> None:
+        """Stop a run the event stream says is stuck, and say so durably.
+
+        W3 closed the gap this docstring used to admit: the stop now reaches the
+        worker. `_kill_engine` was measured killing a confined worker and its
+        relay in under a second (`docs/week-3-plan.md`, `w3_stop_spike.py`), so a
+        guarded run no longer keeps burning until the wall clock. Four things
+        happen, in this order:
+
+        * the stop is durable and visible immediately, as ``ENGINE_FAILED`` —
+          the same event the deadline path uses to fail one run honestly;
+        * every further shell call is refused, by writing the budget the engine's
+          shell plugin reads down to zero rather than leaving it at the stale
+          snapshot taken before the run started;
+        * the worker is killed, and the kill's own answer is recorded: an
+          unconfirmed kill must not read as a confirmed one in the event text;
+        * ``_guard_stopped`` is set so the late result is discarded instead of
+          letting a run that was told to stop come back and mark itself done.
+
+        Idempotent on purpose: the live forwarder and the post-run drain can both
+        reach this coroutine before either has set the flag (each awaits an emit
+        first), and a second failure event for one stop says nothing new.
+        """
+        if run_data.get("_guard_stopped"):
+            return
+        run_data["_guard_stopped"] = reason
+        detail = f"{reason} after {guard.calls_seen} tool calls"
+        if set_shell_policy is not None and shell_policy is not None:
+            set_shell_policy(run_id, {**shell_policy, "maxToolCalls": 0})
+        killed = await self._kill_engine(run_id)
+        run_data["_guard_killed"] = killed
+        sm.execution_failed(
+            detail if killed else f"{detail} (worker kill could not be confirmed)"
+        )
+
+    # ------------------------------------------------------- W3 run checkpoints
+
+    def _checkpoint_workspace(self, run_id: str) -> str | None:
+        """The run's own workspace, when the engine can name one.
+
+        Capability-probed: a stub engine in a test has no workspace, and a run
+        must not fail because it cannot be checkpointed.
+        """
+        workspace_of = getattr(self.engine, "run_workspace", None)
+        if workspace_of is None:
+            return None
+        try:
+            return str(workspace_of(run_id))
+        except Exception:  # noqa: BLE001 — an unusable workspace is not a run failure
+            logger.warning("no workspace for checkpoint of %s", run_id, exc_info=True)
+            return None
+
+    async def _checkpoint_run(self, run_id: str, phase: str) -> None:
+        """Best-effort snapshot. A failure is logged, never raised into the run.
+
+        Not raising is deliberate and it is not silent: a run with no checkpoints
+        answers "this run has no checkpoints" on rewind, which is true. Failing
+        the engine because a snapshot did not fit would trade the work for the
+        undo.
+        """
+        workspace = self._checkpoint_workspace(run_id)
+        if workspace is None:
+            return
+        try:
+            # The attempt number comes from what the STORE already holds, not from
+            # an in-RAM counter: a resumed run is a fresh run_data, so a counter
+            # restarts at 1 and labels collide ("before attempt 1" twice), which
+            # makes the history unreadable exactly when someone is trying to
+            # reconstruct an interrupted attempt.
+            existing = await asyncio.to_thread(
+                run_checkpoints.list_snapshots, workspace, run_id
+            )
+            label = f"{phase} attempt {len(existing) // 2 + 1}"
+            snap = await asyncio.to_thread(
+                run_checkpoints.snapshot, workspace, run_id, label
+            )
+            logger.info("checkpoint %s for %s (%d files)", snap["id"], run_id, len(snap["files"]))
+        except Exception:  # noqa: BLE001
+            logger.warning("checkpoint %r for %s failed", label, run_id, exc_info=True)
+
+    async def list_run_checkpoints(self, run_id: str) -> dict[str, Any]:
+        workspace = self._checkpoint_workspace(run_id)
+        if workspace is None:
+            return {"runId": run_id, "items": []}
+        items = await asyncio.to_thread(run_checkpoints.list_snapshots, workspace, run_id)
+        return {"runId": run_id, "items": items}
+
+    async def rewind_run(self, run_id: str, checkpoint_id: str | None = None) -> dict[str, Any]:
+        """Restore the run's workspace to a checkpoint.
+
+        Refused while the run is live: resetting files under a worker that is
+        still writing would race the agent and could restore a tree the agent
+        never saw. Stop or pause first — that is what makes this the inverse of
+        an attempt rather than a surprise mid-step.
+        """
+        run_data = await self._ensure_run(run_id)
+        task = run_data.get("task")
+        if task is not None and not task.done():
+            raise InvalidStateTransitionError(
+                "rewind requires the run to be stopped or paused first"
+            )
+        workspace = self._checkpoint_workspace(run_id)
+        if workspace is None:
+            raise run_checkpoints.CheckpointError("this run has no workspace to rewind")
+        return await asyncio.to_thread(
+            run_checkpoints.rewind, workspace, run_id, checkpoint_id
+        )
+
+    @staticmethod
+    def _executor_context_prefix(run_data: dict[str, Any]) -> str:
+        """Project rules, reviewed skills, project memory, then the curated
+        @ref bundle, then whatever calls it.
+
+        All blocks are assembled while planning and were stored "for engine
+        prompt assembly" that never happened for rules: the executor received
+        ``plan.goal + guidance`` and nothing else. They stay advisory — an absent
+        or blank block contributes nothing rather than an empty heading, so a run
+        with neither produces exactly the prompt it always did.
+        """
+        parts: list[str] = []
+        rules = str(run_data.get("rules_prompt_block") or "").strip()
+        if rules:
+            parts.append(rules)
+        skills = str(run_data.get("skills_prompt_block") or "").strip()
+        if skills:
+            parts.append(skills)
+        memory = str(run_data.get("memory_prompt_block") or "").strip()
+        if memory:
+            parts.append(memory)
+        bundle = run_data.get("context_bundle")
+        rendered = str(bundle.get("rendered") or "").strip() if isinstance(bundle, dict) else ""
+        if rendered:
+            parts.append(rendered)
+        return "\n\n".join(parts) + "\n\n" if parts else ""
+
+    def _clean_event_text(self, value: Any, limit: int = 4000) -> str:
+        """One scrubbing rule for every engine-derived string that reaches the bus.
+
+        The provider key is the only secret this process can name for certain, so
+        it is replaced literally; ``durable_event_text`` handles the encoding
+        hazards that would fail the insert. Both apply before truncation, so a
+        limit can never cut a secret in half and leave the halves stored.
+        """
+        key = getattr(self.engine, "api_key", "") or ""
+        return scrub_secrets(durable_event_text(value), key)[:limit]
+
+    def _emit_tool_record(self, run_id: str, record: dict[str, Any]) -> None:
+        """Bridge one engine tool record onto the project bus.
+
+        Payloads follow the contract note on ``EventType.TOOL_CALL``. Both
+        strings are scrubbed here rather than at the source: the arguments and
+        output are model- and tool-authored text, and the transcript is durable.
+        """
+
+        _clean = self._clean_event_text
+
+        if record.get("phase") == "call":
+            self._emit(
+                EventType.TOOL_CALL,
+                {
+                    "runId": run_id,
+                    "callId": str(record.get("callId") or ""),
+                    "name": _clean(record.get("name"), 80),
+                    "arguments": _clean(record.get("arguments")),
+                    "turn": record.get("turn"),
+                    "step": record.get("step"),
+                    "startedAt": record.get("at"),
+                },
+            )
+            return
+        self._emit(
+            EventType.TOOL_RESULT,
+            {
+                "runId": run_id,
+                "callId": str(record.get("callId") or ""),
+                "ok": bool(record.get("ok")),
+                "error": _clean(record.get("error"), 500) or None,
+                "output": _clean(record.get("output"), 2000),
+                "turn": record.get("turn"),
+                "step": record.get("step"),
+                "finishedAt": record.get("at"),
+            },
+        )
 
     def _emit(self, event_type: EventType, payload: dict[str, Any]) -> None:
         """Single emission bridge: sync test callback first, then bus fan-out."""
@@ -325,11 +567,43 @@ class OrchestratorService(Orchestrator):
                 pass
         await self._publish_safe(event_type, project_id, payload, run_id)
 
+    #: W17: the two engine-terminal events are the only durable answer a client
+    #: gets for a run. Losing one leaves the run stuck in "executing" forever
+    #: (load-ladder run 1, rung 16: execution_started + model_routed, no terminal,
+    #: claim released). Everything else may ride best-effort; these retry.
+    _TERMINAL_PUBLISH_EVENTS = (EventType.ENGINE_COMPLETED, EventType.ENGINE_FAILED)
+    _TERMINAL_PUBLISH_ATTEMPTS = 4
+
     async def _publish_safe(self, event_type, project_id, payload, run_id) -> None:
-        try:
-            await self.bus.publish(event_type, project_id, dict(payload), run_id)
-        except Exception:  # noqa: BLE001 — delivery must never break orchestration
-            logger.exception("eventbus publish failed for run %s", run_id)
+        attempts = (
+            OrchestratorService._TERMINAL_PUBLISH_ATTEMPTS
+            if event_type in OrchestratorService._TERMINAL_PUBLISH_EVENTS
+            else 1
+        )
+        for attempt in range(1, attempts + 1):
+            try:
+                await self.bus.publish(event_type, project_id, dict(payload), run_id)
+                if attempt > 1:
+                    logger.warning(
+                        "terminal event %s for run %s published on attempt %d",
+                        event_type.value, run_id, attempt,
+                    )
+                return
+            except Exception:  # noqa: BLE001 — delivery must never break orchestration
+                if attempt < attempts:
+                    logger.warning(
+                        "eventbus publish failed for run %s (%s, attempt %d/%d), retrying",
+                        run_id, event_type.value, attempt, attempts,
+                        exc_info=True,
+                    )
+                    await asyncio.sleep(0.25 * attempt)
+                    continue
+                logger.exception(
+                    "eventbus publish FAILED for run %s (%s) after %d attempts — "
+                    "run has no durable terminal event; clients must fall back "
+                    "to REST state",
+                    run_id, event_type.value, attempts,
+                )
 
     # ------------------------------------------------------------- budget
 
@@ -747,6 +1021,18 @@ class OrchestratorService(Orchestrator):
         # and future engine calls can carry it into system context.
         rules_text = await load_project_rules(self.session_factory, run_data.get("projectId"))
         run_data["rules_prompt_block"] = build_rules_block(rules_text)
+        # M2-W12: reviewed team skills and project memory join project rules
+        # as advisory prompt context. Loaded best-effort, never blocks
+        # planning; stored on the run for the executor prompt assembly.
+        team_id = await skills_loader.project_team_id(
+            self.session_factory, run_data.get("projectId")
+        )
+        skills = await skills_loader.load_team_skills(self.session_factory, team_id)
+        run_data["skills_prompt_block"] = skills_loader.build_skills_block(skills)
+        memory = await memory_loader.load_project_memory(
+            self.session_factory, run_data.get("projectId")
+        )
+        run_data["memory_prompt_block"] = memory_loader.build_memory_block(memory)
         # M21-X2: @refs in the brief text resolve (advisory, best-effort) into
         # a bounded context bundle that AUGMENTS the pasted goal. Resolution
         # is OFF unless CONTEXT_SEARCH_BASE_URL is set; any failure degrades
@@ -1043,6 +1329,16 @@ class OrchestratorService(Orchestrator):
             # emission, so the shared log carries exactly one announcement
             # no matter how many replicas answer the request. (The winner's
             # worker loop performs the actual claim + spawn.)
+            if not run_data.get("projectId"):
+                # R3-S2: the claim query joins projects on project_id, so a claim queued
+                # under '' can never be claimed. It would answer "executing" and wait forever
+                # (and keep the stalled-queue alerts firing). POST /plans leaves a run unbound
+                # when the team has no project, or several, and the propose named none.
+                raise InvalidStateTransitionError(
+                    f"Cannot execute run '{run_id}': it is not bound to a project. "
+                    "Propose the plan again with a projectId."
+                )
+            byo = await has_runner_job(self.run_queue_factory, run_id)
             elected = await enqueue_run(
                 self.run_queue_factory, run_id, run_data.get("projectId") or ""
             )
@@ -1053,11 +1349,88 @@ class OrchestratorService(Orchestrator):
                 )
                 return
             sm.start_execution()
+            if byo:
+                # W13: offered to a bring-your-own runner. The queued row is the runner's to
+                # claim and claim_next_run skips it, so no local engine is ever spawned; the
+                # runner's finish settles the run through the event log. Budget/tier policy is
+                # still ours: the gate the worker applies before a spawn applies here.
+                if await self._budget_gate(run_data, plan):
+                    await finish_run(self.run_queue_factory, run_id)
             return
         # Bare / scratch-store mode: this process owns the lifecycle
         # end-to-end (legacy direct-spawn semantics preserved).
         sm.start_execution()
         self._spawn_execution(run_data, plan)
+
+    async def run_workflow(
+        self,
+        run_id: str,
+        program: str,
+        *,
+        workflow: str | None = None,
+        project_id: str | None = None,
+        grants: Sequence[str] = (),
+        principal_permissions: Sequence[str] | None = None,
+        principal: str = "anonymous",
+        policy: str = "harness",
+        profile: str = "agent",
+        inputs: Mapping[str, Any] | None = None,
+    ) -> WorkflowResult:
+        """Execute one Hx program for this run, through the injected runner.
+
+        The host decides grants; this method only carries the decision. Nothing
+        here approves, merges, or retries: a refusal is a settled outcome with a
+        terminal event, which is what lets a client stop waiting.
+        """
+        run_data = await self._ensure_run(run_id, project_id)
+        resolved = run_data.get("projectId") or await self._project_for_run(run_id)
+        if not resolved:
+            raise ValueError(
+                f"run '{run_id}' has no project; pass project_id= or persist the run first"
+            )
+        run_data["projectId"] = resolved
+        if run_id in self._workflow_runs_in_flight:
+            raise RuntimeError(f"run '{run_id}' is already executing a workflow")
+        request = WorkflowRequest(
+            runId=run_id,
+            projectId=resolved,
+            program=program,
+            workflow=workflow,
+            profile=profile,
+            grants=list(grants),
+            principalPermissions=(
+                None if principal_permissions is None else list(principal_permissions)
+            ),
+            principal=principal,
+            policy=policy,
+            inputs=dict(inputs or {}),
+        )
+        self._workflow_runs_in_flight.add(run_id)
+        try:
+            return await self.workflows.execute(request)
+        finally:
+            self._workflow_runs_in_flight.discard(run_id)
+
+    async def _project_for_run(self, run_id: str) -> str | None:
+        """The run's project, read when the caller did not name it.
+
+        None means "not known here" (bare unit mode or an unknown run) — the
+        caller decides what that means, rather than this helper inventing a
+        project id that would publish into somebody else's log.
+        """
+        if self.session_factory is None:
+            return None
+        try:
+            async with self.session_factory() as db:
+                row = (
+                    await db.execute(
+                        text("SELECT project_id FROM agent_runs WHERE id = :r"), {"r": run_id}
+                    )
+                ).first()
+                return row.project_id if row is not None else None
+        except Exception:  # noqa: BLE001 — no table / no DB: let the caller decide
+            logger.exception("project lookup failed for run %s", run_id)
+            return None
 
     def _spawn_execution(self, run_data: dict[str, Any], plan: AgentPlan) -> None:
         """Start one live engine task. Shared by start_execution and resume_agent
@@ -1069,6 +1442,79 @@ class OrchestratorService(Orchestrator):
         if reset is not None:
             reset(run_data["runId"])  # fresh start/resume clears a sticky kill flag
         run_data["task"] = asyncio.create_task(self._execute(run_data, plan))
+
+    async def _team_model_for_run(self, run_id: str) -> str | None:
+        """The team's saved primary model, or None for the deployment default.
+
+        Storage trouble (missing table on an old DB, transient outage) must
+        never block a run: it degrades to the configured engine model.
+        """
+        if self.session_factory is None:
+            return None
+        try:
+            async with self.session_factory() as db:
+                row = (
+                    await db.execute(
+                        text(
+                            "SELECT m.primary_model FROM agent_runs r "
+                            "JOIN projects p ON p.id = r.project_id "
+                            "JOIN team_model_prefs m ON m.team_id = p.team_id "
+                            "WHERE r.id = :rid"
+                        ),
+                        {"rid": run_id},
+                    )
+                ).first()
+        except Exception:  # noqa: BLE001 — preference lookup is best-effort
+            logger.warning("team model lookup failed for run %s", run_id, exc_info=True)
+            return None
+        return str(row[0]) if row and row[0] else None
+
+    async def _routed_model_for_run(
+        self, run_id: str, plan: AgentPlan
+    ) -> tuple[str | None, dict[str, Any]]:
+        """The model for this run: opt-in routing, else the team's primary.
+
+        W14: the policy lives in ``team_settings.key='model_routing'`` (admin
+        written). A missing/corrupt/disabled policy is the status quo; an
+        enabled policy with no model for the plan's class keeps the primary
+        model rather than silently switching classes. The decision is logged and
+        returned for the caller to keep on the run.
+        """
+        from harness_orchestrator.model_routing import classify_plan, parse_policy, resolve
+
+        primary = await self._team_model_for_run(run_id)
+        policy = None
+        if self.session_factory is not None:
+            try:
+                async with self.session_factory() as db:
+                    row = (
+                        await db.execute(
+                            text(
+                                "SELECT s.value FROM agent_runs r "
+                                "JOIN projects p ON p.id = r.project_id "
+                                "JOIN team_settings s ON s.team_id = p.team_id "
+                                "AND s.key = 'model_routing' "
+                                "WHERE r.id = :rid"
+                            ),
+                            {"rid": run_id},
+                        )
+                    ).first()
+                policy = parse_policy(row[0] if row else None)
+            except Exception:  # noqa: BLE001 — routing must never block a run
+                logger.warning("routing policy lookup failed for run %s", run_id, exc_info=True)
+        # Defensive attribute reads: callers/tests may hand a partial plan
+        # object. Routing is opt-in telemetry, so a shape surprise must fall
+        # back to the primary model, never abort the run.
+        steps = getattr(plan, "steps", None) or []
+        files = getattr(plan, "filesLikelyToChange", None) or []
+        plan_class = classify_plan(len(steps), len(files))
+        model, decision = resolve(primary, policy, plan_class)
+        if decision["model"] is None:
+            # No team model, no policy: the engine runs on DSH_MODEL. Name it, so the event says so.
+            decision["model"] = os.environ.get("DSH_MODEL", "deepseek-chat")
+        if decision["enabled"]:
+            logger.info("run %s routed: %s", run_id, decision)
+        return model, decision
 
     async def _execute(self, run_data: dict[str, Any], plan: AgentPlan) -> None:
         run_id = run_data["runId"]
@@ -1148,28 +1594,179 @@ class OrchestratorService(Orchestrator):
                 extra = ""
             try:
                 await self._ensure_baseline(run_data)
+                budget: int | None = None
+                shell_policy: dict[str, Any] | None = None
                 if set_shell_policy is not None:
                     # Part 52/44/42: the engine's bash tool enforces the plan's forbidden
                     # paths, the intent's scope paths and the run's remaining tool calls.
                     from harness_orchestrator.execution import remaining_tool_calls
 
                     factory = self.session_factory
-                    set_shell_policy(run_id, {
+                    budget = await remaining_tool_calls(factory, run_id) if factory else None
+                    shell_policy = {
                         "forbiddenPaths": list(getattr(plan, "forbiddenPaths", None) or []),
                         "scopePaths": (
                             await collab.intent_scope_paths(factory, run_id) if factory else []
                         ),
-                        "maxToolCalls": (
-                            await remaining_tool_calls(factory, run_id) if factory else None
-                        ),
-                    })
+                        "maxToolCalls": budget,
+                    }
+                    set_shell_policy(run_id, shell_policy)
                 # M17-B5 (PBC1 F2): the dedicated bounded executor + hard
                 # deadline replaces asyncio.to_thread's invisible ~16–36 slot
                 # pool. A hung provider now fails THIS run at the deadline
                 # instead of occupying a slot forever.
-                result = await self.engine_runtime.run(
-                    self.engine, goal=plan.goal + extra, session_id=run_id
-                )
+                #
+                # W1: the engine runs on its own OS thread, so it cannot emit
+                # onto the bus (no running loop there). It hands records to a
+                # queue and this task forwards them, which is what makes the
+                # transcript live instead of post-hoc. Capability is probed,
+                # not assumed: a stub/custom engine without the keyword simply
+                # gets no stream, and no forwarder is wasted on it.
+                records: queue.Queue[dict[str, Any]] = queue.Queue()
+                progress_kwargs: dict[str, Any] = {}
+                forwarder: asyncio.Task[None] | None = None
+                consume_record = None
+                if accepts_keyword(getattr(self.engine, "execute_goal", None), "on_progress"):
+                    # W2: the transcript stream is also the only place that sees
+                    # every call as it happens. `budget` above is a snapshot taken
+                    # before the run, from a table `record_engine_tool_calls` only
+                    # populates after it, so nothing else in the stack knows a run
+                    # has gone round the same hole 30 times.
+                    guard = LoopGuard(max_calls=budget, repeat_limit=loop_repeat_limit())
+
+                    def _progress(record: dict[str, Any]) -> None:
+                        records.put(record)
+
+                    async def _consume(record: dict[str, Any]) -> None:
+                        self._emit_tool_record(run_id, record)
+                        reason = guard.observe(record)
+                        if reason and not run_data.get("_guard_stopped"):
+                            await self._guard_stopped(
+                                run_id,
+                                run_data,
+                                sm,
+                                reason,
+                                guard,
+                                set_shell_policy,
+                                shell_policy,
+                            )
+
+                    async def _forward_tool_records() -> None:
+                        while True:
+                            try:
+                                record = records.get_nowait()
+                            except queue.Empty:
+                                await asyncio.sleep(0.05)
+                                continue
+                            await _consume(record)
+
+                    consume_record = _consume
+                    progress_kwargs["on_progress"] = _progress
+                    forwarder = asyncio.create_task(_forward_tool_records())
+                # M06: the goal may carry screenshots. Resolution reads only
+                # artifacts this run owns and reports everything it declines;
+                # an engine that cannot take images never has them resolved.
+                run_model, routing_decision = await self._routed_model_for_run(run_id, plan)
+                run_data["routing"] = routing_decision
+                # W15: the decision is a durable fact about the attempt, not a
+                # log line. Until now it lived only in this process's dict, so
+                # after a restart (or on another replica) nobody could check
+                # that an opted-in team's policy was honoured — or that a
+                # fallback kept the primary model. Emitted BEFORE the engine
+                # call: an attempt that dies mid-flight still records its model.
+                self._emit(EventType.MODEL_ROUTED, {"runId": run_id, **routing_decision})
+                if accepts_keyword(getattr(self.engine, "execute_goal", None), "images"):
+                    # teamId is this process's stamp and is not a durable
+                    # column: a replica that never saw the bind, or a resume
+                    # after a restart, resolves it the way the budget gate does.
+                    team_id = run_data.get("teamId") or await self._team_for_run(run_data)
+                    if run_data.get("_goal_images_sent"):
+                        # The SDK session continues across a resume, so the
+                        # image is already in its history. Re-sending it would
+                        # attach the same screenshot twice to one conversation.
+                        # Known limit, stated rather than papered over: this
+                        # marker is per-process. A resume that lands on a
+                        # DIFFERENT replica re-attaches, because nothing in the
+                        # frozen schema records what a session already saw.
+                        images = GoalImages(team_scoped=bool(team_id))
+                    else:
+                        images = await resolve_goal_images(
+                            self.session_factory, run_id, team_id, run_model
+                        )
+                    if images.refused:
+                        reason = f"execution refused: {images.refused}"
+                        run_data["engine_result"] = {
+                            "sessionId": run_id,
+                            "engine": "image_policy",
+                            "status": "error",
+                            "finalResponse": reason,
+                        }
+                        sm.execution_failed(reason)
+                        return
+                    if images.blocks:
+                        progress_kwargs["images"] = images.blocks
+                        run_data["_goal_images_sent"] = True
+                else:
+                    images = None
+                run_data["goalImages"] = images.summary() if images is not None else None
+                if images is not None and (images.selected or images.skipped):
+                    # Durable, because "the agent ignored my screenshot" is a
+                    # claim about what happened, not about this process's
+                    # memory: a replayed run must reproduce it.
+                    self._emit(EventType.GOAL_IMAGES, {"runId": run_id, **images.summary()})
+                # W3: a checkpoint BEFORE the engine touches the tree and one
+                # after it settles. Two snapshots per attempt are what make
+                # "rewind to the last checkpoint" and "undo this attempt"
+                # different, useful choices instead of the same one.
+                await self._checkpoint_run(run_id, "before")
+                try:
+                    result = await self.engine_runtime.run(
+                        self.engine,
+                        goal=self._executor_context_prefix(run_data) + plan.goal + extra,
+                        session_id=run_id,
+                        model=run_model,
+                        **progress_kwargs,
+                    )
+                finally:
+                    # Drain what the worker already produced before stopping;
+                    # a record that arrived during teardown still belongs in
+                    # the transcript — and still counts against the guard,
+                    # because a loop that starts in the last second is the same
+                    # loop. An engine without the progress keyword has no stream
+                    # to judge, so the drain stays a plain emit.
+                    while True:
+                        try:
+                            record = records.get_nowait()
+                        except queue.Empty:
+                            break
+                        if consume_record is not None:
+                            await consume_record(record)
+                        else:
+                            self._emit_tool_record(run_id, record)
+                    # The tree as the attempt actually left it — including a
+                    # half-written one when the worker was killed, which is
+                    # exactly the state a rewind may need to undo.
+                    await self._checkpoint_run(run_id, "after")
+                    if forwarder is not None:
+                        forwarder.cancel()
+                if isinstance(result, dict) and images is not None and (
+                    images.selected or images.skipped
+                ):
+                    # What the model actually saw, and what it did not: the
+                    # run page shows this instead of letting a skipped
+                    # screenshot read as if it had been understood.
+                    result = {**result, "goalImages": images.summary()}
+                context = result.get("context") if isinstance(result, dict) else None
+                if isinstance(context, dict) and context.get("compactions"):
+                    self._emit(
+                        EventType.CONTEXT_COMPACTED,
+                        {
+                            "runId": run_id,
+                            "compactions": context.get("compactions"),
+                            "compactedTokens": context.get("compactedTokens"),
+                            "contextWindow": context.get("contextWindow"),
+                        },
+                    )
                 if extra:  # persist the cursor so a restart does not re-deliver
                     await collab.mark_guidance_delivered(
                         self.session_factory, run_id, run_data["guidance_seq"]
@@ -1184,6 +1781,10 @@ class OrchestratorService(Orchestrator):
                         "status": "cancelled",
                         "finalResponse": "Execution cancelled via pause/stop.",
                     }
+                # W23 F4: the stopped/paused call still spent tokens the transcript
+                # proves. Shielded so a second cancel cannot drop the row; delta
+                # metering keeps a later resume from double-billing.
+                await asyncio.shield(record_run_cost(self, run_data, plan, allow_estimate=False))
                 return
             except CircuitOpenError as exc:
                 # Hung-provider circuit OPEN: fail fast BEFORE burning a
@@ -1215,6 +1816,9 @@ class OrchestratorService(Orchestrator):
                     "finalResponse": f"DeepSeek Harness run failed: {reason}",
                 }
                 sm.execution_failed(reason)
+                # Real spend may exist before the timeout (partial transcript),
+                # so meter what is provable; never estimate a failure's tokens.
+                await record_run_cost(self, run_data, plan, allow_estimate=False)
                 return
             except Exception as exc:  # noqa: BLE001 — surface engine failures to the UI
                 failed_msg = "DeepSeek Harness run failed: " + scrub_secrets(
@@ -1229,11 +1833,22 @@ class OrchestratorService(Orchestrator):
                 # Wave 6 (D4): honest failure lands on the bus and blocks the run
                 # (no-op unless still EXECUTING — pause/stop already told their story).
                 sm.execution_failed(failed_msg)
+                await record_run_cost(self, run_data, plan, allow_estimate=False)
                 return
             # Part 44: the calls happened whatever happens to the result, so they count first.
             await record_engine_tool_calls(self, run_data, result.get("toolCalls"))
             if run_data.get("cancel_requested"):
+                # The cancelled call still spent tokens; delta metering makes
+                # this safe even if the run is resumed later.
+                await record_run_cost(self, run_data, plan, allow_estimate=False)
                 return  # zombie result from a cancelled live call — discard
+            if run_data.get("_guard_stopped"):
+                # Same reasoning as the cancel above: the guard already failed
+                # this run on the record. A worker that finished after being told
+                # to stop must not overwrite that with a success it earned only
+                # by wandering longer.
+                await record_run_cost(self, run_data, plan, allow_estimate=False)
+                return
             staging_error = await self._stage_outputs(run_data)
             if staging_error:
                 run_data["engine_result"] = {
@@ -1243,6 +1858,7 @@ class OrchestratorService(Orchestrator):
                     "finalResponse": staging_error,
                 }
                 sm.execution_failed(staging_error)
+                await record_run_cost(self, run_data, plan, allow_estimate=False)
                 return
             if run_data.get("staged"):
                 result = {**result, "staged": run_data["staged"]}
@@ -1259,6 +1875,9 @@ class OrchestratorService(Orchestrator):
                 await record_run_cost(self, run_data, plan)
             else:
                 sm.execution_failed(summary or f"engine status={status or 'unknown'}")
+                # A blocked/failed engine run is terminal too; without this the
+                # ledger saw only successful runs and under-reported spend.
+                await record_run_cost(self, run_data, plan, allow_estimate=False)
         finally:
             if heartbeat_task is not None:
                 heartbeat_task.cancel()
@@ -1773,12 +2392,14 @@ class OrchestratorService(Orchestrator):
             return {
                 "sessionId": run_id,
                 "engine": "replayed",
+                "source": "event-log",
                 "status": "error",
                 "finalResponse": f"DeepSeek Harness run failed: {reason}",
             }
         return {
             "sessionId": run_id,
             "engine": "replayed",
+            "source": "event-log",  # rebuilt from the run's log, not from a live engine call
             "status": "completed",
             "finalResponse": summary,
         }
@@ -1943,6 +2564,118 @@ class OrchestratorService(Orchestrator):
         if self.run_queue_factory is None:
             return []
         return await reclaim_orphans(self.run_queue_factory, stale_seconds=self.stale_seconds)
+
+    async def recover_boundaries(self) -> dict[str, Any]:
+        """W8 slice 2: reclaim the Docker equipment a killed process left behind.
+
+        ``ContainerBoundary.close()`` runs in a ``finally``, so exceptions,
+        timeouts and cancelled runs all clean up. SIGKILL does not: the network,
+        the relay and (because ``docker run`` detaches when its client dies) a
+        *running* worker container survive, and nothing else ever removes them.
+        W4 measured 17–20 such orphan networks on one dev stack until Docker
+        answered "all predefined address pools have been fully subnetted" and NO
+        run could start — a leak in the isolation machinery that eventually
+        denies service to every run.
+
+        Per network the sweep sees three states: held (a running claim, or a
+        boundary this process still owns), settled (the durable ``agent_events``
+        log shows the engine call ended), or unknown. Held is never touched.
+        Settled is removed
+        even if its worker container is still running - that is the detached
+        client's corpse, and only the DB proves the run it belongs to finished.
+        Unknown is removed only once nothing attached to it is running.
+
+        This is why it runs where the truth is reachable: the orchestrator holds
+        the DB and the claims, the worker daemon holds the Docker socket. When
+        this process has no socket the sweep reports its own failure instead of
+        reporting "no orphans".
+        """
+        from harness_orchestrator.container_runtime import (
+            labelled_boundary_runs,
+            sweep_orphan_boundaries,
+        )
+
+        held = await executing_run_ids(self.run_queue_factory or self.session_factory)
+        if held is None:
+            return {"skipped": "claim table unreadable", "removed": [], "kept": []}
+        held = set(held)
+        for boundary in getattr(self.engine, "live_boundary_run_ids", lambda: [])():
+            held.add(boundary)
+        if getattr(self.engine, "daemon_url", ""):
+            return await self._recover_boundaries_via_daemon(held)
+        candidates = set(labelled_boundary_runs().values())
+        settled = await self._settled_run_ids(candidates - held)
+        try:
+            return sweep_orphan_boundaries(
+                held, settled, older_than_seconds=self.boundary_sweep_grace_seconds
+            )
+        except OSError as exc:  # no Docker socket (bare test host): nothing to reclaim
+            return {"skipped": f"docker unavailable: {exc}", "removed": [], "kept": []}
+
+    async def _recover_boundaries_via_daemon(self, held: set[str]) -> dict[str, Any]:
+        """W22: split deployment - the daemon lists and stops, this process proves settlement.
+
+        A SIGKILLed daemon leaves its worker running after the run is blocked; only the
+        event log here can say that run is over, and only the daemon can stop it.
+        """
+        call = self.engine._daemon_call
+        try:
+            listed = await asyncio.to_thread(call, "GET", "/boundaries")
+            runs = set(json.loads(listed.read())["runs"])
+            settled = await self._settled_run_ids(runs - held)
+            swept = await asyncio.to_thread(
+                call,
+                "POST",
+                "/sweep",
+                {
+                    "settledRunIds": sorted(settled),
+                    "olderThanSeconds": self.boundary_sweep_grace_seconds,
+                },
+                120.0,
+            )
+            return json.loads(swept.read())
+        except OSError as exc:  # daemon unreachable or refused: nothing was reclaimed
+            return {"skipped": f"worker daemon unavailable: {exc}", "removed": [], "kept": []}
+
+    async def _settled_run_ids(self, candidates: set[str]) -> set[str]:
+        """Which of ``candidates`` the durable event log says are past execution.
+
+        ``agent_runs.state`` is NOT the answer — the orchestrator does not write
+        that column per transition, and the states the API reports (blocked,
+        awaiting_done_signal, done) are replayed from ``agent_events``. So the
+        settlement proof is the event stream itself, using the same ordering
+        ``_run_started`` reads: any event at or after ENGINE_COMPLETED means the
+        engine call is over and no worker can be using the boundary any more.
+        """
+        from sqlalchemy import bindparam, text
+
+        if not candidates:
+            return set()
+        post_execution = {
+            EventType.ENGINE_COMPLETED.value,
+            EventType.ENGINE_FAILED.value,
+            EventType.DONE_SIGNAL_RECEIVED.value,
+            EventType.REVIEW_PASSED.value,
+            EventType.REVIEW_FAILED.value,
+            EventType.PR_OPENED.value,
+        }
+        try:
+            async with self.session_factory() as db:
+                rows = (
+                    await db.execute(
+                        text(
+                            "SELECT DISTINCT run_id FROM agent_events "
+                            "WHERE run_id IN :ids AND type IN :types"
+                        ).bindparams(
+                            bindparam("ids", expanding=True),
+                            bindparam("types", expanding=True),
+                        ),
+                        {"ids": sorted(candidates), "types": sorted(post_execution)},
+                    )
+                ).fetchall()
+        except Exception:  # noqa: BLE001 — unreadable lifecycle: nothing is provably finished
+            return set()
+        return {row[0] for row in rows}
 
     async def reap_zombies(self) -> list[str]:
         """M13-H1b zombie reaper: release timed-out running claims.
@@ -2184,7 +2917,9 @@ class OrchestratorService(Orchestrator):
                 "Resolve and apply staged changes before completing this run or opening a PR."
             )
 
-    async def signal_done(self, run_id: str, diff_text: str = "") -> ReviewFindings:
+    async def signal_done(
+        self, run_id: str, diff_text: str = "", model_router: Any = None
+    ) -> ReviewFindings:
         await self._gate_staged_completion(run_id)
         run_data = await self._ensure_run(run_id)
         sm: AgentStateMachine = run_data["state_machine"]
@@ -2197,6 +2932,9 @@ class OrchestratorService(Orchestrator):
         # via get_done_diff. Plain-text callers keep working unchanged.
         diff_ref = save_diff(diff_text)
         run_data["done_diff_ref"] = diff_ref
+        # The caller's model router (the requesting user's, see api.signal_done) reviews this one
+        # signal; without one the reviewer stays on its deterministic checks.
+        reviewer = self.reviewer if model_router is None else ReviewerSubAgent(model_router)
 
         # Wave 9 node B / M18-C2: the reviewer's model_router call is a real
         # spend — check the cap BEFORE invoking it. Over budget OR a degraded
@@ -2204,7 +2942,7 @@ class OrchestratorService(Orchestrator):
         # to deterministic heuristics and records why.
         budget_block: str | None = None
         factory = self.run_queue_factory or self.session_factory
-        if factory is not None and self.reviewer.model_router is not None:
+        if factory is not None and reviewer.model_router is not None:
             team_id = await self._team_for_run(run_data)
             if team_id:
                 status: BudgetStatus = await check_budget(factory, team_id)
@@ -2227,7 +2965,9 @@ class OrchestratorService(Orchestrator):
                     if self._note_budget_warning(run_data, status):
                         await deliver_budget_warning(factory, team_id)
 
-        findings = self.reviewer.evaluate_changes(
+        # The model call is blocking HTTP: run it off the event loop.
+        findings = await asyncio.to_thread(
+            reviewer.evaluate_changes,
             brief_summary=run_data["goal"],
             diff_text=diff_text,
             budget_blocked_reason=budget_block,
@@ -2350,6 +3090,35 @@ class OrchestratorService(Orchestrator):
         """
     )
 
+    # W15: the routing decision a run was actually executed under. Read from
+    # the durable event, NOT from `run_data["routing"]`: the aggregate must
+    # answer on a replica that never ran the attempt, and after a restart.
+    # Newest first, so a resume that re-resolved the policy wins.
+    _ROUTING_SQL = text(
+        """
+        SELECT payload
+          FROM agent_events
+         WHERE run_id = :run_id AND type = :routed_type
+         ORDER BY seq DESC
+         LIMIT 1
+        """
+    )
+
+    @staticmethod
+    def _routing_wire(payload: Any) -> dict[str, Any] | None:
+        """The stored decision record, or None when the run never emitted one.
+
+        A pre-W15 run has no `model_routed` event at all — that reads as None
+        (unknown), not as "routing was off". SQLite hands the JSON back as text,
+        PostgreSQL as an object; both shapes land on the same dict.
+        """
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except Exception:  # noqa: BLE001 — a corrupt row is an absent row
+                return None
+        return payload if isinstance(payload, dict) else None
+
     @staticmethod
     def _step_wire(row: Any) -> dict[str, Any]:
         """One history step. ``reason`` tells a stop (`paused` + user_requested_stop)
@@ -2422,6 +3191,9 @@ class OrchestratorService(Orchestrator):
             "url": None,
             "costUsd": None,
             "steps": [],
+            # W15 (additive): the durable routing decision for this run, or
+            # None when it has none — explicit null per the W4-C2 law.
+            "routing": None,
             # M18-C2: explicit degraded=false — operators read the aggregate
             # and see at a glance that this run's budget decisions were made
             # against a healthy money store (flips true when a gate ran
@@ -2464,6 +3236,16 @@ class OrchestratorService(Orchestrator):
                     .mappings()
                     .all()
                 )
+                routed_row = (
+                    (
+                        await db.execute(
+                            self._ROUTING_SQL,
+                            {"run_id": run_id, "routed_type": EventType.MODEL_ROUTED.value},
+                        )
+                    )
+                    .mappings()
+                    .first()
+                )
             if enrich_row is None:
                 # No agent_runs row: the run only exists if this process is
                 # currently driving a lifecycle for it (bound project, plan,
@@ -2492,6 +3274,11 @@ class OrchestratorService(Orchestrator):
             aggregate["steps"] = [
                 self._step_wire(row) for row in reversed(step_rows)
             ]
+            # W15: which model this run executed under, and why (additive; None
+            # for a run that predates the event or never reached execution).
+            aggregate["routing"] = self._routing_wire(
+                routed_row["payload"] if routed_row else None
+            )
         except RunNotFoundError:
             raise
         except Exception:  # noqa: BLE001 — aggregate must never fail on enrichment

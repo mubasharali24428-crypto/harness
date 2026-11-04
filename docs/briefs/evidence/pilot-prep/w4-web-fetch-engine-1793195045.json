@@ -1,0 +1,117 @@
+{
+ "date": "2026-10-28",
+ "week": "W4",
+ "claim": "an agent answers from live docs; a denied destination is recorded",
+ "runId": "w4web-1793195045",
+ "drive": "HTTP only",
+ "goalNamesTheTitle": false,
+ "maxToolCalls": 6,
+ "engine": {
+  "engine": "replayed",
+  "status": "completed",
+  "finalResponse": "TITLE: Your First API Call | DeepSeek API Docs\nREFUSAL: Denied by the harness egress policy: example.com is not in the web allow-list"
+ },
+ "answer": "TITLE: Your First API Call | DeepSeek API Docs\nREFUSAL: Denied by the harness egress policy: example.com is not in the web allow-list",
+ "auditToolCalls": [
+  {
+   "type": "tool_call",
+   "tool": "web_fetch",
+   "callId": "call_c5a43ffab14f4c8ca61fa1ac",
+   "arguments": "{\"url\":\"https://api-docs.deepseek.com/\"}",
+   "ok": null,
+   "output": ""
+  },
+  {
+   "type": "tool_call",
+   "tool": "web_fetch",
+   "callId": "call_2d0e2c52a83849dc99a673c3",
+   "arguments": "{\"url\":\"https://example.com/\"}",
+   "ok": null,
+   "output": ""
+  }
+ ],
+ "auditedWebFetches": [
+  {
+   "url": "https://api-docs.deepseek.com/",
+   "ok": true,
+   "output": "fetched https://api-docs.deepseek.com/ (HTTP 200, text/html)\n\nYour First API Call | DeepSeek API Docs\n\nSkip to main content\n\nSearch / Fetch API is now available, powered by our in-house search engine and supporting web search and fetch. Click here to view the guide.\n\nDeepSeek API Docs\n\nResources\n\nIntegrations\n\nAPI Status\n\nFAQ\n\nEnglish\n\nEnglish\n\n\u4e2d\u6587\uff08\u4e2d\u56fd\uff09\n\nDeepSeek Platform\u4e2d\n\nQuick StartAPI GuidesAPI ReferenceNewsChange Log\n\nYour First API Call\n\nModels & Pricing\n\nToken & Token Usage\n\nRate Limit & Isolation\n\nError Codes\n\nAgent Integrations\n\nDeepSeek Harness\n\nClaude Code\n\nCodex\n\nOpenCode\n\nOpenClaw\n\n"
+  },
+  {
+   "url": "https://example.com/",
+   "ok": false,
+   "output": "Error: Denied by the harness egress policy: example.com is not in the web allow-list"
+  }
+ ],
+ "answerHasTitle": true,
+ "answerHasRefusal": true,
+ "statePath": [
+  "executing",
+  "awaiting_done_signal"
+ ],
+ "workersObserved": [
+  {
+   "name": "harness-afa71906f98348b6b8f1465db7f82025-relay",
+   "role": "relay",
+   "networks": [
+    "bridge",
+    "harness-afa71906f98348b6b8f1465db7f82025-net"
+   ],
+   "mounts": []
+  },
+  {
+   "name": "harness-afa71906f98348b6b8f1465db7f82025",
+   "role": "worker",
+   "networks": [
+    "harness-afa71906f98348b6b8f1465db7f82025-net"
+   ],
+   "mounts": [
+    {
+     "dst": "/var/lib/harness-runs/workspace/w4web-1793195045",
+     "readOnly": false
+    },
+    {
+     "dst": "/var/lib/harness-runs/sessions/w4web-1793195045",
+     "readOnly": false
+    }
+   ]
+  }
+ ],
+ "elapsedSeconds": 14.46,
+ "steps": [
+  {
+   "step": "login",
+   "ok": true
+  },
+  {
+   "step": "create project",
+   "ok": "5ffaa28d-5bb3-4de2-9845-186d97adad7f",
+   "status": 201
+  },
+  {
+   "step": "propose plan",
+   "ok": "plan-a03fce7d",
+   "status": 201
+  },
+  {
+   "step": "set tool budget",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "approve plan",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "start",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "settled",
+   "ok": true,
+   "state": "awaiting_done_signal"
+  }
+ ],
+ "ok": true
+}

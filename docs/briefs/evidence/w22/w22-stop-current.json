@@ -1,0 +1,81 @@
+{
+ "date": "2026-10-31",
+ "milestone": "W3 stop spike",
+ "runId": "w3stop-1793433513",
+ "sleepSeconds": 180,
+ "steps": [
+  {
+   "step": "project",
+   "ok": true,
+   "status": 201
+  },
+  {
+   "step": "plan",
+   "ok": true,
+   "status": 201
+  },
+  {
+   "step": "approve",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "start",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "worker appeared",
+   "ok": true,
+   "seconds": 3.35
+  },
+  {
+   "step": "stop",
+   "ok": true,
+   "status": 200,
+   "body": {
+    "runId": "w3stop-1793433513",
+    "status": "stopped"
+   }
+  }
+ ],
+ "workerContainer": "7a5ba4d424d2",
+ "processesAtStop": [
+  {
+   "pid": "7482",
+   "cmd": "python -m harness_orchestrator.engine_worker"
+  },
+  {
+   "pid": "7513",
+   "cmd": "/usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runtime/deepseek-harness-sdk-runtime-linux-arm64 --prof"
+  },
+  {
+   "pid": "7572",
+   "cmd": "python -m harness_orchestrator.mcp_stub"
+  },
+  {
+   "pid": "7629",
+   "cmd": "/usr/local/bin/python -I /opt/harness-shell/shell_gate.py"
+  },
+  {
+   "pid": "7745",
+   "cmd": "/bin/sh -c python3 -c 'import time; time.sleep(180)'"
+  },
+  {
+   "pid": "7748",
+   "cmd": "python3 -c import time; time.sleep(180)"
+  }
+ ],
+ "hadLiveChild": true,
+ "waitedForChildSeconds": 7.53,
+ "stateAtStop": "executing",
+ "workerGoneAfterSeconds": 0.5,
+ "relayGoneAfterSeconds": 0.5,
+ "relayContainer": null,
+ "workerStillAlive": false,
+ "survivorProcesses": [],
+ "stateAfterStop": "done",
+ "stopApiStatus": "stopped",
+ "ok": true,
+ "verdict": "stop killed a live shell command"
+}

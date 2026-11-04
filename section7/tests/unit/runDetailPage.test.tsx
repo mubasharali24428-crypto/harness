@@ -172,3 +172,20 @@ describe("RunDetailAggregate — truncation honesty + cap", () => {
     expect(html).toContain("(3 latest of 3)");
   });
 });
+
+describe("RunDetailAggregate — run-level pause/resume", () => {
+  const html = (state: string, withHandler = true) =>
+    renderToStaticMarkup(
+      <RunDetailAggregate agg={fullAgg({ state })} now={NOW} onPauseResume={withHandler ? () => {} : undefined} />,
+    );
+
+  it("offers Pause while working and Resume while paused", () => {
+    expect(html("executing")).toContain(">Pause</button>");
+    expect(html("paused")).toContain(">Resume</button>");
+  });
+
+  it("offers neither on a finished run or without a handler", () => {
+    expect(html("done")).not.toMatch(/>(Pause|Resume)<\/button>/);
+    expect(html("executing", false)).not.toMatch(/>(Pause|Resume)<\/button>/);
+  });
+});

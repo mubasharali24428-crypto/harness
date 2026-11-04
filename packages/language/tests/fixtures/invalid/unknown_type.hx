@@ -1,0 +1,3 @@
+schema Issue {
+  id: Missing
+}

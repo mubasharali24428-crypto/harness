@@ -1,0 +1,9 @@
+[
+  {
+    "line": 8,
+    "col": 22,
+    "kind": "error",
+    "code": "HX5001",
+    "message": "unknown budget key 'tokens' (known: steps, tool_calls, tasks, duration, cost)"
+  }
+]

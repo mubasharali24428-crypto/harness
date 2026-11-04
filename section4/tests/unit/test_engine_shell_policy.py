@@ -95,6 +95,17 @@ async def test_engine_calls_use_up_the_limit_for_the_next_start(env):
     assert await remaining_tool_calls(env.factory, "r1") == 0
 
 
+def _plugin_field(patch: str, plugin_id: str, field: str) -> str:
+    """One insert-block field (``config``/``name``) for a plugin id, as written in the overlay."""
+    lines = patch.splitlines()
+    for index, line in enumerate(lines):
+        if line.strip() == f"- id: {plugin_id}":
+            for candidate in lines[index:]:
+                if candidate.strip().startswith(f"{field}: "):
+                    return candidate.split(f"{field}: ", 1)[1]
+    raise AssertionError(f"{plugin_id}.{field} not found in overlay")
+
+
 def test_policy_patch_swaps_the_bash_tool_for_the_gate_plugin(tmp_path, monkeypatch):
     from .test_run_isolation_and_stop_truth import _fake_sdk
 
@@ -109,11 +120,43 @@ def test_policy_patch_swaps_the_bash_tool_for_the_gate_plugin(tmp_path, monkeypa
     assert status == "completed"
     patch = Path(seen[0]["patches"][-1]).read_text(encoding="utf-8")
     assert "- id: persistent-bash\n  disabled: true\n" in patch
-    config = json.loads(patch.split("      config: ", 1)[1])
+    config = json.loads(_plugin_field(patch, "harness-shell", "config"))
     assert config["maxToolCalls"] == 7 and config["scopePaths"] == ["src"]
     assert config["forbiddenPaths"] == ["vendor/"]
     assert config["gate"][-1].endswith("shell_gate.py") and Path(config["gate"][-1]).is_file()
-    assert Path(json.loads(patch.split("      name: ", 1)[1].split("\n")[0])).is_file()
+    assert Path(json.loads(_plugin_field(patch, "harness-shell", "name"))).is_file()
+
+
+def test_policy_patch_mounts_web_fetch_behind_the_web_gate(tmp_path, monkeypatch):
+    from .test_run_isolation_and_stop_truth import _fake_sdk
+
+    seen = []
+    _fake_sdk(monkeypatch, seen)
+    wrapper = DeepSeekHarnessWrapper(workspace_dir=str(tmp_path / "ws"),
+                                     session_root=str(tmp_path / "s"), isolated=False,
+                                     live_mode="dry")
+    _, status, *_ = wrapper._run_live_events("goal", "run-1")
+    assert status == "completed"
+    patch = Path(seen[0]["patches"][-1]).read_text(encoding="utf-8")
+    config = json.loads(_plugin_field(patch, "harness-web", "config"))
+    assert config["gate"][-1].endswith("web_gate.py") and Path(config["gate"][-1]).is_file()
+    assert Path(json.loads(_plugin_field(patch, "harness-web", "name"))).is_file()
+
+
+def test_a_missing_web_gate_disables_the_tool_instead_of_the_run(tmp_path, monkeypatch):
+    from .test_run_isolation_and_stop_truth import _fake_sdk
+
+    seen = []
+    _fake_sdk(monkeypatch, seen)
+    monkeypatch.setenv("HARNESS_WEB_GATE", str(tmp_path / "nope.py"))
+    wrapper = DeepSeekHarnessWrapper(workspace_dir=str(tmp_path / "ws"),
+                                     session_root=str(tmp_path / "s"), isolated=False,
+                                     live_mode="dry")
+    _, status, *_ = wrapper._run_live_events("goal", "run-1")
+    assert status == "completed"
+    patch = Path(seen[0]["patches"][-1]).read_text(encoding="utf-8")
+    assert "harness-web" not in patch  # no fake affordance: the tool is simply absent
+    assert "harness-shell" in patch
 
 
 def test_missing_gate_fails_the_run_closed(tmp_path, monkeypatch):
@@ -144,3 +187,82 @@ def test_tool_calls_are_folded_from_runtime_events():
         {"callId": "b", "tool": "read_image", "target": "", "outcome": "error"},
         {"callId": "c", "tool": "bash", "target": "curl x", "outcome": "error"},
     ]
+
+
+def test_policy_patch_mounts_the_browser_behind_its_gate(tmp_path, monkeypatch):
+    from .test_run_isolation_and_stop_truth import _fake_sdk
+
+    seen = []
+    _fake_sdk(monkeypatch, seen)
+    workspace = tmp_path / "ws"
+    wrapper = DeepSeekHarnessWrapper(workspace_dir=str(workspace),
+                                     session_root=str(tmp_path / "s"), isolated=False,
+                                     live_mode="dry")
+    _, status, *_ = wrapper._run_live_events("goal", "run-1")
+    assert status == "completed"
+    patch = Path(seen[0]["patches"][-1]).read_text(encoding="utf-8")
+    config = json.loads(_plugin_field(patch, "harness-browser", "config"))
+    assert config["gate"][-1].endswith("browser_gate.py")
+    assert Path(config["gate"][-1]).is_file()
+    # The gate confines every write to this tree, and the agent reads the PNG back
+    # through the fs tool: the two must name the same per-run directory.
+    assert config["workspace"] == str((workspace / "run-1").resolve())
+    assert Path(json.loads(_plugin_field(patch, "harness-browser", "name"))).is_file()
+    # The browser is mounted beside the other tools, not instead of them.
+    assert "harness-web" in patch and "harness-shell" in patch
+
+
+def test_a_missing_browser_gate_removes_the_tool_and_nothing_else(tmp_path, monkeypatch):
+    from .test_run_isolation_and_stop_truth import _fake_sdk
+
+    seen = []
+    _fake_sdk(monkeypatch, seen)
+    monkeypatch.setenv("HARNESS_BROWSER_GATE", str(tmp_path / "nope.py"))
+    wrapper = DeepSeekHarnessWrapper(workspace_dir=str(tmp_path / "ws"),
+                                     session_root=str(tmp_path / "s"), isolated=False,
+                                     live_mode="dry")
+    _, status, *_ = wrapper._run_live_events("goal", "run-1")
+    assert status == "completed"
+    patch = Path(seen[0]["patches"][-1]).read_text(encoding="utf-8")
+    assert "harness-browser" not in patch
+    assert "harness-web" in patch and "harness-shell" in patch
+
+
+def test_policy_patch_mounts_the_image_tool_over_the_same_workspace(tmp_path, monkeypatch):
+    from .test_run_isolation_and_stop_truth import _fake_sdk
+
+    seen = []
+    _fake_sdk(monkeypatch, seen)
+    workspace = tmp_path / "ws"
+    wrapper = DeepSeekHarnessWrapper(workspace_dir=str(workspace),
+                                     session_root=str(tmp_path / "s"), isolated=False,
+                                     live_mode="dry")
+    _, status, *_ = wrapper._run_live_events("goal", "run-1")
+    assert status == "completed"
+    patch = Path(seen[0]["patches"][-1]).read_text(encoding="utf-8")
+    config = json.loads(_plugin_field(patch, "harness-images", "config"))
+    assert config["gate"][-1].endswith("image_gate.py")
+    assert Path(config["gate"][-1]).is_file()
+    # The tool measures the files the browser writes: two roots would mean the
+    # agent diffs against something other than what it rendered.
+    assert config["workspace"] == str((workspace / "run-1").resolve())
+    assert config["workspace"] == json.loads(
+        _plugin_field(patch, "harness-browser", "config"))["workspace"]
+    assert Path(json.loads(_plugin_field(patch, "harness-images", "name"))).is_file()
+    assert "harness-web" in patch and "harness-shell" in patch and "harness-browser" in patch
+
+
+def test_a_missing_image_gate_removes_the_tool_and_nothing_else(tmp_path, monkeypatch):
+    from .test_run_isolation_and_stop_truth import _fake_sdk
+
+    seen = []
+    _fake_sdk(monkeypatch, seen)
+    monkeypatch.setenv("HARNESS_IMAGE_GATE", str(tmp_path / "nope.py"))
+    wrapper = DeepSeekHarnessWrapper(workspace_dir=str(tmp_path / "ws"),
+                                     session_root=str(tmp_path / "s"), isolated=False,
+                                     live_mode="dry")
+    _, status, *_ = wrapper._run_live_events("goal", "run-1")
+    assert status == "completed"
+    patch = Path(seen[0]["patches"][-1]).read_text(encoding="utf-8")
+    assert "harness-images" not in patch
+    assert "harness-browser" in patch and "harness-web" in patch

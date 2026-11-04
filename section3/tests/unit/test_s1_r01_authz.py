@@ -17,7 +17,7 @@ CALL_BODY = {
     "role": "primary",
     "messages": [{"role": "user", "content": "hi"}],
 }
-CONFIG_BODY = {"role": "primary", "model": "deepseek/deepseek-coder"}
+CONFIG_BODY = {"role": "primary", "model": "deepseek/deepseek-v4-flash"}
 
 
 def _app(principal=None):

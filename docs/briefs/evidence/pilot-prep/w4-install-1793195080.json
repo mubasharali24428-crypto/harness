@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-28",
+  "week": "W4",
+  "claim": "installs run confined, and the egress allow-list is what bounds them",
+  "drive": "shell_gate.py inside a real run network (no model)",
+  "image": "harness-engine-worker:vdev-local",
+  "defaultRefusal": {
+    "denied": true,
+    "reason": "Command contains forbidden pattern: '\\b(pip|pip3)\\s+install\\b' \u2014 installs: package installs are off by default; set DSH_ALLOW_INSTALLS=1 to permit them"
+  },
+  "permitted": {
+    "ok": true,
+    "exitCode": 0,
+    "denied": null,
+    "snippet": "Defaulting to user installation because normal site-packages is not writeable\nCollecting six==1.16.0\n  Downloading six-1.16.0-py2.py3-none-any.whl.metadata (1.8 kB)\nDownloading six-1.16.0-py2.py3-none-any.whl (11 kB)\nInstalling collected packages: six\nSuccessfully installed six-1.16.0\n"
+  },
+  "offListRegistry": {
+    "ok": false,
+    "exitCode": 1,
+    "snippet": " status=None)) after connection broken by 'ProxyError('Cannot connect to proxy.', OSError('Tunnel connection failed: 403 Forbidden'))': /simple/six/\nERROR: Could not find a version that satisfies the requirement six==1.16.0 (from versions: none)\nERROR: No matching distribution found for six==1.16.0\n"
+  },
+  "proxyConnectLines": [
+    "CONNECT pypi.org:443 purpose=sandbox allowed",
+    "CONNECT files.pythonhosted.org:443 purpose=sandbox allowed"
+  ],
+  "proxySawPypi": true,
+  "verdict": "PASS"
+}

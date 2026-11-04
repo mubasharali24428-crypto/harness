@@ -1,0 +1,26 @@
+{
+  "tag": "d0f2a7136185",
+  "n": 40,
+  "verdict": "PASS",
+  "checks": {
+    "durableCountMatchesInsert": true,
+    "replicaA_deliveredAll": true,
+    "replicaB_deliveredAll": true,
+    "replicaB_sawEventsItDidNotInsert": true,
+    "bothReplicasAgree": true
+  },
+  "projectId": "d5f3b55d-5e35-434c-a262-c58f7f8177fd",
+  "inserted": 40,
+  "replicaA_seqs": [
+    152795,
+    152796,
+    152797,
+    152798,
+    152799,
+    "...",
+    152833,
+    152834
+  ],
+  "replicaB_count": 40,
+  "expectedCount": 40
+}

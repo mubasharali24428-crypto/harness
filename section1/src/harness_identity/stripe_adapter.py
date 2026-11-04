@@ -67,6 +67,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from .audit_emit import emit_billing_plan_changed
 from .auth import get_principal
 from .billing import PLAN_TIERS, BillingPlan
+from .http_client import env_client
 from .models import Base
 
 logger = logging.getLogger(__name__)
@@ -166,10 +167,8 @@ class HttpxStripeClient:
         }
 
     async def _request(self, method: str, path: str, data: dict) -> dict:
-        httpx = _import_httpx()
-        async with httpx.AsyncClient(
-            base_url=self._base_url, timeout=self._timeout
-        ) as client:
+        _import_httpx()
+        async with env_client(base_url=self._base_url, timeout=self._timeout) as client:
             response = await client.request(method, path, data=data, headers=self._headers())
         if response.status_code >= 400:
             # Surface Stripe's own message (safe: it never contains our keys).

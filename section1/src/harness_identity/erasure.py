@@ -35,6 +35,11 @@ PURGE_BY_USER = (
     ("presence_records", "user_id"), ("policy_stepup", "user_id"),
     ("policy_assignments", "user_id"), ("org_members", "user_id"),
     ("workspace_members", "user_id"),
+    # W16 slice 3: a SCIM externalId is the DIRECTORY's identifier for this
+    # person. Erasure nulls team_members.user_id instead of deleting rows, so no
+    # FK cascade fires and the link must be purged here — otherwise an account
+    # that has been "erased" still carries a resolvable handle onto Okta/Entra.
+    ("scim_user_links", "user_id"),
 )
 # Deleted outright, matched on the account's email: mail and invites addressed to it.
 PURGE_BY_EMAIL = (

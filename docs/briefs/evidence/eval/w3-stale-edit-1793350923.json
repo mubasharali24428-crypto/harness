@@ -1,0 +1,185 @@
+{
+  "schema": 1,
+  "kind": "w3-stale-edit",
+  "takenAt": "2026-10-30T09:02:04.424647+00:00",
+  "runId": "w3-stale-1793350923",
+  "projectId": "1ccaee38-374a-4ebb-979e-5d4f9e2f261c",
+  "leader": "3904712a-1175-4afa-aff6-06775f1604f5",
+  "model": "none (deterministic API + component checks)",
+  "durationSeconds": 0.8,
+  "outcomes": {
+    "intentAccepted": {
+      "status": 200,
+      "code": null,
+      "version": 1,
+      "changed": [
+        "goal",
+        "scopePaths"
+      ]
+    },
+    "staleClash": {
+      "status": 409,
+      "code": "INTENT_CONFLICT",
+      "conflictId": "d53d28a4-1505-4b50-9ed2-343139a31dc6",
+      "conflictFields": [
+        "goal"
+      ],
+      "currentVersion": 1
+    },
+    "staleNoClash": {
+      "status": 409,
+      "code": "STALE_INTENT_VERSION",
+      "conflictFields": [],
+      "currentVersion": 1
+    },
+    "ahead": {
+      "status": 422,
+      "code": "BAD_VERSION"
+    },
+    "unchanged": {
+      "status": 200,
+      "code": null,
+      "version": 1,
+      "changed": [],
+      "unchanged": true
+    },
+    "traversal": {
+      "status": 422,
+      "code": "BAD_PATHS"
+    },
+    "redirect": {
+      "status": 200,
+      "code": null
+    },
+    "resolveKeep": {
+      "status": 200,
+      "code": null,
+      "version": 1,
+      "conflictId": "d53d28a4-1505-4b50-9ed2-343139a31dc6",
+      "changed": [],
+      "state": "resolved",
+      "resolution": "keep_current"
+    },
+    "staleClashSecond": {
+      "status": 409,
+      "code": "INTENT_CONFLICT",
+      "conflictId": "8dfece93-314d-462a-b51b-dd3cf663df9a",
+      "conflictFields": [
+        "goal"
+      ],
+      "currentVersion": 1
+    },
+    "resolveTake": {
+      "status": 200,
+      "code": null,
+      "version": 2,
+      "conflictId": "8dfece93-314d-462a-b51b-dd3cf663df9a",
+      "changed": [
+        "goal"
+      ],
+      "state": "resolved",
+      "resolution": "take_proposed"
+    },
+    "planV2": {
+      "status": 201,
+      "code": null,
+      "version": 2,
+      "state": "proposed"
+    },
+    "planStale": {
+      "status": 409,
+      "code": "VERSION_CONFLICT",
+      "currentVersion": 2
+    },
+    "stalePatchProposal": {
+      "status": 409,
+      "code": "VERSION_NOT_OPEN",
+      "currentVersion": 2
+    },
+    "checkpointsList": {
+      "status": 200,
+      "code": null
+    },
+    "rewindEmpty": {
+      "status": 409,
+      "code": "CHECKPOINT_UNAVAILABLE"
+    }
+  },
+  "intentAfterStale": {
+    "version": 1,
+    "goal": "intent one",
+    "scopePaths": [
+      "src"
+    ],
+    "permissions": [],
+    "updatedBy": "3904712a-1175-4afa-aff6-06775f1604f5",
+    "updatedAt": "2026-10-30T09:02:03.803259+00:00"
+  },
+  "intentAfterSteering": {
+    "version": 1,
+    "goal": "intent one",
+    "scopePaths": [
+      "src"
+    ],
+    "permissions": [],
+    "updatedBy": "3904712a-1175-4afa-aff6-06775f1604f5",
+    "updatedAt": "2026-10-30T09:02:03.803259+00:00"
+  },
+  "intentAfterTakeProposed": {
+    "version": 2,
+    "goal": "intent proposed",
+    "scopePaths": [
+      "src"
+    ],
+    "permissions": [],
+    "updatedBy": "3904712a-1175-4afa-aff6-06775f1604f5",
+    "updatedAt": "2026-10-30T09:02:03.920169+00:00"
+  },
+  "openConflicts": [
+    {
+      "id": "d53d28a4-1505-4b50-9ed2-343139a31dc6",
+      "baseVersion": 0,
+      "stale": true,
+      "fields": [
+        "goal"
+      ],
+      "conflicting": [
+        "goal"
+      ]
+    }
+  ],
+  "latestPlanVersion": 2,
+  "latestPlanGoal": "plan two",
+  "checkpointProbe": {
+    "checkpoint": "0001-before-attempt",
+    "restoredFiles": 2,
+    "removedFiles": [
+      "c.txt"
+    ],
+    "a": "v1",
+    "b": "keep",
+    "strayExists": false
+  },
+  "checks": {
+    "intentAcceptedAsV1": true,
+    "staleConflictRefused": true,
+    "staleNoClashRefused": true,
+    "aheadRefused": true,
+    "unchangedIsNoop": true,
+    "traversalRefused": true,
+    "intentUnchangedAfterStale": true,
+    "conflictRecorded": true,
+    "steeringCannotExpandScope": true,
+    "keepCurrentChangesNothing": true,
+    "takeProposedApplies": true,
+    "planStaleWriteRefused": true,
+    "planContentUnchanged": true,
+    "stalePatchProposalRefused": true,
+    "checkpointRewindExact": true,
+    "checkpointsEmptyList": true,
+    "rewindWithoutSnapshotRefused": true,
+    "pilotEnabled": true
+  },
+  "verdict": "PASS",
+  "failedChecks": []
+}

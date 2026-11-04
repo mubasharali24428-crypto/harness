@@ -361,6 +361,21 @@ export interface ReactBody {
   reaction: "thumbs_up" | "thumbs_down" | "heart" | "eyes" | "celebrate" | "question" | "check";
 }
 
+/** ReadinessCheckOut. Required keys: check, component, detail, reason, status. */
+export interface ReadinessCheckOut {
+  check: "provider" | "model" | "worker" | "revision" | "repository" | "permissions" | "provider-call";
+  component: string;
+  detail: string;
+  reason: string;
+  status: "ok" | "fail" | "unknown";
+}
+
+/** ReadinessResponse. Required keys: checks, ok. */
+export interface ReadinessResponse {
+  checks: ReadinessCheckOut[];
+  ok: boolean;
+}
+
 /** ReasonBody. */
 export interface ReasonBody {
   reason?: string | null;  // optional
@@ -429,6 +444,11 @@ export interface RevokeBody {
   reason: string;
 }
 
+/** RewindBody. */
+export interface RewindBody {
+  checkpoint?: string | null;  // optional
+}
+
 /** RunAggregateResponse. Required keys: runId, state. */
 export interface RunAggregateResponse {
   budget?: BudgetDegradedOut;  // optional
@@ -440,6 +460,7 @@ export interface RunAggregateResponse {
   planApproved?: boolean;  // optional
   planId?: string | null;  // optional
   prId?: string | null;  // optional
+  routing?: { [key: string]: unknown } | null;  // optional
   runId: string;
   state: string;
   steps?: AggregateStepOut[];  // optional
@@ -767,6 +788,21 @@ export class OrchestratorClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
   }
 
+  /** Get Readiness
+   *  GET /api/v1/orchestrator/readiness */
+  get_readiness(project_id?: string): Promise<ReadinessResponse> {
+    const _path = `/api/v1/orchestrator/readiness`;
+    const params: Record<string, unknown> = {"projectId": project_id};
+    return this.http.request<ReadinessResponse>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** Post Readiness Probe
+   *  POST /api/v1/orchestrator/readiness/probe */
+  post_readiness_probe(): Promise<ReadinessResponse> {
+    const _path = `/api/v1/orchestrator/readiness/probe`;
+    return this.http.request<ReadinessResponse>(this.baseUrl, _path, "POST", undefined);
+  }
+
   /** List Runs
    *  GET /api/v1/orchestrator/runs */
   list_runs(project_id?: string | null, status?: string | null, limit?: number, offset?: number | null, cursor?: string | null): Promise<RunsPage> {
@@ -943,6 +979,13 @@ export class OrchestratorClient {
   review_change(run_id: string, change_id: string, body: ReviewBody): Promise<unknown> {
     const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/changes/${encodeURIComponent(change_id)}/review`;
     return this.http.request<unknown>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Run Checkpoints List
+   *  GET /api/v1/orchestrator/runs/{runId}/checkpoints */
+  run_checkpoints_list(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/checkpoints`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
   }
 
   /** Collab History
@@ -1391,6 +1434,20 @@ export class OrchestratorClient {
     return this.http.request<unknown>(this.baseUrl, _path, "POST", body);
   }
 
+  /** Review Summary
+   *  GET /api/v1/orchestrator/runs/{runId}/review-summary */
+  review_summary(run_id: string): Promise<unknown> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/review-summary`;
+    return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Run Rewind
+   *  POST /api/v1/orchestrator/runs/{runId}/rewind */
+  run_rewind(run_id: string, body: RewindBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/orchestrator/runs/${encodeURIComponent(run_id)}/rewind`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
   /** Collab Staged Approvals
    *  POST /api/v1/orchestrator/runs/{runId}/staged/approvals */
   collab_staged_approvals(run_id: string): Promise<Record<string, unknown>> {
@@ -1680,6 +1737,8 @@ export class OrchestratorClient {
  * export interface/type ProposePlanRequest
  * export interface/type ProposePlanResponse
  * export interface/type ReactBody
+ * export interface/type ReadinessCheckOut
+ * export interface/type ReadinessResponse
  * export interface/type ReasonBody
  * export interface/type ReassignBody
  * export interface/type RedirectRequest
@@ -1690,6 +1749,7 @@ export class OrchestratorClient {
  * export interface/type ReviewBody
  * export interface/type ReviewFindingsOut
  * export interface/type RevokeBody
+ * export interface/type RewindBody
  * export interface/type RunAggregateResponse
  * export interface/type RunIdStatusResponse
  * export interface/type RunItem

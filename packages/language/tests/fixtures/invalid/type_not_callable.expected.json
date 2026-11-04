@@ -1,0 +1,9 @@
+[
+  {
+    "line": 7,
+    "col": 11,
+    "kind": "error",
+    "code": "HX3011",
+    "message": "'Level' is an enum; a value is written 'Level.member'"
+  }
+]

@@ -42,6 +42,8 @@ Request-body caps return 422 (Pydantic). Shared values live in `contracts/src/ha
 
 Default 10/min (`ratelimit.py:95-96`) on OTP request/verify, `auth/login`, SSO start/complete, invite mint/redeem (`ratelimit.py:114-143`). Overrides (`ratelimit.py:164-182`): run start 30, model call 60, brief generate 20, CSP report 30, WS-ticket mint 60. In-process login limiter: 20 per 60 s (`app.py:41-42`). Fail-open on store outage is deliberate (`section1/.../ratelimit.py` docstring, lines 12-16).
 
+Per-TEAM budgets (W15) sit beside the IP budgets on the two surfaces that spend money: run start 60/min and model call 300/min, keyed `team:<id>|<route>` in the same `rate_buckets` table and consumed after authentication (`harness_contracts.ratelimit.consume_team_budget`). Overrides: `HARNESS_TEAM_RUN_START_LIMIT` / `HARNESS_TEAM_MODEL_CALL_LIMIT`. An over-budget team gets 429 `RATE_LIMITED` with `Retry-After`; the store fails open exactly like the IP limiter.
+
 ## NOT ENFORCED
 
 - Event publish rate on the bus: only the per-event byte cap exists. The sockets are capped on the way out and in (500 live frames/s, 120 client messages/min, 20 sockets per user per process: `docs/realtime.md` section 4) and the collaboration mutation routes are IP-limited, but a publisher is not rate-limited.

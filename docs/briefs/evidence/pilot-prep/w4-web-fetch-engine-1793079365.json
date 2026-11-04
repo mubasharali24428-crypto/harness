@@ -1,0 +1,89 @@
+{
+ "date": "2026-10-26",
+ "week": "W4",
+ "claim": "an agent answers from live docs; a denied destination is recorded",
+ "runId": "w4web-1793079365",
+ "drive": "HTTP only",
+ "goalNamesTheTitle": false,
+ "maxToolCalls": 6,
+ "engine": {
+  "engine": "replayed",
+  "status": "completed",
+  "finalResponse": "TITLE: Your First API Call | DeepSeek API Docs\nREFUSAL: Denied by the harness egress policy: example.com is not in the web allow-list"
+ },
+ "answer": "TITLE: Your First API Call | DeepSeek API Docs\nREFUSAL: Denied by the harness egress policy: example.com is not in the web allow-list",
+ "toolCalls": [],
+ "webFetchCalls": [],
+ "answerHasTitle": true,
+ "answerHasRefusal": true,
+ "statePath": [
+  "executing",
+  "awaiting_done_signal"
+ ],
+ "workersObserved": [
+  {
+   "name": "harness-814a2c015bdd4762bd71f54af51dc08c-relay",
+   "role": "relay",
+   "networks": [
+    "bridge",
+    "harness-814a2c015bdd4762bd71f54af51dc08c-net"
+   ],
+   "mounts": []
+  },
+  {
+   "name": "harness-814a2c015bdd4762bd71f54af51dc08c",
+   "role": "worker",
+   "networks": [
+    "harness-814a2c015bdd4762bd71f54af51dc08c-net"
+   ],
+   "mounts": [
+    {
+     "dst": "/var/lib/harness-runs/workspace/w4web-1793079365",
+     "readOnly": false
+    },
+    {
+     "dst": "/var/lib/harness-runs/sessions/w4web-1793079365",
+     "readOnly": false
+    }
+   ]
+  }
+ ],
+ "elapsedSeconds": 175.17,
+ "steps": [
+  {
+   "step": "login",
+   "ok": true
+  },
+  {
+   "step": "create project",
+   "ok": "e24de081-0e87-4371-9b6d-cdfc61c9da8e",
+   "status": 201
+  },
+  {
+   "step": "propose plan",
+   "ok": "plan-9a2f59e9",
+   "status": 201
+  },
+  {
+   "step": "set tool budget",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "approve plan",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "start",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "settled",
+   "ok": true,
+   "state": "awaiting_done_signal"
+  }
+ ],
+ "ok": false
+}

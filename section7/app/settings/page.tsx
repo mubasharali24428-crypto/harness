@@ -61,7 +61,9 @@ function SettingsInner() {
             padding: "10px 14px",
             borderRadius: 8,
             marginBottom: 16,
-            background: params.get("connected") ? "#0f2a1e" : "#2a1215",
+            background: params.get("connected")
+              ? "var(--accent-soft)"
+              : "rgba(var(--danger-rgb), 0.12)",
             color: params.get("connected") ? "var(--accent)" : "var(--red)",
           }}
         >
@@ -74,14 +76,15 @@ function SettingsInner() {
       <section style={{ maxWidth: 520 }}>
         <h2 style={{ marginTop: 0 }}>Workspace</h2>
         <ul style={{ color: "var(--muted)", fontSize: 14, lineHeight: 2, paddingLeft: 18 }}>
-          <li><a href="/settings/team" style={{ color: "#93c5fd" }}>Team &amp; invites</a></li>
-          <li><a href="/settings/governance" style={{ color: "#93c5fd" }}>Organization governance</a></li>
-          <li><a href="/settings/notifications" style={{ color: "#93c5fd" }}>Notifications (inbox, email, quiet hours)</a></li>
-          <li><a href="/settings/keys" style={{ color: "#93c5fd" }}>API keys (BYO providers)</a></li>
-          <li><a href="/settings/integrations" style={{ color: "#93c5fd" }}>Integrations &amp; webhooks</a></li>
-          <li><a href="/settings/billing" style={{ color: "#93c5fd" }}>Billing &amp; plan</a></li>
-          <li><a href="/settings/account" style={{ color: "#93c5fd" }}>Your account (erase)</a></li>
-          <li><a href="/onboarding" style={{ color: "#93c5fd" }}>Onboarding checklist</a></li>
+          <li><a href="/settings/team">Team &amp; invites</a></li>
+          <li><a href="/settings/governance">Organization governance</a></li>
+          <li><a href="/settings/notifications">Notifications (inbox, email, quiet hours)</a></li>
+          <li><a href="/settings/models">Models &amp; reasoning</a></li>
+          <li><a href="/settings/keys">API keys (BYO providers)</a></li>
+          <li><a href="/settings/integrations">Integrations &amp; webhooks</a></li>
+          <li><a href="/settings/billing">Billing &amp; plan</a></li>
+          <li><a href="/settings/account">Your account (erase)</a></li>
+          <li><a href="/onboarding">Onboarding checklist</a></li>
         </ul>
       </section>
 
@@ -102,7 +105,7 @@ function SettingsInner() {
               alignItems: "center",
               gap: 12,
               padding: "12px 14px",
-              border: "1px solid #1f2937",
+              border: "1px solid var(--border)",
               borderRadius: 8,
             }}
           >
@@ -119,7 +122,7 @@ function SettingsInner() {
               alignItems: "center",
               gap: 12,
               padding: "12px 14px",
-              border: "1px solid #1f2937",
+              border: "1px solid var(--border)",
               borderRadius: 8,
             }}
           >

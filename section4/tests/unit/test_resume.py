@@ -58,7 +58,10 @@ async def _settle(task: asyncio.Task | None) -> None:
         pass
 
 
-async def test_pause_leaves_run_resumable_and_resume_respawns_engine():
+async def test_pause_leaves_run_resumable_and_resume_respawns_engine(monkeypatch):
+    # N02 repo-context appends the workspace baseline to the first leg's goal;
+    # the kill-switch keeps this assertion about goal pass-through per leg.
+    monkeypatch.setenv("HARNESS_REPO_CONTEXT", "0")
     service, calls = _make_service(first_call_delay=0.5)
     await _approved_executing_run(service)
 

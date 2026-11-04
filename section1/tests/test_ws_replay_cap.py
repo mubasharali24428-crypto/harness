@@ -323,7 +323,65 @@ async def test_rest_replay_reports_truncation_pair(app, monkeypatch):
     assert body["oldestSeqSent"] == seqs[-15]
 
 
+async def test_rest_before_seq_backfills_truncated_gap_oldest_first(app, monkeypatch):
+    """W22: paging (after_seq, before_seq) by nextCursor recovers the whole skipped range."""
+    monkeypatch.setenv("REPLAY_MAX_EVENTS", "15")
+    bus = app.state.event_bus
+    seqs = await _publish_n(bus, "p1", 40)
+    stop = seqs[-15]  # the oldestSeqSent a truncated resume reports
+
+    got, cursor = [], 0
+    for _ in range(10):
+        body = (await _rest_get(app, f"?after_seq={cursor}&before_seq={stop}&limit=10")).json()
+        if not body["items"]:
+            break
+        got += [i["seq"] for i in body["items"]]
+        cursor = body["nextCursor"]
+    assert got == seqs[:-15]
+    assert not body.get("replayTruncated")
+
+
 # --------------------------------------- seq-window resume under concurrency
+
+
+async def test_a_capped_resume_page_names_a_hole_a_client_can_fill(fapp, monkeypatch):
+    """The deterministic twin of the concurrent test below.
+
+    Publish everything up front so the cap is forced to bite: the resume page
+    carries only the newest N, `oldestSeqSent` says exactly where it cut, and
+    the skipped head is recoverable oldest-first via before_seq. A plain
+    afterSeq walk is NOT a recovery path — it returns the same newest-N window,
+    which is why the marker exists at all.
+    """
+    monkeypatch.setenv("REPLAY_MAX_EVENTS", "17")
+    app = fapp
+    bus = app.state.event_bus
+    seqs = await _publish_n(bus, "p1", 50)
+
+    page = await bus.replay_page("p1", 0)
+    delivered = [e.seq for e in page.envelopes]
+    assert page.truncated is True
+    assert delivered == seqs[-17:], "newest-N under the cap"
+    stop = page.oldest_seq_sent
+    assert stop == seqs[-17], "the marker names the first row that WAS sent"
+
+    naive = await _rest_get(app, "?afterSeq=0&limit=500")
+    assert [item["seq"] for item in naive.json()["items"]] == seqs[-17:], (
+        "a plain afterSeq walk never reaches the hole"
+    )
+
+    recovered, cursor = [], 0
+    while True:
+        body = (
+            await _rest_get(app, f"?after_seq={cursor}&before_seq={stop}&limit=10")
+        ).json()
+        items = body["items"]
+        if not items:
+            break
+        recovered += [item["seq"] for item in items]
+        cursor = items[-1]["seq"]
+    assert recovered == seqs[:-17], "the skipped head, recovered oldest-first"
+    assert sorted(delivered + recovered) == seqs
 
 
 async def test_resume_never_resends_at_or_below_afterseq_during_concurrent_publish(
@@ -352,12 +410,22 @@ async def test_resume_never_resends_at_or_below_afterseq_during_concurrent_publi
     publisher = asyncio.ensure_future(concurrent_publisher())
 
     batches: list[list[int]] = []
+    holes: list[tuple[int, int]] = []  # (cursor, oldestSeqSent) the cap skipped
     while True:
         page = await bus.replay_page("p1", after_seq)
         seqs = [e.seq for e in page.envelopes]
         assert all(s > after_seq for s in seqs), (
             f"re-send violation: {[s for s in seqs if s <= after_seq]} <= cursor {after_seq}"
         )
+        if (
+            page.truncated
+            and page.oldest_seq_sent is not None
+            and page.oldest_seq_sent > after_seq + 1
+        ):
+            # Newest-N: this page had to skip (cursor, oldestSeqSent). The client
+            # fills that hole with before_seq; it never re-reads at or below its
+            # cursor, which is the only thing that would duplicate.
+            holes.append((after_seq, page.oldest_seq_sent))
         if seqs:
             batches.append(seqs)
             after_seq = seqs[-1]
@@ -393,29 +461,30 @@ async def test_resume_never_resends_at_or_below_afterseq_during_concurrent_publi
             )
         ]
     # Newest-N semantics: when a mid-stream gap outgrew the cap, the WS page
-    # skipped the OLDEST rows. A compliant client backfills that hole via the
-    # REST cursor endpoint — walking it here proves the hole is recoverable
-    # with zero dup and zero loss end-to-end. The walk happens AFTER the
-    # publisher task is awaited (it is, above), so the REST pages see every
-    # committed row — no in-flight commit can be missed by this walk either.
-    ws_set = set(delivered_ws)
+    # skipped the OLDEST rows. A compliant client backfills that hole through
+    # the before_seq cursor — and NOT with a plain afterSeq walk, which is
+    # newest-N too and would silently skip the very rows being accounted for.
+    # (This test used to use that plain walk: on a loaded runner the gap
+    # outgrew the cap, the walk could not see the skipped head, and a range
+    # that was never lost was reported as lost.)
     backfilled = list(delivered_ws)
-    cursor = 0
-    while True:
-        r = await _rest_get(app, f"?afterSeq={cursor}&limit=500")
-        items = r.json()["items"]
-        if not items:
-            break
-        for item in items:
-            s = item["seq"]
-            cursor = max(cursor, s)
-            if s not in ws_set:  # WS dedups by seq; so does this walk
-                backfilled.append(s)
-        if len(items) < 500:
-            break
+    for start, stop in holes:
+        cursor = start
+        while True:
+            body = (
+                await _rest_get(app, f"?after_seq={cursor}&before_seq={stop}&limit=10")
+            ).json()
+            items = body["items"]
+            if not items:
+                break
+            assert all(start < item["seq"] < stop for item in items), (
+                "the hole walk must stay strictly inside the hole"
+            )
+            backfilled += [item["seq"] for item in items]
+            cursor = items[-1]["seq"]
 
     assert sorted(backfilled) == truth
-    assert len(backfilled) == len(set(backfilled)), "no dup across WS + REST recovery"
+    assert len(backfilled) == len(set(backfilled)), "no dup across WS + hole recovery"
     assert len(truth) == 10 + published_count
     assert pre[0] in backfilled and truth[-1] in backfilled
 

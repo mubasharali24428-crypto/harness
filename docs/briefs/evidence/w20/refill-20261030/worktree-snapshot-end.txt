@@ -1,0 +1,50 @@
+2026-10-30 23:13:06 PDT
+e9e5589523f2205eaa484e6fe4a0419864364ed0
+ M .gitignore
+ M clients/vscode/package-lock.json
+ M clients/vscode/package.json
+ M contracts/src/harness_contracts/policy_enforce.py
+ M deploy/docker-compose.yml
+ M docs/briefs/evidence/w21/native-confinement-container.json
+ M docs/m2-w7-plan.md
+ M scripts/e2e/w22_daemon_kill_drill.py
+ M scripts/loadtest/run_probe.sh
+ M scripts/pitr_drill.sh
+ M section1/src/harness_identity/eventbus.py
+ M section1/src/harness_identity/runner_api.py
+ M section4/src/harness_orchestrator/container_runtime.py
+ M section4/src/harness_orchestrator/engine.py
+ M section4/src/harness_orchestrator/run_queue.py
+ M section4/src/harness_orchestrator/service.py
+ M section4/src/harness_orchestrator/worker_daemon.py
+ M section4/tests/unit/test_boundary_sweep.py
+ M section4/tests/unit/test_worker_daemon.py
+ M section5/src/harness_sandbox/browser_gate.py
+ M section5/src/harness_sandbox/browser_session.py
+ M section5/src/harness_sandbox/lsp_client.py
+ M section7/src/lib/api.ts
+ M section7/src/lib/useEventStream.ts
+ M section7/tests/unit/useEventStream.test.ts
+?? .patch_slice1.py
+?? .patch_slice2.py
+?? .patch_slice3.py
+?? .patch_slice4.py
+?? .patch_slice5.py
+?? .patch_slice5b.py
+?? .patch_slice5c.py
+?? .patch_slice5d.py
+?? .patch_slice6.py
+?? .qoder/
+?? clients/vscode/.vscodeignore
+?? docs/briefs/evidence/w17/
+?? docs/briefs/evidence/w7/
+?? docs/hermes-agentic-language-plan.md
+?? docs/m2-w17-plan.md
+?? docs/runbooks/w17-reliability.md
+?? section1/tests/test_runner_exec.py
+?? section1/tests/test_w17_event_backpressure.py
+?? section1/tests/test_w17_load_probe.py
+?? section4/tests/unit/test_byo_dispatch.py
+?? section5/src/harness_sandbox/byo_runner.py
+?? section5/tests/unit/test_byo_runner.py
+?? section5/tests/unit/test_w17_process_cleanup.py

@@ -1,0 +1,9 @@
+[
+  {
+    "line": 11,
+    "col": 11,
+    "kind": "error",
+    "code": "HX5005",
+    "message": "spawned tasks exceed budget.tasks = 1"
+  }
+]

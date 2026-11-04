@@ -1,0 +1,64 @@
+{
+  "drillId": "w23-fresh-configured-patch-000391bd",
+  "label": "configured-patch",
+  "at": "2026-10-31T06:30:18-0700",
+  "git": "de62c0e8ee07e5591dccfb6be3bc4bcd2b56e9a0",
+  "seed": {
+    "projectId": "demo-proj-3ace212c6ee2",
+    "runId": "demo-run-22e6816556f0"
+  },
+  "doctorExitCode": 0,
+  "doctor": {
+    "checks": [
+      {
+        "check": "provider",
+        "component": "provider",
+        "detail": "openrouter.ai; configured, reachability not probed",
+        "reason": "CONFIGURED",
+        "status": "ok"
+      },
+      {
+        "check": "model",
+        "component": "model",
+        "detail": "runs use anthropic/claude-haiku-5.5 only",
+        "reason": "CONFIGURED",
+        "status": "ok"
+      },
+      {
+        "check": "worker",
+        "component": "worker-daemon",
+        "detail": "answers and accepts the token",
+        "reason": "REACHABLE",
+        "status": "ok"
+      },
+      {
+        "check": "revision",
+        "component": "worker-daemon",
+        "detail": "same code as the orchestrator (9725a59408f0)",
+        "reason": "MATCH",
+        "status": "ok"
+      },
+      {
+        "check": "repository",
+        "component": "repository",
+        "detail": "local/demo-repo",
+        "reason": "CONNECTED",
+        "status": "ok"
+      },
+      {
+        "check": "permissions",
+        "component": "identity",
+        "detail": "role admin may start, stop and approve runs",
+        "reason": "CAN_RUN",
+        "status": "ok"
+      }
+    ],
+    "command": "doctor",
+    "exitCode": 0,
+    "ok": true,
+    "projectId": "demo-proj-3ace212c6ee2",
+    "ready": true,
+    "schemaVersion": 1
+  },
+  "stderr": "<frozen runpy>:128: RuntimeWarning: 'harness_sdk.cli.main' found in sys.modules after import of package 'harness_sdk.cli', but prior to execution of 'harness_sdk.cli.main'; this may result in unpredictable behaviour\n"
+}

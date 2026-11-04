@@ -1,19 +1,21 @@
+import * as React from "react";
 import type { RunStatus } from "@contracts/api";
 import type { ConnectionState } from "@/lib/useEventStream";
 import type { WorkingAreaDerivedView } from "@/lib/deriveView";
 import { panelStyle, headingStyle, pillStyle } from "@/lib/styles";
 
+// Theme tokens, never literals: these pills render on both paper and charcoal.
 const STATE_COLORS: Record<string, string> = {
-  idle: "#a8a296",
-  planning: "#6cb8ff",
-  awaiting_plan_approval: "#6cb8ff",
-  executing: "#8ee5a1",
-  paused: "#e5a814",
-  awaiting_done_signal: "#6cb8ff",
-  reviewing: "#c9a7ff",
+  idle: "var(--muted)",
+  planning: "var(--blue)",
+  awaiting_plan_approval: "var(--blue)",
+  executing: "var(--accent)",
+  paused: "var(--yellow)",
+  awaiting_done_signal: "var(--blue)",
+  reviewing: "var(--violet)",
   blocked: "var(--red)",
-  pr_opened: "#6cd5c0",
-  done: "#a8a296",
+  pr_opened: "var(--teal)",
+  done: "var(--muted)",
 };
 
 const CONNECTION_LABEL: Record<ConnectionState, string> = {
@@ -22,6 +24,12 @@ const CONNECTION_LABEL: Record<ConnectionState, string> = {
   reconnecting: "Reconnecting…",
   closed: "Disconnected",
 };
+
+function formatWindow(tokens: number): string {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(tokens % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}k`;
+  return String(tokens);
+}
 
 export function StatusPanel({
   status,
@@ -43,6 +51,29 @@ export function StatusPanel({
         </span>
         {status?.isHumanEditing && <span style={pillStyle("var(--yellow)")}>human editing</span>}
       </div>
+
+      {(derived.contextWindow !== null || derived.compactedTokens > 0) && (
+        <p style={{ margin: "0 0 10px 0", fontSize: 12, color: "var(--muted)" }}>
+          Context:{" "}
+          {derived.contextWindow !== null ? `${formatWindow(derived.contextWindow)} window` : "window unknown"}
+          {derived.compactedTokens > 0
+            ? ` · ${derived.compactedTokens.toLocaleString()} tokens compacted`
+            : " · no compaction yet"}
+        </p>
+      )}
+
+      {derived.goalImages && (
+        <p data-testid="goal-images" style={{ margin: "0 0 10px 0", fontSize: 12, color: "var(--muted)" }}>
+          {derived.goalImages.attached > 0
+            ? `${derived.goalImages.attached} image${derived.goalImages.attached === 1 ? "" : "s"} with the goal`
+            : "no images reached the model"}
+          {derived.goalImages.skipped.length > 0 &&
+            ` · ${derived.goalImages.skipped.length} not sent (${derived.goalImages.skipped
+              .map((s) => `${s.name}: ${s.reason}`)
+              .join("; ")})`}
+          {derived.goalImages.refused && ` · ${derived.goalImages.refused}`}
+        </p>
+      )}
 
       {derived.blockerQuestion && (
         <div style={{ ...calloutStyle, borderColor: "var(--red)" }}>

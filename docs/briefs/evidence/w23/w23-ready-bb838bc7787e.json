@@ -1,0 +1,120 @@
+{
+  "drillId": "w23-ready-bb838bc7787e",
+  "tag": "w23exit1",
+  "staleTag": "s1coherent",
+  "verdict": "PASS",
+  "checks": {
+    "baselineWorkerAndRevisionOk": true,
+    "tokenFaultNamed": true,
+    "tokenNotEchoed": true,
+    "recoveredAfterToken": true,
+    "imageFaultNamed": true,
+    "imageFaultComponent": true,
+    "recoveredAfterImage": true
+  },
+  "git": "de62c0e8ee07e5591dccfb6be3bc4bcd2b56e9a0",
+  "daemonImage": "harness-worker-daemon:vw23exit1 sha256:2a244b6dc39c967993788656601371f2e487e4869fa40b9a5b66dca516f0fe6d",
+  "baseline": {
+    "ok": false,
+    "checks": [
+      {
+        "check": "provider",
+        "status": "ok",
+        "component": "provider",
+        "reason": "CONFIGURED",
+        "detail": "openrouter.ai; configured, reachability not probed"
+      },
+      {
+        "check": "model",
+        "status": "ok",
+        "component": "model",
+        "reason": "CONFIGURED",
+        "detail": "runs use anthropic/claude-haiku-5.5 only"
+      },
+      {
+        "check": "worker",
+        "status": "ok",
+        "component": "worker-daemon",
+        "reason": "REACHABLE",
+        "detail": "answers and accepts the token"
+      },
+      {
+        "check": "revision",
+        "status": "ok",
+        "component": "worker-daemon",
+        "reason": "MATCH",
+        "detail": "same code as the orchestrator (9725a59408f0)"
+      },
+      {
+        "check": "repository",
+        "status": "fail",
+        "component": "repository",
+        "reason": "PROJECT_REPO_NOT_CONNECTED",
+        "detail": "this project has no connected repository"
+      },
+      {
+        "check": "permissions",
+        "status": "ok",
+        "component": "identity",
+        "reason": "CAN_RUN",
+        "detail": "role admin may start, stop and approve runs"
+      }
+    ]
+  },
+  "tokenFault": {
+    "observations": [
+      {
+        "t": 202964.3,
+        "worker": "WORKER_UNREACHABLE",
+        "revision": "NOT_CHECKED"
+      },
+      {
+        "t": 202966.3,
+        "worker": "WORKER_UNAUTHORIZED",
+        "revision": "NOT_CHECKED"
+      }
+    ],
+    "readyDuringFault": 200
+  },
+  "tokenRestore": [
+    {
+      "t": 202968.1,
+      "worker": "WORKER_UNREACHABLE",
+      "revision": "NOT_CHECKED"
+    },
+    {
+      "t": 202970.1,
+      "worker": "REACHABLE",
+      "revision": "MATCH"
+    }
+  ],
+  "staleDaemonImage": "harness-worker-daemon:vs1coherent",
+  "imageFault": {
+    "observations": [
+      {
+        "t": 202971.8,
+        "worker": "WORKER_UNREACHABLE",
+        "revision": "NOT_CHECKED"
+      },
+      {
+        "t": 202973.9,
+        "worker": "REACHABLE",
+        "revision": "WORKER_PREDATES_READINESS"
+      }
+    ],
+    "readyDuringFault": 200
+  },
+  "imageRestore": [
+    {
+      "t": 202975.6,
+      "worker": "WORKER_UNREACHABLE",
+      "revision": "NOT_CHECKED"
+    },
+    {
+      "t": 202977.6,
+      "worker": "REACHABLE",
+      "revision": "MATCH"
+    }
+  ],
+  "daemonImageAfter": "harness-worker-daemon:vw23exit1"
+}

@@ -9,10 +9,14 @@ import {
   classifyGatePhase,
   gateActionsFor,
   gateCaption,
+  goalImageRejection,
+  goalImageUrl,
+  GOAL_IMAGE_MAX_BYTES,
   proposePlan,
   rejectPlan,
   roleCanAct,
   startRun,
+  uploadGoalImage,
 } from "./planGateApi";
 
 afterEach(() => {
@@ -220,4 +224,51 @@ describe("gateCaption — honest captions per phase", () => {
 
 it("offers Start for an approved plan that retains awaiting_plan_approval until execution", () => {
   expect(classifyGatePhase("awaiting_plan_approval", true, true)).toBe("ready-to-start");
+});
+
+describe("goal images (M06)", () => {
+  const file = (name: string, type: string, size: number) =>
+    ({ name, type, size }) as unknown as File;
+
+  it("targets Section 4's documented artifact route, never an invented one", () => {
+    expect(goalImageUrl("run 1", "shot a.png")).toBe(
+      `${PLAN_GATE_BASE}/api/v1/orchestrator/runs/run%201/artifacts?name=shot%20a.png&kind=upload`,
+    );
+  });
+
+  it("accepts the four raster types the runtime admits", () => {
+    for (const type of ["image/png", "image/jpeg", "image/webp", "image/gif"]) {
+      expect(goalImageRejection(file("s", type, 1024))).toBeNull();
+    }
+  });
+
+  it("refuses a non-image and an oversized image with a readable reason", () => {
+    expect(goalImageRejection(file("notes.pdf", "application/pdf", 10))).toMatch(/can be attached/);
+    expect(goalImageRejection(file("big.png", "image/png", GOAL_IMAGE_MAX_BYTES + 1))).toMatch(
+      /larger than/,
+    );
+  });
+
+  it("surfaces an upload failure as an ApiError the card can render", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status: 413, text: async () => "ARTIFACT_TOO_LARGE" })),
+    );
+    await expect(uploadGoalImage("r1", "tok", file("a.png", "image/png", 5))).rejects.toMatchObject(
+      { name: "ApiError", status: 413, code: "ARTIFACT_TOO_LARGE" },
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it("sends raw bytes with the bearer token, not a JSON envelope", async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, status: 201, text: async () => "" }));
+    vi.stubGlobal("fetch", fetchMock);
+    const f = file("a.png", "image/png", 5);
+    await uploadGoalImage("r1", "tok", f);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain("/runs/r1/artifacts");
+    expect(init.body).toBe(f);
+    expect((init.headers as Record<string, string>).authorization).toBe("Bearer tok");
+    vi.unstubAllGlobals();
+  });
 });

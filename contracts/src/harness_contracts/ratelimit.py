@@ -44,12 +44,14 @@ the same count and slip past the limit together.
 import ipaddress
 import json
 import logging
+import os
 import time
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 
-from harness_contracts import error_body
 from sqlalchemy import text
+
+from harness_contracts import error_body
 
 __all__ = [
     "DEFAULT_PROTECTED_ROUTES",
@@ -63,12 +65,17 @@ __all__ = [
     "BRIEF_GENERATE_LIMIT",
     "BRIEF_GENERATE_TEMPLATE",
     "RateLimitMiddleware",
+    "TEAM_BUCKET_PREFIX",
+    "TEAM_ROUTE_LIMITS",
+    "consume_team_budget",
     "effective_client_ip",
     "expensive_op_limits",
     "install_rate_limit",
     "limit_for_route",
     "normalize_client_ip",
     "route_matches",
+    "team_bucket_key",
+    "team_limit_for_route",
 ]
 
 logger = logging.getLogger(__name__)
@@ -167,6 +174,95 @@ def _effective_limits(
     if not overrides:
         return limit
     return int(overrides.get(route_template, limit))
+
+# ---------------------------------------------------------------------------
+# W15 slice 2 — TEAM-keyed budgets on the spend surfaces.
+#
+# The middleware keys per (IP, template) and runs before authentication, so it
+# cannot tell one team's scripted traffic from its NAT neighbours. These two
+# surfaces spend real money per call, so they also consume a team bucket at the
+# point where the authenticated team is known. Same store, same upsert, keys
+# namespaced with TEAM_BUCKET_PREFIX so a team bucket can never collide with an
+# IP bucket for the same route.
+# ---------------------------------------------------------------------------
+
+TEAM_BUCKET_PREFIX = "team:"
+
+#: Generous abuse guards, not UX blockers: a human workflow cannot approach
+#: these rates, a runaway script reaches them in seconds. Env overrides are
+#: read per call so an operator can tune without a rebuild.
+TEAM_ROUTE_LIMITS: dict[str, int] = {
+    RUN_START_TEMPLATE: 60,  # spawn cost, per team per minute
+    MODEL_CALL_TEMPLATE: 300,  # provider spend, per team per minute
+}
+TEAM_LIMIT_ENV: dict[str, str] = {
+    RUN_START_TEMPLATE: "HARNESS_TEAM_RUN_START_LIMIT",
+    MODEL_CALL_TEMPLATE: "HARNESS_TEAM_MODEL_CALL_LIMIT",
+}
+DEFAULT_TEAM_LIMIT = 120
+
+
+def team_bucket_key(team_id: str, route_template: str) -> str:
+    """Limit key for a TEAM + route TEMPLATE, namespaced and width-capped."""
+    return f"{TEAM_BUCKET_PREFIX}{team_id}|{route_template}"[:200]
+
+
+def team_limit_for_route(route_template: str, env: Mapping[str, str] | None = None) -> int:
+    """Team budget for a template: env override (positive int) else default."""
+    default = TEAM_ROUTE_LIMITS.get(route_template, DEFAULT_TEAM_LIMIT)
+    source = os.environ if env is None else env
+    name = TEAM_LIMIT_ENV.get(route_template)
+    if not name:
+        return default
+    try:
+        value = int(str(source.get(name, "")).strip())
+    except (TypeError, ValueError):
+        return default
+    return value if value > 0 else default
+
+
+async def consume_team_budget(
+    factory,
+    team_id: str | None,
+    route_template: str,
+    *,
+    limit: int | None = None,
+    window_seconds: int = DEFAULT_WINDOW_SECONDS,
+    now_epoch: float | None = None,
+) -> tuple[bool, int]:
+    """Consume one team-scoped slot; return (allowed, retry_after_seconds).
+
+    A missing team id is allowed through: the run/principal binding gate is a
+    different guard, and failing closed here would turn a lookup bug into an
+    outage. Store failures fail OPEN with a warning, matching the limiter's
+    documented availability posture.
+    """
+    if not team_id:
+        return True, 0
+    budget = limit if limit is not None else team_limit_for_route(route_template)
+    _, window_epoch = current_window(window_seconds, now_epoch)
+    try:
+        async with factory() as db:
+            count = (
+                await db.execute(
+                    _UPSERT,
+                    {
+                        "bucket_key": team_bucket_key(team_id, route_template),
+                        "window_start": datetime.fromtimestamp(window_epoch, tz=UTC),
+                    },
+                )
+            ).scalar_one()
+            await db.commit()
+    except Exception:  # noqa: BLE001 — fail open: availability > strictness
+        logger.warning(
+            "team rate-limit store unavailable; failing OPEN for %s",
+            route_template,
+            exc_info=True,
+        )
+        return True, 0
+    retry_after = max(1, window_seconds - int(time.time() - window_epoch))
+    return int(count) <= budget, retry_after
+
 
 # Single-statement fixed-window counter (see module docstring for why this is
 # race-free). RETURNING yields the post-increment count in the same round trip;

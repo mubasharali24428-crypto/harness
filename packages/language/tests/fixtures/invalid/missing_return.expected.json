@@ -1,0 +1,9 @@
+[
+  {
+    "line": 6,
+    "col": 1,
+    "kind": "error",
+    "code": "HX3007",
+    "message": "workflow 'check' must end with a return statement"
+  }
+]

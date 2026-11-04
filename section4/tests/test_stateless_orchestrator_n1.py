@@ -315,22 +315,33 @@ async def test_cas_approve_race_exactly_one_winner_one_event(replica_pair):
 
 
 async def test_mixed_decision_race_reject_wins_late_approve_conflicts(replica_pair):
-    """Reverse direction: reject first; a concurrent approve loses cleanly."""
+    """Reverse direction: a reject and an approve race; whichever loses, loses cleanly.
+
+    ``gather`` does not decide the winner - the two replicas' DB threads do - so pinning
+    "reject wins" flaked under load (W2). The invariant is winner-agnostic.
+    """
     factory = replica_pair["factory"]
     replica_a, replica_b = replica_pair["replicas"]
 
     plan_id = await replica_a.propose_plan(
         "mixed-run", goal="n1 mixed race", project_id="proj-race"
     )
-    results = await asyncio.gather(
+    rejected, approved = await asyncio.gather(
         replica_a.reject_plan("mixed-run", plan_id, "user-a"),
         replica_b.approve_plan("mixed-run", plan_id, "user-b"),
         return_exceptions=True,
     )
-    assert sum(isinstance(r, PlanAlreadyDecidedError) for r in results) >= 1
-    assert (await _plan_state(factory, plan_id))["version"] == 1
-    # The approve loser never flipped its own cache either.
-    assert replica_b.planner.is_approved(plan_id) is False
+    losers = [r for r in (rejected, approved) if isinstance(r, BaseException)]
+    assert len(losers) == 1 and isinstance(losers[0], PlanAlreadyDecidedError), losers
+    state = await _plan_state(factory, plan_id)
+    assert state["version"] == 1
+    if isinstance(approved, PlanAlreadyDecidedError):
+        assert state["status"] == "rejected"
+        # The approve loser never flipped its own cache.
+        assert replica_b.planner.is_approved(plan_id) is False
+    else:
+        assert state["status"] == "approved"
+        assert replica_b.planner.is_approved(plan_id) is True
 
 
 async def test_durable_first_read_beats_stale_cache(replica_pair):

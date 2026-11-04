@@ -1,6 +1,6 @@
 """Section 11 test fixtures.
 
-DB: in-memory SQLite (aiosqlite) holding ONLY (a) section11's own
+DB: temporary file-backed SQLite (aiosqlite) holding ONLY (a) section11's own
 context_chunks mirror DDL and (b) minimal auth_sessions/team_members rows so
 contracts.make_bearer_dep resolves a REAL principal through the frozen shared
 code — gated access is proven end-to-end, not stubbed.
@@ -46,16 +46,48 @@ CREATE TABLE team_members (
 );
 """
 
+# W16: `make_bearer_dep` also joins `users` on is_active, so the fixture has to
+# carry the third table the frozen schema says a principal depends on. A fixture
+# that omits it is not "simpler" — it proves a token resolves when the real
+# schema would have refused it.
+_AUTH_DDL_USERS = """
+CREATE TABLE users (
+    id VARCHAR(36) PRIMARY KEY,
+    email VARCHAR(200) NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT 1
+);
+"""
+
 
 @pytest.fixture
-async def db():
+async def db(tmp_path):
     from harness_context.sql import DDL_SQLITE
 
-    engine = create_async_engine("sqlite+aiosqlite://")
+    # In-memory SQLite uses a single shared connection. Concurrent auth reads
+    # can roll back an index transaction when their session closes, producing
+    # a completed job whose reported chunks were never committed. File-backed
+    # SQLite gives sessions independent connections, as the deployed DB does.
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'context.db'}")
     async with engine.begin() as conn:
         await conn.execute(text(DDL_SQLITE))
+        # M2-W19: durable admission table (two replicas share it on one DB).
+        from harness_context.sql import RESERVATION_DDL
+
+        await conn.execute(text(RESERVATION_DDL))
         await conn.execute(text(_AUTH_DDL_SESSIONS))
         await conn.execute(text(_AUTH_DDL_MEMBERS))
+        await conn.execute(text(_AUTH_DDL_USERS))
+        await conn.execute(
+            text(
+                "INSERT INTO users (id, email, name, is_active) VALUES (:u, :e, :n, 1)"
+            ),
+            {
+                "u": TEST_PRINCIPAL["userId"],
+                "e": "context@example.com",
+                "n": "Context Tester",
+            },
+        )
         await conn.execute(
             text(
                 "INSERT INTO auth_sessions (token_hash, user_id, team_id, expires_at) "

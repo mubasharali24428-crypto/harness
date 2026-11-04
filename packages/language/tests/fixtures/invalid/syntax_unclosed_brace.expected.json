@@ -1,0 +1,9 @@
+[
+  {
+    "line": 1,
+    "col": 1,
+    "kind": "error",
+    "code": "HX2002",
+    "message": "unclosed '{' in schema that starts here"
+  }
+]

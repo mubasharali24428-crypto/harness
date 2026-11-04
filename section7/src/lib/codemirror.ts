@@ -7,21 +7,40 @@ import type { Extension, Range } from "@codemirror/state";
 import { Decoration, ViewPlugin } from "@codemirror/view";
 import type { DecorationSet, ViewUpdate } from "@codemirror/view";
 
-/** Shared dark theme + diff line coloring, used by both the diff view and the manual-edit surface. */
-export const editorTheme = EditorView.theme(
-  {
-    "&": { fontSize: "13px", height: "100%" },
-    ".cm-scroller": {
-      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-      overflow: "auto",
+/** Shared theme + diff line coloring, used by both the diff view and the manual-edit surface.
+ *  Every colour comes from a theme token, and the `dark` flag follows the active
+ *  `data-theme` (M-A3: it was pinned to `{ dark: true }`, so in light mode the
+ *  gutter stayed charcoal against a paper editor body). */
+export function editorTheme(dark: boolean): Extension {
+  return EditorView.theme(
+    {
+      "&": { fontSize: "13px", height: "100%", backgroundColor: "var(--input)", color: "var(--text)" },
+      ".cm-scroller": {
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+        overflow: "auto",
+      },
+      ".cm-gutters": {
+        backgroundColor: "var(--panel-2)",
+        color: "var(--muted)",
+        border: "none",
+      },
+      ".cm-activeLineGutter": { backgroundColor: "var(--accent-soft)", color: "var(--text)" },
+      ".cm-content": { caretColor: "var(--text)" },
+      ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--text)" },
+      ".cm-selectionBackground, ::selection": { backgroundColor: "var(--accent-soft)" },
+      ".cm-diff-add": { backgroundColor: "rgba(var(--success-rgb), 0.15)" },
+      ".cm-diff-del": { backgroundColor: "rgba(var(--danger-rgb), 0.15)" },
+      ".cm-diff-hunk": { color: "var(--muted)" },
+      ".cm-diff-file": { color: "var(--muted)", fontWeight: "600" },
     },
-    ".cm-diff-add": { backgroundColor: "rgba(46, 160, 67, 0.15)" },
-    ".cm-diff-del": { backgroundColor: "rgba(248, 81, 73, 0.15)" },
-    ".cm-diff-hunk": { color: "var(--muted)" },
-    ".cm-diff-file": { color: "var(--muted)", fontWeight: "600" },
-  },
-  { dark: true },
-);
+    { dark },
+  );
+}
+
+/** Pure: is the document currently in the dark theme? Exported for tests. */
+export function editorIsDark(themeAttribute?: string | null): boolean {
+  return themeAttribute !== "light";
+}
 
 /** The scroller is the region that scrolls, so it must be a keyboard stop (axe scrollable-region-focusable). */
 const keyboardScroller = ViewPlugin.define((view) => {
@@ -77,29 +96,45 @@ export function useEditorView(
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(opts.onChange);
   onChangeRef.current = opts.onChange;
+  // Latest doc, so a theme switch can rebuild the editor without losing content.
+  const docRef = useRef(doc);
+  docRef.current = doc;
 
   useEffect(() => {
-    if (!containerRef.current) return;
-    const view = new EditorView({
-      parent: containerRef.current,
-      state: EditorState.create({
-        doc,
-        extensions: [
-          basicSetup,
-          editorTheme,
-          keyboardScroller,
-          EditorView.editable.of(!opts.readOnly),
-          EditorView.updateListener.of((update: ViewUpdate) => {
-            if (update.docChanged) onChangeRef.current?.(update.state.doc.toString());
-          }),
-          // The editor body is role=textbox; without a name a screen reader announces an unlabeled field.
-          ...(opts.label ? [EditorView.contentAttributes.of({ "aria-label": opts.label })] : []),
-          ...(opts.extensions ?? []),
-        ],
-      }),
-    });
-    viewRef.current = view;
-    return () => view.destroy();
+    const parent = containerRef.current;
+    if (!parent) return;
+
+    const mount = () => {
+      viewRef.current?.destroy();
+      viewRef.current = new EditorView({
+        parent,
+        state: EditorState.create({
+          doc: docRef.current,
+          extensions: [
+            basicSetup,
+            editorTheme(editorIsDark(document.documentElement.getAttribute("data-theme"))),
+            keyboardScroller,
+            EditorView.editable.of(!opts.readOnly),
+            EditorView.updateListener.of((update: ViewUpdate) => {
+              if (update.docChanged) onChangeRef.current?.(update.state.doc.toString());
+            }),
+            // The editor body is role=textbox; without a name a screen reader announces an unlabeled field.
+            ...(opts.label ? [EditorView.contentAttributes.of({ "aria-label": opts.label })] : []),
+            ...(opts.extensions ?? []),
+          ],
+        }),
+      });
+    };
+
+    mount();
+    // Theme flips happen on <html data-theme>; rebuild so the editor follows.
+    const observer = new MutationObserver(mount);
+    observer.observe(document.documentElement, { attributeFilter: ["data-theme"] });
+    return () => {
+      observer.disconnect();
+      viewRef.current?.destroy();
+      viewRef.current = null;
+    };
     // Intentionally mount-once: `doc` resync below handles external updates.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

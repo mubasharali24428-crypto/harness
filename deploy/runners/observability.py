@@ -27,6 +27,8 @@ Env knobs:
     HARNESS_LOG_FORMAT               json|console   (default json)
     HARNESS_METRICS_DB_POLL_SECONDS  gauge refresh interval for DB-backed
                                      gauges; <=0 disables polling (default 15)
+    HARNESS_COST_METRICS_WINDOW_HOURS  latency-quantile window in hours
+                                     (default 24; <=0 falls back to 24)
 
 The orchestrator keeps importing its own copies from
 ``harness_orchestrator.api`` / ``logging_utils`` (its tests pin those exact
@@ -115,6 +117,12 @@ class GaugeSpec:
     _last_error: str | None = field(default=None, repr=False)
 
 
+# Synthetic-probe / self-scrape route templates excluded from the availability
+# SLI denominator (docs/runbooks/slo-and-capacity.md: "Do not treat /health alone
+# as service availability"; probes failing before real work are not eligible).
+_PROBE_PATHS = frozenset({"/health", "/health?deep=1", "/ready", "/metrics"})
+
+
 class MetricsCollector:
     """Minimal Prometheus text-format collector (no prometheus_client dep).
 
@@ -132,6 +140,33 @@ class MetricsCollector:
         self._hist_raw: dict[tuple[str, str], list[int]] = {}
         self._hist_sum: dict[tuple[str, str], float] = {}
         self._gauges: dict[str, GaugeSpec] = {}
+        # W17 Stage-2: availability-eligible request rollup. The raw
+        # http_requests_total{status} is present, but the API-availability SLI
+        # must be measured on the ELIGIBLE set only — caller 4xx, synthetic
+        # probes (/health, /ready, /metrics) and a declared maintenance window
+        # are excluded, per docs/runbooks/slo-and-capacity.md. Availability =
+        # ok / (ok + error); this counter is that SLI's denominator. Not a
+        # substitute for the owner's decision to adopt a threshold.
+        self._eligible = {"ok": 0, "error": 0}
+
+    @staticmethod
+    def _classify_eligible(path: str, status_code: int | str) -> str | None:
+        """'ok' | 'error' | None (None = not eligible, excluded)."""
+        if path in _PROBE_PATHS:
+            return None  # synthetic probe / self-scrape
+        if os.environ.get("HARNESS_MAINTENANCE_MODE", "").strip().lower() in {"1", "true", "on"}:
+            return None  # a declared, announced maintenance window
+        try:
+            code = int(status_code)
+        except (TypeError, ValueError):
+            return None  # non-numeric (e.g. websocket/aborted) — not an HTTP outcome
+        if 200 <= code < 400:
+            return "ok"
+        if 400 <= code < 500:
+            return None  # caller error: the backend served the request, the input was wrong
+        if code >= 500:
+            return "error"
+        return None  # 1xx informational
 
     # ------------------------------------------------------------- traffic
 
@@ -141,12 +176,15 @@ class MetricsCollector:
         ckey = (method, path, str(status_code))
         hkey = (method, path)
         idx = bisect.bisect_right(self._buckets, duration_s)
+        outcome = self._classify_eligible(path, status_code)
         with self._lock:
             self._counts[ckey] = self._counts.get(ckey, 0) + 1
             raw = self._hist_raw.setdefault(hkey, [0] * len(self._buckets))
             if 0 <= idx < len(raw):
                 raw[idx] += 1
             self._hist_sum[hkey] = self._hist_sum.get(hkey, 0.0) + duration_s
+            if outcome is not None:
+                self._eligible[outcome] += 1
 
     def add_gauge(self, spec: GaugeSpec) -> None:
         """Register a domain series family (idempotent by name)."""
@@ -203,6 +241,7 @@ class MetricsCollector:
             hist_raw = {k: list(v) for k, v in self._hist_raw.items()}
             hist_sum = dict(self._hist_sum)
             gauges = list(self._gauges.values())
+            eligible = dict(self._eligible)
 
         lines = [
             "# HELP http_requests_total Total HTTP requests handled.",
@@ -214,6 +253,18 @@ class MetricsCollector:
                 f'path="{_escape_label(path)}",status="{_escape_label(status_label)}"}}'
                 f" {count}"
             )
+
+        # Availability SLI denominator: eligible ok/error only (4xx + probes +
+        # maintenance excluded at observe()). Both series always rendered so a
+        # PromQL ok/(ok+error) is stable at zero traffic. Adopting a threshold and
+        # an alert on it is the owner's decision, not implied here.
+        lines.append(
+            "# HELP harness_eligible_requests_total Availability-eligible HTTP "
+            "requests, excluding caller 4xx, synthetic probes and declared maintenance."
+        )
+        lines.append("# TYPE harness_eligible_requests_total counter")
+        lines.append(f'harness_eligible_requests_total{{outcome="ok"}} {eligible["ok"]}')
+        lines.append(f'harness_eligible_requests_total{{outcome="error"}} {eligible["error"]}')
 
         lines.append(
             "# HELP http_request_duration_seconds HTTP request duration in seconds."
@@ -460,6 +511,161 @@ async def _read_backup_gauges(factory: "async_sessionmaker") -> tuple[float | No
     return (None if newest is None else float(newest)), (None if failed is None else int(failed))
 
 
+# --------------------------------------------------------------------------
+# Cost/latency rollups (W14) — the cost dashboard reads these; the frozen
+# cost_ledger stays the single source of truth.
+# --------------------------------------------------------------------------
+
+#: "This month" per dialect. PostgreSQL carries the SAME predicate as
+#: ``harness_contracts.budget.MONTH_WINDOW_SQL`` (one definition of the month
+#: boundary); SQLite only ever serves scratch schemas and stores ISO text.
+_MONTH_WINDOW_SQL = {
+    "postgresql": "created_at >= date_trunc('month', now())",
+    "sqlite": "created_at >= strftime('%Y-%m-01 00:00:00', 'now')",
+}
+
+DEFAULT_COST_WINDOW_HOURS = 24.0
+
+
+def resolve_cost_window_hours(environ=None) -> float:
+    """Latency-quantile window in hours (env override, default 24).
+
+    A non-numeric or non-positive value falls back to the default instead of
+    blanking the series — a typo must not silently remove latency telemetry.
+    """
+    env = os.environ if environ is None else environ
+    raw = str(env.get("HARNESS_COST_METRICS_WINDOW_HOURS", "")).strip()
+    if not raw:
+        return DEFAULT_COST_WINDOW_HOURS
+    try:
+        hours = float(raw)
+    except ValueError:
+        logging.getLogger(__name__).warning(
+            "ignoring non-numeric HARNESS_COST_METRICS_WINDOW_HOURS=%r", raw
+        )
+        return DEFAULT_COST_WINDOW_HOURS
+    return hours if hours > 0 else DEFAULT_COST_WINDOW_HOURS
+
+
+@dataclass
+class _CostState:
+    """Latest ledger rollups. Fields are REBOUND (never mutated in place) so a
+    scrape iterating a snapshot can't tear against the next poll."""
+
+    cost: dict = field(default_factory=dict)  # (team, model) -> USD
+    calls: dict = field(default_factory=dict)  # (team, model, role) -> count
+    spend_month: dict = field(default_factory=dict)  # team -> USD this month
+    budget: dict = field(default_factory=dict)  # team -> resolved cap (USD)
+    latency_p50: dict = field(default_factory=dict)  # (team, model) -> seconds
+    latency_p95: dict = field(default_factory=dict)  # (team, model) -> seconds
+
+
+async def _read_cost_gauges(
+    factory: async_sessionmaker, *, window_hours: float
+) -> _CostState:
+    """Per-team/model metering read from the frozen ``cost_ledger``.
+
+    Attribution rides the frozen chain cost_ledger.run_id -> agent_runs ->
+    projects -> teams. Rows whose run cannot be resolved are reported under
+    ``unattributed`` rather than disappearing. Money is summed in SQL (exact
+    NUMERIC on PostgreSQL) and converted once here.
+
+    Latency quantiles use ``percentile_cont``, so they are PostgreSQL-only —
+    the deployed database. Other dialects omit the two latency series instead
+    of guessing from a truncated fetch.
+    """
+    from harness_contracts.budget import resolve_cap
+    from sqlalchemy import text
+
+    state = _CostState()
+    async with factory() as session:
+        dialect = session.bind.dialect.name
+        totals = (
+            await session.execute(
+                text(
+                    "SELECT COALESCE(p.team_id, 'unattributed') AS team_id,"
+                    " l.model, l.agent_role AS role, COUNT(*) AS calls,"
+                    " COALESCE(SUM(l.cost_usd), 0) AS cost_usd"
+                    " FROM cost_ledger l"
+                    " LEFT JOIN agent_runs r ON l.run_id = r.id"
+                    " LEFT JOIN projects p ON r.project_id = p.id"
+                    " GROUP BY 1, 2, 3"
+                )
+            )
+        ).mappings().all()
+
+        month_predicate = _MONTH_WINDOW_SQL.get(dialect)
+        spend_rows = []
+        if month_predicate is not None:
+            spend_rows = (
+                await session.execute(
+                    text(
+                        "SELECT p.team_id AS team_id, SUM(l.cost_usd) AS spend_usd"
+                        " FROM cost_ledger l"
+                        " JOIN agent_runs r ON l.run_id = r.id"
+                        " JOIN projects p ON r.project_id = p.id"
+                        f" WHERE l.{month_predicate}"
+                        " GROUP BY 1"
+                    )
+                )
+            ).mappings().all()
+
+        cap_rows = (
+            await session.execute(
+                text(
+                    "SELECT t.id AS team_id, t.budget_usd AS team_budget,"
+                    " b.monthly_budget_usd AS plan_budget"
+                    " FROM teams t"
+                    " LEFT JOIN billing_plans b ON b.team_id = t.id"
+                )
+            )
+        ).mappings().all()
+
+        quantile_rows = []
+        if dialect == "postgresql":
+            quantile_rows = (
+                await session.execute(
+                    text(
+                        "SELECT COALESCE(p.team_id, 'unattributed') AS team_id,"
+                        " l.model,"
+                        " percentile_cont(0.5) WITHIN GROUP (ORDER BY l.latency_ms)"
+                        " AS p50_ms,"
+                        " percentile_cont(0.95) WITHIN GROUP (ORDER BY l.latency_ms)"
+                        " AS p95_ms"
+                        " FROM cost_ledger l"
+                        " LEFT JOIN agent_runs r ON l.run_id = r.id"
+                        " LEFT JOIN projects p ON r.project_id = p.id"
+                        " WHERE l.created_at >= now()"
+                        " - make_interval(secs => :seconds)"
+                        " GROUP BY 1, 2"
+                    ),
+                    {"seconds": float(window_hours) * 3600.0},
+                )
+            ).mappings().all()
+
+    for row in totals:
+        key = (str(row["team_id"]), str(row["model"]))
+        state.cost[key] = state.cost.get(key, 0.0) + float(row["cost_usd"] or 0)
+        state.calls[(key[0], key[1], str(row["role"]))] = int(row["calls"] or 0)
+
+    # Idle teams still need a zero so "spend vs cap" is a complete picture.
+    state.spend_month = {str(row["team_id"]): 0.0 for row in cap_rows}
+    for row in spend_rows:
+        state.spend_month[str(row["team_id"])] = float(row["spend_usd"] or 0)
+
+    for row in cap_rows:
+        cap = resolve_cap(row["team_budget"], row["plan_budget"])
+        if cap.cap_usd is not None:
+            state.budget[str(row["team_id"])] = float(cap.cap_usd)
+
+    for row in quantile_rows:
+        key = (str(row["team_id"]), str(row["model"]))
+        state.latency_p50[key] = float(row["p50_ms"]) / 1000.0
+        state.latency_p95[key] = float(row["p95_ms"]) / 1000.0
+
+    return state
+
+
 async def _read_stall_gauges(factory: "async_sessionmaker") -> tuple[int, int]:
     """(oldest queued claim age in s, running claims with a stale heartbeat).
 
@@ -626,6 +832,69 @@ def install_domain_metrics(
         )
     )
 
+    # W14 metering: six ledger rollups the cost/latency dashboard reads.
+    # All are GAUGES even where the value only grows: release() deletes
+    # reserved ledger rows, so these sums can legitimately fall — counter
+    # reset semantics would misreport that as a restart.
+    cost_state = _CostState()
+    METRICS.add_gauge(
+        GaugeSpec(
+            name="harness_model_cost_usd",
+            mtype="gauge",
+            help="Ledger cost in USD per team and model (whole ledger).",
+            fn=lambda: cost_state.cost,
+            label_names=("team_id", "model"),
+        )
+    )
+    METRICS.add_gauge(
+        GaugeSpec(
+            name="harness_model_calls",
+            mtype="gauge",
+            help="Metered model calls per team, model and agent role.",
+            fn=lambda: cost_state.calls,
+            label_names=("team_id", "model", "role"),
+        )
+    )
+    METRICS.add_gauge(
+        GaugeSpec(
+            name="harness_team_spend_usd_month",
+            mtype="gauge",
+            help="Month-to-date ledger spend per team (DB-clock month boundary).",
+            fn=lambda: cost_state.spend_month,
+            label_names=("team_id",),
+        )
+    )
+    METRICS.add_gauge(
+        GaugeSpec(
+            name="harness_team_budget_usd",
+            mtype="gauge",
+            help=(
+                "Resolved monthly cap per team"
+                " (team override > plan > env); absent when unlimited."
+            ),
+            fn=lambda: cost_state.budget,
+            label_names=("team_id",),
+        )
+    )
+    METRICS.add_gauge(
+        GaugeSpec(
+            name="harness_model_latency_p50_seconds",
+            mtype="gauge",
+            help="Rolling-window p50 model latency per team and model (PostgreSQL only).",
+            fn=lambda: cost_state.latency_p50,
+            label_names=("team_id", "model"),
+        )
+    )
+    METRICS.add_gauge(
+        GaugeSpec(
+            name="harness_model_latency_p95_seconds",
+            mtype="gauge",
+            help="Rolling-window p95 model latency per team and model (PostgreSQL only).",
+            fn=lambda: cost_state.latency_p95,
+            label_names=("team_id", "model"),
+        )
+    )
+
     async def _poll_once() -> None:
         queued, latest = await _read_domain_gauges(factory)
         with state.lock:
@@ -646,6 +915,18 @@ def install_domain_metrics(
                 state.wal_archive_failed = {} if wal_failed is None else {(): wal_failed}
         except Exception as exc:  # noqa: BLE001 — telemetry never raises
             logging.getLogger(__name__).warning("backup-gauge poll failed: %r", exc)
+        try:  # separate: scratch schemas may lack cost_ledger / teams
+            cost = await _read_cost_gauges(
+                factory, window_hours=resolve_cost_window_hours()
+            )
+            cost_state.cost = cost.cost
+            cost_state.calls = cost.calls
+            cost_state.spend_month = cost.spend_month
+            cost_state.budget = cost.budget
+            cost_state.latency_p50 = cost.latency_p50
+            cost_state.latency_p95 = cost.latency_p95
+        except Exception as exc:  # noqa: BLE001 — telemetry never raises
+            logging.getLogger(__name__).warning("cost-gauge poll failed: %r", exc)
 
     async def _poll_task() -> None:
         interval = float(os.environ.get("HARNESS_METRICS_DB_POLL_SECONDS", "15"))

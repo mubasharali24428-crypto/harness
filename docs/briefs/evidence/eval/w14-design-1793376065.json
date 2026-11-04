@@ -1,0 +1,254 @@
+{
+  "date": "2026-10-30",
+  "week": "W14",
+  "task": "w14-design-heldout",
+  "leg": "live",
+  "run": "w14-design-1793376065",
+  "preRegistered": {
+    "ratioMax": 0.03,
+    "colourTolerance": 12,
+    "answerRatioTolerance": 0.005,
+    "fixtureColourTolerance": 0
+  },
+  "fixture": {
+    "token": "VESPER-32",
+    "bytes": 6702,
+    "sha256": "ce6fc941d028cf39cd1d1f6997652a75b4d7986f7b6be77da72e982b0fd5db2d",
+    "sampledColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    },
+    "expectedColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    }
+  },
+  "fixtureChecks": {
+    "fixtureRendersAtDeclaredSize": true,
+    "flatColoursExactAtSamplePoints": true,
+    "tokenTextIsDrawn": true,
+    "selfDiffIsZero": true,
+    "renderIsDeterministic": true
+  },
+  "drive": "HTTP only",
+  "seededFiles": [
+    "mockup.png"
+  ],
+  "design": {
+    "startStatus": 200,
+    "states": [
+      "executing",
+      "awaiting_done_signal"
+    ],
+    "state": "awaiting_done_signal",
+    "engine": "replayed",
+    "engineStatus": "completed",
+    "answer": "The diff ratio is 2.641% which is below the 0.03 threshold. The render matches the mockup well.\n\nTOKEN: VESPER-32\nRATIO: 0.02641\nFILES: index.html, style.css"
+  },
+  "designTrail": {
+    "toolsUsed": [
+      "browser",
+      "image",
+      "read",
+      "read_image",
+      "write"
+    ],
+    "imageDiffCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_c47aa3d595a74f1890b7e540",
+        "arguments": "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\",\"out\":\"shots/diff.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imageSampleCalls": [],
+    "imagePaletteCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_69dba0c269284687878f051f",
+        "arguments": "{\"action\":\"palette\",\"path\":\"mockup.png\",\"maxColors\":12}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "screenshotCalls": [
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "call_cced9dbbcba34152a70c6697",
+        "arguments": "{\"action\":\"screenshot\",\"url\":\"index.html\",\"path\":\"shots/render.png\",\"width\":960,\"height\":640}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "mockupReads": [
+      {
+        "type": "tool_call",
+        "tool": "read_image",
+        "callId": "call_fb24dd551fd44e6fb067fda4",
+        "arguments": "{\"file_path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "dialogReads": [],
+    "writes": [
+      {
+        "type": "tool_call",
+        "tool": "write",
+        "callId": "call_3d8cbe3b5e6c4fe78500d3b8",
+        "arguments": "{\"file_path\":\"index.html\",\"content\":\"<!DOCTYPE html>\\n<html>\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <title>VESPER-32</title>\\n  <link rel=\\\"stylesheet\\\" href=\\\"style.css\\\">\\n</head>\\n<body>\\n  <div class=\\\"sidebar\\\"></div>\\n  <div class=\\\"header\\\"></div>\\n  <div class=\\\"main\\\">\\n    <div class=\\\"card card-left\\\"></div>\\n    <div class=\\\"card card-right\\\"></div>\\n    <div class=\\\"pill\\\"></div>\\n    <div class=\\\"accent-bar\\\"></div>\\n    <div class=\\\"title\\\">VESPER-32</div>\\n  </div>\\n</body>\\n</html>\\n\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "write",
+        "callId": "call_43a2b1b02d364cb0a2ebc2fb",
+        "arguments": "{\"file_path\":\"style.css\",\"content\":\"* {\\n  margin: 0;\\n  padding: 0;\\n  box-sizing: border-box;\\n}\\n\\nhtml, body {\\n  width: 960px;\\n  height: 640px;\\n  overflow: hidden;\\n  background: #0b0d12;\\n  font-family: 'DejaVu Sans', sans-serif;\\n}\\n\\n.sidebar {\\n  position: absolute;\\n  left: 0;\\n  top: 0;\\n  width: 220px;\\n  height: 640px;\\n  background: #141821;\\n}\\n\\n.header {\\n  position: absolute;\\n  left: 220px;\\n  top: 0;\\n  width: 740px;\\n  height: 72px;\\n  background: #1b2030;\\n}\\n\\n.main {\\n  position: absolute;\\n  left: 220px;\\n  top: 72px;\\n  width: 740px;\\n  height: 568px;\\n  background: #0b0d12;\\n}\\n\\n.card {\\n  position: absolute;\\n  background: #1b2030;\\n}\\n\\n.card-left {\\n  left: 40px;\\n  top: 34px;\\n  width: 280px;\\n  height: 220px;\\n}\\n\\n.card-right {\\n  left: 360px;\\n  top: 34px;\\n  width: 320px;\\n  height: 220px;\\n}\\n\\n.pill {\\n  position: absolute;\\n  left: 40px;\\n  top: 298px;\\n  width: 220px;\\n  height: 44px;\\n  background: #2fbf71;\\n}\\n\\n.accent-bar {\\n  position: absolute;\\n  left: 380px;\\n  top: 298px;\\n  width: 300px;\\n  height: 14px;\\n  background: #f0a43c;\\n}\\n\\n.title {\\n  position: absolute;\\n  left: 381px;\\n  top: 354px;\\n  color: #e8edf6;\\n  font-size: 28px;\\n  font-weight: bold;\\n  letter-spacing: 2px;\\n}\\n\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imageArguments": [
+      "{\"action\":\"palette\",\"path\":\"mockup.png\",\"maxColors\":12}",
+      "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\",\"out\":\"shots/diff.png\"}"
+    ]
+  },
+  "measurement": {
+    "mockupSize": [
+      960,
+      640
+    ],
+    "renderSize": [
+      960,
+      640
+    ],
+    "changedPixels": 16289,
+    "totalPixels": 614400,
+    "ratio": 0.026512,
+    "sampledColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        27,
+        32,
+        48
+      ],
+      "cardB": [
+        27,
+        32,
+        48
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    }
+  },
+  "checks": {
+    "fixtureLegPassed": true,
+    "designRunSettled": true,
+    "agentOpenedTheMockup": true,
+    "agentMeasuredColours": true,
+    "agentScreenshottedItsPage": true,
+    "agentUsedTheDiff": true,
+    "agentWroteThePage": true,
+    "tokenOnlyInPixelsWasTranscribed": true,
+    "pageRendersAtMockupSize": true,
+    "independentDiffWithinThreshold": true,
+    "flatColoursSurvived": true,
+    "agentRatioAgreesWithBytes": true
+  },
+  "verdict": "PASS",
+  "failedChecks": [],
+  "designAnswer": "The diff ratio is 2.641% which is below the 0.03 threshold. The render matches the mockup well.\n\nTOKEN: VESPER-32\nRATIO: 0.02641\nFILES: index.html, style.css"
+}

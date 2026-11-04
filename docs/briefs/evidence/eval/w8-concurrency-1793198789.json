@@ -1,0 +1,193 @@
+{
+  "schema": 1,
+  "kind": "w8-concurrency",
+  "takenAt": "2026-10-28T14:46:31.518397+00:00",
+  "runs": {
+    "w8c-a-1793198789": "owner",
+    "w8c-b-1793198789": "stopped neighbour"
+  },
+  "projectId": "0a278805-20e5-45b3-9c42-40ced33c5298",
+  "model": "none (deterministic API + component checks)",
+  "durationSeconds": 1.8,
+  "principals": {
+    "owner": "w8q-a-1793198789@example.com",
+    "secondAdmin": "w8q-b-1793198789@example.com",
+    "otherTeam": "w8q-c-1793198789@example.com",
+    "inviteRedeemStatus": 200,
+    "secondAdminTeam": "939ea7a5-0e90-4255-9702-8f80eb55e34e"
+  },
+  "intentRace": {
+    "baseVersion": 0,
+    "statuses": [
+      200,
+      202
+    ],
+    "codes": [
+      null,
+      null
+    ],
+    "storedGoal": "goal from A",
+    "conflictFields": [
+      "goal"
+    ]
+  },
+  "overlappingEdits": {
+    "runA": {
+      "files": [
+        "only-a.txt",
+        "shared/plan.txt"
+      ],
+      "bytes": {
+        "only-a.txt": "a",
+        "shared/plan.txt": "A version"
+      },
+      "stagingDiff": "--- a/only-a.txt\n+++ b/only-a.txt\n@@ -0,0 +1 @@\n+a--- a/shared/plan.txt\n+++ b/shared/plan.txt\n@@ -0,0 +1 @@\n+A version"
+    },
+    "runB": {
+      "files": [
+        "only-b.txt",
+        "shared/plan.txt"
+      ],
+      "bytes": {
+        "only-b.txt": "b",
+        "shared/plan.txt": "B version"
+      },
+      "stagingDiff": "--- a/only-b.txt\n+++ b/only-b.txt\n@@ -0,0 +1 @@\n+b--- a/shared/plan.txt\n+++ b/shared/plan.txt\n@@ -0,0 +1 @@\n+B version"
+    }
+  },
+  "checkpoints": {
+    "error": "Traceback (most recent call last):\n  File \"<string>\", line 9, in <module>\n    snapshots = {{}}\n                ^^^^\nTypeError: unhashable type: 'dict'\n"
+  },
+  "cancellation": {
+    "stop": 200,
+    "runAState": "awaiting_plan_approval",
+    "runBState": "done"
+  },
+  "agentTree": {
+    "rootSpawn": 201,
+    "childStatuses": [
+      201,
+      201,
+      409,
+      409,
+      201
+    ],
+    "childCodes": [
+      null,
+      null,
+      "SPAWN_CHILDREN_EXCEEDED",
+      "SPAWN_CHILDREN_EXCEEDED",
+      null
+    ],
+    "grandchild": 201,
+    "greatGrandchild": {
+      "status": 409,
+      "code": "SPAWN_DEPTH_EXCEEDED"
+    },
+    "budget": {
+      "status": 409,
+      "code": "SPAWN_CHILDREN_EXCEEDED"
+    },
+    "scope": {
+      "status": 403,
+      "code": "SCOPE_EXCEEDS_AGENT"
+    },
+    "tool": {
+      "status": 403,
+      "code": "TOOL_NOT_IN_SCOPE"
+    },
+    "cancel": {
+      "status": 200,
+      "afterSpawn": {
+        "status": 409,
+        "code": "PARENT_NOT_ACTIVE"
+      }
+    },
+    "summaryBeforeCancel": {
+      "total": 5,
+      "byState": {
+        "active": 5
+      },
+      "lines": [
+        "Coder v1: root - active",
+        "Coder v1: child0 - active",
+        "Coder v1: child4 - active",
+        "Coder v1: child1 - active",
+        "Coder v1: grandchild - active"
+      ]
+    },
+    "summaryAfterCancel": {
+      "total": 5,
+      "byState": {
+        "cancelled": 5
+      },
+      "lines": [
+        "Coder v1: root - cancelled",
+        "Coder v1: child0 - cancelled",
+        "Coder v1: child4 - cancelled",
+        "Coder v1: child1 - cancelled",
+        "Coder v1: grandchild - cancelled"
+      ]
+    },
+    "poolAfterCancel": {
+      "maxAgents": 20,
+      "totalSpawned": 5,
+      "budgetUsd": "5",
+      "reservedUsd": "0",
+      "spentUsd": "0"
+    }
+  },
+  "tenantIsolation": {
+    "status": 404,
+    "tree": 404,
+    "spawn": 404
+  },
+  "checks": {
+    "twoPrincipalsJoined": true,
+    "oneRaceWriterAccepted": true,
+    "oneRaceWriterRefused": false,
+    "intentEqualsWinner": true,
+    "conflictRecorded": true,
+    "plainStaleRefused": true,
+    "workspacesDistinct": true,
+    "samePathDifferentBytes": true,
+    "runASeesOnlyItsChanges": true,
+    "runBSeesOnlyItsChanges": true,
+    "checkpointPerRun": false,
+    "rewindRestoresOwnRun": false,
+    "rewindDoesNotTouchSibling": false,
+    "stopAccepted": true,
+    "neighbourUnchanged": true,
+    "neighbourStillPlanned": true,
+    "stoppedRunSettled": true,
+    "agentRegisteredAndApproved": true,
+    "selfApprovalRefused": true,
+    "childQuotaExact": true,
+    "spawnIdempotent": true,
+    "depthLimitHolds": true,
+    "budgetLimitHolds": false,
+    "scopeCannotWiden": false,
+    "outOfScopeToolDenied": true,
+    "cancelCascades": true,
+    "cancelledParentRefusesSpawn": true,
+    "treeCounted": true,
+    "crossTeamStatusHidden": true,
+    "crossTeamTreeHidden": true,
+    "crossTeamSpawnRefused": true,
+    "pilotEnabled": true
+  },
+  "verdict": "FAIL",
+  "failedChecks": [
+    "oneRaceWriterRefused",
+    "checkpointPerRun",
+    "rewindRestoresOwnRun",
+    "rewindDoesNotTouchSibling",
+    "budgetLimitHolds",
+    "scopeCannotWiden"
+  ],
+  "limitations": [
+    "The second admin's session is minted through the local dev login route: the OTP verify step cannot select a team after invite redemption.",
+    "Subagent spawns are driven over HTTP, not by the engine: the external engine does not call the agent API yet (docs/agents.md).",
+    "Workspace/checkpoint legs call the product's own staging and checkpoint modules inside the orchestrator; no chat model produces the edits."
+  ]
+}

@@ -27,6 +27,11 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# W4: the egress allow-list is generated data, not code; without this line an
+# installed (non-editable) package would lose it and deny every destination.
+[tool.setuptools.package-data]
+harness_sandbox = ["egress_allowlist.json"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

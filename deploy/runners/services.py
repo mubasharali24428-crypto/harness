@@ -1,5 +1,6 @@
 """Assembly runners: one FastAPI app per backend service, wired at deploy time."""
 
+import asyncio
 import json
 import os
 import sys
@@ -117,7 +118,11 @@ def _wire_observability(app, extra=None) -> None:
     install_metrics_endpoint(app, extra)  # public GET /metrics (Prometheus text)
 
 
-def _install_probes(app, port):
+def _install_probes(app, port, *, reports_egress: bool = False):
+    """``reports_egress`` is True for the sandbox app ONLY: every backend
+    container receives SANDBOX_EGRESS_PROXY_URL, so presence of the env
+    cannot identify who actually uses the proxy — the app that owns the
+    runner has to say so."""
     """M20-T3 (S-GAMMA OPS-03/OPS-06): TWO probes with distinct jobs.
 
     /health — LIVENESS. Cheap and dependency-free: answers 200 as long as
@@ -131,6 +136,10 @@ def _install_probes(app, port):
       2. migrations applied: schema_migrations ⊆ THIS image's chain
          (deploy/runners/migrate.check_drift — same gate entrypoint.sh
          runs at boot, re-evaluated per probe).
+      3. egress (informational only, sandbox app only): whether the allow-list
+         proxy accepts a connection, reported as `egress`. It is never a
+         failure reason — a run that needs no network must still be able to
+         execute — but readiness must not imply reach either.
 
     Any failed check → 503 {"ok": false, ...reasons}. The compose
     healthcheck hits /ready, so a DB-down backend reports unhealthy for
@@ -177,9 +186,47 @@ def _install_probes(app, port):
             return JSONResponse(
                 status_code=503, content={"ok": False, "not_ready": reasons}
             )
-        return {"ok": True, "db": "ok", "migrations": "ok"}
+        body: dict[str, object] = {"ok": True, "db": "ok", "migrations": "ok"}
+        egress = await _egress_state() if reports_egress else None
+        if egress is not None:
+            body["egress"] = egress
+        return body
 
     app.state.ready_port = port
+
+
+async def _egress_state() -> str | None:
+    """Informational only: is the allow-list proxy reachable from here?
+
+    Deliberately NOT a readiness reason. A run that never touches the network
+    is still executable while the proxy is down, so failing /ready would take
+    the sandbox out of service for a dependency most runs do not use — and
+    compose would restart a healthy container. But readiness must not imply
+    reach either, so the answer is reported instead of assumed. ``None`` means
+    this service has no egress pairing (only the sandbox container sets the
+    env).
+    """
+    url = os.environ.get("SANDBOX_EGRESS_PROXY_URL", "").strip()
+    if not url:
+        return None
+    hostport = url.split("://", 1)[-1].rstrip("/")
+    host, _, port_text = hostport.partition(":")
+    try:
+        port = int(port_text or "3128")
+    except ValueError:
+        return "down"
+    try:
+        _reader, writer = await asyncio.wait_for(
+            asyncio.open_connection(host, port), 0.75
+        )
+    except (OSError, TimeoutError, ValueError):
+        return "down"
+    writer.close()
+    try:
+        await writer.wait_closed()
+    except (OSError, TimeoutError):
+        pass
+    return "up"
 
 
 def simple_app(router, title, extra_metrics=None):
@@ -234,8 +281,34 @@ def app_identity():
 
     _wire_observability(
         app, lambda: identity_domain_metrics.render() + realtime_metrics.render())
+    # M2-W13 fix: the runner control plane publishes run-terminal events
+    # (engine_completed / engine_failed) on THIS app's bus, so a BYO run that
+    # settles must reach the same notification tap the orchestrator's own
+    # publishes get. Enqueue outbox rows here; the orchestrator's single
+    # NotificationWorker drains the shared notification_outbox table. No second
+    # worker on identity, so an event is never double-sent.
+    from harness_identity.notifier import make_event_notifier
+
+    app.state.event_notifier = make_event_notifier(get_factory(), base_settings())
+    app.state.event_bus.add_event_listener(app.state.event_notifier)
     # M20-T3: /ready gates on db + migrations; compose healthcheck hits it.
     _install_probes(app, 8001)
+
+    # M2-W13: expired runner nonces can never be replayed. The auth path prunes
+    # inline; this sweep is the backstop for quiet runners (0 turns it off).
+    nonce_every = float(os.environ.get("HARNESS_RUNNER_NONCE_PURGE_SECONDS", "600"))
+    if nonce_every > 0:
+        from harness_identity.runner_api import run_nonce_sweeper
+
+        @app.on_event("startup")
+        async def _start_runner_nonce_sweeper() -> None:
+            app.state.runner_nonce_sweeper = asyncio.create_task(
+                run_nonce_sweeper(get_factory(), nonce_every)
+            )
+
+        @app.on_event("shutdown")
+        async def _stop_runner_nonce_sweeper() -> None:
+            app.state.runner_nonce_sweeper.cancel()
 
     return app
 
@@ -262,6 +335,14 @@ def app_models():
     )
 
     app = simple_app(router, "harness-router")
+    # W15 slice 2: the model-call spend surface was never limited in the
+    # deployed stack — the hook existed but no factory installed it. The
+    # counter store lives in rate_buckets, so the app needs a SQLAlchemy
+    # session factory (the ledger pool below is asyncpg and not a substitute).
+    from harness_router.ratelimit_hooks import install_router_rate_limit
+
+    app.state.session_factory = get_factory()
+    install_router_rate_limit(app, session_factory=app.state.session_factory)
     # M20-T3: /ready gates on db + migrations (models, port 8003).
     _install_probes(app, 8003)
 
@@ -513,6 +594,7 @@ def app_orchestrator():
         agent_tree,
         artifacts,
         control,
+        deployments,
         discussion,
         execution,
         exports,
@@ -521,6 +603,8 @@ def app_orchestrator():
         presence,
         retention_holds,
         search,
+        shares,
+        visuals,
     )
 
     presence.configure_presence(service)
@@ -535,7 +619,8 @@ def app_orchestrator():
     exports.configure_exports(service)
     for _r in (presence.router, participation.router, control.router, agent_tree.router,
                discussion.router, plans.router, execution.router, artifacts.router, search.router,
-               exports.router, retention_holds.router):
+               exports.router, retention_holds.router, shares.router,
+               deployments.router, visuals.router):
         app.include_router(_r)
 
     # Part 38.005: org policy applies to every classified run/plan route of org-linked teams
@@ -610,7 +695,7 @@ def app_sandbox():
     # M20-T2: request ids + JSON logs + /metrics (sandbox, port 8005).
     _wire_observability(app)
     # M20-T3: /ready gates on db + migrations (sandbox, port 8005).
-    _install_probes(app, 8005)
+    _install_probes(app, 8005, reports_egress=True)
     # M12-G8: mount the read-only tree router on the same app + bearer auth.
     app.include_router(tree_router)
     app.state.get_principal = make_bearer_dep(factory)
@@ -691,6 +776,11 @@ def app_meeting():
     from harness_identity.envelope_middleware import install_error_envelope
 
     install_error_envelope(app)
+    # W15 slice 2: brief generation is LLM work and was unthrottled in the
+    # deployed stack; the hook existed but app_meeting never installed it.
+    from harness_meeting.ratelimit_hooks import install_meeting_rate_limit
+
+    install_meeting_rate_limit(app, session_factory=factory)
     app.include_router(router)
     # M20-T2: request ids + JSON logs + /metrics (meeting, port 8006).
     _wire_observability(app)

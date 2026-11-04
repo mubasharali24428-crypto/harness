@@ -10,6 +10,2008 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### Hx milestone M8 — a program can be several files, and every one is pinned (2026-10-31)
+
+* **`use notes` brings another file's types and pure functions into this one.** A
+  module is named, never pathed: the host resolves the bytes (a mapping, a directory
+  or a callable) and `hxc`/`hxr` take `--modules DIR`, defaulting to the program's own
+  directory, with `--modules none` for the reviewer who wants to see what the program
+  means without its helpers. A `use` the host cannot answer is `HX3015`, not a silent
+  single-file check.
+* **The module arrives renamed.** In the reading file the schema is `notes.Summary`
+  and the helper is `notes.shout` — in the checker's tables *and* in the module's own
+  bodies — so one identifier means one thing across the file boundary and a look-alike
+  record declared locally cannot be passed to a helper that wants the module's type.
+  This is why `HX3025` now refuses a binding that reuses a declared or module name.
+* **Refused by design**: a module that declares a workflow or agent (`HX3019`), a
+  module that uses a module (`HX3017`, one level deep), a file used under a name it does
+  not declare (`HX3016`), a file that uses itself (`HX3017`), `use` below a declaration
+  (`HX2006`), and the 16-file / 256 KiB host limits (`HX3018`). `import` stays refused
+  by name (`HX4004`) — with a message that now says what replaced it.
+* **The manifest pins every file.** `sources[]` carries the module name, path, digest
+  and byte count of each file that built the tree, and `program_sha256` digests those
+  `(module, sha256)` pairs — module names, not paths, so an approved digest still means
+  the same program after a clone or a different mount. `assert_checked_source` verifies
+  each file before the run, so an unchanged entry with a swapped helper is `HXH103`
+  naming every path it compared, and `hxr run --program-digest` is the caller's pin on
+  the whole set. `--digest` alone still pins only the entry; a test says so by running
+  the swap past it.
+* **`for x in list accumulate name: T = init { … }`** binds a value per pass instead
+  of editing one: still one `budget.steps` per pass, still bounded by the list, with
+  the value each pass *started* recorded in the `loop.iteration` event so a stopped
+  loop shows how far it got. **`base with { field: value }`** yields a new record and
+  leaves the base untouched (`HX3022` on a non-record, `HX3023` on an unknown or
+  repeated field).
+* **Still no assignment**, and that is now a syntax fact rather than a rule: `n = 2`
+  is `HX2001` ("expected an expression, '='"). No `while`, no `break`, no nested
+  modules, no dynamic loading.
+* **A diagnostic names the file its position sits in.** Cross-file records were
+  briefly blaming a module file the check had never received; a refusal about a `use`
+  clause now belongs to the file that wrote the clause, and a defect inside a module
+  belongs to the module. Goldens record `path` when it differs from the fixture's file.
+* **A gap found, not papered over:** `+` joins Strings only and a `List` has no
+  members, so an `accumulate` loop can build a report but cannot sum a column. Numeric
+  arithmetic is an owner decision about operators, listed in the spec (§12) rather than
+  slipped in beside a new keyword.
+* Spec and toolchain move `0.3.0 → 0.4.0` (a §13 minor change: codes added, no existing
+  code's meaning moved, no program that checked before fails to check now).
+* Gate: `packages/language` **367 passed** (`test_host_modules.py` 28,
+  `test_cli_modules.py` 9, `test_code_table.py` 3, 12 new fixtures), `make
+  lint-language` clean, `scripts/spec_drift.py` clean, TS mirror current, `make
+  guard-isolation` clean, section 4 hx/workflow subset **22**, section 5 live host
+  ops **4**; the 315 pre-M8 tests pass untouched.
+
+### Hx milestone M7 — a recording tells the truth about failures (2026-10-31)
+
+* **A recorded failure replays as that failure.** Before M7, `RecordingBridge` kept
+  answers and dropped errors, so replaying a run that ended badly answered `HXH403`
+  ("nothing recorded") — the replay's own complaint standing in for the original
+  failure. Exchanges now carry an outcome (`ok` / `failure` / `in-flight`) and a
+  code-named failure, and a replay re-raises it through `errors.from_record`: same
+  code, same status, same line, same message — and, over the Section 4 contract
+  adapter, the same digest.
+* **An unfinished recording is refused, not guessed.** The request is written down
+  *before* the host answers, so a host that disappears mid-call leaves an
+  `in-flight` exchange. Replaying one refuses with `HXH104` (`refused`) instead of
+  inventing an answer, and the evidence names the crossing it could not honour.
+* **The format is versioned**: `hx.recording/v2`, with `kind` in the file. A v1 or
+  unlabelled recording is refused rather than re-read under v2 rules — v1's silence
+  meant "no failure happened", and under v2 the same silence can mean "no answer
+  arrived".
+* **Evidence states its own completeness**: a `recording` block with `origin`
+  (live / recording / replay), settled count, failure count and the unanswered
+  crossings, so "it replayed" cannot be read as more than "it replayed up to here".
+* **Operable, not just testable**: `hxr run --record FILE` and
+  `hxr run --replay FILE`. The replay proves itself by the blunt test — record a
+  run, delete the file it read, replay it, and the answer still arrives. A
+  recording that cannot be read is a usage failure (exit `2`), never a silent fall
+  back to the live host.
+* Recorded facts are immutable: an exchange is settled by replacing the entry, not
+  mutating it, and the serialised recording is scrubbed like every other surface.
+* Spec and toolchain move `0.2.0 → 0.3.0` (a §13 minor change: `HXH104` added, no
+  existing code's meaning changed). Gate: 315 language tests (13 failure-replay,
+  5 CLI, 2 code-set), `ruff` clean, `spec_drift.py` clean, TS mirror up to date,
+  `guard-isolation` clean, section 4 hx/workflow 22 passed, section 5 live host ops
+  4 passed. Every pre-existing test still passes untouched: an all-successful
+  recording replays exactly as it did before.
+
+### Hx milestone M6 — the limits bind (2026-10-31)
+
+* **`budget.cost` is enforced.** The driver reserves the next crossing's price
+  *before* it happens, against a price table the **host** supplies
+  (`pricing.py`; `run_source(prices=…)`, `hxr run --prices FILE`,
+  `ContractRunner(prices=…)`) — never the program, because a program that could
+  name its own prices could raise its own ceiling. An operation the table does not
+  price is refused (`HXH502`) rather than run free; a table that cannot be built
+  stops the run before anything crosses (`HXH503`); a ceiling with no table is
+  recorded in its own evidence as `declared-not-enforced`, so an unbounded run can
+  never be read as a bounded one. Amounts are exact USD decimals and the
+  reservation is atomic — two spawned crossings cannot both pass a ceiling only one
+  of them can pay for.
+* **A grant can be revoked mid-run.** `RevisableDecision` lets the host narrow
+  authority while the workflow is in flight; the runtime already asked at every
+  call site, so the next crossing is denied and completed ones stand. Revisions
+  are logged (`grant.revoked` / `grant.restored`) with the host's reason, a denial
+  says whether the capability was revoked or never granted, and `restore` can
+  never return a capability the program did not request. Authority handed in from
+  outside is verified, not trusted: a decision for another program, or one
+  carrying a human-only permission, is refused (`HXH404`).
+* **The driver's code set is pinned.** `test_host_codes.py` reads the error
+  classes and fails if a code exists that the spec does not name, or if a code's
+  status moved — the closed-set assertion spec §13 has required since M5 and did
+  not have.
+* **Spec and toolchain move `0.1.0 → 0.2.0`** (minor: codes added, no existing
+  meaning changed, no program that checked before fails now). One checker message
+  embedded the version string, so it was reworded and its golden regenerated.
+* Gate: 295 language tests (33 new), `ruff` clean, `spec_drift.py` clean, TS mirror
+  up to date, `make guard-isolation` clean, section 4 hx/workflow 22 passed,
+  section 5 live host ops 4 passed. Nothing outside `packages/language` changed
+  behaviour: with no price table and no supplied authority, `run_source` does
+  exactly what it did before, which is why the 261 pre-existing tests are
+  untouched.
+
+### Hx milestones M2–M5 — the driver becomes part of the Harness (2026-10-31)
+
+* **M2 — Section 4 runs a workflow, and the events land in Section 1.**
+  `section4/src/harness_orchestrator/workflow_runs.py` publishes what the driver
+  emits through the `WorkflowRunner` contract; `harness_hx_host/contract_runner.py`
+  is that runner. Ordering and durability are asserted against the contract, a
+  replay reproduces the digest without reaching the host, and
+  `make guard-isolation` still finds no cross-section edge.
+* **M3 — Section 5 is live.** `SandboxHostBridge` runs against the shipped
+  `LocalSandboxRunner` for one real `repo.read` and one real `verify.tests`
+  (`section5/tests/unit/test_hx_live_host_ops.py`), skipping loudly — with the
+  runner's own reason — where the kernel offers no OS boundary.
+* **M4 — model relay.** `model.invoke` goes through the Harness's `ModelRouter`
+  with the role the manifest declares; no router fails closed (`HXH403`); a
+  downgrade is recorded (`performed: false`) and never retried. One detector
+  (`harness_hx_host/secrets.py`) scrubs prompts, replies, logs, events and the
+  evidence bundle by content, closing the two places where free text escaped
+  the old name-based redaction (`call.start` args, `outcome.output`).
+* **M5 — three constructs.** Enum members (`HX3013`), record construction
+  (`HX3003`/`HX3004`) and `for … in …` (`HX3014`, `HX4008`, `HX5006`) — bounded
+  by the list and by `budget.steps`, one step per pass, so a list longer than the
+  budget ends as `budget`/`HXH501` at a recorded step. Each ships code + fixture
+  + golden; `test_language_growth.py` also pins what did not arrive: no `while`,
+  no assignment, no modules.
+
+### Contracts 1.0.0rc7 — the workflow-run contract (2026-10-31, additive)
+
+* **A program run now has a contract instead of an import.** Section 4 has to
+  execute an Hx workflow, and the isolation law says a section imports only
+  `harness_contracts` — so the seam is the contract, not the driver:
+  `harness_contracts.workflow` defines `WorkflowRequest` / `WorkflowResult` /
+  `WorkflowOperation` and the `WorkflowRunner` Protocol. Section 4 calls the
+  Protocol, the driver implements it, and `deploy/` is the only place that
+  knows both. Nothing existing changed; `contracts/ts/generate.py --check`
+  stays green because the generated mirror covers events/roles/plan only.
+
+### Marathon 2.0 W16 — enterprise readiness (2026-10-29)
+
+* **A revoked seat is revoked everywhere.** `users.is_active` was a hint — it
+  steered notification targeting and nothing else — while this codebase resolves
+  a bearer token through FIVE doors: Section 1's `get_principal`, the shared
+  `harness_contracts.make_bearer_dep` (sections 2/8/11, the deployed runners, the
+  extensions server), the WebSocket handshake, the WS ticket redemption, and the
+  OIDC email mapping. Fixing any one of them would have fixed nothing. Now all
+  five consult the seat: bearer doors answer the same no-oracle
+  `401 invalid or expired session` (the shared dependency gained the
+  `JOIN users … is_active` term, so every service gets it without new code),
+  interactive login answers `403 ACCOUNT_DISABLED` with an actionable message
+  because the caller already proved inbox control, and the SSO mapping — whose
+  docstring had promised an "ACTIVE human member" for months while the query
+  never asked — distinguishes `no_member` (an invite problem) from `disabled`
+  (a seat problem). `issue_otp` was deliberately NOT changed: it stays
+  enumeration-safe, writes the code, and answers 200 either way; the refusal
+  belongs at verification.
+  Evidence: 8 tests in `section1/tests/test_account_deactivation.py` (each door,
+  plus one that proves the rule is the seat and not the clock — a session
+  extended to 2099 still dies), a new `section11` test that runs the REAL shared
+  contract dependency on a non-identity service, and `make drill-seat-revocation`
+  against the deployed containers (`w16-seat-revocation-1793292990.json`, 9
+  checks: the same token 200→401 on identity and 404→401 on a shared-dependency
+  service, no session row deleted at any point, then 200 again after re-enabling).
+  Three test fixtures (section11 conftest, section4 runs-index, section4
+  context-resolver driver) had to gain the `users` table they never created — a
+  fixture that omits it was proving a token works where the real schema would
+  refuse it. Operator text: `docs/runbooks/ops.md` §3.7.
+* **SSO learns what directory groups mean — only because an admin said so.**
+  OIDC login mapped email to an existing member and took the role from the
+  `team_members` row; a group change at the IdP changed nothing here. A team
+  config now carries `groupsClaim` + `groupRoles` (`[{group, role}]`, migration
+  0069), and a login consults the token's claim: every matching `fnmatch` pattern
+  is considered, the strongest role wins (`guest < viewer < engineer < admin`),
+  and a claim that matches nothing leaves the stored role alone — so a broken
+  IdP mapper cannot lock a team out. A claim can never create access (no JIT),
+  never reactivates a disabled seat (slice 1's check runs first), and is confined
+  to rules an admin wrote; `admin` is the top of the role enum and ownership
+  transfer is untouched. The decided role is PERSISTED to the membership (every
+  later request resolves its role from `team_members`, so a login answer alone
+  would be theatre) with its own `member.role_changed` row (`source: sso_claim`);
+  a demotion that would leave a team with zero admins is refused and logged as
+  `membership_last_admin`. Because an unmatched claim keeps the stored role, a
+  promotion is not undone merely by removing the group — the directory-driven
+  pattern is a baseline rule for a group everyone carries, which the drill
+  exercises. Every login writes a `sso.login` audit row with
+  `role`, `source` (`claim` | `membership`) and the matched group names, so
+  "why did this person have admin?" is answerable from the log. The config API
+  refuses dead config up front — unknown role, empty group, more than 50 rules,
+  or rules without a claim name are `422 VALIDATION_ERROR` at PUT time.
+  Evidence: 16 rule/seam tests (`section1/tests/test_sso_group_mapping.py`),
+  6 end-to-end OIDC tests with the real mock-IdP harness (promotion + audit,
+  the promoted role surviving into a real `get_principal` lookup, last-admin
+  demotion refused, absence keeps the role, both refusals), and the live
+  Keycloak drill now includes the group leg: 22 checks, join →
+  `admin`/`source=claim` and the minted token passes the admin-only `/audit`
+  door, leave → baseline rule gives `engineer`/`source=claim` and `/audit`
+  answers 403 (`oidc-keycloak-drill.json`). Spec, both SDKs and
+  `clients/ts/dist` moved together; operator text is `ops.md` §3.8.
+* **An IdP deprovisioning now reaches Harness.** SCIM 2.0 subset on the
+  `/scim/v2` surface: `GET /Users` with the three equality filters connectors
+  actually send (`userName`, `externalId`, `id`), `GET/PATCH/PUT /Users/{id}`
+  over `active`, `userName` and `externalId`, and nothing else — there is no
+  `POST /Users`, because a directory push must not be able to create an account.
+  The credential is its own thing: an admin mints a `hsc_…` token on the normal
+  API (Team tier, ≤10 live per team, shown once, **SHA-256 at rest** — the plan
+  said "encrypted", and hashing is stronger for a secret the server never reads
+  back, matching runner tokens rather than Fernet secrets), it opens exactly this
+  door and nothing else, and a user session token is 401 here. `active=false`
+  sets `users.is_active`, which slice 1's five doors already consult, and deletes
+  that team's session rows, so one PATCH is a revocation rather than a flag
+  beside the door; the account-wide consequence is stated in the runbook instead
+  of being discovered by a customer. Refusals a connector can read: the last
+  admin cannot be deprovisioned (403), an attribute this service does not own is
+  `400 invalidPath` instead of being quietly dropped, a multi-op PATCH validates
+  whole and applies in one transaction, and `If-Match` is enforced against a
+  content etag (412) while `meta.lastModified` stays ABSENT because
+  `team_members` tracks no modification time. `externalId` lives per team
+  (migration 0070) because it is the directory's id, not ours.
+  Two integration bugs the live drill found and the unit lane could not: the
+  product envelope was stringifying the RFC 7644 error body into
+  `REQUEST_ERROR.message` (no connector parses that), now passed through
+  untouched with malformed `/scim/v2` bodies answered `400 invalidSyntax` — the
+  carve-out keys on the SCIM schema URI alone, pinned so no `/api/v1` wire format
+  changes — and `deploy/Caddyfile` had no rule for `/scim/v2`, so the proxy's
+  catch-all returned 204 and Okta would have reported a healthy endpoint that
+  never deprovisioned. Evidence: 11 + 20 + 6 tests (the envelope ones run the real
+  app factory) and `make drill-scim`, 36 checks, where the member's own token goes
+  200 → 401 on identity and 404 → 401 on the shared dependency after a single
+  PATCH, then reactivates, with the last-admin refusal and revoked-credential
+  refusals in the same run. Spec, both SDKs and `clients/ts/dist` moved with it.
+  Operator text: `docs/runbooks/ops.md` §3.9.
+* **The audit trail can now be handed to a SIEM, not just downloaded by a
+  human.** `GET /api/v1/audit/export?format=ndjson` emits one self-contained JSON
+  object per line with the chain fields and a `X-Harness-Next-Cursor` header, and
+  a team admin can register **push sinks** (`/api/v1/teams/{id}/siem/sinks`,
+  Team tier, ≤5 per team, migration 0071): HTTPS collector, host on an operator
+  allow-list, shared secret Fernet-encrypted with a hint only, HMAC-SHA256
+  signature header (`t=<ts>,v1=hmac(secret, "<ts>." + body)`) and an
+  `Idempotency-Key` per batch. Delivery is at-least-once and never skips: the
+  cursor advances only on a 2xx, a compare-and-set claim with a 120s lease makes
+  a dead worker's sink reclaimable, retries back off `min(60·2^(n-1), 3600)`, and
+  after 8 consecutive failures the sink goes `blocked` with an audit row and
+  stays quiet until an admin resumes it. A third surface,
+  `POST /api/v1/audit/verify`, returns a per-row chain verdict for a window — the
+  same PostgreSQL function the trigger sealed with, plus prev-hash seam,
+  `prunedPrefix`/`anchored` and newest-row-deletion detection — and on a lane
+  without the chain (SQLite) it answers 503 rather than an `ok` it cannot support.
+  Export and push share one reader (`audit_rows.py`), so a collector cannot be
+  shown different rows than an auditor. Two wiring defects the live drill found:
+  the API validates collector URLs at registration but the identity service had
+  no `HARNESS_SIEM_ALLOWED_HOSTS` (and, pre-existing, no
+  `HARNESS_WEBHOOK_ALLOWED_HOSTS`, so the webhook door was refusing every URL),
+  and an engineer's session had to be re-bound to the team after an invite before
+  it demonstrated the 403. Evidence: 55 tests across the export shape, reader,
+  egress law, sink API, delivery loop and the live-Postgres window (every
+  delivery/verdict law mutation-checked) and `make drill-siem`, 59 checks —
+  signed delivery into a real HTTP collector, replay dedupe, backoff → blocked →
+  resume, tamper named by row, pruned prefix declared. Spec, both SDKs and
+  `clients/ts/dist` moved with it (191 identity operations). Operator text:
+  `docs/runbooks/ops.md` §3.10.
+* **W16 opened with an audit, not an assumption.** `docs/m2-w16-plan.md` records
+  what exists today with file:line for each claim: OIDC auth-code+PKCE exists but
+  mapped email only (no group→role — closed by the slice above); SCIM does not exist at all (no endpoint,
+  schema, table or token anywhere); `GET /api/v1/audit/export` is real, admin +
+  step-up gated and chain-carrying, but there is no SIEM push sink, no NDJSON
+  shape and no customer-facing chain verification; encryption is one install-wide
+  master key with no KEK/DEK split and no KMS seam; `data_residency` is a
+  per-workspace label consulted nowhere else. The plan says plainly that
+  customer-managed keys and geographic placement are NOT shippable as honest
+  features this week, rather than shipping a column nothing consults.
+
+### Marathon 2.0 W15 — multi-tenant hardening (2026-10-29)
+
+* **Fair admission.** The claim statement now orders candidates by the running
+  count their team already holds, then by queue age, so a team with a long queue
+  cannot occupy every worker slot while another team waits. The per-team cap
+  stays the hard ceiling (a saturated team is skipped, never preempted). Two
+  SQLite variants, a PostgreSQL-gated test, and `scripts/e2e/w15_fairness_drill.py`
+  (PASS on PG 18.6: `busy-1, idle-1, busy-2, busy-3`, busy 3 slots / idle 1,
+  saturated team skipped) prove it.
+* **Per-surface rate limits, and per-team budgets.** `app_models()` and
+  `app_meeting()` now install the limiter hooks that had shipped unused, so
+  `/models/call` and `/meetings/{id}/brief` are throttled in the deployed stack.
+  Run start and model call also consume a TEAM bucket in `rate_buckets`
+  (`team:<id>|<route>`, `HARNESS_TEAM_RUN_START_LIMIT` /
+  `HARNESS_TEAM_MODEL_CALL_LIMIT`), answered 429 `RATE_LIMITED` with
+  `Retry-After`. Live burst: exactly 3 allowed then 429, second team unaffected
+  (`w15-rate-limit-1793281659.json`).
+* **Envelope fix.** Normalizing an `HTTPException` body dropped its headers, so
+  a 429's `Retry-After` (and any `WWW-Authenticate`) never reached the client.
+  The envelope now preserves them; regression test added.
+* **Master-key rotation.** `rotate_master_key` re-wraps every encrypted column
+  (`api_keys`, `integration_webhooks`, `github_connections`,
+  `team_sso_configs`) from the old key's read set to the new key, verifies each
+  read-back, and leaves unreadable rows counted and untouched;
+  `section1/scripts/rotate_master_key.py` adds `--dry-run` and reads keys only
+  from env vars. Runbook `docs/runbooks/secret-rotation.md` covers the master
+  key, runner/webhook/daemon tokens and provider keys. Four offline tests.
+* **One rate card for both money paths (gap found in the W15 audit).** The
+  operator rate card lived in Section 3, so engine metering in Section 4 resolved
+  prices from the frozen catalog only: a model priced by `HARNESS_RATE_CARD_JSON`
+  was quoted its card rate by the router and booked at the invented 0.50/1.50
+  fallback in `cost_ledger`. `harness_contracts.rate_card` is now canonical
+  (Section 3 re-exports it), `PricingEngine` resolves card → catalog → fallback,
+  and a fallback logs a warning naming the model. Live: run
+  `w2-code-search-default-1793287437` booked $0.000721 at the card rate for
+  22,240/417 tokens where the fallback had booked $0.011746.
+* **Card drift across the deployment is now guarded.** One hour after the
+  unified resolution shipped, `models` was recreated against a different
+  `--env-file` and booted without `HARNESS_RATE_CARD_JSON`: the router quoted
+  the frozen catalog while the orchestrator booked the card — the same 16x
+  divergence, caused by the operator rather than the code. The card moved into
+  the root `.env` that the stack boots from,
+  `test_every_backend_service_inherits_the_pricing_and_budget_knobs` rejects a
+  backend API service that omits (or privately redefines) a shared
+  pricing/budget knob, and `.env.example` + `PROJECT-STATE.md` record the
+  `--env-file` trap. Both processes now report `pricingSource: operator` for
+  the card-priced model.
+* **The W15 drills are runnable by name.** `make drill-fairness` and
+  `make drill-rate-limit` join `drill-oidc` / `drill-pitr` / `drill-native`, each
+  with its preconditions in `make help` (the rate-limit drill needs a small
+  deployed `HARNESS_TEAM_MODEL_CALL_LIMIT`; the shipped 300/min would require
+  301 live calls to trip). Re-run at defaults after the drift fix: PASS
+  (`w15-rate-limit-1793288031.json`).
+* **The published TypeScript dist was two generations stale.** `clients/ts/dist`
+  is committed (it is what an installer gets), but nothing rebuilt it: after the
+  W15 spec-drift regeneration the sources carried the routing, attestation and
+  finish surfaces while the compiled client still exported the older shapes —
+  289 lines of API missing from the artifact. Rebuilt and committed, with
+  `scripts/sdk-gen/check_ts_dist.sh` (+ `make check-ts-dist`, now a CI step in
+  the frontend job) that rebuilds to a scratch directory and diffs against git;
+  it exits 2 rather than silently passing when `clients/ts` deps are absent.
+  Verified by mutation: restoring one stale `dist` file trips it (exit 1).
+* **The operator knob catalogue went from 17 entries to complete.** `.env.example`
+  documented 17 of the 56 `HARNESS_*` variables the deployed code reads, and the
+  missing ones included security and money switches —
+  `HARNESS_SANDBOX_ALLOW_UNCONFINED` (the confinement escape hatch),
+  `HARNESS_ALLOW_SELF_APPROVAL` (fail-closed approval policy),
+  `HARNESS_VISION_MODELS`, `HARNESS_TEAM_BUDGET_WARN_PCT`,
+  `HARNESS_WEBHOOK_ALLOWED_HOSTS` (outbound SSRF allow-list),
+  `HARNESS_TLS_ENABLED`, `HARNESS_SDK_MAX_TOKENS`. All 56 are documented now with
+  the default read from the code and what changing it does, grouped by area, and
+  `scripts/check_env_knobs.py` (in `make static-gates` + the CI static-gates job)
+  fails with the `file:line` of every runtime read that is not in the catalogue.
+  The reverse direction is deliberately not checked: compose and
+  `alertmanager.yml` consume entries through `${…}` interpolation, so "no
+  `os.environ` read" would not mean a stale entry.
+* **Two CI truth gaps found on the way.** The corpus-contract gate
+  (`run_eval.py --check`) had never had a CI step, and `docs/ci-gates.md` still
+  described `make static-gates` as three commands; both are corrected, and the
+  one recipe line genuinely absent from CI (`spec_drift.py`, needs a section
+  venv) is now named as a known gap instead of being glossed over.
+* **A run's routing decision is a durable fact, not process memory.** W14
+  shipped opt-in routing but wrote the outcome only to `run_data["routing"]`
+  plus a log line, so after a restart — or from another replica, or from the run
+  page — nothing could say which model an attempt was handed. Contracts
+  `1.0.0rc6` adds the additive `model_routed` event (`enabled`, `class`,
+  `model`, `source`, `reason?`), emitted before the engine call, and
+  `GET /runs/{id}` now returns it as `routing` (null means *no attempt was
+  recorded*, never "routing was off"). Four unit tests pin one event per attempt
+  and the newest-wins read; `make drill-routing` proved it live end to end
+  (`w15-routing-1793290753.json`: 14 checks, `source: policy`, the event row
+  byte-equal to the API field) using probe model ids that exist in no catalog,
+  so the run could not reach a provider or spend anything. `docs/runbooks/ops.md`
+  §3.6 is the operator answer for "which model did this run use, and why".
+  Specs, SDKs (Python + TS) and the compiled TS dist were regenerated for the
+  new field.
+* **A stale twin of the contract package was committed.** `git rm -r
+  contracts/build` removed 17 tracked setuptools artifacts — a duplicate
+  `harness_contracts` still stamped `1.0.0rc1` while the source was at rc6 — so
+  every version/enum grep hit dead copies, and the 4-way rot detector could not
+  see them because it checks named files, not stray ones. `.gitignore` already
+  ignored `build/`, so this had arrived through `git add -f`; the new
+  `test_contracts_ships_no_committed_build_copy` fails if any artifact under
+  `contracts/build` is tracked again (mutation-checked with a planted file).
+* **Browser-gate timeout tests are no longer load-sensitive.** A 1 s deadline made
+  `test_a_slow_render_that_finished_is_still_evidence` fail on a busy machine and
+  pass on an idle one (the stand-in browser had not started its screenshot copy
+  before the gate gave up); the deadline is now 5 s with the reason recorded.
+* **Journey health gate settles.** `stable_health()` requires a clean read to
+  survive a 1.5 s settle, so `docker compose ps -a` lag can no longer pass a
+  stopped sidecar (live trip: `sandbox-egress: exited` detected; restored stack
+  passes).
+* **Outbound clients are proxy-safe everywhere.** S2 GitHub (client + OAuth
+  exchange), S4 context resolver and S6 meeting AI now use
+  `harness_contracts.http_client.env_client`; a guard test rejects direct
+  `httpx.AsyncClient` construction in those trees.
+* **Engine refusal names the host's boundary.** The confinement refusal no longer
+  blames macOS seatbelt on a Linux host that resolved no boundary at all.
+* **Docs and build gaps.** `deploy/backend.Dockerfile` pins the ~60 MB SDK wheel
+  in a layer above every source copy (build step 3/16, verified `CACHED` on
+  rebuild) and takes `--build-arg PIP_FIND_LINKS` for offline builds; the W14
+  cost-metrics window and the W15 team budgets are documented in `.env.example`;
+  three stale backlog entries (stuck-run tool budget, null usage, image build)
+  are closed against the code that actually resolved them.
+* **Scheduled restore drill.** A QoderWake automation
+  (`tr_a4315e8e62b81c7819aca10d`, next run 2026-11-01T12:00Z) runs the PITR
+  drill monthly with dated evidence. Its `run-now` was refused by the account
+  credit limit before starting; the exact command passed manually
+  (`pitr-drill-20261029T140816Z.json`: rows `1,2` at target, `1` after disaster,
+  promoted, 4 s restore). The trigger leg stays open.
+
+### Marathon 2.0 W14 — the eval corpus becomes a contract (2026-10-29)
+
+* **Corpus contract gate.** `python3 scripts/eval/run_eval.py --check` (wired
+  into `make static-gates`) validates every task's fixed `expected` output,
+  verifier and evidence fields, unique ids, the category/kind/cost/status sets,
+  a boolean `heldOut` with at least five held-out tasks, driver existence for
+  script tasks, a positive timeout, a named model for live tasks, and that a
+  held-out task does not record tuning use. Current corpus: 39 tasks, 6 held
+  out, 29 implemented.
+* **Operator rate card (models service).** `HARNESS_RATE_CARD_JSON` (inline or a
+  container path) merges over the frozen catalog, validated at load — a
+  malformed card raises instead of becoming free inference. Every lookup reports
+  `catalog | operator | unpriced`, and the money formula is pinned to
+  `PricingEngine.calculate_cost` by a parity test over the whole catalog.
+  `/estimate-cost` now answers the **requested** model: an unpriced id returns
+  `estimatedCostUsd: 0`, `priced: false`, `pricingSource: "unpriced"` instead of
+  silently substituting the team's default model and quoting its price under the
+  requested name. 16 new tests; Section 3 suite 144 passed.
+* **W14 scope recorded** in `docs/m2-w14-plan.md`: opt-in per-step routing that
+  never downgrades on failure, a comparison runner with a fixed pass rule,
+  cost/latency panels, and a fresh held-out design set.
+* **Opt-in model routing (Section 1 + Section 4).** New admin-gated
+  `/teams/{team_id}/settings/model-routing` GET/PUT/DELETE over
+  `team_settings.key='model_routing'`; unknown keys, non-boolean `enabled` and
+  `enabled` with no models answer 422, delete restores defaults by absence.
+  `harness_orchestrator.model_routing` classifies the plan and resolves the run
+  model; missing, corrupt or disabled policy keeps the configured primary, and a
+  missing class model never borrows the other class. Audit `routing.saved` /
+  `routing.deleted`; live GET/PUT/422/DELETE verified on the rebuilt image.
+  9 routing tests (including a partial-plan regression).
+* **Comparison runner.** `run_eval.py --compare-model A --compare-model B`
+  repeats one selection per model and writes
+  `comparison-<stamp>.json` with the fixed pass rule "each task's own verifier,
+  judged per model; never a relative win". Requires `--include-live`, two
+  distinct models and a non-empty selection. The deployed engine patch now
+  declares a text-model allow-list (`deepseek/deepseek-chat`,
+  `openai/gpt-4o-mini`) next to `process.env.DSH_MODEL`; the runner parses the
+  patch's `models:` block (resolving the env entry through the orchestrator's
+  actual `DSH_MODEL`) and refuses undeclared ids with `UNDECLARED_MODEL`
+  (exit 2, no spend) instead of producing fake FAILs. Each run sets the team's
+  model preference via `PUT /api/v1/models/prefs` and records
+  `requestedModelApplied`, so an ignored preference cannot pass. One-invocation
+  comparison `comparison-1793276796.json`: `deepseek/deepseek-chat` and
+  `openai/gpt-4o-mini` each FAILED `code-search-heldout` under their own
+  verifier; no winner claimed.
+* **Cost/latency dashboard.** Six orchestrator gauges roll up the frozen
+  `cost_ledger` (spend per team/month, resolved cap, cost and calls per
+  team/model, p50/p95 latency on PostgreSQL), unattributable rows surface as
+  `unattributed`, and `harness-cost-latency.json` adds eight panels with a
+  runbook (`docs/runbooks/cost-latency-dashboard.md`). Verified live on
+  `/metrics`, imported into a throwaway Grafana 11.2.0 where every panel returned
+  data (`docs/briefs/evidence/eval/w14-dashboard-grafana.png`). The render exposed
+  and fixed two panel bugs: zero-cap teams counted as "at or over cap", and
+  utilisation dividing by a clamped zero cap into a fake 10000%.
+* **Fresh held-out design set.** `w14-design-heldout` + a 960x640 sidebar-led
+  mockup rendered by its own driver. Fixture leg PASS
+  (`w14-design-fixture-1793271851.json`); live leg PASS on attempt 4/4
+  (`w14-design-1793274853.json`, ratio 0.004583, colours exact). Attempts 1–2
+  failed on deployment config (missing key, missing vision patch), attempt 3 was
+  a genuine model failure; thresholds and goal were never changed, and the
+  history is recorded. Fixed a drill bug where a blank reader line counted as a
+  written page.
+* **Engine model spend now reaches `cost_ledger`.** The live SDK emits no usage
+  events, so the orchestrator folds the run's session transcript
+  (`session*.jsonl`): repeated per-step usage tuples collapse, cache reads bill
+  as input (an upper bound), and each attempt records only its unbilled delta so
+  a resumed run cannot double-count. Failure paths (timeout, exception, cancel,
+  guard stop, staging failure, non-completed status) record provable usage with
+  `allow_estimate=False` — never a goal-text estimate. Live proof: run
+  `w2-code-search-default-1793277111` booked 22,032 input / 333 output tokens,
+  exactly the deduplicated transcript totals (the old path booked ~61/7 from the
+  goal).
+* **Catalog re-read from OpenRouter.** The four dead ids
+  (`deepseek/deepseek-coder`, `qwen/qwen-2.5-coder-32b`, `qwen/qwen-2.5-72b`,
+  `mistral/codestral`) are replaced with live ones
+  (`deepseek/deepseek-chat`, `deepseek/deepseek-v4-flash`,
+  `deepseek/deepseek-r1-0528`, `qwen/qwen-2.5-coder-32b-instruct`,
+  `qwen/qwen-2.5-72b-instruct`, `anthropic/claude-sonnet-4.5`,
+  `anthropic/claude-haiku-4.5`, `mistralai/mistral-large-2512`,
+  `mistralai/codestral-2508`), and the stale `deepseek/deepseek-chat` price is
+  corrected (0.2574 / 1.0287, about 1.8x the old input price). Role defaults
+  move to `deepseek/deepseek-v4-flash`; the router's reasoning detector also
+  matches `-r1` ids. Section 3 suite 144 passed after the fixture updates.
+* **Regression fixed.** Routing must never abort a run: classification now reads
+  `steps`/`filesLikelyToChange` defensively, so a partial plan object keeps the
+  primary model (6 Section 4 tests had failed before this fix).
+
+### Marathon 2.0 W13 — a runner control plane for customer-controlled hosts (2026-10-28)
+
+* **Migration 0068 (Section 1).** `team_runners` (one row per `(team_id,
+  name)`, `token_sha256` + hint only, a token-derived `attestation_key`,
+  `docker|process|none` confinement, signed-attestation digest, revocation
+  author/time), `runner_nonces` (composite PK = the atomic replay arbiter) and
+  `runner_jobs` (offer → lease → finish, deliberate no-FK to the lazily created
+  run claim). No column exists for a command, tool, path or permission.
+* **Control-plane API.** Admins mint a runner and see the token **once**;
+  revocation is a row update checked before anything else. Runner requests carry
+  a single-use `X-Runner-Nonce` and a ±300 s `X-Runner-Timestamp`; signed
+  confinement claims are verified with the derived key and refused on tamper,
+  mismatch or unknown keys. Offers require a **queued** run of the caller's own
+  team; claiming holds the `run_claims` lease as `runner:<id>`; finish deletes
+  only that runner's claim; an expired lease releases the job and **orphans**
+  (never re-queues) the run. Foreign and unknown ids answer the same 404.
+  Five audit actions added; nine routes classified in `IDENTITY_RULES`.
+* **Tests and evidence.** `test_runner_api.py` (10 offline tests) plus the FK law
+  (inventory 49 → 55). Live drill `scripts/e2e/w13_runner_drill.py`: **42/42
+  PASS** (`docs/briefs/evidence/eval/w13-runner-1793260362.json`) on the compose
+  stack with real Postgres and no model call — revocation kills the token on the
+  next request without burning a nonce, a replayed nonce and a stale timestamp
+  are refused, a tampered/mismatched/unknown-key attestation is refused, a second
+  team's token gets byte-identical 404s for foreign ids, the claim is read back
+  from `run_claims` as `runner:<id>`, finish deletes exactly that claim, and an
+  expired lease releases the job and **orphans** the run rather than re-queueing
+  it. Section 1 1009 passed / 54 skipped; sections 2–11 and the MCP server pass;
+  `make lint` and `make static-gates` green after regenerating
+  `identity.openapi.json` and the Python SDK.
+* **Repo health found and fixed on the way.** `docs/eval/corpus.json` had been
+  edited from a stale copy and was missing the W11/W12 gate entries (restored);
+  the uncommitted W8 concurrency drill was adopted and re-passed
+  (`w8-concurrency-1793254624.json`); `make lint` was red on HEAD in three
+  sections (unused imports, import order, E501, and the intentional pytest
+  fixture import shadowed by test args); the Python orchestrator SDK had drifted
+  from its recorded spec; five backend services were running a pre-W12 image and
+  reporting `schema-drift` at `/ready`.
+* **Hardening pass (same day).** Runner authentication is a route dependency, so
+  it runs before body validation (anonymous malformed body → 401, not 422).
+  `POST /team-runners/{id}/rotate` mints a new token ***and*** a new derived
+  attestation key with no overlap window (audited as `runner.rotated`; revoked
+  runners refuse rotation), and expired nonces are swept by a background job
+  (`HARNESS_RUNNER_NONCE_PURGE_SECONDS`, default 600) on top of the inline prune.
+  `fetch_specs.py --only <service>` stops the live-superset overwrite that
+  reddened `orchestrator.openapi.json`.
+* **Execution leg OPEN:** a runner can hold and complete a lease but does not yet
+  execute the approved plan or stream tool events into the orchestrator
+  (`docs/m2-w13-plan.md` §Remaining).
+
+### Marathon 2.0 W12 — a governed skill catalog and project-scoped memory (2026-10-28)
+
+* **Migrations 0066/0067 (Section 1).** `team_skills` (one row per
+  `(team_id, name)`: provenance source/author, `draft|reviewed|disabled`,
+  `enabled`, `reviewed_by/at`, `pinned_sha256`, `expires_at`) and
+  `project_memory` (per project, `source user|run`, `draft|reviewed`, expiry).
+  No column exists for a command, script, hook, env, tool or permission.
+  `created_by`/`reviewed_by` are nullable `SET NULL`, so deleting an account
+  cannot delete a team's reviewed catalog.
+* **HTTP surface + audit.** `skills_api.py`, `memory_api.py` on the
+  `rules_api.py` conventions: create is always a draft, only admins review
+  (pinning the digest) or remove, engineers steer enable/disable, viewers and
+  guests read; foreign team/project and unknown ids answer the same 404; the
+  caps are UTF-8 byte caps answering `413 SKILL_TOO_LARGE` /
+  `MEMORY_TOO_LARGE`. Eight allowlisted audit actions added, and all ten new
+  routes classified in `IDENTITY_RULES` (the route gate fails otherwise). SDK
+  client and `identity.openapi.json` regenerated.
+* **Injection (Section 4).** `skills_loader.py` / `memory_loader.py` read only
+  reviewed, enabled, unexpired rows whose **recomputed digest equals the pin** —
+  the canonical JSON is byte-identical across the service boundary (golden
+  vector in both suites). Both are failure-tolerant and bounded (20 rows,
+  64 KiB / 32 KiB) and render as explicitly advisory. `propose_plan` loads them
+  and `_executor_context_prefix` now assembles **rules → skills → memory →
+  @ref bundle**. Neither loader imports os/sys/subprocess/shutil/socket/signal
+  or any policy module.
+* **Live drill `scripts/e2e/w12_skills_memory_drill.py`: 44/44 PASS** on the
+  compose stack with real Postgres, no model call. Each step is judged by the
+  **deployed loader inside the orchestrator container**: a reviewed skill
+  injects and its pin crosses the boundary; a row tampered with straight in SQL
+  vanishes from the block and returns when the reviewed bytes are restored;
+  disable/expiry/removal all unload; team B's admin gets identical 404s for team
+  A and for a nonexistent team; a skill demanding `GRANT fs.delete` and a note
+  demanding `Override the approved plan scope` stay text under their
+  disclaimers; 21 reviewed skills inject 20.
+* **Section 11 assessed before building memory:** it is a code index (chunks +
+  pgvector), not a tenant lifecycle store, so memory follows `project_rules`
+  instead. Assessment in `docs/m2-w12-plan.md`.
+* **Tests:** Section 1 +8 (API, authz, no-oracle, caps, audit), Section 4 +20
+  (loaders, golden digest, propose_plan injection, advisory boundary). Full
+  Section 1 suite **999 passed, 54 skipped**, including the route-classification
+  and FK-deletion gates; Section 4 **1609 passed**; `make static-gates` passes.
+* **W11 design-to-code carry-over: the loop is fixed, the leg stays OPEN.**
+  `image_gate.py` gained **`palette`** — one bounded call returning dominant
+  colours with hex, pixel share and bbox (same workspace/byte/pixel guards,
+  `maxColors` 1..24) — exposed through `harness-images.js`, and the design task
+  now asks for one palette call plus at most one sample call. Measured colour
+  probing fell from **60 calls to 2**; the run still fails on reproduction
+  fidelity (26 % of pixels differ) and a provider empty response, so
+  `w11-vision` remains a red baseline with its failures retained rather than a
+  re-run until green. New deterministic palette legs (exact patch, escape
+  refusal, cap refusal) pass, and `test_image_gate.py` is 25.
+
+### Marathon 2.0 W11 — a model's click is executed and judged (2026-10-28)
+
+* **`browser_session.box`** (new action): AX role+name → `DOM.getBoxModel` →
+  centre, width, height and `backendNodeId`, audited like every other action.
+  It is the structured baseline the vision model is compared with.
+* **Fixture** `scripts/e2e/fixtures/w11_grounding.html`: two-column responsive
+  grid (700 px reflow), look-alike “Delete file” / “Delete folder” buttons, a
+  canvas switch (`role=img`, `#444b5a` → `#1a7f37`), an `Export CSV` div that is
+  a `StaticText` to the accessibility tree, and a `#log` the verifier reads.
+* **Drill** `scripts/e2e/w11_grounding_drill.py`: five grounding tasks in a
+  `--network none` container. Each asks a vision model for a target, the harness
+  clicks where it said, and the verdict comes from the re-rendered page (`#log`
+  text, canvas pixel) — never from the model. Deterministic legs prove the
+  harness: AX baseline, pixels-only canvas and div, the AX gap
+  (`operableByAx: false`), a false-click detector, the product's text-only
+  model refusal plus the provider's 404, and a before/after W9 visual pair on a
+  real run with its revision.
+* **Live result: 22/22 PASS** (`qwen/qwen3.7-flash`, $0.0026). Labels 4/4;
+  coordinates **2/5** — misses of (+65,+73) and (+21,+157) px recorded as false
+  clicks (one at confidence 1.0), and one task with two `finish=length` empty
+  answers recorded as **no answer**.
+* **Measured coordinate finding:** the model answered in pixels on a sparse
+  page and in a 0..1000 grid on dense ones; the drill states the normalized
+  contract and converts, and keeps the pixel contract as a recorded probe. A
+  contract makes an answer usable, not accurate.
+* **Vision drill re-run at HEAD (owed from W10): recorded as FAIL, not retried
+  to green.** Design-to-code stopped twice for model-side reasons —
+  `tool_budget_exhausted after 61 tool calls` (60 pixel samples, no write) and
+  `model … returned an empty response` — while triage (exact code and sentence)
+  and the deterministic gate legs passed in both runs. An earlier run of the
+  same drill at the earlier revision had already failed once on `loop_detected`
+  before passing. The design leg is left **open** for W12; evidence
+  `w11-vision-1793209063.json`, `w11-vision-1793209463.json`.
+* **Tests:** `box` geometry (centre, size, audit line, `clickAx` sharing the
+  same centre, an off-viewport centre refused) — `test_browser_session.py` now
+  23, all passing; the W10 policy and wire tests are unchanged.
+
+### Marathon 2.0 W10 — a persistent, audited browser adapter (2026-10-28)
+
+* **`section5/.../browser_session.py`** keeps one Chromium open and drives it
+  over the DevTools protocol with a stdlib WebSocket client (handshake, masked
+  frames, ping/pong). Actions: `navigate`, `inspect` (Chromium accessibility
+  tree + text), `clickAx` (role+name → DOM box → real mouse click), `click`,
+  `type`, `scroll`, `screenshot`, `clipboard`, `requests`, `wait`. One audit
+  line per action; per-session step cap; capped text, nodes, typed text, scroll,
+  screenshot bytes and timeouts.
+* **Policy per action.** The gate's URL rules (file:// inside the workspace;
+  https only when allow-listed *and* proxied) plus literal private/loopback
+  refusal; the landing URL of a redirect is re-checked and the refused page is
+  **quarantined to about:blank** before the refusal; downloads are denied
+  (`Browser.downloadProgress: canceled`, no file); permission prompts are
+  denied as a class (clipboard read → `NotAllowedError`); the browser env holds
+  only PATH/HOME/LANG (+proxy); `close()` removes the profile and the process
+  group.
+* **Live drill** `scripts/e2e/w10_browser_session_drill.py`: **27/27 PASS** in a
+  detached `--network none`, read-only, cap-dropped worker container — AX button
+  clicked at (117,317), `aria-pressed` and the canvas pixel change together
+  (#b3261e → #1a7f37), typing and scrolling land, five destination refusals,
+  download canceled, no chromium process left, and the two screenshots attached
+  to a run as a W9 visual pair with the run's revision in their provenance.
+* **Tests:** `test_browser_session.py` 21 (policy, caps, WebSocket/CDP wire
+  against a fake server, step cap). `worker.Dockerfile` ships the module beside
+  the gate.
+* **Fixed while proving it:** a headless window is not the viewport (640×400
+  rendered 640×313 and a DOM-box click missed), and the gate's `Refused` class
+  is not the session's (the CLI crashed instead of refusing).
+
+### Marathon 2.0 W9 — visual evidence is revision-bound; shares and deployments re-proven (2026-10-28)
+
+* **Visual artifacts (migration 0065 + `section4/.../visuals.py`).** A
+  screenshot is stored as an artifact and gains the semantics an artifact
+  cannot carry: `POST /runs/{runId}/visuals` accepts PNG/JPEG/WebP **by magic
+  bytes only**, parses dimensions from the header (16..8192 px, ≤4 MiB), and
+  refuses SVG/GIF/PDF (`415`), wrong suffixes (`422`), bad dimensions (`422`)
+  and oversized bodies (`413`, on the declared length).
+* **Provenance is read, not claimed.** Attach snapshots `runHeadSha`, `baseSha`,
+  `repo`, the latest approved `planVersion`, the current `changesDigest` and
+  `stale`; a run with no recorded head is `409 VISUAL_REVISION_UNBOUND`.
+* **Explicit pairing.** `role=after` must name a same-run `before` with an
+  identical snapshot (`409 VISUAL_PAIR_REVISION_MISMATCH`) and only one after
+  per before (`409 VISUAL_PAIR_TAKEN`, partial unique index; a lost race
+  tombstones its own row). `GET visuals` returns items and resolved pairs.
+* **Same access, download-only shares.** Reads are team/run scoped (foreign
+  team 404); sharing a PNG serves `application/octet-stream` + `attachment` +
+  `nosniff` + `CSP sandbox` + `X-Artifact-Sha256`. Retried `requestId` returns
+  the recorded visual (`200 {replayed: true}`) instead of destroying it.
+* **Fixture + drills.** `scripts/e2e/fixtures/w9_app.html` (accessible
+  `aria-pressed` button, labelled canvas, `?state=before|after`) rendered
+  through the product's browser gate in a `--network none`, cap-dropped,
+  read-only container. `scripts/e2e/w9_visual_evidence_drill.py`: **33/33
+  checks PASS**; `w9_share_deploy_drill.py` re-run at HEAD: **21/21 PASS**
+  (expiry included). Tests: `test_visuals.py` 12 + `test_visuals_db.py` 11 on
+  the real migrations.
+* **Fixed while proving it:** the visual list query omitted `run_id` (500);
+  a replayed upload would have tombstoned the original artifact; the store's
+  `ARTIFACT_TOO_LARGE` leaked past the visual error envelope.
+
+### Marathon 2.0 W8 — overlapping results cannot overwrite, cancellation and quotas proven (2026-10-28)
+
+* **Apply is hash-anchored.** The local engine now reports the base digest of
+  every named path, and `apply_back` refuses with `APPLY_CONFLICT`
+  (`error.conflicts[]` naming expected vs actual) instead of overwriting a file
+  that moved since the run copied it. The check is all-or-nothing and runs
+  before any write. Tests cover the matching case, a moved base, a new-file
+  collision and a stale deletion.
+* **Live concurrency, expanded.** Three runs, two of them producing the same
+  path, plus a fourth run stopped mid-flight: 22/22 checks. Distinct
+  workspaces/networks, distinct digests and checkpoint bytes for the shared
+  path, a digest from one run refused for another's change (`409
+  CHANGE_STALE`), cancellation confirmed in 6.7 s with the claim released and
+  the boundary network removed while three neighbours kept executing.
+* **Subagent quotas proven at the API.** Depth, live-children and
+  parent-scope inheritance refusals, cancel cascade and pool roll-back — with a
+  second admin approving the definition (`SELF_APPROVAL` refused the author).
+  `agent_tree.py` still records that the engine does not call these endpoints.
+* **Findings recorded, not smoothed.** A stopped run's `/status.state` is
+  `done`; only `lifecycle.phase`/`cancelConfirmed` says stopped. Cancellation
+  is observable as `stopping` for seconds, so a single read can see a live
+  claim and network mid-unwind — the drill now waits, bounded, for confirmation.
+* **Evidence.** `w8-concurrency-1793200473.json` (22/22),
+  `w8-crash-cleanup-1793200243.json` (11/11), `w8-overlap-1793198798.json`
+  (14/14), `w8-agent-quotas-1793200199.json` (9/9); runner subset 2/2 with
+  `revisionVerified: true`. Corpus is 33 tasks (23 implemented).
+* **Not claimed:** universal parallel isolation, same-file hunk merging, or any
+  engine-driven subagent lifecycle.
+
+### Marathon 2.0 W7 — a real language server in the sandbox, editor re-verified (2026-10-28)
+
+* **The LSP client gained the operations, not just the limits.** `lsp_client.py`
+  now answers server-initiated requests (so real servers do not block), queues
+  notifications in a bounded, URI-matchable form, opens documents and runs
+  diagnostics, document symbols, definitions and references, with a CLI
+  scenario mode and a `pid` accessor for `/proc/<pid>/environ` auditing.
+* **One real language server, pinned.** `section4/worker-lsp.Dockerfile` overlays
+  `python-lsp-server[pyflakes,rope]==1.12.2` (pyflakes 3.2.0, rope 1.13.0) on the
+  current worker and bakes the client in. The default worker stays
+  language-neutral; adoption is a separate decision.
+* **Evidence.** A 16/16 drill on a `--network none`, read-only, uid-10001
+  container: diagnostics (unused import, undefined name), symbols, definition,
+  references, a clean file publishing `[]`, a scrubbed process environment, a
+  refused write (`EROFS`), unreachable network, a SIGSTOPped server killed at a
+  1 s deadline, an unchanged tree and no route. `w7-lsp-real-1793197850.json`;
+  corpus task `lsp-real-server` (infra).
+* **Editor re-verified at this revision.** Typecheck, build and 29/29 tests; the
+  live gate passes 11/11 (`w7-ide-1793198120.json`) including `409
+  CHANGE_STALE` for a wrong digest and an applied file matching the reviewed
+  post-image byte-for-byte.
+* **Two real defects fixed.** `normalize_diff()` left git's `a`/`b` prefix glued
+  to the filename after stripping the absolute root, so local editor runs
+  applied `bide_note.txt` instead of `ide_note.txt` (the historical PASS hid it
+  by comparing text, not path). The local launcher's default image was
+  `harness-engine-worker:p0`, which predates the W11 vision patch, so a shipped
+  `.env` with `DSH_PATCH_FILES` failed every host-side run before the model;
+  the default now tracks `HARNESS_IMAGE_TAG`.
+* **Gate honesty.** The drill's applied-bytes check now compares to the reviewed
+  post-image (a trailing period once failed a correct run), and the deadline
+  proof stops the server first because a cached answer can arrive inside 1 ms.
+* **Hermes H3 stays blocked.** Python LSP is not an `.hms` toolchain: no
+  corpus, no `hermesc`, and H0 paperwork is still absent. LSP is not wired into
+  the engine's tool roster.
+* **Corpus.** 30 tasks (20 implemented, 6 blocked, 4 fixture-owed).
+
+### Marathon 2.0 W6 — governed skills prototype, Hermes audit (2026-10-28)
+
+* **Skills are text, pinned and team-scoped.** `harness_orchestrator/skills.py`
+  is a file-backed prototype: a strict manifest allow-list (no command, script,
+  hook, env, tool or permission field), a `contentSha256` pin recorded at
+  review, one directory per team, and explicit enable/disable/remove. The loader
+  emits only an advisory prompt block; it has no code path that could execute or
+  change policy. Editing a reviewed bundle breaks the pin and excludes it;
+  symlinked skill directories are never followed.
+* **Evidence.** 11 unit tests and a 9/9 deterministic drill
+  (`w6-skills-1793197039.json`); corpus task `skills-governance` (infra). The
+  prototype is **not** wired into the engine; W12 ships the DB-backed catalog.
+* **Hermes H0–H2 audited, claims stay blocked.** H0 is partially cleared: the
+  licence is proprietary/all-rights-reserved (2026-10-25) and 45/45 commits are
+  single-author, but the university student-IP position and a written teammate
+  acknowledgment are absent. H1's `--json` contract is live while the
+  differential gate is still specified only; H2's toolchain is not in the sandbox.
+  No `.hms` support is claimed and no Hermes code was copied.
+* **CLI end-to-end re-proven.** `cli-parity` PASS in 21.3 s (same four-event
+  lifecycle, same state, token 0600/0700, one JSON object, diff-absence parity)
+  and `stack-compose-journey` 13/13. Reconnect is unchanged from W5 and remains
+  covered by its tests.
+* **Corpus.** 29 tasks (19 implemented, 6 blocked, 4 fixture-owed).
+
+### Marathon 2.0 W5 — CLI diagnostics, capture, and parity re-proven (2026-10-28)
+
+* **Stable exit contract.** 0 ok, 1 failure, 2 usage, 3 auth, 4 policy refusal,
+  5 timeout, 6 transport, 130 interrupted. Every `--json` invocation prints one
+  object; failures carry `error.code`/`message`/`retryable`/`status` and the same
+  `exitCode` the process returns.
+* **Evaluation capture.** `--capture PATH` writes the identical object atomically
+  (0600) for `run`, `status`, `diff` and `chat`, including failures; run/chat
+  payloads gain `durationSeconds`.
+* **Bounded reconnect.** A dropped poll (status 0/408/429/5xx) is retried at most
+  three times with jittered backoff while the deadline holds; `reconnects` and
+  `lastTransportError` are recorded. Policy/4xx refusals propagate immediately.
+* **Parity drill repaired.** It required a diff for a goal that edits nothing; a
+  run without a done-signal diff correctly 404s. The drill now requires both
+  paths to agree on the absence (`NOT_FOUND`), and the live parity run passes:
+  same four-event lifecycle, same terminal state, token 0600 in 0700, one JSON
+  object.
+* **Deterministic gate.** `scripts/e2e/w5_cli_diagnostics.py` — **10/10 PASS in
+  1.59 s**: auth/usage/unknown-run exits, capture equality and mode, token store
+  and secrecy, a real run read with exit 0. Corpus task `cli-diagnostics`
+  (infra); 28 tasks (18 implemented, 6 blocked, 4 fixture-owed).
+* **Tests.** 78 pass: `test_cli.py` 28, `test_sdk.py` 29, `test_cli_local.py` 21
+  (Section 4 venv). Runner baselines `baseline-20261028T141128Z.json` and
+  `...T141223Z.json`, both `revisionVerified: true`.
+
+### Marathon 2.0 W4 — SDK inventory, a fixed MCP mount, and a confined AST/LSP spike (2026-10-28)
+
+* **SDK inventory.** Pinned `deepseek-harness-sdk==0.2.1rc2` and
+  `deepseek-harness-runtime-bin==0.2.1rc2`, profile `sdk-minimal` with a per-run
+  overlay. The bundled runtime ships **342** `@deepseek-ai/dsh-*` plugin ids;
+  eight capability groups are configured (shell replacement, fs + fs-search,
+  web, browser, images, MCP client, sandbox policy) and the rest — skills,
+  hooks, LSP, package awareness, subagents, persistent bash — are available but
+  **not configured**. Available, configured and tested are recorded separately.
+* **MCP defect found and fixed.** `DSH_MCP_SERVERS` was set for the orchestrator,
+  but the reviewed list only shipped in the worker image, so
+  `reviewed_servers()` raised on every engine run after the last rebuild. The
+  orchestrator now mounts `deploy/mcp` read-only alongside `deploy/patches`;
+  verified in-container, then re-proven live.
+* **Boundaries re-proven at this revision (5/5).** Egress deny (1.2 s), MCP
+  client (16.7 s; both stub tools in `agent_events`, no credential value in any
+  result), live web fetch (14.6 s; real title, off-list host refused), install
+  (20.3 s; allowed registry succeeds, off-list index 403), credential leak
+  (16.7 s; none found). Runner baselines `baseline-20261028T134204Z.json`,
+  `...T134316Z.json`, `...T134402Z.json`, all `revisionVerified: true`.
+* **Read-only AST/LSP spike.** `section5/src/harness_sandbox/ast_search.py`
+  parses Python with `ast` under file/byte/result/time caps and never follows a
+  symlink out of the root. `section5/src/harness_sandbox/lsp_client.py` spawns a
+  server in its own session, passes only PATH/LANG/LC_ALL plus a fresh HOME,
+  refuses credential-shaped overrides, caps frames before buffering and kills
+  the process group on deadline or oversize. Fixture server plus **17 unit
+  tests**.
+* **Confinement drill.** `scripts/e2e/w4_ast_lsp_drill.py` runs both tools in the
+  worker image on `--network none`, uid 10001, read-only workspace: **10/10 PASS
+  in 3.95 s** — symlink escape skipped, tree byte-identical, `EROFS` on write,
+  `ENETUNREACH` on connect, timeout kills a silent server in 1.34 s, no route.
+  Neither tool is mounted in the engine; mounting waits for M01.
+* **Corpus.** New `ast-lsp-confinement` task (implemented, infra); 27 tasks
+  (17 implemented, 6 blocked, 4 fixture-owed).
+
+### Marathon 2.0 W3 — stale edits refused, conflicts recorded, rewinds exact (2026-10-28)
+
+* **Conflict semantics defined once.** Staleness is defined on the product's two
+  versioned documents: run intent (`run_intent_versions`, CAS on
+  `(run_id, version)`) and plan content (`plan_versions`, `content_sha256`).
+  A stale intent edit whose fields moved is `409 INTENT_CONFLICT` with a conflict
+  record; one whose fields did not move is `409 STALE_INTENT_VERSION` with no
+  record; an `expectedVersion` ahead is `422 BAD_VERSION`. Stale plan writes are
+  `409 VERSION_CONFLICT`; a patch proposed on a superseded version is
+  `409 VERSION_NOT_OPEN`; accepting one after the plan moved is `409 STALE_EDIT`.
+* **Deterministic corpus task.** `scripts/eval/tasks/stale_edit_task.py` (18
+  checks, no model) drives project → plan → join → leader, then intent CAS,
+  conflict list/resolution, a `scope_change` redirect, plan versions, and a
+  checkpoint snapshot/mutate/rewind probe inside the orchestrator container.
+  **PASS in 0.89 s**; accepted intent and plan content byte-identical after every
+  refusal; rewind restored both files and removed the post-snapshot file.
+* **Steering cannot expand scope, at the seam.** `scope_change` and
+  `permission_change` redirects emit events and void approvals; they never write
+  the intent. The task asserts the intent version, goal, scope and permissions
+  are unchanged after one; `test_w3_steering_scope.py` covers the engine-facing
+  side.
+* **No file-level stale patch — declared, not implied.** The agent's file tools
+  are last-writer-wins inside one run's private workspace, and the SDK tool has no
+  content-hash precondition. A hash-anchored patch is deferred to W8 only if its
+  overlapping-run work finds silent overwrite.
+* **Tests.** 91 pass across `test_control`, `test_plans_edits`,
+  `test_w3_rejected_stays_blocked`, `test_w3_steering_scope`,
+  `test_run_checkpoints` and `test_checkpoint_blob_store`. The sandbox's hunk
+  workflow adds 11 (`test_hunk_review`): server-defined hunk selection, selective
+  reverse patches, one-hunk reverts, restore-to-snapshot and a double-revert
+  conflict. Runner baseline
+  `docs/briefs/evidence/eval/baseline-20261028T133421Z.json`: 1/1 PASS,
+  `revisionVerified: true`.
+* **Corpus.** `stale-edit` moves to `implemented`; 26 tasks (16 implemented,
+  6 blocked, 4 fixture-owed). The stop and torn-write drills stay `blocked`
+  because re-running them needs a chat model; their 2026-10-26 evidence is
+  historical and is not claimed for this revision.
+
+### Marathon 2.0 W2 — search measured, then a bounded code-search gate (2026-10-28)
+
+* **Section 11 assessed, not deployed.** It is a 1,312-line package with 11
+  passing search/chunking tests, but it is absent from the compose stack and not
+  installed in the backend, and its query path is exact cosine over every
+  project vector. Measured: 24 ms/1k chunks, 119 ms/5k, 240 ms/10k, 1.2 s/50k
+  in pure Python before the DB fetch.
+* **Search benchmark.** `scripts/eval/search_bench.py` builds a deterministic
+  235-file, 685-chunk repo with five planted answers and ten queries. On the
+  same fixture: `rg` recall@5 1.0 (MRR 0.867, p50 13.6 ms); Section 11 hashing
+  recall@5 1.0 lexical / **0.4 paraphrase** (p50 10.5 ms, index 0.04 s); Section
+  11 Ollama `nomic-embed-text` 1.0 / **1.0** (p50 75 ms, index 8.3 s). Semantic
+  retrieval is real value, but not wired and linearly scanned.
+* **Code-search gate.** `scripts/eval/tasks/code_search_task.py` seeds a
+  100-file repo with a wrong `RETRY_BACKOFF_SECONDS = 5` and no path. The agent
+  found and changed it: **PASS in 12.1 s with 2 tool calls** (`bash`, `edit`),
+  only the target file changed, no files added or deleted, answer names the
+  file. `usage` is null on this transport and recorded as unknown.
+* **Held-out search closed.** A second planted answer (`FLUSH_INTERVAL_SECONDS`
+  30 → 45) passed in 16.1 s with 3 calls, only the telemetry file changed. A
+  runner baseline increment executes both search tasks: 2/2 PASS,
+  `revisionVerified: true`.
+* **Decisions.** Section 11 stays undeployed; no repo map without a measured
+  gap; the task used only existing tools and M01 remains open.
+* **Corpus.** `code-search` and `code-search-heldout` are `implemented`; the
+  corpus is now 26 tasks (15 implemented, 6 blocked, 5 fixture-owed).
+
+### Marathon 2.0 W1 — an evaluation protocol, a fixed corpus, and a current-revision baseline (2026-10-28)
+
+* **Protocol.** `docs/eval/PROTOCOL.md` fixes the task schema, the twelve
+  categories, the reproducibility record (git HEAD, image digest, model,
+  fixture, budget), the measures (verdict, safety, time, spend, calls,
+  recovery), the independent-verification rule, the promotion rule and the
+  evidence layout. The agent's own answer is never the verdict; a deferred,
+  blocked or fixture-owed task is never a pass.
+* **Corpus.** `docs/eval/corpus.json` holds 25 versioned tasks: 13 implemented
+  against existing drills, 6 blocked on a local chat model this host lacks, and
+  6 fixture-owed (stale edit, code search, multi-file refactor, written tests,
+  the broader tenant matrix, native-tool confinement/M01). Four are marked
+  held-out.
+* **Runner.** `scripts/eval/run_eval.py` executes a selected task with its
+  budget, records the independent verifier, normalizes the result, verifies the
+  deployed runtime files against the worktree by hash, and writes one evidence
+  file. `--list`, `--dry-run`, `--verify-only`, `--cost`, `--task`,
+  `--include-live` and `--repeats` are supported. Every corpus task appears in
+  the output with an explicit reason when it did not run.
+* **Baseline.** `docs/briefs/evidence/eval/baseline-20261028T111000Z.json` —
+  **3/3 executed PASS, `revisionVerified: true`**: the compose journey (13
+  checks), the egress policy probe, and a live vision-API run (26.5 s). 22 tasks
+  are deferred with their reasons and none are counted as passing.
+* **Revision drift found and closed for this round.** The deployed
+  `harness-images.js` predated the source nudge that tells a model to batch 64
+  sample points. The images were replaced with thin overlays over the previous
+  bases plus that file; `engine.py`, `image_gate.py` and `harness-images.js` now
+  hash-match HEAD in both the orchestrator container and the worker image. A
+  clean Dockerfile rebuild remains owed; the layer-order backlog entry is the
+  reason it is slow.
+* **Runner defects found at first contact, fixed.** A `None` dereference in
+  failure parsing masked a driver error, and the deferral classifier labelled
+  fixture-owed tasks as "not selected". Both were caught by a preflight before
+  the baseline file was written.
+* **M02/M05 checked, M01 still open.** `section1/tests/test_conformance.py`
+  passed 7 (contract and golden event fixtures); the seeded-history and
+  gitdir-pointer tests passed 2. The M01 confinement spike remains open and no
+  capability was widened this week.
+
+### W11 — an image the agent can measure: diff, sample, and design-to-code from a mockup (2026-10-28)
+
+* **Image gate, confined.** `section5/src/harness_sandbox/image_gate.py` adds two
+  actions the runtime does not ship: `diff` (changed pixels, ratio, bounding box,
+  max delta, mean colours of the changed pixels, and a diff PNG) and `sample`
+  (exact RGB at up to 64 points). Every input and the output must resolve under
+  the workspace (symlinks included); each PNG is capped by bytes (10 MiB, the
+  artifact cap) and pixels (4 MP), and the comparison is stdlib-only — 8-bit
+  RGB/RGBA non-interlaced PNGs decode, palette/16-bit/interlaced/truncated files
+  are refused by name. No Pillow in the worker image. 20 unit tests pin the
+  arithmetic (identical → 0, a known 100-pixel patch → exact box and ratio),
+  tolerance, format refusals, escapes and caps.
+* **Mounted like the browser it compares.** `dsh_plugins/harness-images.js`
+  registers `image`; `engine.py` mounts it over the same workspace root as
+  `browser` and fails closed (tool absent, never half-mounted) when either the
+  plugin or the gate is missing. `worker.Dockerfile` copies the gate into `base`
+  (it spawns nothing, so it needs no Chromium). 2 engine tests pin the mount and
+  the fail-closed path.
+* **The gate passes on the live stack.**
+  `docs/briefs/evidence/pilot-prep/w11-vision-1793183487.json` — PASS, 22/22,
+  one design run and one triage run with `qwen/qwen3.7-flash` and the vision
+  transport patch. The agent built a page from `mockup.png` alone (the fixture's
+  HTML was deleted before the run), screenshotted it and diffed it; the drill's
+  independent re-render measured **2,568/480,000 = 0.535%**, bbox over the title
+  line only, all five flat colours exact, and transcribed the token `ORBITAL-50`
+  that existed only in pixels. Triage reported `E_UPSTREAM_187` and
+  `Snapshot ceff could not be uploaded.` from `dialog.png` alone. The gate
+  reported a known 10×10 patch as exactly 100 px / ratio 0.02 / bbox
+  `[20,10,10,10]`, refused `../../etc/passwd`, and ran with no network routes;
+  W10's no-proxy leg still answers `FETCH FAILED`.
+* **The first attempt failed, and the fix is recorded.** The first live run
+  (`w11-vision-1793182630.json`) was stopped by the loop guard after 50 calls:
+  the model guessed geometry, ignored its diff and sampled pixel-by-pixel until
+  identical CSS rewrites tripped the repeated-call detector (measured ratio
+  4.04%). The fixture was simplified to sharp rectangles plus one small token
+  line and the goal now prescribes edge measurement and bbox-driven correction.
+  Goal (0.02) and gate (0.03) thresholds are unchanged.
+* **Known behaviour, not a claim.** The passing run used 25 `sample` calls
+  rather than the two the goal asks for; it converged under the run budget. That
+  is a model/prompt finding for W14 routing, recorded in the week plan.
+
+### UI — desktop-app chrome and a denser dark palette (2026-10-28)
+
+* **Window chrome.** The workspace now reads like a desktop app: a 44px titlebar
+  (traffic-light dots, section / project breadcrumb, clock) and a 30px statusbar
+  (role, project, section). Both are decorative (`aria-hidden`) because every
+  value they show is already exposed by the sidebar, and both are hidden below
+  900px where the off-canvas drawer takes over.
+* **Palette and spacing.** New dark tokens (ink `#0a0b0e`, panels `#12161e` /
+  `#191e28`, borders `#272c37`, accent `#8ba8ff`) with a subdued light counterpart,
+  a faint grid + glow on the page background, tighter card radii, and mono
+  metadata. `tokens.ts` mirrors the new values so the compile-time catalog and
+  `globals.css` cannot drift.
+* **Motion, reduced-motion safe.** Staggered `rise` on first paint, nav active
+  bar, card hover lift, skeleton shimmer, and a pulsing brand dot — all CSS-only,
+  all disabled under `prefers-reduced-motion` (delays forced to 0).
+* **Contrast kept.** `themeContrast.test.ts` still passes: muted/faint were
+  re-tuned (`--faint: #7c869b`, 5.28:1) and the primary button moved to the one
+  solid fill (`--accent-strong`, 4.86:1 under white). 1003 tests, typecheck and
+  production build green; dark, light and 390px drawer checked by screenshot.
+
+### W10 — a browser inside the run boundary, and an agent that verifies its own UI fix by looking (2026-10-27)
+
+* **Browser tool, confined.** `browser` (screenshot/dump) runs headless Chromium
+  inside the run's own container, through a gate that confines every write to the
+  workspace, refuses `file://` outside it, sends remote pages through the same
+  web-purpose proxy as `web_fetch`, scrubs the environment before spawning
+  Chromium, and caps renders by wall clock and bytes. Mounted per run beside
+  shell/web; absent (not degraded) when either file is missing. Chromium is in the
+  worker image stage only. 15 gate tests + 2 mount tests; proven with real
+  Chromium on the host and inside the worker image with its real confinement
+  flags. (`browser_gate.py`, `harness-browser.js`, `worker.Dockerfile`)
+* **What the live probes showed.** The agent itself took a screenshot through the
+  product; a page on a fresh internal network gets `FETCH FAILED` with no proxy,
+  `FETCH OK` for an allow-listed host through the proxy and `FETCH FAILED` for an
+  unlisted one; an 11 MiB upload is `413 ARTIFACT_TOO_LARGE`; the agent's CSS fix
+  was recorded as one reviewable change; sibling-run reads answer `not found`.
+* **The gate passes on the live stack.** `w10-browser-1793129794.json` — PASS,
+  16/16, one run with `qwen/qwen3.7-flash` and the vision transport patch. The
+  page's CSS says red and a white veil covers it; the agent screenshots before,
+  opens the image, removes the veil, screenshots after, opens that too, and
+  answers `BEFORE: white` / `AFTER: red`. The drill decodes both PNGs itself:
+  the swatch is `(255,255,255)` before and `(255,0,0)` after, so the words match
+  the bytes; both PNGs are attached with matching sha256, and the fix is one
+  reviewable change. Boundary legs: the page's fetch fails with no proxy,
+  succeeds through the proxy for an allow-listed host, still fails for
+  `example.com`; an 11 MiB upload is `413`.
+* **Two defects the gate found, both fixed and pinned.** The worker's
+  `--pids-limit 128` was already 115 used by python + the runtime, so Chromium's
+  first render fit and every later one died in `pthread_create` until timeout
+  (measured with `docker stats` mid-run; limit is now 512). And a cold render
+  can outlive the deadline *after* writing a valid PNG: the default is 60 s and
+  a timeout with a complete image hands it over (`slowRender: true`) instead of
+  deleting it.
+* **Why two probe runs could not close it earlier** (recorded, not hidden): the
+  runtime refuses images for a model that does not declare image input
+  (`does not declare image input`), the previous OpenRouter key was out of
+  credit, free image models emitted no tool calls, and the host had no vision
+  model.
+
+### W9 slices 1–3 — share links that are capabilities, deployments bound to the reviewed revision (2026-10-27)
+
+* **Shares are capabilities, not signatures.** `POST /runs/{id}/artifacts/{artifactId}/shares`
+  mints a random token, stores only `sha256(token)`, and `GET /shares/{token}` — the
+  one anonymous route in the product — serves the bytes with
+  `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff` and
+  `Content-Security-Policy: sandbox; default-src 'none'`, always as
+  `application/octet-stream`. There is no signature to verify and no key to leak:
+  revocation is a row write, so a revoked token is indistinguishable from an
+  unknown one (404), an expired one is 410, and a deleted artifact is 410.
+  Uploads the classifier quarantines never get a link at all. Opening a link is
+  audited as the artifact's team, not the anonymous reader.
+  (`0063_artifact_shares.sql`, `shares.py`, 12 tests)
+* **A deployment approval names the revision a human reviewed, and stops being
+  valid when it moves.** `POST /runs/{id}/deployments` binds `changes_digest` +
+  `run_head_sha` + `plan_version` (+ `base_sha`) as they stand at request time;
+  approve re-reads the current revision and answers `409 DEPLOYMENT_STALE` with
+  `staleFields` when any part moved, or when the client echoes a different
+  digest than the request was bound to. No changes → `NOTHING_TO_DEPLOY`, no
+  recorded head → `REVISION_UNKNOWN`, a non-canonical environment name is
+  refused rather than silently rewritten (`ENVIRONMENT_INVALID`). Revocation is
+  final and idempotent: an approve after revoke is `DEPLOYMENT_REVOKED`, a second
+  approve is `DEPLOYMENT_DECIDED`. Every step writes the binding into `audit_log`.
+  Nothing here deploys anything; the record is the guarantee.
+  (`0064_deployments.sql`, `deployments.py`, 13 tests)
+* **Both gates pass on the live stack.** `scripts/e2e/w9_share_deploy_drill.py`
+  — PASS, 21/21 (`docs/briefs/evidence/pilot-prep/w9-share-deploy-1793124898.json`).
+  A token opened with no `Authorization` header serves the exact bytes as an
+  attachment with `nosniff` and a sandboxing CSP; a foreign team gets 404 from
+  mint/list/revoke while the token alone still opens it; revoke kills that same
+  token (404) and is idempotent; a 60s link answers `410 SHARE_EXPIRED` after a
+  real minute. A deployment request binds digest + head + plan version; a wrong
+  client digest and, after the head moves, a correctly-bound request are both
+  refused `409 DEPLOYMENT_STALE` (the second stays `requested`); revoke is final
+  (`DEPLOYMENT_REVOKED` on any later approve). All six actions are read back
+  from `audit_log`.
+
+### W8 slice 2 — a container-mode run can finally write, and abandoned boundaries get a reaper (2026-10-27)
+
+Three defects, all found on the live stack, none visible in review:
+
+* **`EACCES` on every write.** The daemon launches the worker as uid 10001 while
+  the run's own workspace is root:root 0755, so `write` failed, the run settled
+  `blocked` with zero changes, and *no* container-mode run had ever produced a
+  reviewable diff. Handing the directories over
+  (`confine.claim_run_dirs_for_worker`) was necessary but not sufficient: the
+  engine re-creates a `volume-subpath` mount as root:root 0755 at mount time
+  (measured `pre 10001 → during 0`, `pre 0o2777 → during 0o755`).
+  `confine._mount()` now binds the named volume's own engine-host directory
+  under `HARNESS_RUNS_ROOT` — verified with `WRITE OK` and the directory left
+  10001:10001 — and keeps `volume-subpath` as the fallback when the mountpoint
+  cannot be resolved (`HARNESS_RUNS_BIND=0` forces it).
+* **The boundary sweeper could not see a running container.**
+  `_running_containers` matched `" running "` against a line that ends with the
+  state, so everything looked stopped — on a path that deletes other runs'
+  networks. The listing is piped and parsed positionally now, pinned by a test.
+* **`agent_runs.state` is not the durable lifecycle.** It only ever holds
+  `idle`/`pr_opened`; the states the API reports are replayed from
+  `agent_events`. Boundary settlement is therefore decided by the event log
+  (`service._settled_run_ids`), not that column.
+
+New: per-run networks are labelled `harness-run=<run id>` (an unlabelled orphan
+is untraceable, so nothing may be deleted on a guess);
+`container_runtime.sweep_orphan_boundaries` with its two proofs — durable
+settlement, or nothing attached still running — never touching a held run, an
+unlabelled network, an unproven one, or the shared egress proxy (disconnected,
+not stopped: it serves the runs beside this one); `service.recover_boundaries`
+on the worker's own cadence, plus a DB-free pass in the socket-holding daemon.
+**Both live gates pass**, taken against `deepseek/deepseek-v4-flash` through
+OpenRouter ($0.05/$0.09 per M tokens) because the host's Ollama no longer has
+`qwen-local:latest` — the model is configuration, so this changes nothing but
+the provider named in the evidence:
+
+* `w8-concurrency-1793123190.json` — PASS, 10/10. Three runs `executing` at
+  once in one project, three distinct boundary networks, one run directory per
+  worker and none shared, each run recording exactly one change with its own
+  digest and checkpoint manifests containing only its own file.
+* `w8-crash-cleanup-1793123310.json` — PASS, 11/11. The victim's launch client
+  is SIGKILLed mid-run: the run settles `blocked`, its claim row is gone and the
+  audit says why. A launcher-shaped orphan (network + relay + still-running
+  container, no owner) is then built with the product's own boundary classes and
+  the process that made it is killed; the sweep — given durable proof for that
+  run only — stops the container and removes the network, while the live
+  neighbour stays in `kept` with none of its containers stopped.
+
+Two further defects surfaced only because the writes started working: re-owning
+*every* run directory broke the orchestrator's own staging pass (it must read
+what the agent wrote, as the uid that provisioned the tree), so the handover now
+claims root-owned directories only; and the drill measured itself wrong twice
+(mount destination `/workspace` instead of the real per-run path, and a
+one-line-JSON assumption that turned two checkpoint manifests into "0").
+
+### W7 (IDE gate) — an in-editor edit round-trips through the gate, and the bytes reviewed are the bytes written (2026-10-27)
+
+Live evidence `w7-ide-1793116802.json`, verdict PASS on ten checks, driven by
+the extension's own core against the running stack: the stored plan goal
+carries the editor's selection (`@src/note.py:1-2` plus the line itself); the
+run executed in `harness-engine-worker:vdev-local` with a read-only root,
+`CapDrop: ALL` and only the run's **internal** network attached; both diff
+stages reached the editor; a review submitted against bytes other than the
+displayed patch came back **409 CHANGE_STALE from the server**; the approved
+change carries the digest the client verified before showing anything; and the
+file on disk is exactly the reviewed bytes.
+
+Two claims this does **not** make. The server's event list for the run is
+`plan_proposed, plan_approved, done_signal_received, review_passed` — no
+`execution_started`, no per-tool rows — because execution is off-host and no
+endpoint lets a client mint events it did not observe; confinement is evidenced
+by the container, not by an invented audit row. And the `vscode` adapter is
+typechecked and built, but no editor window was opened here; the evidence file
+says `drive: … vscode adapter typechecked, not opened`.
+
+Fixes found by building the drill: the launcher adapter discarded every complete
+NDJSON line it parsed, turning a refusal into "exit 2" with the reason thrown
+away; and the worker's network isolation was being read from the container's
+endpoint block, which never carries `Internal` — it reported an internal network
+as not internal. Isolation is now asserted against `docker network inspect`.
+
+### W4 (credentials) — the worker's environment was dumped on purpose, and no secret is in the record (2026-10-27)
+
+`w4_credential_leak_drill.py` takes the deployment's real secret values (never
+printed, never written into evidence), runs a confined worker whose goal is to
+dump its own environment, and greps every stored surface: the folded engine
+result, the run's comments, the 600-char audit view and **the full
+`agent_events` payloads** — the truncation is exactly where a secret would sit.
+PASS (`w4-credential-leak-1793114924.json`): one real environment dump, three
+secret names searched, zero hits, because `sanitize_environment` strips them
+before the shell ever execs.
+
+Getting it to mean something cost two corrections. The drill used to pass on a
+run that never exercised the exposure path — "no hits" is not evidence if the
+tool never answered — so it now requires a completed turn whose tool result
+actually *is* the dump. And the first such run produced a `tool_call` with **no
+`tool_result` row**: NUL-separated output made the JSONB insert fail
+(`asyncpg … \u0000 cannot be converted to text`), `_publish_safe` logged it and
+dropped the event. That hole is fixed above (commit 4b2f300); the kept evidence
+file for the failing run records it.
+
+W4's four gate claims are now each backed by evidence. The honest remainder is
+named in the plan: the MCP leg is proven against a first-party stub, and a
+reviewed **third-party** server still waits on a node toolchain in the worker
+image, with the npm install lane permitted-but-undrilled for the same reason.
+
+### W7 (IDE) — an in-editor edit goes through the plan gate, the done-signal and the change review, in that order (2026-10-27)
+
+`clients/vscode` is a client of the control path W6 built, not a second one:
+context builder, diff applier, run controller, typed-SDK transport, VS Code
+adapter, activation. Everything that decides anything sits in `src/core` with no
+`vscode` import, so the policy is tested against fakes instead of described.
+
+The flow the gate demanded turned out to have **two** approvals, because the
+product has two: the operator approves the *plan*, and the operator approves the
+*result* (`POST /runs/{id}/done-signal`) — and that second one is the only thing
+that makes a diff exist server-side, which is what `/changes` and
+`review_change(diffSha)` bind to. So the editor shows the engine's proposed diff
+labelled *proposed*, asks for confirmation, records it, then shows each file's
+recorded patch labelled *reviewed* and takes approve/reject per file. Declining
+either step leaves nothing recorded and writes nothing.
+
+Bytes are the contract, and the refusals are the feature: a patch that does not
+hash to the digest is never displayed; drifted context is applied only on a
+unique match, never a guess; binary, symlink, rename-only and
+patch-omitted changes are refused; a file that changed after its diff was shown
+is not overwritten; a `@`-context path that climbs out of the workspace is
+rejected before it reaches the wire; and a context block over the cap says in
+the goal itself which items were dropped or truncated, so "what the model saw"
+stays answerable from the audit.
+
+`awaiting_done_signal` is a settled state — the engine finishing is not the run
+finishing — and this was learned twice: once by reading `service.py`, once by
+watching a test poll a deadline that would never arrive. Building it also
+required rebuilding `clients/ts/dist`, which was 12 files stale against its own
+`src` (no `run_diff`, `list_changes`, `review_change`).
+
+Not claimed: the live drill is written but unrun, and the `vscode` adapter is
+typechecked and built without a window ever being opened in this environment.
+`docs/week-7-plan.md` states both plainly rather than implying a desktop test.
+
+### W4 (installs) — permitted only under the boundary, and the proxy keeps the record (2026-10-27)
+
+`pip install` is no longer blocked by name alone. `policy.install_permission()`
+grants the install verbs only when the operator flag is set **and** the run is in
+`container` mode **and** `HTTPS_PROXY` names the egress sidecar; anything less
+returns a refusal that says why. The engine injects `HTTP(S)_PROXY` through
+`confine.install_env()`, passed by value because a proxy is a destination, not a
+secret.
+
+The gate asks for an audit, and the proxy did not have one: it now prints one
+line per tunnel that actually opened (`CONNECT pypi.org:443 purpose=sandbox
+allowed`). Denials are not logged — the compose healthcheck probes with a denied
+CONNECT every 10s — and a test pins both halves.
+
+Deterministic drill (`w4_install_drill.py`, `w4-install-1793111223.json`), the
+real gate inside a container on a gateway-less run network, no model: no flag →
+denied with the reason; flag + container + proxy → `Successfully installed
+six-1.16.0`; same with an off-list `--index-url` → `Tunnel connection failed:
+403 Forbidden`; proxy audit shows exactly `pypi.org` and
+`files.pythonhosted.org`. The npm/npx lane is permitted by the same function but
+undrilled (the worker image has no node toolchain), and a warm package cache is
+still absent — both stated rather than assumed.
+
+### W4 (MCP) — a run used an MCP tool, and the audit names the server and the tool (2026-10-27)
+
+The reviewed list is configuration, not input: `harness_orchestrator/mcp.py`
+reads `DSH_MCP_SERVERS`, a JSON file **baked into the worker image**, so admitting
+a server is a rebuild rather than something a running service can swap. Validation
+is the boundary — stdio or https only, pattern-checked names, unknown keys
+refused, `failOnStartupError` forced true, and **no `env` at all** on a spawned
+server (decision 3: servers get no credentials; a call-time broker is the later
+design). A declared-but-malformed list fails the run instead of degrading to
+"no servers", because a half-applied boundary looks exactly like an intact one.
+Neither the plan nor the model has a channel to it; a test asserts that a plan
+asking for `{"mcpServers": [{"command": "curl"}]}` still mounts only the
+reviewed entry.
+
+Live (`w4_mcp_client_drill.py`, `w4-mcp-client-1793109830.json`): an HTTP-driven
+run settled `awaiting_done_signal` with `agent_events` rows named
+`mcp__harness-stub__stub_echo` and `mcp__harness-stub__env_probe`. The returned
+marker appears nowhere in the goal, so it can only be in the transcript if the
+call actually crossed the server process. The first-party stub is deliberate:
+the mechanics are proven against a server whose behaviour we can read before any
+real third-party server is reviewed — and the third-party leg still waits on the
+install path, since the worker image has no installer.
+
+Building it also surfaced two shipped defects, each fixed with tests in the same
+change: the run-network leak below, and the fact that operator `DSH_*`
+configuration never reached a worker (`--env KEY` resolves its value from the
+Docker client's own environment — the daemon's, not the orchestrator's).
+
+### W4 (leak): every confined run leaked its network until Docker could not run anything (2026-10-27)
+
+Found while drilling MCP wiring: a run failed in two seconds with
+`docker network create --internal … returned non-zero exit status 1`, and running
+that command by hand answered **"all predefined address pools have been fully
+subnetted"**. The stack held 20 orphaned `harness-<id>-net` networks, the oldest
+eight days.
+
+The cause was W4's own egress work: `ContainerBoundary` connects the shared
+`harness-sandbox-egress` proxy to each run network so the worker has exactly one
+route out, but `close()` removed only the relay and the network — and a network
+with an attached container cannot be removed. So *every run that reached the
+proxy* leaked a network permanently, and nothing noticed until the pool was
+full. Two tests now pin the order (`disconnect` before `network rm`, and no
+disconnect when no proxy was attached); the 20 orphans were reclaimed by hand
+with the same operation, after confirming each held nothing but the proxy.
+
+The larger honesty note: no earlier drill caught this because nothing in the
+stack asks "did the boundary clean up?" — the failure surfaced weeks later as an
+unrelated-looking start error. A cleanup claim needs a reclaim check of its own,
+not just a `close()` that exists.
+
+### W6 (local) — the same engine, confined by the container boundary, against a local directory (2026-10-27)
+
+Slice 4, designed from the audit before any code: seatbelt is not an option
+(the engine refuses it — sandbox-exec breaks the dsh PTY — and fails closed
+unless the mode is `container` or explicit `off`), and the worker daemon's
+security law forbids caller-shaped paths, so local mode reuses neither. The
+decision is recorded in `docs/week-6-plan.md`: **local engine, server gate**.
+
+`harness run --local DIR` proposes and approves on the server exactly as a web
+run does, deliberately does NOT call `start_run` (the queue only claims
+EXECUTING runs, so no phantom server execution and no double-run), then runs
+the turn through `deploy/runners/local_engine.py`: the orchestrator's own
+`DeepSeekHarnessWrapper` with `isolated=True`, launched by
+`confine.wrap_command(mode="container")` — same worker image, same internal
+network + model relay + egress proxy. The agent works on a seeded copy; the
+diff is produced INSIDE the boundary (read-only bind of baseline and run
+tree) and applied back file-by-file. The launcher refuses, with an actionable
+message and no spawn, when docker, the image, live credentials or the
+container mode are missing — it never degrades to `off` or seatbelt.
+
+Audit, stated honestly: the plan gate is the server's (identical events), the
+patch is uploaded to the raw-body artifact endpoint and a run comment
+references the plan that authorised the run — carrying `executed=local`,
+confinement, image, the diff digest and the artifact id in its body.
+Tool-call-level events from an off-host engine cannot be minted into
+`agent_events` by any existing endpoint; that is a contracts decision, not a CLI
+workaround — so the worker's own NDJSON progress lines are now shown to the
+operator instead of being parsed away, which is what let the next defect be seen
+at all.
+
+The live drill corrected three more claims from the first pass, each now pinned
+by a test: the generated `upload_artifact` stub sends **no body**, and the
+endpoint ("the request body IS the file") answers `EMPTY_ARTIFACT` — the trace
+had been failing silently; the transport grew a raw `content=` path and the
+patch bytes now actually land. A comment reference must resolve to something the
+discussion knows: `refKind: diff` means a high-impact *approval* row, not an
+artifact id, so pointing at the artifact was rejected as unavailable — the
+comment references the plan instead, verified `201` against the live API. And
+the drill itself read a comments list without checking its status code and under
+the wrong key, so a 404 looked like an empty but valid list.
+
+Earlier in the same drill, the applier had treated "absent from the change
+list" as "deleted", which would have removed every untouched file in the
+workspace; only the boundary diff's own `+++ /dev/null` headers may delete now,
+and paths had been corrupted by a fixed-offset slice in the header normaliser.
+
+Status after four live attempts, the last one green (`w6-local-1793107805.json`):
+the server showed `plan_proposed, plan_approved` and no `execution_started` (a
+local run never becomes a server execution), `present.txt` appeared in the user's
+directory while the untouched file stayed byte-identical, the diff artifact was
+read back and held the patch, and the provenance comment landed with
+`executed=local` + digest. What the evidence deliberately does not claim: the
+worker was killed by the engine deadline at 900 s after writing, so this is the
+boundary, apply and trace proven end-to-end, not a turn that ended on its own
+terms — and the created file is empty, so the apply holds regardless of how well
+this local model writes content. An over-specified one-command goal made it reply
+`DONE` without calling any tool, and the CLI reported `artifact: skipped (the run
+produced no diff)` instead of inventing a change.
+`harness chat --local DIR` joins `run --local`: the directory is stored with
+the session, so `--resume` picks the same workspace back up.
+
+### W6 (chat) — an interactive loop that says exactly what it remembers (2026-10-27)
+
+`harness chat` is slice 3: an interactive loop over the SAME run path — every
+turn is a normal plan-gated run (`propose → approve → start`), `--yes` covers
+all turns only as an explicit operator decision, and a refusal rejects that
+turn's plan and ends the loop rather than letting the next message assume an
+approval that never happened.
+
+The session identity the plan demanded, answered without inventing a server
+object: the engine remembers exactly the history block `compose_goal` renders
+into the next goal — it travels on the wire inside `propose_plan`, so it is
+auditable, not implied — and the transcript lives in a local session file
+under the credentials permission contract (0700 dir, 0600 file, atomic
+replace). The transcript stores the plain message per turn; the rendered goal
+is stored alongside it because that string is what the server actually saw.
+History is capped newest-first at 4 KB, so the oldest exchanges drop first —
+a bound, stated in the code, not a silent truncation.
+
+Live smoke (`scripts/e2e/w6_chat_smoke.py`, `w6-chat-1793092724.json`): two
+scripted turns against the stack; turn 1 shows the same event sequence as a
+`harness run` (plan_proposed, plan_approved, execution_started,
+engine_completed); turn 2's wire goal provably carried turn 1; session file
+permissions checked on the real store. `--message`/`--resume`/`--continue`
+make chat scriptable, so the drill needs no pty.
+
+There is no server-side conversation object, and chat does not pretend there
+is one; server-remembered sessions would be a contract decision, not a CLI
+workaround.
+
+### W6 (CLI) — the same task completes from a terminal, with the same audit trail (2026-10-27)
+
+Week-6 slices 1–2: `harness_sdk.cli` ships a `harness` console script with
+`login`/`logout`, `run`, `status`, `diff` — commands only, every call still goes
+through the SDK transport so the CLI cannot drift from the contracts.
+
+The plan's four claims, each with evidence:
+
+* **Same gate, same events.** `scripts/e2e/cli_parity.py` runs one goal through
+  `harness run` and the same goal over HTTP, then compares the persisted
+  `agent_events` types: identical sequences, identical settled states
+  (`w6-cli-parity-1793085128.json`, runs `run-0e4b25c7f895` /
+  `run-0f515e97495a`). Like the W4 drills, every run writes its own evidence
+  file, so a rerun cannot overwrite the record a claim was made from.
+* **`harness diff` is the server's diff**, read through `run_diff` — the CLI
+  formats it; it never recomputes one.
+* **Offline token storage**: `$XDG_CONFIG_HOME/harness/credentials.json`, dir
+  `0700`, file `0600`, atomic replace, `HARNESS_TOKEN` overriding; the OTP login
+  path reads the dev code from identity logs.
+* **`--json` is exactly one object** on stdout, progress to stderr — subprocess
+  tests, not a string dump.
+
+Building the drill found and fixed three real problems: `argparse` crashed every
+command but `login` because the service-url flags were only defined there (unit
+tests injecting a client could not see it); `POST /plans` returns only a
+`planId` — the run binding comes back from APPROVE, so assuming a runId failed
+against a live server while stubs passed; and Docker Desktop's compose log API
+served a ~17-hour-old buffer while `docker logs <cid>` was current, which made
+working OTP delivery look broken (`compose_journey.fetch_otp` now reads the
+container first). The bracketed-`NO_PROXY` sanitiser from contracts 1.0.0rc5 is
+mirrored in the SDK transport, since the CLI runs on the developer's machine
+with that variable set.
+
+Chat and local-workspace mode are not started: the gate stays open.
+
+### W3 closed — an interrupted write, a rewind, and a second attempt (2026-10-26)
+
+The last open clause was "resume reconciles partial writes". A new drill
+(`scripts/e2e/w3_partial_write_drill.py`, `w3-partial-write.json`) pauses a run
+while `slow_writer.py` is provably writing, reads a genuinely torn file back
+(28 of 120 lines), rewinds to the before-attempt checkpoint — which removes the
+file, because it did not exist then — and resumes, producing a clean second
+attempt.
+
+Building it exposed a real defect: the attempt number lived in RAM, so a resumed
+run restarted the count and the checkpoint history read "before attempt 1" twice.
+It now comes from the checkpoint store, and a test pins `1 → 2` across a resume.
+Also fixed: the drill's `docker top -eo cmd` form fails without a PID column and
+still exits 0, which had the process check silently seeing nothing.
+
+### Contracts 1.0.0rc5 — one outbound client factory, not four copies (2026-10-26)
+
+httpx 0.28 turns a bracketed IPv6 `NO_PROXY` entry (`[::1]`, which Docker Desktop
+exports) into a mount pattern whose port parses as `:1]`, so *constructing* the
+client raises `InvalidURL`. Section 1 fixed it locally for SSO; the whole-project
+test run then showed onboarding (4 tests) and the MCP client (3 + 15 errors)
+failing the same way.
+
+`harness_contracts.http_client` now owns the factory (`env_client`, plus a
+`sync_env_client` twin) as an optional extra, since sections may import contracts
+but not each other — three copies of a security-relevant HTTP client is exactly
+the drift the isolation guard exists to prevent. The retry strips brackets only
+when the environment actually carries them, restores the environment afterwards,
+and re-raises any other `InvalidURL` untouched. Contracts bumped to `1.0.0rc5`
+with the TS mirror header regenerated in the same change; Section 1's module is a
+re-export shim. Onboarding 91 passed and MCP 18 passed **with the bracketed
+variable still set**.
+
+Also corrected in the test report: Section 11's failure is not this defect. Five
+repetitions each way gave 1/5 with `NO_PROXY` and 0/5 without, on a
+`chunksIndexed` 8-vs-7-rows race unrelated to httpx — recorded as its own item.
+
+### W3 (rewind) — a run workspace can go back to a checkpoint (2026-10-26)
+
+"Revert to the last checkpoint" was a policy with nothing behind it: a run
+executes in its own directory on the `harness_runs` volume and nothing
+snapshotted it. Now every execution attempt leaves a `before attempt N` and an
+`after attempt N` checkpoint, and `POST /runs/{runId}/rewind` restores the tree
+to one (default: the newest). Rewind is exact — files are written back and files
+created after the snapshot are removed — and it is refused with 409 while the run
+has a live task, because resetting files under a worker that is still writing
+them would race the agent.
+
+Checkpoints are manifests plus content-addressed blobs under
+`DSH_WORKSPACE/.checkpoints/<runId>/`, outside the run's own tree so the agent
+cannot edit its own undo history. Not git: the orchestrator image has no `git`
+binary, and adding one for this is a build dependency the feature does not need.
+
+Also: the resume-status caveat no longer tells operators to "review the workspace
+checkpoints" — it says side effects are not rolled back and resume continues from
+whatever is on disk, which is the behaviour the engine actually has.
+
+### W1 (M07) — both remaining acceptance legs, driven over HTTP (2026-10-26)
+
+M07's gate asked for a run started through the API and a screenshot visible
+through the container boundary. Both now exist as drills against the deployed
+stack, with no host-side engine call:
+
+- `scripts/e2e/m07_api_run_drill.py` — login, `POST /projects`, `plan`,
+  `plan/approve`, `start`, then status/engine polling; the worker is snapshotted
+  live (`999:999`, read-only root, `cap-drop ALL`, private network, two
+  volume-subpath mounts) and the fixture repo is verified on disk after the run
+  (`m07-api-run.json`).
+- `scripts/e2e/m07_vision_api_drill.py` — uploads a PNG as a run artifact, sets
+  `maxToolCalls` *before* the first call, and reads the model's answer. Two runs
+  with two different solid fills both came back correct (`orange`, `purple`) in
+  12.53 s / 22.59 s with zero tools used (`m07-vision-api.json`,
+  `m07-vision-api-purple.json`). The deployment was returned to the local model
+  afterwards; the provider key was read from `~/.harness-secrets` and never
+  printed.
+
+Found on the way: `GET /runs/{runId}/engine` replays a settled run without
+model or usage (recorded in `docs/backlog.md`), and the local `.env` named a
+model the configured Ollama does not have.
+
+### W2 (N04) — retry with changes is a visible control, not a model ladder (2026-10-26)
+
+The backend already recorded guidance and resumed runs; what was missing was the
+affordance, so an operator facing a stuck run could only press Resume and hope.
+
+#### Added
+
+- **`resumeWithChanges(runId, content, token)`** — guidance is recorded first,
+  then the run resumes. The order *is* the feature: the executor drains guidance
+  through `guidance_since` when it starts, so resuming first would read nothing
+  and silently discard the correction — a working-looking button with no effect.
+  Empty content is refused before any request rather than degrading into a plain
+  resume (Resume already exists; a second button for it is decoration), a denied
+  redirect never resumes, and the content is trimmed so whitespace cannot become a
+  meaningless guidance row.
+- **"Resume with changes" in Controls** — visible only while a run can resume
+  (`paused` / `blocked`), accessible name on the input, disabled until something
+  is typed, and honest copy: guidance the agent reads before it continues, not a
+  chat message and not a restart.
+
+#### Limits stated
+
+- This is not a silent model retry: no model is switched. It continues the same
+  session with new guidance. A checkpoint rewind is Week 3's work.
+
+#### Tests
+
+`section7`: `resumeWithChanges.test.ts` (4), `controlsResumeWithChanges.test.tsx`
+(6), both written failing first. tsc clean, **1003 tests across 91 files**,
+`next build` green.
+
+### W2 (N02, N03) — the context was assembled and then dropped (2026-10-26)
+
+The runtime's own context injector is off in the shipped profile
+(`includeRuntimeContext:false`) and that key is the SDK's, so what this product
+controls is the goal it hands the engine. Two blocks it was already assembling
+never got there.
+
+#### Added
+
+- **`repo_context.py`**: a bounded baseline — pruned file tree, README excerpt,
+  `git status --short` when the workspace is a repo, and the dependency manifests
+  present. Prepended by `execute_goal`, which means the direct SDK call and the
+  isolated worker cannot drift on what the model was told about the repo.
+  `HARNESS_REPO_CONTEXT=0` disables it.
+- `HARNESS_REPO_CONTEXT` is injected **once per session**: an SDK session
+  continues across a resume, so a second copy is a duplicate the model pays to
+  read again, not extra context. A different session still gets its own.
+
+#### Fixed
+
+- `run_data["rules_prompt_block"]` never reached the executor. Its loader comment
+  already said it was stored "so … future engine calls can carry it into system
+  context"; they did not. Project rules are now in the engine call, before the
+  curated context and the goal.
+- `run_data["context_bundle"]["rendered"]` — the bounded @ref bundle, documented as
+  riding "on the run for engine prompt assembly" — also never reached the engine.
+  Same fix, same ordering.
+
+Both stay advisory: a blank block contributes nothing rather than an empty
+heading, so a run with neither gets the prompt it always got (pinned by test).
+
+#### Limits stated
+
+- The empty case is deliberate: a workspace with nothing recognisable returns
+  `""`, because an empty scaffold is worse than no scaffold.
+- **Not yet demonstrated:** the gate's other half — a real task in a 500-file repo
+  finding the right files unprompted. That needs a live run, which is what M07 is
+  blocked on.
+
+#### Tests
+
+`section4`: `test_repo_context.py` (8), `test_repo_context_wiring.py` (6),
+`test_n03_context_to_executor.py` (5). Ruff clean, `make static-gates` green.
+
+### W2 (N01) — a stuck run is now caught from the event stream (2026-10-26)
+
+Two live acceptance attempts made 14 and 37 tool calls against a one-sentence
+goal and were stopped by nothing but the wall clock. The budget was not missing —
+it was late. `remaining_tool_calls` computed `maxToolCalls` from
+`COUNT(*) FROM agent_tool_calls`, and `record_engine_tool_calls` only fills that
+table *after* the engine returns, so every run started with its full allowance and
+never lost any. Native `tool-fs` calls are not bash calls, so the shell plugin's
+own counter never saw them either.
+
+#### Added
+
+- **`loop_guard.py`**: a pure, DB-free guard observing the W1 transcript stream —
+  the one place every call passes on both execution paths. Two independent
+  stops: `loop_detected` (same tool, whitespace-normalised same arguments, four
+  times) and `tool_budget_exhausted` (distinct calls over the cap, because 100
+  different commands is a burn even if nothing repeats). Results are not counted;
+  once stopped it stays stopped, so it cannot report a stop and then let the run
+  continue.
+- **Service wiring**, on both the live forwarder *and* the `finally` drain that
+  previously emitted records without consulting the guard. On a stop the run
+  fails durably with `ENGINE_FAILED`, the shell policy's `maxToolCalls` is
+  written to zero so further bash calls refuse, and the worker's late
+  `completed` is discarded instead of overwriting the failure.
+- `HARNESS_LOOP_REPEAT_LIMIT` tunes detection; unset means the default (4), and
+  an explicit empty/`off` means disabled. "No config" falling through to "no
+  detection" is how the budget became decorative.
+
+#### Limits stated, not smoothed over
+
+- **The worker is not killed.** There is no cancel channel into the SDK session;
+  that is Week 3's spike. A stopped run keeps consuming until it ends on its own.
+- `tool_budget_exhausted` is covered by unit tests but **not** at the service
+  seam — the fixture has no `run_limits` row, so `budget` arrives as `None`.
+- The wiring tests were written after the wiring, so they were mutation-checked:
+  disabling `guard.observe` fails 3 of 4 of them.
+
+#### Tests
+
+`section4`: `tests/unit/test_loop_guard.py` (12) and
+`tests/unit/test_loop_guard_wiring.py` (4). Ruff clean, `make static-gates` green.
+
+#### Verified live (2026-10-26) — M00 and M04
+
+**M00 (stack health on the current revision) closed.** Both images already on
+the host (`vdev-local`, `vbuild-1025`) were checked first and contain none of
+this week's code, so they could not have produced current-revision evidence.
+`harness-backend:vm00-1026` and `harness-frontend:vm00-1026` were built from
+`df4096e`: 61/61/61 migrations, `migrate` exit 0, 18 containers healthy, journey
+13/13, `CONNECT github.com:443 → 200` and `CONNECT example.com:443 → 403` on that
+image, and a forced sidecar stop producing `[FAIL] container health` before
+recovering.
+
+**M04 (live transcript from the confined worker) closed.** A real worker in a
+real `container` boundary on a worker image built from this tree streamed two
+call/result pairs — `read` at 34.85 s, `write` at 48.89 s — against a 68.42 s
+completion, with `notes.txt` on disk containing exactly what the goal asked. No
+spend (local Ollama), and `HARNESS_ENGINE_CONFINEMENT=off` was never set.
+
+#### Added
+
+- **`deploy/patches/openrouter-vision.patch.yml`** — the same transport patch
+  with `input: [text, image]`. It is committed and baked into the worker image
+  because a confined worker can only read `DSH_PATCH_FILES` from inside its own
+  image: the previous approach wrote the widened declaration to a host temp path
+  and the worker died before reaching any model. A modality claim that has to be
+  reviewed and versioned is the right shape anyway.
+- **`scripts/e2e/m04_streaming_smoke.py`** — timestamps every `on_progress`
+  record against the run clock and asserts arrival-before-completion, which is
+  the one M04 claim unit tests cannot make. Same money guard as the sibling
+  smoke.
+
+#### Fixed
+
+- The M04 smoke's own classification bug: it filtered records on `kind`, while
+  the worker's transcript records use `phase`. It reported 0 calls on a run that
+  had made two — a probe that silently under-counts is worse than no probe.
+
+#### Known
+
+- **M07 was attempted and failed.** The confined screenshot run attached the image
+  (`goalImagesAttached: 1`) and streamed correctly — 74 records, 37 correlated
+  pairs, first at 13.45 s — but made 37 `bash` calls in 516.75 s, never returned
+  the colour, and ended in an empty model response at the deadline. No retry: the
+  discipline is one attempt, and re-running a runaway would have spent again
+  without becoming measurable.
+- **That run cannot be priced.** `usage` is `null` on the openai-completions
+  transport, so 37 paid calls yield no cost figure from evidence. Metering is now
+  the thing that would let a runaway be stopped, not merely reported.
+- **Tool choice varies by model on identical policy**: `qwen-local` used native
+  `read`/`write`; `qwen/qwen3.7-flash` used `bash` 37 times and never the file
+  tools.
+- Journey check 07 still reports the engine result as `replayed`, not live; the
+  journey proves the stack, never a live run.
+- The first trip-test attempt PASSED with the sidecar stopped — `ps -a` was read
+  before the daemon reflected the exit. Detection is fine; the test needs a
+  settle.
+- `compose_journey` and the confined drills run on Docker Desktop here;
+  Landlock-backed writes remain a native-Linux matter (`d04752e`).
+
+#### Verified live (2026-10-26)
+
+`scripts/e2e/openrouter_smoke.py` drives the shipped engine against a real key
+(one attempt, `max_tokens` pinned, `HARNESS_ALLOW_PAID_SMOKE=1` gate — it
+refuses to spend otherwise). It completed a tool-using run with two live tool
+calls and a real file side effect, and got `qwen/qwen3.7-flash` to read the
+colour of an attached PNG back as `(220, 40, 40)`. Three facts it settled: the
+profile registers one LLM route and OpenRouter needs
+`deploy/patches/openrouter.patch.yml`, not a provider env var; a model declared
+`input: [text]` makes the runtime silently drop the image and say so; and
+providers refuse tiny images (`8x8 must be larger than 10`), so fixtures must
+be real screenshots.
+
+#### Not proven, and why that is the honest result (2026-10-26)
+
+The same smoke re-run with `--isolated` against local Ollama — free, no provider
+spend — failed in **0.0 s with zero tool calls**: the confined worker refuses
+because Seatbelt breaks the runtime's PTY and no container boundary was up. That
+is the guard doing its job. Setting `HARNESS_ENGINE_CONFINEMENT=off` would have
+produced a green run proving only that an unconfined worker runs, so it was not
+set and the refusal is recorded as evidence
+(`m07-ollama-isolated-refused.json`). **Superseded the same day**: the container
+boundary turned out to be reachable and M04 has since streamed live through it —
+see *M00 and M04* above. What the refusal established still stands: bypassing
+confinement to obtain evidence was correctly refused, and the direct path was the
+only proven one until a real boundary existed.
+
+Reading that output also exposed a displayed number that is not the model's:
+the status panel shows `DSH_CONTEXT_WINDOW` (1,000,000 by default) while the
+transport patch declares `contextWindow: 65536` for the model in use. **Closed in
+`a5148e0`** — a window is now reported only when an operator set one, and the run
+page's never-before-reachable "window unknown" branch is what an unset variable
+produces. The profile default was indeed not proof of the window, exactly as Day 4
+predicted and the roadmap's no-fake-affordances rule forbids shipping.
+
+### W1 — a screenshot can travel with the goal (2026-10-26, contracts 1.0.0rc4)
+
+`readImage` was already on and the runtime already admits image content blocks,
+but nothing in this product ever attached one: "fix this UI, here's the
+screenshot" was impossible.
+
+#### Added
+
+- **`goal_images.py`**: a run's verified image artifacts become SDK content
+  blocks (`{"type":"image","data":<canonical base64>,"mimeType":…}`) at
+  execution time. Selection is bounded twice — our own
+  `HARNESS_GOAL_IMAGE_MAX_BYTES` / `_MAX_COUNT` / `_TOTAL_BYTES` and the
+  runtime's own image limits — and every image that does not travel is
+  reported with a reason. `HARNESS_VISION_MODELS`, when configured, refuses
+  before the call rather than paying for a rejection the runtime would file
+  anyway; `HARNESS_GOAL_IMAGES=0` turns the path off.
+- **Upload→model path** in section 7's composer: the picked file is stored via
+  the existing artifact route once approve mints the run id (no new endpoint,
+  no invented contract), then the engine hands it to the model at start.
+- **Contracts `1.0.0rc4`** (additive): `goal_images`, so "what did the agent
+  actually see" is durable and replayable rather than process memory. The
+  section 7 status panel renders attached/skipped/refused from that event.
+
+#### Fixed
+
+- A resumed run re-attached the same image into a continuing SDK session
+  (duplicate attachments). The first attempt of a session now owns the image.
+- **Review-found, test-confirmed:** the team filter was appended *after*
+  `ORDER BY`, which made the SQL a syntax error on the first real run — the
+  module-level tests could not see it because they never went through the
+  service. Service-level tests now pin the keyword actually reaching the
+  engine, the refusal-before-the-call, and the resume case.
+- `teamId` is a process stamp, not a durable column, so a replica that never
+  saw the bind would have selected nothing and said nothing. It now resolves
+  through the same durable witness the budget gate uses, and reports
+  `teamScoped: false` when only run scope is available.
+- Artifact bytes were read synchronously on the event loop; they now go
+  through a worker thread, and an expired-but-unpurged image is no longer sent
+  after the artifacts API has already 410'd it.
+
+### W1 — the transcript is live, and compaction is visible (2026-10-26)
+
+The SDK emits turn events, but this wrapper dropped them: a run showed a
+spinner, then a final answer, with no evidence of what the agent actually did.
+Contracts had no tool-event vocabulary at all.
+
+#### Added
+
+- **Contracts `1.0.0rc3`** (additive): `tool_call`, `tool_result` and
+  `context_compacted`, with golden payloads and a regenerated TS mirror. The
+  call/result pair is correlated by `(runId, callId)`; results that arrive
+  before their call are buffered by the UI rather than dropped.
+- **A live transcript path**: `execute_goal(..., on_progress=)` forwards SDK
+  turn events on the direct path; the isolated worker emits NDJSON `progress`
+  lines so the parent process sees them; the service drains a thread-safe queue
+  onto the event bus (scrubbed before persistence). `ToolActivity` renders the
+  stream in section 7 and pairs each result with its call.
+- **Context visibility**: the state machine records the context window at
+  execution start; compaction events are summed into `GET /runs/{id}` status,
+  and the status panel shows compacted tokens.
+
+#### Fixed
+
+- **Optional engine keywords are probed, not assumed.** `on_progress` is now
+  passed only when `execute_goal` accepts it (and `**kwargs` counts), and no
+  forwarder is started for engines that cannot emit. Narrow test/custom engines
+  previously failed the whole run with a `TypeError`; 32 section-4 tests caught
+  this before it shipped.
+
+### W1 — the agent can use files, and output is no longer capped (2026-10-25)
+
+The shipped `sdk-minimal` profile turns the filesystem tool off (`read`,
+`write`, `edit` all false) and the wrapper additionally pinned
+`max_tokens=4096`. An agent could only touch files through bash, and every
+answer was truncated at 4k tokens regardless of the model.
+
+#### Changed
+
+- The per-run policy patch enables `tool-fs` (`read`, `write`, `edit`,
+  `readImage`) and `tool-fs-search` (glob/grep), so file work no longer costs a
+  shell round-trip. This is safe only because the runtime confines the tool to
+  the same `workspaceRoot` the shell gate enforces, and because
+  `_fs_write_capability` keeps `write`/`edit` **off** when a plan has
+  `forbiddenPaths` and the confinement mode cannot freeze them (Landlock and
+  `none` cannot; container read-only mounts and Seatbelt can). The reason is
+  written into the patch so an operator can see why writes were disabled.
+- The hardcoded `max_tokens=4096` is gone: unset lets the provider decide, and
+  `HARNESS_SDK_MAX_TOKENS` pins a cap for cost control (invalid values fail
+  fast).
+- Seeding a workspace no longer strips `.git`, so checkpoints and diffs work
+  against real history instead of an undescribed tree.
+
+### W1 Day 0 — the sidecar that was never running (2026-10-25)
+
+`sandbox-egress` was crash-looping and every check passed anyway.
+
+#### Fixed
+
+- **The entrypoint ignored `command:`.** `deploy/entrypoint.sh` never read
+  `"$@"`, so the egress sidecar (whose only purpose is
+  `python -m harness_sandbox.egress_proxy`) booted the all-in-one branch —
+  seven uvicorns plus a migrate job inside a 128MB, 0.25-CPU container — and
+  died on the master-key gate. It now execs a passed command before the
+  `HARNESS_SERVICE` branch, so a sidecar needs no service identity at all.
+- **`sandbox-egress` had no healthcheck.** It has one now, and it tests
+  policy rather than liveness: a `CONNECT` to a non-allow-listed host must
+  answer `403` (no outbound network needed), so a dead listener, a broken
+  allow-list or a wedged loop all read as unhealthy.
+- **Readiness no longer implies reach, and never depended on it.** The sandbox
+  `/ready` body reports `egress: up|down` when the proxy is configured and
+  still fails only on db + schema drift — a run that needs no network must
+  execute while the proxy is down, but `ready` must not be read as
+  "network available".
+
+#### Added
+
+- `scripts/e2e/compose_journey.py` check 0: every service this stack actually
+  runs (profiles applied) must have the container it should have — running,
+  healthy where a healthcheck exists, and `migrate` exited 0. It reads
+  `ps -a`, because the first version of this check read `ps` and therefore did
+  not see stopped containers at all: stopping `sandbox-egress` by hand still
+  passed. Verified both ways against the live stack (stopped → reported,
+  restarted → clean). This is the check that would have caught 708 consecutive
+  failed healthchecks behind a demo replay.
+
+#### Found while verifying
+
+- The database had migration `0062_team_model_prefs` applied while the running
+  image declared 60, so identity / github / review / meeting / webhook-delivery
+  were crash-looping on the schema-drift gate — correctly: the image predated
+  the migration. A rebuild from the current tree clears it. The full image
+  build is currently blocked on a 60 MB `deepseek_harness_runtime_bin` wheel
+  downloading at ~28 kB/s from inside the builder (~100 kB/s on the host), so
+  the live verification used a source-overlay image over the previous build
+  (`harness-backend:vrollback-1024` is the untouched original tag).
+
+### Tool-output protocol — structured diagnostics instead of scraping (2026-10-25)
+
+`docs/tool-diagnostics-protocol.md`. Hermes' `hermesc --json` contract adopted
+verbatim (roadmap H1): `{path,line,col,kind,message}` on stderr, the program's
+output on stdout, never mixed.
+
+#### Changed
+
+- `StructuredExecResult.diagnostics` is a list of records, not strings — with
+  `diagnostics_source` (`protocol` / `located` / `scan` / `none`) recording how
+  the parser got them, and `diagnostics_truncated` when the 20-record display
+  cap drops the rest. A record with no position says so instead of carrying a
+  guess; `kind` defaults to `error` so an unknown severity is never softened.
+- Diagnostics are read from stderr for the two structured tiers. Only the
+  keyword `scan` fallback reads stdout, because test runners print their
+  summary there — and the API now labels that case.
+- `parse_output` (an unused alias flagged as an orphan in
+  `docs/briefs/m17-findings-pbeta.md`) removed.
+- Python and TypeScript SDK clients regenerated — this also picks up drift that
+  predated this change: the router clients were missing `runId`,
+  `ModelPrefsBody` and `unattributed` spend, and the sandbox client was missing
+  the checkpoint hunk/restore operations already served by the API.
+
+#### Added
+
+- `render_diagnostics_json()` — the emitter half, so a tool that speaks the
+  contract round-trips through the parser (`emit → parse` is an identity).
+- A seeded corpus of nine tool outputs across all three tiers, with a test that
+  asserts the corpus exercises every tier — the "validate the validator" step
+  applied to the parser before it becomes a review gate.
+- Terminal panel renders `path:line:col`, the kind and the message per
+  diagnostic, plus a plain note when positions came from scanning.
+
+### Provider registry — 65 providers, three wire protocols (2026-10-25)
+
+`docs/providers.md`. Until now the router had one outbound target —
+`DEEPSEEK_BASE_URL` — no matter which model was named, so the six "providers"
+in the catalog were six labels on one URL.
+
+#### Added
+
+- `section3/src/harness_router/provider_registry.py`: 65 providers / 117 named
+  models across 9 regions (15 frontier labs, 16 open-weight hosts, 12 Chinese
+  labs, 14 gateways and clouds, 8 local runtimes), each with its documented
+  base URL, wire protocol, auth style, key env and docs link.
+- Endpoint resolution with documented precedence: a deployment gateway
+  (`HARNESS_PROVIDER_BASE_URL`) → the provider's own `*_BASE_URL` → the
+  historical `DEEPSEEK_BASE_URL` → the registry default → the deployment
+  fallback for an unregistered provider. Existing installs and suites are
+  unaffected; a gateway override forces the OpenAI shape.
+- Anthropic (`/v1/messages`, `x-api-key`, system lifted out, `max_tokens`
+  defaulted) and Gemini (`:generateContent`, model in the path,
+  `x-goog-api-key`, role mapping) adapters next to the OpenAI one.
+- `GET /api/v1/models/catalog` now carries label, protocol, region,
+  open-weights, `requiresOwnEndpoint` and a `priced` list; the keys page turns
+  the provider `<select>` into a searchable datalist over the registry, and
+  Settings → Models gained a provider filter.
+
+#### Fixed
+
+- **Billing no longer guesses.** `PricingEngine` returns $0.50/$1.50 per
+  million for any model it does not know, which at this catalog size would
+  invent spend for free local runs and under-bill frontier models. The router
+  bills an unpriced model at zero and logs the gap; the UI says "cost not
+  tracked" instead of implying a rate.
+- The provider-key endpoint accepts any valid key: `KeyProvider` was a
+  four-value union in the UI while the backend validates only the provider
+  *shape*, so 61 providers were unreachable from the page that stores their
+  keys.
+
+#### Known limitations
+
+- The sandbox egress allow-list predates the registry: a new provider is
+  routable from S3 but not necessarily from inside a confined run. Deriving
+  that list is a network-policy change and needs sign-off.
+- Teams cannot point a provider at their own base URL (Azure resource, Bedrock
+  region) — still operator env only, deliberately, since a team-supplied URL is
+  an SSRF surface.
+- Only 15 of the 117 model ids have a real rate card.
+
+### UI/UX audit Batch A (2026-10-25)
+
+First batch from `docs/ui-ux-audit-2026-10-25.md` — the eight items that were
+broken or misleading rather than missing.
+
+#### Fixed
+
+- **A1** — the run surface stopped quoting internal engineering notes to users:
+  the diff panel now names the files the agent has actually touched (derived
+  from the `diff_progress` events the sandbox already emits), the plan panel
+  dropped its placeholder "Actual cost: — (no live source yet)" line, and the
+  "Comments & nudges" panel became **Run notes**, labelled for what it is (a
+  browser-local scratchpad) with a pointer to the real direction control.
+- **A2** — `TerminalPanel` no longer claims "no live terminal feed" while
+  transcript lines render directly underneath it.
+- **A3** — light-theme contrast: pills, phase badges, run-state badges,
+  settings links and breadcrumb separators moved onto theme tokens, and
+  `pillStyle()` mixes its fill with `color-mix()` so token colours are legal at
+  all (the old `${color}22` concatenation is what forced every pill to hardcode
+  a dark-theme hex). A headless pass over 12 pages × 2 themes went from 15 AA
+  failures to zero; `src/lib/themeContrast.test.ts` guards it.
+- **A4** — the demo-replay banner (a nowrap `.pill` carrying a whole sentence)
+  forced the run page to 489px at a 390px viewport; it wraps now, measured 0px
+  overflow at 320/390/768.
+- **A6** — ticking "Edit a file myself" used to POST a human edit against a
+  placeholder path immediately, pausing the run and recording an empty edit;
+  the checkbox now only reveals the editor and "Save edit" does the write.
+- **A7** — the sidebar TEAM line is a read-only value, not a `<select>` with
+  one hardcoded option and no handler.
+- **A8** — a rejected model-preference save rolls the control back instead of
+  displaying a model the server refused.
+- **A9** — the review page distinguishes a missing PR (404 → empty state) from
+  a failed load (message + retry) instead of hanging on "loading diff…", and
+  "Request changes" requires a written note and sends it as the review comment
+  rather than POSTing an empty array and reporting a recorded decision.
+
+### Team model preferences and reasoning effort (2026-10-25)
+
+#### Added
+
+- **Per-team model choice, persisted** — migration `0062_team_model_prefs.sql`
+  plus `GET/PUT /api/v1/models/prefs` (Reader may view, Writer+admin may save,
+  unknown models rejected with `UNKNOWN_MODEL`, storage failure returns
+  `503 PREFS_UNAVAILABLE` rather than silently accepting). Router `/call` and
+  orchestrator runs both honour the team's primary model; deployment defaults
+  still apply until a team saves a preference.
+- **Composer model chip and Settings → Models** — `ModelPrefsForm` (compact in
+  the plan-gate composer, full on `/settings/models`) lists the provider
+  catalog, auto-saves for admins, and states plainly what the choice affects.
+- **Honest reasoning limits** — reasoning effort is stored for every
+  deployment but only wired into the request for OpenRouter-style endpoints;
+  the server reports `reasoningWireSupported` and the UI says so instead of
+  implying the setting always does something.
+
+#### Known limitations
+
+- Reasoning effort reaches only OpenRouter-compatible endpoints; other
+  providers accept no reasoning object, so the setting is stored and ignored
+  there (stated in the UI, not hidden).
+- The reviewer model preference is persisted but not yet consumed by the
+  reviewer lane.
+
 ### Mission 23 · Program finale — polish sweep (2026-08-26)
 
 Final mission of the 10x program (graph:

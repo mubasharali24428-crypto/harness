@@ -15,7 +15,12 @@ def test_parse_pytest_failure():
     assert result.passed_count == 4
     assert result.failed_count == 1
     assert len(result.diagnostics) >= 1
-    assert "FAILED test_api.py::test_login" in result.diagnostics[0]
+    assert "FAILED test_api.py::test_login" in result.diagnostics[0].message
+    # pytest has no diagnostic protocol and prints to stdout: the honest label
+    # for this tier is a scan, and the record carries no line/col it did not have.
+    assert result.diagnostics_source == "scan"
+    assert result.diagnostics[0].line is None
+    assert result.diagnostics[0].col is None
 
 
 def test_parse_success():

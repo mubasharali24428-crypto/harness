@@ -1,0 +1,795 @@
+{
+  "date": "2026-10-28",
+  "week": "W11",
+  "claim": "a mockup becomes a matching page, an error dialog is triaged from its pixels, and image diffing measures the result \u2014 all inside the run boundary",
+  "runs": {
+    "design": "w11-design-1793209063",
+    "triage": "w11-triage-1793209063"
+  },
+  "drive": "HTTP only",
+  "model": "the configured DSH_MODEL through the OpenRouter vision patch",
+  "fixtures": {
+    "token": "ORBITAL-27",
+    "subtitle": "design review 63",
+    "errorCode": "E_UPSTREAM_563",
+    "dialogMessage": "Snapshot 32e7 could not be uploaded.",
+    "mockupBytes": 6020,
+    "mockupSha256": "f44de8b841c5830cf9e558ad06004323b8445a9f73548cffbe46700cbb1dc90d",
+    "dialogBytes": 16454,
+    "dialogSha256": "ca2fc8af2eaf690da4be0623cb9bac31bc41a69ddf075ce3f1680374e39d1896",
+    "note": "the HTML that produced these PNGs was written to a temp dir outside the workspace and deleted; only the bytes above are seeded"
+  },
+  "seededFiles": [
+    "mockup.png"
+  ],
+  "design": {
+    "startStatus": 200,
+    "states": [
+      "executing",
+      "blocked"
+    ],
+    "state": "blocked",
+    "engine": "replayed",
+    "engineStatus": "error",
+    "answer": "DeepSeek Harness run failed: tool_budget_exhausted after 61 tool calls"
+  },
+  "designTrail": {
+    "toolsUsed": [
+      "image",
+      "read"
+    ],
+    "imageDiffCalls": [],
+    "imageSampleCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_8290c549e08647cd94520dd6",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[0,0],[400,0],[799,0],[0,300],[400,300],[799,300],[0,599],[400,599],[799,599]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_8d8b72bf214043aebd01dcfb",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[10,300],[100,300],[200,300],[300,300],[390,300],[399,300],[400,300],[450,300],[550,300],[650,300],[750,300]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_88533335bb074da29da9c890",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[10,150],[100,150],[200,150],[300,150],[400,150],[500,150],[600,150],[700,150]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_57438478ee154f33ac274abf",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[40,10],[40,50],[40,80],[40,100],[40,120],[40,130],[40,140],[40,160],[40,180],[40,200],[40,250],[40,350],[40,400],[40,450],[40,500],[40,550]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_e4a75afb07a94d2b97a49506",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[95,300],[98,300],[99,300],[100,300],[101,300]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_26bf485db74042a0a7486217",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,95],[250,98],[250,99],[250,100],[250,101]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_630ef90f88a84c768d0cc891",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,80],[250,90],[250,95],[250,96],[250,97],[250,98]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_cbdcc3267556490b840d16fa",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,70],[250,80],[250,85],[250,90],[250,95]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_9118b004957947b8939e9015",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[130,75],[130,78],[130,79],[130,80],[130,81],[130,85]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_11985da0b21c4942aadb87a3",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[395,295],[396,295],[397,295],[398,295],[399,295],[400,295]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_c4e03f8f51dc4e98bfe41f15",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,380],[250,385],[250,390],[250,391],[250,392],[250,393]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_04fbec079d604a6b86ba213a",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,390],[250,391],[250,392],[250,393],[250,394],[250,395]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_4cef2104faa94b7ca2b93c4b",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,395],[250,396],[250,397],[250,398],[250,399],[250,400]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_f5f1427964c74ad58202fccc",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,395],[250,400],[250,410],[250,420],[250,450],[250,480]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_73ff2a75898c47b89e6902e2",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,398],[250,399],[250,400],[250,401],[250,402],[250,403]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_31309cd185dc470689abe836",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,399],[250,400],[250,401],[250,402],[250,405],[250,408],[250,410]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_ea4ca12eab264c559d800177",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,406],[250,407],[250,408],[250,409],[250,410]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_5b5c4c674e5445edadad5580",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[395,200],[396,200],[397,200],[398,200],[399,200],[400,200]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_8c7d6441237a457090dab6f4",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[410,200],[420,200],[450,200],[500,200],[600,200],[700,200]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_4eee1dd00aba4826bb943aa0",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[650,200],[670,200],[680,200],[685,200],[690,200]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_89bda9aec16f4fddbb48b8cb",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[690,200],[695,200],[700,200]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_33d21330c1274516a2480ed6",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[696,200],[697,200],[698,200],[699,200]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_0f754086d4424822b217fad3",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[696,380],[697,380],[698,380],[699,380]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_48f5b5d9d9664cfcaa4e3687",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,195],[250,196],[250,197],[250,198],[250,199],[250,200]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_9ef7db1f19694371b300b994",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,100],[250,120],[250,140],[250,160],[250,180],[250,200]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_39ac385ea9264e3592f2ea75",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,136],[250,138],[250,139],[250,140],[250,141],[250,178],[250,179],[250,180]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_cdc40ee04b6c4a61a2f6d8ed",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,175],[250,176],[250,177]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_3b44841bb4fe4d3da0b2d0ad",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,134],[250,135],[250,136]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_51e309cdf0f44380be9a0b94",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,176],[250,177]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_7f099c60de2a427685970807",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,173],[250,174],[250,175]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_74ce6be1fdb345c3b6139cbc",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,168],[250,169],[250,170],[250,171],[250,172]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_f34853a329c64a809a13b2ce",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,210],[250,220],[250,230],[250,240],[250,250],[250,260]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_5b8be3541ce44ae5a9513d52",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,226],[250,227],[250,228],[250,229],[250,230]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_2061227d07b2448b91f61ac4",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,280],[250,290],[250,300]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_15142a3d49394dcca8148805",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,310],[250,320],[250,330]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_f8d4aee95724414db936d876",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,350],[250,360],[250,370],[250,380]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_eba3d2745ca94cfd8bcbff88",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,330],[250,340],[250,345],[250,348],[250,349],[250,350]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_cc294d6a0511400f905f7bca",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[550,210],[550,220],[550,230]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_0b2cb7ce42cd45eebac6b34e",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[550,340],[550,345],[550,349],[550,350]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_117b9dd942044b8dbda2567a",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[100,300],[150,300],[200,300],[250,300],[300,300],[350,300],[400,300]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_65238d30bf1548d2993517b3",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[146,300],[147,300],[148,300],[149,300],[150]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_7f8731ad12084e87a89376ea",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[146,300],[147,300],[148,300],[149,300],[150,300]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_e638945a35bc4c169616af31",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[130,300],[135,300],[140,300]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_344350ec4e3d4220bb56697d",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[135,300],[136,300],[137,300],[138,300],[139,300]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_64fcf78e458c439b97f92bef",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[446,300],[447,300],[448,300],[449,300],[450,300]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_621a77b2ac2146d18224f868",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[400,300],[405,300],[410,300],[415,300]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_426c74261cea4930bd775e1e",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[440,300],[442,300],[444,300],[445,300]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_ea1228bf0d6446b5bb23a694",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[416,300],[420,300],[425,300],[430,300],[435,300]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_cedfdbba4b364ea9a2a19342",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[310,300],[380,300],[395,300]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_c0be70d90c374d8db784ba62",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[375,300],[376,300],[377,300],[378,300],[379,300]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_5458dc5f3958461e944d24b1",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[500,410],[500,415],[500,420],[500,425],[500,430]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_3dd686120a894e9ea226dce6",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[310,420],[310,425],[310,430]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_dcf92b32bcfb47a491237eb6",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[150,90],[200,90],[250,90],[300,90],[350,90]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_66ae050c4164466698621c1f",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,175],[250,185],[250,195],[250,205],[250,215]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_7a9ba45e1d0142659733564d",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[305,420],[306,420],[307,420],[308,420],[309,420],[310,420],[311,420]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_b296c42338524673861b24e7",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[310,420],[320,420],[330,420],[340,420],[350,420],[360,420],[370,420]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_3ade4f315dfa41b1a58f3545",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[150,110],[200,110],[250,110],[300,110],[350,110]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_4c22f37bb0ef4050901cae44",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[350,450],[350,460],[350,470],[350,480]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_e46a5f1f0e2041b68414ec78",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[350,410],[350,420],[350,430],[350,440]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_c430eebaab3b4a9caf3d8d69",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,100],[250,105],[250,110],[250,115],[250,120]]}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "screenshotCalls": [],
+    "mockupReads": [
+      {
+        "type": "tool_call",
+        "tool": "read",
+        "callId": "call_e6028c308bfd4d17a6a6710e",
+        "arguments": "{\"file_path\":\"/var/lib/harness-runs/workspace/w11-design-1793209063/mockup.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "dialogReads": [],
+    "writes": [],
+    "imageArguments": [
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[0,0],[400,0],[799,0],[0,300],[400,300],[799,300],[0,599],[400,599],[799,599]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[10,300],[100,300],[200,300],[300,300],[390,300],[399,300],[400,300],[450,300],[550,300],[650,300],[750,300]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[10,150],[100,150],[200,150],[300,150],[400,150],[500,150],[600,150],[700,150]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[40,10],[40,50],[40,80],[40,100],[40,120],[40,130],[40,140],[40,160],[40,180],[40,200],[40,250],[40,350],[40,400],[40,450],[40,500],[40,550]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[95,300],[98,300],[99,300],[100,300],[101,300]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,95],[250,98],[250,99],[250,100],[250,101]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,80],[250,90],[250,95],[250,96],[250,97],[250,98]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,70],[250,80],[250,85],[250,90],[250,95]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[130,75],[130,78],[130,79],[130,80],[130,81],[130,85]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[395,295],[396,295],[397,295],[398,295],[399,295],[400,295]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,380],[250,385],[250,390],[250,391],[250,392],[250,393]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,390],[250,391],[250,392],[250,393],[250,394],[250,395]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,395],[250,396],[250,397],[250,398],[250,399],[250,400]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,395],[250,400],[250,410],[250,420],[250,450],[250,480]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,398],[250,399],[250,400],[250,401],[250,402],[250,403]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,399],[250,400],[250,401],[250,402],[250,405],[250,408],[250,410]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,406],[250,407],[250,408],[250,409],[250,410]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[395,200],[396,200],[397,200],[398,200],[399,200],[400,200]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[410,200],[420,200],[450,200],[500,200],[600,200],[700,200]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[650,200],[670,200],[680,200],[685,200],[690,200]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[690,200],[695,200],[700,200]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[696,200],[697,200],[698,200],[699,200]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[696,380],[697,380],[698,380],[699,380]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,195],[250,196],[250,197],[250,198],[250,199],[250,200]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,100],[250,120],[250,140],[250,160],[250,180],[250,200]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,136],[250,138],[250,139],[250,140],[250,141],[250,178],[250,179],[250,180]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,175],[250,176],[250,177]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,134],[250,135],[250,136]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,176],[250,177]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,173],[250,174],[250,175]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,168],[250,169],[250,170],[250,171],[250,172]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,210],[250,220],[250,230],[250,240],[250,250],[250,260]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,226],[250,227],[250,228],[250,229],[250,230]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,280],[250,290],[250,300]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,310],[250,320],[250,330]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,350],[250,360],[250,370],[250,380]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,330],[250,340],[250,345],[250,348],[250,349],[250,350]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[550,210],[550,220],[550,230]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[550,340],[550,345],[550,349],[550,350]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[100,300],[150,300],[200,300],[250,300],[300,300],[350,300],[400,300]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[146,300],[147,300],[148,300],[149,300],[150]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[146,300],[147,300],[148,300],[149,300],[150,300]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[130,300],[135,300],[140,300]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[135,300],[136,300],[137,300],[138,300],[139,300]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[446,300],[447,300],[448,300],[449,300],[450,300]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[400,300],[405,300],[410,300],[415,300]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[440,300],[442,300],[444,300],[445,300]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[416,300],[420,300],[425,300],[430,300],[435,300]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[310,300],[380,300],[395,300]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[375,300],[376,300],[377,300],[378,300],[379,300]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[500,410],[500,415],[500,420],[500,425],[500,430]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[310,420],[310,425],[310,430]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[150,90],[200,90],[250,90],[300,90],[350,90]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,175],[250,185],[250,195],[250,205],[250,215]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[305,420],[306,420],[307,420],[308,420],[309,420],[310,420],[311,420]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[310,420],[320,420],[330,420],[340,420],[350,420],[360,420],[370,420]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[150,110],[200,110],[250,110],[300,110],[350,110]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[350,450],[350,460],[350,470],[350,480]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[350,410],[350,420],[350,430],[350,440]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[250,100],[250,105],[250,110],[250,115],[250,120]]}"
+    ]
+  },
+  "pageFiles": {
+    "index.html": 1,
+    "style.css": 1
+  },
+  "measurement": {
+    "mockupSize": [
+      800,
+      600
+    ],
+    "renderSize": [
+      800,
+      600
+    ],
+    "changedPixels": 480000,
+    "totalPixels": 480000,
+    "ratio": 1.0,
+    "sampledColours": {
+      "canvas": [
+        255,
+        255,
+        255
+      ],
+      "bar": [
+        255,
+        255,
+        255
+      ],
+      "card": [
+        255,
+        255,
+        255
+      ],
+      "green": [
+        255,
+        255,
+        255
+      ],
+      "amber": [
+        255,
+        255,
+        255
+      ]
+    },
+    "gateResult": {
+      "ok": true,
+      "changedPixels": 480000,
+      "ratio": 1.0,
+      "bbox": [
+        0,
+        0,
+        800,
+        600
+      ],
+      "maxDelta": 240
+    }
+  },
+  "triageSeededFiles": [
+    "dialog.png"
+  ],
+  "triage": {
+    "startStatus": 200,
+    "states": [
+      "executing",
+      "awaiting_done_signal"
+    ],
+    "state": "awaiting_done_signal",
+    "engine": "replayed",
+    "engineStatus": "completed",
+    "answer": "CODE: E_UPSTREAM_563\nMESSAGE: Snapshot 32e7 could not be uploaded."
+  },
+  "triageTrail": {
+    "toolsUsed": [
+      "read_image"
+    ],
+    "imageDiffCalls": [],
+    "imageSampleCalls": [],
+    "screenshotCalls": [],
+    "mockupReads": [],
+    "dialogReads": [
+      {
+        "type": "tool_call",
+        "tool": "read_image",
+        "callId": "call_d9b4a9b0af914ce08527e9ce",
+        "arguments": "{\"file_path\":\"dialog.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "writes": [],
+    "imageArguments": []
+  },
+  "gateProbe": {
+    "image": "harness-engine-worker:vdev-local",
+    "network": "none",
+    "diff": {
+      "ok": true,
+      "before": "before.png",
+      "after": "after.png",
+      "width": 100,
+      "height": 50,
+      "changedPixels": 100,
+      "totalPixels": 5000,
+      "ratio": 0.02,
+      "tolerance": 16,
+      "bbox": [
+        20,
+        10,
+        10,
+        10
+      ],
+      "maxDelta": 190,
+      "changedMeanBefore": [
+        10,
+        20,
+        30
+      ],
+      "changedMeanAfter": [
+        200,
+        40,
+        40
+      ],
+      "out": "before.diff.png",
+      "outBytes": 200,
+      "hint": "open the out image with the read tool to see where it differs"
+    },
+    "escape": {
+      "denied": "before '../../etc/passwd' escapes the workspace"
+    },
+    "routes": ""
+  },
+  "network": {
+    "skipped": false,
+    "noProxyRender": {
+      "network": "w10-probe-1793209264-218",
+      "proxy": null,
+      "verdict": "FETCH FAILED",
+      "gateOk": true,
+      "gateError": null,
+      "domChars": 305
+    }
+  },
+  "artifacts": {
+    "mockup": {
+      "status": 201,
+      "sha256": "f44de8b841c5830cf9e558ad06004323b8445a9f73548cffbe46700cbb1dc90d"
+    },
+    "render": {
+      "status": 201,
+      "sha256": "a4f2105ecdefec94c5fe749c1dc5f2fb9dd74b9832cba0afcd3434f38c0380d0"
+    },
+    "diff": {
+      "status": 201,
+      "sha256": "47cca38bb5451c34db5470642f8343f90758eef159fd9883d25b136384e11b1a"
+    },
+    "dialog": {
+      "status": 201,
+      "sha256": "ca2fc8af2eaf690da4be0623cb9bac31bc41a69ddf075ce3f1680374e39d1896"
+    }
+  },
+  "checks": {
+    "designRunSettled": true,
+    "agentOpenedTheMockup": true,
+    "agentSampledColours": true,
+    "agentScreenshottedItsPage": false,
+    "agentUsedTheDiff": false,
+    "agentWroteThePage": false,
+    "tokenOnlyInPixelsWasTranscribed": false,
+    "pageRendersAtMockupSize": true,
+    "independentDiffWithinThreshold": false,
+    "flatColoursSurvived": false,
+    "agentRatioAgreesWithBytes": false,
+    "diffImageAttached": true,
+    "mockupAttached": true,
+    "gateReportsTheExactPatch": true,
+    "gateRefusesPathsOutsideTheWorkspace": true,
+    "gateContainerHasNoNetwork": true,
+    "triageRunSettled": true,
+    "triageOpenedTheDialog": true,
+    "triageReportedTheExactCode": true,
+    "triageReportedTheExactMessage": true,
+    "triageHadNoTextSource": true,
+    "browserStillHasNoNetworkWithoutProxy": true
+  },
+  "verdict": "FAIL",
+  "failedChecks": [
+    "agentScreenshottedItsPage",
+    "agentUsedTheDiff",
+    "agentWroteThePage",
+    "tokenOnlyInPixelsWasTranscribed",
+    "independentDiffWithinThreshold",
+    "flatColoursSurvived",
+    "agentRatioAgreesWithBytes"
+  ],
+  "designAnswer": "DeepSeek Harness run failed: tool_budget_exhausted after 61 tool calls",
+  "triageAnswer": "CODE: E_UPSTREAM_563\nMESSAGE: Snapshot 32e7 could not be uploaded."
+}

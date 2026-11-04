@@ -1,0 +1,9 @@
+[
+  {
+    "line": 9,
+    "col": 5,
+    "kind": "error",
+    "code": "HX3024",
+    "message": "the accumulate block for 'total' yields String, not Int"
+  }
+]

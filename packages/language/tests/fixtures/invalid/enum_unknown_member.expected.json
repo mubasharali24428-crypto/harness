@@ -1,0 +1,9 @@
+[
+  {
+    "line": 8,
+    "col": 19,
+    "kind": "error",
+    "code": "HX3013",
+    "message": "enum 'Severity' has no member 'urgent' (members: low, high)"
+  }
+]

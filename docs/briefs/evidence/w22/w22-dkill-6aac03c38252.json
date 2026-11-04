@@ -1,0 +1,8 @@
+{
+  "runId": "w22-dkill-6aac03c38252",
+  "mode": "reaper",
+  "deadSeconds": 60,
+  "verdict": "FAIL",
+  "daemonImage": "harness-worker-daemon:vw22orphan1 sha256:5c4a12a00f3fd916c32c5b4acafe03781ba49a197968fa0b2938e45f21d31865",
+  "error": "RuntimeError: child was not observed"
+}

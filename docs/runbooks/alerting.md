@@ -246,6 +246,22 @@ Also in `alerts.yml`: `HarnessServiceDown` (page; `up == 0` for 2m) and
 `http_requests_total`). The per-service split is the `instance` label
 (`orchestrator:8004`); there is one scrape job, `harness-backends`.
 
+## 6b. Who is paged (pilot rule, decided 2026-10-31)
+
+Decided by the owner, Mubashar Ali, in chat on 2026-10-31:
+
+- **Primary on-call:** Mubashar Ali, for the four `severity="page"` alerts (`HarnessServiceDown`,
+  `HarnessIsolationViolation`, `HarnessQueueDepthCritical`, `HarnessWalArchiveFailing`).
+- **Backup and escalation: none.** One person for the pilot, written down on purpose. If the primary
+  does not respond, nothing escalates; fifteen `warning` alerts are read, not paged.
+- **Destination:** a phone-push webhook (`HARNESS_ALERT_WEBHOOK_URL`) plus email
+  (`HARNESS_ALERT_EMAIL_TO`), so a sleeping laptop is not the only path. **Decided, not yet
+  configured or proven:** the running Alertmanager's email receiver still points at a Mailpit that
+  is not running. Set both variables in the gitignored `.env`, recreate Alertmanager, run
+  `python3 scripts/e2e/w17_alert_delivery_drill.py` against the real destination and confirm a
+  person received it. Until that is done, nothing pages anyone.
+- Review with the SLOs on 2026-11-30, or at the first external user, whichever comes first.
+
 ## 7. Delivery: Alertmanager emails every alert (and posts to a webhook if set)
 
 `alertmanager` (profile `observability`) receives every firing rule from Prometheus and emails it, reusing the stack's
@@ -269,5 +285,15 @@ docker compose --env-file .env -f deploy/docker-compose.yml --profile observabil
 - Prove delivery after any change: post a test alert
   (`curl -XPOST localhost:9093/api/v2/alerts -H 'Content-Type: application/json' -d '[{"labels":{"alertname":"DeliveryCheck","severity":"warning"}}]'`)
   and confirm the mail arrives. The last full run is `docs/briefs/evidence/s11/alert-delivery.md`.
+- **Prove the routing *to a live target* without a mail catcher:** `scripts/e2e/w17_alert_delivery_drill.py`
+  renders this same template (enabling the webhook receiver), runs a throwaway Alertmanager, POSTs a
+  synthetic `severity="page"` alert and asserts it lands on a local HTTP sink. It proves the mechanism,
+  not a chosen destination — a team points `HARNESS_ALERT_WEBHOOK_URL` at their own relay. Stage-2 run:
+  `docs/briefs/evidence/w17/w17-alert-delivery-*.json` (config valid, delivered in ~10 s, `status=firing`).
+  **A running stack whose only receiver is a dead SMTP catcher delivers nothing** (on 2026-10-31 the live
+  `mailpit` was six days dead while `HarnessBackupStale` was firing). Check delivery, not just evaluation.
+- Event-freshness alert: `HarnessEventFreshnessSlo` fires when fewer than 99% of live collaboration
+  frames land in the 5 s bucket for 10m; see [slo-and-capacity](slo-and-capacity.md#objectives) and
+  `scripts/e2e/w17_event_freshness_drill.py` for the end-to-end measurement.
 - Silence during maintenance: `docker compose ... exec alertmanager amtool silence add alertname=HarnessServiceDown --duration 30m --alertmanager.url=http://localhost:9093`.
 

@@ -19,6 +19,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from harness_identity import erasure
+from harness_identity import scim as _scim  # noqa: F401 — registers the SCIM tables
 from harness_identity.erasure import router
 from harness_identity.models import Base
 from tests.test_workspaces_support import bearer, seed_team

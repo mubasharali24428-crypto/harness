@@ -1,0 +1,114 @@
+{
+  "date": "2026-10-30",
+  "week": "W8",
+  "claim": "a crashed run's boundary network and containers are reclaimed, while a live neighbour's are not",
+  "drive": "two live runs on the compose stack; the victim's docker-run client SIGKILLed inside the worker daemon (the product must settle the run and release the claim), then a launcher-shaped orphan built with the product's own ContainerBoundary and SIGKILLed mid-flight (network + relay + running container, no owner); sweep executed inside the daemon, the only holder of the Docker socket",
+  "projectId": "125d68b4-e9e2-408b-921d-cdd9bbc88be7",
+  "runs": {
+    "victim": {
+      "runId": "w8crash-victim-1793362581",
+      "network": "harness-94eed2bcb9dd4994a5ee89704b2952b2-net"
+    },
+    "neighbour": {
+      "runId": "w8crash-neighbour-1793362581",
+      "network": "harness-6a8541cc5c6e4d88b0774e5461f874c4-net"
+    }
+  },
+  "victim": {
+    "settledState": "blocked",
+    "claimRowAfterSettle": null,
+    "engineFinalResponse": "DeepSeek Harness run failed: DeepSeek Harness run failed: container termination could not be confirmed",
+    "orphanNetworkSurvivedCrash": true,
+    "orphanContainersRunning": [
+      {
+        "id": "4b22d38f364323e03ee8bcca5f28c30401a81c6d00959ca36166619cf9701359",
+        "name": "harness-f0c1886c89bb414f9dee8486b9c14267-relay",
+        "state": "running"
+      },
+      {
+        "id": "b979b2cdee66fe017d93305a09839c814a14dc5961086dc5216124a33c7f61c5",
+        "name": "harness-sandbox-egress-1",
+        "state": "running"
+      },
+      {
+        "id": "c955f6f8f57d1a4f42d9a7d9ebc971667c11fcd9a279c98dce6f643ff478acd6",
+        "name": "harness-f0c1886c89bb414f9dee8486b9c14267",
+        "state": "running"
+      }
+    ],
+    "killedClients": "1"
+  },
+  "sweeps": {
+    "heldRefusal": {
+      "removed": [],
+      "kept": [
+        "harness-6a8541cc5c6e4d88b0774e5461f874c4-net",
+        "harness-94eed2bcb9dd4994a5ee89704b2952b2-net"
+      ],
+      "count": 0,
+      "containersStopped": 0
+    },
+    "real": {
+      "removed": [
+        {
+          "network": "harness-f0c1886c89bb414f9dee8486b9c14267-net",
+          "runId": "w8crash-victim-1793362581",
+          "stopped": [
+            "c955f6f8f57d1a4f42d9a7d9ebc971667c11fcd9a279c98dce6f643ff478acd6",
+            "4b22d38f364323e03ee8bcca5f28c30401a81c6d00959ca36166619cf9701359"
+          ]
+        }
+      ],
+      "kept": [
+        "harness-6a8541cc5c6e4d88b0774e5461f874c4-net"
+      ],
+      "count": 1,
+      "containersStopped": 2
+    }
+  },
+  "neighbour": {
+    "stateAtSweep": "executing",
+    "networkBefore": "harness-6a8541cc5c6e4d88b0774e5461f874c4-net",
+    "containersBefore": [
+      {
+        "id": "369a27d9de1344fadfa75147fc3dba8054d7d8dfca2d6d6579d39f6720c60cd1",
+        "name": "harness-6a8541cc5c6e4d88b0774e5461f874c4-relay",
+        "state": "running"
+      },
+      {
+        "id": "3e4d1ce2e66eaf2442006062663797053bc6d6b01c6a4afd593ff7a9ce93e1c4",
+        "name": "harness-6a8541cc5c6e4d88b0774e5461f874c4",
+        "state": "running"
+      },
+      {
+        "id": "b979b2cdee66fe017d93305a09839c814a14dc5961086dc5216124a33c7f61c5",
+        "name": "harness-sandbox-egress-1",
+        "state": "running"
+      }
+    ],
+    "networkAfter": "harness-6a8541cc5c6e4d88b0774e5461f874c4-net",
+    "stillRunningAfterSweep": true,
+    "networkKeptBySweep": true,
+    "stoppedBySweep": [
+      "4b22d38f364323e03ee8bcca5f28c30401a81c6d00959ca36166619cf9701359",
+      "c955f6f8f57d1a4f42d9a7d9ebc971667c11fcd9a279c98dce6f643ff478acd6"
+    ]
+  },
+  "networksAfterSweep": {
+    "harness-6a8541cc5c6e4d88b0774e5461f874c4-net": "w8crash-neighbour-1793362581"
+  },
+  "checks": {
+    "bothStarted": true,
+    "crashObserved": true,
+    "orphanExisted": true,
+    "orphanContainerWasRunning": true,
+    "victimSettled": true,
+    "claimReleased": true,
+    "heldLiveRunRefused": true,
+    "orphanNetworkRemoved": true,
+    "orphanContainersStopped": true,
+    "neighbourUntouched": true,
+    "victimNetworkGone": true
+  },
+  "verdict": "PASS"
+}

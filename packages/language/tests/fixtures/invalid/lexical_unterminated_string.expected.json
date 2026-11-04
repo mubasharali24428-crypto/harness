@@ -1,0 +1,9 @@
+[
+  {
+    "line": 3,
+    "col": 19,
+    "kind": "error",
+    "code": "HX1002",
+    "message": "unterminated string literal"
+  }
+]

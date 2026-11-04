@@ -1,0 +1,362 @@
+{
+  "date": "2026-10-30",
+  "week": "W11",
+  "claim": "a mockup becomes a matching page, an error dialog is triaged from its pixels, and image diffing measures the result \u2014 all inside the run boundary",
+  "runs": {
+    "design": "w11-design-1793354852",
+    "triage": "w11-triage-1793354852"
+  },
+  "drive": "HTTP only",
+  "model": "the configured DSH_MODEL through the OpenRouter vision patch",
+  "fixtures": {
+    "token": "MERIDIAN-22",
+    "subtitle": "design review 52",
+    "errorCode": "E_UPSTREAM_552",
+    "dialogMessage": "Snapshot 6c64 could not be uploaded.",
+    "mockupBytes": 6160,
+    "mockupSha256": "cc4fe29ef226a31b1ba02c92f7183279d09a3317ed1fa08b7e797e094b5f8c30",
+    "dialogBytes": 16668,
+    "dialogSha256": "7a23777e259c40b3319495c530fb1d4abd8b03de73d26c170184ec10d9b92888",
+    "note": "the HTML that produced these PNGs was written to a temp dir outside the workspace and deleted; only the bytes above are seeded"
+  },
+  "seededFiles": [
+    "mockup.png"
+  ],
+  "design": {
+    "startStatus": 200,
+    "states": [
+      "executing",
+      "blocked"
+    ],
+    "state": "blocked",
+    "engine": "replayed",
+    "engineStatus": "error",
+    "answer": "DeepSeek Harness run failed: model qwen/qwen3.7-flash returned an empty response"
+  },
+  "designTrail": {
+    "toolsUsed": [
+      "browser",
+      "image",
+      "read",
+      "read_image"
+    ],
+    "imageDiffCalls": [],
+    "imageSampleCalls": [],
+    "imagePaletteCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_6fd4fc14ee4e4415957aa850",
+        "arguments": "{\"action\":\"palette\",\"path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "screenshotCalls": [
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "call_3e83f2b171a7443ea79a86c1",
+        "arguments": "{\"action\":\"screenshot\",\"path\":\"shots/mockup_view.png\",\"url\":\"file:///var/lib/harness-runs/workspace/w11-design-1793354852/mockup.png\",\"width\":800,\"height\":600}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "call_8db4fbb2afd14be7853ff381",
+        "arguments": "{\"action\":\"screenshot\",\"path\":\"shots/initial.png\",\"url\":\"file:///var/lib/harness-runs/workspace/w11-design-1793354852/mockup.png\",\"width\":800,\"height\":600}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "mockupReads": [
+      {
+        "type": "tool_call",
+        "tool": "read",
+        "callId": "call_31b30b7a91044f6395cb50e1",
+        "arguments": "{\"file_path\":\"/var/lib/harness-runs/workspace/w11-design-1793354852/mockup.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "dialogReads": [],
+    "writes": [],
+    "imageArguments": [
+      "{\"action\":\"palette\",\"path\":\"mockup.png\"}"
+    ]
+  },
+  "pageFiles": {
+    "index.html": 1,
+    "style.css": 1
+  },
+  "measurement": {
+    "mockupSize": [
+      800,
+      600
+    ],
+    "renderSize": [
+      800,
+      600
+    ],
+    "changedPixels": 480000,
+    "totalPixels": 480000,
+    "ratio": 1.0,
+    "sampledColours": {
+      "canvas": [
+        255,
+        255,
+        255
+      ],
+      "bar": [
+        255,
+        255,
+        255
+      ],
+      "card": [
+        255,
+        255,
+        255
+      ],
+      "green": [
+        255,
+        255,
+        255
+      ],
+      "amber": [
+        255,
+        255,
+        255
+      ]
+    },
+    "gateResult": {
+      "ok": true,
+      "changedPixels": 480000,
+      "ratio": 1.0,
+      "bbox": [
+        0,
+        0,
+        800,
+        600
+      ],
+      "maxDelta": 240
+    }
+  },
+  "triageSeededFiles": [
+    "dialog.png"
+  ],
+  "triage": {
+    "startStatus": 200,
+    "states": [
+      "executing",
+      "awaiting_done_signal"
+    ],
+    "state": "awaiting_done_signal",
+    "engine": "replayed",
+    "engineStatus": "completed",
+    "answer": "CODE: E_UPSTREAM_552\nMESSAGE: Snapshot 6c64 could not be uploaded."
+  },
+  "triageTrail": {
+    "toolsUsed": [
+      "read",
+      "read_image"
+    ],
+    "imageDiffCalls": [],
+    "imageSampleCalls": [],
+    "imagePaletteCalls": [],
+    "screenshotCalls": [],
+    "mockupReads": [],
+    "dialogReads": [
+      {
+        "type": "tool_call",
+        "tool": "read",
+        "callId": "call_4791647459994e6c85b0370b",
+        "arguments": "{\"file_path\":\"dialog.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "read_image",
+        "callId": "call_31f3d42fcc6d4861934f4d42",
+        "arguments": "{\"file_path\":\"dialog.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "writes": [],
+    "imageArguments": []
+  },
+  "gateProbe": {
+    "image": "harness-engine-worker:vdev-local",
+    "network": "none",
+    "diff": {
+      "ok": true,
+      "before": "before.png",
+      "after": "after.png",
+      "width": 100,
+      "height": 50,
+      "changedPixels": 100,
+      "totalPixels": 5000,
+      "ratio": 0.02,
+      "tolerance": 16,
+      "bbox": [
+        20,
+        10,
+        10,
+        10
+      ],
+      "maxDelta": 190,
+      "changedMeanBefore": [
+        10,
+        20,
+        30
+      ],
+      "changedMeanAfter": [
+        200,
+        40,
+        40
+      ],
+      "out": "before.diff.png",
+      "outBytes": 200,
+      "hint": "open the out image with the read tool to see where it differs"
+    },
+    "escape": {
+      "denied": "before '../../etc/passwd' escapes the workspace"
+    },
+    "palette": {
+      "ok": true,
+      "path": "after.png",
+      "width": 100,
+      "height": 50,
+      "pixels": 5000,
+      "distinctBuckets": 2,
+      "colors": [
+        {
+          "rgb": [
+            10,
+            20,
+            30
+          ],
+          "hex": "#0a141e",
+          "meanRgb": [
+            10,
+            20,
+            30
+          ],
+          "pixels": 4900,
+          "share": 0.98,
+          "bbox": [
+            0,
+            0,
+            100,
+            50
+          ]
+        },
+        {
+          "rgb": [
+            200,
+            40,
+            40
+          ],
+          "hex": "#c82828",
+          "meanRgb": [
+            200,
+            40,
+            40
+          ],
+          "pixels": 100,
+          "share": 0.02,
+          "bbox": [
+            20,
+            10,
+            10,
+            10
+          ]
+        }
+      ],
+      "hint": "one call answers the layout's colours; sample exact points only to disambiguate"
+    },
+    "paletteEscape": {
+      "denied": "path '../../etc/passwd' escapes the workspace"
+    },
+    "paletteCap": {
+      "denied": "maxColors must be 1..24"
+    },
+    "routes": ""
+  },
+  "network": {
+    "skipped": false,
+    "noProxyRender": {
+      "network": "w10-probe-1793354973-902",
+      "proxy": null,
+      "verdict": "FETCH FAILED",
+      "gateOk": true,
+      "gateError": null,
+      "domChars": 305
+    }
+  },
+  "artifacts": {
+    "mockup": {
+      "status": 201,
+      "sha256": "cc4fe29ef226a31b1ba02c92f7183279d09a3317ed1fa08b7e797e094b5f8c30"
+    },
+    "render": {
+      "status": 201,
+      "sha256": "a4f2105ecdefec94c5fe749c1dc5f2fb9dd74b9832cba0afcd3434f38c0380d0"
+    },
+    "diff": {
+      "status": 201,
+      "sha256": "47cca38bb5451c34db5470642f8343f90758eef159fd9883d25b136384e11b1a"
+    },
+    "dialog": {
+      "status": 201,
+      "sha256": "7a23777e259c40b3319495c530fb1d4abd8b03de73d26c170184ec10d9b92888"
+    }
+  },
+  "designLoop": {
+    "paletteCalls": 1,
+    "sampleCalls": 0,
+    "colourCallsTotal": 1,
+    "goalAskedFor": "one palette call, then at most one sample call",
+    "withinBound": true
+  },
+  "checks": {
+    "designRunSettled": true,
+    "agentOpenedTheMockup": true,
+    "agentSampledColours": true,
+    "agentScreenshottedItsPage": true,
+    "agentUsedTheDiff": false,
+    "agentWroteThePage": false,
+    "tokenOnlyInPixelsWasTranscribed": false,
+    "pageRendersAtMockupSize": true,
+    "independentDiffWithinThreshold": false,
+    "flatColoursSurvived": false,
+    "agentRatioAgreesWithBytes": false,
+    "diffImageAttached": true,
+    "mockupAttached": true,
+    "gateReportsTheExactPatch": true,
+    "gateRefusesPathsOutsideTheWorkspace": true,
+    "gateReportsThePalette": true,
+    "gateRefusesPalettePathsOutsideTheWorkspace": true,
+    "gateCapsPaletteColours": true,
+    "gateContainerHasNoNetwork": true,
+    "triageRunSettled": true,
+    "triageOpenedTheDialog": true,
+    "triageReportedTheExactCode": true,
+    "triageReportedTheExactMessage": true,
+    "triageHadNoTextSource": true,
+    "browserStillHasNoNetworkWithoutProxy": true
+  },
+  "verdict": "FAIL",
+  "failedChecks": [
+    "agentUsedTheDiff",
+    "agentWroteThePage",
+    "tokenOnlyInPixelsWasTranscribed",
+    "independentDiffWithinThreshold",
+    "flatColoursSurvived",
+    "agentRatioAgreesWithBytes"
+  ],
+  "designAnswer": "DeepSeek Harness run failed: model qwen/qwen3.7-flash returned an empty response",
+  "triageAnswer": "CODE: E_UPSTREAM_552\nMESSAGE: Snapshot 6c64 could not be uploaded."
+}

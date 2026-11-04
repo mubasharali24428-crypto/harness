@@ -65,7 +65,7 @@ def db(tmp_path):
                     " ts TIMESTAMP WITH TIME ZONE NOT NULL)"
                 )
             )
-            # For make_bearer_dep lookups (auth_sessions ⋈ team_members).
+            # For make_bearer_dep lookups (auth_sessions ⋈ team_members ⋈ users).
             await conn.execute(
                 text(
                     "CREATE TABLE auth_sessions ("
@@ -77,6 +77,16 @@ def db(tmp_path):
                 text(
                     "CREATE TABLE team_members ("
                     "user_id VARCHAR(36), team_id VARCHAR(36), role VARCHAR(20))"
+                )
+            )
+            # W16: the shared bearer dependency joins users.is_active, so a
+            # fixture that leaves the table out cannot resolve a principal — and
+            # a fixture that omits the column would prove a token works when the
+            # real schema would refuse it.
+            await conn.execute(
+                text(
+                    "CREATE TABLE users (id VARCHAR(36) PRIMARY KEY, email VARCHAR(200),"
+                    " name VARCHAR(200), is_active BOOLEAN NOT NULL DEFAULT 1)"
                 )
             )
 
@@ -413,6 +423,9 @@ def test_valid_bearer_reaches_data(seeded_db, monkeypatch):
             )
             await session.execute(
                 text("INSERT INTO team_members VALUES ('u-a', 'team-a', 'admin')")
+            )
+            await session.execute(
+                text("INSERT INTO users VALUES ('u-a', 'a@example.com', 'A', 1)")
             )
             await session.commit()
 

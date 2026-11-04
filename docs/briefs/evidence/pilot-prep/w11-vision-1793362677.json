@@ -1,0 +1,532 @@
+{
+  "date": "2026-10-30",
+  "week": "W11",
+  "claim": "a mockup becomes a matching page, an error dialog is triaged from its pixels, and image diffing measures the result \u2014 all inside the run boundary",
+  "runs": {
+    "design": "w11-design-1793362677",
+    "triage": "w11-triage-1793362677"
+  },
+  "drive": "HTTP only",
+  "model": "the configured DSH_MODEL through the OpenRouter vision patch",
+  "fixtures": {
+    "token": "MERIDIAN-58",
+    "subtitle": "design review 77",
+    "errorCode": "E_UPSTREAM_277",
+    "dialogMessage": "Snapshot 8af5 could not be uploaded.",
+    "mockupBytes": 6391,
+    "mockupSha256": "0c9e6f0e5785a4cccb8db58447ab9c6ff7e7f204a469303cded26f570311f6cf",
+    "dialogBytes": 16060,
+    "dialogSha256": "af022bb7f2fe265bcaa353f49c14421f11b59f0619d1951df5dbdf87257226ae",
+    "note": "the HTML that produced these PNGs was written to a temp dir outside the workspace and deleted; only the bytes above are seeded"
+  },
+  "seededFiles": [
+    "mockup.png"
+  ],
+  "design": {
+    "startStatus": 200,
+    "states": [
+      "executing",
+      "awaiting_done_signal"
+    ],
+    "state": "awaiting_done_signal",
+    "engine": "replayed",
+    "engineStatus": "completed",
+    "answer": "The diff ratio is 0.537%, well below the 0.02 threshold. The only remaining difference is minor font anti-aliasing on the \"MERIDIAN-58\" text.\n\nTOKEN: MERIDIAN-58\nRATIO: 0.00537\nFILES: index.html, style.css"
+  },
+  "designTrail": {
+    "toolsUsed": [
+      "browser",
+      "edit",
+      "image",
+      "read",
+      "read_image",
+      "write"
+    ],
+    "imageDiffCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_692af2b726894cd3b756024f",
+        "arguments": "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\",\"out\":\"shots/diff.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_07fede39c0554ea999f5facb",
+        "arguments": "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\",\"out\":\"shots/diff.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_f31e0147d4c44e4aa5c20f3f",
+        "arguments": "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\",\"out\":\"shots/diff.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_44dcc97cf2d944be8211fafd",
+        "arguments": "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render3.png\",\"out\":\"shots/diff2.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imageSampleCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_d87733e6bf08410c914e3e64",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[700,100],[700,200],[700,300],[700,400],[660,280],[620,280],[140,130],[140,230]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_e769ad25c7fb439f9ba61d7c",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[650,280],[660,280],[670,280],[680,280],[690,280],[695,280],[698,280],[699,280],[700,280],[701,280],[702,280],[705,280],[710,280]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_efeefd2ff3544d7c89c1177a",
+        "arguments": "{\"action\":\"sample\",\"path\":\"shots/render.png\",\"points\":[[620,280],[630,280],[640,280],[650,280],[660,280],[670,280]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_aeb213bd0f1b4d55b93d56a2",
+        "arguments": "{\"action\":\"sample\",\"path\":\"shots/render.png\",\"points\":[[610,280],[615,280],[618,280],[619,280],[620,280],[621,280],[625,280]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_05817bf191e048c8b5359332",
+        "arguments": "{\"action\":\"sample\",\"path\":\"shots/render.png\",\"points\":[[400,280],[410,280],[420,280],[425,280],[430,280],[440,280]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_59fd97c43a3c49e98d7b384c",
+        "arguments": "{\"action\":\"sample\",\"path\":\"shots/render.png\",\"points\":[[500,250],[500,260],[500,270],[500,280],[500,290],[500,300],[500,310]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_f6f76508ec3849a094eb3f17",
+        "arguments": "{\"action\":\"sample\",\"path\":\"shots/render2.png\",\"points\":[[500,280],[550,280],[600,280],[650,280]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_e20f93d2e5624e219372d50e",
+        "arguments": "{\"action\":\"sample\",\"path\":\"shots/render2.png\",\"points\":[[520,310],[550,310],[600,310],[650,310]]}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_d0657e4a94fc4b5a9635672b",
+        "arguments": "{\"action\":\"sample\",\"path\":\"shots/render3.png\",\"points\":[[500,280],[550,280],[600,280],[650,280]]}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imagePaletteCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_2dc5f2fc683040ee859eede3",
+        "arguments": "{\"action\":\"palette\",\"path\":\"mockup.png\",\"maxColors\":12}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "screenshotCalls": [
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "call_83d20e7d1e8f43bbb77e83fb",
+        "arguments": "{\"action\":\"screenshot\",\"url\":\"index.html\",\"path\":\"shots/render.png\",\"width\":800,\"height\":600}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "call_e954af0277e74370b48954b0",
+        "arguments": "{\"action\":\"screenshot\",\"url\":\"index.html\",\"path\":\"shots/render.png\",\"width\":800,\"height\":600}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "call_7bc3624e2dc741d28cbaa63d",
+        "arguments": "{\"action\":\"screenshot\",\"url\":\"index.html\",\"path\":\"shots/render.png\",\"width\":800,\"height\":600}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "call_58547486b46e44b381f5ee2d",
+        "arguments": "{\"action\":\"screenshot\",\"url\":\"index.html\",\"path\":\"shots/render2.png\",\"width\":800,\"height\":600}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "call_428d83a0b1064923a9f51f6d",
+        "arguments": "{\"action\":\"screenshot\",\"url\":\"index.html\",\"path\":\"shots/render3.png\",\"width\":800,\"height\":600}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "mockupReads": [
+      {
+        "type": "tool_call",
+        "tool": "read_image",
+        "callId": "call_51b90bb551ae49c5ba0ec714",
+        "arguments": "{\"file_path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "dialogReads": [],
+    "writes": [
+      {
+        "type": "tool_call",
+        "tool": "write",
+        "callId": "call_5f97fc1f4a52422289f72792",
+        "arguments": "{\"file_path\":\"index.html\",\"content\":\"<!DOCTYPE html>\\n<html>\\n<head>\\n<meta charset=\\\"utf-8\\\">\\n<title>MERIDIAN-58</title>\\n<link rel=\\\"stylesheet\\\" href=\\\"style.css\\\">\\n</head>\\n<body>\\n<div class=\\\"panel\\\">\\n  <div class=\\\"bar-blue\\\"></div>\\n  <div class=\\\"bar-green\\\"></div>\\n  <div class=\\\"bar-orange\\\"></div>\\n  <div class=\\\"title\\\">MERIDIAN-58</div>\\n</div>\\n</body>\\n</html>\\n\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "write",
+        "callId": "call_08ec8da49e674937bbc779fa",
+        "arguments": "{\"file_path\":\"style.css\",\"content\":\"* { margin: 0; padding: 0; box-sizing: border-box; }\\nhtml, body {\\n  width: 800px;\\n  height: 600px;\\n  overflow: hidden;\\n  background: #0f1115;\\n}\\n\\n.panel {\\n  position: absolute;\\n  left: 100px;\\n  top: 80px;\\n  width: 600px;\\n  height: 460px;\\n  background: #171a21;\\n}\\n\\n.bar-blue {\\n  position: absolute;\\n  left: 140px;\\n  top: 130px;\\n  width: 520px;\\n  height: 40px;\\n  background: #4f7cff;\\n}\\n\\n.bar-green {\\n  position: absolute;\\n  left: 140px;\\n  top: 230px;\\n  width: 240px;\\n  height: 120px;\\n  background: #3ecf8e;\\n}\\n\\n.bar-orange {\\n  position: absolute;\\n  left: 420px;\\n  top: 230px;\\n  width: 240px;\\n  height: 120px;\\n  background: #f2b84b;\\n}\\n\\n.title {\\n  position: absolute;\\n  left: 143px;\\n  top: 405px;\\n  font-family: \\\"DejaVu Sans\\\", sans-serif;\\n  font-size: 22px;\\n  font-weight: bold;\\n  color: #eef2f8;\\n  letter-spacing: 1px;\\n}\\n\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "edit",
+        "callId": "call_b92068788bb84ba89fec0448",
+        "arguments": "{\"file_path\":\"style.css\",\"old_string\":\".panel {\\n  position: absolute;\\n  left: 100px;\\n  top: 80px;\\n  width: 600px;\\n  height: 460px;\\n  background: #171a21;\\n}\\n\\n.bar-blue {\\n  position: absolute;\\n  left: 140px;\\n  top: 130px;\\n  width: 520px;\\n  height: 40px;\\n  background: #4f7cff;\\n}\\n\\n.bar-green {\\n  position: absolute;\\n  left: 140px;\\n  top: 230px;\\n  width: 240px;\\n  height: 120px;\\n  background: #3ecf8e;\\n}\\n\\n.bar-orange {\\n  position: absolute;\\n  left: 420px;\\n  top: 230px;\\n  width: 240px;\\n  height: 120px;\\n  background: #f2b84b;\\n}\\n\\n.title {\\n  position: absolute;\\n  left: 143px;\\n  top: 405px;\\n  font-family: \\\"DejaVu Sans\\\", sans-serif;\\n  font-size: 22px;\\n  font-weight: bold;\\n  color: #eef2f8;\\n  letter-spacing: 1px;\\n}\",\"new_string\":\".panel {\\n  position: absolute;\\n  left: 80px;\\n  top: 80px;\\n  width: 600px;\\n  height: 460px;\\n  background: #171a21;\\n}\\n\\n.bar-blue {\\n  position: absolute;\\n  left: 120px;\\n  top: 130px;\\n  width: 520px;\\n  height: 40px;\\n  background: #4f7cff;\\n}\\n\\n.bar-green {\\n  position: absolute;\\n  left: 120px;\\n  top: 230px;\\n  width: 240px;\\n  height: 120px;\\n  background: #3ecf8e;\\n}\\n\\n.bar-orange {\\n  position: absolute;\\n  left: 400px;\\n  top: 230px;\\n  width: 240px;\\n  height: 120px;\\n  background: #f2b84b;\\n}\\n\\n.title {\\n  position: absolute;\\n  left: 123px;\\n  top: 405px;\\n  font-family: \\\"DejaVu Sans\\\", sans-serif;\\n  font-size: 22px;\\n  font-weight: bold;\\n  color: #eef2f8;\\n  letter-spacing: 1px;\\n}\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "edit",
+        "callId": "call_86cb2dd29a0f46a8ac46bbd2",
+        "arguments": "{\"file_path\":\"style.css\",\"old_string\":\".panel {\\n  position: absolute;\\n  left: 80px;\\n  top: 80px;\\n  width: 600px;\\n  height: 460px;\\n  background: #171a21;\\n}\\n\\n.bar-blue {\\n  position: absolute;\\n  left: 120px;\\n  top: 130px;\\n  width: 520px;\\n  height: 40px;\\n  background: #4f7cff;\\n}\\n\\n.bar-green {\\n  position: absolute;\\n  left: 120px;\\n  top: 230px;\\n  width: 240px;\\n  height: 120px;\\n  background: #3ecf8e;\\n}\\n\\n.bar-orange {\\n  position: absolute;\\n  left: 400px;\\n  top: 230px;\\n  width: 240px;\\n  height: 120px;\\n  background: #f2b84b;\\n}\\n\\n.title {\\n  position: absolute;\\n  left: 123px;\\n  top: 405px;\\n  font-family: \\\"DejaVu Sans\\\", sans-serif;\\n  font-size: 22px;\\n  font-weight: bold;\\n  color: #eef2f8;\\n  letter-spacing: 1px;\\n}\",\"new_string\":\".panel {\\n  position: absolute;\\n  left: 100px;\\n  top: 80px;\\n  width: 600px;\\n  height: 460px;\\n  background: #171a21;\\n}\\n\\n.bar-blue {\\n  position: absolute;\\n  left: 140px;\\n  top: 130px;\\n  width: 520px;\\n  height: 40px;\\n  background: #4f7cff;\\n}\\n\\n.bar-green {\\n  position: absolute;\\n  left: 140px;\\n  top: 230px;\\n  width: 240px;\\n  height: 120px;\\n  background: #3ecf8e;\\n}\\n\\n.bar-orange {\\n  position: absolute;\\n  left: 420px;\\n  top: 230px;\\n  width: 240px;\\n  height: 120px;\\n  background: #f2b84b;\\n}\\n\\n.title {\\n  position: absolute;\\n  left: 143px;\\n  top: 405px;\\n  font-family: \\\"DejaVu Sans\\\", sans-serif;\\n  font-size: 22px;\\n  font-weight: bold;\\n  color: #eef2f8;\\n  letter-spacing: 1px;\\n}\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "edit",
+        "callId": "call_f9f889508ab64dc0b2acbf52",
+        "arguments": "{\"file_path\":\"index.html\",\"old_string\":\"<body>\\n<div class=\\\"panel\\\">\\n  <div class=\\\"bar-blue\\\"></div>\\n  <div class=\\\"bar-green\\\"></div>\\n  <div class=\\\"bar-orange\\\"></div>\\n  <div class=\\\"title\\\">MERIDIAN-58</div>\\n</div>\\n</body>\",\"new_string\":\"<body>\\n<div class=\\\"panel\\\"></div>\\n<div class=\\\"bar-blue\\\"></div>\\n<div class=\\\"bar-green\\\"></div>\\n<div class=\\\"bar-orange\\\"></div>\\n<div class=\\\"title\\\">MERIDIAN-58</div>\\n</body>\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imageArguments": [
+      "{\"action\":\"palette\",\"path\":\"mockup.png\",\"maxColors\":12}",
+      "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\",\"out\":\"shots/diff.png\"}",
+      "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\",\"out\":\"shots/diff.png\"}",
+      "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\",\"out\":\"shots/diff.png\"}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[700,100],[700,200],[700,300],[700,400],[660,280],[620,280],[140,130],[140,230]]}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[650,280],[660,280],[670,280],[680,280],[690,280],[695,280],[698,280],[699,280],[700,280],[701,280],[702,280],[705,280],[710,280]]}",
+      "{\"action\":\"sample\",\"path\":\"shots/render.png\",\"points\":[[620,280],[630,280],[640,280],[650,280],[660,280],[670,280]]}",
+      "{\"action\":\"sample\",\"path\":\"shots/render.png\",\"points\":[[610,280],[615,280],[618,280],[619,280],[620,280],[621,280],[625,280]]}",
+      "{\"action\":\"sample\",\"path\":\"shots/render.png\",\"points\":[[400,280],[410,280],[420,280],[425,280],[430,280],[440,280]]}",
+      "{\"action\":\"sample\",\"path\":\"shots/render.png\",\"points\":[[500,250],[500,260],[500,270],[500,280],[500,290],[500,300],[500,310]]}",
+      "{\"action\":\"sample\",\"path\":\"shots/render2.png\",\"points\":[[500,280],[550,280],[600,280],[650,280]]}",
+      "{\"action\":\"sample\",\"path\":\"shots/render2.png\",\"points\":[[520,310],[550,310],[600,310],[650,310]]}",
+      "{\"action\":\"sample\",\"path\":\"shots/render3.png\",\"points\":[[500,280],[550,280],[600,280],[650,280]]}",
+      "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render3.png\",\"out\":\"shots/diff2.png\"}"
+    ]
+  },
+  "pageFiles": {
+    "index.html": 306,
+    "style.css": 817
+  },
+  "measurement": {
+    "mockupSize": [
+      800,
+      600
+    ],
+    "renderSize": [
+      800,
+      600
+    ],
+    "changedPixels": 2579,
+    "totalPixels": 480000,
+    "ratio": 0.005373,
+    "sampledColours": {
+      "canvas": [
+        15,
+        17,
+        21
+      ],
+      "bar": [
+        79,
+        124,
+        255
+      ],
+      "card": [
+        23,
+        26,
+        33
+      ],
+      "green": [
+        62,
+        207,
+        142
+      ],
+      "amber": [
+        242,
+        184,
+        75
+      ]
+    },
+    "gateResult": {
+      "ok": true,
+      "changedPixels": 2579,
+      "ratio": 0.005373,
+      "bbox": [
+        142,
+        405,
+        205,
+        21
+      ],
+      "maxDelta": 216
+    }
+  },
+  "triageSeededFiles": [
+    "dialog.png"
+  ],
+  "triage": {
+    "startStatus": 200,
+    "states": [
+      "executing",
+      "awaiting_done_signal"
+    ],
+    "state": "awaiting_done_signal",
+    "engine": "replayed",
+    "engineStatus": "completed",
+    "answer": "CODE: E_UPSTREAM_277\nMESSAGE: Snapshot 8af5 could not be uploaded."
+  },
+  "triageTrail": {
+    "toolsUsed": [
+      "read_image"
+    ],
+    "imageDiffCalls": [],
+    "imageSampleCalls": [],
+    "imagePaletteCalls": [],
+    "screenshotCalls": [],
+    "mockupReads": [],
+    "dialogReads": [
+      {
+        "type": "tool_call",
+        "tool": "read_image",
+        "callId": "call_89ddd3a323354d3d954193a7",
+        "arguments": "{\"file_path\":\"dialog.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "writes": [],
+    "imageArguments": []
+  },
+  "gateProbe": {
+    "image": "harness-engine-worker:vdev-local",
+    "network": "none",
+    "diff": {
+      "ok": true,
+      "before": "before.png",
+      "after": "after.png",
+      "width": 100,
+      "height": 50,
+      "changedPixels": 100,
+      "totalPixels": 5000,
+      "ratio": 0.02,
+      "tolerance": 16,
+      "bbox": [
+        20,
+        10,
+        10,
+        10
+      ],
+      "maxDelta": 190,
+      "changedMeanBefore": [
+        10,
+        20,
+        30
+      ],
+      "changedMeanAfter": [
+        200,
+        40,
+        40
+      ],
+      "out": "before.diff.png",
+      "outBytes": 200,
+      "hint": "open the out image with the read tool to see where it differs"
+    },
+    "escape": {
+      "denied": "before '../../etc/passwd' escapes the workspace"
+    },
+    "palette": {
+      "ok": true,
+      "path": "after.png",
+      "width": 100,
+      "height": 50,
+      "pixels": 5000,
+      "distinctBuckets": 2,
+      "colors": [
+        {
+          "rgb": [
+            10,
+            20,
+            30
+          ],
+          "hex": "#0a141e",
+          "meanRgb": [
+            10,
+            20,
+            30
+          ],
+          "pixels": 4900,
+          "share": 0.98,
+          "bbox": [
+            0,
+            0,
+            100,
+            50
+          ]
+        },
+        {
+          "rgb": [
+            200,
+            40,
+            40
+          ],
+          "hex": "#c82828",
+          "meanRgb": [
+            200,
+            40,
+            40
+          ],
+          "pixels": 100,
+          "share": 0.02,
+          "bbox": [
+            20,
+            10,
+            10,
+            10
+          ]
+        }
+      ],
+      "hint": "one call answers the layout's colours; sample exact points only to disambiguate"
+    },
+    "paletteEscape": {
+      "denied": "path '../../etc/passwd' escapes the workspace"
+    },
+    "paletteCap": {
+      "denied": "maxColors must be 1..24"
+    },
+    "routes": ""
+  },
+  "network": {
+    "skipped": false,
+    "noProxyRender": {
+      "network": "w10-probe-1793363028-533",
+      "proxy": null,
+      "verdict": "FETCH FAILED",
+      "gateOk": true,
+      "gateError": null,
+      "domChars": 305
+    }
+  },
+  "artifacts": {
+    "mockup": {
+      "status": 201,
+      "sha256": "0c9e6f0e5785a4cccb8db58447ab9c6ff7e7f204a469303cded26f570311f6cf"
+    },
+    "render": {
+      "status": 201,
+      "sha256": "a6190a7ab02529a2cea99b9e37297c0c85094cd77f1815ddc31c4ce4a1e42297"
+    },
+    "diff": {
+      "status": 201,
+      "sha256": "a33836b26422d553531f4b7e09a1ddabef4a8567c5c8323c01b94be0339f5717"
+    },
+    "dialog": {
+      "status": 201,
+      "sha256": "af022bb7f2fe265bcaa353f49c14421f11b59f0619d1951df5dbdf87257226ae"
+    }
+  },
+  "designLoop": {
+    "paletteCalls": 1,
+    "sampleCalls": 9,
+    "colourCallsTotal": 10,
+    "goalAskedFor": "one palette call, then at most one sample call",
+    "withinBound": false
+  },
+  "checks": {
+    "designRunSettled": true,
+    "agentOpenedTheMockup": true,
+    "agentSampledColours": true,
+    "agentScreenshottedItsPage": true,
+    "agentUsedTheDiff": true,
+    "agentWroteThePage": true,
+    "tokenOnlyInPixelsWasTranscribed": true,
+    "pageRendersAtMockupSize": true,
+    "independentDiffWithinThreshold": true,
+    "flatColoursSurvived": true,
+    "agentRatioAgreesWithBytes": true,
+    "diffImageAttached": true,
+    "mockupAttached": true,
+    "gateReportsTheExactPatch": true,
+    "gateRefusesPathsOutsideTheWorkspace": true,
+    "gateReportsThePalette": true,
+    "gateRefusesPalettePathsOutsideTheWorkspace": true,
+    "gateCapsPaletteColours": true,
+    "gateContainerHasNoNetwork": true,
+    "triageRunSettled": true,
+    "triageOpenedTheDialog": true,
+    "triageReportedTheExactCode": true,
+    "triageReportedTheExactMessage": true,
+    "triageHadNoTextSource": true,
+    "browserStillHasNoNetworkWithoutProxy": true
+  },
+  "verdict": "PASS",
+  "failedChecks": [],
+  "designAnswer": "The diff ratio is 0.537%, well below the 0.02 threshold. The only remaining difference is minor font anti-aliasing on the \"MERIDIAN-58\" text.\n\nTOKEN: MERIDIAN-58\nRATIO: 0.00537\nFILES: index.html, style.css",
+  "triageAnswer": "CODE: E_UPSTREAM_277\nMESSAGE: Snapshot 8af5 could not be uploaded."
+}

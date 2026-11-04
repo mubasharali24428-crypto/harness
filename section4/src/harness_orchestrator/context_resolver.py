@@ -34,6 +34,8 @@ import re
 import unicodedata
 from dataclasses import dataclass, field, replace
 
+from harness_contracts.http_client import env_client
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -225,11 +227,10 @@ async def search_index(
     ``transport`` accepts an httpx transport so tests can mount the real
     section11 ASGI app without sockets; production leaves it None.
     """
-    import httpx
 
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     payload = {"query": query, "projectId": project_id, "topK": top_k}
-    async with httpx.AsyncClient(
+    async with env_client(
         timeout=timeout_seconds, transport=transport
     ) as client:
         resp = await client.post(

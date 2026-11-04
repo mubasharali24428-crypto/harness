@@ -1,0 +1,9 @@
+[
+  {
+    "line": 10,
+    "col": 25,
+    "kind": "error",
+    "code": "HX4005",
+    "message": "effect 'verify.tests' must be awaited"
+  }
+]

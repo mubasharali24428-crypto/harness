@@ -1,0 +1,16 @@
+[
+  {
+    "line": 7,
+    "col": 12,
+    "kind": "error",
+    "code": "HX4002",
+    "message": "unknown capability 'repo.write' (known: model.invoke, repo.propose_patch, repo.read, tool.test)"
+  },
+  {
+    "line": 10,
+    "col": 31,
+    "kind": "error",
+    "code": "HX4001",
+    "message": "capability 'tool.test' is required here but is not declared in 'requires'"
+  }
+]

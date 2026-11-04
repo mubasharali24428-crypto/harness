@@ -475,6 +475,7 @@ def test_non_holder_guidance_is_queued_then_accepted_into_the_agent_stream(ctl):
     r = as_("eng2").post(f"{C}/r1/redirect", json={"content": "use tabs", "requestId": "g1"})
     body = r.json()
     assert body["queued"] and body["seq"] is None
+    assert body["takesEffect"] == "after_acceptance"  # W23
     again = as_("eng2").post(f"{C}/r1/redirect", json={"content": "use tabs", "requestId": "g1"})
     assert again.json()["duplicate"] and again.json()["instructionId"] == body["instructionId"]
     # not delivered to the agent, not in history as guidance
@@ -488,6 +489,7 @@ def test_non_holder_guidance_is_queued_then_accepted_into_the_agent_stream(ctl):
     out = as_("lead").post(f"{C}/r1/control/decide", json={"instructionId": iid,
                                                            "decision": "accept"}).json()
     assert out["state"] == "accepted" and out["seq"]
+    assert out["takesEffect"] == "next_start"  # r1 has not started: its first start reads it
     block, cursor = run(collab.guidance_since(f, "r1", 0))
     assert "use tabs" in block and cursor == out["seq"]
     err(as_("lead").post(f"{C}/r1/control/decide", json={"instructionId": iid,
@@ -960,3 +962,39 @@ def test_an_expired_holder_cannot_claim_or_decide_approvals(ctl):
         403, "NOT_LEADER")
     assert as_("eng2").post(f"{C}/r1/approvals/{a['id']}/claim",
                             json={"digest": a["digest"]}).status_code == 200
+
+
+# ------------------------------------------------------------- W23 steering timing
+
+_TAKES_EFFECT = {
+    "idle": "next_start", "planning": "next_start", "awaiting_plan_approval": "next_start",
+    "paused": "next_start", "blocked": "next_start",  # resume reads it (service._execute)
+    "executing": "next_execution",  # the call in flight read its guidance when it started
+    "awaiting_done_signal": "next_execution", "reviewing": "next_execution",
+    "pr_opened": "next_execution",
+    "done": "never",
+}
+
+
+def test_every_state_has_a_steering_timing():
+    from harness_orchestrator.state_machine import AgentState
+
+    assert set(_TAKES_EFFECT) == {s.value for s in AgentState}
+
+
+@pytest.mark.parametrize("state", sorted(_TAKES_EFFECT))
+@pytest.mark.parametrize("queued", [True, False])
+def test_takes_effect_every_state_and_queue(state, queued):
+    expected = "after_acceptance" if queued else _TAKES_EFFECT[state]
+    assert collab.takes_effect(state, queued) == expected
+
+
+def test_direct_guidance_says_when_and_permission_changes_do_not(ctl):
+    as_, _ = ctl
+    hold(as_)
+    g = as_("lead").post(f"{C}/r1/redirect", json={"content": "use tabs"}).json()
+    assert g["takesEffect"] == "next_start" and not g.get("queued")
+    perm = as_("lead").post(f"{C}/r1/redirect", json={"kind": "permission_change",
+                                                     "content": "allow net", "reason": "r"})
+    assert perm.status_code == 200, perm.text
+    assert "takesEffect" not in perm.json()  # not injected into the engine prompt

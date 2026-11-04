@@ -1,0 +1,351 @@
+{
+  "schema": 1,
+  "kind": "marathon2-baseline",
+  "corpusRevision": "m2-w8",
+  "startedAt": "2026-10-30T09:03:53.730543+00:00",
+  "finishedAt": "2026-10-30T09:03:59.404243+00:00",
+  "environment": {
+    "git": {
+      "head": "12fb2213152a1079369c2f120ed6cf16cb16df37",
+      "branch": "w1-engine-tools",
+      "dirty": true
+    },
+    "revisionCheck": {
+      "orchestratorContainer": "harness-orchestrator-1",
+      "workerImage": "harness-engine-worker:vdev-local",
+      "backend": {
+        "engine.py": {
+          "host": "2bca7251e3076c96b344929ef5082c502324d8a8964489fb9ac1a0d6a7f4feef",
+          "deployed": "2bca7251e3076c96b344929ef5082c502324d8a8964489fb9ac1a0d6a7f4feef",
+          "match": true
+        },
+        "image_gate.py": {
+          "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "match": true
+        }
+      },
+      "worker": {
+        "image_gate.py": {
+          "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "match": true
+        },
+        "engine.py": {
+          "host": "2bca7251e3076c96b344929ef5082c502324d8a8964489fb9ac1a0d6a7f4feef",
+          "deployed": "2bca7251e3076c96b344929ef5082c502324d8a8964489fb9ac1a0d6a7f4feef",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "match": true
+        }
+      },
+      "verified": true
+    },
+    "images": {
+      "backend": "sha256:5973222fefd58569010b807d5e1822d74edffccfa5194f4acf979d1bc976aa7c",
+      "engineWorker": "sha256:a5f587aeb1f00106d73f395bc5481b42f456d4c43c325a8f1f6156370ee53a9c"
+    },
+    "model": null,
+    "repeats": 1
+  },
+  "selection": {
+    "includeLive": false,
+    "costs": [],
+    "tasks": [
+      "stack-compose-journey"
+    ],
+    "categories": []
+  },
+  "summary": {
+    "executed": 1,
+    "passed": 1,
+    "failed": 0,
+    "errors": 0,
+    "deferred": 38,
+    "corpus": 39,
+    "revisionVerified": true
+  },
+  "results": [
+    {
+      "id": "stack-compose-journey",
+      "category": "stack_health",
+      "kind": "infra",
+      "cost": "infra",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-10-30T09:03:56.363319+00:00",
+          "durationSec": 3.04,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": null,
+          "failedChecks": [],
+          "stdoutTail": "compose E2E journey against http://127.0.0.1:8001 (+orchestrator/sandbox/frontend)\n[ok] step 01 all 21 containers running/healthy\n[ok] step 02 stack ready: identity+orchestrator+sandbox /ready, frontend 200\n[ok] step 03 passwordless login A \u2192 solo team a07adc00-36a7-4153-9ecd-5634d178e6e8 (admin)\n[ok] step 04 demo seed \u2192 project demo-proj-033495323c64, run demo-run-78adbcc03626, replay=true, pr_opened\n[ok] step 05 demo re-seed idempotent (same project/run)\n[ok] step 06 run aggregate \u2192 pr_opened with 10 steps\n[ok] step 07 engine result truthfully reports 'replayed' (no live claim)\n[ok] step 08 event replay \u2192 10 marked events, 9 types, ordered\n[ok] step 09 audit page \u2192 1 team-scoped rows incl. ['invite.minted']\n[ok] step 10 sandbox create\u2192exec(passed)\u2192destroy\u2192post-destroy 404\n[ok] step 11 cross-tenant reads answer identical 404 NOT_FOUND (no oracle)\n[ok] step 12 metrics \u2192 23 harness_* families\n[ok] step 13 frontend serves HTML\n\nPASS: 13 checks green in 3.0s\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 3.04,
+      "budget": {
+        "timeoutSeconds": 600,
+        "maxToolCalls": null,
+        "maxCostUsd": 0
+      },
+      "model": null,
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "exit 0",
+      "driver": "scripts/e2e/compose_journey.py",
+      "verifier": "every compose container running/healthy; readiness; OTP login; idempotent demo seed; replay ordering; audit page; sandbox create/exec/destroy 404"
+    }
+  ],
+  "deferred": [
+    {
+      "id": "w4-egress-deny",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "m03-scope",
+      "category": "confinement",
+      "status": "blocked",
+      "reason": "blocked 2026-10-28: local Ollama has only nomic-embed-text, no chat model. Prerequisite: pull a local chat model or point the drill at a compatible endpoint."
+    },
+    {
+      "id": "m04-streaming",
+      "category": "streaming",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent (nomic-embed-text only)"
+    },
+    {
+      "id": "m07-api-run",
+      "category": "bug_fix",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "m07-daemon-topology",
+      "category": "confinement",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "m07-vision-api",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w3-rewind",
+      "category": "cancellation_recovery",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "w3-partial-write",
+      "category": "cancellation_recovery",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "w4-web-fetch",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-install",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-mcp-client",
+      "category": "mcp",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-credential-leak",
+      "category": "tenant_isolation",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-concurrency",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-crash-cleanup",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-apply-conflict",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-agent-quotas",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-quotas-isolation",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w9-share-deploy",
+      "category": "artifact_authz",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w10-browser-repro",
+      "category": "ui_screenshot",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w11-vision",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "cli-parity",
+      "category": "cli_parity",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "cli-diagnostics",
+      "category": "cli_parity",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "skills-governance",
+      "category": "skills",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "stale-edit",
+      "category": "stale_edit",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "code-search",
+      "category": "code_search",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "multi-file-refactor",
+      "category": "refactor",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "tests-written",
+      "category": "tests",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "tenant-isolation-api",
+      "category": "tenant_isolation",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "native-tool-confinement",
+      "category": "confinement",
+      "status": "fixture-owed",
+      "reason": "owed: this is M01, still open; no access is widened until it closes"
+    },
+    {
+      "id": "ast-lsp-confinement",
+      "category": "confinement",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "lsp-real-server",
+      "category": "confinement",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "code-search-heldout",
+      "category": "code_search",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w9-visuals",
+      "category": "artifact_authz",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w10-browser-session",
+      "category": "ui_screenshot",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w11-grounding",
+      "category": "ui_screenshot",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w12-skills-memory",
+      "category": "skills",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w13-byo-runner",
+      "category": "tenant_isolation",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w14-design-heldout",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    }
+  ],
+  "limitations": [
+    "n=1 unless --repeats was raised; a single pass is an existence proof, not a rate.",
+    "A task is deferred, blocked or fixture-owed is not a pass.",
+    "Revision verification compares runtime files inside the deployed containers/images with this worktree; a mismatch makes every result stale for HEAD."
+  ]
+}

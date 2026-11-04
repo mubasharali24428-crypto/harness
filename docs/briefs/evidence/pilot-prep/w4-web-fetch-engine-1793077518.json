@@ -1,0 +1,89 @@
+{
+ "date": "2026-10-26",
+ "week": "W4",
+ "claim": "an agent answers from live docs; a denied destination is recorded",
+ "runId": "w4web-1793077518",
+ "drive": "HTTP only",
+ "goalNamesTheTitle": false,
+ "maxToolCalls": 6,
+ "engine": {
+  "engine": "replayed",
+  "status": "completed",
+  "finalResponse": "TITLE: Error: web_fetch failed: fetch failed: <urlopen error [Errno -3] Temporary failure in name resolution>\nREFUSAL: Denied by the harness egress policy: example.com is not in the web allow-list"
+ },
+ "answer": "TITLE: Error: web_fetch failed: fetch failed: <urlopen error [Errno -3] Temporary failure in name resolution>\nREFUSAL: Denied by the harness egress policy: example.com is not in the web allow-list",
+ "toolCalls": [],
+ "webFetchCalls": [],
+ "answerHasTitle": false,
+ "answerHasRefusal": true,
+ "statePath": [
+  "executing",
+  "awaiting_done_signal"
+ ],
+ "workersObserved": [
+  {
+   "name": "harness-ef1eec25bd7147d7ac898e23178fc5fc-relay",
+   "role": "relay",
+   "networks": [
+    "bridge",
+    "harness-ef1eec25bd7147d7ac898e23178fc5fc-net"
+   ],
+   "mounts": []
+  },
+  {
+   "name": "harness-ef1eec25bd7147d7ac898e23178fc5fc",
+   "role": "worker",
+   "networks": [
+    "harness-ef1eec25bd7147d7ac898e23178fc5fc-net"
+   ],
+   "mounts": [
+    {
+     "dst": "/var/lib/harness-runs/workspace/w4web-1793077518",
+     "readOnly": false
+    },
+    {
+     "dst": "/var/lib/harness-runs/sessions/w4web-1793077518",
+     "readOnly": false
+    }
+   ]
+  }
+ ],
+ "elapsedSeconds": 201.21,
+ "steps": [
+  {
+   "step": "login",
+   "ok": true
+  },
+  {
+   "step": "create project",
+   "ok": "30c9fe61-d9e2-48dd-808a-c173add53bb5",
+   "status": 201
+  },
+  {
+   "step": "propose plan",
+   "ok": "plan-afbbdf48",
+   "status": 201
+  },
+  {
+   "step": "set tool budget",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "approve plan",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "start",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "settled",
+   "ok": true,
+   "state": "awaiting_done_signal"
+  }
+ ],
+ "ok": false
+}

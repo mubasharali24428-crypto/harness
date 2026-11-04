@@ -61,6 +61,10 @@ export const inputStyle: CSSProperties = {
   boxSizing: "border-box",
 };
 
+/** Tinted pill. `color` may be a hex literal OR a CSS custom property — the
+ *  fill/border are mixed with color-mix() so theme tokens work (M-A3: the old
+ *  `${color}22` concatenation only produced valid CSS for hex literals, which
+ *  forced every pill to hardcode a dark-theme colour and fail AA on paper). */
 export function pillStyle(color: string): CSSProperties {
   return {
     display: "inline-block",
@@ -68,8 +72,8 @@ export function pillStyle(color: string): CSSProperties {
     borderRadius: 999,
     fontSize: 11,
     fontWeight: 500,
-    background: `${color}22`,
+    background: `color-mix(in srgb, ${color} 13%, transparent)`,
     color,
-    border: `1px solid ${color}44`,
+    border: `1px solid color-mix(in srgb, ${color} 27%, transparent)`,
   };
 }

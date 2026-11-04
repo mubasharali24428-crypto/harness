@@ -1,0 +1,114 @@
+{
+  "date": "2026-10-31",
+  "week": "W8",
+  "claim": "a crashed run's boundary network and containers are reclaimed, while a live neighbour's are not",
+  "drive": "two live runs on the compose stack; the victim's docker-run client SIGKILLed inside the worker daemon (the product must settle the run and release the claim), then a launcher-shaped orphan built with the product's own ContainerBoundary and SIGKILLed mid-flight (network + relay + running container, no owner); sweep executed inside the daemon, the only holder of the Docker socket",
+  "projectId": "db522f80-6263-4bb8-a726-3f1dcef3e70f",
+  "runs": {
+    "victim": {
+      "runId": "w8crash-victim-1793463057",
+      "network": "harness-4680a13e1a03406ba64d0cec63e9d5cd-net"
+    },
+    "neighbour": {
+      "runId": "w8crash-neighbour-1793463057",
+      "network": "harness-6004f7d734984ef08bf9b3d493cfd09b-net"
+    }
+  },
+  "victim": {
+    "settledState": "blocked",
+    "claimRowAfterSettle": null,
+    "engineFinalResponse": "DeepSeek Harness run failed: DeepSeek Harness worker exited -9: ",
+    "orphanNetworkSurvivedCrash": true,
+    "orphanContainersRunning": [
+      {
+        "id": "46c870d478fe6060908bb19fc90d666080dc7d2ff1acfedd61282f9aa3268065",
+        "name": "harness-sandbox-egress-1",
+        "state": "running"
+      },
+      {
+        "id": "5abac607ae23532093091ff08677501512fdf667b9034bc4f9840b250f4fd90a",
+        "name": "harness-27ef51b16ca74e7187548be6b6b3e23e-relay",
+        "state": "running"
+      },
+      {
+        "id": "f95e42f200be0150a50fc8ae1ffcbad311c1fd0d378969bf25cfb6c7dfd3298b",
+        "name": "harness-27ef51b16ca74e7187548be6b6b3e23e",
+        "state": "running"
+      }
+    ],
+    "killedClients": "1"
+  },
+  "sweeps": {
+    "heldRefusal": {
+      "removed": [],
+      "kept": [
+        "harness-4680a13e1a03406ba64d0cec63e9d5cd-net",
+        "harness-6004f7d734984ef08bf9b3d493cfd09b-net"
+      ],
+      "count": 0,
+      "containersStopped": 0
+    },
+    "real": {
+      "removed": [
+        {
+          "network": "harness-27ef51b16ca74e7187548be6b6b3e23e-net",
+          "runId": "w8crash-victim-1793463057",
+          "stopped": [
+            "f95e42f200be0150a50fc8ae1ffcbad311c1fd0d378969bf25cfb6c7dfd3298b",
+            "5abac607ae23532093091ff08677501512fdf667b9034bc4f9840b250f4fd90a"
+          ]
+        }
+      ],
+      "kept": [
+        "harness-6004f7d734984ef08bf9b3d493cfd09b-net"
+      ],
+      "count": 1,
+      "containersStopped": 2
+    }
+  },
+  "neighbour": {
+    "stateAtSweep": "executing",
+    "networkBefore": "harness-6004f7d734984ef08bf9b3d493cfd09b-net",
+    "containersBefore": [
+      {
+        "id": "1012a43a3100387fc607bac60823a66c985cb4f22d91a1bf1f9e5aa21a7801b3",
+        "name": "harness-6004f7d734984ef08bf9b3d493cfd09b-relay",
+        "state": "running"
+      },
+      {
+        "id": "46c870d478fe6060908bb19fc90d666080dc7d2ff1acfedd61282f9aa3268065",
+        "name": "harness-sandbox-egress-1",
+        "state": "running"
+      },
+      {
+        "id": "8eb48cc8fd772069b89de9c45fe4a7c850339c7134846c60debe660c5aa9757b",
+        "name": "harness-6004f7d734984ef08bf9b3d493cfd09b",
+        "state": "running"
+      }
+    ],
+    "networkAfter": "harness-6004f7d734984ef08bf9b3d493cfd09b-net",
+    "stillRunningAfterSweep": true,
+    "networkKeptBySweep": true,
+    "stoppedBySweep": [
+      "5abac607ae23532093091ff08677501512fdf667b9034bc4f9840b250f4fd90a",
+      "f95e42f200be0150a50fc8ae1ffcbad311c1fd0d378969bf25cfb6c7dfd3298b"
+    ]
+  },
+  "networksAfterSweep": {
+    "harness-6004f7d734984ef08bf9b3d493cfd09b-net": "w8crash-neighbour-1793463057"
+  },
+  "checks": {
+    "bothStarted": true,
+    "crashObserved": true,
+    "orphanExisted": true,
+    "orphanContainerWasRunning": true,
+    "victimSettled": true,
+    "claimReleased": true,
+    "heldLiveRunRefused": true,
+    "orphanNetworkRemoved": true,
+    "orphanContainersStopped": true,
+    "neighbourUntouched": true,
+    "victimNetworkGone": true
+  },
+  "verdict": "PASS"
+}

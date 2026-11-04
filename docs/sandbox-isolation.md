@@ -36,6 +36,17 @@ Scope: `LocalSandboxRunner` and the `/api/v1/sandbox/tasks*` routes. Threat IDs 
   directory must stay unreadable. The `HARNESS_ENGINE_CONFINEMENT=off`
   diagnostic opt-in makes the worker write normally but removes the OS
   boundary.
+- **Why Docker Desktop host folders fail, and the local launcher's workaround (W24,
+  2026-10-31).** Docker Desktop shares host folders as a mount of type `fakeowner`. Landlock
+  cannot match it: inside the container every read and write of such a bind-mounted directory is
+  denied, even with a rule on `/` (`ls`, `cat` and `echo >` all fail; the same mount reads and
+  writes fine without Landlock). A Docker volume is an ordinary directory in the VM and works.
+  `deploy/runners/local_engine.py` (the IDE and CLI local launcher) therefore stages its workspace
+  copy into a per-run volume on Docker Desktop, runs the worker on the volume's own directory
+  (through `confine._mount`'s `HARNESS_RUNS_VOLUME` translation), and reads the result back with
+  a size cap and the `data` tar filter. The confinement rules are unchanged. Override with
+  `HARNESS_LOCAL_WORKSPACE=volume|bind`. Other hosts that share folders the same way (Colima,
+  Rancher Desktop, OrbStack) were not tested; set `volume` there.
 - **Read allow-list bootstrap (fixed 2026-10-25).** `confine_argv` used to add
   the target program's grandparent to the readable roots whenever its directory
   was named `bin`. Since the engine shell gate always runs `/bin/sh`, that
@@ -75,3 +86,21 @@ but not production-certified. Acceptance requires a dedicated worker/daemon,
 explicit image provenance, verified non-root execution, no shared backend
 socket, and a Linux host test before `SANDBOX_USE_DOCKER=true` is enabled for
 a pilot.
+
+## Engine worker daemon (M07, 2026-10-26)
+
+The engine's confined worker (`HARNESS_ENGINE_CONFINEMENT=container`) now has
+that dedicated holder. The `worker-daemon` service (compose profile `worker`) is
+the only service with the Docker socket. The orchestrator posts it a run id, the
+goal, the run's policy and its `DSH_*` settings. The daemon builds the boundary
+from its own configuration: the run directories under its `DSH_WORKSPACE`, the
+image in `HARNESS_ENGINE_IMAGE`, mode `container`, and `confine`'s limits. Each
+worker runs as the workspace's owner and never as root. Its run directories
+reach it as subpaths of the `harness_runs` volume. Calls need a bearer token,
+and the daemon has no published port. Without the daemon, a live run fails
+closed.
+
+What this is not: the daemon uses the host's main Docker engine, so whoever
+controls it controls the host. It narrows *who* holds that power (one small,
+reviewed service instead of the API), but it is not the separately managed
+rootless daemon this gate ultimately asks for.

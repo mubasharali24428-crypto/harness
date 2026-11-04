@@ -1,0 +1,18 @@
+{
+  "date": "2026-10-26",
+  "milestone": "M03 (Landlock column of the M01 spike)",
+  "kernel": "6.12.76-linuxkit (Docker Desktop 29.5.3)",
+  "image": "harness-engine-worker:m03 (built from 595f8eb's tree)",
+  "user": "10001:10001",
+  "landlockSupported": true,
+  "how": "section5 shell_gate.py run inside the worker image, cwd=/w/ws, scopePaths=[\"src\"]; each command is python3 -c \"<code>\"",
+  "cases": [
+    {"code": "open('docs/leak.txt','w').write('x')", "result": "exitCode 1, PermissionError [Errno 13]"},
+    {"code": "open('do'+'cs/leak2.txt','w')", "result": "exitCode 1, PermissionError [Errno 13]"},
+    {"code": "open('top.txt','w')", "result": "exitCode 1, PermissionError [Errno 13]"},
+    {"code": "open('src/ok.txt','w').write('x')", "result": "exitCode 0"},
+    {"code": "open('docs/fine.txt','w')  # control: no scopePaths", "result": "exitCode 0"}
+  ],
+  "filesAfterScopedCases": ["src/ok.txt"],
+  "note": "W1 recorded ENOSYS for landlock_create_ruleset on this kernel; inside a default-seccomp container it is available. The scope is enforced by Landlock as the write set (confine_argv write_roots), not by the string check, which skips code strings."
+}

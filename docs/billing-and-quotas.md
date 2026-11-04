@@ -8,12 +8,21 @@ for the current pilot (owner direction) and does not cap the local billing and q
 
 The displayed monthly spend limit and run-start budget check share
 `harness_contracts.budget.resolve_cap`: team override, then plan limit, then the configured default.
+Resolution order for a rate is the operator card, then the frozen catalog, then
+a logged fallback (`harness_contracts.rate_card` / `PricingEngine.get_pricing`), and the SAME
+function answers for the router's quote and for the engine metering row — W15 moved the card
+into the contract package because Section 4 had been pricing from the catalog only, so an
+operator-priced model was quoted its real rate and booked at the invented fallback.
 Usage is attributed to the team through the project/run ownership chain. Section 4 checks the tier's
 daily run limit and estimated call cost before run start. Agent run pools reserve child budgets with
 conditional database updates; work that exceeds an allocated pool is refused.
 
 Billing administrators can set a hard team monthly cap, concurrent-run limit, and warning
-threshold. Concurrent queue claims apply the configured limit under the queue's serialized claim
+threshold. Two HTTP budgets also apply per team at request time (W15): run start 60/min and model
+call 300/min, stored in `rate_buckets` and answered 429 `RATE_LIMITED` with `Retry-After`. They are
+abuse guards against a runaway script, not usage quotas: they do not consume the monthly cap and a
+store outage fails open, exactly like the per-IP limiter. Tune them with
+`HARNESS_TEAM_RUN_START_LIMIT` / `HARNESS_TEAM_MODEL_CALL_LIMIT`. Concurrent queue claims apply the configured limit under the queue's serialized claim
 transaction. Daily run reservations are idempotent by run id and use a team-scoped transaction lock
 to serialize cap decisions. Per-run tool-call limits count durable tool-call records and gate start,
 claim, and running sweeps. The monthly spend check still uses recorded usage plus an estimate; it

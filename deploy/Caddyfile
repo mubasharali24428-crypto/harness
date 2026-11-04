@@ -44,6 +44,14 @@ harness.local {
 		reverse_proxy review:8008
 	}
 
+	# W16 slice 3: SCIM is reached by the CUSTOMER'S identity provider, at the
+	# documented SCIM path (RFC 7644 pins /scim/v2, connectors do not let you
+	# re-prefix it). Without this block the catch-all below would answer 204 and
+	# Okta/Entra would report a working endpoint that never deprovisions.
+	handle /scim/v2* {
+		reverse_proxy identity:8001
+	}
+
 	# Everything else (incl. unmatched /api/v1/* paths): empty success, no body.
 	handle {
 		respond 204

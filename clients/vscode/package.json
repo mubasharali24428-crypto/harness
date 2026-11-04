@@ -1,0 +1,138 @@
+{
+  "name": "harness-vscode",
+  "displayName": "Harness",
+  "description": "Run the AI Engineering Harness from the editor: review summary, inline diff, keyboard-first review, context picking, status bar.",
+  "version": "0.2.0",
+  "publisher": "harness",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "vscode": "^1.90.0",
+    "node": ">=22"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:harness.run"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "harness.login",
+        "title": "Harness: Sign in"
+      },
+      {
+        "command": "harness.logout",
+        "title": "Harness: Sign out"
+      },
+      {
+        "command": "harness.run",
+        "title": "Harness: Run on selection"
+      },
+      {
+        "command": "harness.status",
+        "title": "Harness: Show run status"
+      },
+      {
+        "command": "harness.review.apply",
+        "title": "Harness: Apply reviewed change"
+      },
+      {
+        "command": "harness.review.skip",
+        "title": "Harness: Skip reviewed change"
+      },
+      {
+        "command": "harness.review.skipAll",
+        "title": "Harness: Skip all remaining reviewed changes"
+      }
+    ],
+    "configuration": {
+      "title": "Harness",
+      "properties": {
+        "harness.serverUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8004",
+          "description": "Orchestrator base URL. Identity is derived from harness.identityUrl."
+        },
+        "harness.identityUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8001",
+          "description": "Identity service base URL."
+        },
+        "harness.maxContextChars": {
+          "type": "number",
+          "default": 8000,
+          "minimum": 500,
+          "description": "Hard cap on the context block sent with a goal. Larger selections are reduced and the goal says so."
+        },
+        "harness.repoRoot": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the harness repo whose deploy/runners/local_engine.py executes the confined run (required to run)."
+        },
+        "harness.launcherPython": {
+          "type": "string",
+          "default": "",
+          "description": "Interpreter with the harness SDK importable (e.g. section1/.venv/bin/python). Defaults to python3."
+        },
+        "harness.runTimeoutSeconds": {
+          "type": "number",
+          "default": 900,
+          "minimum": 30,
+          "description": "Wall-clock deadline for one confined engine run."
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "harness.review.apply",
+        "key": "alt+y",
+        "when": "harness.reviewing"
+      },
+      {
+        "command": "harness.review.skip",
+        "key": "alt+n",
+        "when": "harness.reviewing"
+      },
+      {
+        "command": "harness.review.skipAll",
+        "key": "alt+shift+n",
+        "when": "harness.reviewing"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "harness.review.apply",
+          "when": "harness.reviewing"
+        },
+        {
+          "command": "harness.review.skip",
+          "when": "harness.reviewing"
+        },
+        {
+          "command": "harness.review.skipAll",
+          "when": "harness.reviewing"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "bundle": "npm run build && esbuild src/extension.ts --bundle --format=esm --platform=node --target=node22 --external:vscode --outfile=dist/extension.js",
+    "package": "npm run bundle && npx --yes @vscode/vsce@3.2.1 package --no-dependencies --allow-missing-repository --skip-license -o harness-vscode.vsix"
+  },
+  "dependencies": {
+    "harness-ts-sdk": "file:../ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.90.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "esbuild": "^0.28.2"
+  }
+}

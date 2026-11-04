@@ -4,11 +4,19 @@ Run from anywhere; the repo root is located relative to this file. The
 recorded specs are the generator's input of record — regenerate them when a
 section's API changes (`python scripts/sdk-gen/fetch_specs.py`).
 
+Caution: `orchestrator.openapi.json` is a ROUTER FRAGMENT checked by
+`scripts/spec_drift.py` against the app, while the live service also mounts
+`/health`, `/ready` and the W9 routes. Fetching everything therefore overwrites
+the fragment with a superset and reddens the drift gate. Prefer
+`--only identity` (or another service whose recorded file comes from the live
+service) and revert `orchestrator.openapi.json` if it changed.
+
 Requires only the Python standard library.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 import time
@@ -43,10 +51,24 @@ def fetch(port: int, retries: int = 3, timeout: float = 10.0) -> dict:
     raise SystemExit(f"FAILED {url}: {last_err}")
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--only",
+        default="",
+        help="comma-separated service names (e.g. identity); default: all",
+    )
+    args = parser.parse_args(argv)
+    wanted = {name.strip() for name in args.only.split(",") if name.strip()}
+    unknown = wanted - set(SERVICES.values())
+    if unknown:
+        parser.error(f"unknown service(s): {sorted(unknown)}")
+
     SPECS_DIR.mkdir(parents=True, exist_ok=True)
     failures: list[str] = []
     for port, name in sorted(SERVICES.items()):
+        if wanted and name not in wanted:
+            continue
         try:
             spec = fetch(port)
         except SystemExit as err:

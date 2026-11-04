@@ -149,6 +149,106 @@ async def ensure_kdf_params(session, master_key: bytes):
 
 
 # --------------------------------------------------------------------------
+# Master-key rotation (W15)
+# --------------------------------------------------------------------------
+
+#: Every column that stores a Fernet token, with its table and primary key.
+#: A new encrypted column MUST be added here — test_master_key_rotation.py
+#: pins this list against the models.
+ENCRYPTED_COLUMNS: tuple[tuple[str, str, str], ...] = (
+    ("api_keys", "id", "key_encrypted"),
+    ("integration_webhooks", "id", "secret_encrypted"),
+    ("github_connections", "id", "access_token_encrypted"),
+    ("team_sso_configs", "team_id", "client_secret_encrypted"),
+    ("siem_sinks", "id", "secret_encrypted"),
+)
+
+
+async def rotate_master_key(
+    session: AsyncSession, old_key: bytes, new_key: bytes, *, dry_run: bool = False
+) -> dict:
+    """Re-wrap every stored secret from ``old_key`` to ``new_key``.
+
+    Unlike :func:`reencrypt_all_payloads` (same key, derivation upgrade), this
+    changes the key itself: decrypt with the old key's read set (salted, then
+    legacy), encrypt with the new key's salted write key. The cleartext salt
+    row is reused, so no payload becomes undecryptable by construction.
+
+    A row the old key cannot read is counted ``failed`` and left byte-identical
+    — rotation must never destroy a secret it cannot read. The caller decides
+    the exit posture (the script refuses to report success when ``failed`` is
+    non-zero). Counts only; no secret material is returned or logged.
+    """
+    from sqlalchemy import text
+
+    from .models import KeyDerivationParams
+
+    if not old_key or not new_key:
+        raise ValueError("old and new master keys must be non-empty")
+    if old_key == new_key:
+        raise ValueError("old and new master keys are identical; nothing to rotate")
+
+    row = await session.get(KeyDerivationParams, 1)
+    if row is None:
+        raise ValueError(
+            "key_derivation_params is missing; run the 0022 upgrade (or this "
+            "install predates salted KDF and must be migrated) before rotating"
+        )
+    salt = bytes(row.salt)
+    kwargs = {
+        "algorithm": row.algorithm,
+        "n": row.scrypt_n or SCRYPT_N,
+        "r": row.scrypt_r or SCRYPT_R,
+        "p": row.scrypt_p or SCRYPT_P,
+    }
+    old_vault = KeyVault.salted(old_key, salt, **kwargs)
+    new_vault = KeyVault.salted(new_key, salt, **kwargs)
+
+    summary = {
+        "total": 0,
+        "readable": 0,
+        "rewrapped": 0,
+        "failed": 0,
+        "dryRun": dry_run,
+        "perTable": {},
+    }
+    for table, pk, column in ENCRYPTED_COLUMNS:
+        stats = {"total": 0, "readable": 0, "rewrapped": 0, "failed": 0}
+        rows = (
+            await session.execute(text(f"SELECT {pk}, {column} FROM {table}"))
+        ).all()
+        for key, ciphertext in rows:
+            stats["total"] += 1
+            summary["total"] += 1
+            try:
+                plaintext = old_vault.decrypt(ciphertext)
+            except (ValueError, TypeError):
+                stats["failed"] += 1
+                summary["failed"] += 1
+                continue
+            stats["readable"] += 1
+            summary["readable"] += 1
+            if dry_run:
+                continue
+            rewrapped = new_vault.encrypt(plaintext)
+            if new_vault.decrypt(rewrapped) != plaintext:
+                # Never write a token we cannot read back.
+                stats["failed"] += 1
+                summary["failed"] += 1
+                continue
+            await session.execute(
+                text(f"UPDATE {table} SET {column} = :value WHERE {pk} = :key"),
+                {"value": rewrapped, "key": key},
+            )
+            stats["rewrapped"] += 1
+            summary["rewrapped"] += 1
+        summary["perTable"][table] = stats
+    if not dry_run:
+        await session.commit()
+    return summary
+
+
+# --------------------------------------------------------------------------
 # KeyVault (salted-KDF edition)
 # --------------------------------------------------------------------------
 

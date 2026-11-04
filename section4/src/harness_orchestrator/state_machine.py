@@ -49,6 +49,18 @@ from typing import Any
 from harness_contracts.events import EventType
 from harness_contracts.timeutil import as_utc, now_utc
 
+from harness_orchestrator.context_window import configured_context_window
+
+
+def _context_window() -> int | None:
+    """The operator-configured window, or None when nobody set one.
+
+    Delegated so the run page and the durable ``context_compacted`` rows cannot
+    drift apart; see ``context_window.py`` for why an unset variable is not a
+    licence to display a default.
+    """
+    return configured_context_window()
+
 
 class AgentState(StrEnum):
     IDLE = "idle"
@@ -242,7 +254,12 @@ class AgentStateMachine:
                 f"{plan_approval_ttl_seconds()}s). Re-approve the plan."
             )
         self.transition_to(AgentState.EXECUTING)
-        self.emit(EventType.EXECUTION_STARTED, {"runId": self.run_id})
+        self.emit(
+            EventType.EXECUTION_STARTED,
+            # W1: the window this run will use, from the same variable the
+            # shipped profile reads, so the UI can state it instead of guessing.
+            {"runId": self.run_id, "contextWindow": _context_window()},
+        )
 
     def execution_completed(self, summary: str = "") -> None:
         """Wave 6 (D4): engine settled successfully — open the human done-gate.

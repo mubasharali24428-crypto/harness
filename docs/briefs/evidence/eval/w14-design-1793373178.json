@@ -1,0 +1,330 @@
+{
+  "date": "2026-10-30",
+  "week": "W14",
+  "task": "w14-design-heldout",
+  "leg": "live",
+  "run": "w14-design-1793373178",
+  "preRegistered": {
+    "ratioMax": 0.03,
+    "colourTolerance": 12,
+    "answerRatioTolerance": 0.005,
+    "fixtureColourTolerance": 0
+  },
+  "fixture": {
+    "token": "VESPER-71",
+    "bytes": 6164,
+    "sha256": "4a8022306845883367b4a78eee390c7e83820e65c6b2062e90663f1039b24734",
+    "sampledColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    },
+    "expectedColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    }
+  },
+  "fixtureChecks": {
+    "fixtureRendersAtDeclaredSize": true,
+    "flatColoursExactAtSamplePoints": true,
+    "tokenTextIsDrawn": true,
+    "selfDiffIsZero": true,
+    "renderIsDeterministic": true
+  },
+  "drive": "HTTP only",
+  "seededFiles": [
+    "mockup.png"
+  ],
+  "design": {
+    "startStatus": 200,
+    "states": [
+      "executing",
+      "blocked"
+    ],
+    "state": "blocked",
+    "engine": "replayed",
+    "engineStatus": "error",
+    "answer": "DeepSeek Harness run failed: loop_detected after 17 tool calls"
+  },
+  "designTrail": {
+    "toolsUsed": [
+      "browser",
+      "edit",
+      "image",
+      "read_image",
+      "write"
+    ],
+    "imageDiffCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_8e8c3cb22ee34a789305ebee",
+        "arguments": "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\",\"out\":\"shots/diff1.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_1a778a6a565e43ac97b3fd78",
+        "arguments": "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\",\"out\":\"shots/diff2.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_c5fafdef3e924f648da00a91",
+        "arguments": "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\",\"out\":\"shots/diff3.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imageSampleCalls": [],
+    "imagePaletteCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_7ca74e66587e464e8a692a80",
+        "arguments": "{\"action\":\"palette\",\"maxColors\":12,\"path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "screenshotCalls": [
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "call_b3852f2cd53e429ba3f6cb25",
+        "arguments": "{\"action\":\"screenshot\",\"height\":640,\"path\":\"shots/render.png\",\"url\":\"index.html\",\"width\":960}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "call_e62994a517934541931c2de2",
+        "arguments": "{\"action\":\"screenshot\",\"height\":640,\"path\":\"shots/render.png\",\"url\":\"index.html\",\"width\":960}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "call_116c63bde01e4554bac92bdf",
+        "arguments": "{\"action\":\"screenshot\",\"height\":640,\"path\":\"shots/render.png\",\"url\":\"index.html\",\"width\":960}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "call_1f2e1b8673a44250806e17c4",
+        "arguments": "{\"action\":\"screenshot\",\"height\":640,\"path\":\"shots/render.png\",\"url\":\"index.html\",\"width\":960}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "mockupReads": [
+      {
+        "type": "tool_call",
+        "tool": "read_image",
+        "callId": "call_06a5bea55e6340d59b7cb2fa",
+        "arguments": "{\"file_path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "dialogReads": [],
+    "writes": [
+      {
+        "type": "tool_call",
+        "tool": "write",
+        "callId": "call_76eb0f76a65c410696eb3424",
+        "arguments": "{\"file_path\":\"index.html\",\"content\":\"<!DOCTYPE html>\\n<html>\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <link rel=\\\"stylesheet\\\" href=\\\"style.css\\\">\\n</head>\\n<body>\\n  <div class=\\\"container\\\">\\n    <div class=\\\"sidebar\\\"></div>\\n    <div class=\\\"header\\\"></div>\\n    <div class=\\\"main\\\">\\n      <div class=\\\"card card-left\\\"></div>\\n      <div class=\\\"card card-right\\\"></div>\\n      <div class=\\\"pill\\\"></div>\\n      <div class=\\\"accent-bar\\\"></div>\\n      <div class=\\\"title\\\">VESPER-71</div>\\n    </div>\\n  </div>\\n</body>\\n</html>\\n\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "write",
+        "callId": "call_018c6118b648491abce4470b",
+        "arguments": "{\"file_path\":\"style.css\",\"content\":\"* {\\n  margin: 0;\\n  padding: 0;\\n  box-sizing: border-box;\\n}\\n\\nhtml, body {\\n  width: 960px;\\n  height: 640px;\\n  overflow: hidden;\\n  background: #0b0d12;\\n}\\n\\n.container {\\n  position: relative;\\n  width: 960px;\\n  height: 640px;\\n}\\n\\n.sidebar {\\n  position: absolute;\\n  left: 0;\\n  top: 0;\\n  width: 220px;\\n  height: 640px;\\n  background: #141821;\\n}\\n\\n.header {\\n  position: absolute;\\n  left: 220px;\\n  top: 0;\\n  width: 740px;\\n  height: 72px;\\n  background: #1b2030;\\n}\\n\\n.main {\\n  position: absolute;\\n  left: 220px;\\n  top: 72px;\\n  width: 740px;\\n  height: 568px;\\n  background: #0b0d12;\\n}\\n\\n.card {\\n  position: absolute;\\n  width: 320px;\\n  height: 220px;\\n  background: #1b2030;\\n}\\n\\n.card-left {\\n  left: 40px;\\n  top: 38px;\\n}\\n\\n.card-right {\\n  left: 380px;\\n  top: 38px;\\n}\\n\\n.pill {\\n  position: absolute;\\n  left: 40px;\\n  top: 298px;\\n  width: 220px;\\n  height: 44px;\\n  background: #2fbf71;\\n}\\n\\n.accent-bar {\\n  position: absolute;\\n  left: 380px;\\n  top: 298px;\\n  width: 300px;\\n  height: 14px;\\n  background: #f0a43c;\\n}\\n\\n.title {\\n  position: absolute;\\n  left: 381px;\\n  top: 354px;\\n  width: 182px;\\n  height: 22px;\\n  color: #e8edf6;\\n  font-family: 'DejaVu Sans', sans-serif;\\n  font-size: 28px;\\n  font-weight: bold;\\n  letter-spacing: 2px;\\n}\\n\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "edit",
+        "callId": "call_ffa5057c690c41fc9051f92f",
+        "arguments": "{\"file_path\":\"style.css\",\"old_string\":\".card {\\n  position: absolute;\\n  width: 320px;\\n  height: 220px;\\n  background: #1b2030;\\n}\\n\\n.card-left {\\n  left: 40px;\\n  top: 38px;\\n}\\n\\n.card-right {\\n  left: 380px;\\n  top: 38px;\\n}\",\"new_string\":\".card {\\n  position: absolute;\\n  width: 340px;\\n  height: 220px;\\n  background: #1b2030;\\n}\\n\\n.card-left {\\n  left: 40px;\\n  top: 38px;\\n}\\n\\n.card-right {\\n  left: 400px;\\n  top: 38px;\\n}\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "edit",
+        "callId": "call_a6b3730548804ba98129bfe2",
+        "arguments": "{\"file_path\":\"style.css\",\"old_string\":\".title {\\n  position: absolute;\\n  left: 381px;\\n  top: 354px;\\n  width: 182px;\\n  height: 22px;\\n  color: #e8edf6;\\n  font-family: 'DejaVu Sans', sans-serif;\\n  font-size: 28px;\\n  font-weight: bold;\\n  letter-spacing: 2px;\\n}\",\"new_string\":\".title {\\n  position: absolute;\\n  left: 381px;\\n  top: 354px;\\n  color: #e8edf6;\\n  font-family: 'DejaVu Sans', sans-serif;\\n  font-size: 20px;\\n  font-weight: bold;\\n  letter-spacing: 2px;\\n}\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "edit",
+        "callId": "call_5a7cb73fa77144afb88e9378",
+        "arguments": "{\"file_path\":\"style.css\",\"old_string\":\".card {\\n  position: absolute;\\n  width: 340px;\\n  height: 220px;\\n  background: #1b2030;\\n}\\n\\n.card-left {\\n  left: 40px;\\n  top: 38px;\\n}\\n\\n.card-right {\\n  left: 400px;\\n  top: 38px;\\n}\",\"new_string\":\".card {\\n  position: absolute;\\n  width: 320px;\\n  height: 220px;\\n  background: #1b2030;\\n}\\n\\n.card-left {\\n  left: 40px;\\n  top: 38px;\\n}\\n\\n.card-right {\\n  left: 380px;\\n  top: 38px;\\n}\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "edit",
+        "callId": "call_ec691dc9d45d42e19b5975a8",
+        "arguments": "{\"file_path\":\"style.css\",\"old_string\":\".card-right {\\n  left: 380px;\\n  top: 38px;\\n}\",\"new_string\":\".card-right {\\n  left: 380px;\\n  top: 38px;\\n  width: 340px;\\n}\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imageArguments": [
+      "{\"action\":\"palette\",\"maxColors\":12,\"path\":\"mockup.png\"}",
+      "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\",\"out\":\"shots/diff1.png\"}",
+      "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\",\"out\":\"shots/diff2.png\"}",
+      "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\",\"out\":\"shots/diff3.png\"}"
+    ]
+  },
+  "measurement": {
+    "mockupSize": [
+      960,
+      640
+    ],
+    "renderSize": [
+      960,
+      640
+    ],
+    "changedPixels": 15608,
+    "totalPixels": 614400,
+    "ratio": 0.025404,
+    "sampledColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        27,
+        32,
+        48
+      ],
+      "cardB": [
+        27,
+        32,
+        48
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    }
+  },
+  "checks": {
+    "fixtureLegPassed": true,
+    "designRunSettled": true,
+    "agentOpenedTheMockup": true,
+    "agentMeasuredColours": true,
+    "agentScreenshottedItsPage": true,
+    "agentUsedTheDiff": true,
+    "agentWroteThePage": true,
+    "tokenOnlyInPixelsWasTranscribed": true,
+    "pageRendersAtMockupSize": true,
+    "independentDiffWithinThreshold": true,
+    "flatColoursSurvived": true,
+    "agentRatioAgreesWithBytes": false
+  },
+  "verdict": "FAIL",
+  "failedChecks": [
+    "agentRatioAgreesWithBytes"
+  ],
+  "designAnswer": "DeepSeek Harness run failed: loop_detected after 17 tool calls"
+}

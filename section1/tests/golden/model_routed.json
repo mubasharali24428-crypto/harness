@@ -1,0 +1,11 @@
+{
+  "type": "model_routed",
+  "payload": {
+    "fixture": true
+  },
+  "ts": "2026-10-29T16:13:06.223537+00:00",
+  "seq": 7,
+  "projectId": "proj-golden",
+  "runId": "run-golden",
+  "schemaVersion": 1
+}

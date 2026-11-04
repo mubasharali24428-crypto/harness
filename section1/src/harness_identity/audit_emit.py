@@ -595,6 +595,33 @@ async def emit_sso_config_saved(
     )
 
 
+async def emit_sso_login(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """sso.login — W16 slice 2: an OIDC login minted a session. Call AFTER the
+    session row commits; target_id is the member's userId, detail carries
+    {role, source, matched} so "why is this person an admin?" is answerable
+    from the log alone (source is "claim" | "membership")."""
+    return await _emit(
+        session,
+        "sso.login",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="member",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
 async def emit_sso_config_deleted(
     session: AsyncSession,
     *,
@@ -621,6 +648,213 @@ async def emit_sso_config_deleted(
     )
 
 
+async def emit_scim_token_created(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """scim.token_created — W16 slice 3: a team minted a SCIM bearer credential.
+    detail carries {label, refId} and NEVER the token (the raw value exists
+    only in the response body; _scrub would drop a secret-shaped key anyway)."""
+    return await _emit(
+        session,
+        "scim.token_created",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="scim_token",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_scim_token_revoked(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """scim.token_revoked — W16 slice 3: a SCIM credential is dead on the next
+    request. Emitted only when a live row actually existed."""
+    return await _emit(
+        session,
+        "scim.token_revoked",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="scim_token",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_scim_user_changed(
+    session: AsyncSession,
+    *,
+    actor_user_id: str | None,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "system",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """scim.user_changed — W16 slice 3: a directory mutation reached a seat.
+
+    The actor is the SCIM TOKEN, not a person, so actor_user_id may be None and
+    detail carries {refId, kind, before, after} — `refId` because _scrub drops
+    any key shaped like a secret, and a credential id is one spelling away from a
+    credential. Call AFTER the change commits.
+    """
+    return await _emit(
+        session,
+        "scim.user_changed",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="member",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_siem_sink_created(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """siem.created — W16 slice 4: a collector endpoint was registered. detail
+    carries {label, startFrom, cursor}; the shared secret is never passed in."""
+    return await _emit(
+        session,
+        "siem.created",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="siem_sink",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_siem_sink_changed(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """siem.updated — W16 slice 4: label/url/secret/active/state changed. detail
+    carries {changed, version}; a rotated secret is recorded as the word
+    "rotated", never a value or a hint."""
+    return await _emit(
+        session,
+        "siem.updated",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="siem_sink",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_siem_sink_deleted(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """siem.deleted — W16 slice 4: collector removed; the cursor dies with it, so
+    this row is the last word on where the team's trail stopped being pushed."""
+    return await _emit(
+        session,
+        "siem.deleted",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="siem_sink",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_siem_sink_blocked(
+    session: AsyncSession,
+    *,
+    actor_user_id: str | None,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "system",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """siem.blocked — W16 slice 4: the collector refused MAX_ATTEMPTS times in a
+    row and the worker stopped. The actor is the worker, so there is no user."""
+    return await _emit(
+        session,
+        "siem.blocked",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="siem_sink",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_siem_sink_resumed(
+    session: AsyncSession,
+    *,
+    actor_user_id: str | None,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """siem.resumed — W16 slice 4: a blocked collector starts again (an admin's
+    PATCH), so the gap between blocked and resumed is bounded by a named act."""
+    return await _emit(
+        session,
+        "siem.resumed",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="siem_sink",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
 async def emit_audit_exported(
     session: AsyncSession,
     *,
@@ -637,4 +871,418 @@ async def emit_audit_exported(
         target_type="team",
         target_id=team_id,
         detail=detail,
+    )
+
+
+async def emit_audit_verified(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    detail: dict[str, Any] | None = None,
+) -> AuditLog | None:
+    """audit.verified - W16 slice 4: an admin asked whether the hash chain still
+    verifies. detail carries {afterChainPos, maxRows, rowsChecked, ok}; the
+    verdict is an integrity claim about evidence, so asking for it is itself a
+    consequential read and is recorded like the export access row is."""
+    return await _emit(
+        session,
+        "audit.verified",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team",
+        target_id=team_id,
+        detail=detail,
+    )
+
+
+async def emit_skill_created(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """skill.created — M2-W12: a team skill was authored (always as draft)."""
+    return await _emit(
+        session,
+        "skill.created",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_skill",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_skill_reviewed(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """skill.reviewed — M2-W12: the current content digest was pinned and the
+    skill became injectable (status reviewed, enabled)."""
+    return await _emit(
+        session,
+        "skill.reviewed",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_skill",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_skill_enabled(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """skill.enabled — M2-W12: a reviewed, disabled skill was switched back on."""
+    return await _emit(
+        session,
+        "skill.enabled",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_skill",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_skill_disabled(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """skill.disabled — M2-W12: a reviewed skill was switched off (stays reviewed)."""
+    return await _emit(
+        session,
+        "skill.disabled",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_skill",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_skill_removed(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """skill.removed — M2-W12: a skill was deleted (emitted only when it existed)."""
+    return await _emit(
+        session,
+        "skill.removed",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_skill",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_memory_created(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """memory.created — M2-W12: a project memory note was authored (as draft)."""
+    return await _emit(
+        session,
+        "memory.created",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="project_memory",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_memory_reviewed(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """memory.reviewed — M2-W12: a note became injectable (status reviewed)."""
+    return await _emit(
+        session,
+        "memory.reviewed",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="project_memory",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_memory_deleted(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """memory.deleted — M2-W12: a note was deleted (emitted only when it existed)."""
+    return await _emit(
+        session,
+        "memory.deleted",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="project_memory",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_runner_registered(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """runner.registered — M2-W13: an admin minted a runner token (shown once).
+
+    Detail carries the name, confinement expectation and token hint only; the
+    token and its derivative never appear in audit content.
+    """
+    return await _emit(
+        session,
+        "runner.registered",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_runner",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_runner_revoked(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """runner.revoked — M2-W13: a runner's token is dead from this instant."""
+    return await _emit(
+        session,
+        "runner.revoked",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_runner",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_runner_attested(
+    session: AsyncSession,
+    *,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """runner.attested — M2-W13: a signed confinement claim was verified.
+
+    Emitted only when the attestation digest CHANGES, so a steady heartbeat
+    does not flood the audit log. actor_kind is ``system``: the runner acted,
+    not a person.
+    """
+    return await _emit(
+        session,
+        "runner.attested",
+        team_id=team_id,
+        target_type="team_runner",
+        target_id=target_id,
+        detail=detail,
+        actor_kind="system",
+        session_owner=session_owner,
+    )
+
+
+async def emit_runner_job_assigned(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """runner.job_assigned — M2-W13: an admin offered a queued run to a runner."""
+    return await _emit(
+        session,
+        "runner.job_assigned",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="runner_job",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_runner_job_completed(
+    session: AsyncSession,
+    *,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """runner.job_completed — M2-W13: the runner reported the leased run finished."""
+    return await _emit(
+        session,
+        "runner.job_completed",
+        team_id=team_id,
+        target_type="runner_job",
+        target_id=target_id,
+        detail=detail,
+        actor_kind="system",
+        session_owner=session_owner,
+    )
+
+
+async def emit_runner_rotated(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """runner.rotated — M2-W13: the token (and attestation key) were replaced.
+
+    Detail carries only the name and the old/new last-4 hints; neither token
+    nor derivative ever reaches the audit log.
+    """
+    return await _emit(
+        session,
+        "runner.rotated",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_runner",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_routing_saved(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """routing.saved — M2-W14: the team's opt-in model routing policy was stored."""
+    return await _emit(
+        session,
+        "routing.saved",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_setting",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
+    )
+
+
+async def emit_routing_deleted(
+    session: AsyncSession,
+    *,
+    actor_user_id: str,
+    team_id: str,
+    target_id: str,
+    detail: dict[str, Any] | None = None,
+    actor_kind: str = "human",
+    session_owner: bool = False,
+) -> AuditLog | None:
+    """routing.deleted — M2-W14: routing was switched back to disabled defaults."""
+    return await _emit(
+        session,
+        "routing.deleted",
+        user_id=actor_user_id,
+        team_id=team_id,
+        target_type="team_setting",
+        target_id=target_id,
+        detail=detail,
+        actor_kind=actor_kind,
+        session_owner=session_owner,
     )

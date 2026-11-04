@@ -18,13 +18,16 @@ export interface ApplyBody {
   version?: number | null;  // optional
 }
 
-/** AssignBody. Required keys: level, role, scopeId, userId. */
-export interface AssignBody {
-  expiresAt?: string | null;  // optional
-  level: string;
-  role: string;
-  scopeId: string;
-  userId: string;
+/** AttestBody. Required keys: attestation, signature. */
+export interface AttestBody {
+  attestation: { [key: string]: unknown };
+  signature: string;
+}
+
+/** AuditVerifyRequest. */
+export interface AuditVerifyRequest {
+  afterChainPos?: number;  // optional
+  maxRows?: number;  // optional
 }
 
 /** BindingBody. Required keys: kind, value. */
@@ -131,10 +134,21 @@ export interface EventReplayResponse {
   replayTruncated?: boolean | null;  // optional
 }
 
+/** EventsBody. Required keys: events. */
+export interface EventsBody {
+  events: RunnerEvent[];
+}
+
 /** ExecutionControlBody. Required keys: disabled, reason. */
 export interface ExecutionControlBody {
   disabled: boolean;
   reason: string;
+}
+
+/** FinishBody. Required keys: status. */
+export interface FinishBody {
+  resultDigest?: string | null;  // optional
+  status: string;
 }
 
 /** GlobalPrefsBody. */
@@ -246,6 +260,12 @@ export interface MemberRoleBody {
   role: string;
 }
 
+/** MemoryBody. Required keys: memoryText. */
+export interface MemoryBody {
+  expiresAt?: string | null;  // optional
+  memoryText: string;
+}
+
 /** MuteBody. Required keys: scopeId, scopeKind. */
 export interface MuteBody {
   minutes?: number | null;  // optional
@@ -280,6 +300,13 @@ export interface OrgPatchBody {
 export interface OwnerTransferBody {
   expectedOwnerUserId: string;
   toUserId: string;
+}
+
+/** PatchOp. */
+export interface PatchOp {
+  op?: string;  // optional
+  path?: string | null;  // optional
+  value?: unknown;  // optional
 }
 
 /** PlanUpdateBody. */
@@ -334,6 +361,15 @@ export interface ProjectOut {
   repoFullName?: string | null;  // optional
 }
 
+/** PutBody. */
+export interface PutBody {
+  active?: boolean;  // optional
+  externalId?: string | null;  // optional
+  name?: { [key: string]: unknown } | null;  // optional
+  schemas?: string[];  // optional
+  userName?: string;  // optional
+}
+
 /** ReadAllBody. */
 export interface ReadAllBody {
   kind?: string | null;  // optional
@@ -343,6 +379,11 @@ export interface ReadAllBody {
 export interface RevertBody {
   expectedVersion?: number | null;  // optional
   toVersion: number;
+}
+
+/** RoutingBody. Required keys: routing. */
+export interface RoutingBody {
+  routing: { [key: string]: unknown };
 }
 
 /** Rule. Required keys: effect, id, permissions. */
@@ -357,6 +398,25 @@ export interface Rule {
 /** RulesBody. Required keys: rulesText. */
 export interface RulesBody {
   rulesText: string;
+}
+
+/** RunnerBody. Required keys: description, name. */
+export interface RunnerBody {
+  confinement?: string;  // optional
+  description: string;
+  name: string;
+}
+
+/** RunnerEvent. Required keys: callId, phase. */
+export interface RunnerEvent {
+  callId: string;
+  command?: string | null;  // optional
+  durationMs?: number | null;  // optional
+  error?: string | null;  // optional
+  exitCode?: number | null;  // optional
+  ok?: boolean | null;  // optional
+  output?: string | null;  // optional
+  phase: "call" | "result";
 }
 
 /** ScopePrefsBody. */
@@ -393,6 +453,35 @@ export interface SettingsBody {
   settings: { [key: string]: unknown };
 }
 
+/** SinkCreateBody. Required keys: collectorUrl, label, sharedSecret. */
+export interface SinkCreateBody {
+  collectorUrl: string;
+  label: string;
+  sharedSecret: string;
+  startFrom?: "latest" | "earliest";  // optional
+}
+
+/** SinkPatchBody. Required keys: expectedVersion. */
+export interface SinkPatchBody {
+  active?: boolean | null;  // optional
+  collectorUrl?: string | null;  // optional
+  expectedVersion: number;
+  label?: string | null;  // optional
+  resume?: boolean;  // optional
+  sharedSecret?: string | null;  // optional
+}
+
+/** SkillBody. Required keys: description, instructions, name, version. */
+export interface SkillBody {
+  author?: string | null;  // optional
+  description: string;
+  expiresAt?: string | null;  // optional
+  instructions: string;
+  name: string;
+  source?: string;  // optional
+  version: string;
+}
+
 /** SnoozeBody. */
 export interface SnoozeBody {
   minutes?: number | null;  // optional
@@ -412,6 +501,8 @@ export interface SsoConfigBody {
   clientId: string;
   clientSecret?: string | null;  // optional
   enabled?: boolean;  // optional
+  groupRoles?: { [key: string]: unknown }[];  // optional
+  groupsClaim?: string;  // optional
   idpDisplayName?: string;  // optional
   issuerUrl: string;
 }
@@ -436,6 +527,11 @@ export interface TemplateBody {
 /** ThresholdsBody. Required keys: thresholds. */
 export interface ThresholdsBody {
   thresholds: { [key: string]: unknown };
+}
+
+/** TokenBody. */
+export interface TokenBody {
+  label?: string;  // optional
 }
 
 /** UnsubscribeBody. Required keys: token. */
@@ -520,9 +616,29 @@ export interface harness_identity__orgs__RoleBody {
   role: string;
 }
 
+/** harness_identity__policy__AssignBody. Required keys: level, role, scopeId, userId. */
+export interface harness_identity__policy__AssignBody {
+  expiresAt?: string | null;  // optional
+  level: string;
+  role: string;
+  scopeId: string;
+  userId: string;
+}
+
 /** harness_identity__policy__RoleBody. Required keys: permissions. */
 export interface harness_identity__policy__RoleBody {
   permissions: string[];
+}
+
+/** harness_identity__runner_api__AssignBody. Required keys: runId. */
+export interface harness_identity__runner_api__AssignBody {
+  runId: string;
+}
+
+/** harness_identity__scim__PatchBody. */
+export interface harness_identity__scim__PatchBody {
+  Operations?: PatchOp[];  // optional
+  schemas?: string[];  // optional
 }
 
 /** harness_identity__sessions__CreateBody. Required keys: title. */
@@ -667,10 +783,17 @@ export class IdentityClient {
 
   /** Export Audit
    *  GET /api/v1/audit/export */
-  export_audit(stream?: string, after_seq?: number, limit?: number, run_id?: string): Promise<Record<string, unknown>> {
+  export_audit(stream?: string, after_seq?: number, limit?: number, run_id?: string, format?: string): Promise<Record<string, unknown>> {
     const _path = `/api/v1/audit/export`;
-    const params: Record<string, unknown> = {"stream": stream, "afterSeq": after_seq, "limit": limit, "runId": run_id};
+    const params: Record<string, unknown> = {"stream": stream, "afterSeq": after_seq, "limit": limit, "runId": run_id, "format": format};
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** Verify Audit
+   *  POST /api/v1/audit/verify */
+  verify_audit(body: AuditVerifyRequest): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/audit/verify`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
   }
 
   /** Login
@@ -1028,7 +1151,7 @@ export class IdentityClient {
 
   /** Assign Role
    *  POST /api/v1/policy/orgs/{org_id}/assignments */
-  assign_role(org_id: string, body: AssignBody): Promise<Record<string, unknown>> {
+  assign_role(org_id: string, body: harness_identity__policy__AssignBody): Promise<Record<string, unknown>> {
     const _path = `/api/v1/policy/orgs/${encodeURIComponent(org_id)}/assignments`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
   }
@@ -1149,10 +1272,38 @@ export class IdentityClient {
 
   /** Replay Events
    *  GET /api/v1/projects/{project_id}/events/replay */
-  replay_events(project_id: string, after_seq?: number, limit?: number): Promise<EventReplayResponse> {
+  replay_events(project_id: string, after_seq?: number, limit?: number, before_seq?: number): Promise<EventReplayResponse> {
     const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/events/replay`;
-    const params: Record<string, unknown> = {"after_seq": after_seq, "limit": limit};
+    const params: Record<string, unknown> = {"after_seq": after_seq, "limit": limit, "before_seq": before_seq};
     return this.http.request<EventReplayResponse>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** List Memory
+   *  GET /api/v1/projects/{project_id}/memory */
+  list_memory(project_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/memory`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Create Memory
+   *  POST /api/v1/projects/{project_id}/memory */
+  create_memory(project_id: string, body: MemoryBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/memory`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Delete Memory
+   *  DELETE /api/v1/projects/{project_id}/memory/{entry_id} */
+  delete_memory(project_id: string, entry_id: string): Promise<unknown> {
+    const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/memory/${encodeURIComponent(entry_id)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** Review Memory
+   *  POST /api/v1/projects/{project_id}/memory/{entry_id}/review */
+  review_memory(project_id: string, entry_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/memory/${encodeURIComponent(entry_id)}/review`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
   }
 
   /** Get Rules
@@ -1174,6 +1325,55 @@ export class IdentityClient {
   delete_rules(project_id: string): Promise<unknown> {
     const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/rules`;
     return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** Runner Heartbeat
+   *  POST /api/v1/runner/heartbeat */
+  runner_heartbeat(body: AttestBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/runner/heartbeat`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** List My Jobs
+   *  GET /api/v1/runner/jobs */
+  list_my_jobs(): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/runner/jobs`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Claim Job
+   *  POST /api/v1/runner/jobs/{run_id}/claim */
+  claim_job(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/runner/jobs/${encodeURIComponent(run_id)}/claim`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Post Job Events
+   *  POST /api/v1/runner/jobs/{run_id}/events */
+  post_job_events(run_id: string, body: EventsBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/runner/jobs/${encodeURIComponent(run_id)}/events`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Finish Job
+   *  POST /api/v1/runner/jobs/{run_id}/finish */
+  finish_job(run_id: string, body: FinishBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/runner/jobs/${encodeURIComponent(run_id)}/finish`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Heartbeat Job
+   *  POST /api/v1/runner/jobs/{run_id}/heartbeat */
+  heartbeat_job(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/runner/jobs/${encodeURIComponent(run_id)}/heartbeat`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Job Spec
+   *  GET /api/v1/runner/jobs/{run_id}/spec */
+  job_spec(run_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/runner/jobs/${encodeURIComponent(run_id)}/spec`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
   }
 
   /** List Sessions
@@ -1340,6 +1540,41 @@ export class IdentityClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
   }
 
+  /** List Runners
+   *  GET /api/v1/team-runners */
+  list_runners(): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/team-runners`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Register Runner
+   *  POST /api/v1/team-runners */
+  register_runner(body: RunnerBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/team-runners`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Assign Job
+   *  POST /api/v1/team-runners/{runner_id}/jobs */
+  assign_job(runner_id: string, body: harness_identity__runner_api__AssignBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/team-runners/${encodeURIComponent(runner_id)}/jobs`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Revoke Runner
+   *  POST /api/v1/team-runners/{runner_id}/revoke */
+  revoke_runner(runner_id: string): Promise<unknown> {
+    const _path = `/api/v1/team-runners/${encodeURIComponent(runner_id)}/revoke`;
+    return this.http.request<unknown>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Rotate Runner
+   *  POST /api/v1/team-runners/{runner_id}/rotate */
+  rotate_runner(runner_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/team-runners/${encodeURIComponent(runner_id)}/rotate`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
   /** List Invites
    *  GET /api/v1/teams/{team_id}/invites */
   list_invites_2(team_id: string, status?: string | null): Promise<Record<string, unknown>> {
@@ -1388,6 +1623,27 @@ export class IdentityClient {
   change_member_role(team_id: string, user_id: string, body: MemberRoleBody): Promise<Record<string, unknown>> {
     const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/members/${encodeURIComponent(user_id)}`;
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PATCH", body);
+  }
+
+  /** List Scim Tokens
+   *  GET /api/v1/teams/{team_id}/scim/tokens */
+  list_scim_tokens(team_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/scim/tokens`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Create Scim Token
+   *  POST /api/v1/teams/{team_id}/scim/tokens */
+  create_scim_token(team_id: string, body: TokenBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/scim/tokens`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Revoke Scim Token
+   *  DELETE /api/v1/teams/{team_id}/scim/tokens/{token_id} */
+  revoke_scim_token(team_id: string, token_id: string): Promise<unknown> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/scim/tokens/${encodeURIComponent(token_id)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
   }
 
   /** Add Agent Seat
@@ -1446,6 +1702,27 @@ export class IdentityClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
   }
 
+  /** Get Model Routing
+   *  GET /api/v1/teams/{team_id}/settings/model-routing */
+  get_model_routing(team_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/model-routing`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Put Model Routing
+   *  PUT /api/v1/teams/{team_id}/settings/model-routing */
+  put_model_routing(team_id: string, body: RoutingBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/model-routing`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
+  /** Delete Model Routing
+   *  DELETE /api/v1/teams/{team_id}/settings/model-routing */
+  delete_model_routing(team_id: string): Promise<unknown> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/model-routing`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
   /** Get Reviewer Thresholds
    *  GET /api/v1/teams/{team_id}/settings/reviewer-thresholds */
   get_reviewer_thresholds(team_id: string): Promise<Record<string, unknown>> {
@@ -1465,6 +1742,83 @@ export class IdentityClient {
   delete_reviewer_thresholds(team_id: string): Promise<unknown> {
     const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/settings/reviewer-thresholds`;
     return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** List Sinks
+   *  GET /api/v1/teams/{team_id}/siem/sinks */
+  list_sinks(team_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/siem/sinks`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Create Sink
+   *  POST /api/v1/teams/{team_id}/siem/sinks */
+  create_sink(team_id: string, body: SinkCreateBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/siem/sinks`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Get Sink
+   *  GET /api/v1/teams/{team_id}/siem/sinks/{sink_id} */
+  get_sink(team_id: string, sink_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/siem/sinks/${encodeURIComponent(sink_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Delete Sink
+   *  DELETE /api/v1/teams/{team_id}/siem/sinks/{sink_id} */
+  delete_sink(team_id: string, sink_id: string): Promise<unknown> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/siem/sinks/${encodeURIComponent(sink_id)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** Patch Sink
+   *  PATCH /api/v1/teams/{team_id}/siem/sinks/{sink_id} */
+  patch_sink(team_id: string, sink_id: string, body: SinkPatchBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/siem/sinks/${encodeURIComponent(sink_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PATCH", body);
+  }
+
+  /** List Skills
+   *  GET /api/v1/teams/{team_id}/skills */
+  list_skills(team_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/skills`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Create Skill
+   *  POST /api/v1/teams/{team_id}/skills */
+  create_skill(team_id: string, body: SkillBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/skills`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
+  /** Remove Skill
+   *  DELETE /api/v1/teams/{team_id}/skills/{name} */
+  remove_skill(team_id: string, name: string): Promise<unknown> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/skills/${encodeURIComponent(name)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
+  }
+
+  /** Disable Skill
+   *  POST /api/v1/teams/{team_id}/skills/{name}/disable */
+  disable_skill(team_id: string, name: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/skills/${encodeURIComponent(name)}/disable`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Enable Skill
+   *  POST /api/v1/teams/{team_id}/skills/{name}/enable */
+  enable_skill(team_id: string, name: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/skills/${encodeURIComponent(name)}/enable`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
+  }
+
+  /** Review Skill
+   *  POST /api/v1/teams/{team_id}/skills/{name}/review */
+  review_skill(team_id: string, name: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/teams/${encodeURIComponent(team_id)}/skills/${encodeURIComponent(name)}/review`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", undefined);
   }
 
   /** Get Sso Config
@@ -1699,13 +2053,43 @@ export class IdentityClient {
     const _path = `/ready`;
     return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined);
   }
+
+  /** List Users
+   *  GET /scim/v2/Users */
+  list_users_scim_v2_users_get(filter?: string | null, start_index?: number, count?: number): Promise<Record<string, unknown>> {
+    const _path = `/scim/v2/Users`;
+    const params: Record<string, unknown> = {"filter": filter, "startIndex": start_index, "count": count};
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** Get User
+   *  GET /scim/v2/Users/{user_id} */
+  get_user_scim_v2_users_user_id_get(user_id: string): Promise<Record<string, unknown>> {
+    const _path = `/scim/v2/Users/${encodeURIComponent(user_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Put User
+   *  PUT /scim/v2/Users/{user_id} */
+  put_user_scim_v2_users_user_id_put(user_id: string, body: PutBody): Promise<Record<string, unknown>> {
+    const _path = `/scim/v2/Users/${encodeURIComponent(user_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
+  }
+
+  /** Patch User
+   *  PATCH /scim/v2/Users/{user_id} */
+  patch_user_scim_v2_users_user_id_patch(user_id: string, body: harness_identity__scim__PatchBody): Promise<Record<string, unknown>> {
+    const _path = `/scim/v2/Users/${encodeURIComponent(user_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PATCH", body);
+  }
 }
 
 /* Module surface (mirrors __all__ in clients/python):
  * export class IdentityClient
  * export interface/type AcceptBody
  * export interface/type ApplyBody
- * export interface/type AssignBody
+ * export interface/type AttestBody
+ * export interface/type AuditVerifyRequest
  * export interface/type BindingBody
  * export interface/type ChainNode
  * export interface/type CheckBody
@@ -1720,7 +2104,9 @@ export class IdentityClient {
  * export interface/type ErrorEnvelope
  * export interface/type EventEnvelopeOut
  * export interface/type EventReplayResponse
+ * export interface/type EventsBody
  * export interface/type ExecutionControlBody
+ * export interface/type FinishBody
  * export interface/type GlobalPrefsBody
  * export interface/type HTTPValidationError
  * export interface/type InviteBody
@@ -1737,11 +2123,13 @@ export class IdentityClient {
  * export interface/type MemberItem
  * export interface/type MemberListResponse
  * export interface/type MemberRoleBody
+ * export interface/type MemoryBody
  * export interface/type MuteBody
  * export interface/type OkResponse
  * export interface/type OrgCreateBody
  * export interface/type OrgPatchBody
  * export interface/type OwnerTransferBody
+ * export interface/type PatchOp
  * export interface/type PlanUpdateBody
  * export interface/type PolicyDoc
  * export interface/type PreviewBody
@@ -1749,15 +2137,22 @@ export class IdentityClient {
  * export interface/type ProjectCreatedResponse
  * export interface/type ProjectListResponse
  * export interface/type ProjectOut
+ * export interface/type PutBody
  * export interface/type ReadAllBody
  * export interface/type RevertBody
+ * export interface/type RoutingBody
  * export interface/type Rule
  * export interface/type RulesBody
+ * export interface/type RunnerBody
+ * export interface/type RunnerEvent
  * export interface/type ScopePrefsBody
  * export interface/type SelectBody
  * export interface/type ServiceIdentityBody
  * export interface/type SessionResponse
  * export interface/type SettingsBody
+ * export interface/type SinkCreateBody
+ * export interface/type SinkPatchBody
+ * export interface/type SkillBody
  * export interface/type SnoozeBody
  * export interface/type SsoCompleteBody
  * export interface/type SsoConfigBody
@@ -1765,6 +2160,7 @@ export class IdentityClient {
  * export interface/type StepUpBody
  * export interface/type TemplateBody
  * export interface/type ThresholdsBody
+ * export interface/type TokenBody
  * export interface/type UnsubscribeBody
  * export interface/type ValidationError
  * export interface/type VerifyOtpRequest
@@ -1777,7 +2173,10 @@ export class IdentityClient {
  * export interface/type _QuietBody
  * export interface/type harness_identity__agents__ReasonBody
  * export interface/type harness_identity__orgs__RoleBody
+ * export interface/type harness_identity__policy__AssignBody
  * export interface/type harness_identity__policy__RoleBody
+ * export interface/type harness_identity__runner_api__AssignBody
+ * export interface/type harness_identity__scim__PatchBody
  * export interface/type harness_identity__sessions__CreateBody
  * export interface/type harness_identity__sessions__MemberBody
  * export interface/type harness_identity__sessions__PatchBody

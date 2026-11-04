@@ -68,7 +68,7 @@ def capture_handler(request: httpx.Request) -> httpx.Response:
         200,
         json={
             "id": "chatcmpl-1",
-            "model": "deepseek-coder",
+            "model": "deepseek-v4-flash",
             "choices": [
                 {"index": 0, "message": {"role": "assistant", "content": "PROVIDER_TEXT"}}
             ],
@@ -103,7 +103,7 @@ class TestApiKeySurvivesTheRestSeam:
         assert CAPTURED["auth"] == f"Bearer {SECRET}"
         # …and the messages arrive VERBATIM in the provider payload.
         assert CAPTURED["body"]["messages"] == MESSAGES
-        assert CAPTURED["body"]["model"] == "deepseek-coder"  # role default, wire name
+        assert CAPTURED["body"]["model"] == "deepseek-v4-flash"  # role default, wire name
 
     def test_response_is_the_providers_text_not_synthesis(self):
         client, _provider = _client_with_provider(capture_handler)
@@ -119,7 +119,7 @@ class TestApiKeySurvivesTheRestSeam:
         data = res.json()
         assert data["text"] == "PROVIDER_TEXT"
         assert "Simulated response" not in data["text"]
-        assert data["model"] == "deepseek/deepseek-coder"  # catalog name preserved
+        assert data["model"] == "deepseek/deepseek-v4-flash"  # catalog name preserved
         assert data["costUsd"] > 0 and data["latencyMs"] >= 0
 
     def test_key_never_leaks_into_the_http_response(self):
@@ -251,7 +251,7 @@ class TestSynthesisKilledOutsideDev:
 
         provider = ModelProviderClient()  # no transport: nothing to hit anyway
         with pytest.raises(ModelUnavailableError):
-            provider.call(model="deepseek/deepseek-coder", messages=MESSAGES)
+            provider.call(model="deepseek/deepseek-v4-flash", messages=MESSAGES)
 
 
 class TestSentinelBehaviorsPinned:

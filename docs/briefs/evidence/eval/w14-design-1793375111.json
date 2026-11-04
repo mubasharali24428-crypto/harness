@@ -1,0 +1,344 @@
+{
+  "date": "2026-10-30",
+  "week": "W14",
+  "task": "w14-design-heldout",
+  "leg": "live",
+  "run": "w14-design-1793375111",
+  "preRegistered": {
+    "ratioMax": 0.03,
+    "colourTolerance": 12,
+    "answerRatioTolerance": 0.005,
+    "fixtureColourTolerance": 0
+  },
+  "fixture": {
+    "token": "HALCYON-37",
+    "bytes": 7201,
+    "sha256": "64ccf7ba71d3cb1599b2f13e8c6302ac58f539be7ce68acea3bcc309bb9d26b1",
+    "sampledColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    },
+    "expectedColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    }
+  },
+  "fixtureChecks": {
+    "fixtureRendersAtDeclaredSize": true,
+    "flatColoursExactAtSamplePoints": true,
+    "tokenTextIsDrawn": true,
+    "selfDiffIsZero": true,
+    "renderIsDeterministic": true
+  },
+  "drive": "HTTP only",
+  "seededFiles": [
+    "mockup.png"
+  ],
+  "design": {
+    "startStatus": 200,
+    "states": [
+      "executing",
+      "awaiting_done_signal"
+    ],
+    "state": "awaiting_done_signal",
+    "engine": "replayed",
+    "engineStatus": "completed",
+    "answer": "TOKEN: HALCYON-37\nRATIO: 0.00634\nFILES: index.html, style.css"
+  },
+  "designTrail": {
+    "toolsUsed": [
+      "browser",
+      "image",
+      "read_image",
+      "write"
+    ],
+    "imageDiffCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_2fe2b031b2e848158e51a253",
+        "arguments": "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\",\"out\":\"shots/diff1.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imageSampleCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_3e7ba89b5f7b474a922028ac",
+        "arguments": "{\"action\":\"sample\",\"points\":[[300,150],[450,150],[595,150],[700,150],[400,30],[400,450],[300,300],[700,300],[260,72],[580,72],[610,72],[920,72]],\"path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_febe8d441fca4ef4bb9995e5",
+        "arguments": "{\"action\":\"sample\",\"points\":[[400,60],[400,68],[400,72],[400,76],[400,80],[400,310],[400,314],[400,318],[400,322],[250,200],[255,200],[260,200],[265,200],[575,200],[580,200],[585,200],[590,200],[595,200],[605,200],[610,200],[615,200],[915,200],[920,200],[925,200]],\"path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_fb97861a4289417bb131e9b2",
+        "arguments": "{\"action\":\"sample\",\"points\":[[400,72],[400,74],[400,76],[400,78],[400,80],[400,325],[400,330],[400,335],[400,340],[400,345],[400,350],[400,355],[400,360],[400,365],[400,370]],\"path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_f85cea0879be412690620858",
+        "arguments": "{\"action\":\"sample\",\"points\":[[400,80],[400,85],[400,90],[400,95],[400,100],[400,105],[400,110],[400,115],[400,120],[400,125],[400,130],[400,135],[400,140],[400,145],[400,150]],\"path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_a823132fb1064ac8a0bcec3e",
+        "arguments": "{\"action\":\"sample\",\"points\":[[400,326],[400,327],[400,328],[400,329],[400,330],[576,200],[577,200],[578,200],[579,200],[580,200],[581,200],[582,200],[583,200],[584,200],[585,200],[913,200],[914,200],[915,200],[916,200],[917,200],[918,200],[919,200],[920,200]],\"path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_d1492ac0da304ac6b574b6ac",
+        "arguments": "{\"action\":\"sample\",\"points\":[[560,200],[565,200],[570,200],[572,200],[574,200],[575,200],[576,200],[568,200],[569,200],[890,200],[895,200],[900,200],[905,200],[910,200],[912,200],[913,200],[914,200]],\"path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_05b5da2e56d640a4982a2c84",
+        "arguments": "{\"action\":\"sample\",\"points\":[[540,200],[545,200],[550,200],[555,200],[558,200],[559,200],[560,200],[896,200],[897,200],[898,200],[899,200],[900,200]],\"path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_92842aabe42841c98c408e59",
+        "arguments": "{\"action\":\"sample\",\"points\":[[400,68],[400,69],[400,70],[400,71],[400,72],[400,106],[400,107],[400,108],[400,109],[400,110],[603,200],[604,200],[605,200],[606,200],[607,200]],\"path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_2baa1c6a29b642fc8a2101a6",
+        "arguments": "{\"action\":\"sample\",\"points\":[[596,200],[597,200],[598,200],[599,200],[600,200],[601,200],[602,200]],\"path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_8629e79083224129bdd6cbb2",
+        "arguments": "{\"action\":\"sample\",\"points\":[[257,200],[258,200],[259,200],[260,200],[261,200]],\"path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imagePaletteCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_3b71a23356964fea8345f34d",
+        "arguments": "{\"action\":\"palette\",\"path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "screenshotCalls": [
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "call_6e57b27dfe644122b4ae40ee",
+        "arguments": "{\"action\":\"screenshot\",\"url\":\"index.html\",\"path\":\"shots/render.png\",\"width\":960,\"height\":640}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "mockupReads": [
+      {
+        "type": "tool_call",
+        "tool": "read_image",
+        "callId": "call_ef38872a589249ddbb09dff4",
+        "arguments": "{\"file_path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "dialogReads": [],
+    "writes": [
+      {
+        "type": "tool_call",
+        "tool": "write",
+        "callId": "call_5bb5a7b7fbec442589bfb86b",
+        "arguments": "{\"file_path\":\"index.html\",\"content\":\"<!DOCTYPE html>\\n<html lang=\\\"en\\\">\\n<head>\\n<meta charset=\\\"UTF-8\\\">\\n<meta name=\\\"viewport\\\" content=\\\"width=960, initial-scale=1\\\">\\n<title>HALCYON-37</title>\\n<link rel=\\\"stylesheet\\\" href=\\\"style.css\\\">\\n</head>\\n<body>\\n<div class=\\\"container\\\">\\n  <div class=\\\"sidebar\\\"></div>\\n  <div class=\\\"header\\\"></div>\\n  <div class=\\\"main-bg\\\"></div>\\n  <div class=\\\"card card-left\\\"></div>\\n  <div class=\\\"card card-right\\\"></div>\\n  <div class=\\\"pill\\\"></div>\\n  <div class=\\\"accent-bar\\\"></div>\\n  <div class=\\\"title\\\">HALCYON-37</div>\\n</div>\\n</body>\\n</html>\\n\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "write",
+        "callId": "call_bd58f73e6b6b49159c53e364",
+        "arguments": "{\"file_path\":\"style.css\",\"content\":\"* {\\n  margin: 0;\\n  padding: 0;\\n  box-sizing: border-box;\\n}\\n\\nhtml, body {\\n  width: 960px;\\n  height: 640px;\\n  margin: 0;\\n  padding: 0;\\n  overflow: hidden;\\n  background: #0b0d12;\\n}\\n\\n.container {\\n  position: relative;\\n  width: 960px;\\n  height: 640px;\\n}\\n\\n.sidebar {\\n  position: absolute;\\n  left: 0;\\n  top: 0;\\n  width: 220px;\\n  height: 640px;\\n  background: #141821;\\n}\\n\\n.header {\\n  position: absolute;\\n  left: 220px;\\n  top: 0;\\n  width: 740px;\\n  height: 72px;\\n  background: #1b2030;\\n}\\n\\n.main-bg {\\n  position: absolute;\\n  left: 220px;\\n  top: 72px;\\n  width: 740px;\\n  height: 568px;\\n  background: #0b0d12;\\n}\\n\\n.card {\\n  position: absolute;\\n  top: 110px;\\n  width: 300px;\\n  height: 220px;\\n  background: #1f2433;\\n}\\n\\n.card-left {\\n  left: 260px;\\n}\\n\\n.card-right {\\n  left: 600px;\\n}\\n\\n.pill {\\n  position: absolute;\\n  left: 260px;\\n  top: 370px;\\n  width: 220px;\\n  height: 44px;\\n  background: #2fbf71;\\n}\\n\\n.accent-bar {\\n  position: absolute;\\n  left: 600px;\\n  top: 370px;\\n  width: 300px;\\n  height: 14px;\\n  background: #f0a43c;\\n}\\n\\n.title {\\n  position: absolute;\\n  left: 603px;\\n  top: 426px;\\n  font-family: 'DejaVu Sans', sans-serif;\\n  font-size: 32px;\\n  font-weight: bold;\\n  color: #e8edf6;\\n  white-space: nowrap;\\n}\\n\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imageArguments": [
+      "{\"action\":\"palette\",\"path\":\"mockup.png\"}",
+      "{\"action\":\"sample\",\"points\":[[300,150],[450,150],[595,150],[700,150],[400,30],[400,450],[300,300],[700,300],[260,72],[580,72],[610,72],[920,72]],\"path\":\"mockup.png\"}",
+      "{\"action\":\"sample\",\"points\":[[400,60],[400,68],[400,72],[400,76],[400,80],[400,310],[400,314],[400,318],[400,322],[250,200],[255,200],[260,200],[265,200],[575,200],[580,200],[585,200],[590,200],[595,200],[605,200],[610,200],[615,200],[915,200],[920,200],[925,200]],\"path\":\"mockup.png\"}",
+      "{\"action\":\"sample\",\"points\":[[400,72],[400,74],[400,76],[400,78],[400,80],[400,325],[400,330],[400,335],[400,340],[400,345],[400,350],[400,355],[400,360],[400,365],[400,370]],\"path\":\"mockup.png\"}",
+      "{\"action\":\"sample\",\"points\":[[400,80],[400,85],[400,90],[400,95],[400,100],[400,105],[400,110],[400,115],[400,120],[400,125],[400,130],[400,135],[400,140],[400,145],[400,150]],\"path\":\"mockup.png\"}",
+      "{\"action\":\"sample\",\"points\":[[400,326],[400,327],[400,328],[400,329],[400,330],[576,200],[577,200],[578,200],[579,200],[580,200],[581,200],[582,200],[583,200],[584,200],[585,200],[913,200],[914,200],[915,200],[916,200],[917,200],[918,200],[919,200],[920,200]],\"path\":\"mockup.png\"}",
+      "{\"action\":\"sample\",\"points\":[[560,200],[565,200],[570,200],[572,200],[574,200],[575,200],[576,200],[568,200],[569,200],[890,200],[895,200],[900,200],[905,200],[910,200],[912,200],[913,200],[914,200]],\"path\":\"mockup.png\"}",
+      "{\"action\":\"sample\",\"points\":[[540,200],[545,200],[550,200],[555,200],[558,200],[559,200],[560,200],[896,200],[897,200],[898,200],[899,200],[900,200]],\"path\":\"mockup.png\"}",
+      "{\"action\":\"sample\",\"points\":[[400,68],[400,69],[400,70],[400,71],[400,72],[400,106],[400,107],[400,108],[400,109],[400,110],[603,200],[604,200],[605,200],[606,200],[607,200]],\"path\":\"mockup.png\"}",
+      "{\"action\":\"sample\",\"points\":[[596,200],[597,200],[598,200],[599,200],[600,200],[601,200],[602,200]],\"path\":\"mockup.png\"}",
+      "{\"action\":\"sample\",\"points\":[[257,200],[258,200],[259,200],[260,200],[261,200]],\"path\":\"mockup.png\"}",
+      "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\",\"out\":\"shots/diff1.png\"}"
+    ]
+  },
+  "measurement": {
+    "mockupSize": [
+      960,
+      640
+    ],
+    "renderSize": [
+      960,
+      640
+    ],
+    "changedPixels": 3931,
+    "totalPixels": 614400,
+    "ratio": 0.006398,
+    "sampledColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    }
+  },
+  "checks": {
+    "fixtureLegPassed": true,
+    "designRunSettled": true,
+    "agentOpenedTheMockup": true,
+    "agentMeasuredColours": true,
+    "agentScreenshottedItsPage": true,
+    "agentUsedTheDiff": true,
+    "agentWroteThePage": true,
+    "tokenOnlyInPixelsWasTranscribed": true,
+    "pageRendersAtMockupSize": true,
+    "independentDiffWithinThreshold": true,
+    "flatColoursSurvived": true,
+    "agentRatioAgreesWithBytes": true
+  },
+  "verdict": "PASS",
+  "failedChecks": [],
+  "designAnswer": "TOKEN: HALCYON-37\nRATIO: 0.00634\nFILES: index.html, style.css"
+}

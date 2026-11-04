@@ -8,6 +8,7 @@
 // extension; Next's compiler accepts this import too, so one source fits both.
 import * as React from "react";
 import { formatTimestamp } from "@/lib/format";
+import { Button } from "@/components/ui";
 import {
   type RunAggregateDto,
   formatCostUsdExact,
@@ -16,6 +17,15 @@ import {
   stepLabel,
   stepsNewestFirst,
 } from "../../../../runs/runsApi";
+import { type ConnStatus, type UserStatus, USER_STATUS_TEXT, liveStatus } from "./realtimeCore";
+
+const USER_STATUS_PILL: Record<UserStatus, string> = {
+  working: "pill yellow",
+  waiting: "pill blue",
+  reconnecting: "pill",
+  blocked: "pill red",
+  finished: "pill green",
+};
 
 const sectionStyle = { maxWidth: 980, marginBottom: 20 } as const;
 const mutedStyle = { color: "var(--muted)" } as const;
@@ -25,17 +35,50 @@ const mutedStyle = { color: "var(--muted)" } as const;
 export function RunDetailAggregate({
   agg,
   now,
+  conn = "live",
+  onPauseResume,
+  controlBusy = false,
+  controlNote,
 }: {
   agg: RunAggregateDto;
   now: number;
+  /** How fresh `agg` is; the page passes `reconnecting` after a failed refresh. */
+  conn?: ConnStatus;
+  /** Run-level pause/resume; without it no button is shown. */
+  onPauseResume?: (action: "pause" | "resume") => void;
+  controlBusy?: boolean;
+  /** What the last pause/resume answered, or why it failed. */
+  controlNote?: string | null;
 }) {
   const timeline = stepsNewestFirst(agg.steps);
+  const status = liveStatus(agg.lifecycle?.userStatus, conn);
+  const control = agg.state === "executing" ? "pause" : agg.state === "paused" ? "resume" : null;
   return (
     <section className="card" style={sectionStyle} aria-label="Run summary">
       <h1 style={{ marginTop: 0 }}>
         Run <span title={agg.runId}>{agg.runId}</span>{" "}
         <span className={statePillClass(agg.state)} title={agg.state}>{stateLabel(agg.state)}</span>
+        {onPauseResume && control && (
+          <>
+            {" "}
+            <Button size="sm" variant={control === "pause" ? undefined : "primary"} disabled={controlBusy}
+              onClick={() => onPauseResume(control)}>
+              {control === "pause" ? "Pause" : "Resume"}
+            </Button>
+          </>
+        )}
       </h1>
+      {controlNote && <p role="status" style={{ ...mutedStyle, margin: "4px 0", fontSize: 13 }}>{controlNote}</p>}
+
+      {/* W23: one of five user states. An older server sends no userStatus: show nothing. */}
+      {status && (
+        <p style={{ margin: "4px 0", fontSize: 14 }}>
+          <strong>Status:</strong>{" "}
+          <span data-testid="run-user-status" role="status" className={USER_STATUS_PILL[status]}>
+            {USER_STATUS_TEXT[status]}
+          </span>
+        </p>
+      )}
 
       {/* Cost line ONLY when the server sent a real number. Null means "no
           ledger rows yet" and must stay invisible — never a fake $0. A

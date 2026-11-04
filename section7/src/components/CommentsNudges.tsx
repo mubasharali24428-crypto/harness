@@ -35,21 +35,28 @@ export function CommentsNudges({ authorName }: { authorName: string }) {
 
   return (
     <section style={panelStyle}>
-      <h2 style={headingStyle}>Comments &amp; nudges</h2>
+      <h2 style={headingStyle}>Run notes</h2>
+      {/* M-A1: this used to be labelled "Comments & nudges" and promised the
+          agent would read it. It has no backend; the real channel is "Give
+          direction" on the Team tab, so the panel now says what it is. */}
       <p style={{ fontSize: 12, color: "var(--muted)", marginTop: -6, marginBottom: 10 }}>
-        Local to this browser session — no backend endpoint exists yet to persist or
-        deliver these to the agent.
+        Private to this browser tab — notes are not sent to the agent. To steer
+        the run, use <a href="#direction">Give direction</a> on the Team tab.
       </p>
       <div style={{ display: "grid", gap: 6, maxHeight: 160, overflowY: "auto", marginBottom: 10 }}>
         {comments.map((c) => (
           <div key={c.id} style={{ fontSize: 13 }}>
             <span style={{ color: c.kind === "nudge" ? "var(--yellow)" : "var(--muted)", fontWeight: 600 }}>
-              {c.kind === "nudge" ? "↳ nudge" : c.author}:
+              {c.kind === "nudge" ? "↳ to send later" : c.author}:
             </span>{" "}
             {c.body}
           </div>
         ))}
-        {comments.length === 0 && <p style={{ color: "var(--muted)", fontSize: 13 }}>No comments yet.</p>}
+        {comments.length === 0 && (
+          <p style={{ color: "var(--muted)", fontSize: 13 }}>
+            No notes yet. Write down what you want changed and send it as direction when you are ready.
+          </p>
+        )}
       </div>
       {/* M15-S3 (W4-VT2 carryover): placeholder-only naming fails WCAG
           4.1.2/3.3.2 — aria-label carries the accessible name; the panel
@@ -58,16 +65,16 @@ export function CommentsNudges({ authorName }: { authorName: string }) {
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         rows={2}
-        placeholder="Leave a comment or redirect for the agent…"
-        aria-label="Leave a comment or nudge for the agent"
+        placeholder="Note something to raise with the agent…"
+        aria-label="Note for yourself about this run"
         style={{ ...inputStyle, resize: "vertical" }}
       />
       <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
         <button style={secondaryButtonStyle} onClick={() => post("comment")}>
-          Comment
+          Add note
         </button>
         <button style={secondaryButtonStyle} onClick={() => post("nudge")}>
-          Nudge / redirect
+          Flag to send later
         </button>
       </div>
     </section>

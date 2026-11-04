@@ -13,12 +13,20 @@ except KeyError:  # container uses the host uid for bind-mount ownership
     REAL_HOME = "/home/worker"
 # HOME itself is repointed to the run tmp dir.
 req = json.loads(sys.stdin.readline())
-goal, sid, root = req["goal"], req["session_id"], req["workspace_root"]
+# W2 (N02): the engine now appends a repository-context block to the goal, so the
+# directive is the first line rather than the whole string. Parsing the whole
+# string made `delete:gone.txt` resolve to "gone.txt\n\n## Repository context…",
+# which silently turned this worker into a no-op and failed five staging tests —
+# the double's assumption, not the product change, was wrong.
+goal, sid, root = req["goal"].splitlines()[0].strip(), req["session_id"], req["workspace_root"]
 out = {"status": "completed", "model": "standin", "events": []}
 if goal == "slow":  # a worker that spawns a grandchild and then hangs
     child = subprocess.Popen(["sleep", "60"])
     open(os.path.join(os.getcwd(), "child.pid"), "w").write(str(child.pid))
     time.sleep(60)
+elif goal == "progress":  # one transcript record before the result, as the real worker streams
+    print(json.dumps({"progress": {"phase": "call", "tool": "read", "callId": "c1"}}), flush=True)
+    out["text"] = "streamed"
 elif goal == "crash":  # a worker that dies mid-run (OOM kill / segfault stand-in)
     os._exit(7)
 elif goal.startswith("write:"):

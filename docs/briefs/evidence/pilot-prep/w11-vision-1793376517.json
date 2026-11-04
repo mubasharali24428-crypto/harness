@@ -1,0 +1,383 @@
+{
+  "date": "2026-10-30",
+  "week": "W11",
+  "claim": "a mockup becomes a matching page, an error dialog is triaged from its pixels, and image diffing measures the result \u2014 all inside the run boundary",
+  "runs": {
+    "design": "w11-design-1793376517",
+    "triage": "w11-triage-1793376517"
+  },
+  "drive": "HTTP only",
+  "model": "the configured DSH_MODEL through the OpenRouter vision patch",
+  "fixtures": {
+    "token": "ZEPHYR-77",
+    "subtitle": "design review 17",
+    "errorCode": "E_UPSTREAM_617",
+    "dialogMessage": "Snapshot c105 could not be uploaded.",
+    "mockupBytes": 5226,
+    "mockupSha256": "320d2e86c18c981117ab032e51b7cab57a65986c174e098e562ff52b11d38258",
+    "dialogBytes": 16273,
+    "dialogSha256": "b4e2ee671225c755195611c606bcf8d0eef0f94d68e63c32fd87619bf60fa442",
+    "note": "the HTML that produced these PNGs was written to a temp dir outside the workspace and deleted; only the bytes above are seeded"
+  },
+  "seededFiles": [
+    "mockup.png"
+  ],
+  "design": {
+    "startStatus": 200,
+    "states": [
+      "executing",
+      "awaiting_done_signal"
+    ],
+    "state": "awaiting_done_signal",
+    "engine": "replayed",
+    "engineStatus": "completed",
+    "answer": "TOKEN: ZEPHYR-77\nRATIO: 0.00317\nFILES: index.html, style.css"
+  },
+  "designTrail": {
+    "toolsUsed": [
+      "browser",
+      "image",
+      "read",
+      "read_image",
+      "write"
+    ],
+    "imageDiffCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "toolu_0124xSbmHNFf2fbvUx9ecNfy",
+        "arguments": "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imageSampleCalls": [],
+    "imagePaletteCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "toolu_01BXm5EQdCYihjeEnxqMuMiN",
+        "arguments": "{\"action\":\"palette\",\"path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "screenshotCalls": [
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "toolu_01PRnCB8JcPPNVdhZQ9sv25Z",
+        "arguments": "{\"action\":\"screenshot\",\"url\":\"index.html\",\"path\":\"shots/render.png\",\"width\":800,\"height\":600}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "mockupReads": [
+      {
+        "type": "tool_call",
+        "tool": "read",
+        "callId": "toolu_01DpwwHYY4TBUcXEkU9N73bV",
+        "arguments": "{\"file_path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "read_image",
+        "callId": "toolu_01MmP84VPD8sKQxeFjPxamHL",
+        "arguments": "{\"file_path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "dialogReads": [],
+    "writes": [
+      {
+        "type": "tool_call",
+        "tool": "write",
+        "callId": "toolu_01RQ6JHocnHvfsDAng726r8m",
+        "arguments": "{\"file_path\":\"/var/lib/harness-runs/workspace/w11-design-1793376517/style.css\",\"content\":\"html, body {\\n  margin: 0;\\n  padding: 0;\\n  width: 800px;\\n  height: 600px;\\n  overflow: hidden;\\n  background: #0f1115;\\n}\\n\\n.abs {\\n  position: absolute;\\n}\\n\\n#panel {\\n  left: 100px;\\n  top: 80px;\\n  width: 600px;\\n  height: 460px;\\n  background: #171a21;\\n}\\n\\n#bar {\\n  left: 140px;\\n  top: 130px;\\n  width: 520px;\\n  height: 40px;\\n  background: #4f7cff;\\n}\\n\\n#green {\\n  left: 140px;\\n  top: 230px;\\n  width: 240px;\\n  height: 120px;\\n  background: #3ecf8e;\\n}\\n\\n#orange {\\n  left: 420px;\\n  top: 230px;\\n  width: 240px;\\n  height: 120px;\\n  background: #f2b84b;\\n}\\n\\n#title {\\n  left: 140px;\\n  top: 396px;\\n  margin: 0;\\n  font-family: \\\"DejaVu Sans\\\", sans-serif;\\n  font-weight: bold;\\n  font-size: 28px;\\n  line-height: 36px;\\n  color: #eef2f8;\\n  white-space: nowrap;\\n}\\n\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "write",
+        "callId": "toolu_01VrepzybtKZRiizdNiUEtfP",
+        "arguments": "{\"file_path\":\"/var/lib/harness-runs/workspace/w11-design-1793376517/index.html\",\"content\":\"<!DOCTYPE html>\\n<html lang=\\\"en\\\">\\n<head>\\n  <meta charset=\\\"utf-8\\\">\\n  <title>ZEPHYR-77</title>\\n  <link rel=\\\"stylesheet\\\" href=\\\"style.css\\\">\\n</head>\\n<body>\\n  <div id=\\\"panel\\\" class=\\\"abs\\\"></div>\\n  <div id=\\\"bar\\\" class=\\\"abs\\\"></div>\\n  <div id=\\\"green\\\" class=\\\"abs\\\"></div>\\n  <div id=\\\"orange\\\" class=\\\"abs\\\"></div>\\n  <h1 id=\\\"title\\\" class=\\\"abs\\\">ZEPHYR-77</h1>\\n</body>\\n</html>\\n\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imageArguments": [
+      "{\"action\":\"palette\",\"path\":\"mockup.png\"}",
+      "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\"}"
+    ]
+  },
+  "pageFiles": {
+    "index.html": 358,
+    "style.css": 734
+  },
+  "measurement": {
+    "mockupSize": [
+      800,
+      600
+    ],
+    "renderSize": [
+      800,
+      600
+    ],
+    "changedPixels": 1523,
+    "totalPixels": 480000,
+    "ratio": 0.003173,
+    "sampledColours": {
+      "canvas": [
+        15,
+        17,
+        21
+      ],
+      "bar": [
+        79,
+        124,
+        255
+      ],
+      "card": [
+        23,
+        26,
+        33
+      ],
+      "green": [
+        62,
+        207,
+        142
+      ],
+      "amber": [
+        242,
+        184,
+        75
+      ]
+    },
+    "gateResult": {
+      "ok": true,
+      "changedPixels": 1523,
+      "ratio": 0.003173,
+      "bbox": [
+        141,
+        402,
+        173,
+        24
+      ],
+      "maxDelta": 216
+    }
+  },
+  "triageSeededFiles": [
+    "dialog.png"
+  ],
+  "triage": {
+    "startStatus": 200,
+    "states": [
+      "executing",
+      "awaiting_done_signal"
+    ],
+    "state": "awaiting_done_signal",
+    "engine": "replayed",
+    "engineStatus": "completed",
+    "answer": "CODE: E_UPSTREAM_617\nMESSAGE: Snapshot c105 could not be uploaded."
+  },
+  "triageTrail": {
+    "toolsUsed": [
+      "read",
+      "read_image"
+    ],
+    "imageDiffCalls": [],
+    "imageSampleCalls": [],
+    "imagePaletteCalls": [],
+    "screenshotCalls": [],
+    "mockupReads": [],
+    "dialogReads": [
+      {
+        "type": "tool_call",
+        "tool": "read",
+        "callId": "toolu_01KGtBGwhGBsmNd8yxhynoXM",
+        "arguments": "{\"file_path\":\"/var/lib/harness-runs/workspace/w11-triage-1793376517/dialog.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "read_image",
+        "callId": "toolu_01BRuRNPXiJqjmJLfTmf1WH8",
+        "arguments": "{\"file_path\":\"dialog.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "writes": [],
+    "imageArguments": []
+  },
+  "gateProbe": {
+    "image": "harness-engine-worker:vdev-local",
+    "network": "none",
+    "diff": {
+      "ok": true,
+      "before": "before.png",
+      "after": "after.png",
+      "width": 100,
+      "height": 50,
+      "changedPixels": 100,
+      "totalPixels": 5000,
+      "ratio": 0.02,
+      "tolerance": 16,
+      "bbox": [
+        20,
+        10,
+        10,
+        10
+      ],
+      "maxDelta": 190,
+      "changedMeanBefore": [
+        10,
+        20,
+        30
+      ],
+      "changedMeanAfter": [
+        200,
+        40,
+        40
+      ],
+      "out": "before.diff.png",
+      "outBytes": 200,
+      "hint": "open the out image with the read tool to see where it differs"
+    },
+    "escape": {
+      "denied": "before '../../etc/passwd' escapes the workspace"
+    },
+    "palette": {
+      "ok": true,
+      "path": "after.png",
+      "width": 100,
+      "height": 50,
+      "pixels": 5000,
+      "distinctBuckets": 2,
+      "colors": [
+        {
+          "rgb": [
+            10,
+            20,
+            30
+          ],
+          "hex": "#0a141e",
+          "meanRgb": [
+            10,
+            20,
+            30
+          ],
+          "pixels": 4900,
+          "share": 0.98,
+          "bbox": [
+            0,
+            0,
+            100,
+            50
+          ]
+        },
+        {
+          "rgb": [
+            200,
+            40,
+            40
+          ],
+          "hex": "#c82828",
+          "meanRgb": [
+            200,
+            40,
+            40
+          ],
+          "pixels": 100,
+          "share": 0.02,
+          "bbox": [
+            20,
+            10,
+            10,
+            10
+          ]
+        }
+      ],
+      "hint": "one call answers the layout's colours; sample exact points only to disambiguate"
+    },
+    "paletteEscape": {
+      "denied": "path '../../etc/passwd' escapes the workspace"
+    },
+    "paletteCap": {
+      "denied": "maxColors must be 1..24"
+    },
+    "routes": ""
+  },
+  "network": {
+    "skipped": false,
+    "noProxyRender": {
+      "network": "w10-probe-1793376566-855",
+      "proxy": null,
+      "verdict": "FETCH FAILED",
+      "gateOk": true,
+      "gateError": null,
+      "domChars": 305
+    }
+  },
+  "artifacts": {
+    "mockup": {
+      "status": 201,
+      "sha256": "320d2e86c18c981117ab032e51b7cab57a65986c174e098e562ff52b11d38258"
+    },
+    "render": {
+      "status": 201,
+      "sha256": "da73f5844bec59f4ad07233975a745e407ac13dbd2eea3ef52e85e6d8040dfd1"
+    },
+    "diff": {
+      "status": 201,
+      "sha256": "28f4ef7577de38af48efb4379f7aa7a5530b9ebae8b75fd33b6b29795599e4e0"
+    },
+    "dialog": {
+      "status": 201,
+      "sha256": "b4e2ee671225c755195611c606bcf8d0eef0f94d68e63c32fd87619bf60fa442"
+    }
+  },
+  "designLoop": {
+    "paletteCalls": 1,
+    "sampleCalls": 0,
+    "colourCallsTotal": 1,
+    "goalAskedFor": "one palette call, then at most one sample call",
+    "withinBound": true
+  },
+  "checks": {
+    "designRunSettled": true,
+    "agentOpenedTheMockup": true,
+    "agentSampledColours": true,
+    "agentScreenshottedItsPage": true,
+    "agentUsedTheDiff": true,
+    "agentWroteThePage": true,
+    "tokenOnlyInPixelsWasTranscribed": true,
+    "pageRendersAtMockupSize": true,
+    "independentDiffWithinThreshold": true,
+    "flatColoursSurvived": true,
+    "agentRatioAgreesWithBytes": true,
+    "diffImageAttached": true,
+    "mockupAttached": true,
+    "gateReportsTheExactPatch": true,
+    "gateRefusesPathsOutsideTheWorkspace": true,
+    "gateReportsThePalette": true,
+    "gateRefusesPalettePathsOutsideTheWorkspace": true,
+    "gateCapsPaletteColours": true,
+    "gateContainerHasNoNetwork": true,
+    "triageRunSettled": true,
+    "triageOpenedTheDialog": true,
+    "triageReportedTheExactCode": true,
+    "triageReportedTheExactMessage": true,
+    "triageHadNoTextSource": true,
+    "browserStillHasNoNetworkWithoutProxy": true
+  },
+  "verdict": "PASS",
+  "failedChecks": [],
+  "designAnswer": "TOKEN: ZEPHYR-77\nRATIO: 0.00317\nFILES: index.html, style.css",
+  "triageAnswer": "CODE: E_UPSTREAM_617\nMESSAGE: Snapshot c105 could not be uploaded."
+}

@@ -68,9 +68,9 @@ def test_cost_math_matches_pricing_engine():
         output_tokens=500_000,
         latency_ms=120,
     )
-    # deepseek-chat: 0.14/M in + 0.28/M out -> 0.14 + 0.14 = 0.28
+    # deepseek-chat: 0.2574/M in + 1.0287/M out -> 0.2574 + 0.51435 = 0.77175
     # H-023: cost binds as TEXT at NUMERIC(12,6); normalize via to_money.
-    assert ledger.to_money(params[5]) == Decimal("0.280000")
+    assert ledger.to_money(params[5]) == Decimal("0.771750")
     assert ledger.to_money(params[5]) == PricingEngine.calculate_cost(
         "deepseek/deepseek-chat", 1_000_000, 500_000
     )

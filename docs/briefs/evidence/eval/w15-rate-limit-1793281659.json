@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "kind": "w15-rate-limit",
+  "takenAt": "2026-10-29T13:47:39.578444+00:00",
+  "deployedTeamLimit": 3,
+  "allowedBeforeBlock": 3,
+  "blocked": {
+    "status": 429,
+    "code": "RATE_LIMITED",
+    "retryAfter": "21"
+  },
+  "otherTeam": {
+    "status": 503,
+    "code": "PROVIDER_UNAVAILABLE"
+  },
+  "checks": {
+    "exactlyLimitCallsAllowed": true,
+    "nextCallBlocked429": true,
+    "errorCodeIsRateLimited": true,
+    "retryAfterPresent": true,
+    "otherTeamNotThrottled": true
+  },
+  "verdict": "PASS",
+  "failedChecks": []
+}

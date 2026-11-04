@@ -1,0 +1,82 @@
+{
+ "date": "2026-10-31",
+ "milestone": "W3 rewind",
+ "runId": "w3rewind-1793433470",
+ "steps": [
+  {
+   "step": "project",
+   "ok": true,
+   "status": 201
+  },
+  {
+   "step": "plan",
+   "ok": true,
+   "status": 201
+  },
+  {
+   "step": "approve",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "start",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "rewind refused while executing",
+   "ok": true,
+   "status": 409,
+   "code": "INVALID_STATE",
+   "body": "{'error': {'code': 'INVALID_STATE', 'message': 'rewind requires the run to be stopped or paused first'}, 'detail': {'error': {'code': 'INVALID_STATE', 'message': 'rewind requires the run to be stopped"
+  },
+  {
+   "step": "settled",
+   "ok": true,
+   "state": "awaiting_done_signal"
+  },
+  {
+   "step": "list checkpoints",
+   "ok": true,
+   "status": 200,
+   "count": 2
+  },
+  {
+   "step": "rewind to first checkpoint",
+   "ok": true,
+   "status": 200
+  }
+ ],
+ "calcBeforeRun": "def add(a, b):\n    return a - b\n\n",
+ "calcAfterAgent": "def add(a, b):\n    return a + b\n\n",
+ "checkpoints": [
+  {
+   "id": "0001-before-attempt-1",
+   "seq": 1,
+   "label": "before-attempt-1",
+   "at": "2026-10-31T07:57:51Z",
+   "files": 2,
+   "bytes": 45
+  },
+  {
+   "id": "0002-after-attempt-1",
+   "seq": 2,
+   "label": "after-attempt-1",
+   "at": "2026-10-31T07:58:04Z",
+   "files": 2,
+   "bytes": 45
+  }
+ ],
+ "beforeSnapshotContainsCalc": true,
+ "rewind": {
+  "runId": "w3rewind-1793433470",
+  "rewoundTo": "0001-before-attempt-1",
+  "label": "before-attempt-1",
+  "restoredFiles": 1,
+  "removedFiles": [],
+  "removedCount": 0
+ },
+ "calcAfterRewind": "def add(a, b):\n    return a - b\n\n",
+ "fileRestored": true,
+ "ok": true
+}

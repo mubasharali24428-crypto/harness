@@ -1,0 +1,125 @@
+{
+  "date": "2026-10-27",
+  "week": "W10",
+  "claim": "a UI bug is reproduced, fixed and re-verified by the agent with before/after screenshots; the browser's network stays confined",
+  "runId": "w10-1793126496",
+  "drive": "HTTP only",
+  "startStatus": 200,
+  "states": [
+    "executing",
+    "blocked"
+  ],
+  "engine": {
+    "engine": "replayed",
+    "status": "error",
+    "finalResponse": "DeepSeek Harness run failed: tool_budget_exhausted after 17 tool calls"
+  },
+  "toolTrail": {
+    "browserCalls": 0,
+    "screenshotCalls": 0,
+    "screenshotArguments": [],
+    "beforeScreenshot": 0,
+    "afterScreenshot": 0,
+    "readCalls": 12,
+    "beforeRead": 0,
+    "afterRead": 0,
+    "readArguments": [
+      "{\"file_path\":\"/var/lib/harness-runs/workspace/w10-1793126496/index.html\"}",
+      "{\"file_path\":\"/var/lib/harness-runs/workspace/w10-1793126496/style.css\"}",
+      "{\"file_path\":\"/var/lib/harness-runs/workspace/w10-1793126496/README.md\"}",
+      "{\"file_path\":\"/var/lib/harness-runs/workspace/w10-1793126233/index.html\"}",
+      "{\"file_path\":\"/var/lib/harness-runs/workspace/w10-1793126233/style.css\"}",
+      "{\"file_path\":\"/var/lib/harness-runs/workspace/w10-1793126302/index.html\"}",
+      "{\"file_path\":\"/var/lib/harness-runs/workspace/w10-1793126302/style.css\"}",
+      "{\"file_path\":\"/var/lib/harness-runs/workspace/.baseline/w10-1793126233/index.html\"}",
+      "{\"file_path\":\"/var/lib/harness-runs/workspace/.baseline/w10-1793126233/style.css\"}",
+      "{\"file_path\":\"/var/lib/harness-runs/workspace/.baseline/w10-1793126302/index.html\"}",
+      "{\"file_path\":\"/var/lib/harness-runs/workspace/.baseline/w10-1793126302/style.css\"}",
+      "{\"file_path\":\"/var/lib/harness-runs/workspace/.checkpoints/w10-1793126496/0001-before-attempt-1.json\"}"
+    ],
+    "toolsUsed": [
+      "bash",
+      "read",
+      "working_directory"
+    ]
+  },
+  "changeRecord": {
+    "doneSignalStatus": 200,
+    "paths": [
+      "style.css"
+    ],
+    "digest": "c5a9e21a794ec82137d9864727ca5dfd57e64cb6de0964ffe93dfaab0708be45"
+  },
+  "pngError": "orchestrator exec failed: Traceback (most recent call last):\n  File \"<string>\", line 3, in <module>\n    print(base64.b64encode(open(p, 'rb').read()).decode())\n                           ~~~~^^^^^^^^^\nFileNotFoundError: [Errno 2] No such file or directory: '/var/lib/harness-runs/workspace/w10-1793126496/shots/before.png'\n",
+  "pixels": {},
+  "artifacts": {
+    "tooBig": {
+      "status": 413,
+      "declaredBytes": 11534336,
+      "code": "ARTIFACT_TOO_LARGE"
+    }
+  },
+  "fix": {
+    "veilStillCovering": true,
+    "styleChars": 361
+  },
+  "network": {
+    "skipped": false,
+    "noNetworkFetch": {
+      "network": "w10-probe-1793126530-445",
+      "proxy": null,
+      "verdict": "FETCH FAILED",
+      "gateOk": true,
+      "gateError": null,
+      "domChars": 305
+    },
+    "allowListedThroughProxy": {
+      "network": "w10-probe-1793126531-990",
+      "proxy": "http://harness-egress:3129",
+      "verdict": "FETCH OK",
+      "gateOk": true,
+      "gateError": null,
+      "domChars": 311
+    },
+    "unlistedThroughProxy": {
+      "network": "w10-probe-1793126533-445",
+      "proxy": "http://harness-egress:3129",
+      "verdict": "FETCH FAILED",
+      "gateOk": true,
+      "gateError": null,
+      "domChars": 305
+    }
+  },
+  "checks": {
+    "runSettled": true,
+    "tookABeforeScreenshot": false,
+    "tookAnAfterScreenshot": false,
+    "lookedAtBothImages": false,
+    "beforeRendersWhite": false,
+    "afterRendersRed": false,
+    "fixRemovedTheVeil": false,
+    "agentSaysBeforeWhite": false,
+    "agentSaysAfterRed": false,
+    "agentAgreesWithTheBytes": false,
+    "bothScreenshotsAttached": false,
+    "fixRecordedAsReviewableChange": true,
+    "artifactLimitEnforced": true,
+    "browserHasNoNetworkWithoutProxy": true,
+    "allowListedPageLoadsWithProxy": true,
+    "unlistedHostStillRefusedWithProxy": true
+  },
+  "verdict": "FAIL",
+  "failedChecks": [
+    "tookABeforeScreenshot",
+    "tookAnAfterScreenshot",
+    "lookedAtBothImages",
+    "beforeRendersWhite",
+    "afterRendersRed",
+    "fixRemovedTheVeil",
+    "agentSaysBeforeWhite",
+    "agentSaysAfterRed",
+    "agentAgreesWithTheBytes",
+    "bothScreenshotsAttached"
+  ],
+  "answer": "DeepSeek Harness run failed: tool_budget_exhausted after 17 tool calls"
+}

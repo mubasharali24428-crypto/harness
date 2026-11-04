@@ -1,0 +1,16 @@
+[
+  {
+    "line": 10,
+    "col": 33,
+    "kind": "error",
+    "code": "HX3023",
+    "message": "record Note has no field 'other' (fields: text)"
+  },
+  {
+    "line": 10,
+    "col": 56,
+    "kind": "error",
+    "code": "HX3023",
+    "message": "'with' sets field 'text' twice"
+  }
+]

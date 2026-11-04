@@ -115,6 +115,35 @@ _RETRYABLE_STATUS = {429, 502, 503, 504}
 _IDEMPOTENT_METHODS = {"GET", "HEAD", "PUT", "DELETE"}
 
 
+def _bracketed(value: str) -> bool:
+    return "[" in value or "]" in value
+
+
+def _strip_brackets(value: str) -> str:
+    return ",".join(part for part in value.split(",") if part.strip() and not _bracketed(part))
+
+
+def _env_client(**kwargs: Any) -> httpx.Client:
+    """Build an httpx client even when NO_PROXY contains a bracketed IPv6 literal.
+
+    httpx 0.28 parses NO_PROXY as a URL list; Docker Desktop ships entries such
+    as ``[::1]``, which become ``Invalid port ':1]'`` on the next request. The
+    proxy mounts are computed during ``httpx.Client(...)``, so sanitising the
+    variables around construction is enough — the caller's environment is
+    restored immediately and no other client sees the change.
+    """
+    names = ("NO_PROXY", "no_proxy")
+    originals = {name: os.environ[name] for name in names if name in os.environ}
+    try:
+        for name, value in originals.items():
+            if _bracketed(value):
+                os.environ[name] = _strip_brackets(value)
+        return httpx.Client(**kwargs)
+    finally:
+        for name, value in originals.items():
+            os.environ[name] = value
+
+
 class HarnessHTTP:
     """Bearer-authenticated JSON transport shared by all section clients.
 
@@ -136,7 +165,7 @@ class HarnessHTTP:
         self.max_retries = max_retries
         self.backoff_base_s = backoff_base_s
         self.backoff_cap_s = backoff_cap_s
-        self._client = httpx.Client(
+        self._client = _env_client(
             timeout=httpx.Timeout(timeout, connect=min(timeout, 5.0)),
             transport=transport,
         )
@@ -160,11 +189,16 @@ class HarnessHTTP:
         *,
         params: dict[str, Any] | None = None,
         json_body: Any = None,
+        content: bytes | str | None = None,
+        content_type: str = "text/plain; charset=utf-8",
         auth: bool = True,
         token: str | None = None,
     ) -> Any:
         """Send one call; return the decoded JSON body (or ``""``/text for
         empty/non-JSON responses). Raises :class:`ApiError` on any non-2xx.
+
+        ``content`` sends raw bytes instead of a JSON envelope, for endpoints
+        whose body IS the file (artifact upload); ``json_body`` is ignored then.
 
         Transient failures (connection errors, 429/502/503/504) are retried
         with exponential backoff + jitter on idempotent methods only.
@@ -177,6 +211,7 @@ class HarnessHTTP:
             try:
                 return self._send_once(base_url, method, path,
                                        params=params, json_body=json_body,
+                                       content=content, content_type=content_type,
                                        auth=auth, token=token)
             except ApiError as err:
                 status = err.status
@@ -219,6 +254,8 @@ class HarnessHTTP:
         *,
         params: dict[str, Any] | None,
         json_body: Any,
+        content: bytes | str | None = None,
+        content_type: str = "text/plain; charset=utf-8",
         auth: bool,
         token: str | None = None,
     ) -> Any:
@@ -228,12 +265,24 @@ class HarnessHTTP:
             headers["authorization"] = f"Bearer {effective_token}"
         # Drop unset optional query params (None sentinel from generated stubs).
         clean_params = {k: v for k, v in (params or {}).items() if v is not None}
-        resp = self._client.request(
-            method, f"{base_url.rstrip('/')}{path}",
-            params=clean_params or None,
-            json=json_body,
-            headers=headers,
-        )
+        if content is not None:
+            # Raw-body endpoints (artifact upload: "the request body IS the
+            # file") take bytes, not a JSON envelope — the generated stubs
+            # cannot express that, so the transport carries it instead.
+            headers["content-type"] = content_type
+            resp = self._client.request(
+                method, f"{base_url.rstrip('/')}{path}",
+                params=clean_params or None,
+                content=content,
+                headers=headers,
+            )
+        else:
+            resp = self._client.request(
+                method, f"{base_url.rstrip('/')}{path}",
+                params=clean_params or None,
+                json=json_body,
+                headers=headers,
+            )
         if resp.status_code < 200 or resp.status_code > 299:
             body: Any = None
             try:

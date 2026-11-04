@@ -1,0 +1,59 @@
+{
+  "milestone": "M00",
+  "date": "2026-10-26",
+  "environment": {
+    "host": "macOS 25.6.0 arm64, Docker Desktop 29.5.3",
+    "sourceRevision": "df4096e",
+    "backendImage": "harness-backend:vm00-1026",
+    "backendImageId": "sha256:cadcf2a5bcef862e5e20f76247d6232432447a8cffd4fa80dceebb783d0b4dee",
+    "frontendImage": "harness-frontend:vm00-1026",
+    "note": "Both images built from this tree. The pre-existing vdev-local and vbuild-1025 images were checked first and contained no goal_images.py and no on_progress in engine.py, so they could not have produced current-revision evidence."
+  },
+  "migrationCompatibility": {
+    "treeMigrations": 61,
+    "imageMigrations": 61,
+    "applied": 61,
+    "migrateExit": 0,
+    "schemaDriftCrash": false,
+    "note": "The 2026-10-25 outage class (db ahead of the image's declared ledger) did not recur."
+  },
+  "sidecarStartupFix": {
+    "service": "sandbox-egress",
+    "command": "[python, -m, harness_sandbox.egress_proxy]",
+    "runningAllInOneBranch": false,
+    "verdict": "entrypoint.sh honours the passed command on the current image; the sidecar runs its own module, not the seven-uvicorn fallback."
+  },
+  "proxyPolicyEnforcement": {
+    "deniedCONNECT_example_com": "HTTP/1.1 403 Forbidden",
+    "allowedCONNECT_github_com": "HTTP/1.1 200 Connection Established",
+    "healthcheck": "the 403 probe is the container healthcheck, so a listener that stopped enforcing reads unhealthy",
+    "reProbedAfterRecovery": "identical results"
+  },
+  "readinessCoupling": {
+    "sandboxReady": { "egress": "up" },
+    "verdict": "reported as information, not a readiness gate, as decided on Day 0."
+  },
+  "stackJourney": {
+    "command": "python3 scripts/e2e/compose_journey.py",
+    "result": "PASS: 13 checks green",
+    "containers": "18 running/healthy",
+    "liveRunClaim": false,
+    "note": "Check 07 records the engine result as 'replayed', not live. The journey proves the stack; it does not prove a live agent run, which stays M07."
+  },
+  "stoppedSidecarDetection": {
+    "firstAttempt": "the journey PASSED with the sidecar stopped, because it read docker ps -a before the daemon reflected the exit",
+    "secondAttempt": "with a 3s settle, step 01 reported [FAIL] container health",
+    "recovery": "docker start -> healthy after ~25s -> journey PASS 13 checks",
+    "verdict": "DETECTION WORKS. The unguarded second is a race in the trip test's own timing, not a hole in check 0.",
+    "followUp": "the trip test should settle or poll before asserting; recorded in docs/backlog.md"
+  },
+  "secrets": {
+    "keyMaterialInEvidence": false,
+    "note": "HARNESS_MASTER_KEY presence was tested as a boolean in the env file; its value was never printed or copied here. No provider credential participates in this milestone."
+  },
+  "remaining": [
+    "M00 is closed for the stack it verified: this host, this image, this revision.",
+    "The journey is replay-backed, so M07's live acceptance is unaffected by this result.",
+    "The compose image build still re-downloads the runtime wheel because pip install is ordered after COPY section*/ (docs/backlog.md, W1 Day 0). It completed this time on Docker 29.5.3/arm64; the ordering fix is still owed."
+  ]
+}

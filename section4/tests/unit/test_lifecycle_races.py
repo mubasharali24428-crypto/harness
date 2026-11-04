@@ -200,3 +200,24 @@ async def test_pause_does_not_claim_paused_while_the_engine_thread_lives():
     assert agg["lifecycle"]["mutationPossible"] is True
     rig.release.set()
     await _settle(task)
+
+
+@pytest.mark.parametrize("action", ["stop_agent", "pause_agent"])
+async def test_a_cancelled_call_is_still_metered(monkeypatch, action):
+    """W23 F4: the cancel path used to return without metering, so a stopped
+    run's real model turn never reached cost_ledger. Only provable usage is
+    billed (allow_estimate=False); delta metering covers a later resume."""
+    from harness_orchestrator import service as service_module
+
+    metered = []
+
+    async def recorder(svc, run_data, plan, *, allow_estimate=True):
+        metered.append((run_data["runId"], allow_estimate))
+
+    monkeypatch.setattr(service_module, "record_run_cost", recorder)
+    rig = Rig()
+    task = await rig.start()
+    await getattr(rig.service, action)(RUN)
+    await _settle(task)
+    rig.release.set()
+    assert metered == [(RUN, False)]

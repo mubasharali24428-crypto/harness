@@ -45,8 +45,10 @@ from sqlalchemy.exc import IntegrityError
 
 from harness_orchestrator import api as _api
 from harness_orchestrator import collab
+from harness_orchestrator.context_window import configured_context_window
+from harness_orchestrator.run_checkpoints import CheckpointError
 from harness_orchestrator.session_gate import session_block
-from harness_orchestrator.state_machine import AgentState
+from harness_orchestrator.state_machine import AgentState, InvalidStateTransitionError
 from harness_orchestrator.workspace_gate import workspace_block
 
 logger = logging.getLogger(__name__)
@@ -1773,8 +1775,18 @@ async def assess_resume(
         ),
         "how": "POST /runs/{runId}/retry (or /resume): the engine is re-invoked with the same"
         " session id and the dsh SDK continues its own session history",
-        "caveat": "side effects of the interrupted step are not rolled back; review the"
-        " workspace checkpoints before resuming",
+        # W3 policy (chosen 2026-10-26): resume ADOPTS whatever is on disk. That
+        # is the behaviour the engine already has — it re-invokes in the same
+        # workspace and the SDK continues its own session — and it is the common
+        # one: an interrupted write is visible to the next read, so the agent
+        # sees it. The caveat used to tell operators to "review the workspace
+        # checkpoints", which was an affordance with nothing behind it: run
+        # workspaces are not snapshotted (Section 5's checkpoint store covers
+        # sandbox task workspaces only). Naming a thing that does not exist is
+        # the fake affordance the roadmap forbids, so the text states the real
+        # contract instead.
+        "caveat": "side effects of the interrupted step are not rolled back; resume"
+        " continues from whatever is on disk",
     }
 
 
@@ -1814,6 +1826,7 @@ async def status_get(factory: Any, service: Any, run_id: str) -> dict[str, Any]:
         ex = exceeded(limits, usage) if limits is not None else []
         resume = await assess_resume(service, db, run_id, now)
         events = await _events(db, run_id)
+        context = await _context_view(db, run_id)
         comp = await _completion_row(db, run_id)
         subs = _summary(await _subtasks(db, run_id))
         attempts = await _attempts(db, run_id)
@@ -1852,6 +1865,8 @@ async def status_get(factory: Any, service: Any, run_id: str) -> dict[str, Any]:
         },
         "resume": resume,
         "failure": failure,
+        # W1: the window the runtime runs with and what it has compacted so far.
+        "context": context,
         "attempts": attempts,
         "subtasks": subs,
         "completion": {
@@ -1860,6 +1875,30 @@ async def status_get(factory: Any, service: Any, run_id: str) -> dict[str, Any]:
             "reportNo": int(comp.report_no) if comp else 0,
         },
     }
+
+
+async def _context_view(db: Any, run_id: str) -> dict[str, Any]:
+    """Context window + compaction totals for a run, from durable events.
+
+    The window is the operator's configured value or ``None``; the totals come
+    from the ``context_compacted`` rows S4 writes when a run reports
+    ``compaction/summary``. Payloads are read in Python rather than with a JSON
+    operator so this stays portable across PG and SQLite.
+    """
+    window = configured_context_window()
+    rows = (
+        await db.execute(
+            text("SELECT payload FROM agent_events WHERE run_id = :r AND type = :t"),
+            {"r": run_id, "t": "context_compacted"},
+        )
+    ).all()
+    compactions = 0
+    tokens = 0
+    for row in rows:
+        payload = _payload(getattr(row, "payload", None))
+        compactions += int(payload.get("compactions") or 0)
+        tokens += int(payload.get("compactedTokens") or 0)
+    return {"contextWindow": window, "compactions": compactions, "compactedTokens": tokens}
 
 
 # --------------------------------------------------------------------- abandon, retry
@@ -2306,6 +2345,37 @@ async def execution_limits_get(runId: str, actor: Reader) -> dict:
 @router.put(_B + "/execution-limits")
 async def execution_limits_put(runId: str, req: LimitsBody, actor: Writer) -> dict:
     return await _call(lambda f: limits_put(f, actor, runId, req))
+
+
+class RewindBody(BaseModel):
+    checkpoint: str | None = Field(default=None, max_length=120)
+
+
+@router.get(_B + "/checkpoints")
+async def run_checkpoints_list(runId: str, actor: Reader) -> dict:
+    """W3: the run workspace's snapshots, newest last."""
+    return await _svc().list_run_checkpoints(runId)
+
+
+@router.post(_B + "/rewind")
+async def run_rewind(runId: str, req: RewindBody, actor: Writer) -> dict:
+    """W3: restore the run's workspace to a checkpoint (default: the newest).
+
+    Refused while the run is live — files cannot be reset under a worker that is
+    still writing them.
+    """
+    try:
+        return await _svc().rewind_run(runId, req.checkpoint)
+    except InvalidStateTransitionError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"error": {"code": "INVALID_STATE", "message": str(exc)}},
+        ) from exc
+    except CheckpointError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"error": {"code": "CHECKPOINT_UNAVAILABLE", "message": str(exc)}},
+        ) from exc
 
 
 @router.get(_B + "/execution-status")

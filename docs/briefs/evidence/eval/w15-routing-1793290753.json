@@ -1,0 +1,185 @@
+{
+  "date": "2026-10-29T16:19:16Z",
+  "milestone": "W15 routing decision is durable and readable",
+  "runId": "w15-routing-1793290753",
+  "teamId": "e6a6cbff-a63b-4729-b93c-2fe40f98fff9",
+  "projectId": "00221622-803f-4dad-aeef-22136bbebce1",
+  "planId": "plan-33a4da98",
+  "planClass": "mechanical",
+  "policyModels": {
+    "mechanicalModel": "w15-probe/mechanical-does-not-exist",
+    "reasoningModel": "w15-probe/reasoning-does-not-exist"
+  },
+  "decision": {
+    "class": "mechanical",
+    "model": "w15-probe/mechanical-does-not-exist",
+    "runId": "w15-routing-1793290753",
+    "source": "policy",
+    "enabled": true
+  },
+  "durableEventMatchesApi": true,
+  "runStateAfter": "blocked",
+  "note": "probe model ids exist in no catalog and no rate card, so the provider call cannot succeed and no money can be spent; the decision is recorded anyway because it is emitted before the engine call",
+  "checks": [
+    {
+      "check": "routing reads the disabled default",
+      "ok": true,
+      "detail": {
+        "teamId": "e6a6cbff-a63b-4729-b93c-2fe40f98fff9",
+        "key": "model_routing",
+        "routingSource": "defaults",
+        "routing": {
+          "enabled": false,
+          "mechanicalModel": null,
+          "reasoningModel": null
+        },
+        "updatedAt": null,
+        "updatedBy": null
+      }
+    },
+    {
+      "check": "routing can be turned on",
+      "ok": true,
+      "detail": {
+        "teamId": "e6a6cbff-a63b-4729-b93c-2fe40f98fff9",
+        "key": "model_routing",
+        "routingSource": "team",
+        "routing": {
+          "enabled": true,
+          "mechanicalModel": "w15-probe/mechanical-does-not-exist",
+          "reasoningModel": "w15-probe/reasoning-does-not-exist"
+        },
+        "updatedAt": "2026-10-29T16:19:14.174247+00:00",
+        "updatedBy": "cc4ea702-6629-4257-9114-10c2b0979dd8"
+      }
+    },
+    {
+      "check": "project created",
+      "ok": true,
+      "detail": {
+        "id": "00221622-803f-4dad-aeef-22136bbebce1",
+        "name": "w15 routing w15-routing-1793290753",
+        "repoFullName": null
+      }
+    },
+    {
+      "check": "plan proposed",
+      "ok": true,
+      "detail": {
+        "runId": "w15-routing-1793290753",
+        "planId": "plan-33a4da98"
+      }
+    },
+    {
+      "check": "plan readable",
+      "ok": true,
+      "detail": {
+        "goal": "W15 routing evidence: touch two files so the plan classifies, then stop.",
+        "filesLikelyToChange": [],
+        "steps": [
+          "Inspect codebase",
+          "Apply edits",
+          "Run unit tests"
+        ],
+        "tests": [
+          "pytest tests/"
+        ],
+        "risks": [
+          "Regression in existing modules"
+        ],
+        "estimatedCostUsd": 0.05,
+        "forbiddenPaths": [],
+        "expectedResult": "All tests pass and changes conform to brief."
+      }
+    },
+    {
+      "check": "plan approved",
+      "ok": true,
+      "detail": {
+        "runId": "w15-routing-1793290753",
+        "planId": "plan-33a4da98",
+        "status": "approved"
+      }
+    },
+    {
+      "check": "execution started",
+      "ok": true,
+      "detail": {
+        "runId": "w15-routing-1793290753",
+        "status": "executing"
+      }
+    },
+    {
+      "check": "GET /runs/{id} carries the routing decision",
+      "ok": true,
+      "detail": "blocked"
+    },
+    {
+      "check": "the decision says routing was enabled",
+      "ok": true,
+      "detail": {
+        "class": "mechanical",
+        "model": "w15-probe/mechanical-does-not-exist",
+        "runId": "w15-routing-1793290753",
+        "source": "policy",
+        "enabled": true
+      }
+    },
+    {
+      "check": "the model came from the policy",
+      "ok": true,
+      "detail": {
+        "class": "mechanical",
+        "model": "w15-probe/mechanical-does-not-exist",
+        "runId": "w15-routing-1793290753",
+        "source": "policy",
+        "enabled": true
+      }
+    },
+    {
+      "check": "the class is the one the plan has",
+      "ok": true,
+      "detail": {
+        "class": "mechanical",
+        "model": "w15-probe/mechanical-does-not-exist",
+        "runId": "w15-routing-1793290753",
+        "source": "policy",
+        "enabled": true
+      }
+    },
+    {
+      "check": "the recorded model is the policy's for that class",
+      "ok": true,
+      "detail": {
+        "recorded": "w15-probe/mechanical-does-not-exist",
+        "expected": "w15-probe/mechanical-does-not-exist"
+      }
+    },
+    {
+      "check": "the decision is a durable agent_events row",
+      "ok": true,
+      "detail": {
+        "db": {
+          "class": "mechanical",
+          "model": "w15-probe/mechanical-does-not-exist",
+          "runId": "w15-routing-1793290753",
+          "source": "policy",
+          "enabled": true
+        },
+        "api": {
+          "class": "mechanical",
+          "model": "w15-probe/mechanical-does-not-exist",
+          "runId": "w15-routing-1793290753",
+          "source": "policy",
+          "enabled": true
+        }
+      }
+    },
+    {
+      "check": "routing policy reset",
+      "ok": true,
+      "detail": 204
+    }
+  ],
+  "verdict": "PASS"
+}

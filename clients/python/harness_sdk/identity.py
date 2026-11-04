@@ -27,13 +27,15 @@ class ApplyBody(typing.TypedDict, total=False):
     name: str  # required
     version: int | None
 
-class AssignBody(typing.TypedDict, total=False):
-    """AssignBody. Required keys: userId, level, scopeId, role."""
-    expiresAt: str | None
-    level: str  # required
-    role: str  # required
-    scopeId: str  # required
-    userId: str  # required
+class AttestBody(typing.TypedDict, total=False):
+    """AttestBody. Required keys: attestation, signature."""
+    attestation: dict[str, typing.Any]  # required
+    signature: str  # required
+
+class AuditVerifyRequest(typing.TypedDict, total=False):
+    """AuditVerifyRequest."""
+    afterChainPos: int
+    maxRows: int
 
 class BindingBody(typing.TypedDict, total=False):
     """BindingBody. Required keys: kind, value."""
@@ -125,10 +127,19 @@ class EventReplayResponse(typing.TypedDict, total=False):
     oldestSeqSent: int | None
     replayTruncated: bool | None
 
+class EventsBody(typing.TypedDict, total=False):
+    """EventsBody. Required keys: events."""
+    events: list[RunnerEvent]  # required
+
 class ExecutionControlBody(typing.TypedDict, total=False):
     """ExecutionControlBody. Required keys: disabled, reason."""
     disabled: bool  # required
     reason: str  # required
+
+class FinishBody(typing.TypedDict, total=False):
+    """FinishBody. Required keys: status."""
+    resultDigest: str | None
+    status: str  # required
 
 class GlobalPrefsBody(typing.TypedDict, total=False):
     """GlobalPrefsBody."""
@@ -223,6 +234,11 @@ class MemberRoleBody(typing.TypedDict, total=False):
     """MemberRoleBody. Required keys: role."""
     role: str  # required
 
+class MemoryBody(typing.TypedDict, total=False):
+    """MemoryBody. Required keys: memoryText."""
+    expiresAt: str | None
+    memoryText: str  # required
+
 class MuteBody(typing.TypedDict, total=False):
     """MuteBody. Required keys: scopeKind, scopeId."""
     minutes: int | None
@@ -253,6 +269,12 @@ class OwnerTransferBody(typing.TypedDict, total=False):
     """OwnerTransferBody. Required keys: toUserId, expectedOwnerUserId."""
     expectedOwnerUserId: str  # required
     toUserId: str  # required
+
+class PatchOp(typing.TypedDict, total=False):
+    """PatchOp."""
+    op: str
+    path: str | None
+    value: typing.Any
 
 class PlanUpdateBody(typing.TypedDict, total=False):
     """PlanUpdateBody."""
@@ -299,6 +321,14 @@ class ProjectOut(typing.TypedDict, total=False):
     name: str  # required
     repoFullName: str | None
 
+class PutBody(typing.TypedDict, total=False):
+    """PutBody."""
+    active: bool
+    externalId: str | None
+    name: dict[str, typing.Any] | None
+    schemas: list[str]
+    userName: str
+
 class ReadAllBody(typing.TypedDict, total=False):
     """ReadAllBody."""
     kind: str | None
@@ -307,6 +337,10 @@ class RevertBody(typing.TypedDict, total=False):
     """RevertBody. Required keys: toVersion."""
     expectedVersion: int | None
     toVersion: int  # required
+
+class RoutingBody(typing.TypedDict, total=False):
+    """RoutingBody. Required keys: routing."""
+    routing: dict[str, typing.Any]  # required
 
 class Rule(typing.TypedDict, total=False):
     """Rule. Required keys: id, effect, permissions."""
@@ -319,6 +353,23 @@ class Rule(typing.TypedDict, total=False):
 class RulesBody(typing.TypedDict, total=False):
     """RulesBody. Required keys: rulesText."""
     rulesText: str  # required
+
+class RunnerBody(typing.TypedDict, total=False):
+    """RunnerBody. Required keys: name, description."""
+    confinement: str
+    description: str  # required
+    name: str  # required
+
+class RunnerEvent(typing.TypedDict, total=False):
+    """RunnerEvent. Required keys: phase, callId."""
+    callId: str  # required
+    command: str | None
+    durationMs: int | None
+    error: str | None
+    exitCode: int | None
+    ok: bool | None
+    output: str | None
+    phase: typing.Literal['call', 'result']  # required
 
 class ScopePrefsBody(typing.TypedDict, total=False):
     """ScopePrefsBody."""
@@ -349,6 +400,32 @@ class SettingsBody(typing.TypedDict, total=False):
     expectedVersion: int | None
     settings: dict[str, typing.Any]  # required
 
+class SinkCreateBody(typing.TypedDict, total=False):
+    """SinkCreateBody. Required keys: label, collectorUrl, sharedSecret."""
+    collectorUrl: str  # required
+    label: str  # required
+    sharedSecret: str  # required
+    startFrom: typing.Literal['latest', 'earliest']
+
+class SinkPatchBody(typing.TypedDict, total=False):
+    """SinkPatchBody. Required keys: expectedVersion."""
+    active: bool | None
+    collectorUrl: str | None
+    expectedVersion: int  # required
+    label: str | None
+    resume: bool
+    sharedSecret: str | None
+
+class SkillBody(typing.TypedDict, total=False):
+    """SkillBody. Required keys: name, version, description, instructions."""
+    author: str | None
+    description: str  # required
+    expiresAt: str | None
+    instructions: str  # required
+    name: str  # required
+    source: str
+    version: str  # required
+
 class SnoozeBody(typing.TypedDict, total=False):
     """SnoozeBody."""
     minutes: int | None
@@ -366,6 +443,8 @@ class SsoConfigBody(typing.TypedDict, total=False):
     clientId: str  # required
     clientSecret: str | None
     enabled: bool
+    groupRoles: list[dict[str, typing.Any]]
+    groupsClaim: str
     idpDisplayName: str
     issuerUrl: str  # required
 
@@ -386,6 +465,10 @@ class TemplateBody(typing.TypedDict, total=False):
 class ThresholdsBody(typing.TypedDict, total=False):
     """ThresholdsBody. Required keys: thresholds."""
     thresholds: dict[str, typing.Any]  # required
+
+class TokenBody(typing.TypedDict, total=False):
+    """TokenBody."""
+    label: str
 
 class UnsubscribeBody(typing.TypedDict, total=False):
     """UnsubscribeBody. Required keys: token."""
@@ -457,9 +540,26 @@ class harness_identity__orgs__RoleBody(typing.TypedDict, total=False):
     guestDays: int | None
     role: str  # required
 
+class harness_identity__policy__AssignBody(typing.TypedDict, total=False):
+    """harness_identity__policy__AssignBody. Required keys: userId, level, scopeId, role."""
+    expiresAt: str | None
+    level: str  # required
+    role: str  # required
+    scopeId: str  # required
+    userId: str  # required
+
 class harness_identity__policy__RoleBody(typing.TypedDict, total=False):
     """harness_identity__policy__RoleBody. Required keys: permissions."""
     permissions: list[str]  # required
+
+class harness_identity__runner_api__AssignBody(typing.TypedDict, total=False):
+    """harness_identity__runner_api__AssignBody. Required keys: runId."""
+    runId: str  # required
+
+class harness_identity__scim__PatchBody(typing.TypedDict, total=False):
+    """harness_identity__scim__PatchBody."""
+    Operations: list[PatchOp]
+    schemas: list[str]
 
 class harness_identity__sessions__CreateBody(typing.TypedDict, total=False):
     """harness_identity__sessions__CreateBody. Required keys: title."""
@@ -601,14 +701,22 @@ class IdentityClient:
         _params: dict[str, typing.Any] = {"limit": limit}
         return self._http.request(self.base_url, "GET", _path, params=_params)
 
-    def export_audit(self, stream: str | None = None, after_seq: int | None = None, limit: int | None = None, run_id: str | None = None) -> dict[str, typing.Any]:
+    def export_audit(self, stream: str | None = None, after_seq: int | None = None, limit: int | None = None, run_id: str | None = None, format: str | None = None) -> dict[str, typing.Any]:
         """Export Audit
 
         GET /api/v1/audit/export
         """
         _path = "/api/v1/audit/export"
-        _params: dict[str, typing.Any] = {"stream": stream, "afterSeq": after_seq, "limit": limit, "runId": run_id}
+        _params: dict[str, typing.Any] = {"stream": stream, "afterSeq": after_seq, "limit": limit, "runId": run_id, "format": format}
         return self._http.request(self.base_url, "GET", _path, params=_params)
+
+    def verify_audit(self, body: AuditVerifyRequest) -> dict[str, typing.Any]:
+        """Verify Audit
+
+        POST /api/v1/audit/verify
+        """
+        _path = "/api/v1/audit/verify"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
 
     def login(self, body: LoginRequest) -> SessionResponse:
         """Login
@@ -1013,7 +1121,7 @@ class IdentityClient:
         _path = f"/api/v1/orgs/{org_id}/teams/{team_id}/members/{user_id}"
         return self._http.request(self.base_url, "DELETE", _path)
 
-    def assign_role(self, org_id: str, body: AssignBody) -> dict[str, typing.Any]:
+    def assign_role(self, org_id: str, body: harness_identity__policy__AssignBody) -> dict[str, typing.Any]:
         """Assign Role
 
         POST /api/v1/policy/orgs/{org_id}/assignments
@@ -1151,14 +1259,46 @@ class IdentityClient:
         _path = "/api/v1/projects"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
-    def replay_events(self, project_id: str, after_seq: int | None = None, limit: int | None = None) -> EventReplayResponse:
+    def replay_events(self, project_id: str, after_seq: int | None = None, limit: int | None = None, before_seq: int | None = None) -> EventReplayResponse:
         """Replay Events
 
         GET /api/v1/projects/{project_id}/events/replay
         """
         _path = f"/api/v1/projects/{project_id}/events/replay"
-        _params: dict[str, typing.Any] = {"after_seq": after_seq, "limit": limit}
+        _params: dict[str, typing.Any] = {"after_seq": after_seq, "limit": limit, "before_seq": before_seq}
         return self._http.request(self.base_url, "GET", _path, params=_params)
+
+    def list_memory(self, project_id: str) -> dict[str, typing.Any]:
+        """List Memory
+
+        GET /api/v1/projects/{project_id}/memory
+        """
+        _path = f"/api/v1/projects/{project_id}/memory"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def create_memory(self, project_id: str, body: MemoryBody) -> dict[str, typing.Any]:
+        """Create Memory
+
+        POST /api/v1/projects/{project_id}/memory
+        """
+        _path = f"/api/v1/projects/{project_id}/memory"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def delete_memory(self, project_id: str, entry_id: str) -> typing.Any:
+        """Delete Memory
+
+        DELETE /api/v1/projects/{project_id}/memory/{entry_id}
+        """
+        _path = f"/api/v1/projects/{project_id}/memory/{entry_id}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
+    def review_memory(self, project_id: str, entry_id: str) -> dict[str, typing.Any]:
+        """Review Memory
+
+        POST /api/v1/projects/{project_id}/memory/{entry_id}/review
+        """
+        _path = f"/api/v1/projects/{project_id}/memory/{entry_id}/review"
+        return self._http.request(self.base_url, "POST", _path)
 
     def get_rules(self, project_id: str) -> dict[str, typing.Any]:
         """Get Rules
@@ -1183,6 +1323,62 @@ class IdentityClient:
         """
         _path = f"/api/v1/projects/{project_id}/rules"
         return self._http.request(self.base_url, "DELETE", _path)
+
+    def runner_heartbeat(self, body: AttestBody) -> dict[str, typing.Any]:
+        """Runner Heartbeat
+
+        POST /api/v1/runner/heartbeat
+        """
+        _path = "/api/v1/runner/heartbeat"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def list_my_jobs(self) -> dict[str, typing.Any]:
+        """List My Jobs
+
+        GET /api/v1/runner/jobs
+        """
+        _path = "/api/v1/runner/jobs"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def claim_job(self, run_id: str) -> dict[str, typing.Any]:
+        """Claim Job
+
+        POST /api/v1/runner/jobs/{run_id}/claim
+        """
+        _path = f"/api/v1/runner/jobs/{run_id}/claim"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def post_job_events(self, run_id: str, body: EventsBody) -> dict[str, typing.Any]:
+        """Post Job Events
+
+        POST /api/v1/runner/jobs/{run_id}/events
+        """
+        _path = f"/api/v1/runner/jobs/{run_id}/events"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def finish_job(self, run_id: str, body: FinishBody) -> dict[str, typing.Any]:
+        """Finish Job
+
+        POST /api/v1/runner/jobs/{run_id}/finish
+        """
+        _path = f"/api/v1/runner/jobs/{run_id}/finish"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def heartbeat_job(self, run_id: str) -> dict[str, typing.Any]:
+        """Heartbeat Job
+
+        POST /api/v1/runner/jobs/{run_id}/heartbeat
+        """
+        _path = f"/api/v1/runner/jobs/{run_id}/heartbeat"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def job_spec(self, run_id: str) -> dict[str, typing.Any]:
+        """Job Spec
+
+        GET /api/v1/runner/jobs/{run_id}/spec
+        """
+        _path = f"/api/v1/runner/jobs/{run_id}/spec"
+        return self._http.request(self.base_url, "GET", _path)
 
     def list_sessions(self, q: str | None = None, state: str | None = None, workspace_id: str | None = None, run_id: str | None = None, limit: int | None = None, cursor: str | None = None) -> dict[str, typing.Any]:
         """List Sessions
@@ -1371,6 +1567,46 @@ class IdentityClient:
         _path = "/api/v1/stepup/verify"
         return self._http.request(self.base_url, "POST", _path, json_body=body)
 
+    def list_runners(self) -> dict[str, typing.Any]:
+        """List Runners
+
+        GET /api/v1/team-runners
+        """
+        _path = "/api/v1/team-runners"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def register_runner(self, body: RunnerBody) -> dict[str, typing.Any]:
+        """Register Runner
+
+        POST /api/v1/team-runners
+        """
+        _path = "/api/v1/team-runners"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def assign_job(self, runner_id: str, body: harness_identity__runner_api__AssignBody) -> dict[str, typing.Any]:
+        """Assign Job
+
+        POST /api/v1/team-runners/{runner_id}/jobs
+        """
+        _path = f"/api/v1/team-runners/{runner_id}/jobs"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def revoke_runner(self, runner_id: str) -> typing.Any:
+        """Revoke Runner
+
+        POST /api/v1/team-runners/{runner_id}/revoke
+        """
+        _path = f"/api/v1/team-runners/{runner_id}/revoke"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def rotate_runner(self, runner_id: str) -> dict[str, typing.Any]:
+        """Rotate Runner
+
+        POST /api/v1/team-runners/{runner_id}/rotate
+        """
+        _path = f"/api/v1/team-runners/{runner_id}/rotate"
+        return self._http.request(self.base_url, "POST", _path)
+
     def list_invites_2(self, team_id: str, status: str | None = None) -> dict[str, typing.Any]:
         """List Invites
 
@@ -1427,6 +1663,30 @@ class IdentityClient:
         """
         _path = f"/api/v1/teams/{team_id}/members/{user_id}"
         return self._http.request(self.base_url, "PATCH", _path, json_body=body)
+
+    def list_scim_tokens(self, team_id: str) -> dict[str, typing.Any]:
+        """List Scim Tokens
+
+        GET /api/v1/teams/{team_id}/scim/tokens
+        """
+        _path = f"/api/v1/teams/{team_id}/scim/tokens"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def create_scim_token(self, team_id: str, body: TokenBody) -> dict[str, typing.Any]:
+        """Create Scim Token
+
+        POST /api/v1/teams/{team_id}/scim/tokens
+        """
+        _path = f"/api/v1/teams/{team_id}/scim/tokens"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def revoke_scim_token(self, team_id: str, token_id: str) -> typing.Any:
+        """Revoke Scim Token
+
+        DELETE /api/v1/teams/{team_id}/scim/tokens/{token_id}
+        """
+        _path = f"/api/v1/teams/{team_id}/scim/tokens/{token_id}"
+        return self._http.request(self.base_url, "DELETE", _path)
 
     def add_agent_seat(self, team_id: str) -> dict[str, typing.Any]:
         """Add Agent Seat
@@ -1492,6 +1752,30 @@ class IdentityClient:
         _path = f"/api/v1/teams/{team_id}/settings/integrations/v1/webhooks/{webhook_id}/rotate-secret"
         return self._http.request(self.base_url, "POST", _path)
 
+    def get_model_routing(self, team_id: str) -> dict[str, typing.Any]:
+        """Get Model Routing
+
+        GET /api/v1/teams/{team_id}/settings/model-routing
+        """
+        _path = f"/api/v1/teams/{team_id}/settings/model-routing"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def put_model_routing(self, team_id: str, body: RoutingBody) -> dict[str, typing.Any]:
+        """Put Model Routing
+
+        PUT /api/v1/teams/{team_id}/settings/model-routing
+        """
+        _path = f"/api/v1/teams/{team_id}/settings/model-routing"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
+
+    def delete_model_routing(self, team_id: str) -> typing.Any:
+        """Delete Model Routing
+
+        DELETE /api/v1/teams/{team_id}/settings/model-routing
+        """
+        _path = f"/api/v1/teams/{team_id}/settings/model-routing"
+        return self._http.request(self.base_url, "DELETE", _path)
+
     def get_reviewer_thresholds(self, team_id: str) -> dict[str, typing.Any]:
         """Get Reviewer Thresholds
 
@@ -1515,6 +1799,94 @@ class IdentityClient:
         """
         _path = f"/api/v1/teams/{team_id}/settings/reviewer-thresholds"
         return self._http.request(self.base_url, "DELETE", _path)
+
+    def list_sinks(self, team_id: str) -> dict[str, typing.Any]:
+        """List Sinks
+
+        GET /api/v1/teams/{team_id}/siem/sinks
+        """
+        _path = f"/api/v1/teams/{team_id}/siem/sinks"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def create_sink(self, team_id: str, body: SinkCreateBody) -> dict[str, typing.Any]:
+        """Create Sink
+
+        POST /api/v1/teams/{team_id}/siem/sinks
+        """
+        _path = f"/api/v1/teams/{team_id}/siem/sinks"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def get_sink(self, team_id: str, sink_id: str) -> dict[str, typing.Any]:
+        """Get Sink
+
+        GET /api/v1/teams/{team_id}/siem/sinks/{sink_id}
+        """
+        _path = f"/api/v1/teams/{team_id}/siem/sinks/{sink_id}"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def delete_sink(self, team_id: str, sink_id: str) -> typing.Any:
+        """Delete Sink
+
+        DELETE /api/v1/teams/{team_id}/siem/sinks/{sink_id}
+        """
+        _path = f"/api/v1/teams/{team_id}/siem/sinks/{sink_id}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
+    def patch_sink(self, team_id: str, sink_id: str, body: SinkPatchBody) -> dict[str, typing.Any]:
+        """Patch Sink
+
+        PATCH /api/v1/teams/{team_id}/siem/sinks/{sink_id}
+        """
+        _path = f"/api/v1/teams/{team_id}/siem/sinks/{sink_id}"
+        return self._http.request(self.base_url, "PATCH", _path, json_body=body)
+
+    def list_skills(self, team_id: str) -> dict[str, typing.Any]:
+        """List Skills
+
+        GET /api/v1/teams/{team_id}/skills
+        """
+        _path = f"/api/v1/teams/{team_id}/skills"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def create_skill(self, team_id: str, body: SkillBody) -> dict[str, typing.Any]:
+        """Create Skill
+
+        POST /api/v1/teams/{team_id}/skills
+        """
+        _path = f"/api/v1/teams/{team_id}/skills"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
+    def remove_skill(self, team_id: str, name: str) -> typing.Any:
+        """Remove Skill
+
+        DELETE /api/v1/teams/{team_id}/skills/{name}
+        """
+        _path = f"/api/v1/teams/{team_id}/skills/{name}"
+        return self._http.request(self.base_url, "DELETE", _path)
+
+    def disable_skill(self, team_id: str, name: str) -> dict[str, typing.Any]:
+        """Disable Skill
+
+        POST /api/v1/teams/{team_id}/skills/{name}/disable
+        """
+        _path = f"/api/v1/teams/{team_id}/skills/{name}/disable"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def enable_skill(self, team_id: str, name: str) -> dict[str, typing.Any]:
+        """Enable Skill
+
+        POST /api/v1/teams/{team_id}/skills/{name}/enable
+        """
+        _path = f"/api/v1/teams/{team_id}/skills/{name}/enable"
+        return self._http.request(self.base_url, "POST", _path)
+
+    def review_skill(self, team_id: str, name: str) -> dict[str, typing.Any]:
+        """Review Skill
+
+        POST /api/v1/teams/{team_id}/skills/{name}/review
+        """
+        _path = f"/api/v1/teams/{team_id}/skills/{name}/review"
+        return self._http.request(self.base_url, "POST", _path)
 
     def get_sso_config(self, team_id: str) -> dict[str, typing.Any]:
         """Get Sso Config
@@ -1782,5 +2154,38 @@ class IdentityClient:
         _path = "/ready"
         return self._http.request(self.base_url, "GET", _path)
 
+    def list_users_scim_v2_users_get(self, filter: str | None = None, start_index: int | None = None, count: int | None = None) -> dict[str, typing.Any]:
+        """List Users
 
-__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AssignBody", "BindingBody", "ChainNode", "CheckBody", "CreateProjectBody", "DefBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErasureBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "ExecutionControlBody", "GlobalPrefsBody", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkRunBody", "LinkTeamBody", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "MuteBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "OwnerTransferBody", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "ReadAllBody", "RevertBody", "Rule", "RulesBody", "ScopePrefsBody", "SelectBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SnoozeBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "UnsubscribeBody", "ValidationError", "VerifyOtpRequest", "WebhookCreateBody", "WebhookCreated", "WebhookPatchBody", "WsTicketRequest", "WsTicketResponse", "_DigestBody", "_QuietBody", "harness_identity__agents__ReasonBody", "harness_identity__orgs__RoleBody", "harness_identity__policy__RoleBody", "harness_identity__sessions__CreateBody", "harness_identity__sessions__MemberBody", "harness_identity__sessions__PatchBody", "harness_identity__sessions__ReasonBody", "harness_identity__sessions__RoleBody", "harness_identity__workspaces__CreateBody", "harness_identity__workspaces__MemberBody", "harness_identity__workspaces__PatchBody", "harness_identity__workspaces__ReasonBody"]
+        GET /scim/v2/Users
+        """
+        _path = "/scim/v2/Users"
+        _params: dict[str, typing.Any] = {"filter": filter, "startIndex": start_index, "count": count}
+        return self._http.request(self.base_url, "GET", _path, params=_params)
+
+    def get_user_scim_v2_users_user_id_get(self, user_id: str) -> dict[str, typing.Any]:
+        """Get User
+
+        GET /scim/v2/Users/{user_id}
+        """
+        _path = f"/scim/v2/Users/{user_id}"
+        return self._http.request(self.base_url, "GET", _path)
+
+    def put_user_scim_v2_users_user_id_put(self, user_id: str, body: PutBody) -> dict[str, typing.Any]:
+        """Put User
+
+        PUT /scim/v2/Users/{user_id}
+        """
+        _path = f"/scim/v2/Users/{user_id}"
+        return self._http.request(self.base_url, "PUT", _path, json_body=body)
+
+    def patch_user_scim_v2_users_user_id_patch(self, user_id: str, body: harness_identity__scim__PatchBody) -> dict[str, typing.Any]:
+        """Patch User
+
+        PATCH /scim/v2/Users/{user_id}
+        """
+        _path = f"/scim/v2/Users/{user_id}"
+        return self._http.request(self.base_url, "PATCH", _path, json_body=body)
+
+
+__all__ = ["IdentityClient", "AcceptBody", "ApplyBody", "AttestBody", "AuditVerifyRequest", "BindingBody", "ChainNode", "CheckBody", "CreateProjectBody", "DefBody", "DeleteBody", "DocBody", "Draft", "EmergencyBody", "ErasureBody", "ErrorDetail", "ErrorEnvelope", "EventEnvelopeOut", "EventReplayResponse", "EventsBody", "ExecutionControlBody", "FinishBody", "GlobalPrefsBody", "HTTPValidationError", "InviteBody", "InviteCreateBody", "InviteRedeemBody", "KeyCreateBody", "KeyCreatedResponse", "KeyItemResponse", "KeyListResponse", "LinkBody", "LinkRunBody", "LinkTeamBody", "LoginRequest", "MemberItem", "MemberListResponse", "MemberRoleBody", "MemoryBody", "MuteBody", "OkResponse", "OrgCreateBody", "OrgPatchBody", "OwnerTransferBody", "PatchOp", "PlanUpdateBody", "PolicyDoc", "PreviewBody", "PrincipalResponse", "ProjectCreatedResponse", "ProjectListResponse", "ProjectOut", "PutBody", "ReadAllBody", "RevertBody", "RoutingBody", "Rule", "RulesBody", "RunnerBody", "RunnerEvent", "ScopePrefsBody", "SelectBody", "ServiceIdentityBody", "SessionResponse", "SettingsBody", "SinkCreateBody", "SinkPatchBody", "SkillBody", "SnoozeBody", "SsoCompleteBody", "SsoConfigBody", "SsoStartBody", "StepUpBody", "TemplateBody", "ThresholdsBody", "TokenBody", "UnsubscribeBody", "ValidationError", "VerifyOtpRequest", "WebhookCreateBody", "WebhookCreated", "WebhookPatchBody", "WsTicketRequest", "WsTicketResponse", "_DigestBody", "_QuietBody", "harness_identity__agents__ReasonBody", "harness_identity__orgs__RoleBody", "harness_identity__policy__AssignBody", "harness_identity__policy__RoleBody", "harness_identity__runner_api__AssignBody", "harness_identity__scim__PatchBody", "harness_identity__sessions__CreateBody", "harness_identity__sessions__MemberBody", "harness_identity__sessions__PatchBody", "harness_identity__sessions__ReasonBody", "harness_identity__sessions__RoleBody", "harness_identity__workspaces__CreateBody", "harness_identity__workspaces__MemberBody", "harness_identity__workspaces__PatchBody", "harness_identity__workspaces__ReasonBody"]

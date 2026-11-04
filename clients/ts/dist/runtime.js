@@ -18,7 +18,7 @@ import { backoffDelay } from "./backoff.js";
 /** Extraction of section7/src/lib/backoff.ts constants (H-012). */
 export const BACKOFF_BASE_MS = 1000; // BACKOFF_BASE_DELAY_MS = 1000
 export const BACKOFF_CAP_MS = 30_000; // BACKOFF_MAX_DELAY_MS  = 30_000
-export const SDK_USER_AGENT = "harness-ts-sdk/0.1.0";
+export const SDK_USER_AGENT = "harness-ts-sdk/1.0.0rc1";
 /** Section service name -> default local port (deploy/docker-compose.yml). */
 export const SERVICE_PORTS = {
     identity: 8001,

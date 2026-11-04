@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-27T13:45:11Z",
+  "project": "demo-proj-d6ac71edc9e5",
+  "runId": "run-1e2b4b83290e",
+  "goal": "Create a file named present.txt in the workspace root containing exactly the word present and nothing else.",
+  "cliState": "error",
+  "cliExit": 1,
+  "cliAnswer": "DeepSeek Harness worker exceeded 900s and was killed",
+  "cliTrace": {
+    "artifact": "563ccdfa-c8ac-432c-bb63-50a11dce7354",
+    "comment": "417abd5e-3d59-4ceb-a3f2-f1e8e443c377",
+    "failures": []
+  },
+  "diffArtifactId": "563ccdfa-c8ac-432c-bb63-50a11dce7354",
+  "local": {
+    "applied": [
+      "present.txt"
+    ],
+    "confinement": "container",
+    "deleted": [],
+    "diffChars": 81,
+    "image": "harness-engine-worker:p0",
+    "workspace": "/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/harness-ws-buk8uq4d"
+  },
+  "serverEventTypes": [
+    "plan_approved",
+    "plan_proposed"
+  ],
+  "presentFileCreated": true,
+  "presentFileContent": "",
+  "provenanceComment": "harness-cli local run: {\"applied\": [\"present.txt\"], \"confinement\": \"container\", \"deleted\": [], \"diffArtifact\": \"563ccdfa-c8ac-432c-bb63-50a11dce7354\", \"diffChars\": 81, \"diffOmitted\": null, \"diffSha256\": \"63d532e68d62775e\", \"executed\": \"local\", \"image\": \"harness-engine-worker:p0\", \"state\": \"error\", \"status\": \"error\"}",
+  "seconds": 906.0,
+  "honestBoundary": "tool-call events from the off-host engine are not in agent_events; no existing endpoint can mint them (see docs/week-6-plan.md, slice 4 decision 3)"
+}

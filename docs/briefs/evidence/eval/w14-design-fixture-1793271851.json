@@ -1,0 +1,105 @@
+{
+  "date": "2026-10-29",
+  "week": "W14",
+  "task": "w14-design-heldout",
+  "leg": "fixture",
+  "claim": "the fresh held-out mockup is exactly what the live leg assumes",
+  "preRegistered": {
+    "ratioMax": 0.03,
+    "colourTolerance": 12,
+    "answerRatioTolerance": 0.005,
+    "fixtureColourTolerance": 0
+  },
+  "fixture": {
+    "token": "HALCYON-59",
+    "bytes": 7401,
+    "sha256": "adecad54667e2b92f3491436bb1f1dbe864bf83c2cc2cd32877af4c551361b04",
+    "sampledColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    },
+    "expectedColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    }
+  },
+  "checks": {
+    "fixtureRendersAtDeclaredSize": true,
+    "flatColoursExactAtSamplePoints": true,
+    "tokenTextIsDrawn": true,
+    "selfDiffIsZero": true,
+    "renderIsDeterministic": true
+  },
+  "verdict": "PASS",
+  "failedChecks": [],
+  "limitations": [
+    "This leg proves the fixture, not a model. The live design leg is not run: no vision provider key is configured and live spend was not authorized.",
+    "Chromium renders this fixture; another renderer may not match it."
+  ]
+}

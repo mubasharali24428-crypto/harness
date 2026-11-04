@@ -240,11 +240,13 @@ Identity service, `harness_identity/realtime_metrics.py` (closed labels, every s
 | `harness_realtime_connections_total` | `event`: `connect`, `resume`, `refused` | `resume` is a socket opened with `afterSeq > 0` (a reconnect or reload): **reconnect frequency** = `rate(...{event="resume"})` over live sockets |
 | `harness_realtime_close_total` | `reason`: `client`, `slow_consumer`, `rate_limited`, `access_revoked`, `server_error` | why sockets end. `server_error` also counts a task cancelled at shutdown |
 | `harness_realtime_recovered_total` | `kind`: `resumed_events`, `truncated_replay`, `poll_recovered` | **dropped-event recovery**: events a resuming client got back, resumes that exceeded the replay cap, and events the poll tick delivered with no wake-up |
-| `harness_event_delivery_lag_seconds` | histogram, buckets 0.05 .. 60 s | **delivery lag**: event `ts` (written by the orchestrator) to the moment the frame was written, live frames only. Includes clock skew between hosts |
+| `harness_event_delivery_lag_seconds` | histogram, buckets 0.05 .. 60 s | **live freshness (the SLO signal)**: event `ts` (written inside the publishing transaction, immediately before commit) to the moment the frame was written to a live socket. Feeds `HarnessEventFreshnessSlo` (`le="5.0"` bucket ≥ 99% for 10m). Includes clock skew between hosts |
+| `harness_event_replay_age_seconds` | histogram, buckets 1 .. 3600 s | **catch-up age (diagnostic, not the SLO)**: commit time to the write of a replayed frame. A client that was closed for minutes legitimately replays old events, so a large value is not a freshness violation |
 
-Suggested reading: p95 lag `histogram_quantile(0.95, sum by (le) (rate(harness_event_delivery_lag_seconds_bucket[5m])))`; sustained `poll_recovered` on Postgres
+Suggested reading: p95 lag `histogram_quantile(0.95, sum by (le) (rate(harness_event_delivery_lag_seconds_bucket[5m])))`; the SLO ratio
+`sum(rate(harness_event_delivery_lag_seconds_bucket{le="5.0"}[5m])) / sum(rate(harness_event_delivery_lag_seconds_count[5m]))`; sustained `poll_recovered` on Postgres
 means NOTIFY is not reaching the listener; any `access_revoked` is a person losing access while a page was open; `slow_consumer` bursts point at a network or client problem.
-Alert rules belong in `deploy/observability/alerts.yml` (not edited by this lane).
+The deployed end-to-end path is exercised by `scripts/e2e/w17_event_freshness_drill.py`. Alert rules live in `deploy/observability/alerts.yml`.
 
 ## 7. Configuration
 

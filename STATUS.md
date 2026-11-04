@@ -32,6 +32,59 @@ billing stays flag-off. Remaining blockers: a reviewed dedicated sandbox
 worker/daemon, host certification, the first native-Linux drill run, and
 counsel-approved terms (a review packet now exists under `docs/legal/`).
 
+Updated 2026-10-31: the **Hx execution track** (M1–M8, design in
+`docs/hx-execution-architecture.md`) is complete through M8, committed at `332d273`
+(M2–M5), `3637e3f` (M6), `746a2d2` (M7) and `9e54132` (M8). A
+program in the `agent` profile now checks, is authorised against its own
+manifest, runs inside its declared budget across a host bridge, and produces
+evidence that says `approved: false` / `autoMerge: false`. Section 4 executes a
+workflow through `harness_contracts.workflow` (contracts `1.0.0rc7`, TS mirror
+in the same change) and publishes its events, which Section 1 persists;
+Section 5's shipped `LocalSandboxRunner` serves the live `repo.read` /
+`verify.tests` seam; `model.invoke` is routed by Section 3's `ModelRouter` with
+the role the source declares, fails closed without one, and records a downgrade
+instead of performing it. M6 made the two limits that used to be recorded but not
+checked actually check: `budget.cost` is reserved against a **host-supplied price
+table** before each crossing (an unpriced crossing is refused rather than free, and
+a ceiling with no table is announced in its own evidence as `declared-not-enforced`),
+and a grant can be **revoked mid-run** — the next crossing is denied, completed ones
+stand, and the revision is logged with the host's reason. M7 closed the last gap
+in that story's honesty: a recorded **failure** now replays as itself (same code,
+status, line, message and contract digest) instead of being masked by the replay's
+own "nothing recorded" error, recordings are versioned (`hx.recording/v2`) with an
+explicit outcome per exchange, and a call that never settled makes the recording
+incomplete — which a replay refuses (`HXH104`) rather than fills in. M8 made a program
+**several files** without making anything load during a run: `use notes` names a module
+whose bytes the host supplies, a used module arrives renamed so `notes.Summary` is one
+identifier in the checker, the runtime and the evidence, and the manifest carries a
+digest per file (`sources[]`, `program_sha256` over module names rather than paths, so an
+approved digest survives a clone) — which closes the hole where an unchanged entry file
+with a swapped helper used to run. Two ways to compute a value arrived, neither of them
+assignment: `for … accumulate` binds per pass and `base with { … }` yields a new record,
+so `n = 2` is still a syntax refusal and the loop's termination story is unchanged. Suites
+at `9e54132`:
+language **367** (spec/toolchain now `0.4.0`), section 4's Hx-adjacent subset
+`pytest tests/unit -q -k "hx or workflow or runner"` **22**, section 5's
+`tests/unit/test_hx_live_host_ops.py` **4**, `make guard-isolation` clean (276 src
+files, 10 sections), `scripts/spec_drift.py` clean, TS mirror current. The whole-suite
+counts for sections 1/4/5 are deliberately **not** pinned to this commit: a concurrent
+lane was committing into `section4` while these were measured (section 4's suite came in
+at 2033, then 2081, with 48 tests from an in-flight `review_summary` module in between),
+so a number here would be theirs and unverifiable rather than a claim about M8. Two
+observations from those runs are worth keeping: one section 4 randomized-order run failed
+while the same suite passed in fixed order, and
+`section1/tests/test_ratelimit_expensive_ops.py::test_model_call_burst_over_limit_429`
+failed once in a full section 1 run and passed three times in isolation — order- and
+timing-sensitive tests in sections this track does not touch (Section 1 imports nothing
+from it, and `guard-isolation` proves that). Both are recorded rather than hidden.
+This does **not**
+move the verdict above: the driver bounds host calls, not CPU; a price is the
+host's estimate, not a settled bill from Section 3's ledger; a revoked capability
+stops effects but does not kill a call in flight; a replay can reproduce an effect
+it recorded but cannot undo one; a module is only as trustworthy as the resolver the
+host hands it; Section 4 still cannot pin a multi-file program until `WorkflowRequest`
+carries a program digest; and the track adds no approval surface of its own.
+
 ## PROGRAM CLOSE — Mission 23 (2026-08-26)
 
 The 10x program (missions 11–23, per docs/briefs/mission17-10x-plan.md) is
@@ -59,11 +112,20 @@ Final suites re-run INDEPENDENTLY by the close-out lane at finale HEAD
 
 Residual risk — what a v1.0 buyer should know:
 
-1. **Replay-cap flake is suppressed, not proven extinct**: one load-dependent
-   recurrence observed post-b83dbfd (whose 30/30 census ran the suspect file
-   in isolation, a weaker condition than full-suite load). Frequency ~1 per
-   full-suite sweeps; needs a ≥25-run FULL-suite census before "eliminated"
-   is honest again.
+1. **Replay-cap "flake" — diagnosed, reproduced and fixed (2026-10-31)**: the
+   concurrent-resume test recovered a truncated page's skipped range with a
+   plain `afterSeq` walk, and that path is newest-N too under
+   `REPLAY_MAX_EVENTS` — so when a loaded runner let the gap outgrow the cap,
+   the walk could not reach the rows the resume page had skipped and reported a
+   loss that never happened. The test now fills each page's
+   `(cursor, oldestSeqSent)` hole through `before_seq`, and
+   `test_a_capped_resume_page_names_a_hole_a_client_can_fill` exercises the cap
+   deterministically, so the load-dependent timing is no longer the only way in.
+   Measured: the file green 20× consecutively, full section 1 green at 1223
+   passed / 63 skipped, and a probe with the reader slowed to 20 ms fails on the
+   old protocol and passes on the new one. The bar this entry set for itself —
+   a ≥25-run **full-suite** census — has not been run; it measured frequency,
+   and the frequency question is now answered by the mechanism above.
 2. **pgvector-dependent features ship honestly-OFF** on the default compose
    image (postgres:18-alpine has no pgvector); migration 0030 degrades
    cleanly without it.

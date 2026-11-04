@@ -392,12 +392,19 @@ async def test_connects_resumes_recovered_events_lag_and_closes_are_measured(wor
     assert realtime_metrics.value(RECOVERED, "resumed_events") == 2
     assert realtime_metrics.value(RECOVERED, "poll_recovered") >= 1
     assert realtime_metrics.value(CLOSED, "client") == 2
-    assert realtime_metrics.lag_count() == 1  # live frames only, never replayed ones
+    assert realtime_metrics.lag_count() == 1  # live frames only
+    # Every history send is a replay observation: 3 on the first connect (full
+    # history) + 2 on the reconnect with afterSeq = seqs[0].
+    assert realtime_metrics.replay_age_count() == 5
     scrape = realtime_metrics.render()
     assert 'harness_event_delivery_lag_seconds_bucket{le="5.0"} 0' in scrape
     assert 'harness_event_delivery_lag_seconds_bucket{le="10.0"} 1' in scrape  # ~7 s late
     assert 'harness_event_delivery_lag_seconds_bucket{le="+Inf"} 1' in scrape
     assert "harness_event_delivery_lag_seconds_count 1" in scrape
+    # The replay leg is measured separately and must NOT feed the freshness SLO.
+    assert "# TYPE harness_event_replay_age_seconds histogram" in scrape
+    assert "harness_event_replay_age_seconds_count 5" in scrape
+    assert "harness_event_replay_age_seconds_bucket{le=\"+Inf\"} 5" in scrape
 
 
 def test_metric_labels_are_closed_and_every_series_starts_at_zero():
@@ -411,7 +418,8 @@ def test_metric_labels_are_closed_and_every_series_starts_at_zero():
         for v in values:
             assert f'{name}{{{label}="{v}"}} 0' in scrape
     assert "# TYPE harness_event_delivery_lag_seconds histogram" in scrape
-    assert realtime_metrics.render().count('le="+Inf"') == 1
+    assert "# TYPE harness_event_replay_age_seconds histogram" in scrape
+    assert realtime_metrics.render().count('le="+Inf"') == 2  # live + replay histograms
 
 
 # ------------------------------------------------- existing contract still holds
@@ -429,3 +437,4 @@ async def test_project_socket_still_replays_and_counts_metrics(world):
         assert (await ws.recv_json())["payload"] == {"n": 2}
     assert realtime_metrics.value(CONN, "connect") == 1
     assert realtime_metrics.lag_count() == 1
+    assert realtime_metrics.replay_age_count() == 1  # the pre-connect event, replayed

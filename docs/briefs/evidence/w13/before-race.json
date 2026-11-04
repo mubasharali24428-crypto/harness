@@ -1,0 +1,29 @@
+{
+  "label": "before-race",
+  "tree": "/private/tmp/claude-501/-Users-user-untitled-folder-2/e598c3ae-202d-4b1f-9955-bf03d3286b79/scratchpad/before-tree",
+  "seconds": 7.4,
+  "modelCalls": 0,
+  "spendUsd": 0,
+  "passed": 2,
+  "failed": 0,
+  "checks": [
+    {
+      "name": "offer after start is refused: the local worker already took the run",
+      "ok": true,
+      "detail": [
+        404,
+        "NOT_FOUND"
+      ]
+    },
+    {
+      "name": "the run was executed by the orchestrator's own engine on the harness host",
+      "ok": true,
+      "detail": {
+        "sessionId": "af882a3a-a034-4c7d-9340-b73dd16f5d11",
+        "engine": "replayed",
+        "status": "completed",
+        "finalResponse": "echo-backend completed: run the project tests on my host\n\n## Repository context\n\n### Files\n.checkpoints/9b0eb57c-0f4a-41ee-a5eb-d82742d61135/000"
+      }
+    }
+  ]
+}

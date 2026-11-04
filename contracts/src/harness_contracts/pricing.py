@@ -17,11 +17,18 @@ from __future__ import annotations
 from decimal import ROUND_HALF_EVEN, Decimal
 from typing import Union
 
+import logging
+
 from pydantic import BaseModel
 
 from harness_contracts.signatures import ModelRole
 
 Number = Union[int, float, str, "Decimal"]
+
+logger = logging.getLogger(__name__)
+
+#: Models already warned about (the warning is per-process, per-model).
+_warned_unpriced: set[str] = set()
 
 # NUMERIC(12,6) quantum.
 _MONEY_Q = Decimal("0.000001")
@@ -36,27 +43,27 @@ class ModelPricing(BaseModel):
 
 #: Catalog of supported models and prices per million tokens.
 MODEL_PRICING_CATALOG: dict[str, ModelPricing] = {
-    # DeepSeek
+    # DeepSeek (OpenRouter ids; prices re-read from /models 2026-10-29)
     "deepseek/deepseek-chat": ModelPricing(
-        input_cost_per_million=0.14,
-        output_cost_per_million=0.28,
+        input_cost_per_million=0.2574,
+        output_cost_per_million=1.0287,
     ),
-    "deepseek/deepseek-coder": ModelPricing(
-        input_cost_per_million=0.14,
-        output_cost_per_million=0.28,
+    "deepseek/deepseek-v4-flash": ModelPricing(
+        input_cost_per_million=0.091,
+        output_cost_per_million=0.182,
     ),
-    "deepseek/deepseek-reasoner": ModelPricing(
-        input_cost_per_million=0.55,
-        output_cost_per_million=2.19,
+    "deepseek/deepseek-r1-0528": ModelPricing(
+        input_cost_per_million=0.5,
+        output_cost_per_million=2.15,
     ),
     # Qwen
-    "qwen/qwen-2.5-coder-32b": ModelPricing(
-        input_cost_per_million=0.20,
-        output_cost_per_million=0.60,
+    "qwen/qwen-2.5-coder-32b-instruct": ModelPricing(
+        input_cost_per_million=0.66,
+        output_cost_per_million=1.0,
     ),
-    "qwen/qwen-2.5-72b": ModelPricing(
-        input_cost_per_million=0.40,
-        output_cost_per_million=1.20,
+    "qwen/qwen-2.5-72b-instruct": ModelPricing(
+        input_cost_per_million=0.36,
+        output_cost_per_million=0.4,
     ),
     # OpenAI
     "openai/gpt-4o": ModelPricing(
@@ -68,22 +75,22 @@ MODEL_PRICING_CATALOG: dict[str, ModelPricing] = {
         output_cost_per_million=0.60,
     ),
     # Anthropic
-    "anthropic/claude-3-5-sonnet": ModelPricing(
-        input_cost_per_million=3.00,
-        output_cost_per_million=15.00,
+    "anthropic/claude-sonnet-4.5": ModelPricing(
+        input_cost_per_million=3.0,
+        output_cost_per_million=15.0,
     ),
-    "anthropic/claude-3-5-haiku": ModelPricing(
-        input_cost_per_million=0.80,
-        output_cost_per_million=4.00,
+    "anthropic/claude-haiku-4.5": ModelPricing(
+        input_cost_per_million=1.0,
+        output_cost_per_million=5.0,
     ),
     # Mistral
-    "mistral/mistral-large": ModelPricing(
-        input_cost_per_million=2.00,
-        output_cost_per_million=6.00,
+    "mistralai/mistral-large-2512": ModelPricing(
+        input_cost_per_million=0.5,
+        output_cost_per_million=1.5,
     ),
-    "mistral/codestral": ModelPricing(
-        input_cost_per_million=0.30,
-        output_cost_per_million=0.90,
+    "mistralai/codestral-2508": ModelPricing(
+        input_cost_per_million=0.3,
+        output_cost_per_million=0.9,
     ),
     # Local & Open-Weight (Free / self-hosted execution)
     "local/qwen3:14b-ablated": ModelPricing(
@@ -114,12 +121,40 @@ def _dec(value: Number) -> Decimal:
 class PricingEngine:
     """Calculates token costs and USD metering for model invocations."""
 
+    #: Fallback used ONLY for a model neither the catalog nor the operator card
+    #: prices. A rough-but-bounded estimate beats an unfunded runaway, and the
+    #: choice is logged (once per model) rather than silent.
+    FALLBACK_PRICING = ModelPricing(
+        input_cost_per_million=0.50,
+        output_cost_per_million=1.50,
+    )
+
     @staticmethod
     def get_pricing(model: str) -> ModelPricing:
+        """Resolve a model's rate: operator card, then catalog, then fallback.
+
+        W15: the overlay lookup comes first so engine metering books the SAME
+        rate the router quotes for an operator-priced model. Before that the
+        ledger silently used the fallback for any model absent from the frozen
+        catalog, even when the deployment had declared its price.
+        """
+        from .rate_card import overlay_pricing
+
+        overlay = overlay_pricing(model)
+        if overlay is not None:
+            return overlay
         if model in MODEL_PRICING_CATALOG:
             return MODEL_PRICING_CATALOG[model]
-        # Default fallback pricing if custom model used
-        return ModelPricing(input_cost_per_million=0.50, output_cost_per_million=1.50)
+        if model not in _warned_unpriced:
+            _warned_unpriced.add(model)
+            logger.warning(
+                "model %r is priced by neither the catalog nor the operator rate card; "
+                "metering it at the fallback rate (%s in / %s out per million tokens)",
+                model,
+                PricingEngine.FALLBACK_PRICING.input_cost_per_million,
+                PricingEngine.FALLBACK_PRICING.output_cost_per_million,
+            )
+        return PricingEngine.FALLBACK_PRICING
 
     @classmethod
     def calculate_cost(cls, model: str, input_tokens: int, output_tokens: int) -> Decimal:
@@ -136,7 +171,7 @@ class PricingEngine:
     # defaults pinned here — config stays section-local, so contracts carries
     # its own copy (keep both sides in lockstep if they ever move).
     DEFAULT_ROLE_MODELS: dict[ModelRole, str] = {
-        ModelRole.PRIMARY: "deepseek/deepseek-coder",
+        ModelRole.PRIMARY: "deepseek/deepseek-v4-flash",
         ModelRole.REVIEWER: "openai/gpt-4o-mini",
     }
 

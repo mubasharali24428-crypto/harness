@@ -31,6 +31,11 @@ export interface DraftPRBody {
 export interface HTTPValidationError {
     detail?: ValidationError[];
 }
+/** IssueBody. Required keys: title. */
+export interface IssueBody {
+    bodyMd?: string;
+    title: string;
+}
 /** ValidationError. Required keys: loc, msg, type. */
 export interface ValidationError {
     ctx?: {
@@ -40,6 +45,10 @@ export interface ValidationError {
     loc: (string | number)[];
     msg: string;
     type: string;
+}
+/** WritesBody. Required keys: enabled. */
+export interface WritesBody {
+    enabled: boolean;
 }
 import { HarnessHttp } from "./runtime.js";
 /** Client for the harness-github service (default http://localhost:8002). */
@@ -51,6 +60,9 @@ export declare class GithubClient {
     /** Connection Status
      *  GET /api/v1/github/connection */
     connection_status(): Promise<Record<string, unknown>>;
+    /** Disconnect Github
+     *  POST /api/v1/github/disconnect */
+    disconnect_github(): Promise<Record<string, unknown>>;
     /** Oauth Callback
      *  GET /api/v1/github/oauth/callback */
     oauth_callback(code?: string, state?: string): Promise<unknown>;
@@ -72,6 +84,18 @@ export declare class GithubClient {
     /** Read File
      *  GET /api/v1/projects/{project_id}/file */
     read_file(project_id: string, ref?: string, path?: string): Promise<Record<string, unknown>>;
+    /** Get Github Writes
+     *  GET /api/v1/projects/{project_id}/github/writes */
+    get_github_writes(project_id: string): Promise<Record<string, unknown>>;
+    /** Set Github Writes
+     *  PUT /api/v1/projects/{project_id}/github/writes */
+    set_github_writes(project_id: string, body: WritesBody): Promise<Record<string, unknown>>;
+    /** List Issues
+     *  GET /api/v1/projects/{project_id}/issues */
+    list_issues(project_id: string, state?: "open" | "closed" | "all"): Promise<Record<string, unknown>>;
+    /** Create Issue
+     *  POST /api/v1/projects/{project_id}/issues */
+    create_issue(project_id: string, body: IssueBody): Promise<Record<string, unknown>>;
     /** Open Draft Pr
      *  POST /api/v1/projects/{project_id}/pulls/draft */
     open_draft_pr(project_id: string, body: DraftPRBody): Promise<Record<string, unknown>>;
@@ -93,4 +117,7 @@ export declare class GithubClient {
     /** Health
      *  GET /health */
     health(): Promise<unknown>;
+    /** Ready
+     *  GET /ready */
+    ready_ready_get(): Promise<unknown>;
 }

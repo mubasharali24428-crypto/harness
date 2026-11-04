@@ -1,0 +1,9 @@
+[
+  {
+    "line": 8,
+    "col": 10,
+    "kind": "error",
+    "code": "HX3003",
+    "message": "'Summary' is missing field(s) path"
+  }
+]

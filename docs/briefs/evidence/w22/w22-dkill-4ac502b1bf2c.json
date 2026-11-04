@@ -1,0 +1,115 @@
+{
+  "runId": "w22-dkill-4ac502b1bf2c",
+  "deadSeconds": 60,
+  "verdict": "PASS",
+  "daemonImage": "harness-worker-daemon:vw22fix2 sha256:5a30e84a10e756e4bce908a9447ebb54a68c190831b32ce0318b4336263732f4",
+  "before": {
+    "at": "11:39:47",
+    "daemon": "running",
+    "state": "executing",
+    "lifecycle": {
+      "phase": "running",
+      "cancelRequested": false,
+      "cancelConfirmed": false,
+      "mutationPossible": true
+    },
+    "claim": "running",
+    "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call",
+    "containers": {
+      "worker": "af6f0c3115b8",
+      "relay": "f923c78753ec"
+    },
+    "onRunNetwork": [
+      "harness-1d8820ce326c47aaa8a40952aa4461f6",
+      "harness-1d8820ce326c47aaa8a40952aa4461f6-relay"
+    ],
+    "childLive": true,
+    "networks": [
+      "harness-1d8820ce326c47aaa8a40952aa4461f6-net"
+    ]
+  },
+  "killedAtUtc": "2026-10-30T18:39:47Z",
+  "killExit": 0,
+  "daemonDead": {
+    "at": "11:40:47",
+    "daemon": "exited",
+    "state": "blocked",
+    "lifecycle": {
+      "phase": "blocked",
+      "cancelRequested": false,
+      "cancelConfirmed": false,
+      "mutationPossible": true
+    },
+    "claim": "",
+    "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call,engine_failed:worker daemon ended the run without a result",
+    "containers": {
+      "worker": "af6f0c3115b8",
+      "relay": "f923c78753ec"
+    },
+    "onRunNetwork": [
+      "harness-1d8820ce326c47aaa8a40952aa4461f6",
+      "harness-1d8820ce326c47aaa8a40952aa4461f6-relay"
+    ],
+    "childLive": true,
+    "networks": [
+      "harness-1d8820ce326c47aaa8a40952aa4461f6-net"
+    ]
+  },
+  "startExit": 0,
+  "daemonBack": {
+    "at": "11:42:18",
+    "daemon": "running",
+    "state": "blocked",
+    "lifecycle": {
+      "phase": "blocked",
+      "cancelRequested": false,
+      "cancelConfirmed": false,
+      "mutationPossible": false
+    },
+    "claim": "",
+    "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call,engine_failed:worker daemon ended the run without a result",
+    "containers": {
+      "worker": "af6f0c3115b8",
+      "relay": "f923c78753ec"
+    },
+    "onRunNetwork": [
+      "harness-1d8820ce326c47aaa8a40952aa4461f6",
+      "harness-1d8820ce326c47aaa8a40952aa4461f6-relay"
+    ],
+    "childLive": true,
+    "networks": [
+      "harness-1d8820ce326c47aaa8a40952aa4461f6-net"
+    ]
+  },
+  "orphanLivedSeconds": 586,
+  "afterSweep": {
+    "at": "11:49:34",
+    "daemon": "running",
+    "state": "blocked",
+    "lifecycle": {
+      "phase": "blocked",
+      "cancelRequested": false,
+      "cancelConfirmed": false,
+      "mutationPossible": false
+    },
+    "claim": "",
+    "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call,engine_failed:worker daemon ended the run without a result",
+    "containers": {},
+    "onRunNetwork": [],
+    "childLive": false,
+    "networks": []
+  },
+  "daemonSweepCalls": [
+    "2026-10-30 18:49:28,654 INFO POST /sweep"
+  ],
+  "checks": {
+    "daemonBack": true,
+    "runSettled": true,
+    "claimReleased": true,
+    "noLiveWorkerOrRelay": true,
+    "noLiveChild": true,
+    "childStillLiveWhenDaemonBack": true,
+    "sweepCalled": true,
+    "networkRemovedBySweep": true
+  }
+}

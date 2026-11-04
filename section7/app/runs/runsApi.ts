@@ -87,8 +87,9 @@ export function buildRunsQueryString(query: RunsQuery): string {
   return params.toString();
 }
 
-async function request<T>(path: string, token: string): Promise<T> {
+async function request<T>(path: string, token: string, method: "GET" | "POST" = "GET"): Promise<T> {
   const res = await fetch(`${ORCHESTRATOR_BASE}${path}`, {
+    method,
     headers: { authorization: `Bearer ${token}` },
   });
   const text = await res.text();
@@ -186,6 +187,16 @@ export interface RunAggregateDto {
    *  this run was made FAIL-CLOSED (money store unreachable) — an operator-
    *  visible outage-shaped denial, never a silently opened gate. */
   budget: { degraded: boolean };
+  /** Part 10 / W23 (additive): honest lifecycle; userStatus is the server's half of the user states. */
+  lifecycle?: { phase: string; cancelConfirmed: boolean; mutationPossible: boolean; userStatus?: string } | null;
+}
+
+/** Pure: the run page may stop polling. W23: a stopped run is `done` before its stop is
+ *  confirmed, so it keeps polling while the engine can still change files; otherwise the
+ *  status would freeze on "Working". An older server without lifecycle settles on state alone. */
+export function runSettled(agg: Pick<RunAggregateDto, "state" | "lifecycle"> | null): boolean {
+  return /^(done|stopped|failed|completed|cancelled)$/i.test(agg?.state ?? "")
+    && agg?.lifecycle?.mutationPossible !== true;
 }
 
 /** Client cap mirroring F3a's _AGGREGATE_STEPS_MAX: even if a future server
@@ -289,6 +300,17 @@ export function stepsNewestFirst(
 
 function asStringOrNull(value: unknown): string | null {
   return typeof value === "string" ? value : null;
+}
+
+/** POST runs/{runId}/pause | resume. Pause kills the engine process and releases the run's claim;
+ *  resume re-queues it and the agent continues its own session. Pause answers `pausing` while the
+ *  engine can still write files, `paused` once it has stopped. */
+export async function pauseOrResumeRun(
+  runId: string,
+  token: string,
+  action: "pause" | "resume",
+): Promise<{ status?: string; state?: string }> {
+  return request(`/api/v1/orchestrator/runs/${encodeURIComponent(runId)}/${action}`, token, "POST");
 }
 
 /** GET /api/v1/orchestrator/runs/{runId} — W4-C2 aggregate (F3a server side).

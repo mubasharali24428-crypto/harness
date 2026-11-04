@@ -1,5 +1,6 @@
 import bisect
 import logging
+import os
 import threading
 import time
 import uuid
@@ -41,6 +42,7 @@ from harness_orchestrator.logging_utils import (  # noqa: E402
     reset_request_id,
     set_request_id,
 )
+from harness_orchestrator.model_client import ModelsServiceRouter  # noqa: E402
 from harness_orchestrator.planner import PlanNotApprovedError  # noqa: E402
 from harness_orchestrator.service import (  # noqa: E402
     OrchestratorService,
@@ -82,6 +84,12 @@ def _escape_label(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
 
+# Synthetic-probe / self-scrape route templates excluded from the availability
+# SLI (docs/runbooks/slo-and-capacity.md: never treat /health alone as
+# availability). Kept identical to the assembly copy in deploy/runners/observability.
+_PROBE_PATHS = frozenset({"/health", "/health?deep=1", "/ready", "/metrics"})
+
+
 class MetricsCollector:
     """Minimal Prometheus text-format collector (no prometheus_client dep).
 
@@ -103,6 +111,31 @@ class MetricsCollector:
         # (method, path) -> per-bucket observation counts
         self._hist_raw: dict[tuple[str, str], list[int]] = {}
         self._hist_sum: dict[tuple[str, str], float] = {}
+        # W17 Stage-2: availability-eligible rollup (ok / error). The raw
+        # http_requests_total{status} is present, but the API-availability SLI
+        # must be measured on the ELIGIBLE set: caller 4xx, synthetic probes and a
+        # declared maintenance window are excluded (slo-and-capacity.md). Not a
+        # substitute for the owner's decision to adopt a threshold on it.
+        self._eligible = {"ok": 0, "error": 0}
+
+    @staticmethod
+    def _classify_eligible(path: str, status_code: int | str) -> str | None:
+        """'ok' | 'error' | None (None = not eligible, excluded)."""
+        if path in _PROBE_PATHS:
+            return None
+        if os.environ.get("HARNESS_MAINTENANCE_MODE", "").strip().lower() in {"1", "true", "on"}:
+            return None
+        try:
+            code = int(status_code)
+        except (TypeError, ValueError):
+            return None
+        if 200 <= code < 400:
+            return "ok"
+        if 400 <= code < 500:
+            return None  # caller error
+        if code >= 500:
+            return "error"
+        return None  # 1xx
 
     def observe(
         self, *, method: str, path: str, status_code: int | str, duration_s: float
@@ -110,12 +143,15 @@ class MetricsCollector:
         ckey = (method, path, str(status_code))
         hkey = (method, path)
         idx = bisect.bisect_right(self._buckets, duration_s)
+        outcome = self._classify_eligible(path, status_code)
         with self._lock:
             self._counts[ckey] = self._counts.get(ckey, 0) + 1
             raw = self._hist_raw.setdefault(hkey, [0] * len(self._buckets))
             if 0 <= idx < len(raw):
                 raw[idx] += 1
             self._hist_sum[hkey] = self._hist_sum.get(hkey, 0.0) + duration_s
+            if outcome is not None:
+                self._eligible[outcome] += 1
 
     def render(self) -> str:
         """Prometheus text format (version 0.0.4), deterministic ordering."""
@@ -123,6 +159,7 @@ class MetricsCollector:
             counters = sorted(self._counts.items())
             hist_raw = {k: list(v) for k, v in self._hist_raw.items()}
             hist_sum = dict(self._hist_sum)
+            eligible = dict(self._eligible)
 
         lines = [
             "# HELP http_requests_total Total HTTP requests handled.",
@@ -134,6 +171,16 @@ class MetricsCollector:
                 f'path="{_escape_label(path)}",status="{_escape_label(status_label)}"}}'
                 f" {count}"
             )
+
+        # Availability SLI denominator; both outcomes always rendered so a
+        # PromQL ok/(ok+error) is stable at zero traffic.
+        lines.append(
+            "# HELP harness_eligible_requests_total Availability-eligible HTTP "
+            "requests, excluding caller 4xx, synthetic probes and declared maintenance."
+        )
+        lines.append("# TYPE harness_eligible_requests_total counter")
+        lines.append(f'harness_eligible_requests_total{{outcome="ok"}} {eligible["ok"]}')
+        lines.append(f'harness_eligible_requests_total{{outcome="error"}} {eligible["error"]}')
 
         lines.append(
             "# HELP http_request_duration_seconds "
@@ -501,6 +548,11 @@ class RunAggregateResponse(BaseModel):
     lifecycle: dict | None = None
     # Part 09.010 (additive): {id, fingerprint, isolated, isolation}; no paths, no secrets.
     workspace: dict | None = None
+    # W15 (additive): the run's durable routing decision
+    # {enabled, class, model, source, reason?} from the `model_routed` event, or
+    # None when the run never emitted one (pre-W15 run, or no attempt started).
+    # Read from the event store, so any replica answers it identically.
+    routing: dict | None = None
 
 
 class ErrorDetail(BaseModel):
@@ -686,6 +738,41 @@ async def reject_plan(runId: str, req: PlanActionRequest, actor: PlanApprover) -
     return {"runId": runId, "planId": req.planId, "status": "rejected"}
 
 
+async def _enforce_team_budget(run_id: str) -> None:
+    """Consume the run's TEAM budget for a spend surface, or answer 429.
+
+    Imported lazily so this module keeps importing without the limiter's
+    dependencies in bare unit contexts. A missing factory or an unresolvable
+    team skips the guard: the ownership gate has already run, and a lookup
+    failure must not become an outage. The bucket itself lives in the same
+    ``rate_buckets`` store as the IP limiter, under a ``team:`` namespace.
+    """
+    from harness_contracts.ratelimit import (
+        RUN_START_TEMPLATE,
+        consume_team_budget,
+    )
+
+    factory = getattr(_service, "run_queue_factory", None) or getattr(
+        _service, "session_factory", None
+    )
+    if factory is None:
+        return
+    team_id = await _service._team_for_run({"runId": run_id})
+    allowed, retry_after = await consume_team_budget(factory, team_id, RUN_START_TEMPLATE)
+    if allowed:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail={
+            "error": {
+                "code": "RATE_LIMITED",
+                "message": "team run-start budget exhausted; retry shortly",
+            }
+        },
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
 @router.post(
     "/runs/{runId}/start",
     status_code=status.HTTP_200_OK,
@@ -694,9 +781,14 @@ async def reject_plan(runId: str, req: PlanActionRequest, actor: PlanApprover) -
         400: {"model": ErrorEnvelope, "description": "INVALID_STATE"},
         403: {"model": ErrorEnvelope, "description": "PLAN_NOT_APPROVED / role denial"},
         404: {"model": ErrorEnvelope, "description": "unknown or foreign run (no-oracle)"},
+        429: {"model": ErrorEnvelope, "description": "RATE_LIMITED (team budget)"},
     },
 )
 async def start_execution(runId: str, actor: RunWriter) -> dict[str, str]:
+    # W15 slice 2: spawn cost is limited per team, not only per IP. The team
+    # is resolved from the run after authorization; an over-budget team is
+    # answered before any engine work starts.
+    await _enforce_team_budget(runId)
     try:
         await _service.start_execution(runId)
         # S1-R05e: durable lifecycle record — "who started what, when".
@@ -815,7 +907,9 @@ async def submit_human_edit(
         409: {"model": ErrorEnvelope, "description": "RUN_NOT_LIVE"},
     },
 )
-async def signal_done(runId: str, req: DoneSignalRequest, actor: RunReader) -> dict:
+async def signal_done(
+    runId: str, req: DoneSignalRequest, actor: RunReader, request: Request
+) -> dict:
     # H-007: the done-gate is enforced HERE, before any transition or review
     # spend. The route still declares RunReader so read-only principals reach
     # this handler — and get the gate's explicit 403 instead of a generic
@@ -838,7 +932,13 @@ async def signal_done(runId: str, req: DoneSignalRequest, actor: RunReader) -> d
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"error": {"code": e.code, "message": e.message}},
         ) from e
-    findings = await _service.signal_done(runId, diff_text=req.diffText)
+    # The reviewer's model call runs as the person who signalled done: their token, role, budget.
+    auth = request.headers.get("authorization", "")
+    model_router = None
+    if auth.startswith("Bearer "):
+        model_router = ModelsServiceRouter(auth.removeprefix("Bearer "))
+    findings = await _service.signal_done(runId, diff_text=req.diffText, model_router=model_router)
+    await _artifacts.record_done_changes(runId, principal)
     dump = findings.model_dump(by_alias=True)
     return {"runId": runId, "findings": dump}
 
@@ -901,11 +1001,109 @@ async def get_plan(runId: str, reader: RunReader) -> dict[str, Any]:
     return plan.model_dump()
 
 
+class ReadinessCheckOut(BaseModel):
+    check: Literal[
+        "provider", "model", "worker", "revision", "repository", "permissions", "provider-call"
+    ]
+    status: Literal["ok", "fail", "unknown"]
+    component: str
+    reason: str
+    detail: str
+
+
+class ReadinessResponse(BaseModel):
+    ok: bool
+    checks: list[ReadinessCheckOut]
+
+
+@router.get(
+    "/readiness",
+    status_code=status.HTTP_200_OK,
+    response_model=ReadinessResponse,
+    responses={
+        404: {"model": ErrorEnvelope, "description": "unknown or foreign project (no-oracle)"}
+    },
+)
+async def get_readiness(projectId: str, principal: RequirePrincipal) -> dict[str, Any]:
+    """W23: would a run started now in this project work, and if not, what is wrong."""
+    import asyncio
+
+    from harness_orchestrator import readiness
+    from harness_orchestrator.engine import DAEMON_TOKEN_ENV
+
+    factory = getattr(_service, "session_factory", None)
+    repo, known = None, factory is not None
+    if known:
+        from sqlalchemy import text
+
+        async with factory() as db:
+            row = (
+                await db.execute(
+                    text("SELECT team_id, repo_full_name FROM projects WHERE id = :p"),
+                    {"p": projectId},
+                )
+            ).first()
+        if row is None or row.team_id != principal.teamId:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": {"code": "NOT_FOUND", "message": "project not found"}},
+            )
+        repo = row.repo_full_name
+    worker = await asyncio.to_thread(
+        readiness.check_worker,
+        getattr(_service.engine, "daemon_url", "") or "",
+        os.environ.get(DAEMON_TOKEN_ENV, ""),
+        readiness.code_digest(),
+    )
+    return readiness.report([
+        *readiness.check_engine(os.environ),
+        *worker,
+        readiness.check_repository(repo, known=known),
+        readiness.check_permissions(principal),
+    ])
+
+
+@router.post(
+    "/readiness/probe",
+    status_code=status.HTTP_200_OK,
+    response_model=ReadinessResponse,
+    responses={
+        403: {"model": ErrorEnvelope, "description": "the caller may not start runs"},
+        429: {"model": ErrorEnvelope, "description": "a probe was sent less than a minute ago"},
+    },
+)
+async def post_readiness_probe(principal: RequirePrincipal) -> dict[str, Any]:
+    """W23 F2: send one one-token request to the provider and say whether it accepts the model.
+
+    Opt-in and paid (a fraction of a cent): `harness doctor --probe` is the only caller, and the
+    server allows one a minute. A caller who may not start runs may not spend on the provider."""
+    import asyncio
+
+    from harness_orchestrator import readiness
+
+    gate = readiness.check_permissions(principal)
+    if gate["status"] != readiness.OK:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": {"code": "ROLE_DENIED", "message": gate["detail"]}},
+        )
+    try:
+        entry = await asyncio.to_thread(readiness.probe_provider, os.environ)
+    except readiness.ProbeTooSoon as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"error": {"code": "PROBE_TOO_SOON", "message": str(exc)}},
+            headers={"Retry-After": str(int(exc.retry_after) + 1)},
+        ) from exc
+    return readiness.report([entry])
+
+
 # ---------------------------------------------------------------------------
 # Shared-run collaboration (multiplayer pilot S2) - see collab.py for the rules.
 # Every route is guarded by the run-ownership dependency (foreign run => 404);
 # the acting identity is always the authenticated Principal, never the body.
 # ---------------------------------------------------------------------------
+from harness_orchestrator import artifacts as _artifacts  # noqa: E402
 from harness_orchestrator import collab, delivery  # noqa: E402
 
 CollabReader = Annotated[Principal, Depends(_authz_dep("read", audit=True))]
@@ -1034,12 +1232,16 @@ async def collab_claim_leader(runId: str, actor: CollabWriter) -> dict:
 @router.post("/runs/{runId}/redirect")
 async def collab_redirect(runId: str, req: RedirectRequest, actor: CollabWriter) -> dict:
     _pilot_gate(actor)
-    return await _collab(
+    result = await _collab(
         lambda f: collab.redirect(
             f, actor, runId, req.kind, req.content, req.reason,
             collab.actor_request_id(actor, req.requestId),
         )
     )
+    if f"redirect.{req.kind}" in collab.GUIDANCE_KINDS:  # permission changes are not injected
+        result["takesEffect"] = await collab.takes_effect_now(
+            _service, runId, bool(result.get("queued")))
+    return result
 
 
 @router.get("/runs/{runId}/collab-history")

@@ -1,0 +1,65 @@
+### in-tree-dirty/
+pytest-mcp: 18 passed in 0.26s
+pytest-section1: 14 failed, 1207 passed, 63 skipped, 1727 warnings in 114.97s (0:01:54)
+FAILED tests/test_runner_exec.py::test_spec_is_derived_from_the_approved_plan
+FAILED tests/test_runner_exec.py::test_spec_refuses_an_unapproved_plan - asse...
+FAILED tests/test_runner_exec.py::test_spec_needs_a_held_lease_and_hides_foreign_runs
+FAILED tests/test_runner_exec.py::test_a_plan_with_nothing_to_run_or_too_much_is_refused
+FAILED tests/test_runner_exec.py::test_events_land_in_the_log_scrubbed_and_bounded
+FAILED tests/test_runner_exec.py::test_a_command_outside_the_approved_plan_is_refused
+FAILED tests/test_runner_exec.py::test_event_batch_and_job_caps - assert 404 ...
+FAILED tests/test_runner_exec.py::test_events_refuse_foreign_unleased_and_stopped_runs
+FAILED tests/test_runner_exec.py::test_job_heartbeat_tells_the_runner_to_cancel_a_stopped_run
+FAILED tests/test_runner_exec.py::test_finish_completed_drives_the_run_to_engine_completed
+FAILED tests/test_runner_exec.py::test_finish_cannot_claim_success_the_log_does_not_show
+FAILED tests/test_runner_exec.py::test_a_failing_command_settles_the_run_failed
+FAILED tests/test_runner_exec.py::test_finish_failed_drives_engine_failed - a...
+FAILED tests/test_runner_exec.py::test_finish_never_resurrects_a_stopped_run
+pytest-section10: 91 passed, 1 warning in 1.53s
+pytest-section11: 56 passed, 28 warnings in 4.83s
+pytest-section2: 48 passed, 2 warnings in 1.47s
+pytest-section3: 146 passed, 75 warnings in 1.57s
+pytest-section4: 1 failed, 1899 passed, 59 skipped, 25946 warnings in 138.77s (0:02:18)
+FAILED tests/unit/test_spec_drift.py::test_repo_specs_and_ui_calls_match_router
+pytest-section5: 440 passed, 8 skipped, 1 warning in 46.97s
+pytest-section6: 123 passed in 3.15s
+pytest-section8: 91 passed, 3 warnings in 1.78s
+
+### head/
+pytest-mcp: 18 passed in 0.24s
+pytest-section1: 1 failed, 1193 passed, 66 skipped, 1718 warnings in 115.24s (0:01:55)
+FAILED tests/test_version_pin_conformance.py::test_contracts_version_pinned_across_all_four_sources
+pytest-section10: 91 passed, 1 warning in 1.52s
+pytest-section11: 56 passed, 28 warnings in 4.31s
+pytest-section2: 48 passed, 2 warnings in 1.38s
+pytest-section3: 146 passed, 75 warnings in 1.65s
+pytest-section4: 1 failed, 1894 passed, 60 skipped, 25954 warnings in 133.07s (0:02:13)
+FAILED tests/unit/test_resume.py::test_pause_leaves_run_resumable_and_resume_respawns_engine
+pytest-section5: 436 passed, 8 skipped, 1 warning in 41.76s
+pytest-section6: 123 passed in 3.85s
+pytest-section8: 91 passed, 3 warnings in 1.67s
+
+### head2/
+pytest-mcp: 18 passed in 0.27s
+pytest-section1: 1 failed, 1208 passed, 66 skipped, 1716 warnings in 114.41s (0:01:54)
+FAILED tests/test_version_pin_conformance.py::test_contracts_version_pinned_across_all_four_sources
+pytest-section10: 91 passed, 1 warning in 2.42s
+pytest-section11: 56 passed, 28 warnings in 4.98s
+pytest-section2: 48 passed, 2 warnings in 1.44s
+pytest-section3: 146 passed, 75 warnings in 1.65s
+pytest-section4: 1 failed, 1904 passed, 60 skipped, 25973 warnings in 144.75s (0:02:24)
+FAILED tests/unit/test_lifecycle_recovery.py::test_reclaimed_run_fences_the_original_worker
+pytest-section5: 451 passed, 8 skipped, 1 warning in 45.21s
+pytest-section6: 123 passed in 3.55s
+pytest-section8: 91 passed, 3 warnings in 2.07s
+
+### section4 clean workspace (DSH_WORKSPACE/DSH_SESSION_ROOT -> empty dirs)
+intree.log: 1910 passed, 59 skipped, 25960 warnings in 152.35s (0:02:32)
+head.log: 1 failed, 1894 passed, 60 skipped, 25951 warnings in 129.96s (0:02:09)
+FAILED tests/unit/test_s1_r05_resume_queue.py::test_resume_after_restart_redrives_paused_run_in_queue_mode
+
+### section4 in-tree second full run, shared default workspace
+FAILED tests/stress/test_section4_stress.py::TestEngineWrapper::test_custom_backend_runner
+FAILED tests/unit/test_engine.py::test_injected_backend_still_works - Asserti...
+FAILED tests/unit/test_resume.py::test_pause_leaves_run_resumable_and_resume_respawns_engine
+3 failed, 1907 passed, 59 skipped, 25966 warnings in 143.15s (0:02:23)

@@ -13,6 +13,12 @@ export class GithubClient {
         const _path = `/api/v1/github/connection`;
         return this.http.request(this.baseUrl, _path, "GET", undefined);
     }
+    /** Disconnect Github
+     *  POST /api/v1/github/disconnect */
+    disconnect_github() {
+        const _path = `/api/v1/github/disconnect`;
+        return this.http.request(this.baseUrl, _path, "POST", undefined);
+    }
     /** Oauth Callback
      *  GET /api/v1/github/oauth/callback */
     oauth_callback(code, state) {
@@ -59,6 +65,31 @@ export class GithubClient {
         const params = { "ref": ref, "path": path };
         return this.http.request(this.baseUrl, _path, "GET", undefined, params);
     }
+    /** Get Github Writes
+     *  GET /api/v1/projects/{project_id}/github/writes */
+    get_github_writes(project_id) {
+        const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/github/writes`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
+    /** Set Github Writes
+     *  PUT /api/v1/projects/{project_id}/github/writes */
+    set_github_writes(project_id, body) {
+        const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/github/writes`;
+        return this.http.request(this.baseUrl, _path, "PUT", body);
+    }
+    /** List Issues
+     *  GET /api/v1/projects/{project_id}/issues */
+    list_issues(project_id, state) {
+        const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/issues`;
+        const params = { "state": state };
+        return this.http.request(this.baseUrl, _path, "GET", undefined, params);
+    }
+    /** Create Issue
+     *  POST /api/v1/projects/{project_id}/issues */
+    create_issue(project_id, body) {
+        const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/issues`;
+        return this.http.request(this.baseUrl, _path, "POST", body);
+    }
     /** Open Draft Pr
      *  POST /api/v1/projects/{project_id}/pulls/draft */
     open_draft_pr(project_id, body) {
@@ -102,6 +133,12 @@ export class GithubClient {
         const _path = `/health`;
         return this.http.request(this.baseUrl, _path, "GET", undefined);
     }
+    /** Ready
+     *  GET /ready */
+    ready_ready_get() {
+        const _path = `/ready`;
+        return this.http.request(this.baseUrl, _path, "GET", undefined);
+    }
 }
 /* Module surface (mirrors __all__ in clients/python):
  * export class GithubClient
@@ -109,5 +146,7 @@ export class GithubClient {
  * export interface/type ConnectBody
  * export interface/type DraftPRBody
  * export interface/type HTTPValidationError
+ * export interface/type IssueBody
  * export interface/type ValidationError
+ * export interface/type WritesBody
  */

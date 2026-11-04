@@ -1,0 +1,3 @@
+{
+  "notes": "module notes\n\nschema Helper {\n  text: String\n}\n"
+}

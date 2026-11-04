@@ -1,0 +1,117 @@
+{
+  "schema": 1,
+  "kind": "w8-overlap-apply",
+  "takenAt": "2026-10-28T14:46:38.349704+00:00",
+  "claim": "two results for one path cannot silently overwrite each other",
+  "drive": "harness_sdk.cli.local.apply_back on real files; no model, no docker",
+  "interpreter": "/Users/user/untitled folder 2/harness/section5/.venv/bin/python",
+  "durationSeconds": 0.16,
+  "checks": {
+    "probeCompleted": true,
+    "firstResultApplied": true,
+    "firstBytesOnDisk": true,
+    "secondRefused": true,
+    "conflictNamesThePath": true,
+    "conflictNamesExpectedBase": true,
+    "conflictNamesActualFirst": true,
+    "allOrNothing": true,
+    "reapplyRefused": true,
+    "newFileCollisionRefused": true,
+    "newFileKeptFirst": true,
+    "newFileNeighbourUnwritten": true,
+    "staleDeletionRefused": true,
+    "staleDeletionKeptFile": true
+  },
+  "verdict": "PASS",
+  "failedChecks": [],
+  "observations": {
+    "sharedFile": {
+      "first": {
+        "applied": [
+          "shared.txt",
+          "keep.txt"
+        ],
+        "deleted": []
+      },
+      "second": {
+        "refused": true,
+        "conflicts": [
+          {
+            "path": "shared.txt",
+            "expected": "f34848ca92665c342abd5816c9e3eda0e82180671195362bcd0080544a3bc2ac",
+            "actual": "96357c8d502a3da7d30d5efea247d9ac00240731af893c5a7ad196dda8fd03ec"
+          },
+          {
+            "path": "keep.txt",
+            "expected": "f660a7996deacfbc7560e4240054a8ad82eb02fe25a95064257e07084bcacb85",
+            "actual": "f3977e1b508022e90f661b1d361bc104d534c0dd195d42af2361e33302b78961"
+          }
+        ],
+        "code": "ApplyConflict"
+      },
+      "reapply": {
+        "refused": true,
+        "conflicts": [
+          {
+            "path": "shared.txt",
+            "expected": "f34848ca92665c342abd5816c9e3eda0e82180671195362bcd0080544a3bc2ac",
+            "actual": "96357c8d502a3da7d30d5efea247d9ac00240731af893c5a7ad196dda8fd03ec"
+          },
+          {
+            "path": "keep.txt",
+            "expected": "f660a7996deacfbc7560e4240054a8ad82eb02fe25a95064257e07084bcacb85",
+            "actual": "f3977e1b508022e90f661b1d361bc104d534c0dd195d42af2361e33302b78961"
+          }
+        ]
+      },
+      "finalShared": "from a\n",
+      "finalKeep": "keep a\n",
+      "finalSharedSha": "96357c8d502a3da7d30d5efea247d9ac00240731af893c5a7ad196dda8fd03ec",
+      "expected": {
+        "shared.txt": "f34848ca92665c342abd5816c9e3eda0e82180671195362bcd0080544a3bc2ac",
+        "keep.txt": "f660a7996deacfbc7560e4240054a8ad82eb02fe25a95064257e07084bcacb85"
+      }
+    },
+    "newFile": {
+      "first": {
+        "applied": [
+          "created.txt",
+          "keep.txt"
+        ],
+        "deleted": []
+      },
+      "second": {
+        "refused": true,
+        "conflicts": [
+          {
+            "path": "created.txt",
+            "expected": null,
+            "actual": "96357c8d502a3da7d30d5efea247d9ac00240731af893c5a7ad196dda8fd03ec"
+          },
+          {
+            "path": "keep.txt",
+            "expected": "f660a7996deacfbc7560e4240054a8ad82eb02fe25a95064257e07084bcacb85",
+            "actual": "f3977e1b508022e90f661b1d361bc104d534c0dd195d42af2361e33302b78961"
+          }
+        ]
+      },
+      "finalCreated": "from a\n",
+      "finalKeep": "keep a\n"
+    },
+    "staleDeletion": {
+      "result": {
+        "refused": true,
+        "conflicts": [
+          {
+            "path": "gone.txt",
+            "expected": "25718360e05d3c2d0963d1381e9dd4dae5fca789244ee4b9f861adcc0cc96218",
+            "actual": "0aa86c043e376273bf5155e672be3109482fc955b4e20fd45ae1968adc32e59d"
+          }
+        ]
+      },
+      "stillThere": true,
+      "text": "edited since\n"
+    }
+  },
+  "probeStderr": ""
+}

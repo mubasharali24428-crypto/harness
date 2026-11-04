@@ -1,0 +1,84 @@
+{
+  "date": "2026-10-28",
+  "week": "W7",
+  "claim": "an edit proposed in the editor round-trips through the policy gate; the extension is not a bypass",
+  "drive": "extension core (clients/vscode/src/core) against the live stack; vscode adapter typechecked, not opened",
+  "runId": "run-dc7a47ac139b",
+  "state": "done",
+  "confinement": "container",
+  "image": "harness-engine-worker:vdev-local",
+  "resultConfirmedByOperator": true,
+  "goalCarriedSelection": true,
+  "goalChars": 279,
+  "planApprovedInEditor": true,
+  "proposedDiffSeen": true,
+  "planTextPreview": "Goal: Task: Create a file named ide_note.txt in the workspace root whose only content is the line: reviewed in the editor. Do not change any other file.\n\nContext (1 item, 43 chars; cap 8,000):\n\n--- @src/note.py:1-2 (selection, lines 1-2) ---\ndef greet(name):\n    return f\"hello {name}\"\nExpected: All ",
+  "statesSeen": [
+    "planning",
+    "executing",
+    "review",
+    "done"
+  ],
+  "serverEventTypes": [
+    "plan_proposed",
+    "plan_approved",
+    "done_signal_received",
+    "review_passed"
+  ],
+  "auditShape": "plan_proposed + plan_approved + done_signal_received + review_* (no execution_started; off-host execution cannot mint tool events)",
+  "confinedWorker": {
+    "role": "worker",
+    "image": "harness-engine-worker:vdev-local",
+    "networks": [
+      "harness-3061af71f5d64999a6dfc3b524dd3e17-net"
+    ],
+    "internalNetworks": [
+      "harness-3061af71f5d64999a6dfc3b524dd3e17-net"
+    ],
+    "readOnlyRoot": true,
+    "capDrop": [
+      "ALL"
+    ],
+    "entrypoint": [
+      "python"
+    ]
+  },
+  "workerObserved": true,
+  "diffStages": [
+    "proposed:ide_note.txt",
+    "reviewed:ide_note.txt"
+  ],
+  "patchesShownInstead": [],
+  "doneSignalConfirmed": true,
+  "diffShown": {
+    "path": "ide_note.txt",
+    "beforeNull": true
+  },
+  "reviewedDigest": "3f153cd406b38398c7ac063d30db2942f92075b3a163d88b16e115aab40a388d",
+  "reviewState": "approved",
+  "wrongDigestReview": {
+    "refused": true,
+    "status": 409,
+    "code": "CHANGE_STALE"
+  },
+  "applied": [
+    "ide_note.txt"
+  ],
+  "appliedText": "reviewed in the editor",
+  "refused": [],
+  "workspace": "/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/w7-ide-lTUeif",
+  "checks": {
+    "ran": true,
+    "goalCarriedSelection": true,
+    "planApproved": true,
+    "workerObserved": true,
+    "workerOnInternalNetwork": true,
+    "confinementNamed": true,
+    "diffShown": true,
+    "wrongDigestRefused": true,
+    "reviewApprovedWithDigest": true,
+    "appliedBytesMatch": true,
+    "noRefusals": true
+  },
+  "verdict": "PASS"
+}

@@ -306,6 +306,295 @@ Enforcement status as audited:
 | Per-run deadline / provider breaker | `engine_runtime.py` | enforced (thread keeps running after deadline; see engine-concurrency.md) |
 | Tier caps (Pro 8 / Team 16 concurrent runs, `PRICING.md`) | - | NOT enforced: marked `[M2]`, only the single env-wide cap exists |
 
+## 3.6 Which model did this run use? (W15)
+
+Routing is opt-in per team (W14), so "why did this run use the cheap model?"
+needs a durable answer rather than a log line. Every execution attempt writes a
+`model_routed` agent event BEFORE the engine call, and `GET /runs/{id}` returns
+it as `routing`:
+
+```sh
+curl -s -H "Authorization: Bearer $TOKEN" \
+  http://127.0.0.1:8004/api/v1/orchestrator/runs/<runId> | jq '.routing'
+# {"class":"mechanical","enabled":true,"model":"cheap/model","runId":"…","source":"policy"}
+```
+
+Read `source`, not just `model`:
+
+| `source` | Meaning |
+|---|---|
+| `policy` | the team's routing policy chose this model for this plan class |
+| `primary` | routing is off for the team; the configured primary model ran |
+| `policy-fallback` | routing is on but the policy has no model for this plan class, so the primary ran — routing never downgrades or invents a model |
+| `null` (`routing` absent) | no attempt was recorded: the run predates W15 or never started executing. Absence is NOT evidence that routing was off |
+
+The same fact straight from the store, when the API is not the question:
+
+```sh
+docker exec harness-db-1 psql -U harness -d harness -c \
+  "select seq, ts, payload from agent_events where run_id='<runId>' and type='model_routed' order by seq;"
+```
+
+One row per attempt: a resume re-resolves the policy, so the newest row is the
+one that describes the newest attempt (the aggregate returns the newest).
+Reproduce the whole check with `make drill-routing` — it uses probe model ids
+that exist in no catalog, so no provider call can succeed and no money can be
+spent, while still proving the decision is recorded before the attempt dies.
+
+## 3.7 A seat was revoked and the person still got in (W16)
+
+`users.is_active` is the authority. Until W16 it was a hint — it steered
+notification targeting only — so a deactivated account could request a fresh
+login code and keep acting. Five doors resolve a principal in this codebase and
+all five now consult the seat:
+
+| Door | Code | Behaviour on a revoked seat |
+|---|---|---|
+| Section 1 HTTP bearer | `harness_identity/auth.py get_principal` | 401 `invalid or expired session` (no oracle: a bearer surface must not reveal why) |
+| Every other service | `harness_contracts/fastapi_auth.py make_bearer_dep` (sections 2/8/11, the deployed runners, the extensions server) | same 401, via the `JOIN users … is_active` term |
+| Interactive OTP / legacy login | `auth.py login_or_register` | 403 `ACCOUNT_DISABLED` — deliberately actionable, the caller already proved inbox control |
+| OIDC SSO | `sso.py _map_email_to_member` | 403 `ACCOUNT_DISABLED` vs 403 `SSO_EMAIL_NOT_MEMBER` (invite problem and seat problem are different queues) |
+| WebSocket + its ticket | `app.py _principal_from_token`, `ephemeral.py redeem_ws_ticket` | socket close 4401 / ticket returns nothing |
+
+Diagnose in one line — the store, not the app, is the witness:
+
+```sh
+docker exec harness-db-1 psql -U harness -d harness -c \
+  "select id, email, is_active from users where email = 'someone@example.com';"
+```
+
+If `is_active` is true and the person should be out, the revocation never
+happened: check whether the caller removed the `team_members` row (that also
+kills the token, by membership) or the account itself. `_revoke_access` deletes
+session rows on org removals; the seat rule is the backstop for any path that
+forgets to.
+
+Prove all of it on a live stack with `make drill-seat-revocation` — it uses a
+throwaway user, never deletes a session row, and shows the SAME token go 200 →
+401 on identity and 404 → 401 on a service using the shared dependency, then
+200 again after re-enabling the seat.
+
+## 3.8 An IdP group changed and the person's role did not (W16)
+
+Group-mapped SSO is opt-in per team. A login consults the map ONLY when the
+team has both `groupsClaim` and at least one `groupRoles` rule; otherwise the
+role on the `team_members` row is used exactly as before. When a mapping does
+exist, every group pattern that matches the claim is considered and the
+STRONGEST role wins (`guest < viewer < engineer < admin`), so a person in both
+`harness-viewers` and `harness-admins` is an admin. A claim that matches nothing
+leaves the stored role alone — silence is not demotion, because a broken claim
+mapper at the IdP must not lock a whole team out.
+
+"Which rule won, and did it fire?" is answered by the login's audit row, not by
+the IdP:
+
+```sh
+docker exec harness-db-1 psql -U harness -d harness -c \
+  "select ts, detail from audit_log where action = 'sso.login'
+   order by seq desc limit 5;"
+```
+
+`detail.source` is `claim` when a group decided the role, `membership` when
+the stored role stood, and `membership_last_admin` when the claim lost to the
+last-admin invariant; `detail.role` is the role actually used; `detail.matched`
+lists the group names that matched (names only — no token, no email). A role
+that actually changed also leaves a `member.role_changed` row with
+`source: sso_claim`.
+
+Diagnose in order:
+
+1. **Is the mapping configured?** `GET /api/v1/teams/{team}/sso/config` must
+   show non-empty `groupsClaim` and `groupRoles`. A PUT with rules but no claim
+   name is refused (`422 VALIDATION_ERROR`) rather than stored as dead config.
+2. **Does the ID token carry the claim?** Keycloak only emits groups when the
+   client has a group-membership mapper (`deploy/keycloak/harness-realm.json`,
+   claim name `groups`). The drill adds it idempotently if a long-lived IdP
+   predates the realm file.
+3. **Does the group name match?** Patterns are case-sensitive `fnmatch`
+   globs (`*`/`?` allowed); `harness-admins` does not match `Harness-Admins`.
+4. **Was the person in the group at login time?** Membership is read from the
+   token minted for THAT login; a seat is not retroactively re-roled when the
+   directory changes. The next login applies the new map.
+5. **Is the seat disabled?** A deactivated account is refused before any role
+   mapping (§3.7), regardless of group membership.
+
+The live proof is the Keycloak drill's group leg: join the admin group → login
+is `admin` with `source=claim` and the minted token passes the admin-only
+`/audit` door; leave it → the baseline group gives `engineer` with
+`source=claim` and `/audit` answers 403 (`scripts/oidc_drill.py`, evidence in
+`docs/briefs/evidence/pilot-prep/oidc-keycloak-drill.json`).
+
+## 3.9 "We deprovisioned them in Okta and they are still in Harness" (W16)
+
+SCIM is opt-in per team and reaches the product through two separate surfaces:
+
+| Surface | Path | Credential |
+|---|---|---|
+| Token management (our API) | `POST/GET/DELETE /api/v1/teams/{id}/scim/tokens[/{tid}]` | an admin's session bearer, Team tier |
+| The directory protocol | `GET /scim/v2/Users[/{id}]`, `PATCH`, `PUT` | a `hsc_…` SCIM token, nothing else |
+
+Work the failure from the connector inward:
+
+1. **Is the connector talking to the right URL?** The path is `/scim/v2/Users`,
+   not `/api/v1/scim/...`; `deploy/Caddyfile` routes it to identity. A 204 from
+   the proxy's catch-all means the request never reached the service.
+2. **Is the credential alive?** `GET /api/v1/teams/{id}/scim/tokens` lists live
+   and revoked tokens with `lastUsedAt`. A token that never shows a use means the
+   connector is authenticating somewhere else. Revoked and unknown answer the
+   same 401 — the service does not say which.
+3. **Did the write land on a seat this team has?** SCIM here reads and narrows
+   seats; it never creates one. An `id` the team does not contain answers
+   `404 user not found`, the same bytes as a nonsense id.
+4. **Was it refused rather than ignored?** The two refusals worth reading in the
+   log: `403` "cannot deprovision the team's last admin", and `400 invalidPath`
+   for an attribute this service does not own (`name.givenName`, `groups`, …) —
+   refused on purpose, because a connector that believes it wrote a field it did
+   not is worse informed than one that got an error.
+5. **What did the mutation actually do?** `active=false` sets `users.is_active`
+   and deletes that team's `auth_sessions` rows:
+
+```sh
+docker exec harness-db-1 psql -U harness -d harness -c \
+  "select ts, action, detail from audit_log
+    where action in ('scim.user_changed','scim.token_created','scim.token_revoked')
+    order by seq desc limit 10;"
+```
+
+`detail.kind` is `deprovision` / `reactivate` / `rename` / `link`, `detail.refId`
+is the SCIM token id (the actor is a credential, so `actor_kind` is `system` and
+there is no human actor), and `before`/`after` carry the changed attributes.
+
+**Scope of `active=false`, stated plainly:** `users` describes a human, not a
+seat, so disabling through one team's directory disables that human at every
+door of every team — which is what "the source of truth says they left the
+company" means. Row cleanup (`auth_sessions`) is scoped to the team the
+credential belongs to. If a person must lose only one team's seat, use the
+membership API (`DELETE /api/v1/teams/{id}/members/{uid}`), not SCIM.
+
+**Error bodies are SCIM, not ours.** `/scim/v2` failures return the RFC 7644
+object (`schemas`/`status`/`detail`, `scimType` where defined) and a malformed
+body answers `400 invalidSyntax` rather than our 422 envelope. The envelope
+middleware keeps normalizing everything else — the carve-out keys on the SCIM
+schema URI only (`envelope_middleware.py:_is_scim_error`).
+
+Prove it end to end with `make drill-scim`: 36 checks including the seat's own
+session token going 200 → 401 on identity and 404 → 401 on the shared
+dependency after a single PATCH, with no admin touching Harness in between.
+
+## 3.10 The SIEM stopped receiving the trail (W16)
+
+A sink is an outbound push, not a pull, so "the SIEM shows nothing new" is usually
+one of three things: the worker is not running, the collector is refusing, or the
+destination stopped being allowed. Work it in that order.
+
+1. **Is `siem-push` up, and is it the version you think?**
+   `docker compose -f deploy/docker-compose.yml ps siem-push` and
+   `docker logs harness-siem-push-1 --tail 50`. The loop logs a batch line only
+   when it did something; silence on an idle stack is normal, silence on a team
+   with a growing `pendingRows` is not.
+2. **Read the sink, not the collector.** The admin listing carries the whole
+   story for each sink:
+
+```sh
+curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://127.0.0.1:8001/api/v1/teams/$TEAM_ID/siem/sinks | python3 -m json.tool
+```
+
+| Field | What it means |
+|---|---|
+| `pendingRows` | rows this team still owes the collector past `cursor` |
+| `attempts` | consecutive failed deliveries; 0 means healthy |
+| `lastStatusCode` / `lastError` | the collector's answer (or `OSError`/`ValueError` for transport/egress) |
+| `nextAttemptAt` | when the next try is due — backoff is `min(60·2^(n-1), 3600)` |
+| `state` | `active`, `sending` (claimed right now), or `blocked` |
+| `deliveredRows` | rows accepted by the collector over the sink's life |
+
+3. **`blocked` means eight consecutive failures and no more sends.** Fix the
+   cause (collector back, DNS, allow-list), then resume explicitly:
+   `PATCH /api/v1/teams/{id}/siem/sinks/{sinkId}` with
+   `{"resume": true, "expectedVersion": <version>}`. The backlog goes out in
+   order; nothing was dropped while it was blocked.
+4. **`lastError: ValueError` is our egress rule, not the collector.** The URL is
+   HTTPS, port 443, and its host must be on `HARNESS_SIEM_ALLOWED_HOSTS` **with a
+   public DNS answer** at delivery time. An empty allow-list refuses every
+   destination by design; a host that resolves to `10./172./192.168.` is refused
+   even if it was allow-listed (rebind-after-save). The same knob must be present
+   on the `identity` service, because that is where registration is validated —
+   if it is only on the worker, creating the sink fails with 422 and nothing is
+   ever attempted.
+5. **A re-created sink starts at the newest row.** `startFrom` defaults to
+   `latest`; use `startFrom: "earliest"` when registering if the team wants the
+   retained history replayed. Delivery is at-least-once and every batch carries
+   `Idempotency-Key: <sinkId>:<from>-<to>`, so a collector should dedupe on that
+   key rather than on row content.
+6. **What did we actually send?** The same rows an export would give:
+
+```sh
+curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://127.0.0.1:8001/api/v1/audit/export?format=ndjson&afterSeq=$CURSOR&limit=50"
+```
+
+7. **Can the collector prove it was us?** Every POST carries
+   `X-Harness-Signature: t=<ts>,v1=<hex>` where the hex is
+   `hmac_sha256(sharedSecret, "<ts>." + body)`. Verify it with the secret from
+   your vault (the API only ever shows a hint). Reject timestamps older than your
+   tolerance — we do not retry with an old `t`.
+
+**Verifying the trail itself.** `POST /api/v1/audit/verify` with
+`{"afterChainPos": N, "maxRows": M}` returns a per-row verdict, the chain head,
+and `prunedPrefix`/`anchored` when retention removed the row before the window.
+Two honest limits: it needs the deployment's PostgreSQL (SQLite answers `503
+AUDIT_CHAIN_UNAVAILABLE` rather than a fake `ok`), and it is tamper-evident — a
+privileged attacker who re-seals every row after an edit is invisible to a chain
+check and only the external anchors catch it. `ok: false` names the first
+offending rows in `problems`; that is an integrity incident, not a support
+ticket.
+
+Prove the whole path with `make drill-siem` (59 checks): registration and its
+refusals on the live stack, a real verdict from the deployment's Postgres, the
+deployed worker failing a dead collector without moving the cursor, and — on a
+throwaway database with a real HTTP collector — signed delivery, replay dedupe,
+backoff → blocked → resume and the tamper/pruned-prefix verdicts.
+
+## 3.11 Runs never start: the worker daemon answers 401 (W20)
+
+**Symptom.** `/ready` is green, but no run reaches a worker. The orchestrator is
+configured with `HARNESS_WORKER_DAEMON_URL`, so every start goes through the
+daemon, and the daemon rejects the call.
+
+**Cause.** `worker-daemon` is behind the compose `worker` profile. Recreating the
+backend with a plain `up -d` leaves it on its old image **and** its old
+environment, including `HARNESS_WORKER_DAEMON_TOKEN` and `DSH_MCP_SERVERS`. When
+the root `.env` token differs from the one the daemon was created with, the
+orchestrator is locked out. The daemon also imports `engine.py`, so a stale image
+changes how workers are launched even when the token matches.
+
+**Diagnose** (prints a status code, never the token):
+
+```sh
+docker exec harness-orchestrator-1 python -c "
+import os, urllib.request, urllib.error
+req = urllib.request.Request(os.environ['HARNESS_WORKER_DAEMON_URL'].rstrip('/') + '/runs/zz-probe',
+    headers={'Authorization': 'Bearer ' + os.environ['HARNESS_WORKER_DAEMON_TOKEN']})
+try: print(urllib.request.urlopen(req, timeout=10).status)
+except urllib.error.HTTPError as e: print(e.code)"
+```
+
+`200` is healthy, `401` is a token mismatch. `python3 scripts/eval/run_eval.py
+--verify-only` also compares the daemon's runtime files with the worktree.
+
+**Fix.** Recreate only the daemon, from the same env source the orchestrator was
+created with (the root `.env`; adding `deploy/.env` overrides the token and
+reproduces the fault):
+
+```sh
+docker compose --env-file .env -f deploy/docker-compose.yml -p harness \
+  --profile worker up -d --no-deps --force-recreate --pull never worker-daemon
+```
+
+Re-run the probe and `--verify-only`. **Prevention:** anything that recreates the
+backend recreates the daemon in the same step.
+
 ## 4. Prevention checklist
 
 - [ ] No service removed from compose while its container runs (Cause A rule).

@@ -78,4 +78,150 @@ describe("deriveWorkingAreaView terminalLines (M2)", () => {
     ]);
     expect(view.terminalLines).toEqual([]);
   });
+
+  // M-A1: the diff panel names the files already touched, which needs the
+  // diff_progress path the sandbox emits per applied edit batch.
+  it("collects touched files from diff_progress, in first-seen order and de-duplicated", () => {
+    const view = deriveWorkingAreaView([
+      evt(1, EventType.DIFF_PROGRESS, { path: "src/b.py" }),
+      evt(2, EventType.DIFF_PROGRESS, { path: "src/a.py", checkpoint: { kind: "post-edit" } }),
+      evt(3, EventType.DIFF_PROGRESS, { path: "src/b.py" }),
+      evt(4, EventType.DIFF_PROGRESS, {}),
+    ]);
+    expect(view.changedPaths).toEqual(["src/b.py", "src/a.py"]);
+  });
+
+  it("reports no touched files for a run that has not edited anything", () => {
+    expect(deriveWorkingAreaView([evt(1, EventType.EXECUTION_STARTED)]).changedPaths).toEqual([]);
+  });
+});
+
+describe("deriveWorkingAreaView — tool transcript", () => {
+  it("pairs a call with its result and computes duration", () => {
+    const view = deriveWorkingAreaView([
+      evt(1, EventType.TOOL_CALL, {
+        callId: "c1",
+        name: "bash",
+        arguments: '{"command":"ls"}',
+        startedAt: 1000,
+      }),
+      evt(2, EventType.TOOL_RESULT, {
+        callId: "c1",
+        ok: true,
+        output: "a.txt",
+        finishedAt: 1450,
+      }),
+    ]);
+    expect(view.toolCalls).toEqual([
+      {
+        callId: "c1",
+        name: "bash",
+        arguments: '{"command":"ls"}',
+        ok: true,
+        error: null,
+        output: "a.txt",
+        durationMs: 450,
+      },
+    ]);
+  });
+
+  it("a call without a result stays running instead of assuming success", () => {
+    const view = deriveWorkingAreaView([
+      evt(1, EventType.TOOL_CALL, { callId: "c1", name: "edit_file" }),
+    ]);
+    expect(view.toolCalls[0].ok).toBeNull();
+    expect(view.toolCalls[0].durationMs).toBeNull();
+  });
+
+  it("a result with no call does not invent an entry", () => {
+    const view = deriveWorkingAreaView([
+      evt(1, EventType.TOOL_RESULT, { callId: "ghost", ok: true }),
+    ]);
+    expect(view.toolCalls).toEqual([]);
+  });
+
+  it("keeps call order even when results arrive out of order", () => {
+    const view = deriveWorkingAreaView([
+      evt(1, EventType.TOOL_CALL, { callId: "c1", name: "read_file" }),
+      evt(2, EventType.TOOL_CALL, { callId: "c2", name: "grep" }),
+      evt(3, EventType.TOOL_RESULT, { callId: "c2", ok: true }),
+      evt(4, EventType.TOOL_RESULT, { callId: "c1", ok: false, error: "ENOENT" }),
+    ]);
+    expect(view.toolCalls.map((c) => c.name)).toEqual(["read_file", "grep"]);
+    expect(view.toolCalls[0].ok).toBe(false);
+    expect(view.toolCalls[0].error).toBe("ENOENT");
+    expect(view.toolCalls[1].ok).toBe(true);
+  });
+});
+
+describe("deriveWorkingAreaView — context window", () => {
+  it("reports the window the run started with", () => {
+    const view = deriveWorkingAreaView([
+      evt(1, EventType.EXECUTION_STARTED, { contextWindow: 1_000_000 }),
+    ]);
+    expect(view.contextWindow).toBe(1_000_000);
+    expect(view.compactedTokens).toBe(0);
+  });
+
+  it("sums compaction across events and keeps the latest window", () => {
+    const view = deriveWorkingAreaView([
+      evt(1, EventType.EXECUTION_STARTED, { contextWindow: 200_000 }),
+      evt(2, EventType.CONTEXT_COMPACTED, { compactedTokens: 5_000, contextWindow: 200_000 }),
+      evt(3, EventType.CONTEXT_COMPACTED, { compactedTokens: 7_500, contextWindow: 1_000_000 }),
+    ]);
+    expect(view.contextWindow).toBe(1_000_000);
+    expect(view.compactedTokens).toBe(12_500);
+  });
+
+  it("stays unknown rather than assuming a default when nothing reported one", () => {
+    const view = deriveWorkingAreaView([evt(1, EventType.EXECUTION_STARTED)]);
+    expect(view.contextWindow).toBeNull();
+  });
+
+  it("reports nothing about goal images when no attempt mentioned them", () => {
+    expect(deriveWorkingAreaView([evt(1, EventType.EXECUTION_STARTED)]).goalImages).toBeNull();
+  });
+
+  it("shows the attached count and every declined image with its reason", () => {
+    const view = deriveWorkingAreaView([
+      evt(1, EventType.GOAL_IMAGES, {
+        requested: 3,
+        attached: 1,
+        refused: null,
+        teamScoped: true,
+        skipped: [
+          { artifactId: "a2", name: "huge.png", reason: "larger than 4194304 bytes" },
+          { artifactId: "a3", name: "second.png", reason: "image count limit" },
+        ],
+      }),
+    ]);
+    expect(view.goalImages).not.toBeNull();
+    expect(view.goalImages?.attached).toBe(1);
+    expect(view.goalImages?.skipped.map((s) => s.name)).toEqual(["huge.png", "second.png"]);
+    expect(view.goalImages?.refused).toBeNull();
+  });
+
+  it("keeps the earlier attachment report when a resumed attempt sends none", () => {
+    const view = deriveWorkingAreaView([
+      evt(1, EventType.GOAL_IMAGES, { attached: 1, skipped: [], refused: null }),
+      evt(2, EventType.GOAL_IMAGES, { attached: 0, skipped: [], refused: null }),
+    ]);
+    expect(view.goalImages?.attached).toBe(1);
+  });
+
+  it("surfaces a deployment-level refusal", () => {
+    const view = deriveWorkingAreaView([
+      evt(1, EventType.GOAL_IMAGES, {
+        attached: 0,
+        skipped: [],
+        refused: "model x is not in HARNESS_VISION_MODELS; goal images were not sent",
+      }),
+    ]);
+    expect(view.goalImages?.refused).toContain("HARNESS_VISION_MODELS");
+  });
+
+  it("ignores a malformed payload instead of inventing one", () => {
+    const view = deriveWorkingAreaView([evt(1, EventType.GOAL_IMAGES, { attached: "many" })]);
+    expect(view.goalImages).toBeNull();
+  });
 });

@@ -1,0 +1,17 @@
+23:18:20 INFO    uvicorn.error Started server process [52797]
+23:18:20 INFO    uvicorn.error Waiting for application startup.
+23:18:20 INFO    uvicorn.error Application startup complete.
+23:18:20 INFO    uvicorn.error Uvicorn running on http://127.0.0.1:18604 (Press CTRL+C to quit)
+23:18:20 INFO    uvicorn.access 127.0.0.1:52449 - "GET /health HTTP/1.1" 200
+23:18:20 INFO    harness.deploy.request http request
+23:18:20 INFO    harness.orchestrator.request http request
+23:18:21 INFO    uvicorn.access 127.0.0.1:52453 - "POST /api/v1/orchestrator/runs/2acaac78-d154-4f92-afdf-77bbf7ef0e49/plan HTTP/1.1" 201
+23:18:21 INFO    harness.deploy.request http request
+23:18:21 INFO    harness.orchestrator.request http request
+23:18:21 INFO    uvicorn.access 127.0.0.1:52454 - "POST /api/v1/orchestrator/runs/2acaac78-d154-4f92-afdf-77bbf7ef0e49/plan/approve HTTP/1.1" 200
+23:18:21 INFO    harness.deploy.request http request
+23:18:21 INFO    harness.orchestrator.request http request
+23:18:21 INFO    uvicorn.access 127.0.0.1:52456 - "POST /api/v1/orchestrator/runs/2acaac78-d154-4f92-afdf-77bbf7ef0e49/start HTTP/1.1" 200
+23:18:21 INFO    harness.deploy.request http request
+23:18:21 INFO    harness.orchestrator.request http request
+23:18:21 INFO    uvicorn.error Shutting down

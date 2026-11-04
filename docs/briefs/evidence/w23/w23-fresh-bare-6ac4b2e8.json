@@ -1,0 +1,64 @@
+{
+  "drillId": "w23-fresh-bare-6ac4b2e8",
+  "label": "bare",
+  "at": "2026-10-31T06:25:28-0700",
+  "git": "de62c0e8ee07e5591dccfb6be3bc4bcd2b56e9a0",
+  "seed": {
+    "projectId": "demo-proj-b84d2f372c9a",
+    "runId": "demo-run-350b7b0b3c5e"
+  },
+  "doctorExitCode": 1,
+  "doctor": {
+    "checks": [
+      {
+        "check": "provider",
+        "component": "provider",
+        "detail": "ENGINE_LIVE_MODE is dry: runs answer 'not configured' and call no model",
+        "reason": "ENGINE_DRY",
+        "status": "fail"
+      },
+      {
+        "check": "model",
+        "component": "model",
+        "detail": "no model is used in dry mode",
+        "reason": "NOT_USED",
+        "status": "unknown"
+      },
+      {
+        "check": "worker",
+        "component": "worker-daemon",
+        "detail": "HARNESS_WORKER_DAEMON_TOKEN is not set; the daemon refuses every call",
+        "reason": "WORKER_TOKEN_UNSET",
+        "status": "fail"
+      },
+      {
+        "check": "revision",
+        "component": "worker-daemon",
+        "detail": "the daemon did not answer",
+        "reason": "NOT_CHECKED",
+        "status": "unknown"
+      },
+      {
+        "check": "repository",
+        "component": "repository",
+        "detail": "local/demo-repo",
+        "reason": "CONNECTED",
+        "status": "ok"
+      },
+      {
+        "check": "permissions",
+        "component": "identity",
+        "detail": "role admin may start, stop and approve runs",
+        "reason": "CAN_RUN",
+        "status": "ok"
+      }
+    ],
+    "command": "doctor",
+    "exitCode": 1,
+    "ok": false,
+    "projectId": "demo-proj-b84d2f372c9a",
+    "ready": false,
+    "schemaVersion": 1
+  },
+  "stderr": "<frozen runpy>:128: RuntimeWarning: 'harness_sdk.cli.main' found in sys.modules after import of package 'harness_sdk.cli', but prior to execution of 'harness_sdk.cli.main'; this may result in unpredictable behaviour\n"
+}

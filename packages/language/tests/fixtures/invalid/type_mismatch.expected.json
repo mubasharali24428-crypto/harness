@@ -1,0 +1,9 @@
+[
+  {
+    "line": 11,
+    "col": 3,
+    "kind": "error",
+    "code": "HX3002",
+    "message": "'ensure' expects Bool, found String"
+  }
+]

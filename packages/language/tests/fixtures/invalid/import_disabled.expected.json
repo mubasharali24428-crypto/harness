@@ -1,0 +1,9 @@
+[
+  {
+    "line": 1,
+    "col": 1,
+    "kind": "error",
+    "code": "HX4004",
+    "message": "'import' is not available: a program is built from the modules it names with `use`, and nothing is loaded while it runs"
+  }
+]

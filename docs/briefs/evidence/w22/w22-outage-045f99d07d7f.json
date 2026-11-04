@@ -1,0 +1,9 @@
+{
+  "runId": "w22-outage-045f99d07d7f",
+  "verdict": "PASS",
+  "relay": "harness-6ea0b36bb9164dda93417096ae1169bb-relay",
+  "disconnectExit": 0,
+  "state": "blocked",
+  "engineStatus": "error",
+  "engineName": "replayed"
+}

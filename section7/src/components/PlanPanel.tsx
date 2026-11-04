@@ -27,13 +27,9 @@ export function PlanPanel({ plan }: { plan: AgentPlan | null }) {
       </p>
 
       <div style={{ display: "flex", gap: 24, marginTop: 12, fontSize: 13 }}>
+        {/* The plan carries an estimate only; what the run actually cost is on
+            its Overview tab, so this panel stops printing a placeholder dash. */}
         <span>Estimated cost: ${(plan.estimatedCostUsd ?? 0).toFixed(4)}</span>
-        <span
-          style={{ color: "var(--muted)" }}
-          title="No cost_ledger read endpoint exists yet - Section 3 isn't even a declared dependency of Section 7. Wired for it, no data source yet."
-        >
-          Actual cost: — (no live source yet)
-        </span>
       </div>
     </section>
   );

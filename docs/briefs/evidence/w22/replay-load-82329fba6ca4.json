@@ -1,0 +1,9 @@
+{
+  "tag": "82329fba6ca4",
+  "burst": 12000,
+  "verdict": "FAIL",
+  "checks": {},
+  "projectId": "e890fb0e-e958-498c-ae25-50b3bc5f6ed7",
+  "errorType": "TimeoutError",
+  "error": ""
+}

@@ -1,0 +1,161 @@
+{
+ "date": "2026-10-28",
+ "milestone": "M07 screenshot through the container",
+ "runId": "m07vis-1793185912",
+ "drive": "HTTP only",
+ "paidSmokeOptIn": true,
+ "expectedColour": "orange",
+ "goalNamesAColour": false,
+ "solidRgb": [
+  232,
+  106,
+  12
+ ],
+ "maxToolCalls": 4,
+ "budgetSet": true,
+ "artifactId": "a02cef9b-ff71-4b05-ab94-4528b1fa737b",
+ "engine": {
+  "engine": "replayed",
+  "status": "completed",
+  "finalResponse": "orange"
+ },
+ "engineKeys": [
+  "engine",
+  "finalResponse",
+  "sessionId",
+  "status"
+ ],
+ "usage": null,
+ "answer": "orange",
+ "answerNamesTheColour": true,
+ "statePath": [
+  "executing",
+  "awaiting_done_signal"
+ ],
+ "workersObserved": [
+  {
+   "name": "harness-5038cdc459054c3db08880b1b7239533",
+   "role": "worker",
+   "user": "999:999",
+   "readonlyRootfs": true,
+   "capDrop": [
+    "ALL"
+   ],
+   "networks": [
+    "harness-5038cdc459054c3db08880b1b7239533-net"
+   ],
+   "mounts": [
+    {
+     "src": "/var/lib/docker/volumes/harness_runs/_data/workspace/w11-design-1793185776",
+     "dst": "/var/lib/harness-runs/workspace/w11-design-1793185776",
+     "readOnly": false,
+     "subpath": null
+    },
+    {
+     "src": "/var/lib/docker/volumes/harness_runs/_data/sessions/w11-design-1793185776",
+     "dst": "/var/lib/harness-runs/sessions/w11-design-1793185776",
+     "readOnly": false,
+     "subpath": null
+    }
+   ]
+  },
+  {
+   "name": "harness-5038cdc459054c3db08880b1b7239533-relay",
+   "role": "relay",
+   "user": "10001:10001",
+   "readonlyRootfs": true,
+   "capDrop": [
+    "ALL"
+   ],
+   "networks": [
+    "bridge",
+    "harness-5038cdc459054c3db08880b1b7239533-net"
+   ],
+   "mounts": []
+  },
+  {
+   "name": "harness-18efb9c13f824b4c83c4936b6cc25f60-relay",
+   "role": "relay",
+   "user": "10001:10001",
+   "readonlyRootfs": true,
+   "capDrop": [
+    "ALL"
+   ],
+   "networks": [
+    "bridge",
+    "harness-18efb9c13f824b4c83c4936b6cc25f60-net"
+   ],
+   "mounts": []
+  },
+  {
+   "name": "harness-18efb9c13f824b4c83c4936b6cc25f60",
+   "role": "worker",
+   "user": "999:999",
+   "readonlyRootfs": true,
+   "capDrop": [
+    "ALL"
+   ],
+   "networks": [
+    "harness-18efb9c13f824b4c83c4936b6cc25f60-net"
+   ],
+   "mounts": [
+    {
+     "src": "/var/lib/docker/volumes/harness_runs/_data/workspace/m07vis-1793185912",
+     "dst": "/var/lib/harness-runs/workspace/m07vis-1793185912",
+     "readOnly": false,
+     "subpath": null
+    },
+    {
+     "src": "/var/lib/docker/volumes/harness_runs/_data/sessions/m07vis-1793185912",
+     "dst": "/var/lib/harness-runs/sessions/m07vis-1793185912",
+     "readOnly": false,
+     "subpath": null
+    }
+   ]
+  }
+ ],
+ "elapsedSeconds": 26.43,
+ "steps": [
+  {
+   "step": "login",
+   "ok": true
+  },
+  {
+   "step": "create project",
+   "ok": "c267bd7a-0b22-48ab-b621-a31117fa1a7a",
+   "status": 201
+  },
+  {
+   "step": "propose plan",
+   "ok": "plan-82ce2092",
+   "status": 201
+  },
+  {
+   "step": "set tool budget",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "upload screenshot",
+   "ok": "a02cef9b-ff71-4b05-ab94-4528b1fa737b",
+   "status": 201,
+   "bytes": 136
+  },
+  {
+   "step": "approve plan",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "start",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "settled",
+   "ok": true,
+   "state": "awaiting_done_signal"
+  }
+ ],
+ "ok": true
+}

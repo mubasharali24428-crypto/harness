@@ -1,0 +1,74 @@
+{
+  "date": "2026-10-26",
+  "provider": "OpenRouter",
+  "transport": "deploy/patches/openrouter.patch.yml (openai-completions), DSH_PATCH_FILES set",
+  "modelDecision": {
+    "method": "single-token latency probe + catalog price sort over 467 models",
+    "measured": {
+      "deepseek/deepseek-v4-flash": "1276 ms, $0.09/M in, $0.18/M out, 1.05M ctx",
+      "qwen/qwen3.7-flash": "1295 ms, $0.03/M in, $0.13/M out, 1M ctx, vision",
+      "inclusionai/ling-3.0-flash": "963 ms, $0.02/M in, $0.06/M out, 262k ctx, text"
+    },
+    "chosen": {
+      "agentRuns": "deepseek/deepseek-v4-flash",
+      "why": "tool-calling is what the harness exercises; cheapest measured text-only model is not a safe agent default",
+      "vision": "qwen/qwen3.7-flash",
+      "chores": "inclusionai/ling-3.0-flash for non-agentic summarisation/classification"
+    }
+  },
+  "runs": {
+    "textToolGoal": {
+      "model": "deepseek/deepseek-v4-flash",
+      "provider": "openrouter",
+      "patch": "/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/openrouter-smoke.patch.yml",
+      "visionDeclared": false,
+      "isolated": false,
+      "status": "completed",
+      "elapsedSeconds": 6.44,
+      "maxTokens": 512,
+      "usage": null,
+      "context": {
+        "contextWindow": 1000000,
+        "compactions": 0,
+        "compactedTokens": 0
+      },
+      "toolCallCount": 2,
+      "goalImagesAttached": 0,
+      "imageFile": null,
+      "finalResponseExcerpt": "Done. The file `hello.txt` has been created in the workspace with the exact content:\n\n```\nharness m07\n```",
+      "paidSmokeOptIn": "HARNESS_ALLOW_PAID_SMOKE=1",
+      "keyInOutput": false
+    },
+    "goalImage": {
+      "model": "qwen/qwen3.7-flash",
+      "provider": "openrouter",
+      "patch": "/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/openrouter-vision.patch.yml",
+      "visionDeclared": true,
+      "isolated": false,
+      "status": "completed",
+      "elapsedSeconds": 20.58,
+      "maxTokens": 512,
+      "usage": null,
+      "context": {
+        "contextWindow": 1000000,
+        "compactions": 0,
+        "compactedTokens": 0
+      },
+      "toolCallCount": 3,
+      "goalImagesAttached": 1,
+      "imageFile": "/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/m07-smoke-workspace/shot.png",
+      "finalResponseExcerpt": "(220, 40, 40)",
+      "paidSmokeOptIn": "HARNESS_ALLOW_PAID_SMOKE=1",
+      "keyInOutput": false
+    }
+  },
+  "findings": [
+    "the shipped profile registers ONE llm route (deepseek-official); unpatched it posts an Anthropic-shaped body and OpenRouter answers 'Invalid Anthropic Messages API request'",
+    "with the patch declaring input: [text], the runtime silently offloads the image and the model reports 'image omitted because this model accepts text only' - the modality gate is enforced, and the refusal text is what the run page shows",
+    "providers enforce a minimum image dimension: an 8x8 PNG was refused with 'height:8 or width:8 must be larger than 10' (Alibaba/Qwen), so a real screenshot is required, not a tile",
+    "usage stayed null through this transport patch, so cost_ledger accrual via openai-completions remains unproven"
+  ],
+  "paidSmokeOptIn": "HARNESS_ALLOW_PAID_SMOKE=1",
+  "costEstimate": "under one cent total (three completions, max_tokens pinned to 512)",
+  "keyHandling": "credential read from the process environment only; never in argv, logs, or this file"
+}

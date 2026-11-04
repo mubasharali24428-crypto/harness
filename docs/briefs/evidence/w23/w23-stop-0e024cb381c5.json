@@ -1,0 +1,60 @@
+{
+  "drillId": "w23-stop-0e024cb381c5",
+  "runId": "w23stop-1793453186",
+  "verdict": "FAIL",
+  "checks": {
+    "liveChildBeforeStop": false,
+    "userStatusWorking": false,
+    "guidanceSaysNextExecution": false,
+    "cliStopConfirmed": true,
+    "noOrphanContainers": true,
+    "workerContainerRemoved": true,
+    "lifecycleConfirmed": true,
+    "userStatusFinished": true,
+    "cliStatusFinished": true
+  },
+  "git": "de62c0e8ee07e5591dccfb6be3bc4bcd2b56e9a0",
+  "processesAtStop": [],
+  "lifecycleRunning": {
+    "phase": "blocked",
+    "cancelRequested": false,
+    "cancelConfirmed": false,
+    "mutationPossible": false,
+    "userStatus": "blocked"
+  },
+  "guidance": {
+    "status": 200,
+    "body": {
+      "seq": 2,
+      "duplicate": false,
+      "invalidatedApprovals": 0,
+      "takesEffect": "next_start"
+    }
+  },
+  "cliStop": {
+    "exitCode": 0,
+    "body": {
+      "command": "stop",
+      "confirmed": true,
+      "exitCode": 0,
+      "ok": true,
+      "runId": "w23stop-1793453186",
+      "schemaVersion": 1,
+      "status": "stopped"
+    },
+    "seconds": 0.38
+  },
+  "containersAfterStop": {},
+  "workerByNameAfterStop": [],
+  "lifecycleAfter": {
+    "phase": "stopped",
+    "cancelRequested": true,
+    "cancelConfirmed": true,
+    "mutationPossible": false,
+    "userStatus": "finished"
+  },
+  "cliStatus": {
+    "exitCode": 0,
+    "userStatus": "finished"
+  }
+}

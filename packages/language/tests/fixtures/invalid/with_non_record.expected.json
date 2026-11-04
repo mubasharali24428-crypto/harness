@@ -1,0 +1,9 @@
+[
+  {
+    "line": 7,
+    "col": 15,
+    "kind": "error",
+    "code": "HX3022",
+    "message": "'with' updates a record; String is not one"
+  }
+]

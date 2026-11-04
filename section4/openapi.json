@@ -1710,6 +1710,74 @@
     "title": "ReactBody",
     "type": "object"
    },
+   "ReadinessCheckOut": {
+    "properties": {
+     "check": {
+      "enum": [
+       "provider",
+       "model",
+       "worker",
+       "revision",
+       "repository",
+       "permissions",
+       "provider-call"
+      ],
+      "title": "Check",
+      "type": "string"
+     },
+     "component": {
+      "title": "Component",
+      "type": "string"
+     },
+     "detail": {
+      "title": "Detail",
+      "type": "string"
+     },
+     "reason": {
+      "title": "Reason",
+      "type": "string"
+     },
+     "status": {
+      "enum": [
+       "ok",
+       "fail",
+       "unknown"
+      ],
+      "title": "Status",
+      "type": "string"
+     }
+    },
+    "required": [
+     "check",
+     "status",
+     "component",
+     "reason",
+     "detail"
+    ],
+    "title": "ReadinessCheckOut",
+    "type": "object"
+   },
+   "ReadinessResponse": {
+    "properties": {
+     "checks": {
+      "items": {
+       "$ref": "#/components/schemas/ReadinessCheckOut"
+      },
+      "title": "Checks",
+      "type": "array"
+     },
+     "ok": {
+      "title": "Ok",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "ok",
+     "checks"
+    ],
+    "title": "ReadinessResponse",
+    "type": "object"
+   },
    "ReasonBody": {
     "additionalProperties": false,
     "properties": {
@@ -2022,6 +2090,24 @@
     "title": "RevokeBody",
     "type": "object"
    },
+   "RewindBody": {
+    "properties": {
+     "checkpoint": {
+      "anyOf": [
+       {
+        "maxLength": 120,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Checkpoint"
+     }
+    },
+    "title": "RewindBody",
+    "type": "object"
+   },
    "RunAggregateResponse": {
     "description": "M14-W4 F3a \u2014 the FROZEN pair-contract W4-C2 aggregate shape.\n\n``costUsd``/``prId``/``url``/``steps`` are explicit-null when their source\ndoes not exist yet (no ledger rows, no PR opened, \u2026); the detail page (F3b)\ndegrades honestly per missing field. ``costUsd`` is exact scale-6 money.",
     "properties": {
@@ -2098,6 +2184,18 @@
        }
       ],
       "title": "Prid"
+     },
+     "routing": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Routing"
      },
      "runId": {
       "title": "Runid",
@@ -4055,6 +4153,101 @@
     ]
    }
   },
+  "/api/v1/orchestrator/readiness": {
+   "get": {
+    "description": "W23: would a run started now in this project work, and if not, what is wrong.",
+    "operationId": "get_readiness_api_v1_orchestrator_readiness_get",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "projectId",
+      "required": true,
+      "schema": {
+       "title": "Projectid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReadinessResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "unknown or foreign project (no-oracle)"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Get Readiness",
+    "tags": [
+     "orchestrator"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/readiness/probe": {
+   "post": {
+    "description": "W23 F2: send one one-token request to the provider and say whether it accepts the model.\n\nOpt-in and paid (a fraction of a cent): `harness doctor --probe` is the only caller, and the\nserver allows one a minute. A caller who may not start runs may not spend on the provider.",
+    "operationId": "post_readiness_probe_api_v1_orchestrator_readiness_probe_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReadinessResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "the caller may not start runs"
+     },
+     "429": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "a probe was sent less than a minute ago"
+     }
+    },
+    "summary": "Post Readiness Probe",
+    "tags": [
+     "orchestrator"
+    ]
+   }
+  },
   "/api/v1/orchestrator/runs": {
    "get": {
     "description": "List the caller's team's runs, newest first (contract M10-C2).\n\nCursor pagination per api-conventions.md: pass ``nextCursor`` back as\n``?cursor=`` for the next page. ``?offset=`` is accepted but IGNORED\nduring the one-release deprecation window (M14-W4 F3a).",
@@ -5658,6 +5851,51 @@
     "summary": "Review Change",
     "tags": [
      "artifacts"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/checkpoints": {
+   "get": {
+    "description": "W3: the run workspace's snapshots, newest last.",
+    "operationId": "run_checkpoints_list_api_v1_orchestrator_runs__runId__checkpoints_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Run Checkpoints List Api V1 Orchestrator Runs  Runid  Checkpoints Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Run Checkpoints List",
+    "tags": [
+     "execution"
     ]
    }
   },
@@ -9025,6 +9263,104 @@
      }
     },
     "summary": "Retry Route",
+    "tags": [
+     "execution"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/review-summary": {
+   "get": {
+    "description": "What a reviewer should know beside the diff (W24): the changed files, the tests the agent\nran and how each exited, what failed, cost, elapsed time and what is still unknown.\n\nBuilt only from rows the run recorded. A fact with no record is reported as unknown, never as\nzero or as passing, and nothing is re-run. A run that executed on the operator's machine has\nonly its diff here, so most of the rest reads unknown. 404 until the run has a recorded diff.",
+    "operationId": "review_summary_api_v1_orchestrator_runs__runId__review_summary_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "title": "Response Review Summary Api V1 Orchestrator Runs  Runid  Review Summary Get"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Review Summary",
+    "tags": [
+     "artifacts"
+    ]
+   }
+  },
+  "/api/v1/orchestrator/runs/{runId}/rewind": {
+   "post": {
+    "description": "W3: restore the run's workspace to a checkpoint (default: the newest).\n\nRefused while the run is live \u2014 files cannot be reset under a worker that is\nstill writing them.",
+    "operationId": "run_rewind_api_v1_orchestrator_runs__runId__rewind_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "runId",
+      "required": true,
+      "schema": {
+       "title": "Runid",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RewindBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Run Rewind Api V1 Orchestrator Runs  Runid  Rewind Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Run Rewind",
     "tags": [
      "execution"
     ]

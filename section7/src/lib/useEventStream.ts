@@ -3,7 +3,7 @@
 import { sha256Hex } from "./sha256";
 import { useEffect, useRef, useState } from "react";
 import type { EventEnvelope } from "@contracts/events";
-import { fetchWsTicket, IDENTITY_WS_BASE } from "./api";
+import { fetchWsTicket, IDENTITY_WS_BASE, replayEvents } from "./api";
 import { backoffDelay, exponentialDelay, BACKOFF_MAX_DELAY_MS } from "./backoff";
 
 // ---------------------------------------------------------------------------
@@ -85,6 +85,8 @@ export interface ControllerOptions {
    * weakening note at the top of this file; server-side binding is unaffected).
    */
   getClientIp?: () => string | undefined;
+  /** Test seam: REST replay page for (afterSeq, beforeSeq), oldest-first. */
+  fetchReplay?: (afterSeq: number, beforeSeq: number) => Promise<{ items: EventEnvelope[]; nextCursor: number }>;
   /** Called with each parsed envelope; errors here must never kill the stream. */
   onEvent?: (envelope: EventEnvelope) => void;
   onStateChange?: (status: EventStreamStatus) => void;
@@ -102,6 +104,10 @@ export class EventStreamController {
   private readonly makeSocket: SocketFactory;
   private readonly schedule: TimerScheduler;
   private readonly getClientIp?: () => string | undefined;
+  private readonly fetchReplay: (
+    afterSeq: number,
+    beforeSeq: number,
+  ) => Promise<{ items: EventEnvelope[]; nextCursor: number }>;
   private readonly onEvent: (envelope: EventEnvelope) => void;
   private readonly onStateChange: (status: EventStreamStatus) => void;
 
@@ -120,6 +126,8 @@ export class EventStreamController {
     this.makeSocket = options.socketFactory ?? ((url) => new WebSocket(url) as unknown as SocketLike);
     this.schedule = options.schedule ?? defaultSchedule;
     this.getClientIp = options.getClientIp;
+    this.fetchReplay =
+      options.fetchReplay ?? ((after, before) => replayEvents(this.projectId, after, this.token, before));
     this.onEvent = options.onEvent ?? noop;
     this.onStateChange = options.onStateChange ?? noop;
   }
@@ -286,12 +294,44 @@ export class EventStreamController {
       console.error("[useEventStream] malformed WS frame dropped: frame is not an object");
       return;
     }
+    const marker = parsed as { replayTruncated?: unknown; oldestSeqSent?: unknown; afterSeq?: unknown };
+    if (
+      marker.replayTruncated === true &&
+      typeof marker.oldestSeqSent === "number" &&
+      typeof marker.afterSeq === "number"
+    ) {
+      void this.backfill(marker.afterSeq, marker.oldestSeqSent);
+      return;
+    }
     const candidate = parsed as Partial<EventEnvelope>;
     if (typeof candidate.seq !== "number" || !Number.isFinite(candidate.seq)) {
       console.error("[useEventStream] malformed WS frame dropped: missing numeric seq");
       return;
     }
-    const envelope = parsed as EventEnvelope;
+    this.deliver(parsed as EventEnvelope);
+  }
+
+  /** W22: the server's capped replay sent only the newest events of the gap; page the
+   *  rest (afterSeq, beforeSeq) from REST, oldest-first, until a page comes back empty. */
+  private async backfill(afterSeq: number, beforeSeq: number): Promise<void> {
+    // Not tied to the socket generation: a reconnect resumes after lastSeq, which is
+    // already past this gap, so an abandoned backfill would lose it for good.
+    let cursor = afterSeq;
+    try {
+      while (!this.stopped) {
+        const page = await this.fetchReplay(cursor, beforeSeq);
+        if (this.stopped || page.items.length === 0) return;
+        for (const envelope of page.items) this.deliver(envelope);
+        if (page.nextCursor <= cursor) return;
+        cursor = page.nextCursor;
+      }
+    } catch (err) {
+      // A failed backfill leaves the gap but must not kill the live stream.
+      console.error("[useEventStream] replay backfill failed:", err instanceof Error ? err.message : err);
+    }
+  }
+
+  private deliver(envelope: EventEnvelope): void {
     this.lastSeq = Math.max(this.lastSeq, envelope.seq);
     try {
       this.onEvent(envelope);

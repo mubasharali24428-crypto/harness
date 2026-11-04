@@ -1,0 +1,20 @@
+{
+  "ageSeconds": 532317.5,
+  "alerts": {
+    "HarnessBackupStale": "firing",
+    "HarnessEventBusLag": "firing",
+    "HarnessRunQueueStalled": "firing"
+  },
+  "backupStaleState": "firing",
+  "checks": {
+    "alertAgreesWithExpr": true,
+    "exprAgreesWithAge": true,
+    "neverRanQuiet": true,
+    "seriesScraped": true
+  },
+  "expectedStale": true,
+  "exprHolds": true,
+  "seriesValue": 1792921634.665466,
+  "staleThresholdSeconds": 90000.0,
+  "verdict": "PASS"
+}

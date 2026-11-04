@@ -18,7 +18,16 @@ export interface CreateTaskRequest {
     forbiddenPaths?: string[];
     projectId?: string | null;
     repoRef: string;
+    resume?: boolean;
     taskId: string;
+}
+/** Diagnostic. Required keys: message. */
+export interface Diagnostic {
+    col?: number | null;
+    kind?: "error" | "warning" | "note";
+    line?: number | null;
+    message: string;
+    path?: string | null;
 }
 /** ExecCommandRequest. Required keys: command. */
 export interface ExecCommandRequest {
@@ -28,9 +37,20 @@ export interface ExecCommandRequest {
 export interface HTTPValidationError {
     detail?: ValidationError[];
 }
+/** HunkRef. Required keys: index, path. */
+export interface HunkRef {
+    index: number;
+    path: string;
+}
+/** RevertHunksRequest. Required keys: hunks. */
+export interface RevertHunksRequest {
+    hunks: HunkRef[];
+}
 /** StructuredExecResult. Required keys: exit_code, status. */
 export interface StructuredExecResult {
-    diagnostics?: string[];
+    diagnostics?: Diagnostic[];
+    diagnostics_source?: "protocol" | "located" | "scan" | "none";
+    diagnostics_truncated?: boolean;
     duration_ms?: number;
     exit_code: number;
     failed_count?: number;
@@ -91,10 +111,22 @@ export declare class SandboxClient {
     /** Checkpoint Diff
      *  GET /api/v1/sandbox/{projectId}/checkpoints/{sha}/diff */
     checkpoint_diff(project_id: string, sha: string): Promise<unknown>;
+    /** Checkpoint Hunks
+     *  GET /api/v1/sandbox/{projectId}/checkpoints/{sha}/hunks */
+    checkpoint_hunks(project_id: string, sha: string): Promise<Record<string, unknown>>;
+    /** Checkpoint Restore
+     *  POST /api/v1/sandbox/{projectId}/checkpoints/{sha}/restore */
+    checkpoint_restore(project_id: string, sha: string): Promise<Record<string, unknown>>;
+    /** Checkpoint Revert
+     *  POST /api/v1/sandbox/{projectId}/checkpoints/{sha}/revert */
+    checkpoint_revert(project_id: string, sha: string, body: RevertHunksRequest): Promise<Record<string, unknown>>;
     /** Get Project Tree
      *  GET /api/v1/sandbox/{projectId}/tree */
     get_project_tree(project_id: string, path?: string): Promise<TreeListing>;
     /** Health
      *  GET /health */
     health(): Promise<unknown>;
+    /** Ready
+     *  GET /ready */
+    ready_ready_get(): Promise<unknown>;
 }

@@ -114,6 +114,13 @@ class ContextService:
         self.overlap = overlap
         self.jobs: dict[str, IndexJob] = {}
         self._project_locks: dict[str, asyncio.Lock] = {}
+        self._active_projects: set[str] = set()
+        # M2-W19: cross-process admission identity. The durable reservation names
+        # this replica; the in-memory set stays as the same-process fast guard.
+        self._worker_id = uuid.uuid4().hex[:12]
+        import os
+
+        self._lease_seconds = int(os.environ.get("HARNESS_INDEX_LEASE_SECONDS", "900"))
         self.embed_calls = 0  # texts handed to the backend (skip-proof metric)
 
     # ------------------------------------------------------------------ jobs
@@ -133,16 +140,51 @@ class ContextService:
         root = pathlib.Path(repo_path)
         if not root.is_dir():
             raise RepoIndexError(f"repo_path is not a directory: {repo_path}")
-        if project_id in self._project_locks and self._project_locks[project_id].locked():
+        if project_id in self._active_projects:
             raise RepoIndexError(f"an index job is already running for project {project_id}")
-
-        await self._enforce_context_cap(project_id)
-
-        lock = self._project_locks.setdefault(project_id, asyncio.Lock())
-        job = IndexJob(id=str(uuid.uuid4()), project_id=project_id, repo_path=str(root))
-        self.jobs[job.id] = job
-        asyncio.get_running_loop().create_task(self._run_index(job, root, lock))
+        job_id = str(uuid.uuid4())
+        # Durable, cross-process admission BEFORE the first await: a second
+        # replica of this service shares the reservation table, so a live lease
+        # held elsewhere is refused here even though our own set is empty.
+        if not await self._reserve_durable(project_id, job_id):
+            owner = await self._reservation_owner(project_id)
+            who = (owner or {}).get("job_id", "another replica")
+            raise RepoIndexError(
+                f"project {project_id} is being indexed by another replica (job {who})"
+            )
+        # Reserve before the first await: another request can otherwise pass
+        # the lock check while this one is still resolving the team's cap.
+        self._active_projects.add(project_id)
+        try:
+            await self._enforce_context_cap(project_id)
+            lock = self._project_locks.setdefault(project_id, asyncio.Lock())
+            job = IndexJob(id=job_id, project_id=project_id, repo_path=str(root))
+            self.jobs[job.id] = job
+            asyncio.get_running_loop().create_task(self._run_index(job, root, lock))
+        except BaseException:
+            # Includes cancellation while checking the cap; no job owns the
+            # reservation until create_task succeeds, so free BOTH guards.
+            self._active_projects.discard(project_id)
+            await self._release_durable(project_id, job_id)
+            raise
         return job.to_status()
+
+    async def _reserve_durable(self, project_id: str, job_id: str) -> bool:
+        async with self.session_factory() as session:
+            async with session.begin():
+                return await self.store.acquire_reservation(
+                    session, project_id, job_id, self._worker_id,
+                    self._lease_seconds, datetime.now(UTC).isoformat(),
+                )
+
+    async def _reservation_owner(self, project_id: str) -> dict | None:
+        async with self.session_factory() as session:
+            return await self.store.current_reservation(session, project_id)
+
+    async def _release_durable(self, project_id: str, job_id: str) -> None:
+        async with self.session_factory() as session:
+            async with session.begin():
+                await self.store.release_reservation(session, project_id, job_id)
 
     async def _enforce_context_cap(self, project_id: str) -> None:
         """M22-M2: refuse indexing when the team's tier caps the index size.
@@ -217,6 +259,11 @@ class ContextService:
             except Exception as exc:  # noqa: BLE001 — job boundary; error goes to the wire
                 job.status = "failed"
                 job.error = f"{type(exc).__name__}: {exc}"
+            finally:
+                self._active_projects.discard(job.project_id)
+                # Free the durable lease only if THIS job still owns it (a reaped
+                # owner must not delete a fresh holder's reservation).
+                await self._release_durable(job.project_id, job.id)
 
     # ------------------------------------------------------------- ingestion
 

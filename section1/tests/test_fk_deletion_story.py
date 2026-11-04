@@ -52,6 +52,8 @@ import harness_identity.notifier  # noqa: F401
 # makes enumeration independent of which test file pytest collects first
 # (a sibling file importing harness_identity.sso would otherwise inflate or
 # deflate the inventory depending on alphabetical luck).
+import harness_identity.scim  # noqa: F401
+import harness_identity.siem_sink  # noqa: F401
 import harness_identity.sso  # noqa: F401
 
 # M22-M3: StripeWebhookEvent (0032) lives in its own module the same way;
@@ -110,6 +112,25 @@ DELETION_MAP: dict[tuple[str, str], tuple[str, str]] = {
     ("agent_plans", "run_id"): ("agent_runs.id", "CASCADE"),
     ("meeting_messages", "meeting_id"): ("meetings.id", "CASCADE"),
     ("project_rules", "project_id"): ("projects.id", "CASCADE"),
+    # M2-W12 (0066/0067): a team's reviewed skills die with the team; a
+    # project's memory dies with the project. Authorship and reviewer
+    # back-references survive the account deletion as "unknown".
+    ("team_skills", "team_id"): ("teams.id", "CASCADE"),
+    ("team_skills", "created_by"): ("users.id", "SET NULL"),
+    ("team_skills", "reviewed_by"): ("users.id", "SET NULL"),
+    ("project_memory", "project_id"): ("projects.id", "CASCADE"),
+    ("project_memory", "created_by"): ("users.id", "SET NULL"),
+    ("project_memory", "reviewed_by"): ("users.id", "SET NULL"),
+    # M2-W13 (0068): a runner belongs to its team and dies with it; its nonces
+    # and job offers die with the runner. Authorship/revocation back-references
+    # survive account deletion as "unknown". runner_jobs pins project_id (the
+    # run claim is lazy by design, so there is deliberately no run FK).
+    ("team_runners", "team_id"): ("teams.id", "CASCADE"),
+    ("team_runners", "created_by"): ("users.id", "SET NULL"),
+    ("team_runners", "revoked_by"): ("users.id", "SET NULL"),
+    ("runner_nonces", "runner_id"): ("team_runners.id", "CASCADE"),
+    ("runner_jobs", "runner_id"): ("team_runners.id", "CASCADE"),
+    ("runner_jobs", "project_id"): ("projects.id", "CASCADE"),
     # owned children of users
     ("github_connections", "user_id"): ("users.id", "CASCADE"),
     ("auth_sessions", "user_id"): ("users.id", "CASCADE"),
@@ -140,6 +161,23 @@ DELETION_MAP: dict[tuple[str, str], tuple[str, str]] = {
     # attempts (state rows) are ephemeral children of the same story.
     ("team_sso_configs", "team_id"): ("teams.id", "CASCADE"),
     ("sso_login_states", "team_id"): ("teams.id", "CASCADE"),
+    # M2-W16 (0070): a team's SCIM credentials die with it — a credential whose
+    # team is gone must not outlive it, and the minting/revoking accounts
+    # survive as "unknown". The externalId link is the directory's label for a
+    # human: it dies with either side, so both FKs are CASCADE.
+    ("scim_tokens", "team_id"): ("teams.id", "CASCADE"),
+    ("scim_tokens", "created_by"): ("users.id", "SET NULL"),
+    ("scim_tokens", "revoked_by"): ("users.id", "SET NULL"),
+    ("scim_user_links", "team_id"): ("teams.id", "CASCADE"),
+    ("scim_user_links", "user_id"): ("users.id", "CASCADE"),
+    # M2-W16 (0071): a team's SIEM collectors die with the team — an outbound
+    # endpoint that keeps pushing a vanished team's evidence is a leak, not a
+    # loose end. The author is RESTRICT, unlike SCIM's SET NULL: a collector is
+    # a live egress path with a delivery cursor, and an erasure that silently
+    # orphaned "who turned this on" would remove the only human attached to it.
+    # Account erasure must retire the sink first, and the law test says so.
+    ("siem_sinks", "team_id"): ("teams.id", "CASCADE"),
+    ("siem_sinks", "created_by"): ("users.id", "RESTRICT"),
     # M18-C3's rollup sidecar dies with its team (0027, models.CostLedgerDaily):
     # derived data — deleting the team deletes the rollup rows with it.
     ("cost_ledger_daily", "team_id"): ("teams.id", "CASCADE"),
@@ -234,13 +272,20 @@ def test_integrity_tables_never_cascade_or_null():
 
 
 def test_fk_inventory_size_is_pinned():
-    """38 ORM FKs (+1 SQL-side: agent_runs.pr_id) today; any schema-surface
+    """38 ORM FKs (+1 SQL-side: agent_runs.pr_id) at the pin's origin; any schema-surface
     change must touch this suite. (35 -> 36: M22-M3's stripe_webhook_events;
     36 -> 38: M22-M4's team_sso_configs + sso_login_states; 38 -> 43: Session 7's
-    integration_webhooks + integration_webhook_deliveries. The out-of-models
-    mirrors live in stripe_adapter.py / sso.py and are imported HERE for their
-    metadata side effect so enumeration is collection-order independent.)"""
-    assert len(_metadata_fks()) == 43
+    integration_webhooks + integration_webhook_deliveries; 43 -> 49: M2-W12's
+    team_skills + project_memory; 49 -> 55: M2-W13's team_runners (team +
+    author/revoker), runner_nonces, runner_jobs (runner + project); 55 -> 60:
+    M2-W16 slice 3's scim_tokens (team + author/revoker) and scim_user_links
+    (team + user); 60 -> 62: M2-W16 slice 4's siem_sinks (team CASCADE, author
+    RESTRICT — a live egress path keeps its human until erasure retires it). The
+    out-of-models mirrors live in stripe_adapter.py / sso.py / scim.py /
+    siem_sink.py and are imported
+    HERE for their metadata side effect so enumeration is collection-order
+    independent.)"""
+    assert len(_metadata_fks()) == 62
 
 
 # --------------------------------------------------------------------------

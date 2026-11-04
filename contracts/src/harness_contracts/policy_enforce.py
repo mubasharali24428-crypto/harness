@@ -61,16 +61,61 @@ IDENTITY_RULES: tuple[tuple[str, str, str], ...] = (
     ("GET", r"/api/v1/me", "read"),
     ("GET", r"/api/v1/audit", "administer"),
     ("GET", r"/api/v1/audit/export", "export"),
+    # Marathon 2.0 W16 slice 4: asking whether the hash chain still verifies is
+    # the same evidence door as pulling the export, so it carries the same
+    # permission rather than a new one an org policy would have to learn.
+    ("POST", r"/api/v1/audit/verify", "export"),
     ("GET", r"/api/v1/billing/state", "read"),
     ("PUT", r"/api/v1/billing/plan", "billing"),
     ("GET", r"/api/v1/(keys|projects|projects/[^/]+/(rules|events/replay))", "read"),
     ("POST|DELETE", r"/api/v1/keys(/[^/]+)?", "steer"),
     ("POST", r"/api/v1/projects", "steer"),
     ("PUT|DELETE", r"/api/v1/projects/[^/]+/rules", "steer"),
+    # Marathon 2.0 W12: team skills (reviewed instruction bundles) and project
+    # memory. Reads are reads; authoring and toggling steer; review and removal
+    # are admin-only, so the gate itself refuses an engineer, matching the
+    # handlers' role checks (defense in depth, not a second opinion).
+    ("GET", r"/api/v1/teams/[^/]+/skills", "read"),
+    ("POST", r"/api/v1/teams/[^/]+/skills/[^/]+/review", "administer"),
+    ("DELETE", r"/api/v1/teams/[^/]+/skills/[^/]+", "administer"),
+    ("*", r"/api/v1/teams/[^/]+/skills(/.*)?", "steer"),
+    ("GET", r"/api/v1/projects/[^/]+/memory", "read"),
+    ("POST", r"/api/v1/projects/[^/]+/memory/[^/]+/review", "administer"),
+    ("*", r"/api/v1/projects/[^/]+/memory(/.*)?", "steer"),
+    # Marathon 2.0 W13: bring-your-own runners. Admin surface follows the
+    # catalog posture (read to list, administer to mint/revoke/assign). The
+    # /runner/* routes authenticate a machine token instead of a Principal;
+    # with no principal the gate passes through to the route's own check, and
+    # these entries keep the route-classification law total.
+    ("GET", r"/api/v1/team-runners", "read"),
+    ("POST", r"/api/v1/team-runners/[^/]+/revoke", "administer"),
+    ("POST", r"/api/v1/team-runners/[^/]+/jobs", "administer"),
+    ("*", r"/api/v1/team-runners(/.*)?", "administer"),
+    ("GET", r"/api/v1/runner/jobs", "read"),
+    ("POST", r"/api/v1/runner/heartbeat", "read"),
+    ("POST", r"/api/v1/runner/jobs/[^/]+/claim", "steer"),
+    ("POST", r"/api/v1/runner/jobs/[^/]+/heartbeat", "steer"),
+    ("POST", r"/api/v1/runner/jobs/[^/]+/finish", "steer"),
+    # W13 execution leg: the plan-derived spec is read-only; reporting tool events
+    # writes to the run's transcript, so it is a steering act like finish.
+    ("GET", r"/api/v1/runner/jobs/[^/]+/spec", "read"),
+    ("POST", r"/api/v1/runner/jobs/[^/]+/events", "steer"),
     ("GET", r"/api/v1/teams/[^/]+/(members|invites|settings/.*)", "read"),
     ("*", r"/api/v1/teams/[^/]+/(members/.*|invites.*|seats/agent|settings/.*)",
      "administer"),
     ("*", r"/api/v1/teams/[^/]+/sso/config", "administer"),
+    # Marathon 2.0 W16: SCIM. Minting/revoking a directory credential is an
+    # admin act; the /scim/v2 protocol itself authenticates a MACHINE token, so
+    # there is no Principal for the gate to evaluate - it is EXEMPT and the
+    # route's own token check is the authority (same posture as /runner/*, whose
+    # entries exist to keep the classification law total).
+    ("GET", r"/api/v1/teams/[^/]+/scim/tokens", "read"),
+    ("*", r"/api/v1/teams/[^/]+/scim/tokens(/.*)?", "administer"),
+    # Marathon 2.0 W16 slice 4: a SIEM sink is an outbound egress decision plus a
+    # live delivery cursor over the team's evidence, so every verb on it is an
+    # admin act — there is no read-only view that an engineer should hold.
+    ("*", r"/api/v1/teams/[^/]+/siem/sinks(/.*)?", "administer"),
+    ("*", r"/scim/v2(/.*)?", EXEMPT),
     ("GET", r"/api/v1/workspaces(/.*)?", "read"),
     ("*", r"/api/v1/workspaces/(allowlist.*|templates|[^/]+/delete)", "administer"),
     ("*", r"/api/v1/workspaces(/.*)?", "steer"),

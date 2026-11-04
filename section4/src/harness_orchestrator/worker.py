@@ -53,6 +53,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 from typing import Any
 
 from harness_orchestrator.engine_runtime import resolve_engine_max_concurrency
@@ -70,6 +71,16 @@ _DEFAULT_CLAIM_BATCH_FALLBACK = 8
 # configured idle cadence (poll_interval) — no separate max knob needed.
 _DEFAULT_MIN_POLL_SECONDS = 0.01
 _DEFAULT_BACKOFF_FACTOR = 2.0
+#: W8 slice 2: how often the worker tries to reclaim abandoned boundary networks.
+_DEFAULT_BOUNDARY_SWEEP_SECONDS = 600.0
+#: W22: a sweep that judged nothing (daemon down, no socket) retries on this clock.
+#: Idling the full interval after a skipped sweep is how an orphan outlived its
+#: run: the orchestrator restart that skipped it was the only chance it got.
+_SWEEP_RETRY_SECONDS = 30.0
+#: W22: suspend detection and the reap deferral after it, sized from the
+#: service's 10s heartbeat interval (two missed beats plus margin).
+_SUSPEND_SLACK_SECONDS = 10.0
+_POST_SUSPEND_REAP_GRACE_SECONDS = 25.0
 
 
 def resolve_worker_claim_batch(environ=None) -> int:
@@ -143,6 +154,16 @@ class RunQueueWorker:
             else max(float(backoff_factor), 1.000001)
         )
         self._task: asyncio.Task | None = None
+        # W8 slice 2: the boundary sweep is housekeeping, not claim work — run it
+        # on its own slow cadence (first pass immediately after startup). The
+        # sentinel is -inf, not 0.0: monotonic() counts from host boot, so on a
+        # fresh CI VM (or a host rebooted moments before this process) uptime is
+        # below boundary_sweep_seconds and a 0.0 sentinel would mute the startup
+        # sweep for the rest of the window — orphaned boundaries would outlive it.
+        self.boundary_sweep_seconds = _float_knob(
+            env, "BOUNDARY_SWEEP_INTERVAL_SECONDS", _DEFAULT_BOUNDARY_SWEEP_SECONDS, minimum=1.0
+        )
+        self._last_boundary_sweep = float("-inf")
         # N2 slim-bus wake seam: created when the loop starts (needs a loop);
         # wake() before that is a harmless no-op.
         self._wake: asyncio.Event | None = None
@@ -173,15 +194,61 @@ class RunQueueWorker:
             logger.exception("orphan recovery failed at worker start")
         self._wake = asyncio.Event()
         interval = self.poll_interval
+        cycle_started = time.time()
+        reap_after = 0.0
         while True:
+            now = time.time()
+            # W22: a cycle that starts far later than its sleep allowed means this
+            # process was frozen (host sleep, VM or container pause). Our own runs'
+            # heartbeats went stale with it, so reaping first would reap live runs
+            # (2026-10-30: reaped 2 s after the Mac woke). Let them beat first.
+            if now - cycle_started > interval + _SUSPEND_SLACK_SECONDS:
+                reap_after = now + _POST_SUSPEND_REAP_GRACE_SECONDS
+                logger.warning(
+                    "worker loop was suspended %.0fs; reaping deferred", now - cycle_started
+                )
+            cycle_started = now
+            reaped: list[str] = []
             try:
                 # M13-H1b: release timed-out claims every cycle so a dead
                 # worker's run is blocked + emitted instead of stuck 'running'.
-                if hasattr(self.service, "reap_zombies"):
-                    await self.service.reap_zombies()
+                if hasattr(self.service, "reap_zombies") and now >= reap_after:
+                    reaped = await self.service.reap_zombies() or []
             except Exception:  # noqa: BLE001 — one bad sweep must never kill the worker
                 logger.exception("zombie reaper sweep failed")
+            if reaped:
+                # W22: these runs were just proven dead by the durable reaper, so
+                # their boundaries are garbage now — not after the ~10 min sweep
+                # interval. This is what closes the window when the orchestrator
+                # restarted and lost its in-memory `/reap` loop: the terminal event
+                # the reaper just wrote is the settlement proof the sweep reads.
+                self._last_boundary_sweep = float("-inf")
             claimed = 0
+            try:
+                # W8 slice 2: reclaim boundary networks of runs the lifecycle says
+                # are over. Rate-limited, because in the split deployment the
+                # Docker socket lives on the worker daemon and this call cannot
+                # see it: a per-cycle failure is expected noise, not an incident.
+                if (
+                    hasattr(self.service, "recover_boundaries")
+                    and time.monotonic() - self._last_boundary_sweep >= self.boundary_sweep_seconds
+                ):
+                    self._last_boundary_sweep = time.monotonic()
+                    report = await self.service.recover_boundaries()
+                    if report.get("count"):
+                        logger.info("boundary sweep removed %s network(s)", report["count"])
+                    elif report.get("error") or report.get("skipped"):
+                        # W22: nothing was judged, so nothing was gained by starting
+                        # the interval — retry on the short clock instead.
+                        self._last_boundary_sweep = (
+                            time.monotonic() - self.boundary_sweep_seconds + _SWEEP_RETRY_SECONDS
+                        )
+                        logger.debug(
+                            "boundary sweep did nothing: %s",
+                            report.get("error") or report.get("skipped"),
+                        )
+            except Exception:  # noqa: BLE001 — cleanup must never kill the worker
+                logger.debug("boundary sweep failed", exc_info=True)
             try:
                 # M20-T1: one cycle may admit a whole batch. Services predating
                 # the max_claims seam raise TypeError here; fall back to the

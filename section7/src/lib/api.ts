@@ -167,6 +167,25 @@ export function displayErrorMessage(err: unknown): string {
   return `${raw} If this keeps happening, contact support with the time it occurred.`;
 }
 
+/** W23: one entry of GET /api/v1/orchestrator/readiness. */
+export interface ReadinessCheck {
+  check: "provider" | "model" | "worker" | "revision" | "repository" | "permissions";
+  status: "ok" | "fail" | "unknown";
+  component: string;
+  reason: string;
+  detail: string;
+}
+
+export interface ReadinessReport {
+  ok: boolean;
+  checks: ReadinessCheck[];
+}
+
+export function getReadiness(projectId: string, token: string | null): Promise<ReadinessReport> {
+  const q = new URLSearchParams({ projectId });
+  return apiFetch(`${ORCHESTRATOR_BASE}/api/v1/orchestrator/readiness?${q}`, token);
+}
+
 export function getRunStatus(runId: string, token: string): Promise<RunStatus> {
   return apiFetch(`${ORCHESTRATOR_BASE}/api/v1/orchestrator/runs/${runId}/status`, token);
 }
@@ -196,6 +215,28 @@ export function resumeAgent(runId: string, token: string): Promise<{ runId: stri
   return apiFetch(`${ORCHESTRATOR_BASE}/api/v1/orchestrator/runs/${runId}/resume`, token, {
     method: "POST",
   });
+}
+
+// W2 (N04): retry a stuck run *with a correction*. The order is the feature —
+// guidance is recorded first because the executor drains it with
+// `guidance_since` when it starts; resuming first would read nothing and throw
+// the operator's correction away, which is the fake affordance this replaces.
+// Empty content is refused rather than treated as a plain resume: that already
+// has its own button, and this one has to mean something.
+export async function resumeWithChanges(
+  runId: string,
+  content: string,
+  token: string,
+): Promise<{ runId: string; state: string }> {
+  const trimmed = content.trim();
+  if (!trimmed) {
+    throw new ApiError("Describe what should change before resuming", "EMPTY_CHANGE", 400);
+  }
+  await apiFetch(`${ORCHESTRATOR_BASE}/api/v1/orchestrator/runs/${runId}/redirect`, token, {
+    method: "POST",
+    body: JSON.stringify({ kind: "guidance", content: trimmed }),
+  });
+  return resumeAgent(runId, token);
 }
 
 export function stopAgent(runId: string, token: string): Promise<{ runId: string; status: string }> {
@@ -244,9 +285,12 @@ export function replayEvents(
   projectId: string,
   afterSeq: number,
   token: string,
+  beforeSeq?: number,
 ): Promise<{ items: EventEnvelope[]; nextCursor: number }> {
+  // W22: beforeSeq pages a truncated replay gap oldest-first.
+  const before = beforeSeq ? `&before_seq=${beforeSeq}` : "";
   return apiFetch(
-    `${IDENTITY_BASE}/api/v1/projects/${projectId}/events/replay?after_seq=${afterSeq}`,
+    `${IDENTITY_BASE}/api/v1/projects/${projectId}/events/replay?after_seq=${afterSeq}${before}`,
     token,
   );
 }

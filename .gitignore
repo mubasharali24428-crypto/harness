@@ -7,6 +7,11 @@ __pycache__/
 .ruff_cache/
 build/
 dist/
+# Exception: the TypeScript client's compiled output IS the published artifact
+# (installed straight from git), so it stays tracked. Ignoring it while tracked
+# made `git add clients/ts/dist` a silent no-op after a rebuild — the drift
+# `make check-ts-dist` now guards.
+!clients/ts/dist/
 
 # Node / Next.js
 node_modules/
@@ -35,3 +40,4 @@ task0/sessions/
 
 # macOS Finder metadata
 .DS_Store
+clients/vscode/*.vsix

@@ -42,6 +42,7 @@ re-reads the deployment's current values; tests inject explicit numbers.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import os
 import time
@@ -241,6 +242,24 @@ class ProviderCircuitBreaker:
         return max(until - time.monotonic(), 0.0)
 
 
+def accepts_keyword(func: Any, name: str) -> bool:
+    """Whether ``func`` can be called with keyword ``name``.
+
+    Optional plumbing (``model``, ``on_progress``) must never turn a narrower
+    engine — a test stub, a custom runtime — into a TypeError: capability is
+    probed, not assumed. ``**kwargs`` counts as accepting anything; an
+    uninspectable callable (C extension, builtin) is treated as NOT accepting,
+    so we pass less rather than break the call.
+    """
+    try:
+        params = inspect.signature(func).parameters
+    except (TypeError, ValueError):
+        return False
+    if name in params:
+        return True
+    return any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+
+
 def provider_key_for(engine: Any) -> str:
     """Name WHO would hang, for the breaker: ``provider|model``.
 
@@ -305,7 +324,14 @@ class EngineRuntime:
         self._executor.shutdown(wait=False, cancel_futures=True)
 
     async def run(
-        self, engine: Any, *, goal: str, session_id: str
+        self,
+        engine: Any,
+        *,
+        goal: str,
+        session_id: str,
+        model: str | None = None,
+        on_progress: Callable[[dict[str, Any]], None] | None = None,
+        images: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Run one engine call under breaker + deadline; result or raise.
 
@@ -316,9 +342,23 @@ class EngineRuntime:
         """
         key = provider_key_for(engine)
         self.breaker.check(key)  # fail fast BEFORE consuming a slot
-        call: Callable[[], dict[str, Any]] = partial(
-            engine.execute_goal, goal=goal, session_id=session_id
-        )
+        # Optional keywords are passed only when set AND accepted: custom
+        # engines in tests keep their narrower signatures, and the default
+        # path stays byte-for-byte unchanged.
+        kwargs: dict[str, Any] = {"goal": goal, "session_id": session_id}
+        if model:
+            kwargs["model"] = model
+        if on_progress is not None and accepts_keyword(engine.execute_goal, "on_progress"):
+            kwargs["on_progress"] = on_progress
+        if images:
+            if accepts_keyword(engine.execute_goal, "images"):
+                kwargs["images"] = images
+            else:  # never drop a user's screenshot silently
+                logger.warning(
+                    "engine %s cannot accept goal images; sending text only",
+                    type(engine).__name__,
+                )
+        call: Callable[[], dict[str, Any]] = partial(engine.execute_goal, **kwargs)
         # Submit directly so the thread's real lifetime is tracked: a cancelled
         # or timed-out await does NOT end the thread, and callers (stop) must
         # not claim the run is quiet while it can still touch files.

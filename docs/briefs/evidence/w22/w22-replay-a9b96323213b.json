@@ -1,0 +1,29 @@
+{
+  "runId": "w22-replay-a9b96323213b",
+  "checks": {
+    "eventObservedBeforeDisconnect": true,
+    "eventsPersistedWhileDisconnected": true,
+    "resumeMatchesRestReplay": true,
+    "orderedUniqueAfterCursor": true
+  },
+  "spend": 0,
+  "verdict": "PASS",
+  "projectId": "11e605a1-0dab-4dd9-889e-8b0d9f33c1fd",
+  "beforeDisconnect": {
+    "seq": 4519,
+    "type": "plan_proposed"
+  },
+  "persistedAfterCursor": [
+    [
+      4520,
+      "plan_approved"
+    ]
+  ],
+  "replayedAfterCursor": [
+    [
+      4520,
+      "plan_approved"
+    ]
+  ],
+  "recordedAtUnix": 1793378843
+}

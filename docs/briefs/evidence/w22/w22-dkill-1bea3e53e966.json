@@ -1,0 +1,400 @@
+{
+  "runId": "w22-dkill-1bea3e53e966",
+  "mode": "orchestrator-restart",
+  "deadSeconds": 60,
+  "verdict": "PASS",
+  "daemonImage": "harness-worker-daemon:vw23f24 sha256:95d5754f92db84b9239bcbe5a14bf9eb398326f500f5a28ad71e59d335509142",
+  "before": {
+    "at": "09:34:51",
+    "daemon": "running",
+    "state": "executing",
+    "lifecycle": {
+      "phase": "running",
+      "cancelRequested": false,
+      "cancelConfirmed": false,
+      "mutationPossible": true,
+      "userStatus": "working"
+    },
+    "claim": "running",
+    "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call",
+    "containers": {
+      "worker": "bf973ca73e98",
+      "relay": "6564fc9fbee7"
+    },
+    "onRunNetwork": [
+      "harness-66df46eb96a046aca5866f2aef2cd7db",
+      "harness-66df46eb96a046aca5866f2aef2cd7db-relay"
+    ],
+    "childLive": true,
+    "networks": [
+      "harness-66df46eb96a046aca5866f2aef2cd7db-net"
+    ]
+  },
+  "killedAtUtc": "2026-10-31T16:34:51Z",
+  "killExit": 0,
+  "daemonDead": {
+    "at": "09:35:51",
+    "daemon": "exited",
+    "state": "blocked",
+    "lifecycle": {
+      "phase": "blocked",
+      "cancelRequested": false,
+      "cancelConfirmed": false,
+      "mutationPossible": true,
+      "userStatus": "blocked"
+    },
+    "claim": "",
+    "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call,engine_failed:worker daemon ended the run without a result",
+    "containers": {
+      "worker": "bf973ca73e98",
+      "relay": "6564fc9fbee7"
+    },
+    "onRunNetwork": [
+      "harness-66df46eb96a046aca5866f2aef2cd7db",
+      "harness-66df46eb96a046aca5866f2aef2cd7db-relay"
+    ],
+    "childLive": true,
+    "networks": [
+      "harness-66df46eb96a046aca5866f2aef2cd7db-net"
+    ]
+  },
+  "orchestratorRestartExit": 0,
+  "orchestratorHealthy": true,
+  "afterOrchestratorRestart": {
+    "at": "09:35:58",
+    "daemon": "exited",
+    "state": "blocked",
+    "lifecycle": {
+      "phase": "blocked",
+      "cancelRequested": false,
+      "cancelConfirmed": false,
+      "mutationPossible": true,
+      "userStatus": "blocked"
+    },
+    "claim": "",
+    "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call,engine_failed:worker daemon ended the run without a result",
+    "containers": {
+      "worker": "bf973ca73e98",
+      "relay": "6564fc9fbee7"
+    },
+    "onRunNetwork": [
+      "harness-66df46eb96a046aca5866f2aef2cd7db",
+      "harness-66df46eb96a046aca5866f2aef2cd7db-relay"
+    ],
+    "childLive": true,
+    "networks": [
+      "harness-66df46eb96a046aca5866f2aef2cd7db-net"
+    ]
+  },
+  "startExit": 0,
+  "daemonBack": {
+    "at": "09:36:19",
+    "daemon": "running",
+    "state": "blocked",
+    "lifecycle": {
+      "phase": "blocked",
+      "cancelRequested": false,
+      "cancelConfirmed": false,
+      "mutationPossible": true,
+      "userStatus": "blocked"
+    },
+    "claim": "",
+    "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call,engine_failed:worker daemon ended the run without a result",
+    "containers": {
+      "worker": "bf973ca73e98",
+      "relay": "6564fc9fbee7"
+    },
+    "onRunNetwork": [
+      "harness-66df46eb96a046aca5866f2aef2cd7db",
+      "harness-66df46eb96a046aca5866f2aef2cd7db-relay"
+    ],
+    "childLive": true,
+    "networks": [
+      "harness-66df46eb96a046aca5866f2aef2cd7db-net"
+    ]
+  },
+  "durableReapSeconds": 37,
+  "orphanAliveBeforeStop": false,
+  "orphanLivedAfterDaemonStartSeconds": 37,
+  "after": {
+    "at": "09:36:36",
+    "daemon": "running",
+    "state": "blocked",
+    "lifecycle": {
+      "phase": "blocked",
+      "cancelRequested": false,
+      "cancelConfirmed": false,
+      "mutationPossible": false,
+      "userStatus": "blocked"
+    },
+    "claim": "",
+    "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call,engine_failed:worker daemon ended the run without a result",
+    "containers": {},
+    "onRunNetwork": [],
+    "childLive": false,
+    "networks": []
+  },
+  "snapshots": [
+    {
+      "at": "09:35:51",
+      "daemon": "exited",
+      "state": "blocked",
+      "lifecycle": {
+        "phase": "blocked",
+        "cancelRequested": false,
+        "cancelConfirmed": false,
+        "mutationPossible": true,
+        "userStatus": "blocked"
+      },
+      "claim": "",
+      "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call,engine_failed:worker daemon ended the run without a result",
+      "containers": {
+        "worker": "bf973ca73e98",
+        "relay": "6564fc9fbee7"
+      },
+      "onRunNetwork": [
+        "harness-66df46eb96a046aca5866f2aef2cd7db",
+        "harness-66df46eb96a046aca5866f2aef2cd7db-relay"
+      ],
+      "childLive": true,
+      "networks": [
+        "harness-66df46eb96a046aca5866f2aef2cd7db-net"
+      ]
+    },
+    {
+      "at": "09:35:58",
+      "daemon": "exited",
+      "state": "blocked",
+      "lifecycle": {
+        "phase": "blocked",
+        "cancelRequested": false,
+        "cancelConfirmed": false,
+        "mutationPossible": true,
+        "userStatus": "blocked"
+      },
+      "claim": "",
+      "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call,engine_failed:worker daemon ended the run without a result",
+      "containers": {
+        "worker": "bf973ca73e98",
+        "relay": "6564fc9fbee7"
+      },
+      "onRunNetwork": [
+        "harness-66df46eb96a046aca5866f2aef2cd7db",
+        "harness-66df46eb96a046aca5866f2aef2cd7db-relay"
+      ],
+      "childLive": true,
+      "networks": [
+        "harness-66df46eb96a046aca5866f2aef2cd7db-net"
+      ]
+    },
+    {
+      "at": "09:36:19",
+      "daemon": "running",
+      "state": "blocked",
+      "lifecycle": {
+        "phase": "blocked",
+        "cancelRequested": false,
+        "cancelConfirmed": false,
+        "mutationPossible": true,
+        "userStatus": "blocked"
+      },
+      "claim": "",
+      "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call,engine_failed:worker daemon ended the run without a result",
+      "containers": {
+        "worker": "bf973ca73e98",
+        "relay": "6564fc9fbee7"
+      },
+      "onRunNetwork": [
+        "harness-66df46eb96a046aca5866f2aef2cd7db",
+        "harness-66df46eb96a046aca5866f2aef2cd7db-relay"
+      ],
+      "childLive": true,
+      "networks": [
+        "harness-66df46eb96a046aca5866f2aef2cd7db-net"
+      ]
+    },
+    {
+      "at": "09:36:20",
+      "daemon": "running",
+      "state": "blocked",
+      "lifecycle": {
+        "phase": "blocked",
+        "cancelRequested": false,
+        "cancelConfirmed": false,
+        "mutationPossible": true,
+        "userStatus": "blocked"
+      },
+      "claim": "",
+      "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call,engine_failed:worker daemon ended the run without a result",
+      "containers": {
+        "worker": "bf973ca73e98",
+        "relay": "6564fc9fbee7"
+      },
+      "onRunNetwork": [
+        "harness-66df46eb96a046aca5866f2aef2cd7db",
+        "harness-66df46eb96a046aca5866f2aef2cd7db-relay"
+      ],
+      "childLive": true,
+      "networks": [
+        "harness-66df46eb96a046aca5866f2aef2cd7db-net"
+      ]
+    },
+    {
+      "at": "09:36:23",
+      "daemon": "running",
+      "state": "blocked",
+      "lifecycle": {
+        "phase": "blocked",
+        "cancelRequested": false,
+        "cancelConfirmed": false,
+        "mutationPossible": true,
+        "userStatus": "blocked"
+      },
+      "claim": "",
+      "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call,engine_failed:worker daemon ended the run without a result",
+      "containers": {
+        "worker": "bf973ca73e98",
+        "relay": "6564fc9fbee7"
+      },
+      "onRunNetwork": [
+        "harness-66df46eb96a046aca5866f2aef2cd7db",
+        "harness-66df46eb96a046aca5866f2aef2cd7db-relay"
+      ],
+      "childLive": true,
+      "networks": [
+        "harness-66df46eb96a046aca5866f2aef2cd7db-net"
+      ]
+    },
+    {
+      "at": "09:36:25",
+      "daemon": "running",
+      "state": "blocked",
+      "lifecycle": {
+        "phase": "blocked",
+        "cancelRequested": false,
+        "cancelConfirmed": false,
+        "mutationPossible": true,
+        "userStatus": "blocked"
+      },
+      "claim": "",
+      "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call,engine_failed:worker daemon ended the run without a result",
+      "containers": {
+        "worker": "bf973ca73e98",
+        "relay": "6564fc9fbee7"
+      },
+      "onRunNetwork": [
+        "harness-66df46eb96a046aca5866f2aef2cd7db",
+        "harness-66df46eb96a046aca5866f2aef2cd7db-relay"
+      ],
+      "childLive": true,
+      "networks": [
+        "harness-66df46eb96a046aca5866f2aef2cd7db-net"
+      ]
+    },
+    {
+      "at": "09:36:28",
+      "daemon": "running",
+      "state": "blocked",
+      "lifecycle": {
+        "phase": "blocked",
+        "cancelRequested": false,
+        "cancelConfirmed": false,
+        "mutationPossible": true,
+        "userStatus": "blocked"
+      },
+      "claim": "",
+      "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call,engine_failed:worker daemon ended the run without a result",
+      "containers": {
+        "worker": "bf973ca73e98",
+        "relay": "6564fc9fbee7"
+      },
+      "onRunNetwork": [
+        "harness-66df46eb96a046aca5866f2aef2cd7db",
+        "harness-66df46eb96a046aca5866f2aef2cd7db-relay"
+      ],
+      "childLive": true,
+      "networks": [
+        "harness-66df46eb96a046aca5866f2aef2cd7db-net"
+      ]
+    },
+    {
+      "at": "09:36:31",
+      "daemon": "running",
+      "state": "blocked",
+      "lifecycle": {
+        "phase": "blocked",
+        "cancelRequested": false,
+        "cancelConfirmed": false,
+        "mutationPossible": true,
+        "userStatus": "blocked"
+      },
+      "claim": "",
+      "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call,engine_failed:worker daemon ended the run without a result",
+      "containers": {},
+      "onRunNetwork": [
+        "harness-66df46eb96a046aca5866f2aef2cd7db-relay"
+      ],
+      "childLive": false,
+      "networks": [
+        "harness-66df46eb96a046aca5866f2aef2cd7db-net"
+      ]
+    },
+    {
+      "at": "09:36:34",
+      "daemon": "running",
+      "state": "blocked",
+      "lifecycle": {
+        "phase": "blocked",
+        "cancelRequested": false,
+        "cancelConfirmed": false,
+        "mutationPossible": true,
+        "userStatus": "blocked"
+      },
+      "claim": "",
+      "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call,engine_failed:worker daemon ended the run without a result",
+      "containers": {},
+      "onRunNetwork": [
+        "harness-66df46eb96a046aca5866f2aef2cd7db-relay"
+      ],
+      "childLive": false,
+      "networks": [
+        "harness-66df46eb96a046aca5866f2aef2cd7db-net"
+      ]
+    },
+    {
+      "at": "09:36:36",
+      "daemon": "running",
+      "state": "blocked",
+      "lifecycle": {
+        "phase": "blocked",
+        "cancelRequested": false,
+        "cancelConfirmed": false,
+        "mutationPossible": false,
+        "userStatus": "blocked"
+      },
+      "claim": "",
+      "events": "plan_proposed,plan_approved,execution_started,model_routed,tool_call,engine_failed:worker daemon ended the run without a result",
+      "containers": {},
+      "onRunNetwork": [],
+      "childLive": false,
+      "networks": []
+    }
+  ],
+  "daemonCalls": [],
+  "sweepCalls": [
+    "2026-10-31 16:36:35,542 INFO POST /sweep"
+  ],
+  "checks": {
+    "daemonBack": true,
+    "runNotRunning": true,
+    "claimReleased": true,
+    "noLiveWorkerOrRelay": true,
+    "noLiveChild": true,
+    "statusTruthful": true,
+    "orchestratorHealthy": true,
+    "orphanLiveAfterRestart": true,
+    "durableReapWithoutUserStop": true,
+    "daemonLoggedSweep": true,
+    "settledWithoutUserStop": true
+  }
+}

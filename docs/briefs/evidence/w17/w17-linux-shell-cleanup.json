@@ -1,0 +1,1 @@
+{"verdict": "PASS", "platform": "Linux 6.12.76-linuxkit", "resolvedConfinement": "landlock", "checks": {"isLinux": true, "landlockSupported": true, "resolvedConfinementIsLandlock": true, "execTimedOut": true, "grandchildWasSpawned": true, "_aliveDetectsLiveProcess": true, "grandchildReapedByGroupKill": true, "taskStorageRemoved": true}, "grandchildPid": 1483}

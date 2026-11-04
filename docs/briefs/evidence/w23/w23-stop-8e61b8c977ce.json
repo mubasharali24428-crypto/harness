@@ -1,0 +1,85 @@
+{
+  "drillId": "w23-stop-8e61b8c977ce",
+  "runId": "w23stop-1793460273",
+  "verdict": "PASS",
+  "checks": {
+    "liveChildBeforeStop": true,
+    "userStatusWorking": true,
+    "guidanceSaysNextExecution": true,
+    "cliStopConfirmed": true,
+    "noOrphanContainers": true,
+    "workerContainerRemoved": true,
+    "lifecycleConfirmed": true,
+    "userStatusFinished": true,
+    "cliStatusFinished": true
+  },
+  "git": "ff517eef9d98b9db3cdffddb67ad1c85a31003d7",
+  "processesAtStop": [
+    {
+      "pid": "36992",
+      "cmd": "python -m harness_orchestrator.engine_worker"
+    },
+    {
+      "pid": "37015",
+      "cmd": "/usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runtime/deepseek-harness-sdk-runtime-linux-arm64 --prof"
+    },
+    {
+      "pid": "37075",
+      "cmd": "python -m harness_orchestrator.mcp_stub"
+    },
+    {
+      "pid": "37253",
+      "cmd": "/usr/local/bin/python -I /opt/harness-shell/shell_gate.py"
+    },
+    {
+      "pid": "37257",
+      "cmd": "/bin/sh -c python3 -c 'import time; time.sleep(180)'"
+    },
+    {
+      "pid": "37259",
+      "cmd": "python3 -c import time; time.sleep(180)"
+    }
+  ],
+  "lifecycleRunning": {
+    "phase": "running",
+    "cancelRequested": false,
+    "cancelConfirmed": false,
+    "mutationPossible": true,
+    "userStatus": "working"
+  },
+  "guidance": {
+    "status": 200,
+    "body": {
+      "seq": 421,
+      "duplicate": false,
+      "invalidatedApprovals": 0,
+      "takesEffect": "next_execution"
+    }
+  },
+  "cliStop": {
+    "exitCode": 0,
+    "body": {
+      "command": "stop",
+      "confirmed": true,
+      "exitCode": 0,
+      "ok": true,
+      "runId": "w23stop-1793460273",
+      "schemaVersion": 1,
+      "status": "stopped"
+    },
+    "seconds": 0.62
+  },
+  "containersAfterStop": {},
+  "workerByNameAfterStop": [],
+  "lifecycleAfter": {
+    "phase": "stopped",
+    "cancelRequested": true,
+    "cancelConfirmed": true,
+    "mutationPossible": false,
+    "userStatus": "finished"
+  },
+  "cliStatus": {
+    "exitCode": 0,
+    "userStatus": "finished"
+  }
+}

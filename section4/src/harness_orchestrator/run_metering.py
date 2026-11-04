@@ -48,20 +48,78 @@ def estimate_tokens(goal: str, response_text: str) -> tuple[int, int]:
     )
 
 
-def fold_usage(result: dict[str, Any], goal: str) -> tuple[int, int]:
-    """Real token usage from an engine result, else the text-based estimate.
+def _usage_tuples(usage: dict[str, Any]) -> tuple[int, int] | None:
+    """(input+cacheRead, output) from a usage dict; cache reads bill as input.
 
-    Accepts both result shapes the completion path sees: a raw SDK mapping
-    with a ``usage`` key (folded by the wrapper from dsh usage chunks) or the
-    plain {sessionId, engine, status, finalResponse} dict.
+    The pricing catalog has no cache-read tier, so cached prompt tokens are
+    priced at the input rate — an upper bound on the real bill, never a row
+    that pretends those tokens were never sent.
+    """
+    try:
+        input_tokens = int(usage.get("inputTokens") or 0)
+        output_tokens = int(usage.get("outputTokens") or 0)
+        cache_read = int(usage.get("cacheReadTokens") or 0)
+    except (TypeError, ValueError):
+        return None
+    if input_tokens == 0 and output_tokens == 0 and cache_read == 0:
+        return None
+    return input_tokens + cache_read, output_tokens
+
+
+def fold_usage(
+    result: dict[str, Any],
+    goal: str,
+    *,
+    engine: Any = None,
+    run_id: str | None = None,
+    allow_estimate: bool = True,
+) -> tuple[int, int] | None:
+    """Real token usage from the engine, else the session transcript, else an estimate.
+
+    Order matters (measured on 2026-10-29): the live SDK in this deployment
+    emits no usage chunks, so ``result["usage"]`` is usually absent while the
+    session transcript records every billed step. The transcript is read next;
+    only a run with neither falls back to the ~4 chars/token estimate (stub/dry
+    mode), keeping every row honestly attributable.
     """
     usage = result.get("usage")
     if isinstance(usage, dict):
-        try:
-            return int(usage.get("inputTokens") or 0), int(usage.get("outputTokens") or 0)
-        except (TypeError, ValueError):
-            pass
+        found = _usage_tuples(usage)
+        if found is not None:
+            return found
+    reader = getattr(engine, "session_usage", None)
+    if callable(reader) and run_id:
+        transcript = reader(run_id)
+        if isinstance(transcript, dict):
+            found = _usage_tuples(transcript)
+            if found is not None:
+                return found
+    if not allow_estimate:
+        return None  # a failed run with no record spent nothing we can prove
     return estimate_tokens(goal, str(result.get("finalResponse") or ""))
+
+
+async def _recorded_tokens(factory: Any, run_id: str | None) -> tuple[int, int] | None:
+    """Tokens already in cost_ledger for this run (None when unreadable)."""
+    if not run_id:
+        return (0, 0)
+    from sqlalchemy import text
+
+    try:
+        async with factory() as db:
+            row = (
+                await db.execute(
+                    text(
+                        "SELECT COALESCE(SUM(input_tokens), 0),"
+                        " COALESCE(SUM(output_tokens), 0)"
+                        " FROM cost_ledger WHERE run_id = :rid"
+                    ),
+                    {"rid": run_id},
+                )
+            ).first()
+    except Exception:  # noqa: BLE001 — caller decides; never guess
+        return None
+    return (int(row[0] or 0), int(row[1] or 0)) if row else (0, 0)
 
 
 def resolve_engine_model(engine: Any, result: dict[str, Any]) -> str:
@@ -82,10 +140,17 @@ def resolve_engine_model(engine: Any, result: dict[str, Any]) -> str:
     return "stub"
 
 
-async def record_run_cost(service: Any, run_data: dict[str, Any], plan: Any) -> None:
-    """Record one completed engine run's actual usage/cost into cost_ledger.
+async def record_run_cost(
+    service: Any, run_data: dict[str, Any], plan: Any, *, allow_estimate: bool = True
+) -> None:
+    """Record one engine attempt's actual usage/cost into cost_ledger.
 
-    Called from the completion path only (never on cancel/failure paths).
+    Called on every terminal path — completion, timeout, exception, cancel,
+    guard stop, staging failure and a non-completed status — so spend that
+    really happened is never invisible. The failure paths pass
+    ``allow_estimate=False``: they bill only usage the transcript proves, never
+    a text estimate. Only the unbilled delta is recorded, so a run that runs
+    twice (a blocked attempt later resumed) cannot double-count.
     Fire-and-forget by construction: any failure logs at warning level and
     returns — metering must NEVER break orchestration. Skips honestly (debug
     log, no row) when there is no DB factory or the team cannot be resolved;
@@ -106,9 +171,33 @@ async def record_run_cost(service: Any, run_data: dict[str, Any], plan: Any) -> 
         run_id = str(run_data.get("runId") or "") or None
         goal = str(run_data.get("goal") or "")
         result = run_data.get("engine_result") or {}
-        input_tokens, output_tokens = fold_usage(result, goal)
-        model = resolve_engine_model(getattr(service, "engine", None), result)
+        engine = getattr(service, "engine", None)
+        folded = fold_usage(
+            result, goal, engine=engine, run_id=run_id, allow_estimate=allow_estimate
+        )
+        if folded is None:
+            logger.info("run-cost metering: no measurable usage for %s", run_id)
+            return
+        input_tokens, output_tokens = folded
+        model = resolve_engine_model(engine, result)
         latency_ms = int(result.get("latencyMs") or 0)
+
+        # A run can execute more than once (a blocked attempt that is resumed).
+        # session_usage() sums the WHOLE session, so billing it each time would
+        # count the earlier attempt twice. Record only the delta; an unreadable
+        # ledger means we cannot know the delta, so skip rather than double-bill.
+        already = await _recorded_tokens(factory, run_id)
+        if already is None:
+            logger.warning(
+                "run-cost metering skipped for run %s: prior rows unreadable", run_id
+            )
+            return
+        input_delta = max(0, input_tokens - already[0])
+        output_delta = max(0, output_tokens - already[1])
+        if input_delta == 0 and output_delta == 0:
+            logger.debug("run-cost metering: no new tokens for %s", run_id)
+            return
+        input_tokens, output_tokens = input_delta, output_delta
         cost_usd = PricingEngine.calculate_cost(model, input_tokens, output_tokens)
 
         team_id = await service._team_for_run(run_data)
@@ -166,6 +255,7 @@ async def record_engine_tool_calls(
 
         from harness_orchestrator.agent_tree import _SECRETISH
         from harness_orchestrator.collab import db_now
+        from harness_orchestrator.review_summary import call_summary
 
         run_id = str(run_data["runId"])
         team_id = await service._team_for_run(run_data)
@@ -185,7 +275,8 @@ async def record_engine_tool_calls(
                     {
                         "id": str(uuid4()), "r": run_id, "t": team_id,
                         "tool": str(call.get("tool") or "unknown")[:80], "tg": target,
-                        "s": f"engine {call.get('tool')} call", "o": call.get("outcome") or "error",
+                        "s": call_summary(call.get("tool"), call.get("exitCode")),
+                        "o": call.get("outcome") or "error",
                         "q": str(call.get("callId"))[:64], "n": db_now(),
                     },
                 )

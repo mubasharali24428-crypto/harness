@@ -61,6 +61,16 @@ _IDEMPOTENT_METHODS = frozenset({"POST"})
 logger = logging.getLogger("harness.envelope")
 
 
+# RFC 7644 §3.12: an external protocol's error body IS that protocol's contract.
+# Okta/Entra connectors parse `schemas`/`status`/`detail` and treat anything else
+# as a transport failure, so a SCIM error must leave this service byte-for-byte.
+SCIM_ERROR_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:Error"
+
+
+def _is_scim_error(detail: object) -> bool:
+    return isinstance(detail, dict) and SCIM_ERROR_SCHEMA in (detail.get("schemas") or [])
+
+
 def _envelope(code: str, message: str) -> dict:
     """Contract envelope + mirrored legacy ``detail`` field.
 
@@ -87,6 +97,19 @@ def install_error_envelope(app: FastAPI) -> None:
             )
             for err in exc.errors()
         )
+        if request.url.path.startswith("/scim/"):
+            # Same reasoning as the pass-through below: a SCIM connector has no
+            # meaning for 422 or for our envelope. RFC 7644 §3.12 answers a
+            # malformed request body with 400 + invalidSyntax.
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "schemas": [SCIM_ERROR_SCHEMA],
+                    "status": "400",
+                    "scimType": "invalidSyntax",
+                    "detail": f"invalid request body: {summary}",
+                },
+            )
         return JSONResponse(
             status_code=422,
             content=_envelope("VALIDATION_ERROR", f"invalid request: {summary}"),
@@ -97,6 +120,13 @@ def install_error_envelope(app: FastAPI) -> None:
         request: Request, exc: StarletteHTTPException
     ) -> JSONResponse:
         detail = exc.detail
+        if _is_scim_error(detail):
+            # Pass-through, scoped to the SCIM error marker: every other dict
+            # detail keeps being normalized, so this cannot quietly change the
+            # wire format of an /api/v1 route.
+            return JSONResponse(
+                status_code=exc.status_code, content=detail, headers=exc.headers
+            )
         inner = detail.get("error") if isinstance(detail, dict) else None
         if isinstance(inner, dict) and "code" in inner and "message" in inner:
             # Already contract-shaped (routes raise HTTPException(detail=error_body(...))):
@@ -108,7 +138,11 @@ def install_error_envelope(app: FastAPI) -> None:
             content = _envelope(code, message)
             content["detail"].update(extra)
             content.update(extra)
-            return JSONResponse(status_code=exc.status_code, content=content)
+            return JSONResponse(
+                status_code=exc.status_code,
+                content=content,
+                headers=exc.headers,
+            )
         elif isinstance(detail, dict):
             code = "REQUEST_ERROR"
             message = json.dumps(detail)
@@ -116,7 +150,14 @@ def install_error_envelope(app: FastAPI) -> None:
             # Legacy string details never carried machine-readable codes.
             code = "REQUEST_ERROR"
             message = str(detail)
-        return JSONResponse(status_code=exc.status_code, content=_envelope(code, message))
+        # W15: headers a route attached (Retry-After on a 429,
+        # WWW-Authenticate on a 401) are part of the contract — normalizing
+        # the body must not drop them.
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=_envelope(code, message),
+            headers=exc.headers,
+        )
 
     @app.exception_handler(Exception)
     async def _unhandled_envelope(  # noqa: RUF029 — FastAPI handler protocol

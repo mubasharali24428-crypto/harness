@@ -1,0 +1,31 @@
+{
+  "checks": {
+    "callerAndProbeExcluded": true,
+    "errorCounterExact": true,
+    "healthyMovesOkOnly": true,
+    "outageProducesReal5xx": true,
+    "recoversWithoutRestart": true
+  },
+  "dbContainer": "harness-w17-5xx-db-loadtest-1",
+  "duringOutage": {
+    "authenticatedStatuses": [
+      500,
+      500,
+      500,
+      500,
+      500
+    ],
+    "readyStatus": 503,
+    "unauthenticatedStatus": 401
+  },
+  "injectedErrors": 5,
+  "orchestrator": "http://127.0.0.1:18007",
+  "recoverySeconds": 1.0,
+  "sli": {
+    "availability": 0.4444,
+    "error": 5.0,
+    "ok": 4.0
+  },
+  "tag": "58273c6771b9",
+  "verdict": "PASS"
+}

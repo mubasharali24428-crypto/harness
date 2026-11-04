@@ -23,6 +23,37 @@ class EventType(StrEnum):
     # failure advances EXECUTING→BLOCKED. Payload keys: summary | reason.
     ENGINE_COMPLETED = "engine_completed"
     ENGINE_FAILED = "engine_failed"
+    # W1 (contracts 1.0.0rc3, additive): the live transcript. One TOOL_CALL when
+    # the agent invokes a tool and one TOOL_RESULT when it settles, paired by
+    # callId. Payloads: TOOL_CALL {runId, callId, name, arguments, turn, step,
+    # startedAt}; TOOL_RESULT {runId, callId, name, ok, error?, output?,
+    # durationMs}. Output and arguments are scrubbed before they are stored.
+    TOOL_CALL = "tool_call"
+    TOOL_RESULT = "tool_result"
+    # W1 (same rc3 bump): the runtime compacted the conversation. Payload:
+    # {runId, compactions, compactedTokens, at}. Emitted per run completion, not
+    # per compaction, so a transcript reads as one fact rather than a stream.
+    CONTEXT_COMPACTED = "context_compacted"
+    # W1 (contracts 1.0.0rc4, additive): what the model was actually shown
+    # besides text. Emitted once per execution attempt that resolved goal
+    # images. Payload: {runId, requested, attached, skipped:[{artifactId,
+    # name, reason}], refused, teamScoped}. `attached` counts image content
+    # blocks handed to the SDK; every image that did not travel is in
+    # `skipped` with the reason, so an over-limit screenshot reads as a
+    # reported decline instead of a picture the agent apparently ignored.
+    # The bytes themselves are never in this event — only ids and names.
+    GOAL_IMAGES = "goal_images"
+    # W15 (contracts 1.0.0rc6, additive): which model this execution attempt was
+    # actually handed, and why. Routing is opt-in per team (W14), and until now
+    # the decision lived only in an in-memory dict — nobody could verify after
+    # the fact that routing did what the team's policy says. Payload:
+    # {runId, enabled, class, model, source, reason?}. `class` is the plan
+    # classification (`mechanical` or `reasoning`), `source` is how the model was
+    # chosen (`primary`, `policy`, or `policy-fallback`), and `reason` explains a
+    # fallback or a lookup failure. One event per execution attempt, emitted
+    # BEFORE the engine call, so a run that dies mid-flight still records it.
+    # No secrets, no token counts: cost lives in cost_ledger.
+    MODEL_ROUTED = "model_routed"
 
 
 EVENT_TYPES = frozenset(EventType)

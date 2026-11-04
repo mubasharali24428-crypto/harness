@@ -1,64 +1,87 @@
-/* QoderWake-derived warm-dark theme: charcoal surfaces with a faint brown
-   cast, cream text, mint accent. Sans-serif for UI copy; monospace only for
-   code, diffs, identifiers and the terminal. */
+/* Harness console theme — a neutral ink workspace with hairline borders, a
+   single electric-blue accent and monospace metadata: the look of a desktop
+   engineering tool rather than a web page. Every rule below consumes these
+   variables, so the light theme is a palette swap, not a second stylesheet. */
 :root {
-  --bg: #1a1814;
-  --panel: #1e1c18;
-  --panel-2: #252220;
-  --sidebar: #161410;
-  --border: #3d3930;
-  --border-soft: #2d2a22;
-  --text: #faf9f6;
-  --text-2: #c9c4b8;
-  --muted: #a8a296;
-  --accent: #8ee5a1;
-  --accent-soft: rgba(142, 229, 161, 0.12);
-  --green: #5cb870;
-  --red: #ff6b6b;
-  --yellow: #e5a814;
-  --blue: #6cb8ff;
-  --faint: #8a857a;
-  --input: #141210;
-  --accent-rgb: 142, 229, 161;
-  --success-rgb: 92, 184, 112;
-  --danger-rgb: 255, 107, 107;
-  --warn-rgb: 229, 168, 20;
-  --info-rgb: 108, 184, 255;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 12px 32px rgba(0, 0, 0, 0.16);
+  --bg: #0a0b0e;
+  --panel: #12161e;
+  --panel-2: #191e28;
+  --panel-3: #202634;
+  --sidebar: #0c0e13;
+  --border: #272c37;
+  --border-soft: #1b2029;
+  --text: #e9edf6;
+  --text-2: #b9c1d1;
+  --muted: #8d96a8;
+  --faint: #7c869b;
+  --accent: #8ba8ff;
+  --accent-strong: #4566e8;
+  --accent-soft: rgba(107, 140, 255, 0.14);
+  --green: #58cf8a;
+  --red: #ff7b7b;
+  --yellow: #e9b949;
+  --blue: #6cc0ff;
+  /* Run-state accents beyond the four semantic colours (reviewing / pr_opened). */
+  --violet: #b79cff;
+  --teal: #5ed3c0;
+  --input: #0b0e13;
+  --accent-rgb: 107, 140, 255;
+  --success-rgb: 88, 207, 138;
+  --danger-rgb: 255, 123, 123;
+  --warn-rgb: 233, 185, 73;
+  --info-rgb: 108, 192, 255;
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset,
+    0 1px 2px rgba(0, 0, 0, 0.4), 0 18px 44px rgba(0, 0, 0, 0.32);
+  --glow: 0 0 0 1px rgba(var(--accent-rgb), 0.32),
+    0 0 28px rgba(var(--accent-rgb), 0.16);
+  /* Motion: one curve and three durations, so everything moves in the same
+     dialect — quick feedback, unhurried surfaces. */
+  --ease: cubic-bezier(0.22, 0.8, 0.24, 1);
+  --dur-1: 120ms;
+  --dur-2: 220ms;
+  --dur-3: 420ms;
+  --chrome: 44px;
+  --status: 30px;
   color-scheme: dark;
-  --font-sans: Inter, "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI",
-    Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    monospace;
+  --font-sans: "Avenir Next", "Segoe UI Variable Text", "Segoe UI", ui-sans-serif,
+    system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo,
+    Consolas, monospace;
 }
 
-/* QoderWake light theme: paper-warm surfaces, ink text, deep-green accent
-   (the mint is unreadable as text on white). Only the variables change; every
-   rule below consumes them. */
+/* Light theme: neutral paper and ink with the same blue, darkened until it is
+   AA on white. Only the variables change. */
 :root[data-theme="light"] {
-  --bg: #fdfcfa;
+  --bg: #f5f6f9;
   --panel: #ffffff;
-  --panel-2: #f1ede6;
-  --sidebar: #faf9f6;
-  --border: #d8d2c6;
-  --border-soft: #e8e3da;
-  --text: #202116;
-  --text-2: #4a463c;
-  --muted: #6b665c;
-  --accent: #1f7a3d;
-  --accent-soft: rgba(31, 122, 61, 0.09);
-  --green: #2f7d43;
-  --red: #c0392b;
-  --yellow: #9a6a00;
-  --blue: #1a6bb5;
-  --faint: #6b665c;
+  --panel-2: #eef1f6;
+  --panel-3: #e7ebf2;
+  --sidebar: #fafbfd;
+  --border: #d5dae4;
+  --border-soft: #e5e9f0;
+  --text: #12151c;
+  --text-2: #3d4454;
+  --muted: #5b6475;
+  --faint: #6b7382;
+  --accent: #2d55d0;
+  --accent-strong: #2044b5;
+  --accent-soft: rgba(45, 85, 208, 0.08);
+  --green: #1c7a45;
+  --red: #b83b3b;
+  --yellow: #8a6200;
+  --blue: #175fa8;
+  --violet: #5b3bc0;
+  --teal: #0e6f66;
   --input: #ffffff;
-  --accent-rgb: 31, 122, 61;
-  --success-rgb: 47, 125, 67;
-  --danger-rgb: 192, 57, 43;
-  --warn-rgb: 154, 106, 0;
-  --info-rgb: 26, 107, 181;
-  --shadow: 0 1px 2px rgba(32, 33, 22, 0.06), 0 12px 32px rgba(32, 33, 22, 0.08);
+  --accent-rgb: 45, 85, 208;
+  --success-rgb: 28, 122, 69;
+  --danger-rgb: 184, 59, 59;
+  --warn-rgb: 138, 98, 0;
+  --info-rgb: 23, 95, 168;
+  --shadow: 0 1px 2px rgba(18, 21, 28, 0.06),
+    0 14px 34px rgba(18, 21, 28, 0.07);
+  --glow: 0 0 0 1px rgba(var(--accent-rgb), 0.28),
+    0 0 20px rgba(var(--accent-rgb), 0.1);
   color-scheme: light;
 }
 
@@ -68,11 +91,22 @@
 
 body {
   margin: 0;
-  background: var(--bg);
+  background-color: var(--bg);
+  /* Depth without decoration: one cool wash from the top-left, one faint
+     engineering grid that fades out before the content starts. */
+  background-image:
+    radial-gradient(1100px 520px at 12% -12%, rgba(var(--accent-rgb), 0.1), transparent 62%),
+    radial-gradient(900px 460px at 104% -4%, rgba(var(--info-rgb), 0.05), transparent 58%),
+    linear-gradient(rgba(127, 140, 168, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(127, 140, 168, 0.05) 1px, transparent 1px);
+  background-size: auto, auto, 32px 32px, 32px 32px;
+  background-attachment: fixed;
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 13.5px;
+  line-height: 1.55;
+  letter-spacing: 0.005em;
+  font-feature-settings: "cv05", "ss01", "tnum";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -115,46 +149,175 @@ samp,
   min-height: 100vh;
 }
 
-.sidebar {
-  width: 240px;
-  background: var(--sidebar);
-  border-right: 1px solid var(--border-soft);
-  padding: 20px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+/* Desktop window chrome. A fixed 44px bar, like the titlebar of a native
+   editor: hairline bottom border, three decorative dots (aria-hidden), the
+   section name, and the project — all real values, no shortcut hints for
+   things that do not exist. Hidden ≤900px, where .topbar takes over. */
+.titlebar {
   position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
+  height: var(--chrome);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 16px;
+  background: color-mix(in srgb, var(--sidebar) 88%, transparent);
+  backdrop-filter: blur(12px) saturate(1.2);
+  border-bottom: 1px solid var(--border-soft);
+  z-index: 50;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  user-select: none;
+}
+
+.titlebar .dots {
+  display: flex;
+  gap: 7px;
+}
+
+.titlebar .dots i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.titlebar .dots i:nth-child(1) { background: #ff5f57; }
+.titlebar .dots i:nth-child(2) { background: #febc2e; }
+.titlebar .dots i:nth-child(3) { background: #28c840; }
+
+.titlebar .tb-section {
+  color: var(--text-2);
+  text-transform: uppercase;
+}
+
+.titlebar .tb-sep {
+  color: var(--border);
+}
+
+.titlebar .tb-project {
+  color: var(--muted);
+  max-width: 40ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.titlebar .tb-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.titlebar .tb-env {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--faint);
+}
+
+.titlebar .tb-clock {
+  font-variant-numeric: tabular-nums;
+  color: var(--faint);
+  padding-left: 12px;
+  border-left: 1px solid var(--border-soft);
+}
+
+.statusbar {
+  position: fixed;
+  left: 232px;
+  right: 0;
   bottom: 0;
+  height: var(--status);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 16px;
+  background: color-mix(in srgb, var(--sidebar) 90%, transparent);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--border-soft);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: var(--faint);
+  z-index: 45;
+  user-select: none;
+}
+
+.statusbar .sb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.statusbar .sb-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px rgba(var(--success-rgb), 0.7);
+}
+
+.statusbar .sb-right {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.sidebar {
+  width: 232px;
+  background:
+    linear-gradient(180deg, rgba(var(--accent-rgb), 0.05), transparent 180px),
+    var(--sidebar);
+  border-right: 1px solid var(--border-soft);
+  padding: 16px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: fixed;
+  top: var(--chrome);
+  bottom: var(--status);
+  z-index: 20;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
+  font-family: var(--font-mono);
   font-weight: 700;
-  letter-spacing: 1.6px;
-  font-size: 13px;
+  letter-spacing: 2.4px;
+  font-size: 12px;
   color: var(--text);
+  text-transform: uppercase;
 }
 
 .brand::before {
   content: "";
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-  background: var(--accent);
-  box-shadow: 0 0 14px rgba(var(--accent-rgb), 0.45);
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--accent-strong);
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.55),
+    0 0 16px rgba(var(--accent-rgb), 0.55);
+  animation: brandPulse 3.6s var(--ease) infinite;
 }
 
 .switcher .label,
 .nav-group-label {
   color: var(--faint);
-  font-size: 10px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
   font-weight: 600;
-  letter-spacing: 1.3px;
+  letter-spacing: 1.6px;
   text-transform: uppercase;
-  margin: 8px 0 5px;
+  margin: 10px 0 5px;
   padding-left: 2px;
 }
 
@@ -173,6 +336,19 @@ samp,
   border-color: var(--border);
 }
 
+/* Read-only sidebar value (the team line): same box as a select, none of its
+   affordance. */
+.switcher-value {
+  width: 100%;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 8px 9px;
+  font: inherit;
+  font-size: 13px;
+}
+
 /* Sidebar navigation only: other <nav> landmarks (breadcrumbs, landing) lay
    themselves out and must not inherit a column direction. */
 .sidebar nav {
@@ -182,23 +358,51 @@ samp,
 }
 
 .nav-item {
+  position: relative;
   color: var(--text-2);
   text-decoration: none;
-  padding: 9px 11px;
-  border-radius: 10px;
+  padding: 8px 11px 8px 14px;
+  border-radius: 8px;
   font-size: 13px;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease),
+    transform var(--dur-2) var(--ease);
+}
+
+/* The active marker slides in from the left rather than appearing whole. */
+.nav-item::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--accent-strong);
+  opacity: 0;
+  transform: scaleY(0.3);
+  transition: opacity var(--dur-2) var(--ease), transform var(--dur-2) var(--ease);
 }
 
 .nav-item:hover {
-  background: rgba(127, 127, 127, 0.1);
+  background: rgba(127, 140, 168, 0.09);
   color: var(--text);
+  transform: translateX(2px);
 }
 
 .nav-item.active {
-  background: var(--accent-soft);
+  background: linear-gradient(90deg, rgba(var(--accent-rgb), 0.16), rgba(var(--accent-rgb), 0.05));
   color: var(--accent);
   font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.18);
+}
+
+.nav-item.active::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+.nav-item:active {
+  transform: translateX(2px) scale(0.995);
 }
 
 .footer {
@@ -219,8 +423,8 @@ samp,
 }
 
 .content {
-  margin-left: 240px;
-  padding: 28px 32px;
+  margin-left: 232px;
+  padding: calc(var(--chrome) + 26px) 32px calc(var(--status) + 28px);
   flex: 1;
   width: 100%;
   /* M14-F2b: .shell is a flex row, so .content's automatic minimum size is
@@ -231,21 +435,48 @@ samp,
   min-width: 0;
 }
 
+/* Page entrance: each top-level block rises 6px into place, staggered by
+   position. Cheap (transform/opacity only) and disabled by the reduced-motion
+   block at the bottom of this file. */
+.content > * {
+  animation: rise var(--dur-3) var(--ease) both;
+}
+
+.content > *:nth-child(2) { animation-delay: 40ms; }
+.content > *:nth-child(3) { animation-delay: 80ms; }
+.content > *:nth-child(4) { animation-delay: 120ms; }
+.content > *:nth-child(5) { animation-delay: 160ms; }
+.content > *:nth-child(n+6) { animation-delay: 200ms; }
+
 h1 {
   font-size: 20px;
-  font-weight: 600;
-  letter-spacing: -0.2px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
   margin: 0 0 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* A hairline under the page title, fading to the right: structure without a
+   box. */
+h1::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--border) 0%, transparent 100%);
+  margin-left: 6px;
 }
 
 h2 {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
+  letter-spacing: -0.005em;
   margin: 0 0 10px;
 }
 
 h3 {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
 }
 
@@ -278,17 +509,28 @@ h3 {
 }
 
 .card {
-  background: var(--panel);
+  position: relative;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.022), transparent 42%), var(--panel);
   border: 1px solid var(--border-soft);
-  border-radius: 14px;
-  padding: 18px;
-  box-shadow: 0 1px 0 rgba(127, 127, 127, 0.06) inset;
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: var(--shadow);
+  transition: border-color var(--dur-2) var(--ease), transform var(--dur-2) var(--ease),
+    box-shadow var(--dur-2) var(--ease);
+}
+
+.card:hover {
+  border-color: var(--border);
+  transform: translateY(-1px);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 2px 4px rgba(0, 0, 0, 0.35), 0 22px 54px rgba(0, 0, 0, 0.4);
 }
 
 .card h2 {
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 1.4px;
+  letter-spacing: 1.5px;
   color: var(--faint);
   margin: 0 0 12px;
   text-transform: uppercase;
@@ -307,17 +549,23 @@ h3 {
 }
 
 .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 2px 9px;
   border-radius: 999px;
-  font-size: 11px;
+  border: 1px solid transparent;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
   font-weight: 500;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
-.pill.green { background: rgba(var(--success-rgb), 0.14); color: #8ee5a1; }
-.pill.red { background: rgba(var(--danger-rgb), 0.14); color: var(--red); }
-.pill.yellow { background: rgba(var(--warn-rgb), 0.14); color: #f0c14b; }
-.pill.blue { background: rgba(var(--info-rgb), 0.13); color: var(--blue); }
+.pill.green { background: rgba(var(--success-rgb), 0.14); border-color: rgba(var(--success-rgb), 0.28); color: var(--green); }
+.pill.red { background: rgba(var(--danger-rgb), 0.14); border-color: rgba(var(--danger-rgb), 0.28); color: var(--red); }
+.pill.yellow { background: rgba(var(--warn-rgb), 0.14); border-color: rgba(var(--warn-rgb), 0.28); color: var(--yellow); }
+.pill.blue { background: rgba(var(--info-rgb), 0.13); border-color: rgba(var(--info-rgb), 0.28); color: var(--blue); }
 
 .event-feed {
   max-height: 320px;
@@ -443,22 +691,25 @@ textarea::placeholder {
   background: var(--panel-2);
   border: 1px solid var(--border);
   color: var(--text);
-  border-radius: 9px;
+  border-radius: 8px;
   padding: 7px 14px;
   cursor: pointer;
   font: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.06s ease;
+  font-size: 12.5px;
+  font-weight: 550;
+  letter-spacing: 0.01em;
+  transition: background var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease),
+    box-shadow var(--dur-2) var(--ease), transform var(--dur-1) var(--ease);
 }
 
 .btn:hover:not(:disabled) {
-  background: #2e2a23;
-  border-color: #4a463c;
+  background: var(--panel-3);
+  border-color: rgba(var(--accent-rgb), 0.4);
+  box-shadow: var(--glow);
 }
 
 .btn:active:not(:disabled) {
-  transform: translateY(1px);
+  transform: translateY(1px) scale(0.99);
 }
 
 a.btn {
@@ -470,13 +721,16 @@ a.btn {
 }
 
 .btn.primary {
-  background: var(--accent-soft);
-  border-color: rgba(var(--accent-rgb), 0.45);
-  color: var(--accent);
+  background: linear-gradient(180deg, #4f6ff2, var(--accent-strong));
+  border-color: rgba(var(--accent-rgb), 0.55);
+  color: #ffffff;
+  box-shadow: 0 6px 18px rgba(69, 102, 232, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 .btn.primary:hover:not(:disabled) {
-  background: rgba(var(--accent-rgb), 0.18);
+  background: linear-gradient(180deg, #5b7bff, #4a6bef);
+  border-color: rgba(var(--accent-rgb), 0.8);
+  box-shadow: 0 8px 24px rgba(69, 102, 232, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.26);
 }
 
 .btn.danger {
@@ -496,28 +750,31 @@ table {
 
 th {
   text-align: left;
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 1px;
+  letter-spacing: 1.1px;
   text-transform: uppercase;
   color: var(--faint);
   padding: 8px 12px;
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border);
   white-space: nowrap;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
 }
 
 td {
-  padding: 11px 12px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border-soft);
   vertical-align: top;
 }
 
 tbody tr {
-  transition: background 0.12s ease;
+  transition: background var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
 }
 
 tbody tr:hover {
-  background: rgba(127, 127, 127, 0.07);
+  background: rgba(var(--accent-rgb), 0.045);
+  box-shadow: inset 2px 0 0 rgba(var(--accent-rgb), 0.55);
 }
 
 .editor-host,
@@ -595,6 +852,12 @@ ul {
 }
 
 @media (max-width: 900px) {
+  /* Desktop chrome gives way to the compact top bar. */
+  .titlebar,
+  .statusbar {
+    display: none;
+  }
+
   /* --- Sidebar → off-canvas drawer ------------------------------------- */
   .topbar {
     display: flex; /* overrides display:none above */
@@ -619,6 +882,23 @@ ul {
     flex: none;
     font-size: 20px;
     line-height: 1;
+    /* UA default button paint is a grey slab; this is chrome, not a CTA. */
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-2);
+    cursor: pointer;
+    transition: background var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+  }
+
+  .sidebar-toggle:hover {
+    background: var(--panel-2);
+    border-color: var(--border);
+  }
+
+  .sidebar-toggle[aria-expanded="true"] {
+    background: var(--panel-2);
+    color: var(--text);
   }
 
   .sidebar {
@@ -802,4 +1082,97 @@ a[href] {
   display: inline-block;
   min-height: 24px;
   line-height: 24px;
+  /* One link colour for both themes; pages used to inline #93c5fd, which is
+     1.76:1 on the light theme's paper surfaces. */
+  color: var(--accent);
+}
+
+/* ==========================================================================
+   Motion language (desktop console refresh)
+   One curve, three durations, four moves: pages rise, the brand breathes,
+   skeletons shimmer, and controls answer within 120ms. Everything here is
+   transform/opacity/background only — no layout thrash — and the
+   prefers-reduced-motion block below zeroes both duration AND delay.
+   ========================================================================== */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes brandPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.55),
+      0 0 14px rgba(var(--accent-rgb), 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.8),
+      0 0 22px rgba(var(--accent-rgb), 0.7);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -160% 0;
+  }
+  to {
+    background-position: 260% 0;
+  }
+}
+
+/* LoadingState bars (inline-styled component) opt in with .skel. */
+.skel {
+  background-image: linear-gradient(
+    100deg,
+    transparent 20%,
+    rgba(var(--accent-rgb), 0.16) 42%,
+    rgba(var(--accent-rgb), 0.05) 52%,
+    transparent 74%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: shimmer 1.6s var(--ease) infinite;
+}
+
+/* Live surfaces: a status dot that breathes. Opt-in class, so a finished run
+   never pretends to be active. */
+.pulse-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 0 rgba(var(--success-rgb), 0.55);
+  animation: pulseDot 2.2s var(--ease) infinite;
+}
+
+@keyframes pulseDot {
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--success-rgb), 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(var(--success-rgb), 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--success-rgb), 0);
+  }
+}
+
+/* The skip link and drawer keep their own transitions; nothing else moves
+   when the reader asked for stillness. */
+@media (prefers-reduced-motion: reduce) {
+  .content > * {
+    animation-delay: 0ms !important;
+  }
+  .brand::before,
+  .skel,
+  .pulse-dot {
+    animation: none !important;
+  }
 }

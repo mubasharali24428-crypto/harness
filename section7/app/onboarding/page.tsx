@@ -20,7 +20,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
 import { ErrorState } from "@/components/States";
 import { loadErrorMessage } from "@/lib/humanize";
-import { getToken, loadSession } from "@/lib/auth";
+import { getProjectId, getToken, loadSession } from "@/lib/auth";
+import { type ReadinessReport, getReadiness } from "@/lib/api";
 import {
   ChecklistItemDto,
   completedCount,
@@ -39,6 +40,7 @@ import {
   fetchRunsTotal,
 } from "./onboardingDerived";
 import { ChecklistRows, SignalsCard } from "./checklistView";
+import { ReadinessCard } from "./readinessView";
 
 const cardStyle = { maxWidth: 760, marginBottom: 20 } as const;
 
@@ -50,6 +52,10 @@ export default function OnboardingPage() {
   const [busy, setBusy] = useState(false);
   // M12-E7: null = never refreshed; else epoch ms of the last successful load.
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  // W23: readiness is per project; its failure never fails the checklist.
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [readiness, setReadiness] = useState<ReadinessReport | null>(null);
+  const [readinessError, setReadinessError] = useState<string | null>(null);
   const inFlight = useRef(false);
 
   /**
@@ -67,6 +73,19 @@ export default function OnboardingPage() {
     try {
       const token = getToken();
       const teamId = loadSession()?.principal.teamId;
+      const project = getProjectId();
+      setProjectId(project);
+      if (project) {
+        getReadiness(project, token)
+          .then((r) => {
+            setReadiness(r);
+            setReadinessError(null);
+          })
+          .catch((e) => {
+            setReadiness(null);
+            setReadinessError(loadErrorMessage(e));
+          });
+      }
       const [dto, githubConnected, membersCount, keysCount, runsTotal] = await Promise.all([
         getChecklist(), // no auth today — see note in onboardingApi.ts
         fetchGithubConnected(token),
@@ -210,6 +229,8 @@ export default function OnboardingPage() {
           </p>
         )}
       </section>
+
+      <ReadinessCard projectId={projectId} report={readiness} error={readinessError} />
 
       <SignalsCard signals={signals} />
 

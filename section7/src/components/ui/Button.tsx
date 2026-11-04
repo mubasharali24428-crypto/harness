@@ -43,17 +43,20 @@ const SIZE_STYLE: Record<ButtonSize, React.CSSProperties> = {
 
 const VARIANT_STYLE: Record<ButtonVariant, React.CSSProperties> = {
   secondary: {},
+  // Solid accent: the one focal action on a surface. --accent-strong clears AA
+  // against white (4.86:1), which the softer accent does not.
   primary: {
-    background: "rgba(var(--accent-rgb), 0.12)",
-    borderColor: "rgba(var(--accent-rgb), 0.45)",
-    color: cssVar("accent"),
+    background: "linear-gradient(180deg, #4f6ff2, var(--accent-strong))",
+    borderColor: "rgba(var(--accent-rgb), 0.55)",
+    color: "#ffffff",
+    boxShadow: "0 6px 18px rgba(69, 102, 232, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.22)",
   },
   danger: {
     background: "rgba(var(--danger-rgb), 0.12)",
     borderColor: "rgba(var(--danger-rgb), 0.4)",
     color: cssVar("red"),
   },
-  accent: { background: cssVar("accent"), borderColor: cssVar("accent"), color: cssVar("bg") },
+  accent: { background: cssVar("accentStrong"), borderColor: cssVar("accentStrong"), color: "#ffffff" },
 };
 
 const DISABLED_STYLE: React.CSSProperties = {

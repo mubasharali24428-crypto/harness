@@ -1,0 +1,9 @@
+[
+  {
+    "line": 8,
+    "col": 1,
+    "kind": "error",
+    "code": "HX2006",
+    "message": "'use' must appear before every other declaration; the files a program is built from are not decided halfway down it"
+  }
+]

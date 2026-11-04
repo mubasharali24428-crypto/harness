@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>W9 fixture</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; background: #ffffff; }
+  main { padding: 40px; width: 560px; }
+  #chart { position: absolute; left: 40px; top: 96px; width: 240px; height: 160px; }
+  #toggle { margin-top: 264px; font-size: 16px; padding: 6px 12px; }
+</style>
+</head>
+<body>
+<main>
+  <!-- Accessible and canvas controls: the drill asserts both, not just pixels. -->
+  <h1>Notification settings</h1>
+  <canvas id="chart" width="240" height="160" role="img"
+          aria-label="Weekly signups chart">Weekly signups</canvas>
+  <button id="toggle" type="button" aria-pressed="false" aria-controls="chart">
+    Notifications off
+  </button>
+</main>
+<script>
+  const state = new URLSearchParams(location.search).get("state") === "after" ? "after" : "before";
+  const canvas = document.getElementById("chart");
+  const toggle = document.getElementById("toggle");
+  const ctx = canvas.getContext("2d");
+  // Solid, sampled colour: the drill reads this pixel from the rendered PNG.
+  ctx.fillStyle = state === "after" ? "#1a7f37" : "#b3261e";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (state === "after") {
+    toggle.setAttribute("aria-pressed", "true");
+    toggle.textContent = "Notifications on";
+  }
+  document.title = "W9 fixture " + state;
+</script>
+</body>
+</html>

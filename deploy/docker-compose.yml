@@ -27,6 +27,16 @@ x-backend-env: &backend-env
   # EXPLICITLY via HARNESS_ALLOW_DEV_MASTER_KEY=1.
   HARNESS_MASTER_KEY: ${HARNESS_MASTER_KEY:-}
   HARNESS_ALLOW_DEV_MASTER_KEY: ${HARNESS_ALLOW_DEV_MASTER_KEY:-}
+  # W14/W15: operator rate card (inline JSON or a path inside the container).
+  # It is a BACKEND value, not a models-only one: Section 4's engine metering
+  # resolves the same rates through harness_contracts.rate_card, so an
+  # operator-priced model is quoted and booked at ONE price. Unset keeps the
+  # built-in catalog; a model neither prices is metered at the logged fallback.
+  HARNESS_RATE_CARD_JSON: ${HARNESS_RATE_CARD_JSON:-}
+  # W15 slice 2: per-TEAM budgets on the two spend surfaces (per minute).
+  # Unset/blank keeps the shipped defaults (60 run-starts, 300 model calls).
+  HARNESS_TEAM_RUN_START_LIMIT: ${HARNESS_TEAM_RUN_START_LIMIT:-}
+  HARNESS_TEAM_MODEL_CALL_LIMIT: ${HARNESS_TEAM_MODEL_CALL_LIMIT:-}
   HARNESS_CORS_ORIGINS: ${HARNESS_CORS_ORIGINS:-["http://localhost:3000"]}
   # C-001 (M11-W1): default ON — unverified email cannot mint admin teams.
   HARNESS_REQUIRE_OWNERSHIP: ${HARNESS_REQUIRE_OWNERSHIP:-true}
@@ -45,6 +55,16 @@ x-backend-env: &backend-env
   # deploy/patches read-only at /opt/harness/patches; set for OpenRouter:
   # DSH_PATCH_FILES=/opt/harness/patches/openrouter.patch.yml
   DSH_PATCH_FILES: ${DSH_PATCH_FILES:-}
+  # W4 slice 3: operator-reviewed MCP servers, read by harness_orchestrator.mcp.
+  # The list ships inside the worker image (/opt/harness/mcp) so that changing it
+  # is a rebuild; unset means no MCP servers are mounted at all.
+  DSH_MCP_SERVERS: ${DSH_MCP_SERVERS:-}
+  # W4 slice 4: package installs. Off by default; permitted only under the
+  # container boundary, where the worker is launched with HTTP(S)_PROXY pointed
+  # at the egress allow-list proxy so an install can reach only the registries
+  # the derived list admits. Fetched code is still unvetted — the flag trades
+  # that risk for the boundary rather than removing it.
+  DSH_ALLOW_INSTALLS: ${DSH_ALLOW_INSTALLS:-}
   DSH_WORKSPACE: /tmp/harness-dsh/workspace
   DSH_SESSION_ROOT: /tmp/harness-dsh/sessions
   GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
@@ -71,11 +91,18 @@ x-backend-env: &backend-env
   HARNESS_SANDBOX_ALLOW_UNCONFINED: ${HARNESS_SANDBOX_ALLOW_UNCONFINED:-}
   # Sandbox network is disabled by default. Enabling it is an explicit
   # diagnostic/deployment opt-in confined to the allow-list proxy below; the
-  # proxy path is not yet drilled against a live Docker daemon.
+  # proxy path was drilled live on 2026-10-26 (inside the sidecar and from a
+  # container on the internal network) — see
+  # docs/briefs/evidence/pilot-prep/w4-egress-network-*.json.
   HARNESS_SANDBOX_ALLOW_NETWORK: ${HARNESS_SANDBOX_ALLOW_NETWORK:-0}
   # Opt-in network is confined to the allow-list proxy on the internal network below.
   SANDBOX_EGRESS_NETWORK: harness_sandbox_egress
   SANDBOX_EGRESS_PROXY_URL: http://sandbox-egress:3128
+  # Purpose ports (W4): 3128 is for sandboxed shells, 3129 for the engine
+  # worker's web_fetch. The purpose is the listener, not a caller header.
+  EGRESS_SANDBOX_PORT: ${EGRESS_SANDBOX_PORT:-3128}
+  EGRESS_WEB_PORT: ${EGRESS_WEB_PORT:-3129}
+  HARNESS_EGRESS_PROXY_CONTAINER: ${HARNESS_EGRESS_PROXY_CONTAINER:-harness-sandbox-egress-1}
   # Per-task Docker is opt-in and requires a separately managed daemon/socket
   # design plus a pre-pulled, operator-supplied image reference. Do not turn
   # this on for the shared backend without completing that deployment review.
@@ -261,6 +288,13 @@ services:
     environment:
       <<: *backend-env
       HARNESS_SERVICE: identity
+      # W16 slice 4: the API validates a collector URL against the same
+      # allow-list the worker obeys at delivery time. Without it here, every
+      # registration would be refused against an empty list. The webhook API
+      # validates with HARNESS_WEBHOOK_ALLOWED_HOSTS the same way, so both live
+      # on the service that accepts the registration, not only on the worker.
+      HARNESS_SIEM_ALLOWED_HOSTS: ${HARNESS_SIEM_ALLOWED_HOSTS:-}
+      HARNESS_WEBHOOK_ALLOWED_HOSTS: ${HARNESS_WEBHOOK_ALLOWED_HOSTS:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -296,6 +330,29 @@ services:
     depends_on: *backend-depends
     restart: unless-stopped
 
+  # Marathon 2.0 W16 slice 4: pushes each team's audit trail to its SIEM
+  # collector. Its own service (not folded into webhook-delivery) because a
+  # customer collector that answers slowly must not stall outbound webhooks, and
+  # because a stalled trail needs one obvious process to look at.
+  siem-push:
+    <<: *backend-build
+    logging: *logging-caps
+    deploy:
+      resources:
+        limits:
+          cpus: "${HARNESS_JOB_CPU_LIMIT:-0.25}"
+          memory: ${HARNESS_JOB_MEM_LIMIT:-256m}
+          pids: ${HARNESS_JOB_PIDS_LIMIT:-64}
+    environment:
+      <<: *backend-env
+      HARNESS_SERVICE: siem-push
+      # Empty allow-list = no destination is acceptable, so a deployment that
+      # forgets this cannot silently ship evidence anywhere (see egress.py).
+      HARNESS_SIEM_ALLOWED_HOSTS: ${HARNESS_SIEM_ALLOWED_HOSTS:-}
+      HARNESS_SIEM_POLL_SECONDS: ${HARNESS_SIEM_POLL_SECONDS:-30}
+    depends_on: *backend-depends
+    restart: unless-stopped
+
   github:
     <<: *backend-build
     logging: *logging-caps
@@ -326,6 +383,8 @@ services:
     environment:
       <<: *backend-env
       HARNESS_SERVICE: models
+      # (HARNESS_RATE_CARD_JSON comes from x-backend-env: every backend service
+      # must resolve the same rates, not just the router.)
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -360,11 +419,34 @@ services:
       HARNESS_ARTIFACT_ROOT: /var/lib/harness-store/artifacts
       HARNESS_EXPORT_DIR: /var/lib/harness-store/exports
       HARNESS_DIFFSTORE_ROOT: /var/lib/harness-store/diffs
+      # M07: live runs get a confined worker from worker-daemon (profile "worker"), the
+      # only service holding the Docker socket. This container never gets one, and
+      # without the daemon a live run fails closed ("worker daemon"), never unconfined.
+      HARNESS_ENGINE_ISOLATED: "1"
+      HARNESS_ENGINE_CONFINEMENT: container
+      HARNESS_WORKER_DAEMON_URL: http://worker-daemon:8010
+      HARNESS_WORKER_DAEMON_TOKEN: ${HARNESS_WORKER_DAEMON_TOKEN:-}
+      # Run directories live on the volume the daemon's workers mount (volume-subpath).
+      DSH_WORKSPACE: /var/lib/harness-runs/workspace
+      DSH_SESSION_ROOT: /var/lib/harness-runs/sessions
+      # Per-run engine deadline (engine_runtime.resolve_engine_run_timeout_seconds).
+      # 600 s is the product default; drills against a slow LOCAL model raise it,
+      # because a deadline that kills the turn mid-proof makes the evidence
+      # ambiguous rather than the boundary weak.
+      ENGINE_RUN_TIMEOUT_SECONDS: ${ENGINE_RUN_TIMEOUT_SECONDS:-600}
     volumes:
       - harness_store:/var/lib/harness-store
+      - harness_runs:/var/lib/harness-runs
       # Operator-supplied dsh runtime patches (see deploy/patches/README-free note
       # in openrouter.patch.yml). Read-only; the engine fails closed on a missing path.
       - ./patches:/opt/harness/patches:ro
+      # W4: the reviewed MCP list is read by THIS process
+      # (engine._execution_policy_patch -> harness_orchestrator.mcp), not by the
+      # worker that spawns the server. The worker image also ships a copy, which
+      # is why a run could be composed from inside a worker but not from here.
+      # Read-only, same file the image carries; a declared-but-missing list
+      # still fails the run closed.
+      - ./mcp:/opt/harness/mcp:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -377,6 +459,77 @@ services:
       start_period: 20s
     restart: unless-stopped
     depends_on: *backend-depends
+
+  engine-worker:
+    # Build-only: the image worker-daemon starts once per run. `up` builds it and the
+    # container exits at once; it never runs as a service.
+    profiles: ["worker"]
+    image: harness-engine-worker:v${HARNESS_IMAGE_TAG:-dev-local}
+    build:
+      context: ..
+      dockerfile: section4/worker.Dockerfile
+      target: worker
+    entrypoint: ["true"]
+    restart: "no"
+    # The stack laws apply to every service, build-only ones included: a service
+    # that exists in the file must be capped and rotate its logs, or the guard
+    # stops meaning "every service" and only means "the services someone
+    # remembered". Nothing here runs, so the caps are cheap.
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128m
+    logging: *logging-caps
+
+  worker-daemon:
+    # M07: the reviewed holder of the Docker socket (docs/sandbox-isolation.md). It accepts a
+    # run id, goal and policy from the orchestrator and builds the confined worker itself:
+    # paths, image, mode and limits are its own. No published port; bearer token required.
+    profiles: ["worker"]
+    image: harness-worker-daemon:v${HARNESS_IMAGE_TAG:-dev-local}
+    build:
+      context: ..
+      dockerfile: section4/worker.Dockerfile
+      target: daemon
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256m
+          pids: 128
+    logging: *logging-caps
+    environment:
+      HARNESS_WORKER_DAEMON_TOKEN: ${HARNESS_WORKER_DAEMON_TOKEN:-}
+      HARNESS_ENGINE_IMAGE: harness-engine-worker:v${HARNESS_IMAGE_TAG:-dev-local}
+      HARNESS_ENGINE_TIMEOUT_SECONDS: ${HARNESS_ENGINE_TIMEOUT_SECONDS:-900}
+      HARNESS_RUNS_VOLUME: ${HARNESS_RUNS_VOLUME:-harness_runs}
+      HARNESS_RUNS_ROOT: /var/lib/harness-runs
+      DSH_WORKSPACE: /var/lib/harness-runs/workspace
+      DSH_SESSION_ROOT: /var/lib/harness-runs/sessions
+      # confine.wrap_command passes these to the worker by NAME only ("--env KEY"):
+      # Docker reads the VALUE from its own client environment, i.e. this daemon's.
+      # Set on the orchestrator alone, they would arrive empty in every worker —
+      # so the operator's patch files and reviewed MCP servers must be here too.
+      DSH_PATCH_FILES: ${DSH_PATCH_FILES:-}
+      # The model name the patch declares rides the same path as the patch
+      # itself: engine containers read DSH_MODEL from the DAEMON's environment,
+      # so the orchestrator alone is not enough for an isolated worker.
+      DSH_MODEL: ${DSH_MODEL:-}
+      DSH_MCP_SERVERS: ${DSH_MCP_SERVERS:-}
+      # W4 slice 4: package installs. Off by default; permitted only under the
+      # container boundary, where the worker is launched with HTTP(S)_PROXY pointed
+      # at the egress allow-list proxy so an install can reach only the registries
+      # the derived list admits. Fetched code is still unvetted — the flag trades
+      # that risk for the boundary rather than removing it.
+      DSH_ALLOW_INSTALLS: ${DSH_ALLOW_INSTALLS:-}
+    volumes:
+      - harness_runs:/var/lib/harness-runs
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      orchestrator:
+        condition: service_started  # it initialises the runs volume as its own user
+    restart: unless-stopped
 
   sandbox:
     # M20-T3 (OPS-03): THE noisy-neighbor risk S-GAMMA flagged — sandbox
@@ -417,6 +570,19 @@ services:
           memory: 128m
           pids: 128
     logging: *logging-caps
+    # Proves the proxy is enforcing, not merely listening: a CONNECT to a host
+    # outside the allow-list must come back 403 on BOTH purpose ports (3128 for
+    # sandboxed shells, 3129 for the engine's web_fetch). That needs no outbound
+    # network, so the check is deterministic on an isolated runner — and a dead
+    # listener, a broken allow-list or a wedged event loop all read as unhealthy
+    # instead of "up" (OPS-20: 708 failed healthchecks once passed unnoticed
+    # because nothing asserted container health).
+    healthcheck:
+      test: ["CMD", "python", "-m", "harness_sandbox.egress_proxy", "--healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
     networks:
       - default
       - sandbox_egress
@@ -492,7 +658,10 @@ services:
       NEXT_PUBLIC_REVIEW_URL: http://localhost:8008
       NEXT_PUBLIC_IDENTITY_WS_URL: ws://localhost:8001
     ports:
-      - "3000:3000"
+      # Host port is a knob, not a fork: the documented default is :3000, but a
+      # busy 3000 on a developer box is answered by HARNESS_FRONTEND_PORT in the
+      # (untracked) env file rather than by editing this line.
+      - "${HARNESS_FRONTEND_PORT:-3000}:3000"
     healthcheck:
       # M20-T3 (OPS-05): frontend was the ONE long-running service with NO
       # healthcheck — a wedged Next.js looked healthy to proxy/humans and the
@@ -1041,7 +1210,8 @@ services:
   #   python3 scripts/loadtest/smoke_probe.py \
   #     --identity http://localhost:18001 --orchestrator http://localhost:18004
   #   ... drive locust per scripts/loadtest/README.md ...
-  #   docker compose -f deploy/docker-compose.yml -p harness-loadtest --profile loadtest down -v
+  #   HARNESS_RUNS_VOLUME=harness-loadtest_runs docker compose -f deploy/docker-compose.yml \
+  #     -p harness-loadtest --profile loadtest down -v   # (var REQUIRED: else -v targets the live harness_runs)
   # M20-T2 (OPS-21/22): ONE scrape target covering every service. Each backend
   # exposes GET /metrics (Prometheus text format) on its container port, so
   # static DNS names + one job scrape them all; job/service labels tell the
@@ -1297,7 +1467,9 @@ services:
 # every service relies on for `db`-style lookups.
 networks:
   default:
-    name: harness_default
+    # Overridable only so isolated drills (scripts/pitr_drill.sh) stay off the
+    # live network; the default is unchanged.
+    name: ${HARNESS_NETWORK_DEFAULT:-harness_default}
     driver: bridge
     attachable: true
   # No gateway: sandbox containers can only reach the egress proxy.
@@ -1317,6 +1489,14 @@ volumes:
   # Back it up with the database: the artifacts table points into it.
   harness_store:
   harness_store_loadtest:
+  # M07: run workspaces/sessions. Fixed name because worker-daemon names it in each worker's
+  # `--mount type=volume,src=harness_runs,volume-subpath=…` (Docker resolves that, not compose).
+  # The name is pinned OUTSIDE the compose project prefix, so `-p <anything> down -v` resolves to
+  # the LIVE volume. Every throwaway project (drills, loadtest, rehearsal) must therefore export
+  # HARNESS_RUNS_VOLUME=<project>_runs; worker-daemon reads the same variable. Guarded by
+  # section1/tests/test_deploy_volume_isolation.py.
+  harness_runs:
+    name: ${HARNESS_RUNS_VOLUME:-harness_runs}
   # H-018 (M13-W3-H2): the archiving database's own data volume — deliberately
   # SEPARATE from `pgdata` so PITR drills can never collide with live data.
   pgdata_walg:

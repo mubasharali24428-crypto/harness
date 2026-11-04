@@ -24,6 +24,7 @@ export HARNESS_ALLOW_DEV_MASTER_KEY=1
 export HARNESS_MASTER_KEY="rehearsal-only-key-$(date +%s)-not-a-secret"
 export HARNESS_REQUIRE_OWNERSHIP=false
 export WALG_FILE_PREFIX="$SCRATCH/walg"   # never the live WAL archive
+export HARNESS_RUNS_VOLUME="c6rehearsal_runs"   # compose pins harness_runs; `down -v` must not reach the live one
 mkdir -p "$WALG_FILE_PREFIX"
 
 compose() {

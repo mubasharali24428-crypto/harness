@@ -10,9 +10,9 @@ from harness_router.pricing import PricingEngine
 
 
 def test_deepseek_pricing_calculation_is_exact_decimal():
-    cost = PricingEngine.calculate_cost("deepseek/deepseek-coder", 10_000, 2_000)
+    cost = PricingEngine.calculate_cost("deepseek/deepseek-v4-flash", 10_000, 2_000)
     assert isinstance(cost, Decimal)
-    assert cost == Decimal("0.001960")
+    assert cost == Decimal("0.001274")
 
 
 def test_local_endpoint_zero_cost():
@@ -31,7 +31,7 @@ def test_estimate_cost_primary_vs_reviewer():
 
 def test_every_result_is_quantized_to_numeric_12_6_scale():
     """No result may carry sub-micro-dollar residue or a float type."""
-    for model in ("deepseek/deepseek-chat", "anthropic/claude-3-5-haiku"):
+    for model in ("deepseek/deepseek-chat", "anthropic/claude-haiku-4.5"):
         cost = PricingEngine.calculate_cost(model, 333_333, 333_334)
         assert isinstance(cost, Decimal)
         assert cost == cost.quantize(Decimal("0.000001"))

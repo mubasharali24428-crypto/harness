@@ -61,7 +61,7 @@ class TestPricingEdgeCases:
         assert cost_custom > cost_default
 
     def test_cost_rounding_precision(self):
-        cost = PricingEngine.calculate_cost("deepseek/deepseek-coder", 7, 3)
+        cost = PricingEngine.calculate_cost("deepseek/deepseek-v4-flash", 7, 3)
         assert cost == round(cost, 6)
 
 
@@ -73,13 +73,13 @@ class TestPricingEdgeCases:
 class TestProviderClientStress:
     def test_empty_messages_list(self):
         client = ModelProviderClient()
-        result = client.call(model="deepseek/deepseek-coder", messages=[])
+        result = client.call(model="deepseek/deepseek-v4-flash", messages=[])
         assert isinstance(result, ModelResult)
 
     def test_messages_with_empty_content(self):
         client = ModelProviderClient()
         result = client.call(
-            model="deepseek/deepseek-coder",
+            model="deepseek/deepseek-v4-flash",
             messages=[{"role": "user", "content": ""}],
         )
         assert isinstance(result, ModelResult)
@@ -87,7 +87,7 @@ class TestProviderClientStress:
     def test_very_long_prompt(self):
         client = ModelProviderClient()
         result = client.call(
-            model="deepseek/deepseek-coder",
+            model="deepseek/deepseek-v4-flash",
             messages=[{"role": "user", "content": "x" * 100_000}],
         )
         assert isinstance(result, ModelResult)
@@ -98,7 +98,7 @@ class TestProviderClientStress:
         client.set_mock_response("hello", "Response A")
         client.set_mock_response("hello world", "Response B")
         result = client.call(
-            model="deepseek/deepseek-coder",
+            model="deepseek/deepseek-v4-flash",
             messages=[{"role": "user", "content": "hello world"}],
         )
         assert result.text == "Response A"
@@ -118,7 +118,7 @@ class TestProviderClientStress:
     def test_opts_are_optional(self):
         client = ModelProviderClient()
         result = client.call(
-            model="deepseek/deepseek-coder",
+            model="deepseek/deepseek-v4-flash",
             messages=[{"role": "user", "content": "no opts"}],
         )
         assert isinstance(result, ModelResult)
@@ -265,7 +265,7 @@ class TestRouterRestApiStress:
 class TestConfigValidation:
     def test_default_config_values(self):
         cfg = RouterConfig()
-        assert cfg.default_primary_model == "deepseek/deepseek-coder"
+        assert cfg.default_primary_model == "deepseek/deepseek-v4-flash"
         assert cfg.default_reviewer_model == "openai/gpt-4o-mini"
         assert cfg.suggest_cheaper_model is False
 

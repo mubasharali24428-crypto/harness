@@ -42,6 +42,7 @@ from sqlalchemy.exc import IntegrityError
 
 from harness_orchestrator import api as _api
 from harness_orchestrator import artifact_store, collab
+from harness_orchestrator.review_summary import build_review_summary, exit_code_from_summary
 
 logger = logging.getLogger(__name__)
 
@@ -1155,6 +1156,16 @@ async def sync_changes(db: Any, p: Principal, run_id: str) -> tuple[bool, int]:
     return True, len([f for f in files if not f["path"]])
 
 
+async def record_done_changes(run_id: str, p: Principal) -> None:
+    """Record the changes as soon as the done signal lands, so review never waits for the first
+    read of the changes list. Idempotent with the lazy path in list_changes."""
+    factory = _factory()
+    if factory is None:
+        return
+    async with factory() as db:
+        await sync_changes(db, p, run_id)
+
+
 @router.get("/runs/{runId}/changes")
 async def list_changes(runId: str, p: Reader) -> Any:
     """Changed files of the run, each bound to the plan version and a review state. Reading
@@ -1251,6 +1262,93 @@ async def review_change(runId: str, changeId: str, body: ReviewBody, p: Approver
                 )
             ).first()
         return JSONResponse({"change": _chg(row), "replayed": False}, headers=_no_store())
+
+    return await _handled(go())
+
+
+# --------------------------------------------------------------- review summary
+
+
+@router.get("/runs/{runId}/review-summary")
+async def review_summary(runId: str, p: Reader) -> Any:
+    """What a reviewer should know beside the diff (W24): the changed files, the tests the agent
+    ran and how each exited, what failed, cost, elapsed time and what is still unknown.
+
+    Built only from rows the run recorded. A fact with no record is reported as unknown, never as
+    zero or as passing, and nothing is re-run. A run that executed on the operator's machine has
+    only its diff here, so most of the rest reads unknown. 404 until the run has a recorded diff."""
+
+    async def go() -> Any:
+        diff = await _done_diff(runId)
+        if diff is None:
+            raise _not_found("review summary")
+        parsed = [f for f in parse_diff(diff) if f["path"]]
+        files = [
+            {"path": f["path"], "change": f["kind"], "added": f["additions"],
+             "removed": f["deletions"]}
+            for f in parsed[:MAX_FILES]
+        ]
+        # The cost ledger and the events have no team column: scope them through the run's project.
+        arg = {"r": runId, "t": p.teamId}
+        async with _need_factory()() as db:
+            calls = await _optional(
+                db,
+                "SELECT tool, target, outcome, summary FROM agent_tool_calls WHERE run_id = :r"
+                " AND team_id = :t AND reported_by = 'engine' ORDER BY created_at, id",
+                arg,
+            )
+            ledger = await _optional(
+                db,
+                "SELECT COUNT(*) AS n, COALESCE(SUM(c.input_tokens), 0) AS tin,"
+                " COALESCE(SUM(c.output_tokens), 0) AS tout, SUM(c.cost_usd) AS usd,"
+                " MIN(c.model) AS lo, MAX(c.model) AS hi FROM cost_ledger c"
+                " JOIN agent_runs r ON r.id = c.run_id JOIN projects pr ON pr.id = r.project_id"
+                " WHERE c.run_id = :r AND pr.team_id = :t",
+                arg,
+            )
+            marks = await _optional(
+                db,
+                "SELECT e.type, e.ts FROM agent_events e"
+                " JOIN agent_runs r ON r.id = e.run_id JOIN projects pr ON pr.id = r.project_id"
+                " WHERE e.run_id = :r AND pr.team_id = :t"
+                " AND e.type IN ('execution_started', 'engine_completed', 'engine_failed')"
+                " ORDER BY e.seq",
+                arg,
+            )
+
+        tool_calls = None  # no rows is "unknown", not "the agent ran nothing"
+        if calls:
+            tool_calls = [
+                {"tool": c.tool, "target": c.target,
+                 "outcome": "ok" if c.outcome == "ok" else "error",
+                 "exitCode": exit_code_from_summary(c.summary)}
+                for c in calls
+            ]
+        usage = model = cost = None
+        if ledger and ledger[0].n:
+            row = ledger[0]
+            usage = {"inputTokens": int(row.tin), "outputTokens": int(row.tout)}
+            model = row.lo if row.lo == row.hi else f"{row.lo}, {row.hi}"
+            cost = float(row.usd) if row.usd is not None else None
+        started = ended = status = None
+        for mark in marks or []:
+            if mark.type == "execution_started":
+                started, ended, status = _dt(mark.ts), None, None  # a retry starts the clock again
+            elif started is not None and ended is None:
+                ended, status = _dt(mark.ts), mark.type.removeprefix("engine_")
+        elapsed = (ended - started).total_seconds() if started and ended else None
+        summary = build_review_summary(
+            files=files,
+            tool_calls=tool_calls,
+            usage=usage,
+            model=model,
+            cost_usd=cost,
+            cost_source="cost ledger" if cost is not None else None,
+            elapsed_seconds=elapsed,
+            status=status,
+            diff_omitted=f"over {MAX_FILES} files" if len(parsed) > MAX_FILES else None,
+        )
+        return JSONResponse({"runId": runId, "summary": summary}, headers=_no_store())
 
     return await _handled(go())
 

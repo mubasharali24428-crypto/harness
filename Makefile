@@ -15,10 +15,12 @@
 #                        + M15-G6a route/isolation law guards
 #   make e2e             section7 Playwright hero-journey (specs: lane H3a)
 #   make pg-probe        nightly parity: real-PG integration + S1 suite (needs PG)
-#   make gate            EVERYTHING a PR must pass (static-gates lint test frontend)
+#   make gate            EVERYTHING a PR must pass (static-gates lint test frontend
+#                        + the mcp and language package gates)
 #
 # Per-section granular targets (used by CI matrix jobs): make test-section<N>,
-# make lint-section<N> for N in 1 2 3 4 5 6 8 10.
+# make lint-section<N> for N in 1 2 3 4 5 6 8 10 11. Non-section packages keep
+# their own pair: make lint-mcp/test-mcp and make lint-language/test-language.
 
 SECTIONS := section1 section2 section3 section4 section5 section6 section8 section10 section11
 FRONTEND := section7
@@ -32,10 +34,10 @@ PG_URL ?= postgresql+asyncpg://harness:harness@localhost:5499/harness
 
 .PHONY: help bootstrap clean-venvs guard-script-check \
         gate $(foreach s,$(SECTIONS),lint-$(s) test-$(s)) \
-        lint test lint-mcp test-mcp frontend frontend-tsc frontend-vitest static-gates e2e e2e-compose \
+        lint test lint-mcp test-mcp lint-language test-language frontend frontend-tsc frontend-vitest check-ts-dist static-gates e2e e2e-compose \
         pg-probe pg-probe-integration pg-probe-s1 pg-probe-migrate pg-up pip-audit \
         guard-routes guard-isolation guard-route-law \
-        drill-oidc drill-pitr drill-native
+        drill-oidc drill-pitr drill-native drill-fairness drill-rate-limit drill-routing drill-seat-revocation drill-scim drill-siem
 
 help:
 	@echo "Harness gates — single source of truth shared by CI (.github/workflows/ci.yml):"
@@ -43,19 +45,27 @@ help:
 	@echo "  make lint            ruff across: $(SECTIONS)"
 	@echo "  make test            pytest matrix (same sections, CI order)"
 	@echo "  make frontend        section7: tsc --noEmit + vitest run"
+	@echo "  make check-ts-dist   clients/ts/dist matches a fresh build (needs npm ci)"
 	@echo "  make static-gates    sh -n entrypoint.sh; compose config; TS mirror --check"
+	@echo "                       + route/isolation law guards (M15-G6a)"
 	@echo "  make drill-oidc      OIDC SSO against a disposable Keycloak (evidence JSON)"
 	@echo "  make drill-pitr      WAL-G PITR against a disposable MinIO bucket (evidence JSON)"
 	@echo "  make drill-native    container tool drill; requires a native Linux host"
-	@echo "                       + route/isolation law guards (M15-G6a)"
+	@echo "  make drill-fairness   W15 admission fairness on the compose Postgres (no spend)"
+	@echo "  make drill-rate-limit W15 per-team budget; needs a small deployed team limit"
+	@echo "  make drill-routing    W15 routing decision is durable + readable (no spend)"
+	@echo "  make drill-seat-revocation W16 revoked seat refused on every live door"
+	@echo "  make drill-scim         W16 SCIM deprovision reaches every live door"
+	@echo "  make drill-siem         W16 SIEM push: signed delivery, replay, block/resume, verdict"
 	@echo "  make guard-routes    app/**/page.tsx default-export-only law (W4 carryover)"
 	@echo "  make guard-isolation sections import ONLY contracts/ (M13 isolation law)"
 	@echo "  make e2e             section7 Playwright suite (specs land via lane H3a)"
 	@echo "  make e2e-compose     zero-key compose journey, 12 checks (needs stack + master key)"
 	@echo "  make pg-probe        real-PG probes: integration checkpoint + S1 suite + migrate runner (needs PG :5499)"
 	@echo "  make pip-audit       dependency audit (WARN-posture parity with CI)"
-	@echo "  make gate            static-gates + lint + test + frontend"
+	@echo "  make gate            static-gates + lint + test + lint-mcp/test-mcp + lint-language/test-language + frontend"
 	@echo "  make lint-section<N> / test-section<N>   one section, exactly CI's command"
+	@echo "  make lint-language / test-language      packages/language (Hx checker), exactly CI's command"
 
 # ------------------------------------------------------------------ bootstrap
 # F-1 (M17-B6): a fresh clone ships no .venv anywhere — the very first
@@ -87,13 +97,19 @@ bootstrap:
 			./.venv/bin/pip install --quiet -e ../contracts && \
 			{ ./.venv/bin/pip install --quiet -e ".[dev]" || \
 			  ./.venv/bin/pip install --quiet -e .; } && cd .. || exit 1
+	@echo "== packages/language (Hx) =="; \
+		cd packages/language && $(PYTHON) -m venv .venv && \
+			./.venv/bin/pip install --quiet --upgrade pip && \
+			./.venv/bin/pip install --quiet -e ../../contracts && \
+			{ ./.venv/bin/pip install --quiet -e ".[dev]" || \
+			  ./.venv/bin/pip install --quiet -e .; } && cd ../.. || exit 1
 	@echo ""
 	@echo "Bootstrap complete. Try: make test-section1"
 
 clean-venvs:
 	@for s in $(SECTIONS); do rm -rf $$s/.venv; done
-	@rm -rf mcp/.venv
-	@echo "Removed all section venvs. Re-run 'make bootstrap' to recreate."
+	@rm -rf mcp/.venv packages/language/.venv
+	@echo "Removed all section/package venvs. Re-run 'make bootstrap' to recreate."
 
 # ---------------------------------------------------------------- static gates
 # M15-G6a added the route-module + isolation law guards (guard-route-law) to
@@ -104,6 +120,8 @@ static-gates: guard-route-law
 	docker compose -f deploy/docker-compose.yml config -q
 	python3 contracts/ts/generate.py --check
 	section4/.venv/bin/python scripts/spec_drift.py
+	python3 scripts/eval/run_eval.py --check
+	python3 scripts/check_env_knobs.py
 
 # ------------------------------------------------------------------------ lint
 # Sections WITH a scripts/ tree get the three-path check; sections without
@@ -178,6 +196,13 @@ lint-mcp:
 test-mcp:
 	cd mcp && ./.venv/bin/python -m pytest tests -q
 
+# Hx language package is not a section either. Its venv installs contracts
+# first (path dependency) exactly like mcp and bootstrap.
+lint-language:
+	cd packages/language && ./.venv/bin/ruff check src tests scripts
+test-language:
+	cd packages/language && ./.venv/bin/python -m pytest tests -q
+
 
 # -------------------------------------------------------------------- frontend
 # Granular halves so ci.yml steps map 1:1 (tsc and vitest report separately).
@@ -188,6 +213,12 @@ frontend-vitest:
 	cd $(FRONTEND) && npx vitest run
 
 frontend: frontend-tsc frontend-vitest
+
+# The compiled client shipped in git (clients/ts/dist) is the published
+# artifact, so it must be rebuilt whenever its sources change. Requires
+# `npm ci -C clients/ts`; exits 2 (loudly, never a silent pass) without it.
+check-ts-dist:
+	./scripts/sdk-gen/check_ts_dist.sh
 
 # ------------------------------------------------------------------------- e2e
 # Pair contract H-P2: H3b defines the target, H3a consumes it. Until H3a lands
@@ -226,6 +257,43 @@ drill-pitr:
 
 drill-native:
 	./scripts/native_linux_drill.sh
+
+# W15: admission fairness on the real PostgreSQL dialect. Creates and drops a
+# throwaway database on the compose Postgres (127.0.0.1:5499); no engine run,
+# no model call, no spend. Override the DSN with HARNESS_PG_DSN.
+drill-fairness:
+	section4/.venv/bin/python scripts/e2e/w15_fairness_drill.py
+
+# W15: per-team rate budget on /models/call. PRECONDITION: the models service
+# must be booted with a small HARNESS_TEAM_MODEL_CALL_LIMIT (the shipped default
+# of 300/min would need 301 live calls). Example:
+#   HARNESS_TEAM_MODEL_CALL_LIMIT=3 docker compose -f deploy/docker-compose.yml \
+#     up -d --no-deps --force-recreate models
+#   make drill-rate-limit W15_TEAM_CALL_LIMIT=3
+drill-rate-limit:
+	W15_TEAM_CALL_LIMIT=$${W15_TEAM_CALL_LIMIT:-3} python3 scripts/e2e/w15_rate_limit_drill.py
+
+# W15: routing evidence on the live stack. Needs the orchestrator + identity
+# running; uses probe model ids that exist in no catalog, so it cannot reach a
+# provider or spend money — the decision is what is under test.
+drill-routing:
+	section4/.venv/bin/python scripts/e2e/w15_routing_drill.py
+
+# W16: seat revocation on the live stack — identity's own door plus a service
+# that resolves principals through the shared contract dependency. Touches only
+# the throwaway drill user it creates.
+drill-seat-revocation:
+	python3 scripts/e2e/w16_seat_revocation_drill.py
+
+# W16 slice 3: an IdP-side deprovisioning, proven against the deployed
+# containers and a real Postgres (needs the stack up + migration 0070).
+drill-scim:
+	python3 scripts/e2e/w16_scim_deprovision_drill.py
+
+# W16 slice 4. section1's venv on purpose: Part B seeds a throwaway database
+# through the ORM and drives the real delivery loop with sqlalchemy/asyncpg.
+drill-siem:
+	section1/.venv/bin/python scripts/e2e/w16_siem_push_drill.py
 
 # -------------------------------------------------------------------- pg-probe
 # Nightly-pg-probe job parity. Guarded: silently skipping would fake parity.
@@ -306,7 +374,7 @@ guard-script-check:
 # ----------------------------------------------------------------------- gate
 # Everything branch protection blocks a PR on. (e2e joins here when H3a's
 # specs land; nightly pg-probe and security-scan stay schedule/push-scoped.)
-gate: static-gates lint lint-mcp test test-mcp frontend
+gate: static-gates lint lint-mcp test test-mcp lint-language test-language frontend
 	@echo ""
-	@echo "GATE GREEN — static-gates + lint + test + frontend all passed."
+	@echo "GATE GREEN — static-gates + lint + test + lint-mcp/test-mcp + lint-language/test-language + frontend all passed."
 	@echo "This is byte-for-byte what ci.yml enforces on PRs."

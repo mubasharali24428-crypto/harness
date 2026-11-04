@@ -61,6 +61,22 @@ export function redirectProblem(kind: RedirectKind, content: string, reason: str
   return null;
 }
 
+/** W23: when sent guidance reaches the agent, from the server's `takesEffect` (collab.takes_effect).
+ *  The engine reads guidance once, as a call starts; `after_acceptance` has its own queued notice. */
+const TAKES_EFFECT_TEXT: Record<string, string> = {
+  next_start: "The agent gets this when the run next starts or resumes.",
+  next_execution:
+    "The agent's current pass will not see this. It gets it only if the run executes again, for example after a pause and resume.",
+  never: "This run has finished, so the agent will not see this.",
+};
+
+/** Pure. Null for an older server or an unknown value: say nothing rather than guess. */
+export function takesEffectText(takesEffect: unknown): string | null {
+  return typeof takesEffect === "string" && Object.prototype.hasOwnProperty.call(TAKES_EFFECT_TEXT, takesEffect)
+    ? TAKES_EFFECT_TEXT[takesEffect]
+    : null;
+}
+
 export function describeEvent(e: CollabEvent): string {
   const who = e.actor;
   const text = typeof e.payload.content === "string" ? e.payload.content : "";

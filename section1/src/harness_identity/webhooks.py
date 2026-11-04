@@ -9,12 +9,9 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import ipaddress
 import json
 import logging
-import os
 import secrets
-import socket
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
@@ -39,6 +36,8 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from .auth import get_principal
 from .crypto import KeyVault
+from .egress import allowed_hosts as egress_allowed_hosts
+from .egress import host_is_public, validate_public_https
 from .models import Base, JSONVariant, uid
 
 logger = logging.getLogger(__name__)
@@ -163,69 +162,22 @@ def _team_admin(principal: Principal, team_id: str) -> None:
 
 
 def _allowed_hosts() -> set[str]:
-    return {
-        part.strip().lower().rstrip(".")
-        for part in os.getenv("HARNESS_WEBHOOK_ALLOWED_HOSTS", "").split(",")
-        if part.strip()
-    }
+    return egress_allowed_hosts("HARNESS_WEBHOOK_ALLOWED_HOSTS")
 
 
 def _validate_url(url: str) -> str:
-    try:
-        parsed = urlsplit(url.strip())
-    except ValueError:
-        raise HTTPException(
-            status_code=422,
-            detail=error_body("INVALID_WEBHOOK_URL", "invalid webhook URL"),
-        ) from None
-    host = (parsed.hostname or "").lower().rstrip(".")
-    try:
-        port = parsed.port
-    except ValueError:
-        port = None
-        host = ""
-    if (
-        parsed.scheme != "https"
-        or not host
-        or port not in (None, 443)
-        or parsed.username is not None
-        or parsed.password is not None
-        or parsed.query
-        or parsed.fragment
-        or host not in _allowed_hosts()
-    ):
-        raise HTTPException(
-            status_code=422,
-            detail=error_body(
-                "INVALID_WEBHOOK_URL", "HTTPS URL host must be operator-allow-listed"
-            ),
-        )
-    try:
-        ip = ipaddress.ip_address(host)
-    except ValueError:
-        if host in {"localhost", "localhost.localdomain"} or host.endswith(
-            (".localhost", ".local")
-        ):
-            raise HTTPException(
-                status_code=422,
-                detail=error_body("INVALID_WEBHOOK_URL", "local destinations are forbidden"),
-            ) from None
-    else:
-        if not ip.is_global:
-            raise HTTPException(
-                status_code=422,
-                detail=error_body("INVALID_WEBHOOK_URL", "non-public destinations are forbidden"),
-            )
-    return url.strip()
+    return validate_public_https(
+        url,
+        allowed=_allowed_hosts(),
+        code="INVALID_WEBHOOK_URL",
+        label="webhook",
+    )
 
 
 def _host_is_public(host: str) -> bool:
-    """Reject private DNS answers at delivery time; egress firewall remains required."""
-    try:
-        answers = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
-        return bool(answers) and all(ipaddress.ip_address(row[4][0]).is_global for row in answers)
-    except (OSError, ValueError):
-        return False
+    """Delivery-time DNS check; the rule lives in egress.py with every other
+    outbound destination (a duplicated SSRF check is a halved one)."""
+    return host_is_public(host)
 
 
 def _public(row: IntegrationWebhook) -> dict[str, Any]:

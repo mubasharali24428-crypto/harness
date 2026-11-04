@@ -1,0 +1,175 @@
+{
+  "date": "2026-10-30",
+  "week": "W14",
+  "task": "w14-design-heldout",
+  "leg": "live",
+  "run": "w14-design-1793356326",
+  "preRegistered": {
+    "ratioMax": 0.03,
+    "colourTolerance": 12,
+    "answerRatioTolerance": 0.005,
+    "fixtureColourTolerance": 0
+  },
+  "fixture": {
+    "token": "CIRRUS-52",
+    "bytes": 6499,
+    "sha256": "ecf8934da5d956081f3fb09f88227072863c277db7551fc49c7617b44a31f59f",
+    "sampledColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    },
+    "expectedColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    }
+  },
+  "fixtureChecks": {
+    "fixtureRendersAtDeclaredSize": true,
+    "flatColoursExactAtSamplePoints": true,
+    "tokenTextIsDrawn": true,
+    "selfDiffIsZero": true,
+    "renderIsDeterministic": true
+  },
+  "drive": "HTTP only",
+  "seededFiles": [
+    "mockup.png"
+  ],
+  "design": {
+    "startStatus": 200,
+    "states": [
+      "executing",
+      "blocked"
+    ],
+    "state": "blocked",
+    "engine": "replayed",
+    "engineStatus": "error",
+    "answer": "DeepSeek Harness run failed: model qwen/qwen3.7-flash returned an empty response"
+  },
+  "designTrail": {
+    "toolsUsed": [
+      "image",
+      "read_image"
+    ],
+    "imageDiffCalls": [],
+    "imageSampleCalls": [],
+    "imagePaletteCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "call_eabe4329bc56465e92573555",
+        "arguments": "{\"action\":\"palette\",\"path\":\"mockup.png\",\"maxColors\":12}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "screenshotCalls": [],
+    "mockupReads": [
+      {
+        "type": "tool_call",
+        "tool": "read_image",
+        "callId": "call_681657ff8acf473d8215542d",
+        "arguments": "{\"file_path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "dialogReads": [],
+    "writes": [],
+    "imageArguments": [
+      "{\"action\":\"palette\",\"path\":\"mockup.png\",\"maxColors\":12}"
+    ]
+  },
+  "measurement": {},
+  "checks": {
+    "fixtureLegPassed": true,
+    "designRunSettled": true,
+    "agentOpenedTheMockup": true,
+    "agentMeasuredColours": true,
+    "agentScreenshottedItsPage": false,
+    "agentUsedTheDiff": false,
+    "agentWroteThePage": false,
+    "tokenOnlyInPixelsWasTranscribed": false,
+    "pageRendersAtMockupSize": false,
+    "independentDiffWithinThreshold": false,
+    "flatColoursSurvived": false,
+    "agentRatioAgreesWithBytes": false
+  },
+  "verdict": "FAIL",
+  "failedChecks": [
+    "agentScreenshottedItsPage",
+    "agentUsedTheDiff",
+    "agentWroteThePage",
+    "tokenOnlyInPixelsWasTranscribed",
+    "pageRendersAtMockupSize",
+    "independentDiffWithinThreshold",
+    "flatColoursSurvived",
+    "agentRatioAgreesWithBytes"
+  ],
+  "designAnswer": "DeepSeek Harness run failed: model qwen/qwen3.7-flash returned an empty response"
+}

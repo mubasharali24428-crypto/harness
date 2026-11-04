@@ -1,0 +1,9 @@
+[
+  {
+    "line": 5,
+    "col": 1,
+    "kind": "error",
+    "code": "HX3016",
+    "message": "the file for `use notes` declares module 'other'; the name used and the name declared must agree, or a run cannot say which file it executed"
+  }
+]

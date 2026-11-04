@@ -1,0 +1,33 @@
+{
+  "runId": "w22-cut-59fa96d9f9ec",
+  "verdict": "PASS",
+  "lines": 400,
+  "relay": "0aba2146d5dc",
+  "txAtCut": 6606,
+  "txGrowingAtCut": [
+    1737,
+    6606
+  ],
+  "killExit": 0,
+  "cutAt": "09:15:37",
+  "state": "blocked",
+  "engineStatus": "error",
+  "events": "plan_proposed,plan_approved,execution_started,model_routed,engine_failed:Connection error.",
+  "bigTxtLines": -1,
+  "routedModels": [],
+  "leftContainers": {},
+  "recovery": {
+    "runId": "w22-cut-rec-59fa96d9f9ec",
+    "state": "awaiting_done_signal",
+    "okTxtLines": 1
+  },
+  "checks": {
+    "cutMidStream": true,
+    "runBlocked": true,
+    "engineError": true,
+    "noPartialFile": true,
+    "noModelDowngrade": true,
+    "noLiveWorkerOrRelay": true,
+    "recoveryCompleted": true
+  }
+}

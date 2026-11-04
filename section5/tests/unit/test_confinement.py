@@ -110,3 +110,26 @@ async def test_seatbelt_blocks_forbidden_path_even_via_interpreter(tmp_path):
     )
     assert res.exit_code != 0
     assert "CANARY" not in res.summary
+
+
+def test_write_roots_replace_the_workspace_in_both_backends(tmp_path, monkeypatch):
+    """M03: a narrower intent scope becomes the boundary's write set."""
+    import json
+
+    from harness_sandbox import confinement as c
+
+    scope = tmp_path / "src"
+    scope.mkdir()
+    profile = c.seatbelt_profile(tmp_path, False, None, tmp_path / "t", write_roots=[scope])
+    allow = next(line for line in profile.splitlines() if line.startswith("(allow file-write*"))
+    assert f'(subpath "{scope.resolve()}")' in allow
+    assert f'(subpath "{tmp_path.resolve()}")' not in allow
+    assert f'(subpath "{tmp_path.resolve()}")' in c.seatbelt_profile(tmp_path, False)
+
+    monkeypatch.setattr(c, "seatbelt_available", lambda: False)
+    monkeypatch.setattr(c, "landlock_supported", lambda: True)
+    argv = c.confine_argv(["/bin/sh", "-c", "x"], workspace=tmp_path, tmpdir=tmp_path / "t",
+                          write_roots=[scope])
+    assert json.loads(argv[8]) == [str(scope)] and argv[9:] == ["/bin/sh", "-c", "x"]
+    plain = c.confine_argv(["/bin/sh"], workspace=tmp_path, tmpdir=tmp_path / "t")
+    assert json.loads(plain[8]) is None and plain[9:] == ["/bin/sh"]

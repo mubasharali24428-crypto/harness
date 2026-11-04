@@ -1,0 +1,32 @@
+{
+  "drill": "w4-web-fetch",
+  "takenAt": "2026-10-27T04:52:18Z",
+  "scope": "gate decision + live fetch; not a confinement boundary test",
+  "gate": "section5/src/harness_sandbox/web_gate.py",
+  "cases": {
+    "allowed_docs": {
+      "url": "https://platform.claude.com/docs/en/api/messages",
+      "error": "fetch failed: The read operation timed out",
+      "seconds": 21.85
+    },
+    "denied_host": {
+      "url": "https://example.com/",
+      "denied": "example.com is not in the web allow-list",
+      "host": "example.com",
+      "seconds": 0.25
+    },
+    "denied_scheme": {
+      "url": "http://platform.claude.com/docs/en/api/messages",
+      "denied": "only https is reachable (got 'http')",
+      "host": "platform.claude.com",
+      "seconds": 0.08
+    },
+    "denied_port": {
+      "url": "https://platform.claude.com:8443/docs/en/api/messages",
+      "denied": "only port 443 is reachable (got 8443)",
+      "host": "platform.claude.com",
+      "seconds": 0.08
+    }
+  },
+  "verdict": "fail"
+}

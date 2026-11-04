@@ -26,6 +26,7 @@ import {
 import {
   type CollabView, approvalAnnouncements, approvalLabel, clipDiff, deriveCollabView, describeDecision,
   fileStatuses, freshEventLines, isOpenApproval, mergeEvents, plainError, redirectProblem, reopenedApprovals,
+  takesEffectText,
 } from "./collabModel";
 import { type StreamView, useCollabStream } from "./useCollabStream";
 import { ConnectionStatus } from "./connectionStatus";
@@ -372,9 +373,10 @@ export function SharedRunPanel({ runId, projectId, onStagedPendingChange }: {
           run(async () => {
             const r = await sendRedirect(runId, token, { kind, content, reason: reason || undefined, requestId: crypto.randomUUID() });
             // Guidance from someone who does not hold control is queued, not sent: say so.
+            // Otherwise say when the agent actually reads it (W23).
             setNotice(r.queued
               ? `Your direction is queued. ${view.leader ?? "The person in control"} must accept it before the agent sees it.`
-              : null);
+              : takesEffectText(r.takesEffect));
           })}
       >
         <PresenceSection runId={runId} token={token} tick={tick} onChanged={changed} />

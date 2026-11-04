@@ -249,7 +249,12 @@ def test_get_run_includes_prid_from_db(monkeypatch, db):
         # Parts 10/22: the durable lifecycle view and the run's workspace identity.
         "workspace",
         "lifecycle",
+        # W15 (additive): the durable routing decision for this run, or None.
+        # No agent_events row was seeded for run-with-pr, so it reads None —
+        # "no decision recorded", never a guessed "routing was off".
+        "routing",
     }
+    assert body["routing"] is None
 
 
 def test_get_run_prid_null_when_no_pr(monkeypatch, db):

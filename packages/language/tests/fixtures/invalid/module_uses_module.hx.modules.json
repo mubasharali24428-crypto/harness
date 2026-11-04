@@ -1,0 +1,4 @@
+{
+  "notes": "module notes\nuse deeper\n\nschema Helper {\n  text: String\n}\n",
+  "deeper": "module deeper\n\nschema Far {\n  text: String\n}\n"
+}

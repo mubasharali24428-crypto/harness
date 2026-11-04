@@ -1,0 +1,41 @@
+[2026-10-30 23:32:06,457] users-MacBook-Pro-4/INFO/locust.main: Starting Locust 2.46.4
+[2026-10-30 23:32:06,461] users-MacBook-Pro-4/INFO/locust.main: Run time limit set to 60 seconds
+[2026-10-30 23:32:06,462] users-MacBook-Pro-4/INFO/locust.runners: Ramping to 4 users at a rate of 4.00 per second
+[2026-10-30 23:32:06,463] users-MacBook-Pro-4/INFO/locust.runners: All users spawned: {"HarnessUser": 4} (4 total users)
+[2026-10-30 23:33:06,130] users-MacBook-Pro-4/INFO/locust.main: --run-time limit reached, shutting down
+[2026-10-30 23:33:06,511] users-MacBook-Pro-4/INFO/locust.main: Shutting down (exit code 1)
+Type     Name                                                                          # reqs      # fails |    Avg     Min     Max    Med |   req/s  failures/s
+--------|----------------------------------------------------------------------------|-------|-------------|-------|-------|-------|-------|--------|-----------
+FLOW     control-plane                                                                    269     0(0.00%) |     76      32     238     77 |    4.48        0.00
+FLOW     engine-wait                                                                      269     0(0.00%) |    736     544    1181    590 |    4.48        0.00
+FLOW     journey                                                                          179 179(100.00%) |      0       0       0      0 |    2.98        2.98
+FLOW     journey-total                                                                    269     0(0.00%) |    838     594    1477    700 |    4.48        0.00
+FLOW     login                                                                            269     0(0.00%) |     11       5      78      9 |    4.48        0.00
+FLOW     project                                                                          269     0(0.00%) |     14       6      59     13 |    4.48        0.00
+FLOW     step-approve                                                                     269     0(0.00%) |     19       7      71     19 |    4.48        0.00
+FLOW     step-plan                                                                        269     0(0.00%) |     24      10     104     23 |    4.48        0.00
+FLOW     step-start                                                                       269     0(0.00%) |     33      13     100     33 |    4.48        0.00
+--------|----------------------------------------------------------------------------|-------|-------------|-------|-------|-------|-------|--------|-----------
+         Aggregated                                                                      2331   179(7.68%) |    202       0    1477     25 |   38.82        2.98
+
+Response time percentiles (approximated)
+Type     Name                                                                                  50%    66%    75%    80%    90%    95%    98%    99%  99.9% 99.99%   100% # reqs
+--------|--------------------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------|------|------|------
+FLOW     control-plane                                                                          77     80     83     84    120    140    150    170    240    240    240    269
+FLOW     engine-wait                                                                           590    610   1100   1100   1100   1100   1200   1200   1200   1200   1200    269
+FLOW     journey                                                                                 0      0      0      0      0      0      0      0      0      0      0    179
+FLOW     journey-total                                                                         700    770   1200   1200   1200   1300   1400   1400   1500   1500   1500    269
+FLOW     login                                                                                   9     10     11     12     14     22     42     71     78     78     78    269
+FLOW     project                                                                                13     15     16     17     21     31     42     58     59     59     59    269
+FLOW     step-approve                                                                           19     21     22     22     26     36     40     48     72     72     72    269
+FLOW     step-plan                                                                              23     24     26     27     34     43     80     91    100    100    100    269
+FLOW     step-start                                                                             33     35     37     38     47     62     78     83    100    100    100    269
+--------|--------------------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------|------|------|------
+         Aggregated                                                                             25     52     90    570    690   1100   1200   1200   1400   1500   1500   2331
+
+Error report
+# occurrences      Error                                                                                               
+------------------|---------------------------------------------------------------------------------------------------------------------------------------------
+179                FLOW journey: RuntimeError("start run failed: HTTP 429 {'error': {'code': 'RATE_LIMITED', 'message': 'team run-start budget exhausted; retry shortly'}, 'detail': {'error': {'code': 'RATE_LIMITED', 'message': 'team run-start budget exhausted; retry shortly'}}}")
+------------------|---------------------------------------------------------------------------------------------------------------------------------------------
+

@@ -4,12 +4,23 @@
 set -e
 cd "$(dirname "$0")/runners"
 
+# A compose `command:` belongs to the service that set it. Before this, the
+# argument list was never read, so `sandbox-egress` (command: python -m
+# harness_sandbox.egress_proxy) silently ignored its own command, fell through
+# to the all-in-one branch and tried to boot seven uvicorns — plus the migrate
+# job — inside a 128MB, 0.25-CPU sidecar. It crash-looped on the master-key
+# gate instead of ever proxying anything. Checked BEFORE HARNESS_SERVICE so a
+# command-carrying sidecar needs no HARNESS_SERVICE at all.
+if [ "$#" -gt 0 ]; then
+  exec "$@"
+fi
+
 if [ -n "${HARNESS_SERVICE:-}" ]; then
   case "$HARNESS_SERVICE" in
-    migrate|identity|github|models|orchestrator|sandbox|meeting|review|webhook-delivery) ;;
+    migrate|identity|github|models|orchestrator|sandbox|meeting|review|webhook-delivery|siem-push) ;;
     *)
       echo "unknown HARNESS_SERVICE: $HARNESS_SERVICE" >&2
-      echo "expected: migrate identity github models orchestrator sandbox meeting review webhook-delivery" >&2
+      echo "expected: migrate identity github models orchestrator sandbox meeting review webhook-delivery siem-push" >&2
       exit 1
       ;;
   esac
@@ -28,7 +39,7 @@ import sys
 
 sys.path.insert(0, "/opt/harness/deploy/runners")
 
-from migrate import check_drift
+from migrate import check_drift_with_retry as check_drift
 from services import get_factory
 
 
@@ -112,7 +123,7 @@ import sys
 
 sys.path.insert(0, "/opt/harness/deploy/runners")
 
-from migrate import check_drift
+from migrate import check_drift_with_retry as check_drift
 from services import get_factory
 
 
@@ -135,6 +146,13 @@ PYGATE
 
   if [ "$HARNESS_SERVICE" = webhook-delivery ]; then
     exec python -m harness_identity.webhook_worker
+  fi
+
+  # W16 slice 4: the SIEM push loop. Separate service so a stalled customer
+  # collector cannot slow outbound webhooks, and so `pendingRows` growth has an
+  # obvious process to look at.
+  if [ "$HARNESS_SERVICE" = siem-push ]; then
+    exec python -m harness_identity.siem_worker
   fi
 
   case "$HARNESS_SERVICE" in

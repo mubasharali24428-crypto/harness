@@ -22,34 +22,36 @@ import type { CSSProperties } from "react";
  * custom-property names so a token and its var can never drift apart.
  */
 export const colors = {
-  /** Page background (warm charcoal, #1a1814). */
-  bg: "#1a1814",
-  /** Sidebar/cards surface (#1e1c18). */
-  panel: "#1e1c18",
-  /** Elevated inputs/selects/buttons surface (#252220). */
-  panel2: "#252220",
-  /** Hairline borders (#3d3930). */
-  border: "#3d3930",
-  /** Softer card/dividing borders (#2d2a22). */
-  borderSoft: "#2d2a22",
-  /** Primary text (cream, #faf9f6). */
-  text: "#faf9f6",
-  /** Secondary text (#a8a296). */
-  muted: "#a8a296",
-  /** Readable body-on-panel text (#c9c4b8). */
-  text2: "#c9c4b8",
-  /** Mint accent (#8ee5a1). Drives links, focus rings, active nav. */
-  accent: "#8ee5a1",
-  /** Success/positive (#5cb870). */
-  green: "#5cb870",
-  /** Danger/destructive (#ff6b6b). */
-  red: "#ff6b6b",
-  /** Warning/caution (#e5a814). */
-  yellow: "#e5a814",
-  /** Ink used on accent-filled chips (warm charcoal). */
-  onAccent: "#1a1814",
-  /** Soft mint ink for secondary accents (#b7f0c4). */
-  accentSoft: "#b7f0c4",
+  /** Page background (ink, #0a0b0e). */
+  bg: "#0a0b0e",
+  /** Sidebar/cards surface (#12161e). */
+  panel: "#12161e",
+  /** Elevated inputs/selects/buttons surface (#191e28). */
+  panel2: "#191e28",
+  /** Hairline borders (#272c37). */
+  border: "#272c37",
+  /** Softer card/dividing borders (#1b2029). */
+  borderSoft: "#1b2029",
+  /** Primary text (#e9edf6). */
+  text: "#e9edf6",
+  /** Secondary text (#8d96a8). */
+  muted: "#8d96a8",
+  /** Readable body-on-panel text (#b9c1d1). */
+  text2: "#b9c1d1",
+  /** Electric-blue accent (#8ba8ff). Links, focus rings, active nav. */
+  accent: "#8ba8ff",
+  /** Deep accent (#4566e8) — solid fills where white text must clear AA. */
+  accentStrong: "#4566e8",
+  /** Success/positive (#58cf8a). */
+  green: "#58cf8a",
+  /** Danger/destructive (#ff7b7b). */
+  red: "#ff7b7b",
+  /** Warning/caution (#e9b949). */
+  yellow: "#e9b949",
+  /** Ink used on accent-filled chips. */
+  onAccent: "#0a0b0e",
+  /** Soft accent ink for secondary accents (#b9c9ff). */
+  accentSoft: "#b9c9ff",
 } as const;
 
 /** A color role key into {@link colors}. */
@@ -186,6 +188,7 @@ export function cssVar(name: ColorName): string {
     panel2: "panel-2",
     text2: "text-2",
     borderSoft: "border-soft",
+    accentStrong: "accent-strong",
   };
   return `var(--${kebab[name] ?? name})`;
 }

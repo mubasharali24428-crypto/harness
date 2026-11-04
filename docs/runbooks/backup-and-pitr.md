@@ -45,20 +45,97 @@ a scheduled drill cadence (monthly minimum).
 
 ## Scheduling
 
+**Installed (2026-10-31): a per-user launchd agent, `com.harness.nightly-backup`, 03:17 local.**
+Until that date nothing was scheduled at all: the cron lines that used to sit here were a
+`/path/to/harness` placeholder, and no crontab, launchd agent or scheduled task for backups could be found (the
+"monthly drill automation" named below was not found in any of those either; the drills on file were run by hand or by another tool). That is why the base backup was 6 days stale.
+
 ```
-# m  h dom mon dow  command
-17 2 * * * cd /path/to/harness && ./deploy/backup/backup.sh >> deploy/backup/backup.log 2>&1
-03 3 * * * cd /path/to/harness && docker compose -f deploy/docker-compose.yml --profile walg run --rm walg >> deploy/backup/walg.log 2>&1
+./deploy/backup/install-launchd.sh              # install / re-install
+./deploy/backup/install-launchd.sh --uninstall
+launchctl kickstart gui/$(id -u)/com.harness.nightly-backup   # run it now
+tail ~/harness-backups/nightly.log               # last line: nightly-backup RESULT=ok|FAILED steps=...
 ```
 
-(First line: nightly logical dump. Second: daily WAL-G base backup via the
-one-shot wrapper — since M17-B2 its `PGHOST` defaults to the LIVE `db`, so
-the scheduled backup protects the real cluster with zero overrides; point a
-one-off rehearsal back at the drill sidecar with `-e WALG_PGHOST=walg-db`.
-Host cron is deliberately preferred over any in-container sleep loop: exact
-timing, catch-up semantics, failures surface in cron mail.)
-macOS launchd equivalent: `StartCalendarInterval` agents running the same
-commands.
+`deploy/backup/nightly.sh` runs, each step independently (exit is nonzero if any fails):
+1. logical dump (`backup.sh`);
+2. WAL-G base backup of the live `db` (`walg run --rm --no-deps`, so no second cluster can
+   archive into the live prefix);
+3. artifact-store snapshot (`store-backup.sh`) straight after the base, then
+   `store_verify.py` checks every non-deleted `artifacts` row has its file in the snapshot with
+   a matching sha256;
+4. `rsync` of the WAL-G archive from `/tmp/harness-walg-live` to `~/harness-backups/walg-live`.
+
+The agent runs `nightly.sh --if-due` at 03:17 **and hourly**, wrapped in `caffeinate -i`: a run happens
+only when the newest base backup is older than 23 h, so a Mac that slept through 03:17 or had Docker
+down catches up on wake or on the next hourly tick. It cannot wake a sleeping Mac; that needs
+`sudo pmset repeat wakeorpoweron MTWRFSU 03:15:00` (a system setting, owner's call). A failed or skipped
+night is also detected by `HarnessBackupStale` (> 25 h).
+
+**Retention:** `WALG_RETENTION_KEEP` defaults to **7** in `nightly.sh`, so the live archive keeps the 7
+newest base backups plus the WAL after the oldest (a 7-day recovery window, roughly 4-5 GB); the
+`walg` wrapper itself refuses to prune while run-retention holds exist. The mirror follows with
+`rsync --delete`, but only while the source still contains a base backup. Verified on a scratch copy
+first: `delete retain 1` removed 3 317 objects (3.7 GB to 54 MB) and the remaining base still restored.
+Logical dumps keep 7, store snapshots 14.
+
+**Off-machine copy:** not configured. `nightly.sh` runs an `rsync` to `OFFSITE_RSYNC_TARGET` (set in
+`~/harness-backups/offsite.env`) when present and prints `WARN offsite` and `offsite=NONE` on every
+run until it is. Nothing leaves this machine today.
+
+Restore the store into a NEW volume with `deploy/backup/store-restore.sh <store-*.tgz> <volume>`
+(refuses an existing volume; cutover onto `harness_store` is a manual stop-the-stack step).
+Snapshots are in `~/harness-backups/store/` (newest 14 kept).
+
+Original cron form, for hosts without launchd (replace the path):
+
+```
+17 2 * * * cd /path/to/harness && ./deploy/backup/nightly.sh >> ~/harness-backups/nightly.log 2>&1
+```
+
+### Scheduled restore drill (W15)
+
+The PITR drill is not a memory any more. A QoderWake automation named
+"Monthly PITR restore drill" (`tr_a4315e8e62b81c7819aca10d`, owner
+`9e6efca6ff1e`) runs on the 1st of each month at 04:00 host time and executes:
+
+```sh
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+PITR_DRILL_OUT=docs/briefs/evidence/pilot-prep/pitr-drill-$STAMP.json \
+PITR_DRILL_LOG=docs/briefs/evidence/pilot-prep/pitr-drill-$STAMP.log \
+  ./scripts/pitr_drill.sh
+```
+
+The script runs in its own throwaway compose project (`harness-pitr-<utc stamp>`,
+or `PITR_PROJECT=<name>`), with its own network, MinIO, `walg-db`, restore
+container and volume. It refuses a project name that already has containers,
+passes no `--env-file` unless `PITR_ENV_FILE` is set (compose still auto-loads `deploy/.env`, so the script overrides `WALG_FILE_PREFIX` and `HARNESS_RUNS_VOLUME`), applies migration 0059 to the
+scratch cluster and fails the drill unless the wrapper records the backup in
+`backup_runs` (a missing record means backup-freshness monitoring is unproven).
+Cleanup is `compose -p <its project> down -v` plus its own restore
+container/volume. The compose file pins the run-storage volume name (`harness_runs`),
+which `down -v` would otherwise resolve to the live volume, so the script sets
+`HARNESS_RUNS_VOLUME=<project>_runs` first; `PITR_KEEP=1`
+leaves everything for inspection (then remove it with that same `down -v`).
+Each run keeps its own dated evidence pair, so histories never overwrite each
+other. The automation's run status is the failure signal; the script exits
+non-zero on a failed drill and the automation reports the failing step without
+retrying into a pass.
+
+**Verify the freshness signal on the live stack:** `scripts/e2e/w17_backup_freshness_verify.py`
+reads `harness_backup_last_success_timestamp_seconds` from Prometheus, computes its age and
+asserts that `HarnessBackupStale`'s state agrees with the 25 h threshold (`HarnessBackupNeverRan`
+must stay quiet while the series exists). It deliberately does not run a real backup — a drill
+must not archive into the live prefix — and it does not insert a synthetic `backup_runs` row,
+which would "fix" the number and prove nothing. The 2026-10-31 run found the newest base backup
+~6.1 days old, so the alert was correctly **firing**; the fresh→clears leg is covered by the
+promtool rule test and `section1/tests/test_backup_metrics_pg.py`. Evidence:
+`docs/briefs/evidence/w17/w17-backup-freshness-*.json`.
+
+Operators who do not run QoderWake automations can schedule the same command
+with host cron (monthly, `0 4 1 * *`) — the command is the contract, the
+scheduler is not. Do not run it inside a container sleep loop: a missed run
+would be invisible.
 
 **Ordering vs vacuum (M15-W5-D2):** schedule base backups AFTER the
 maintenance window — VACUUM first, then the base backup — so restores start
@@ -301,6 +378,7 @@ immediate fresh base backup.
 | 2026-10-21 07:49 | `restore-walg.sh` against the **live `db` archive** (`/tmp/harness-walg-live`, base 07:32) | `07:48:17+00` | 10 s | ~3 s (13 s script total) | **PASS** (2nd run) | run #1 aborted: live `db` runs `-c max_connections=120`, scratch server defaulted to 100 → "insufficient parameter settings"; script now passes 120. Stopped before the DELETE's commit (07:48:19.656); marker id=1 back, id=99 (after target) absent; users/teams/projects/events/backup_runs counts equal live; promoted in 1 s → timeline 2; scratch `archive_mode=off`, no timeline-2 WAL in the live prefix |
 | 2026-10-21 08:52 | `restore-walg.sh` from **S3** (SeaweedFS 4.48 on 127.0.0.1, `s3://walg/drill`, access keys enforced; `walg-db` archiving, base `…33` in 2 s) | `08:51:55+00` | 1 s | 1 s (4 s script total) | **PASS** (2nd run) | run #1: the DELETE and `pg_switch_wal()` were one `psql -c` transaction, so its commit sat in an unarchived segment → "recovery ended before configured recovery target was reached" (procedure error; switch WAL in its own statement). Stopped before txn 798 (the DELETE); 5000 rows with marker id=1 while paused (`walg-db` after the DELETE: 4999); promoted, INSERT ok. Found and fixed: no `AWS_S3_FORCE_PATH_STYLE` passthrough (wal-g hung), and the script mounted `/nonexistent` in S3 mode, which Docker Desktop refuses |
 | 2026-10-25 09:53 | `./scripts/pitr_drill.sh` (MinIO S3 API, **versioned bucket**, `walg-db` only) | `09:52:59+00` | 1 s | 1 s (3 s script total) | **PASS** | marker id=2 written AFTER the base backup, deleted after TARGET; target restored it while the live drill DB had 1 row; promoted. Base backup 2 s. Also fixed the procedure's ordering (backup must precede the marker) and made the script wait for the archiver instead of sleeping. Evidence: `docs/briefs/evidence/pilot-prep/walg-s3-pitr-drill.json`. The drill cluster is unmigrated, so the wrapper's `backup_runs` write warns; it does not affect WAL/restore |
+| 2026-10-31 06:06 | `./scripts/pitr_drill.sh` after the W17 isolation change (private compose project `harness-pitr-20261031t060635z`, MinIO S3 API, versioned bucket) | `06:06:49+00` | 2 s | 1 s (4 s script total; base backup 3 s) | **PASS** | marker id=2 present at target, absent after the delete; promoted; the wrapper recorded the backup in `backup_runs` (migration 0059 applied to the scratch cluster, no WARN); cleanup left no containers, volumes or networks of the project, and the live `harness` stack was not touched. Evidence: `docs/briefs/evidence/w17/pitr.json` / `.log`. Local MinIO is not offsite cloud storage and this is not a live-primary cutover test |
 
 Base-backup wall times (⏱ RTO input, wrapper-reported): 03:57:39 → ~1.1 s
 (first successful full), 03:58:36 → ~1 s (green post-check run). Dataset is

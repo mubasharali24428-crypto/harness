@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -16,10 +17,13 @@ from harness_contracts import (
 )
 
 GOLDEN = Path(__file__).parent / "golden"
+TS_MIRROR = Path(__file__).resolve().parents[2] / "contracts" / "ts" / "types.d.ts"
 
 
-def test_all_fourteen_event_types_exist():
-    """Wave 6: contracts 0.3.0 adds engine_completed/engine_failed (additive)."""
+def test_all_nineteen_event_types_exist():
+    """W15: contracts 1.0.0rc6 adds model_routed (additive) — which model an
+    execution attempt got and why, so opt-in routing is verifiable after the
+    run instead of living only in process memory."""
     assert {e.value for e in EVENT_TYPES} == {
         "plan_proposed",
         "plan_approved",
@@ -35,7 +39,31 @@ def test_all_fourteen_event_types_exist():
         "diff_progress",
         "engine_completed",
         "engine_failed",
+        "tool_call",
+        "tool_result",
+        "context_compacted",
+        "goal_images",
+        "model_routed",
     }
+
+
+def test_ts_mirror_declares_the_same_event_types():
+    """`contracts/ts/types.d.ts` is maintained BY HAND on a version bump (the
+    generator writes `src/*.ts` only), so its `EventType` union is the one place
+    an additive event can be silently forgotten. `model_routed` (rc6) is exactly
+    the kind of miss this catches: the union and the Python enum must agree
+    member-for-member."""
+    union = re.search(
+        r"export type EventType =\n(.*?);", TS_MIRROR.read_text(), re.MULTILINE | re.DOTALL
+    )
+    assert union, "types.d.ts no longer declares an EventType union"
+    declared = set(re.findall(r'"([a-z_]+)"', union.group(1)))
+    assert declared == set(EventType), (
+        f"TS EventType union diverges from the Python enum; "
+        f"missing in TS: {sorted(set(EventType) - declared)}, "
+        f"unknown in TS: {sorted(declared - set(EventType))}"
+    )
+    assert EVENT_TYPES == frozenset(EventType)
 
 
 def test_event_envelope_wire_shape():
