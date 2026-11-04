@@ -295,6 +295,11 @@ jobs:
         # The probe spins up its own pgvector/pgvector:pg18 container on 5591 and drops it.
         run: ./.venv/bin/python -m pytest tests/test_live_pg.py -q
         working-directory: section11
+      - name: Section4 context round-trip against section11 [pytest -k roundtrip]
+        # The section11 venv now exists on the runner, so the sibling-app
+        # round-trip that skips in normal CI can run here.
+        run: ./.venv/bin/python -m pytest tests/test_context_resolver.py -q -k roundtrip -rs
+        working-directory: section4
 
   # M17-B2 (OPS-15): the migration runner finally runs in CI against real PG.
   # Backend suites build schemas with SQLite create_all and even the nightly
