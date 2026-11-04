@@ -133,7 +133,12 @@ jobs:
         working-directory: ${{ github.workspace }}
 
   frontend:
-    name: vitest + tsc (section7) + published TS dist
+    # Job name matches the branch-protection required check ("vitest + tsc
+    # (section7)") byte-for-byte — a rename without updating the protection rule
+    # orphans the required context and blocks every merge, so the label stays
+    # exactly what the rule expects. Steps unchanged (tsc + vitest + published
+    # TS dist verification included).
+    name: vitest + tsc (section7)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
