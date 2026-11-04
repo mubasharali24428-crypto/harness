@@ -100,6 +100,17 @@ async def pg():
                 stmt = stmt.strip()
                 if stmt:
                     await conn.execute(stmt)
+        # migrate() rolls the partition window forward; this hand-split loop
+        # does not, so replicate that post-migration step or current-month
+        # agent_events inserts fail.
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+        _engine = create_async_engine(_sa_url(dbname))
+        try:
+            await migrate_mod.ensure_forward_partitions(
+                async_sessionmaker(_engine, expire_on_commit=False)
+            )
+        finally:
+            await _engine.dispose()
         yield {"dbname": dbname, "conn": conn}
     finally:
         await conn.close()
@@ -344,33 +355,49 @@ async def test_live_pg_recompute_heals_release_deletes(pg, sa_factory):
 
     await runner.rollup_once(sa_factory)
     conn = pg["conn"]
-    before = await _direct_sum(conn, team_id)
+
+    async def _closed_sum():
+        from harness_router.ledger import to_money
+        row = await conn.fetchrow(
+            """
+            SELECT COALESCE(SUM(l.cost_usd), 0) AS s
+            FROM cost_ledger l
+            JOIN agent_runs r ON r.id = l.run_id
+            JOIN projects p ON p.id = r.project_id
+            WHERE p.team_id = $1 AND l.created_at < date_trunc('day', now())
+            """,
+            team_id,
+        )
+        return to_money(row["s"])
+
+    before = await _closed_sum()
 
     # release() compensation shape: delete SOME reserved rows outright.
-    # Restricted to the CURRENT month so at least one emptied day is
-    # guaranteed to exist inside every compared window (rows 40 days back
-    # would fall outside M18-C2's month window on most calendar days).
+    # Compare all closed history, not only the current month window, so the
+    # assertion is independent of the calendar day the test runs on.
     deleted = await conn.execute(
         """
         DELETE FROM cost_ledger WHERE seq IN (
           SELECT l.seq FROM cost_ledger l
           JOIN agent_runs r ON r.id = l.run_id
           JOIN projects p ON p.id = r.project_id
-          WHERE p.team_id = $1
-            AND l.created_at >= date_trunc('month', now())
-            AND l.created_at < date_trunc('day', now())
-            AND (l.cost_usd % 2)::int = 0 LIMIT 5
+          WHERE p.team_id = $1 AND l.created_at < date_trunc('day', now())
+          ORDER BY l.created_at DESC LIMIT 5
         )
         """,
         team_id,
     )
     assert str(deleted).endswith("5")
-    after = await _direct_sum(conn, team_id)
+    after = await _closed_sum()
     assert after < before
 
     await runner.rollup_once(sa_factory)
-    healed = await _rolled_decimal(sa_factory, team_id)
-    assert healed == after, "recompute must reflect released (deleted) rows"
+    from harness_router.ledger import to_money
+    healed_raw = await conn.fetchval(
+        "SELECT COALESCE(SUM(total_usd), 0) FROM cost_ledger_daily WHERE team_id = $1",
+        team_id,
+    )
+    assert to_money(healed_raw) == after, "recompute must reflect released (deleted) rows"
 
 
 # --------------------------------------- O(1) latency + routing under 10k rows

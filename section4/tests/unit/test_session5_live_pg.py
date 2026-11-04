@@ -14,7 +14,6 @@ from fastapi import FastAPI, Request
 from harness_contracts.roles import Principal, Role
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from harness_orchestrator import api as orch_api
 from harness_orchestrator import discussion, notify
@@ -70,6 +69,17 @@ async def env(monkeypatch):
             for stmt in migrate_mod.split_statements(path.read_text(encoding="utf-8")):
                 if stmt.strip():
                     await conn.execute(stmt)
+        # migrate() rolls the partition window forward; this hand-split loop
+        # does not, so replicate that post-migration step or current-month
+        # agent_events inserts fail.
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+        _engine = create_async_engine(f"{base}/{dbname}".replace("postgresql://", "postgresql+asyncpg://"))
+        try:
+            await migrate_mod.ensure_forward_partitions(
+                async_sessionmaker(_engine, expire_on_commit=False)
+            )
+        finally:
+            await _engine.dispose()
         await conn.execute("INSERT INTO teams (id, name) VALUES ('t1', 's4')")
         await conn.execute(
             "INSERT INTO projects (id, team_id, name, repo_full_name)"

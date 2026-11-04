@@ -274,6 +274,27 @@ jobs:
           HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@localhost:5499/harness
           HARNESS_TEST_PG_EXTERNAL: "1"
           HARNESS_TEST_PG_CONTAINER: ${{ job.services.postgres.id }}
+      - name: Install section4 (for live-PG probes)
+        run: |
+          python -m venv .venv
+          ./.venv/bin/pip install -q ../contracts -e ".[dev]"
+        working-directory: section4
+      - name: Section4 live-PG probes [pytest -k live_pg]
+        # Default DSN (HARNESS_TEST_PG=1) points at the service Postgres on 5499.
+        # These create their own scratch databases; they never touch the service DB.
+        run: ./.venv/bin/python -m pytest tests/unit -q -k live_pg -rs
+        working-directory: section4
+        env:
+          HARNESS_TEST_PG: "1"
+      - name: Install section11 (for live-PG probe)
+        run: |
+          python -m venv .venv
+          ./.venv/bin/pip install -q ../contracts -e ".[dev]"
+        working-directory: section11
+      - name: Section11 live-PG probe [pytest tests/test_live_pg.py]
+        # The probe spins up its own pgvector/pgvector:pg18 container on 5591 and drops it.
+        run: ./.venv/bin/python -m pytest tests/test_live_pg.py -q
+        working-directory: section11
 
   # M17-B2 (OPS-15): the migration runner finally runs in CI against real PG.
   # Backend suites build schemas with SQLite create_all and even the nightly
