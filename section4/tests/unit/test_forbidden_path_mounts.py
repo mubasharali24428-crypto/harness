@@ -65,9 +65,7 @@ def test_seatbelt_profile_denies_forbidden_writes_after_the_workspace_allow(tmp_
 
 @pytest.mark.skipif(shutil.which("docker") is None, reason="docker")
 def test_real_container_readonly_bind_blocks_bypass(tmp_path):
-    image = "harness-engine-worker:b1"
-    if subprocess.run(["docker", "image", "inspect", image], capture_output=True).returncode:
-        pytest.skip("worker image not built")
+    image = "python:3.13-alpine"  # any Python image proves the mount law; pull if absent
     ws, session = _tree(tmp_path)
     ws = ws.resolve()
     target = ws / "payroll"
