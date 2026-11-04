@@ -85,6 +85,16 @@ it recorded but cannot undo one; a module is only as trustworthy as the resolver
 host hands it; Section 4 still cannot pin a multi-file program until `WorkflowRequest`
 carries a program digest; and the track adds no approval surface of its own.
 
+## 2026-11-05 — PR #12 merged: BYO hosts mark the run when they take it
+
+PR #12 merged at `4864a11` (2026-11-04/05 local). The commit carried three pieces, each verified in-session: (i) a durable `execution_started` event published at runner job **claim** (offered→leased) — the first time a BYO run left its pre-execution state on the harness side, which is why `finish` always settled it `failed` under the never-resurrect law regardless of what the host reported; placement is post-lease-commit (publish-before-commit silently dropped the pending UPDATE on the shared-sqlite-pool test fixture, which is what 9 red runner tests caught). (ii) The deterministic W13 drill now runs the honest path — approve the plan via the API, emit one passing call/result per planned command, then finish — so `runner claim → executing → composing → done → settle` is exercised end to end where it can be verified. (iii) Section 1 evidence: **1239 passed / 63 skipped**, ruff clean (one F841 from an unused exception binding, fixed pre-merge), full CI green including `e2e (compose journey)` and `migrations apply clean on real PG`.
+
+Honest limits, carried forward unverified: the drill's two marker-dependent checks (`toolEventsAccepted`, `finishCompletesTheJob`) report **41/43 with 2 red** against the deployed `vw25a1` stack — this fix is invisible to it until the identity service is rebuilt and redeployed; the redeploy is the owner's call and has not happened. The claim marker orders after the lease commit by design; on PG both orders are equivalent, and a failed emit degrades to never-resurrect (state `failed`, which the settlement honestly reports), never a silent half-announce — but no live-stack proof exists yet either.
+
+Working state after this merge: PRs #7–#12 merged into master this session; W17 lost-lease re-dispatch is merged (stages 0–2 of Roadmap 3.0 materially closed on the code side); W24 real-window task is PASS; the W25 fixed live set remains un-run against the stack (no live model call has been made) and awaits an agreed budget.
+
+
+
 ## 2026-11-04 — PR #7 merged: `w1-engine-tools` lands on master (CI green)
 
 Branch `w1-engine-tools` (184 commits ahead of master: Hx M1–M8, W17/W19/W22/W23/W24, Roadmap 3.0 stages 0–3) was pushed, CI-triaged and merged into `master` as **`56bef5d`** (2026-11-04 04:57 UTC) via PR #7, a merge commit per repo convention. Branch protection was satisfied, not bypassed: the only required context missing from the checks was `vitest + tsc (section7)`, whose job had been renamed on the branch to `+ published TS dist` — `f9b205a` restored the exact protected label with steps unchanged. Final CI on the merge candidate: **all 15 required checks green** (e2e compose journey 2m37s; section1 2m16s; section4 4m01s). The long-running master nightly section1 failure (`test_per_route_budgets_apply_together`, 404≠429) did not reproduce on the branch — section1 passed there and in the merge candidate; the master-only red is expected to clear on the next scheduled run, unverified as of this entry.
