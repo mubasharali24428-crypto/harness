@@ -19,6 +19,7 @@ import pytest
 import test_runner_api as base
 import test_runner_exec as exec_base
 from fastapi import FastAPI
+from harness_contracts import EventType
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select, text
 
@@ -285,3 +286,34 @@ async def test_settled_run_is_not_reoffered(attempts_client, runner_factory):
     second = await _assign(attempts_client, env["admin"]["token"], runner_id, env["runA"])
     assert second.status_code == 409
     assert second.json()["detail"]["error"]["code"] == "JOB_TAKEN"
+
+
+async def test_claim_publishes_execution_started_with_the_attempt(attempts_client, runner_factory):
+    """The host taking a job must leave a durable EXECUTION_STARTED marker —
+    without it the run never leaves its pre-execution state and every honest
+    BYO finish settles `failed` under the never-resurrect law. The attempt
+    number rides along so a re-dispatch re-marks rather than inherits."""
+    env = await _seed(runner_factory)
+    await _stage_run(runner_factory, env)
+    created = await _register(attempts_client, env["admin"]["token"])
+    runner_id, token = created["runner"]["id"], created["token"]
+
+    first = await _assign(attempts_client, env["admin"]["token"], runner_id, env["runA"])
+    assert first.status_code == 201
+    claimed = await attempts_client.post(
+        f"/api/v1/runner/jobs/{env['runA']}/claim", headers=_runner_headers(token)
+    )
+    assert claimed.status_code == 200, claimed.text
+
+    async with runner_factory() as db:
+        rows = (
+            await db.execute(
+                select(AgentEvent.payload).where(
+                    AgentEvent.run_id == env["runA"],
+                    AgentEvent.type == EventType.EXECUTION_STARTED.value,
+                )
+            )
+        ).scalars().all()
+    assert len(rows) >= 1
+    markers = [r for r in rows if r.get("runnerId") == runner_id]
+    assert markers and markers[0]["attempt"] == 1

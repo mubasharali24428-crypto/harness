@@ -1152,6 +1152,25 @@ async def claim_job(
         job.lease_expires_at = _now() + timedelta(seconds=LEASE_SECONDS)
         job.updated_at = _now()
         await db.commit()
+        # The host takes the job here — the durable log must say so. Marker
+        # goes AFTER the lease commit, not before it: the claim and the bus
+        # hold separate sessions over one shared database handle, and putting
+        # the emit between the UPDATE and the COMMIT silently drops the
+        # pending lease on this pool. If the emit itself fails, the claim
+        # stands (lease/audit/finish all work) and the run degrades to the
+        # never-resurrect outcome at settle — logged loudly, never hidden.
+        try:
+            await request.app.state.event_bus.publish(
+                EventType.EXECUTION_STARTED,
+                job.project_id,
+                {"runId": job.run_id, "runnerId": auth.id, "attempt": job.attempt},
+                run_id=job.run_id,
+            )
+        except Exception:  # noqa: BLE001 — loud, then fail-safe at settle
+            logger.exception(
+                "runner_job.execution_started.emit_failed runId=%s attempt=%s",
+                job.run_id, job.attempt,
+            )
         return {
             "job": _job_public(job),
             "leaseSeconds": LEASE_SECONDS,

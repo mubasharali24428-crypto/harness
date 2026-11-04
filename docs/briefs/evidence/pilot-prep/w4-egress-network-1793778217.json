@@ -1,0 +1,59 @@
+{
+  "drill": "w4-egress-network",
+  "takenAt": "2026-11-04T07:43:37Z",
+  "container": "b889c34ba58b",
+  "network": "harness_sandbox_egress",
+  "insideTheProxy": {
+    "allowed_endpoint": {
+      "reply": "HTTP/1.1 200 Connection Established",
+      "ok": true
+    },
+    "allowed_git": {
+      "reply": "HTTP/1.1 200 Connection Established",
+      "ok": true
+    },
+    "denied_docs": {
+      "reply": "HTTP/1.1 403 Forbidden\r\nContent-Length: 0",
+      "ok": true
+    },
+    "denied_host": {
+      "reply": "HTTP/1.1 403 Forbidden\r\nContent-Length: 0",
+      "ok": true
+    },
+    "denied_port": {
+      "reply": "HTTP/1.1 403 Forbidden\r\nContent-Length: 0",
+      "ok": true
+    },
+    "denied_method": {
+      "reply": "HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0",
+      "ok": true
+    }
+  },
+  "fromTheSandboxNetwork": {
+    "allowed_endpoint": {
+      "reply": "HTTP/1.1 200 Connection Established",
+      "ok": true
+    },
+    "allowed_git": {
+      "reply": "HTTP/1.1 200 Connection Established",
+      "ok": true
+    },
+    "denied_docs": {
+      "reply": "HTTP/1.1 403 Forbidden\r\nContent-Length: 0",
+      "ok": true
+    },
+    "denied_host": {
+      "reply": "HTTP/1.1 403 Forbidden\r\nContent-Length: 0",
+      "ok": true
+    },
+    "denied_port": {
+      "reply": "HTTP/1.1 403 Forbidden\r\nContent-Length: 0",
+      "ok": true
+    },
+    "denied_method": {
+      "reply": "HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0",
+      "ok": true
+    }
+  },
+  "verdict": "pass"
+}

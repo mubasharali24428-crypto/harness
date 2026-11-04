@@ -28,6 +28,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from harness_identity.eventbus import EventBus
 from harness_identity.models import (
     AuditLog,
     AuthSession,
@@ -67,6 +68,7 @@ async def runner_client(runner_factory):
     app = FastAPI()
     app.include_router(router)
     app.state.session_factory = runner_factory
+    app.state.event_bus = EventBus(runner_factory)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
