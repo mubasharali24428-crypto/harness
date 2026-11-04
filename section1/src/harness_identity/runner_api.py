@@ -132,6 +132,7 @@ def _runner_public(row: TeamRunner) -> dict[str, Any]:
 def _job_public(row: RunnerJob) -> dict[str, Any]:
     return {
         "runId": row.run_id,
+        "attempt": row.attempt,
         "projectId": row.project_id,
         "state": row.state,
         "leaseExpiresAt": row.lease_expires_at.isoformat() if row.lease_expires_at else None,
@@ -553,28 +554,86 @@ async def assign_job(
                 raise HTTPException(
                     status_code=404, detail=error_body("NOT_FOUND", "run not found")
                 )
-        elif claim["state"] != "queued":
+            settled = (
+                await db.execute(
+                    text(
+                        "SELECT COUNT(*) FROM runner_jobs WHERE run_id = :r"
+                    ),
+                    {"r": body.run_id},
+                )
+            ).scalar_one()
+            if settled:
+                # A finished BYO run's claim is deleted at settle time, so this is the
+                # re-offer path for a run that already ran on a host: refuse it rather
+                # than mint an attempt for a settled run.
+                raise HTTPException(
+                    status_code=409,
+                    detail=error_body("JOB_TAKEN", "this run already has a runner job"),
+                )
+        elif claim["state"] not in ("queued", "orphaned"):
             raise HTTPException(
                 status_code=409,
                 detail=error_body("NOT_QUEUED", f"run is {claim['state']}, not queued"),
             )
-        existing = (
-            await db.execute(select(RunnerJob).where(RunnerJob.run_id == body.run_id))
-        ).scalar_one_or_none()
-        if existing is not None:
-            raise HTTPException(
-                status_code=409, detail=error_body("JOB_TAKEN", "this run already has a runner job")
+        redispatch = claim["state"] == "orphaned"
+        live = (
+            await db.execute(
+                select(RunnerJob)
+                .where(
+                    RunnerJob.run_id == body.run_id,
+                    RunnerJob.state.in_(("offered", "leased", "running")),
+                )
+                .limit(1)
             )
+        ).scalar_one_or_none()
+        if live is not None:
+            # Only one attempt per run may be live at a time; an orphaned prior
+            # attempt never blocks the re-dispatch, a live one always does.
+            raise HTTPException(
+                status_code=409,
+                detail=error_body("JOB_TAKEN", f"attempt {live.attempt} is still {live.state}"),
+            )
+        attempt = (
+            await db.execute(
+                text(
+                    "SELECT COALESCE(MAX(attempt), 0) + 1 AS next_attempt "
+                    "FROM runner_jobs WHERE run_id = :r"
+                ),
+                {"r": body.run_id},
+            )
+        ).mappings().first()["next_attempt"]
+        evidence_from_seq = (
+            await db.execute(
+                text(
+                    "SELECT COALESCE(MAX(seq), 0) AS seq_max FROM agent_events WHERE run_id = :r"
+                ),
+                {"r": body.run_id},
+            )
+        ).mappings().first()["seq_max"]
         project = (
             await db.execute(select(Project).where(Project.id == claim["project_id"]))
         ).scalar_one_or_none()
         if project is None or project.team_id != principal.teamId:
             raise HTTPException(status_code=404, detail=error_body("NOT_FOUND", "run not found"))
+        if redispatch:
+            # The lost lease was the previous attempt's; hand the claim back to the
+            # queue so the new attempt can claim it like any queued run.
+            now_iso = _now().isoformat()
+            await db.execute(
+                text(
+                    "UPDATE run_claims SET state = 'queued', worker_id = 'enqueuer', "
+                    "claimed_at = :n, heartbeat_at = :n "
+                    "WHERE run_id = :r AND state = 'orphaned'"
+                ),
+                {"r": body.run_id, "n": now_iso},
+            )
         job = RunnerJob(
             run_id=body.run_id,
+            attempt=attempt,
             runner_id=runner.id,
             project_id=claim["project_id"],
             state="offered",
+            evidence_from_seq=evidence_from_seq,
         )
         db.add(job)
         await db.commit()
@@ -583,7 +642,7 @@ async def assign_job(
             actor_user_id=principal.userId,
             team_id=principal.teamId,
             target_id=job.run_id,
-            detail={"runnerId": runner.id, "projectId": job.project_id},
+            detail={"runnerId": runner.id, "projectId": job.project_id, "attempt": job.attempt},
         )
         return {"job": _job_public(job)}
 
@@ -634,9 +693,14 @@ async def _expire_leases(db, runner_id: str) -> None:
 
 
 async def _own_job_or_404(db, runner_id: str, run_id: str) -> RunnerJob:
+    # Latest attempt: a re-dispatched run has attempt 1 (dead) and attempt N
+    # (live) rows, and every runner-side call addresses the live one.
     job = (
         await db.execute(
-            select(RunnerJob).where(RunnerJob.run_id == run_id, RunnerJob.runner_id == runner_id)
+            select(RunnerJob)
+            .where(RunnerJob.run_id == run_id, RunnerJob.runner_id == runner_id)
+            .order_by(RunnerJob.attempt.desc())
+            .limit(1)
         )
     ).scalar_one_or_none()
     if job is None:
@@ -765,16 +829,14 @@ async def _run_executing(db, run_id: str) -> bool:
     return last in (EventType.EXECUTION_STARTED.value, EventType.RESUMED.value)
 
 
-async def _tool_events(db, run_id: str) -> list[AgentEvent]:
-    return list(
-        (
-            await db.execute(
-                select(AgentEvent)
-                .where(AgentEvent.run_id == run_id, AgentEvent.type.in_(_TOOL_TYPES))
-                .order_by(AgentEvent.seq)
-            )
-        ).scalars().all()
+async def _tool_events(db, run_id: str, after_seq: int = 0) -> list[AgentEvent]:
+    """The run's tool call/result rows, optionally only this attempt's evidence."""
+    query = select(AgentEvent).where(
+        AgentEvent.run_id == run_id, AgentEvent.type.in_(_TOOL_TYPES)
     )
+    if after_seq:
+        query = query.where(AgentEvent.seq > after_seq)
+    return list((await db.execute(query.order_by(AgentEvent.seq))).scalars().all())
 
 
 async def _max_tool_calls(db, run_id: str) -> int | None:
@@ -1199,7 +1261,9 @@ async def finish_job(
                 final, run_state = "failed", "not_executing"
             else:
                 plan = await _approved_plan(db, job.run_id)
-                problem = _verdict(await _tool_events(db, job.run_id), list(plan.tests))
+                problem = _verdict(
+                    await _tool_events(db, job.run_id, job.evidence_from_seq), list(plan.tests)
+                )
                 if problem is None and body.status == "completed":
                     count = len(plan.tests)
                     event = (

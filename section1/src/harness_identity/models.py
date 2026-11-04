@@ -423,11 +423,17 @@ class RunnerJob(Base, TimestampMixin):
     No FK to run_claims/agent_runs: the durable queue creates claims lazily
     (0006), so an offer can exist before the run's first persisted event.
     Ownership is runner_id + project_id + the run_claims row the lease holds.
+
+    Keyed by (run_id, attempt) since 0073: a run whose lease died is orphaned,
+    never re-queued automatically, and a human re-dispatch records the next
+    attempt instead of colliding with the dead row. Only one attempt per run can
+    be live at a time - the offer path only re-offers an `orphaned` claim.
     """
 
     __tablename__ = "runner_jobs"
 
     run_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    attempt: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
     runner_id: Mapped[str] = mapped_column(
         ForeignKey("team_runners.id", ondelete="CASCADE"), nullable=False, index=True
     )
@@ -437,6 +443,10 @@ class RunnerJob(Base, TimestampMixin):
     state: Mapped[str] = mapped_column(String(16), nullable=False, default="offered")
     lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     result_digest: Mapped[str | None] = mapped_column(String(64))
+    #: The run's max event seq when this attempt was offered. The settling verdict
+    #: is derived from evidence AFTER this mark only, so a dead host's partial
+    #: failure cannot poison a re-dispatch and its passes cannot be borrowed.
+    evidence_from_seq: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
