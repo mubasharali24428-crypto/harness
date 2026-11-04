@@ -110,9 +110,7 @@ def test_relative_scope_is_resolved_against_the_workspace_not_the_cwd(tmp_path, 
 
 @pytest.mark.skipif(shutil.which("docker") is None, reason="docker")
 def test_real_container_scope_mounts_refuse_the_m01_bypass(tmp_path):
-    image = "harness-engine-worker:m03"
-    if subprocess.run(["docker", "image", "inspect", image], capture_output=True).returncode:
-        pytest.skip(f"{image} not built")
+    image = "python:3.13-alpine"  # any Python image proves the mount law; pull if absent
     ws, mounts = _mounts(tmp_path, scope_paths=["src"])
     for p in (ws, ws / "src", ws / "docs"):
         p.chmod(0o777)
