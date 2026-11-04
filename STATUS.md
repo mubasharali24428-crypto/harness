@@ -85,7 +85,25 @@ it recorded but cannot undo one; a module is only as trustworthy as the resolver
 host hands it; Section 4 still cannot pin a multi-file program until `WorkflowRequest`
 carries a program digest; and the track adds no approval surface of its own.
 
-## PROGRAM CLOSE — Mission 23 (2026-08-26)
+## 2026-11-04 — PR #7 merged: `w1-engine-tools` lands on master (CI green)
+
+Branch `w1-engine-tools` (184 commits ahead of master: Hx M1–M8, W17/W19/W22/W23/W24, Roadmap 3.0 stages 0–3) was pushed, CI-triaged and merged into `master` as **`56bef5d`** (2026-11-04 04:57 UTC) via PR #7, a merge commit per repo convention. Branch protection was satisfied, not bypassed: the only required context missing from the checks was `vitest + tsc (section7)`, whose job had been renamed on the branch to `+ published TS dist` — `f9b205a` restored the exact protected label with steps unchanged. Final CI on the merge candidate: **all 15 required checks green** (e2e compose journey 2m37s; section1 2m16s; section4 4m01s). The long-running master nightly section1 failure (`test_per_route_budgets_apply_together`, 404≠429) did not reproduce on the branch — section1 passed there and in the merge candidate; the master-only red is expected to clear on the next scheduled run, unverified as of this entry.
+
+Defects found and fixed in this pass (local evidence: section3 149 passed; section4 **2121 passed / 59 skipped**; section1 targeted file 12 passed; ruff clean; `make static-gates` green; a fresh-boot simulation confirmed the boundary-sweep fix):
+
+1. **`694288e`** — `harness_orchestrator.model_client` (committed at `9a6f23d`) and its tests were untracked; fresh checkouts at that revision could not import the api module. Committed with their tests.
+2. **`4289b70`** — CI triage, five defects: (a) two runtime knobs undocumented in `.env.example` (`HARNESS_MAINTENANCE_MODE`, `HARNESS_INDEX_LEASE_SECONDS`) — static gates red; (b) the confinement strict-mode refusal lost the `=off` opt-out hint when 55400df made refusals host-aware — fails on every non-macOS host, i.e. all CI (`test_real_runtime_fails_closed_unless_confinement_off`); (c) **real bug** — the durable boundary sweep used `0.0` as its "never swept" sentinel while comparing against `time.monotonic()` (host-boot-relative), so on freshly booted hosts the startup sweep that reclaims orphaned boundaries never fired — the exact pass that closes a dead orchestrator's corpses (4 W22 orphan-window tests failed on CI, passed on long-uptime dev machines); sentinel is now `-inf`; (d) W10 CDP fake server closed with the client's request unread → TCP RST → CI-only ConnectionResetError — it now reads the frame first; (e) the e2e compose job underbooted (8 services) while the journey's new step-0 gate counts every enabled default service including sidecars — CI now boots the full default set.
+3. **`68f723a`** — W22/W24 drill evidence JSONs (cited by m2/roadmap3 plans) and `scripts/e2e/w22_repeat_batch.py` committed; `docs/yc` deliberately left local-only per the owner's call.
+4. **`a70b671`** — **boot race, not drift**: 2026-11-04 e2e `migrate` pre-flight got ECONNREFUSED 0.5s after Compose reported the db Healthy (the db began its post-initdb shutdown 0.6s after Healthy — cause unclassified, WAL-g archive failing without a storage prefix is noise, not the cause) and refused boot with exit 37, the same exit as real schema drift. `check_drift_with_retry` now retries connect-side failures ~12× over ~60s before refusing; genuine `SchemaDriftError` is still raised immediately and never retried; both boot PYGATEs use it; exit codes and the rollback runbook contract unchanged.
+5. **`f9b205a`** — section7 job renamed to the exact required context (see above).
+
+Two honest artifacts of this session: (i) the db's post-initdb "Healthy then shutting down" bounce remains **unexplained** — the retry masks the boot window, it does not answer why; that deserves a Docker-level look. (ii) Runs `41774029511` and `41774372699` showed e2e both green and red for reasons now understood (underboot → green; boot race → red), and the merge candidate `41775829908` passed fully — recorded so the merge decision is legible later.
+
+**Verdict unchanged: NOT READY** for production or a general pilot.
+
+Open items carried forward: W17 lost-lease re-dispatch (`stash@{0}`; migration 0073 absent; attempt-scoped tests unwritten) still blocks W31; W7 real-window VS Code task owed; external human gates (counsel TERMS/PRIVACY, SLO/on-call adoption, dedicated sandbox worker certification, Hermes rights) untouched; status of the master CI cadence post-merge to be confirmed by the next 06:17 nightly.
+
+
 
 The 10x program (missions 11–23, per docs/briefs/mission17-10x-plan.md) is
 complete. After-action report with calibration notes:
