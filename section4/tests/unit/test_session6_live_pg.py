@@ -14,7 +14,6 @@ from pathlib import Path
 import pytest
 from harness_contracts.roles import Principal, Role
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from harness_orchestrator import artifacts, execution, exports, plans, search
 from harness_orchestrator.service import OrchestratorService
@@ -62,6 +61,17 @@ async def pg(tmp_path, monkeypatch):
             for stmt in migrate.split_statements(path.read_text(encoding="utf-8")):
                 if stmt.strip():
                     await conn.execute(stmt)
+        # migrate() rolls the partition window forward; this hand-split loop
+        # does not, so replicate that post-migration step or current-month
+        # agent_events inserts fail.
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+        _engine = create_async_engine(f"{base}/{name}".replace("postgresql://", "postgresql+asyncpg://"))
+        try:
+            await migrate.ensure_forward_partitions(
+                async_sessionmaker(_engine, expire_on_commit=False)
+            )
+        finally:
+            await _engine.dispose()
         await conn.execute("INSERT INTO teams (id, name) VALUES ('t1', 's6')")
         await conn.execute(
             "INSERT INTO users (id, email, name, is_active) "

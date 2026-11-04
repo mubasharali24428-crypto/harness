@@ -79,6 +79,17 @@ async def pg():
                 stmt = stmt.strip()
                 if stmt:
                     await conn.execute(stmt)
+        # migrate() rolls the partition window forward; this hand-split loop
+        # does not, so replicate that post-migration step or current-month
+        # agent_events inserts fail.
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+        _engine = create_async_engine(_sa_url(dbname))
+        try:
+            await migrate_mod.ensure_forward_partitions(
+                async_sessionmaker(_engine, expire_on_commit=False)
+            )
+        finally:
+            await _engine.dispose()
         yield {"dbname": dbname, "conn": conn}
     finally:
         await conn.close()
