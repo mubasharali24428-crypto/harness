@@ -1,0 +1,20 @@
+{
+  "id": "w24-window-8722f7d9ddf4",
+  "startedAt": "2026-11-04T05:20:55.237Z",
+  "verdict": "FAIL",
+  "automated": true,
+  "note": "Keys were sent into the window over the DevTools protocol; no person used this window.",
+  "task": "Fix add() in calc.py so that `python -m unittest` passes, then run `python -m unittest` to confirm.",
+  "steps": [
+    {
+      "name": "preconditions: stack ready, engine image present, provider settings read",
+      "ok": false,
+      "ms": 62,
+      "error": "engine image harness-engine-worker:vw25a1 is not present"
+    }
+  ],
+  "captures": {},
+  "screenshots": [],
+  "error": "engine image harness-engine-worker:vw25a1 is not present",
+  "finishedAt": "2026-11-04T05:20:55.396Z"
+}
