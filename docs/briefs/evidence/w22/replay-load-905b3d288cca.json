@@ -1,0 +1,40 @@
+{
+  "tag": "905b3d288cca",
+  "burst": 12000,
+  "verdict": "PASS",
+  "checks": {
+    "A_no_seq_at_or_below_cursor": true,
+    "A_union_exact": true,
+    "A_rows_arrived_while_disconnected": true,
+    "B_overflow_closed_socket": true,
+    "B_live_prefix_in_order": true,
+    "B_truncation_marked": true,
+    "B_resume_is_newest_cap": true,
+    "B_recovered_everything": true
+  },
+  "projectId": "ef662192-d26e-4b13-99ea-f354ed1ecd0a",
+  "A": {
+    "published": 300,
+    "beforeDisconnect": 60,
+    "cursor": 202311,
+    "afterResume": 240
+  },
+  "B": {
+    "burstFirst": 202552,
+    "burstLast": 214551,
+    "liveReceived": 471,
+    "closeCode": 1013,
+    "lastLiveSeq": 202722,
+    "liveBurstDelivered": 171,
+    "resumeReplayed": 5000,
+    "marker": {
+      "replayTruncated": true,
+      "oldestSeqSent": 209552,
+      "afterSeq": 202722
+    },
+    "restPages": 5,
+    "restBackfilled": 6829,
+    "missingAfterRecovery": 0,
+    "missingRange": null
+  }
+}

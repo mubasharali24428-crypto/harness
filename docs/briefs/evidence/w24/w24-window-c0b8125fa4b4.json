@@ -1,0 +1,259 @@
+{
+  "id": "w24-window-c0b8125fa4b4",
+  "startedAt": "2026-11-01T13:32:02.990Z",
+  "verdict": "PASS",
+  "automated": true,
+  "note": "Keys were sent into the window over the DevTools protocol; no person used this window.",
+  "task": "Fix add() in calc.py and shout() in shout.py so that `python -m unittest` passes, then run `python -m unittest` to confirm.",
+  "steps": [
+    {
+      "name": "preconditions: stack ready, engine image present, provider settings read",
+      "ok": true,
+      "ms": 90
+    },
+    {
+      "name": "install the .vsix into a throwaway profile and open a real window",
+      "ok": true,
+      "ms": 5370,
+      "note": [
+        "harness.harness-vscode@0.2.0"
+      ]
+    },
+    {
+      "name": "Harness: Sign in (email, one-time code, signed-in notice)",
+      "ok": true,
+      "ms": 995,
+      "note": "Harness: signed in."
+    },
+    {
+      "name": "Harness: Run on selection: context, task, plan dialog",
+      "ok": true,
+      "ms": 2060,
+      "note": "keyboard Enter on the default button"
+    },
+    {
+      "name": "approved plan runs in the container boundary; the confirm step shows the review summary",
+      "ok": true,
+      "ms": 16186,
+      "note": "2 status changes; summary shown"
+    },
+    {
+      "name": "Confirm (the done-signal); the reviewed diff opens with its decision prompt",
+      "ok": true,
+      "ms": 995
+    },
+    {
+      "name": "Alt+N rejects shout.py, Alt+Y approves every other file",
+      "ok": true,
+      "ms": 983,
+      "note": [
+        {
+          "where": "1/2",
+          "path": "calc.py",
+          "key": "Alt+Y"
+        },
+        {
+          "where": "2/2",
+          "path": "shout.py",
+          "key": "Alt+N"
+        }
+      ]
+    },
+    {
+      "name": "the file, the test and the server's records agree",
+      "ok": true,
+      "ms": 280,
+      "note": [
+        {
+          "path": "calc.py",
+          "changeKind": "modified",
+          "reviewState": "approved",
+          "diffSha": "c75dc703e2caf6bffd774ea26ee03e924c6375801f2189d1b160b3d52f61e5b3"
+        },
+        {
+          "path": "shout.py",
+          "changeKind": "modified",
+          "reviewState": "rejected",
+          "diffSha": "acd4e381487955419ddcc76335927fba58c93d58f058e5ecee3cf326680f9df6"
+        }
+      ]
+    }
+  ],
+  "captures": {
+    "planDialog": {
+      "message": "",
+      "detail": "Goal: Task: Fix add() in calc.py and shout() in shout.py so that `python -m unittest` passes, then run `python -m unittest` to confirm.\n\nContext (1 item, 31 chars; cap 8,000):\n\n--- @calc.py (file) ---\ndef add(a, b):\n    return a - b\nExpected: All tests pass and changes conform to brief.\nSteps:\n  1. Inspect codebase\n  2. Apply edits\n  3. Run unit tests\nRisks: Regression in existing modules\nTests: pytest tests/\nEstimated cost: $0.05",
+      "buttons": [
+        "Reject",
+        "Cancel",
+        "Approve"
+      ]
+    },
+    "statusDuringRun": [
+      {
+        "at": "2026-11-01T13:32:11.561Z",
+        "text": "Harness: executing"
+      },
+      {
+        "at": "2026-11-01T13:32:27.626Z",
+        "text": "Harness: review"
+      }
+    ],
+    "confirmDialog": {
+      "message": "Record this result (2 file(s), 337 diff chars)?",
+      "detail": "Changed files (2):\n  calc.py  modified  +1 −1\n  shout.py  modified  +1 −1\nTests:\n  python -m unittest  passed\n  (exit status only; pass and fail counts, and why a command failed, are not recorded)\nFailures: none recorded\nCost: $0.001625 · 13,301 in / 590 out · anthropic/claude-haiku-5.5 · rate card\nTime: 13.7 s\nBasis: recorded from the agent's own tool calls and token usage; the harness re-ran nothing.",
+      "buttons": [
+        "Stop here",
+        "Cancel",
+        "Confirm"
+      ]
+    },
+    "reviewPrompt": {
+      "toasts": [
+        {
+          "message": "Harness 1/2: write the reviewed change to calc.py? ⌥Y apply · ⌥N skip · ⌥⇧N skip all",
+          "severity": "info",
+          "buttons": [
+            "Apply",
+            "Skip",
+            "Skip all remaining"
+          ]
+        },
+        {
+          "message": "Do you want to install the recommended 'Python' extension from Microsoft for the Python language?",
+          "severity": "info",
+          "buttons": [
+            "Install",
+            "Show Recommendations"
+          ]
+        }
+      ],
+      "status": [
+        "Harness review 1/2: calc.py"
+      ],
+      "tabs": [
+        "calc.py",
+        "Harness (reviewed change): calc.py (calc.py ↔ preview-3.txt), preview"
+      ]
+    },
+    "decisions": [
+      {
+        "where": "1/2",
+        "path": "calc.py",
+        "key": "Alt+Y"
+      },
+      {
+        "where": "2/2",
+        "path": "shout.py",
+        "key": "Alt+N"
+      }
+    ],
+    "finalNotice": "Harness: run run-032b992d17cb — 1 applied, 0 deleted, 1 refused."
+  },
+  "screenshots": [
+    {
+      "file": "w24-window-c0b8125fa4b4-01-window-open.png",
+      "label": "window-open",
+      "bytes": 89239
+    },
+    {
+      "file": "w24-window-c0b8125fa4b4-02-plan-dialog.png",
+      "label": "plan-dialog",
+      "bytes": 189596
+    },
+    {
+      "file": "w24-window-c0b8125fa4b4-03-confirm-with-review-summary.png",
+      "label": "confirm-with-review-summary",
+      "bytes": 224550
+    },
+    {
+      "file": "w24-window-c0b8125fa4b4-04-review-prompt.png",
+      "label": "review-prompt",
+      "bytes": 163799
+    },
+    {
+      "file": "w24-window-c0b8125fa4b4-05-review-1-of-2-apply.png",
+      "label": "review-1-of-2-apply",
+      "bytes": 163799
+    },
+    {
+      "file": "w24-window-c0b8125fa4b4-06-review-2-of-2-reject.png",
+      "label": "review-2-of-2-reject",
+      "bytes": 139085
+    },
+    {
+      "file": "w24-window-c0b8125fa4b4-07-applied.png",
+      "label": "applied",
+      "bytes": 122305
+    }
+  ],
+  "stack": {
+    "orchestratorImage": "harness-backend:vw24b1",
+    "engineImage": "harness-engine-worker:vw24b1",
+    "providerVariablesPassed": [
+      "DEEPSEEK_API_KEY",
+      "DEEPSEEK_BASE_URL",
+      "DSH_MODEL",
+      "DSH_PATCH_FILES"
+    ]
+  },
+  "workspace": {
+    "calcBefore": "e1a894022d1a082987b87adecb623438c9e386d86b2b621cff4a5fe7fdf7edc8",
+    "testFailsBeforeRun": true,
+    "calcAfter": "ba1a531f581d2e6094e978ed6f7aca7a8d92eeb62c6e7ad73ee692f7f18bc772",
+    "calcAfterContent": "def add(a, b):\n    return a + b\n",
+    "testPassesAfterRun": true,
+    "unittestTail": "----------------------------------------------------------------------\nRan 1 test in 0.000s\n\nOK"
+  },
+  "environment": {
+    "vscode": "1.140.0",
+    "vscodeCommit": "07f806f999227108933c2e30515b26eecc1fda74",
+    "arch": "arm64",
+    "node": "v22.22.3",
+    "platform": "darwin",
+    "extension": {
+      "installOutput": "Extension 'harness-vscode.vsix' was successfully installed.",
+      "listed": [
+        "harness.harness-vscode@0.2.0"
+      ],
+      "installedUnder": "<throwaway profile>/ext/harness.harness-vscode-0.2.0",
+      "vsixSha256": "0119751a7f64394d29637a30f110180d31fccae65f4eb47b415b8040a0cf1f9e",
+      "vsixBytes": 55444
+    }
+  },
+  "runId": "run-032b992d17cb",
+  "server": {
+    "runState": "executing",
+    "planApproved": true,
+    "changes": [
+      {
+        "path": "calc.py",
+        "changeKind": "modified",
+        "reviewState": "approved",
+        "diffSha": "c75dc703e2caf6bffd774ea26ee03e924c6375801f2189d1b160b3d52f61e5b3"
+      },
+      {
+        "path": "shout.py",
+        "changeKind": "modified",
+        "reviewState": "rejected",
+        "diffSha": "acd4e381487955419ddcc76335927fba58c93d58f058e5ecee3cf326680f9df6"
+      }
+    ],
+    "diff": [
+      {
+        "path": "calc.py",
+        "diffSha": "c75dc703e2caf6bffd774ea26ee03e924c6375801f2189d1b160b3d52f61e5b3",
+        "patchSha256": "c75dc703e2caf6bffd774ea26ee03e924c6375801f2189d1b160b3d52f61e5b3",
+        "digestMatchesPatch": true
+      },
+      {
+        "path": "shout.py",
+        "diffSha": "acd4e381487955419ddcc76335927fba58c93d58f058e5ecee3cf326680f9df6",
+        "patchSha256": "acd4e381487955419ddcc76335927fba58c93d58f058e5ecee3cf326680f9df6",
+        "digestMatchesPatch": true
+      }
+    ],
+    "costLedgerRowsForThisRun": 0
+  },
+  "finishedAt": "2026-11-01T13:32:30.004Z"
+}

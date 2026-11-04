@@ -1,0 +1,144 @@
+{
+  "batchId": "stage1-repeat-c11723d3",
+  "repeat": 3,
+  "runs": [
+    {
+      "gate": "partial-write reconciliation",
+      "drill": "w22_partial_write_drill.py --evidence {evidence}",
+      "attempt": 1,
+      "exitCode": 0,
+      "seconds": 49.8,
+      "evidence": [
+        "docs/briefs/evidence/w22/stage1-repeat-c11723d3-w22_partial_write_drill-1.json"
+      ],
+      "tail": "793463992\",\n  \"rewoundTo\": \"0001-before-attempt-1\",\n  \"label\": \"before-attempt-1\",\n  \"restoredFiles\": 0,\n  \"removedFiles\": [\n   \"out.txt\"\n  ],\n  \"removedCount\": 1\n },\n \"outExistsAfterRewind\": false,\n \"resumedLines\": 120,\n \"checkpointLabelsAfterResume\": [\n  \"before-attempt-1\",\n  \"after-attempt-1\",\n  \"before-attempt-2\",\n  \"after-attempt-2\"\n ],\n \"attemptTwoCheckpointed\": true,\n \"ok\": true,\n \"verdict\": \"torn write interrupted, rewind exact, resume ran a second attempt\"\n}\n\nevidence: /Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/stage1-repeat-c11723d3-w22_partial_write_drill-1.json\n"
+    },
+    {
+      "gate": "partial-write reconciliation",
+      "drill": "w22_partial_write_drill.py --evidence {evidence}",
+      "attempt": 2,
+      "exitCode": 0,
+      "seconds": 47.0,
+      "evidence": [
+        "docs/briefs/evidence/w22/stage1-repeat-c11723d3-w22_partial_write_drill-2.json"
+      ],
+      "tail": "793464041\",\n  \"rewoundTo\": \"0001-before-attempt-1\",\n  \"label\": \"before-attempt-1\",\n  \"restoredFiles\": 0,\n  \"removedFiles\": [\n   \"out.txt\"\n  ],\n  \"removedCount\": 1\n },\n \"outExistsAfterRewind\": false,\n \"resumedLines\": 120,\n \"checkpointLabelsAfterResume\": [\n  \"before-attempt-1\",\n  \"after-attempt-1\",\n  \"before-attempt-2\",\n  \"after-attempt-2\"\n ],\n \"attemptTwoCheckpointed\": true,\n \"ok\": true,\n \"verdict\": \"torn write interrupted, rewind exact, resume ran a second attempt\"\n}\n\nevidence: /Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/stage1-repeat-c11723d3-w22_partial_write_drill-2.json\n"
+    },
+    {
+      "gate": "partial-write reconciliation",
+      "drill": "w22_partial_write_drill.py --evidence {evidence}",
+      "attempt": 3,
+      "exitCode": 0,
+      "seconds": 47.1,
+      "evidence": [
+        "docs/briefs/evidence/w22/stage1-repeat-c11723d3-w22_partial_write_drill-3.json"
+      ],
+      "tail": "793464088\",\n  \"rewoundTo\": \"0001-before-attempt-1\",\n  \"label\": \"before-attempt-1\",\n  \"restoredFiles\": 0,\n  \"removedFiles\": [\n   \"out.txt\"\n  ],\n  \"removedCount\": 1\n },\n \"outExistsAfterRewind\": false,\n \"resumedLines\": 120,\n \"checkpointLabelsAfterResume\": [\n  \"before-attempt-1\",\n  \"after-attempt-1\",\n  \"before-attempt-2\",\n  \"after-attempt-2\"\n ],\n \"attemptTwoCheckpointed\": true,\n \"ok\": true,\n \"verdict\": \"torn write interrupted, rewind exact, resume ran a second attempt\"\n}\n\nevidence: /Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/stage1-repeat-c11723d3-w22_partial_write_drill-3.json\n"
+    },
+    {
+      "gate": "crash cleanup",
+      "drill": "w22_crash_cleanup_drill.py",
+      "attempt": 1,
+      "exitCode": 0,
+      "seconds": 27.5,
+      "evidence": [
+        "docs/briefs/evidence/w22/w8-crash-cleanup-1793464135.json"
+      ],
+      "tail": "{\n \"checks\": {\n  \"bothStarted\": true,\n  \"crashObserved\": true,\n  \"orphanExisted\": true,\n  \"orphanContainerWasRunning\": true,\n  \"victimSettled\": true,\n  \"claimReleased\": true,\n  \"heldLiveRunRefused\": true,\n  \"orphanNetworkRemoved\": true,\n  \"orphanContainersStopped\": true,\n  \"neighbourUntouched\": true,\n  \"victimNetworkGone\": true\n },\n \"removed\": [\n  \"harness-0d291d71fae649aabec66a68defb4041-net\"\n ],\n \"victimState\": \"blocked\",\n \"neighbourAfter\": \"harness-282870e9da1441b79b6365b1c6ffd5d3-net\",\n \"verdict\": \"PASS\"\n}\nPASS  evidence -> docs/briefs/evidence/w22/w8-crash-cleanup-1793464135.json\n"
+    },
+    {
+      "gate": "crash cleanup",
+      "drill": "w22_crash_cleanup_drill.py",
+      "attempt": 2,
+      "exitCode": 0,
+      "seconds": 28.3,
+      "evidence": [
+        "docs/briefs/evidence/w22/w8-crash-cleanup-1793464163.json"
+      ],
+      "tail": "{\n \"checks\": {\n  \"bothStarted\": true,\n  \"crashObserved\": true,\n  \"orphanExisted\": true,\n  \"orphanContainerWasRunning\": true,\n  \"victimSettled\": true,\n  \"claimReleased\": true,\n  \"heldLiveRunRefused\": true,\n  \"orphanNetworkRemoved\": true,\n  \"orphanContainersStopped\": true,\n  \"neighbourUntouched\": true,\n  \"victimNetworkGone\": true\n },\n \"removed\": [\n  \"harness-26c7bd1f0bb740faa78cb61f7a8fff0c-net\"\n ],\n \"victimState\": \"blocked\",\n \"neighbourAfter\": \"harness-66a29f1cde784f1891ce2aa2d1eb16f1-net\",\n \"verdict\": \"PASS\"\n}\nPASS  evidence -> docs/briefs/evidence/w22/w8-crash-cleanup-1793464163.json\n"
+    },
+    {
+      "gate": "crash cleanup",
+      "drill": "w22_crash_cleanup_drill.py",
+      "attempt": 3,
+      "exitCode": 0,
+      "seconds": 28.0,
+      "evidence": [
+        "docs/briefs/evidence/w22/w8-crash-cleanup-1793464191.json"
+      ],
+      "tail": "{\n \"checks\": {\n  \"bothStarted\": true,\n  \"crashObserved\": true,\n  \"orphanExisted\": true,\n  \"orphanContainerWasRunning\": true,\n  \"victimSettled\": true,\n  \"claimReleased\": true,\n  \"heldLiveRunRefused\": true,\n  \"orphanNetworkRemoved\": true,\n  \"orphanContainersStopped\": true,\n  \"neighbourUntouched\": true,\n  \"victimNetworkGone\": true\n },\n \"removed\": [\n  \"harness-7df6aa365c034a23bf2ce34c53e9a2a2-net\"\n ],\n \"victimState\": \"blocked\",\n \"neighbourAfter\": \"harness-0ba1c1ae4c1541e889731e0d8fbe6458-net\",\n \"verdict\": \"PASS\"\n}\nPASS  evidence -> docs/briefs/evidence/w22/w8-crash-cleanup-1793464191.json\n"
+    },
+    {
+      "gate": "crash cleanup",
+      "drill": "w22_daemon_kill_drill.py",
+      "attempt": 1,
+      "exitCode": 0,
+      "seconds": 86.5,
+      "evidence": [
+        "docs/briefs/evidence/w22/w22-dkill-b872e8aeb1ba.json"
+      ],
+      "tail": "{\"runId\": \"w22-dkill-b872e8aeb1ba\", \"verdict\": \"PASS\", \"checks\": {\"daemonBack\": true, \"runNotRunning\": true, \"claimReleased\": true, \"noLiveWorkerOrRelay\": true, \"noLiveChild\": true, \"statusTruthful\": true, \"daemonLoggedReap\": true, \"childLiveWhileDaemonDead\": true}, \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/w22-dkill-b872e8aeb1ba.json\"}\n"
+    },
+    {
+      "gate": "crash cleanup",
+      "drill": "w22_daemon_kill_drill.py",
+      "attempt": 2,
+      "exitCode": 0,
+      "seconds": 88.8,
+      "evidence": [
+        "docs/briefs/evidence/w22/w22-dkill-41490d9ae596.json"
+      ],
+      "tail": "{\"runId\": \"w22-dkill-41490d9ae596\", \"verdict\": \"PASS\", \"checks\": {\"daemonBack\": true, \"runNotRunning\": true, \"claimReleased\": true, \"noLiveWorkerOrRelay\": true, \"noLiveChild\": true, \"statusTruthful\": true, \"daemonLoggedReap\": true, \"childLiveWhileDaemonDead\": true}, \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/w22-dkill-41490d9ae596.json\"}\n"
+    },
+    {
+      "gate": "crash cleanup",
+      "drill": "w22_daemon_kill_drill.py",
+      "attempt": 3,
+      "exitCode": 0,
+      "seconds": 87.8,
+      "evidence": [
+        "docs/briefs/evidence/w22/w22-dkill-7e9e67944ddc.json"
+      ],
+      "tail": "{\"runId\": \"w22-dkill-7e9e67944ddc\", \"verdict\": \"PASS\", \"checks\": {\"daemonBack\": true, \"runNotRunning\": true, \"claimReleased\": true, \"noLiveWorkerOrRelay\": true, \"noLiveChild\": true, \"statusTruthful\": true, \"daemonLoggedReap\": true, \"childLiveWhileDaemonDead\": true}, \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/w22-dkill-7e9e67944ddc.json\"}\n"
+    },
+    {
+      "gate": "crash cleanup",
+      "drill": "w22_daemon_kill_drill.py --orchestrator-restart",
+      "attempt": 1,
+      "exitCode": 0,
+      "seconds": 114.4,
+      "evidence": [
+        "docs/briefs/evidence/w22/w22-dkill-1bea3e53e966.json"
+      ],
+      "tail": "{\"runId\": \"w22-dkill-1bea3e53e966\", \"verdict\": \"PASS\", \"checks\": {\"daemonBack\": true, \"runNotRunning\": true, \"claimReleased\": true, \"noLiveWorkerOrRelay\": true, \"noLiveChild\": true, \"statusTruthful\": true, \"orchestratorHealthy\": true, \"orphanLiveAfterRestart\": true, \"durableReapWithoutUserStop\": true, \"daemonLoggedSweep\": true, \"settledWithoutUserStop\": true}, \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/w22-dkill-1bea3e53e966.json\"}\n"
+    },
+    {
+      "gate": "crash cleanup",
+      "drill": "w22_daemon_kill_drill.py --orchestrator-restart",
+      "attempt": 2,
+      "exitCode": 0,
+      "seconds": 116.5,
+      "evidence": [
+        "docs/briefs/evidence/w22/w22-dkill-12b15495832d.json"
+      ],
+      "tail": "{\"runId\": \"w22-dkill-12b15495832d\", \"verdict\": \"PASS\", \"checks\": {\"daemonBack\": true, \"runNotRunning\": true, \"claimReleased\": true, \"noLiveWorkerOrRelay\": true, \"noLiveChild\": true, \"statusTruthful\": true, \"orchestratorHealthy\": true, \"orphanLiveAfterRestart\": true, \"durableReapWithoutUserStop\": true, \"daemonLoggedSweep\": true, \"settledWithoutUserStop\": true}, \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/w22-dkill-12b15495832d.json\"}\n"
+    },
+    {
+      "gate": "crash cleanup",
+      "drill": "w22_daemon_kill_drill.py --orchestrator-restart",
+      "attempt": 3,
+      "exitCode": 0,
+      "seconds": 114.3,
+      "evidence": [
+        "docs/briefs/evidence/w22/w22-dkill-d67f8abf2260.json"
+      ],
+      "tail": "{\"runId\": \"w22-dkill-d67f8abf2260\", \"verdict\": \"PASS\", \"checks\": {\"daemonBack\": true, \"runNotRunning\": true, \"claimReleased\": true, \"noLiveWorkerOrRelay\": true, \"noLiveChild\": true, \"statusTruthful\": true, \"orchestratorHealthy\": true, \"orphanLiveAfterRestart\": true, \"durableReapWithoutUserStop\": true, \"daemonLoggedSweep\": true, \"settledWithoutUserStop\": true}, \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/w22/w22-dkill-d67f8abf2260.json\"}\n"
+    }
+  ],
+  "rates": {
+    "partial-write reconciliation": "3/3",
+    "crash cleanup": "9/9"
+  },
+  "git": "ff517eef9d98b9db3cdffddb67ad1c85a31003d7",
+  "image": "harness-backend:vw23f24"
+}
