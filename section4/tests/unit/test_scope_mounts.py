@@ -124,7 +124,12 @@ def test_real_container_scope_mounts_refuse_the_m01_bypass(tmp_path):
 
     for code in (BYPASS, "open('top.txt', 'w')", "open('README.md', 'a').write('x')"):
         res = run(code)
-        assert res.returncode != 0 and "Read-only file system" in res.stderr, (code, res.stderr)
+        # Kernel refusal may surface as EROFS (read-only mount) or EACCES
+        # (permission denied) depending on the host filesystem; both prove the
+        # write did not land.
+        assert res.returncode != 0 and (
+            "Read-only file system" in res.stderr or "Permission denied" in res.stderr
+        ), (code, res.stderr)
     assert not (ws / "docs" / "leak.txt").exists() and (ws / "README.md").read_text() == "r"
     assert run("open('src/ok.txt', 'w').write('x')").returncode == 0
     assert (ws / "src" / "ok.txt").read_text() == "x"
