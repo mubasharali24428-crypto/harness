@@ -155,11 +155,15 @@ class RunQueueWorker:
         )
         self._task: asyncio.Task | None = None
         # W8 slice 2: the boundary sweep is housekeeping, not claim work — run it
-        # on its own slow cadence (first pass immediately after startup).
+        # on its own slow cadence (first pass immediately after startup). The
+        # sentinel is -inf, not 0.0: monotonic() counts from host boot, so on a
+        # fresh CI VM (or a host rebooted moments before this process) uptime is
+        # below boundary_sweep_seconds and a 0.0 sentinel would mute the startup
+        # sweep for the rest of the window — orphaned boundaries would outlive it.
         self.boundary_sweep_seconds = _float_knob(
             env, "BOUNDARY_SWEEP_INTERVAL_SECONDS", _DEFAULT_BOUNDARY_SWEEP_SECONDS, minimum=1.0
         )
-        self._last_boundary_sweep = 0.0
+        self._last_boundary_sweep = float("-inf")
         # N2 slim-bus wake seam: created when the loop starts (needs a loop);
         # wake() before that is a harmless no-op.
         self._wake: asyncio.Event | None = None
@@ -218,7 +222,7 @@ class RunQueueWorker:
                 # interval. This is what closes the window when the orchestrator
                 # restarted and lost its in-memory `/reap` loop: the terminal event
                 # the reaper just wrote is the settlement proof the sweep reads.
-                self._last_boundary_sweep = 0.0
+                self._last_boundary_sweep = float("-inf")
             claimed = 0
             try:
                 # W8 slice 2: reclaim boundary networks of runs the lifecycle says

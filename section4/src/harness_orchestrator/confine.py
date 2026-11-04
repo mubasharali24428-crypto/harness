@@ -88,7 +88,9 @@ def resolve_mode(requested: str | None = None) -> str:
     if mode in ("seatbelt", "required"):
         if not seatbelt_available():
             raise ConfinementUnavailableError(
-                f"{CONFINEMENT_ENV}={mode} but seatbelt is unavailable on this host"
+                f"{CONFINEMENT_ENV}={mode} but seatbelt is unavailable on this host; "
+                f"set {CONFINEMENT_ENV}=off explicitly to accept an unconfined worker, "
+                "or run it inside a container/VM boundary"
             )
         return "seatbelt"
     if mode == "auto":

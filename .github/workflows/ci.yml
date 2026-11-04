@@ -177,9 +177,13 @@ jobs:
       - name: build images (shared backend + db + frontend; walg profile excluded)
         run: docker compose -f deploy/docker-compose.yml build
       - name: boot stack (migrate runs as service_completed_successfully dependency)
+        # No service list: boot the full default set. The journey's step 0
+        # asserts every enabled compose service has the container it should
+        # have, so underbooting here fails the stack-shape gate — the four
+        # sidecars (sandbox-egress, events-retention, webhook-delivery,
+        # siem-push) must boot for the journey to make any sense at all.
         run: >-
           docker compose -f deploy/docker-compose.yml up -d
-          identity github models orchestrator sandbox meeting review frontend
       - name: verify migrate one-shot exited 0 (fail fast, not inside the journey)
         run: |
           cid=$(docker compose -f deploy/docker-compose.yml ps -aq migrate)

@@ -228,6 +228,7 @@ def test_websocket_handshake_masking_and_pong(sess):
 
 def test_cdp_returns_by_id_and_keeps_events(sess):
     def script(conn, server):
+        _read_frame(conn)  # the client's request; an unread close triggers RST and races the client
         event = {"method": "Network.requestWillBeSent",
                  "params": {"request": {"url": "file:///ws/p.html"}}}
         _send_frame(conn, json.dumps(event))
