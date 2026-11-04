@@ -492,6 +492,18 @@ async def test_pg_partition_pruning_explain_and_detach_drop():
         await migrate_runner.migrate(engine)
         factory = async_sessionmaker(engine, expire_on_commit=False)
 
+        # migrate() rolls the partition window forward using the wall clock, so
+        # a fresh install can contain children past the frozen test window.
+        # Detach/drop those in this scratch DB to keep the retention assertion
+        # deterministic; partitions up to 2026-12 stay in place.
+        async with engine.begin() as conn:
+            for name, lower, _upper in await er.list_event_partitions(factory):
+                if lower is not None and lower >= datetime(2027, 1, 1, tzinfo=UTC):
+                    await conn.execute(text(
+                        f'ALTER TABLE agent_events DETACH PARTITION "{name}"'
+                    ))
+                    await conn.execute(text(f'DROP TABLE "{name}"'))
+
         # Seed forward months so November inserts have a home (0028 ships
         # 09+10; legacy covers August).
         await er.ensure_forward_partitions(factory, ahead_months=4, now=_FROZEN_NOW)

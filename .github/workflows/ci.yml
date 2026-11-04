@@ -246,16 +246,34 @@ jobs:
           python -m venv .venv
           ./.venv/bin/pip install -q ../contracts -e ".[dev]"
         working-directory: section1
+      - name: Apply the migration ledger to the service Postgres [deploy/runners/migrate.py]
+        # The service container starts empty; the live fanout probe seeds real
+        # parent rows (teams/projects/agent_runs) and needs the migrated shape.
+        # Idempotent: schema_migrations makes a re-run a no-op.
+        run: ./.venv/bin/python ../deploy/runners/migrate.py
+        working-directory: section1
+        env:
+          HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@localhost:5499/harness
+          HARNESS_ALLOW_DEV_MASTER_KEY: "1"
       - name: Real-PG fanout + rehydration probes (G-LIVE regression guard) [make pg-probe-integration]
         run: make --no-print-directory pg-probe-integration
         env:
           HARNESS_TEST_PG: "1"
           HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@localhost:5499/harness
+          # The service container above already owns 5499. Without external
+          # mode, `make pg-probe-*` runs `pg-up`, which starts the compose
+          # `db` and tries to publish 5499 again — every nightly died there
+          # with "address already in use". The container id is what the
+          # live-PG probes docker-exec `psql` into (compose `db` is absent).
+          HARNESS_TEST_PG_EXTERNAL: "1"
+          HARNESS_TEST_PG_CONTAINER: ${{ job.services.postgres.id }}
       - name: S1 suite against real PG [make pg-probe-s1]
         run: make --no-print-directory pg-probe-s1
         env:
           HARNESS_TEST_PG: "1"
           HARNESS_DATABASE_URL: postgresql+asyncpg://harness:harness@localhost:5499/harness
+          HARNESS_TEST_PG_EXTERNAL: "1"
+          HARNESS_TEST_PG_CONTAINER: ${{ job.services.postgres.id }}
 
   # M17-B2 (OPS-15): the migration runner finally runs in CI against real PG.
   # Backend suites build schemas with SQLite create_all and even the nightly
