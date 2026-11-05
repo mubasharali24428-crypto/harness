@@ -160,3 +160,41 @@ def test_nonsensical_limits_are_refused_at_construction(bad):
     configuration error, not a policy."""
     with pytest.raises(ValueError):
         LoopGuard(max_calls=bad, repeat_limit=3)
+
+
+# ---------------------------------------------------------------- W27 repeated denials
+
+def _denied(call_id="c1", scope=None):
+    ask = f' [scope-request] {{"path":"{scope}","grants":false}}' if scope else ""
+    return {"phase": "result", "callId": call_id, "ok": False, "error": "tool error",
+            "output": f"Denied by the harness command policy: x. Instead: y.{ask}"}
+
+
+def test_three_denials_in_a_row_stop_the_run():
+    from harness_orchestrator.loop_guard import DENIALS_REPEATED
+    g = LoopGuard(max_calls=None, repeat_limit=None)
+    assert [g.observe(_denied(f"c{i}")) for i in range(3)] == [None, None, DENIALS_REPEATED]
+    assert g.observe(_call()) == DENIALS_REPEATED  # stopped stays stopped
+
+
+def test_an_allowed_result_resets_the_run_and_a_timeout_is_not_a_denial():
+    timeout = {"phase": "result", "ok": True, "output": "[timed out: not a policy denial]"}
+    g = LoopGuard(max_calls=None, repeat_limit=None)
+    seq = [_denied(), _denied(), _result(), _denied(), _denied(), timeout, _denied(), _denied()]
+    assert [g.observe(r) for r in seq] == [None] * len(seq)
+
+
+def test_ten_spread_out_denials_in_fifty_results_stop_the_run():
+    from harness_orchestrator.loop_guard import DENIALS_REPEATED
+    g = LoopGuard(max_calls=None, repeat_limit=None)
+    out = []
+    for _ in range(10):
+        out += [g.observe(_denied()), g.observe(_result()), g.observe(_result())]
+    assert out[-3] == DENIALS_REPEATED and not any(out[:-3])
+
+
+def test_scope_request_is_read_from_the_denial_and_asks_for_nothing_granted():
+    from harness_orchestrator.loop_guard import scope_request_of
+    assert scope_request_of(_denied(scope="docs")) == {"path": "docs", "grants": False}
+    assert scope_request_of(_denied()) is None
+    assert scope_request_of({"output": "[scope-request] {not json}"}) is None

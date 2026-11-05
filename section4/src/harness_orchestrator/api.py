@@ -531,6 +531,8 @@ class RunAggregateResponse(BaseModel):
     runId: str
     state: str
     costUsd: float | None = None
+    # W27 (additive): the plan's estimate, so a client can show actual against estimated
+    estimatedCostUsd: float | None = None
     prId: str | None = None
     url: str | None = None
     steps: list[AggregateStepOut] = Field(default_factory=list)

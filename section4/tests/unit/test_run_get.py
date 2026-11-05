@@ -232,6 +232,8 @@ def test_get_run_includes_prid_from_db(monkeypatch, db):
         "runId",
         "state",
         "costUsd",
+        # W27 (additive): the plan's estimate beside the metered cost; None without a plan.
+        "estimatedCostUsd",
         "prId",
         "url",
         "steps",
@@ -383,3 +385,35 @@ def test_unknown_run_still_200_in_bare_unit_mode(monkeypatch):
     """Without a DB there is no durable existence to consult: legacy behavior."""
     client = _client(monkeypatch, None, seeded=False)
     assert client.get("/api/v1/orchestrator/runs/any-run").status_code == 200
+
+
+def _add_plan(factory, run_id: str, estimate: str) -> None:
+    async def _go():
+        async with factory() as session:
+            await session.execute(
+                text(
+                    "INSERT INTO agent_plans (id, run_id, goal, files_likely_to_change, steps,"
+                    " tests, risks, estimated_cost_usd, forbidden_paths, expected_result,"
+                    " status, created_at) VALUES ('p1', :r, 'g', '[]', '[]', '[]', '[]', :e,"
+                    " '[]', 'x', 'approved', CURRENT_TIMESTAMP)"
+                ),
+                {"r": run_id, "e": estimate},
+            )
+            await session.commit()
+
+    asyncio.run(_go())
+
+
+def test_estimated_cost_is_null_without_a_plan_and_sits_beside_the_actual_with_one(
+    monkeypatch, db
+):
+    """W27: actual versus estimated. Both are exact scale-6 money and neither stands in for
+    the other: no plan means a null estimate, no ledger rows means a null actual."""
+    client = _client(monkeypatch, db)
+    body = client.get("/api/v1/orchestrator/runs/run-with-pr").json()
+    assert body["estimatedCostUsd"] is None and body["costUsd"] is None
+
+    _add_plan(db, "run-with-pr", "0.05")
+    _add_costs(db, "run-with-pr", ["0.01", "0.02"])
+    body = client.get("/api/v1/orchestrator/runs/run-with-pr").json()
+    assert body["estimatedCostUsd"] == 0.05 and body["costUsd"] == 0.03

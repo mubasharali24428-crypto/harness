@@ -49,7 +49,7 @@ from harness_orchestrator.engine_runtime import (
 )
 from harness_orchestrator.goal_images import GoalImages, resolve_goal_images
 from harness_orchestrator.lifecycle import lifecycle_view
-from harness_orchestrator.loop_guard import LoopGuard, loop_repeat_limit
+from harness_orchestrator.loop_guard import LoopGuard, loop_repeat_limit, scope_request_of
 from harness_orchestrator.planner import PlanNotApprovedError, PlanService
 from harness_orchestrator.redact import scrub_secrets
 from harness_orchestrator.reviewer import ReviewerSubAgent, ReviewFindings
@@ -491,6 +491,8 @@ class OrchestratorService(Orchestrator):
                 "turn": record.get("turn"),
                 "step": record.get("step"),
                 "finishedAt": record.get("at"),
+                # W27: a denial that names the one path whose addition would unblock it
+                **({"scopeRequest": req} if (req := scope_request_of(record)) else {}),
             },
         )
 
@@ -3078,7 +3080,12 @@ class OrchestratorService(Orchestrator):
                pr.pr_url AS pr_url,
                (SELECT SUM(cl.cost_usd)
                   FROM cost_ledger cl
-                 WHERE cl.run_id = r.id) AS cost_usd
+                 WHERE cl.run_id = r.id) AS cost_usd,
+               (SELECT ap.estimated_cost_usd
+                  FROM agent_plans ap
+                 WHERE ap.run_id = r.id
+                 ORDER BY ap.created_at DESC, ap.id DESC
+                 LIMIT 1) AS estimated_cost_usd
         FROM agent_runs r
         LEFT JOIN pull_requests pr ON pr.id = r.pr_id
         WHERE r.id = :r
@@ -3195,6 +3202,8 @@ class OrchestratorService(Orchestrator):
             "prId": None,
             "url": None,
             "costUsd": None,
+            # W27: what the approved plan said it would cost, beside what was metered (costUsd)
+            "estimatedCostUsd": None,
             "steps": [],
             # W15 (additive): the durable routing decision for this run, or
             # None when it has none — explicit null per the W4-C2 law.
@@ -3275,6 +3284,7 @@ class OrchestratorService(Orchestrator):
                 if enrich_row["pr_url"]:
                     aggregate["url"] = enrich_row["pr_url"]
                 aggregate["costUsd"] = self._cost_wire(enrich_row["cost_usd"])
+                aggregate["estimatedCostUsd"] = self._cost_wire(enrich_row["estimated_cost_usd"])
             # DESC+LIMIT grabs the last N cheaply; re-reverse to wire order.
             aggregate["steps"] = [
                 self._step_wire(row) for row in reversed(step_rows)

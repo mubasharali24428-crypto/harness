@@ -1,0 +1,272 @@
+{
+  "date": "2026-11-05",
+  "week": "W14",
+  "task": "w14-design-heldout",
+  "leg": "live",
+  "run": "w14-design-1793895939",
+  "preRegistered": {
+    "ratioMax": 0.03,
+    "colourTolerance": 12,
+    "answerRatioTolerance": 0.005,
+    "fixtureColourTolerance": 0
+  },
+  "fixture": {
+    "token": "CIRRUS-13",
+    "bytes": 6284,
+    "sha256": "cd92a5414252e2c6b1aebf5c498c8de57617c87d6ec838ec69bed9258ce00cb1",
+    "sampledColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    },
+    "expectedColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    }
+  },
+  "fixtureChecks": {
+    "fixtureRendersAtDeclaredSize": true,
+    "flatColoursExactAtSamplePoints": true,
+    "tokenTextIsDrawn": true,
+    "selfDiffIsZero": true,
+    "renderIsDeterministic": true
+  },
+  "drive": "HTTP only",
+  "seededFiles": [
+    "mockup.png"
+  ],
+  "design": {
+    "startStatus": 200,
+    "states": [
+      "executing",
+      "awaiting_done_signal"
+    ],
+    "state": "awaiting_done_signal",
+    "engine": "replayed",
+    "engineStatus": "completed",
+    "answer": "TOKEN: CIRRUS-13\nRATIO: 0.00135\nFILES: index.html, style.css"
+  },
+  "designTrail": {
+    "toolsUsed": [
+      "browser",
+      "image",
+      "read",
+      "read_image",
+      "write"
+    ],
+    "imageDiffCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "toolu_01Q62zHjAzRGQ5D7mpumhKN8",
+        "arguments": "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imageSampleCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "toolu_01L5aYeJ2LtWejN9Mdk5WG4U",
+        "arguments": "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[300,150],[650,150],[500,30],[700,30],[400,500],[100,300],[370,392],[700,377]]}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imagePaletteCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "toolu_01WAuRF2dpK9RzndVNFTBdmk",
+        "arguments": "{\"action\":\"palette\",\"path\":\"mockup.png\",\"maxColors\":24}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "screenshotCalls": [
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "toolu_01AHc6gG7orcARKFd9FXgm6e",
+        "arguments": "{\"action\":\"screenshot\",\"url\":\"index.html\",\"path\":\"shots/render.png\",\"width\":960,\"height\":640}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "mockupReads": [
+      {
+        "type": "tool_call",
+        "tool": "read",
+        "callId": "toolu_018z2p5XEYhJqEAkwju6C8A7",
+        "arguments": "{\"file_path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "read_image",
+        "callId": "toolu_01Js9UdGLVRqYoRz2w8DjirG",
+        "arguments": "{\"file_path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "dialogReads": [],
+    "writes": [
+      {
+        "type": "tool_call",
+        "tool": "write",
+        "callId": "toolu_01YBJRKwbyi2C8CJMfPWcxTq",
+        "arguments": "{\"file_path\":\"index.html\",\"content\":\"<!DOCTYPE html>\\n<html>\\n<head>\\n<meta charset=\\\"utf-8\\\">\\n<link rel=\\\"stylesheet\\\" href=\\\"style.css\\\">\\n</head>\\n<body>\\n<div id=\\\"root\\\">\\n  <div class=\\\"r sidebar\\\"></div>\\n  <div class=\\\"r header\\\"></div>\\n  <div class=\\\"r card1\\\"></div>\\n  <div class=\\\"r card2\\\"></div>\\n  <div class=\\\"r pill\\\"></div>\\n  <div class=\\\"r accent\\\"></div>\\n  <div class=\\\"title\\\">CIRRUS-13</div>\\n</div>\\n</body>\\n</html>\\n\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "write",
+        "callId": "toolu_01KvX1giFKFRBp2Pzd6o47fy",
+        "arguments": "{\"file_path\":\"style.css\",\"content\":\"html, body {\\n  margin: 0;\\n  padding: 0;\\n  width: 960px;\\n  height: 640px;\\n  overflow: hidden;\\n  background: #0b0d12;\\n}\\n#root {\\n  position: absolute;\\n  left: 0;\\n  top: 0;\\n  width: 960px;\\n  height: 640px;\\n  background: #0b0d12;\\n  overflow: hidden;\\n}\\n.r {\\n  position: absolute;\\n}\\n.sidebar {\\n  left: 0; top: 0; width: 220px; height: 640px;\\n  background: #141821;\\n}\\n.header {\\n  left: 220px; top: 0; width: 740px; height: 72px;\\n  background: #1b2030;\\n}\\n.card1 {\\n  left: 260px; top: 110px; width: 300px; height: 220px;\\n  background: #1f2433;\\n}\\n.card2 {\\n  left: 600px; top: 110px; width: 300px; height: 220px;\\n  background: #1f2433;\\n}\\n.pill {\\n  left: 260px; top: 370px; width: 220px; height: 44px;\\n  background: #2fbf71;\\n}\\n.accent {\\n  left: 600px; top: 370px; width: 300px; height: 14px;\\n  background: #f0a43c;\\n}\\n.title {\\n  position: absolute;\\n  left: 600px; top: 422px;\\n  font-family: \\\"DejaVu Sans\\\", sans-serif;\\n  font-weight: bold;\\n  font-size: 30px;\\n  line-height: 34px;\\n  color: #e8edf6;\\n  white-space: nowrap;\\n}\\n\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imageArguments": [
+      "{\"action\":\"palette\",\"path\":\"mockup.png\",\"maxColors\":24}",
+      "{\"action\":\"sample\",\"path\":\"mockup.png\",\"points\":[[300,150],[650,150],[500,30],[700,30],[400,500],[100,300],[370,392],[700,377]]}",
+      "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\"}"
+    ]
+  },
+  "measurement": {
+    "mockupSize": [
+      960,
+      640
+    ],
+    "renderSize": [
+      960,
+      640
+    ],
+    "changedPixels": 869,
+    "totalPixels": 614400,
+    "ratio": 0.001414,
+    "sampledColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    }
+  },
+  "checks": {
+    "fixtureLegPassed": true,
+    "designRunSettled": true,
+    "agentOpenedTheMockup": true,
+    "agentMeasuredColours": true,
+    "agentScreenshottedItsPage": true,
+    "agentUsedTheDiff": true,
+    "agentWroteThePage": true,
+    "tokenOnlyInPixelsWasTranscribed": true,
+    "pageRendersAtMockupSize": true,
+    "independentDiffWithinThreshold": true,
+    "flatColoursSurvived": true,
+    "agentRatioAgreesWithBytes": true
+  },
+  "verdict": "PASS",
+  "failedChecks": [],
+  "designAnswer": "TOKEN: CIRRUS-13\nRATIO: 0.00135\nFILES: index.html, style.css"
+}

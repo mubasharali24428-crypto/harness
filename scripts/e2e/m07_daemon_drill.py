@@ -91,11 +91,24 @@ def inspect_workers(image: str, seen: dict, stop: threading.Event) -> None:
         time.sleep(0.5)
 
 
+def daemon_engine_image(fallback: str) -> str:
+    """The engine image the running worker-daemon starts, so a drill never watches a stale tag."""
+    import subprocess
+    try:
+        env = subprocess.run(
+            ["docker", "inspect", "harness-worker-daemon-1", "--format",
+             "{{range .Config.Env}}{{println .}}{{end}}"],
+            capture_output=True, text=True, timeout=20, check=True).stdout.splitlines()
+    except (OSError, subprocess.SubprocessError):
+        return fallback
+    return next((e.split("=", 1)[1] for e in env if e.startswith("HARNESS_ENGINE_IMAGE=")), fallback)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--model", default="qwen-local:latest")
     ap.add_argument("--base-url", default="http://host.docker.internal:11434/v1")
-    ap.add_argument("--image", default="harness-engine-worker:vdev-local")
+    ap.add_argument("--image", default=daemon_engine_image("harness-engine-worker:vdev-local"))
     ap.add_argument("--evidence", default=str(REPO / "docs/briefs/evidence/pilot-prep"
                                               / "m07-daemon-topology.json"))
     args = ap.parse_args()

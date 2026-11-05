@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "kind": "w2-code-search",
+  "variant": "heldout",
+  "takenAt": "2026-11-05T16:23:08.986400+00:00",
+  "runId": "w2-code-search-heldout-1793895768",
+  "goal": "This repository has a wrong value: FLUSH_INTERVAL_SECONDS is set to 30 and\nmust be 45. Find the module that defines it and change only that value. Do not\nmodify any other file. Reply with exactly one line:\nFILE: <the path of the file you changed>\n",
+  "target": "pkg/telemetry/flush.py",
+  "model": "the stack DSH_MODEL",
+  "modelPref": {
+    "requested": null,
+    "applied": null
+  },
+  "seededFiles": 100,
+  "changedFiles": [
+    "pkg/telemetry/flush.py"
+  ],
+  "addedFiles": [],
+  "state": "awaiting_done_signal",
+  "states": [
+    "executing",
+    "awaiting_done_signal"
+  ],
+  "durationSeconds": 20.22,
+  "toolCalls": 4,
+  "toolsUsed": [
+    "bash",
+    "edit",
+    "read"
+  ],
+  "usage": null,
+  "usageNote": "null on this transport per the M07 finding; wall clock and tool calls are recorded instead",
+  "answer": "FILE: pkg/telemetry/flush.py",
+  "checks": {
+    "runSettled": true,
+    "targetHasNewValue": true,
+    "onlyTargetChanged": true,
+    "answerNamesTheFile": true,
+    "noFilesDeleted": true,
+    "requestedModelApplied": true
+  },
+  "verdict": "PASS",
+  "failedChecks": []
+}

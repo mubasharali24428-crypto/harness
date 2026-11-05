@@ -10,7 +10,7 @@ its instruction to ask the user to add the path to the run's scope; the marker t
 Needs HARNESS_ALLOW_PAID_SMOKE=1 and OPENROUTER_API_KEY for a hosted model (about a cent).
 
     section4/.venv/bin/python scripts/e2e/w27_denial_drill.py --base-url "$OPENROUTER_BASE_URL" \\
-        --model anthropic/claude-haiku-5.5 --image harness-engine-worker:vw27
+        --model anthropic/claude-haiku-5.5 --image harness-engine-worker:<tag>   # default: the running daemon's image
 """
 
 from __future__ import annotations
@@ -40,11 +40,24 @@ def _digest(root: Path) -> dict[str, str]:
     }
 
 
+def daemon_engine_image(fallback: str) -> str:
+    """The engine image the running worker-daemon starts, so a drill never watches a stale tag."""
+    import subprocess
+    try:
+        env = subprocess.run(
+            ["docker", "inspect", "harness-worker-daemon-1", "--format",
+             "{{range .Config.Env}}{{println .}}{{end}}"],
+            capture_output=True, text=True, timeout=20, check=True).stdout.splitlines()
+    except (OSError, subprocess.SubprocessError):
+        return fallback
+    return next((e.split("=", 1)[1] for e in env if e.startswith("HARNESS_ENGINE_IMAGE=")), fallback)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--base-url", default="http://127.0.0.1:11434/v1")
     ap.add_argument("--model", default="qwen-local:latest")
-    ap.add_argument("--image", default="harness-engine-worker:vw27")
+    ap.add_argument("--image", default=daemon_engine_image("harness-engine-worker:vw27"))
     ap.add_argument("--deadline", type=int, default=540)
     ap.add_argument("--evidence", default=str(REPO / "docs/briefs/evidence/pilot-prep"
                                               / "w27-denial.json"))

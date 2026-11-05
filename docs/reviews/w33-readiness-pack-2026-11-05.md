@@ -38,6 +38,15 @@ tasks were not rerun (only the fixed set and the held-out live set); the two ear
 items remain (`test_reclaimed_run_fences_the_original_worker` fails under full-suite load about 15%
 of runs; it passed in this run).
 
+## Addendum: the other live tasks (same day, later)
+
+The ten live tasks not rerun above were run afterwards, n=1 each, through the runner on the stack
+model: `code-search`, `w4-web-fetch`, `w4-install`, `w4-mcp-client`, `w4-credential-leak`,
+`w8-concurrency`, `w9-share-deploy`, `cli-parity`, `m07-vision-api`, `w10-browser-repro`. All PASS
+(`docs/briefs/evidence/w33-rerun/`); ledger cost $0.0247. All 23 live tasks now have a pass on
+this day's build, still at n=1, and these ten ran before the W27 slice-3 backend change (not
+deployed). Rows above that say "16 of 23 not rerun" describe the pack as first written.
+
 ## Checklist, refilled
 
 A ticked box means the evidence exists at this revision, not that a gate passed; the result is on

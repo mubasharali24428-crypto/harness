@@ -1,7 +1,7 @@
 {
  "date": "2026-11-05",
  "milestone": "M07 screenshot through the container",
- "runId": "m07vis-1793882001",
+ "runId": "m07vis-1793899215",
  "drive": "HTTP only",
  "paidSmokeOptIn": true,
  "expectedColour": "orange",
@@ -13,7 +13,7 @@
  ],
  "maxToolCalls": 4,
  "budgetSet": true,
- "artifactId": "9b00017f-470b-4315-b737-772ee77f07fc",
+ "artifactId": "49080eb0-2b0e-478a-9a61-0cd85f5c0912",
  "engine": {
   "engine": "replayed",
   "status": "completed",
@@ -35,7 +35,7 @@
  ],
  "workersObserved": [
   {
-   "name": "harness-7e4c80c975c142c7b39393f48c82706d-relay",
+   "name": "harness-5cc12b4766a74af690087a9bf1d02902-relay",
    "role": "relay",
    "user": "10001:10001",
    "readonlyRootfs": true,
@@ -44,12 +44,12 @@
    ],
    "networks": [
     "bridge",
-    "harness-7e4c80c975c142c7b39393f48c82706d-net"
+    "harness-5cc12b4766a74af690087a9bf1d02902-net"
    ],
    "mounts": []
   },
   {
-   "name": "harness-7e4c80c975c142c7b39393f48c82706d",
+   "name": "harness-5cc12b4766a74af690087a9bf1d02902",
    "role": "worker",
    "user": "999:999",
    "readonlyRootfs": true,
@@ -57,25 +57,25 @@
     "ALL"
    ],
    "networks": [
-    "harness-7e4c80c975c142c7b39393f48c82706d-net"
+    "harness-5cc12b4766a74af690087a9bf1d02902-net"
    ],
    "mounts": [
     {
-     "src": "/var/lib/docker/volumes/harness_runs/_data/workspace/m07vis-1793882001",
-     "dst": "/var/lib/harness-runs/workspace/m07vis-1793882001",
+     "src": "/var/lib/docker/volumes/harness_runs/_data/workspace/m07vis-1793899215",
+     "dst": "/var/lib/harness-runs/workspace/m07vis-1793899215",
      "readOnly": false,
      "subpath": null
     },
     {
-     "src": "/var/lib/docker/volumes/harness_runs/_data/sessions/m07vis-1793882001",
-     "dst": "/var/lib/harness-runs/sessions/m07vis-1793882001",
+     "src": "/var/lib/docker/volumes/harness_runs/_data/sessions/m07vis-1793899215",
+     "dst": "/var/lib/harness-runs/sessions/m07vis-1793899215",
      "readOnly": false,
      "subpath": null
     }
    ]
   }
  ],
- "elapsedSeconds": 10.49,
+ "elapsedSeconds": 10.35,
  "steps": [
   {
    "step": "login",
@@ -83,12 +83,12 @@
   },
   {
    "step": "create project",
-   "ok": "ed8ff528-979b-4a16-aacf-6a14a8414873",
+   "ok": "74ac529c-abe1-4efb-bb2b-002ae264bd72",
    "status": 201
   },
   {
    "step": "propose plan",
-   "ok": "plan-533df212",
+   "ok": "plan-7353fbed",
    "status": 201
   },
   {
@@ -98,7 +98,7 @@
   },
   {
    "step": "upload screenshot",
-   "ok": "9b00017f-470b-4315-b737-772ee77f07fc",
+   "ok": "49080eb0-2b0e-478a-9a61-0cd85f5c0912",
    "status": 201,
    "bytes": 136
   },
