@@ -175,6 +175,14 @@ def main() -> int:
     live = [a for a in (listing or {}).get("items", [])
             if a.get("state") not in ("cancelled", "done", "failed")]
     step("no live assignment left", not live, live=[a.get("id") for a in live])
+    st, syn = tpl.http("GET", f"{O}/{parent}/synthesis", token=token)
+    seen = {c["childRunId"]: c for c in (syn or {}).get("children", [])} if st == 200 else {}
+    step("synthesis lists all three delegated runs for review, merging nothing",
+         st == 200 and set(seen) == set(runs.values()) and syn["reviewRequired"] is True
+         and syn["autoMerge"] is False, status=st,
+         states={k: seen.get(v, {}).get("state") for k, v in runs.items()},
+         runStatus={k: seen.get(v, {}).get("runStatus") for k, v in runs.items()},
+         conflicts=(syn or {}).get("conflicts"))
     return finish(steps, runs, all(s["ok"] for s in steps), midRunCancel=mid_run)
 
 
