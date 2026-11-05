@@ -35,3 +35,32 @@ def test_repeat_must_be_positive():
         assert "repeat" in str(error)
     else:  # pragma: no cover - the assertion above is the test
         raise AssertionError("repeat=0 must be rejected")
+
+
+def test_mapped_back_violations_surface_in_the_report(monkeypatch):
+    """A timetable result that fails the allocation validator must not read as clean."""
+    def fake_run(passed_request, engine="heuristic"):
+        return {
+            "status": "invalid",
+            "assignments": [{"task_id": "t000", "resource_id": "room-99", "start_slot": 0, "end_slot": 3}],
+            "violations": [{"code": "unknown_resource", "detail": "room-99 is not a resource", "task_id": "t000"}],
+            "unsupported": [],
+            "elapsed_ms": 1,
+            "engine": engine,
+        }
+
+    monkeypatch.setattr(compare.bridge, "run", fake_run)
+    monkeypatch.setattr(
+        compare.bridge,
+        "translate",
+        lambda passed_request: {
+            "ok": True,
+            "unsupported": [],
+            "request": {"sessions": [], "rooms": []},
+            "room_to_resource": {},
+        },
+    )
+    entry = compare._compare_timetable(2, repeat=1, time_limit_s=2.0)
+    assert entry["timetable_bridge"]["status"] == "invalid"
+    assert any(v["code"] == "unknown_resource" for v in entry["timetable_bridge"]["violations"])
+    assert entry["agreement"]["timetable_valid"] is False

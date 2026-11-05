@@ -120,10 +120,15 @@ def _environment() -> dict:
 
 
 def _summarize(result: dict, request: dict) -> dict:
-    solved = result["status"] in {"optimal", "feasible"}
+    # A bridge result carries its own validated violations from the mapped-back
+    # placements; honor them instead of re-deriving (or silently dropping) them.
+    solved = result["status"] in {"optimal", "feasible", "solved"}
     assignments = result.get("assignments") or []
     payload = contract.load(request)
-    violations = contract.validate(request, assignments) if solved else []
+    if "violations" in result:
+        violations = result["violations"]
+    else:
+        violations = contract.validate(request, assignments) if solved else []
     objective = result.get("objective")
     if solved and objective is None and not violations:
         objective = contract.objective(request, assignments)
@@ -134,7 +139,7 @@ def _summarize(result: dict, request: dict) -> dict:
         "violations": violations,
         "objective": objective,
         "reason": result.get("reason"),
-        "optimized": result.get("optimized", True),
+        "optimized": result.get("optimized"),
     }
 
 
