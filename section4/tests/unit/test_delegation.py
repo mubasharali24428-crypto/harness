@@ -114,3 +114,19 @@ def test_viewer_cannot_delegate(env):
     agent = env.add_def()
     r = deleg(env, agent, count=1, requestId="x7", user="view")
     err(r, 403, "ROLE_DENIED")
+
+
+def test_two_agent_task_one_cancelled_no_orphan(env):
+    """W28 exit: two delegated children, one cancelled, then the parent; nothing stays live."""
+    env.mp.setenv("HARNESS_SUBAGENTS", "1")
+    agent = env.add_def()
+    root = deleg(env, agent, requestId="t-root").json()["children"][0]
+    kids = deleg(env, agent, count=2, budgetUsd="0.2", requestId="t-kids",
+                 parentAssignmentId=root["id"]).json()["children"]
+    assert len(kids) == 2
+    c = env.as_("eng")
+    assert c.post(f"{P}/r1/agents/{kids[0]['id']}/cancel").json()["state"] == "cancelled"
+    assert c.post(f"{P}/r1/agents/{root['id']}/cancel").json()["state"] == "cancelled"
+    live = rows(env.f, "SELECT id FROM agent_assignments WHERE state NOT IN ('cancelled','done','failed')")
+    assert live == []
+    assert c.get(f"{P}/r1/agents").json()["pool"]["reservedUsd"] == "0"
