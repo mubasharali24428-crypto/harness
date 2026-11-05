@@ -187,3 +187,5 @@ only). To measure concurrent runs, start the processes at least 1 s apart and gi
 metrics are collected afterwards with `scripts/eval/w25_metrics.py`, which reads start latency, time to first
 tool call, engine time, tool calls and cost from `agent_events` and `cost_ledger` by run id.
 
+**Update (owner decision, 2026-11-05): the stack default is now `anthropic/claude-haiku-5.5`** for every live task, text and vision, on the strength of the W25/W26 benchmark (same pass rate as DeepSeek on the two text tasks, about twice as fast, equal cost, and it has image input; see `STATUS.md`). Vision tasks therefore no longer need the wrapper. Use `scripts/eval/with_model.sh <model> <command>` only to compare another model (for example `deepseek/deepseek-v4-flash`) against it. The wrapper now reads each service's own image tag. The corpus `model` field on the vision tasks still says `qwen/qwen3.7-flash` and is stale; the evidence file records the model actually used.
+
