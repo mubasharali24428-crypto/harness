@@ -130,3 +130,71 @@ def test_two_agent_task_one_cancelled_no_orphan(env):
     live = rows(env.f, "SELECT id FROM agent_assignments WHERE state NOT IN ('cancelled','done','failed')")
     assert live == []
     assert c.get(f"{P}/r1/agents").json()["pool"]["reservedUsd"] == "0"
+
+
+# --------------------------------------------------------------------------- S1b-1
+# A delegated child is a real run: it goes through the normal plan-approval path, so it
+# waits for a human approval (option 1, owner decision 2026-11-05), has its own run id
+# (and so its own engine workspace), and is stopped when its assignment is cancelled.
+
+
+def _child_run(env, assignment_id):
+    rows_ = rows(env.f, f"SELECT child_run_id FROM agent_assignments WHERE id = '{assignment_id}'")
+    return rows_[0]["child_run_id"]
+
+
+def _state(env, run_id):
+    return env.svc.runs[run_id]["state_machine"].state.value
+
+
+def test_delegated_child_gets_its_own_run_awaiting_approval(env):
+    env.mp.setenv("HARNESS_SUBAGENTS", "1")
+    agent = env.add_def()
+    child = deleg(env, agent, requestId="s1b-1").json()["children"][0]
+    run_id = _child_run(env, child["id"])
+    assert run_id and run_id != "r1"
+    assert child["childRunId"] == run_id
+    assert _state(env, run_id) == "awaiting_plan_approval"  # never auto-approved
+
+
+def test_each_child_gets_a_distinct_run(env):
+    env.mp.setenv("HARNESS_SUBAGENTS", "1")
+    agent = env.add_def()
+    kids = deleg(env, agent, count=2, requestId="s1b-2").json()["children"]
+    runs_ = {_child_run(env, k["id"]) for k in kids}
+    assert len(runs_) == 2 and None not in runs_
+
+
+def test_repost_reuses_the_child_run(env):
+    env.mp.setenv("HARNESS_SUBAGENTS", "1")
+    agent = env.add_def()
+    first = deleg(env, agent, requestId="s1b-3").json()["children"][0]
+    again = deleg(env, agent, requestId="s1b-3").json()["children"][0]
+    assert again["duplicate"] is True and again["childRunId"] == first["childRunId"]
+    assert set(env.svc.runs) - {"r1"} == {first["childRunId"]}  # no second child run
+
+
+def test_cancelling_the_assignment_stops_the_child_run(env):
+    env.mp.setenv("HARNESS_SUBAGENTS", "1")
+    agent = env.add_def()
+    root = deleg(env, agent, requestId="s1b-4a").json()["children"][0]
+    kid = deleg(env, agent, requestId="s1b-4b", budgetUsd="0.2",
+                parentAssignmentId=root["id"]).json()["children"][0]
+    root_run, kid_run = root["childRunId"], kid["childRunId"]
+    assert env.as_("eng").post(f"{P}/r1/agents/{root['id']}/cancel").status_code == 200
+    assert _state(env, root_run) == "done" and _state(env, kid_run) == "done"  # no orphan runs
+
+
+def test_planning_failure_leaves_no_live_assignment(env):
+    env.mp.setenv("HARNESS_SUBAGENTS", "1")
+    agent = env.add_def()
+
+    async def boom(*a, **k):
+        raise RuntimeError("planner down")
+
+    env.mp.setattr(env.svc, "propose_plan", boom)
+    r = deleg(env, agent, requestId="s1b-5")
+    err(r, 502, "CHILD_RUN_FAILED")
+    live = rows(env.f, "SELECT id FROM agent_assignments"
+                       " WHERE state NOT IN ('cancelled','done','failed')")
+    assert live == []

@@ -32,15 +32,18 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Response
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import text
 
 from harness_orchestrator import agent_tree as _at
 from harness_orchestrator.agent_tree import (
     ScopeBody,
     Writer,
+    _audit,
     _http,
     _micro,
     _mint_child,
     _norm_scope,
+    _terminal,
 )
 
 router = APIRouter(prefix="/api/v1/orchestrator", tags=["delegation"])
@@ -67,6 +70,40 @@ class DelegationBody(BaseModel):
     requestId: str | None = Field(default=None, max_length=64)
     # The assignment that requested the delegation; NULL mints it as a root task.
     parentAssignmentId: str | None = Field(default=None, max_length=36)
+
+
+async def _open_child_run(
+    factory: Any, p: Any, parent_run_id: str, assignment_id: str, *, title: str, description: str
+) -> str:
+    """Give a freshly minted child its own run and propose its plan for human approval.
+
+    The child follows the ordinary lifecycle (propose, approve, start, queue, claim), so every gate
+    that guards a normal run guards it too, and its engine gets its own workspace from its run id.
+    It is never auto-approved. If the run cannot be opened the assignment is cancelled, so a failed
+    delegation leaves nothing live and nothing reserved.
+    """
+    child_run_id = str(uuid4())
+    async with factory() as db:
+        project_id = (await db.execute(text("SELECT project_id FROM agent_runs WHERE id=:r"),
+                                       {"r": parent_run_id})).scalar_one()
+        await db.execute(text("UPDATE agent_assignments SET child_run_id=:c WHERE id=:i"),
+                         {"c": child_run_id, "i": assignment_id})
+        await db.commit()
+    try:
+        goal = f"{title}\n\n{description}".strip()
+        await _at._svc().propose_plan(child_run_id, goal=goal, project_id=project_id)
+    except Exception as e:  # noqa: BLE001 - any planning failure must undo the delegation
+        async with factory() as db:
+            await db.execute(text("UPDATE agent_assignments SET child_run_id=NULL WHERE id=:i"),
+                             {"i": assignment_id})
+            if await _terminal(db, assignment_id, "cancelled", _at.db_now()):
+                await _audit(db, p, "agent.cancelled", assignment_id, {
+                    "runId": parent_run_id, "reason": "child_run_failed",
+                    "error": type(e).__name__})
+            await db.commit()
+        raise _http(502, "CHILD_RUN_FAILED",
+                    f"the child run could not be planned: {type(e).__name__}") from e
+    return child_run_id
 
 
 @router.post("/runs/{runId}/delegations", status_code=201)
@@ -97,5 +134,8 @@ async def delegate(
             scope=scope,
             budget_microusd=budget,
         )
+        if not duplicate:
+            child["childRunId"] = await _open_child_run(
+                factory, p, runId, child["id"], title=child["title"], description=body.description)
         children.append({**child, "duplicate": duplicate})
     return {"children": children, "minted": sum(1 for child in children if not child["duplicate"])}

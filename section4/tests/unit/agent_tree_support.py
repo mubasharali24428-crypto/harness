@@ -20,11 +20,14 @@ from harness_orchestrator import agent_tree
 from harness_orchestrator import api as orch_api
 from harness_orchestrator.service import OrchestratorService
 
-MIGRATION = Path(__file__).resolve().parents[3] / "section1" / "migrations" / "0044_agents.sql"
+MIGRATIONS = Path(__file__).resolve().parents[3] / "section1" / "migrations"
+MIGRATION = MIGRATIONS / "0044_agents.sql"
+# 0075 adds agent_assignments.child_run_id (W28 S1b); applied after 0044.
+MIGRATION_FILES = (MIGRATION, MIGRATIONS / "0075_assignment_child_run.sql")
 
 
 def migration_statements() -> list[str]:
-    sql = "\n".join(ln for ln in MIGRATION.read_text().splitlines()
+    sql = "\n".join(ln for f in MIGRATION_FILES for ln in f.read_text().splitlines()
                     if not ln.strip().startswith("--"))
     return [s.strip() for s in sql.split(";") if s.strip()]
 
