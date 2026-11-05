@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
 from harness_orchestrator import delegation
 from tests.unit.agent_tree_support import (
@@ -36,6 +37,14 @@ def env(tmp_path, monkeypatch):
 
     def add_def(name="coder", **over):
         return asyncio.run(add_def_async(factory, name, **over))
+
+    async def _ledger():  # the orchestrator DB has cost_ledger in production; SQLite tests do not
+        async with factory() as db:
+            await db.execute(text("CREATE TABLE IF NOT EXISTS cost_ledger"
+                                  " (run_id VARCHAR(36), cost_usd NUMERIC)"))
+            await db.commit()
+
+    asyncio.run(_ledger())
 
     yield SimpleNamespace(
         as_=as_, f=factory, svc=svc, add_def=add_def, mp=monkeypatch, who=who
@@ -270,3 +279,21 @@ def test_synthesis_ignores_cancelled_children_for_conflicts(env):
 
 def test_synthesis_is_empty_for_a_run_without_delegations(env):
     assert _synthesis(env).json()["children"] == []
+
+
+def test_synthesis_spend_is_the_runs_ledger_cost(env):
+    env.mp.setenv("HARNESS_SUBAGENTS", "1")
+    agent = env.add_def()
+    kids = deleg(env, agent, count=2, budgetUsd="0.2", requestId="s2-6").json()["children"]
+
+    async def spend():
+        async with env.f() as db:
+            for cost in ("0.000500", "0.000562"):
+                await db.execute(text("INSERT INTO cost_ledger (run_id, cost_usd) VALUES (:r, :c)"),
+                                 {"r": kids[0]["childRunId"], "c": cost})
+            await db.commit()
+
+    asyncio.run(spend())
+    by_id = {c["assignmentId"]: c for c in _synthesis(env).json()["children"]}
+    assert by_id[kids[0]["id"]]["spentUsd"] == "0.001062"  # summed over the run's ledger rows
+    assert by_id[kids[1]["id"]]["spentUsd"] == "0"  # no ledger rows yet

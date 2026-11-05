@@ -33,7 +33,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Response
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 
 from harness_orchestrator import agent_tree as _at
 from harness_orchestrator.agent_tree import (
@@ -155,14 +155,23 @@ def _overlaps(a: list[str], b: list[str]) -> list[str]:
 async def synthesis(runId: str, p: Reader) -> dict[str, Any]:
     """What the delegated children did, for a human to review. Read-only: nothing is merged.
 
-    Per child: owner, scope, state, spend and the run's final response. ``conflicts`` lists live or
-    finished siblings (same parent) whose path scopes overlap, which is where two agents could have
-    written the same file. A cancelled child cannot conflict.
+    Per child: owner, scope, state, spend (from ``cost_ledger``) and the run's final response.
+    ``conflicts`` lists live or finished siblings (same parent) whose path scopes overlap, which is
+    where two agents could have written the same file. A cancelled child cannot conflict.
     """
     async with _at._factory()() as db:
         rows = (await db.execute(
             text("SELECT * FROM agent_assignments WHERE run_id=:r AND team_id=:t"
                  " ORDER BY created_at, id"), {"r": runId, "t": p.teamId})).mappings().all()
+    run_ids = [r["child_run_id"] for r in rows if r["child_run_id"]]
+    spent: dict[str, Decimal] = {}
+    if run_ids:  # the assignment's own counter is never fed by the run, so the ledger is the truth
+        async with _at._factory()() as db:
+            ledger = (await db.execute(
+                text("SELECT run_id, cost_usd FROM cost_ledger WHERE run_id IN :ids")
+                .bindparams(bindparam("ids", expanding=True)), {"ids": run_ids})).all()
+        for run_id, cost in ledger:
+            spent[run_id] = spent.get(run_id, Decimal(0)) + Decimal(str(cost))
     children = []
     for r in rows:
         if not r["child_run_id"]:
@@ -172,7 +181,8 @@ async def synthesis(runId: str, p: Reader) -> dict[str, Any]:
             "assignmentId": r["id"], "parentId": r["parent_id"], "childRunId": r["child_run_id"],
             "title": r["title"], "state": r["state"], "agentName": r["agent_name"],
             "agentVersion": r["agent_version"], "delegatedBy": r["delegated_by"],
-            "scope": json.loads(r["scope"]), "spentUsd": _at._usd(r["spent_microusd"]),
+            "scope": json.loads(r["scope"]),
+            "spentUsd": _at._usd(_micro(spent.get(r["child_run_id"], Decimal(0)))),
             "runStatus": result.get("status"), "result": result.get("finalResponse"),
         })
     live = [c for c in children if c["state"] != "cancelled"]

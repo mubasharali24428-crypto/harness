@@ -88,17 +88,19 @@ def main() -> int:
         time.sleep(3)
     step("child A ran to a settled state", state in tpl.SETTLED, state=state)
 
+    spend = psql(f"select coalesce(sum(cost_usd),0) from cost_ledger where run_id='{a['childRunId']}'")
     _, syn = tpl.http("GET", f"{O}/{parent}/synthesis", token=token)
     by = {c["assignmentId"]: c for c in syn.get("children", [])}
     ca = by.get(a["id"], {})
     step("synthesis shows A's real result", ca.get("runStatus") == "completed" and bool(ca.get("result")),
          runStatus=ca.get("runStatus"), result=(ca.get("result") or "")[:200], spentUsd=ca.get("spentUsd"))
     flagged = [c for c in syn.get("conflicts", []) if {a["id"], b["id"]} == set(c["assignmentIds"])]
+    step("synthesis spend equals the run's cost_ledger total",
+         float(ca.get("spentUsd") or 0) == float(spend) > 0, synthesis=ca.get("spentUsd"), ledger=spend)
     step("synthesis flags A and B as overlapping", len(flagged) == 1,
          conflicts=syn.get("conflicts"))
     step("review required, nothing merged", syn.get("reviewRequired") is True
          and syn.get("autoMerge") is False)
-    spend = psql(f"select coalesce(sum(cost_usd),0) from cost_ledger where run_id='{a['childRunId']}'")
 
     tpl.http("POST", f"{O}/{parent}/agents/{root['id']}/cancel", token=token)
     time.sleep(6)
