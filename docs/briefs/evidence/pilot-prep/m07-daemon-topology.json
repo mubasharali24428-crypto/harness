@@ -1,7 +1,7 @@
 {
   "date": "2026-11-05",
   "milestone": "M07 topology",
-  "runId": "m07d-1793894400",
+  "runId": "m07d-1793898441",
   "model": "anthropic/claude-haiku-5.5",
   "orchestratorHasNoDockerSocket": true,
   "orchestratorHasNoDockerCli": true,
@@ -15,7 +15,7 @@
       ],
       "networks": [
         "bridge",
-        "harness-2b5732fad5724dcdab51212ae4573dcc-net"
+        "harness-ed7b83b9aa79426fb79b8ff66221efcd-net"
       ],
       "mounts": []
     },
@@ -27,27 +27,27 @@
         "ALL"
       ],
       "networks": [
-        "harness-2b5732fad5724dcdab51212ae4573dcc-net"
+        "harness-ed7b83b9aa79426fb79b8ff66221efcd-net"
       ],
       "mounts": [
         {
           "type": "bind",
-          "src": "/var/lib/docker/volumes/harness_runs/_data/workspace/m07d-1793894400",
-          "dst": "/var/lib/harness-runs/workspace/m07d-1793894400",
+          "src": "/var/lib/docker/volumes/harness_runs/_data/workspace/m07d-1793898441",
+          "dst": "/var/lib/harness-runs/workspace/m07d-1793898441",
           "readOnly": false,
           "subpath": null
         },
         {
           "type": "bind",
-          "src": "/var/lib/docker/volumes/harness_runs/_data/sessions/m07d-1793894400",
-          "dst": "/var/lib/harness-runs/sessions/m07d-1793894400",
+          "src": "/var/lib/docker/volumes/harness_runs/_data/sessions/m07d-1793898441",
+          "dst": "/var/lib/harness-runs/sessions/m07d-1793898441",
           "readOnly": false,
           "subpath": null
         },
         {
           "type": "bind",
-          "src": "/var/lib/docker/volumes/harness_runs/_data/workspace/m07d-1793894400/README.md",
-          "dst": "/var/lib/harness-runs/workspace/m07d-1793894400/README.md",
+          "src": "/var/lib/docker/volumes/harness_runs/_data/workspace/m07d-1793898441/README.md",
+          "dst": "/var/lib/harness-runs/workspace/m07d-1793898441/README.md",
           "readOnly": true,
           "subpath": null
         }
@@ -56,37 +56,37 @@
   ],
   "daemonUrl": "http://worker-daemon:8010",
   "status": "completed",
-  "seconds": 13.72,
+  "seconds": 11.24,
   "calc": "def add(a, b):\n    return a + b\n",
   "readmeUnchanged": true,
   "records": [
     {
-      "t": 7.8,
+      "t": 6.74,
       "phase": "call",
       "tool": "read"
     },
     {
-      "t": 7.8,
+      "t": 6.75,
       "phase": "result",
       "tool": null
     },
     {
-      "t": 9.57,
+      "t": 8.63,
       "phase": "call",
       "tool": "edit"
     },
     {
-      "t": 9.58,
+      "t": 8.64,
       "phase": "result",
       "tool": null
     },
     {
-      "t": 11.18,
+      "t": 8.64,
       "phase": "call",
       "tool": "read"
     },
     {
-      "t": 11.18,
+      "t": 8.64,
       "phase": "result",
       "tool": null
     }
