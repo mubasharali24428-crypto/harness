@@ -1,7 +1,7 @@
 {
- "date": "2026-10-26",
+ "date": "2026-11-05",
  "milestone": "W3 partial write",
- "runId": "w3torn-1793072006",
+ "runId": "w3torn-1793891243",
  "totalLines": 120,
  "steps": [
   {
@@ -27,7 +27,7 @@
   {
    "step": "writer observed running",
    "ok": true,
-   "worker": "35c28e8dd51f"
+   "worker": "67afad36635d"
   },
   {
    "step": "pause",
@@ -37,7 +37,7 @@
   {
    "step": "file is torn",
    "ok": true,
-   "lines": 28
+   "lines": 30
   },
   {
    "step": "before-attempt checkpoint exists",
@@ -61,7 +61,7 @@
   {
    "step": "resumed run settled",
    "ok": true,
-   "state": "blocked"
+   "state": "awaiting_done_signal"
   },
   {
    "step": "attempt 2 checkpointed",
@@ -80,53 +80,53 @@
    "containers": []
   },
   {
-   "t": 1.0,
+   "t": 0.8,
    "containers": [
     {
-     "name": "harness-e0ff7563d0484e19ac3df2e7fea22c76-relay",
+     "name": "harness-bc99d516e7b9414180fe22dcf48a9ddc-relay",
      "mounts": []
     }
    ]
   },
   {
-   "t": 4.6,
+   "t": 1.5,
    "containers": [
     {
-     "name": "harness-e0ff7563d0484e19ac3df2e7fea22c76-relay",
+     "name": "harness-bc99d516e7b9414180fe22dcf48a9ddc-relay",
      "mounts": []
     }
    ]
   },
   {
-   "t": 5.4,
+   "t": 2.2,
    "containers": [
     {
-     "name": "harness-e0ff7563d0484e19ac3df2e7fea22c76-relay",
+     "name": "harness-bc99d516e7b9414180fe22dcf48a9ddc-relay",
      "mounts": []
     }
    ]
   },
   {
-   "t": 6.0,
+   "t": 3.0,
    "containers": [
     {
-     "name": "harness-e0ff7563d0484e19ac3df2e7fea22c76-relay",
+     "name": "harness-bc99d516e7b9414180fe22dcf48a9ddc-relay",
      "mounts": []
     }
    ]
   },
   {
-   "t": 6.8,
+   "t": 3.7,
    "containers": [
     {
-     "name": "harness-e0ff7563d0484e19ac3df2e7fea22c76",
+     "name": "harness-bc99d516e7b9414180fe22dcf48a9ddc",
      "mounts": [
-      "/var/lib/harness-runs/workspace/w3torn-1793072006",
-      "/var/lib/harness-runs/sessions/w3torn-1793072006"
+      "/var/lib/harness-runs/workspace/w3torn-1793891243",
+      "/var/lib/harness-runs/sessions/w3torn-1793891243"
      ]
     },
     {
-     "name": "harness-e0ff7563d0484e19ac3df2e7fea22c76-relay",
+     "name": "harness-bc99d516e7b9414180fe22dcf48a9ddc-relay",
      "mounts": []
     }
    ]
@@ -134,69 +134,77 @@
  ],
  "topSamples": [
   {
-   "t": 1793072082.5,
+   "t": 1793891247.8,
    "procs": [
-    "27979               python -m harness_orchestrator.engine_worker",
-    "28011               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti"
+    "22328               python -m harness_orchestrator.engine_worker",
+    "22381               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti",
+    "22422               python -m harness_orchestrator.mcp_stub"
    ],
    "rc": 0,
    "err": ""
   },
   {
-   "t": 1793072083.2,
+   "t": 1793891248.4,
    "procs": [
-    "27979               python -m harness_orchestrator.engine_worker",
-    "28011               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti"
+    "22328               python -m harness_orchestrator.engine_worker",
+    "22381               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti",
+    "22432               python -m harness_orchestrator.mcp_stub"
    ],
    "rc": 0,
    "err": ""
   },
   {
-   "t": 1793072084.0,
+   "t": 1793891249.1,
    "procs": [
-    "27979               python -m harness_orchestrator.engine_worker",
-    "28011               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti"
+    "22328               python -m harness_orchestrator.engine_worker",
+    "22381               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti",
+    "22432               python -m harness_orchestrator.mcp_stub"
    ],
    "rc": 0,
    "err": ""
   },
   {
-   "t": 1793072084.8,
+   "t": 1793891249.7,
    "procs": [
-    "27979               python -m harness_orchestrator.engine_worker",
-    "28011               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti"
+    "22328               python -m harness_orchestrator.engine_worker",
+    "22381               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti",
+    "22432               python -m harness_orchestrator.mcp_stub"
    ],
    "rc": 0,
    "err": ""
   },
   {
-   "t": 1793072085.5,
+   "t": 1793891250.4,
    "procs": [
-    "27979               python -m harness_orchestrator.engine_worker",
-    "28011               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti"
+    "22328               python -m harness_orchestrator.engine_worker",
+    "22381               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti",
+    "22432               python -m harness_orchestrator.mcp_stub"
    ],
    "rc": 0,
    "err": ""
   },
   {
-   "t": 1793072086.3,
+   "t": 1793891251.1,
    "procs": [
-    "27979               python -m harness_orchestrator.engine_worker",
-    "28011               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti"
+    "22328               python -m harness_orchestrator.engine_worker",
+    "22381               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti",
+    "22432               python -m harness_orchestrator.mcp_stub",
+    "22539               /usr/local/bin/python -I /opt/harness-shell/shell_gate.py",
+    "22561               /usr/local/bin/python -I /opt/harness-shell/shell_gate.py"
    ],
    "rc": 0,
    "err": ""
   }
  ],
  "writerObserved": true,
- "tornLines": 28,
+ "tornLines": 30,
  "tornContentHead": "line 0\nline 1\nline 2",
  "checkpointsBeforeRewind": [
   {
    "id": "0001-before-attempt-1",
    "seq": 1,
    "label": "before-attempt-1",
-   "at": "2026-10-27T03:33:27Z",
+   "at": "2026-11-05T15:07:23Z",
    "files": 1,
    "bytes": 143
   },
@@ -204,13 +212,13 @@
    "id": "0002-after-attempt-1",
    "seq": 2,
    "label": "after-attempt-1",
-   "at": "2026-10-27T03:34:50Z",
+   "at": "2026-11-05T15:07:35Z",
    "files": 2,
-   "bytes": 349
+   "bytes": 373
   }
  ],
  "rewind": {
-  "runId": "w3torn-1793072006",
+  "runId": "w3torn-1793891243",
   "rewoundTo": "0001-before-attempt-1",
   "label": "before-attempt-1",
   "restoredFiles": 0,
@@ -228,5 +236,6 @@
  ],
  "attemptTwoCheckpointed": true,
  "ok": true,
- "verdict": "torn write interrupted, rewind exact, resume ran a second attempt"
+ "verdict": "PASS",
+ "summary": "torn write interrupted, rewind exact, resume ran a second attempt"
 }

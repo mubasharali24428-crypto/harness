@@ -1,0 +1,227 @@
+{
+  "schema": 1,
+  "kind": "w25-metrics",
+  "label": "concurrency-haiku-6",
+  "window": [
+    "2026-11-05T15:09:30Z",
+    "2026-11-05T15:11:55Z"
+  ],
+  "generatedAt": "2026-11-05T15:15:53.840231+00:00",
+  "note": "nearest-rank percentiles over the attempts present; with n < 20 the p95 is the slowest attempt, not a stable tail estimate",
+  "summary": [
+    {
+      "task": "multi-file-refactor",
+      "model": "anthropic/claude-haiku-5.5",
+      "n": 6,
+      "passes": 6,
+      "failures": [],
+      "wallSeconds": {
+        "n": 6,
+        "min": 29.04,
+        "p50": 33.08,
+        "p95": 37.2,
+        "max": 37.2
+      },
+      "startLatencyS": {
+        "n": 6,
+        "min": 0.022,
+        "p50": 0.025,
+        "p95": 0.042,
+        "max": 0.042
+      },
+      "firstToolCallS": {
+        "n": 6,
+        "min": 6.626,
+        "p50": 7.296,
+        "p95": 8.188,
+        "max": 8.188
+      },
+      "engineS": {
+        "n": 6,
+        "min": 27.842,
+        "p50": 29.041,
+        "p95": 34.501,
+        "max": 34.501
+      },
+      "toolCalls": {
+        "n": 6,
+        "min": 16,
+        "p50": 17,
+        "p95": 19,
+        "max": 19
+      },
+      "ledgerRowLatencyMs": {
+        "n": 6,
+        "min": 0,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "costUsd": {
+        "knownTotal": 0.055055,
+        "knownPerAttemptMean": 0.009176,
+        "unknownAttempts": 0
+      },
+      "firstAttemptWallS": 33.28,
+      "laterAttemptsWallP50": 33.08
+    }
+  ],
+  "attempts": [
+    {
+      "task": "multi-file-refactor",
+      "startedAt": "2026-11-05T15:09:45.026596+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 33.28,
+      "runId": "w20-refactor-1793891385",
+      "startLatencyS": 0.042,
+      "firstToolCallS": 8.188,
+      "engineS": 28.212,
+      "toolCalls": 16,
+      "attribution": "run_id",
+      "models": {
+        "anthropic/claude-haiku-5.5": {
+          "calls": 1,
+          "in": 71258,
+          "out": 2427,
+          "usd": 0.008339,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "anthropic/claude-haiku-5.5",
+      "costUsd": 0.008339,
+      "baseline": "baseline-conc-haiku-1-1.json"
+    },
+    {
+      "task": "multi-file-refactor",
+      "startedAt": "2026-11-05T15:09:47.283855+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 29.04,
+      "runId": "w20-refactor-1793891387",
+      "startLatencyS": 0.031,
+      "firstToolCallS": 7.296,
+      "engineS": 27.842,
+      "toolCalls": 16,
+      "attribution": "run_id",
+      "models": {
+        "anthropic/claude-haiku-5.5": {
+          "calls": 1,
+          "in": 70995,
+          "out": 2380,
+          "usd": 0.00829,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "anthropic/claude-haiku-5.5",
+      "costUsd": 0.00829,
+      "baseline": "baseline-conc-haiku-1-2.json"
+    },
+    {
+      "task": "multi-file-refactor",
+      "startedAt": "2026-11-05T15:09:49.286036+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 33.05,
+      "runId": "w20-refactor-1793891389",
+      "startLatencyS": 0.024,
+      "firstToolCallS": 7.543,
+      "engineS": 31.001,
+      "toolCalls": 18,
+      "attribution": "run_id",
+      "models": {
+        "anthropic/claude-haiku-5.5": {
+          "calls": 1,
+          "in": 82654,
+          "out": 2751,
+          "usd": 0.009641,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "anthropic/claude-haiku-5.5",
+      "costUsd": 0.009641,
+      "baseline": "baseline-conc-haiku-1-3.json"
+    },
+    {
+      "task": "multi-file-refactor",
+      "startedAt": "2026-11-05T15:10:51.530280+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 37.2,
+      "runId": "w20-refactor-1793891451",
+      "startLatencyS": 0.038,
+      "firstToolCallS": 8.048,
+      "engineS": 34.501,
+      "toolCalls": 19,
+      "attribution": "run_id",
+      "models": {
+        "anthropic/claude-haiku-5.5": {
+          "calls": 1,
+          "in": 84747,
+          "out": 3142,
+          "usd": 0.010046,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "anthropic/claude-haiku-5.5",
+      "costUsd": 0.010046,
+      "baseline": "baseline-conc-haiku-2-1.json"
+    },
+    {
+      "task": "multi-file-refactor",
+      "startedAt": "2026-11-05T15:10:53.907538+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 33.16,
+      "runId": "w20-refactor-1793891453",
+      "startLatencyS": 0.025,
+      "firstToolCallS": 7.235,
+      "engineS": 29.424,
+      "toolCalls": 17,
+      "attribution": "run_id",
+      "models": {
+        "anthropic/claude-haiku-5.5": {
+          "calls": 1,
+          "in": 74645,
+          "out": 2659,
+          "usd": 0.008794,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "anthropic/claude-haiku-5.5",
+      "costUsd": 0.008794,
+      "baseline": "baseline-conc-haiku-2-2.json"
+    },
+    {
+      "task": "multi-file-refactor",
+      "startedAt": "2026-11-05T15:10:55.839479+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 33.08,
+      "runId": "w20-refactor-1793891455",
+      "startLatencyS": 0.022,
+      "firstToolCallS": 6.626,
+      "engineS": 29.041,
+      "toolCalls": 19,
+      "attribution": "run_id",
+      "models": {
+        "anthropic/claude-haiku-5.5": {
+          "calls": 1,
+          "in": 87926,
+          "out": 2304,
+          "usd": 0.009945,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "anthropic/claude-haiku-5.5",
+      "costUsd": 0.009945,
+      "baseline": "baseline-conc-haiku-2-3.json"
+    }
+  ]
+}

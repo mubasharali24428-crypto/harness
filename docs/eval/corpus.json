@@ -129,9 +129,9 @@
       "title": "A run created over HTTP fixes a fixture repo in the confined worker",
       "category": "bug_fix",
       "kind": "agent",
-      "cost": "none",
+      "cost": "live",
       "heldOut": false,
-      "status": "blocked",
+      "status": "implemented",
       "driver": {
         "type": "script",
         "path": "scripts/e2e/m07_api_run_drill.py",
@@ -146,13 +146,13 @@
       "budget": {
         "timeoutSeconds": 900,
         "maxToolCalls": 20,
-        "maxCostUsd": 0
+        "maxCostUsd": 0.05
       },
-      "model": "qwen-local:latest",
+      "model": "the stack DSH_MODEL",
       "verifier": "read the fixture file from disk: the fix is present; worker ran at 999:999, read-only root, no capabilities",
       "expected": "exit 0",
       "evidence": "driver-native evidence JSON",
-      "notes": "blocked: local chat model absent"
+      "notes": "repinned 2026-11-05 from qwen-local:latest (blocked: no local chat model): drives the deployed stack over HTTP, so it uses the stack model; passed on anthropic/claude-haiku-5.5, about $0.003 per run"
     },
     {
       "id": "m07-daemon-topology",
@@ -221,9 +221,9 @@
       "title": "A run rewinds to its last checkpoint over HTTP",
       "category": "cancellation_recovery",
       "kind": "agent",
-      "cost": "none",
+      "cost": "live",
       "heldOut": false,
-      "status": "blocked",
+      "status": "implemented",
       "driver": {
         "type": "script",
         "path": "scripts/e2e/w3_rewind_drill.py",
@@ -238,22 +238,22 @@
       "budget": {
         "timeoutSeconds": 900,
         "maxToolCalls": 16,
-        "maxCostUsd": 0
+        "maxCostUsd": 0.05
       },
-      "model": "qwen-local:latest",
+      "model": "the stack DSH_MODEL",
       "verifier": "checkpoint pair listed; rewind restores the pre-edit bytes on disk",
       "expected": "exit 0",
       "evidence": "driver-native evidence JSON",
-      "notes": "blocked: local chat model absent"
+      "notes": "repinned 2026-11-05 from qwen-local:latest (blocked: no local chat model): drives the deployed stack over HTTP, so it uses the stack model; passed on anthropic/claude-haiku-5.5, about $0.003 per run"
     },
     {
       "id": "w3-partial-write",
       "title": "A torn write is restored by rewind and adopted by resume",
       "category": "cancellation_recovery",
       "kind": "agent",
-      "cost": "none",
+      "cost": "live",
       "heldOut": false,
-      "status": "blocked",
+      "status": "implemented",
       "driver": {
         "type": "script",
         "path": "scripts/e2e/w3_partial_write_drill.py",
@@ -268,13 +268,13 @@
       "budget": {
         "timeoutSeconds": 900,
         "maxToolCalls": 16,
-        "maxCostUsd": 0
+        "maxCostUsd": 0.05
       },
-      "model": "qwen-local:latest",
+      "model": "the stack DSH_MODEL",
       "verifier": "paused mid-write with the script provably running; rewind restores; resume adopts disk",
       "expected": "exit 0",
       "evidence": "driver-native evidence JSON",
-      "notes": "blocked: local chat model absent"
+      "notes": "repinned 2026-11-05 from qwen-local:latest (blocked: no local chat model): drives the deployed stack over HTTP, so it uses the stack model; passed on anthropic/claude-haiku-5.5, about $0.003 per run"
     },
     {
       "id": "w4-web-fetch",

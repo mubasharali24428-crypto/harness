@@ -1,15 +1,16 @@
 {
- "date": "2026-10-26",
+ "date": "2026-11-05",
  "milestone": "M07 API-driven run",
- "runId": "m07api-1793033241",
+ "runId": "m07api-1793891055",
  "drive": "HTTP only",
- "projectId": "49e1d0a7-389c-4939-90b0-ee94b286bd88",
- "planId": "plan-4c3944fd",
+ "projectId": "bbcda8e1-b0c5-424d-b282-09632db8082a",
+ "planId": "plan-4a71921f",
  "engine": {
   "keys": [
    "engine",
    "finalResponse",
    "sessionId",
+   "source",
    "status"
   ],
   "status": "completed",
@@ -26,9 +27,9 @@
  ],
  "workersObserved": [
   {
-   "name": "harness-64da03270a5346efb1fba99867da5ac6-relay",
+   "name": "harness-7755907b111c4b78a55a70dda89f7655-relay",
    "role": "relay",
-   "image": "harness-engine-worker:vdev-local",
+   "image": "harness-engine-worker:vw28s3",
    "user": "10001:10001",
    "readonlyRootfs": true,
    "capDrop": [
@@ -36,36 +37,36 @@
    ],
    "networks": [
     "bridge",
-    "harness-64da03270a5346efb1fba99867da5ac6-net"
+    "harness-7755907b111c4b78a55a70dda89f7655-net"
    ],
    "mounts": []
   },
   {
-   "name": "harness-64da03270a5346efb1fba99867da5ac6",
+   "name": "harness-7755907b111c4b78a55a70dda89f7655",
    "role": "worker",
-   "image": "harness-engine-worker:vdev-local",
+   "image": "harness-engine-worker:vw28s3",
    "user": "999:999",
    "readonlyRootfs": true,
    "capDrop": [
     "ALL"
    ],
    "networks": [
-    "harness-64da03270a5346efb1fba99867da5ac6-net"
+    "harness-7755907b111c4b78a55a70dda89f7655-net"
    ],
    "mounts": [
     {
-     "type": "volume",
-     "src": "harness_runs",
-     "dst": "/var/lib/harness-runs/workspace/m07api-1793033241",
+     "type": "bind",
+     "src": "/var/lib/docker/volumes/harness_runs/_data/workspace/m07api-1793891055",
+     "dst": "/var/lib/harness-runs/workspace/m07api-1793891055",
      "readOnly": false,
-     "subpath": "workspace/m07api-1793033241"
+     "subpath": null
     },
     {
-     "type": "volume",
-     "src": "harness_runs",
-     "dst": "/var/lib/harness-runs/sessions/m07api-1793033241",
+     "type": "bind",
+     "src": "/var/lib/docker/volumes/harness_runs/_data/sessions/m07api-1793891055",
+     "dst": "/var/lib/harness-runs/sessions/m07api-1793891055",
      "readOnly": false,
-     "subpath": "sessions/m07api-1793033241"
+     "subpath": null
     }
    ]
   }
@@ -80,7 +81,7 @@
   },
   {
    "step": "create project",
-   "ok": "49e1d0a7-389c-4939-90b0-ee94b286bd88",
+   "ok": "bbcda8e1-b0c5-424d-b282-09632db8082a",
    "status": 201
   },
   {
@@ -89,7 +90,7 @@
   },
   {
    "step": "propose plan",
-   "ok": "plan-4c3944fd",
+   "ok": "plan-4a71921f",
    "status": 201
   },
   {
