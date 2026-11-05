@@ -166,3 +166,13 @@ them on `PYTHONPATH`; set it in the task's `driver.env`.
 Failures stay in the evidence and in the baseline summary. A later run may
 supersede a failure, but the earlier file is kept. Deferred tasks record a reason
 and an owner; deferral is not a pass.
+
+## Model routing for live tasks (owner direction, 2026-11-05)
+
+Vision tasks (`m07-vision-api`, `w10-browser-repro`, `w11-vision`, `w11-grounding`, `w14-design-heldout`)
+run on `anthropic/claude-haiku-5.5`; every other live task runs on the stack default,
+`deepseek/deepseek-v4-flash`, which has no image input. Run a vision task with
+`scripts/eval/with_model.sh anthropic/claude-haiku-5.5 python3 scripts/eval/run_eval.py --task <id> --include-live`:
+it switches `DSH_MODEL` on the orchestrator and worker-daemon for that one command and restores it on exit
+(also on failure). The corpus `model` field for these tasks still names the older `qwen/qwen3.7-flash` pin; the
+evidence file records the model actually used. Only `w11-grounding` has been run this way so far (PASS).
