@@ -248,3 +248,32 @@ failed rolled back and never did; fresh databases end identical. A database that
 the migration header). Mutants killed: fixed bound, no `+1`, forward months pinned to 2026-09.
 **Not covered:** a start earlier than 0019, production-sized tables (the ATTACH scans `agent_events_legacy` once), a combined image/schema
 rollback, and PG versions other than 18.
+
+## Archived from PROJECT-STATE.md on 2026-11-05 (path-to-9 sessions table)
+
+## 2. Sessions
+
+Sessions 1 to 10 are built. Codex built Sessions 6 to 10; Claude re-ran their suites, fixed the regressions it found (`6b6adfb`) and
+closed part 44 (`00a1412`). Session 11 ran twice in parallel: locally (gap closure plus live-PostgreSQL evidence) and in the cloud
+(parts 12, 14, 24, 29, process parts, a real-browser check). Both are merged into `master`.
+
+| Session | Objective | State |
+|---|---|---|
+| 1 | Truth ledger, baseline | done |
+| 2 | Pilot residuals, sandbox fixes | done (parts 05 to 08, 10, 11, 22, 23, 27 verified) |
+| 3 | Orgs, permissions, workspaces (37 to 39) | done |
+| 4 | Sessions, presence, control leases, agent registry (40 to 42, 45) | done |
+| 5 | Discussion, notifications, real-time delivery, collab UI (43, 46, 47) | done |
+| 6 | Plans, artifacts, search and export (44, 48, 50) | done; 44 closed by `00a1412` |
+| 7 | Integrations, admin, billing controls (49, 51, 57) | done; partial for provider breadth, residency, in-flight spend |
+| 8 | Security, compliance, data lifecycle (31, 52, 58) | done; partial, 52 and 58 externally capped |
+| 9 | Reliability, scale, observability (53 to 55) | done; partial, 53 capped |
+| 10 | Release, accessibility, readiness (56, 59 to 61) | done; NO-GO report |
+| 11 local | Workspace gaps (39), retention holds and account erasure (31/58), budget alerts (57), approvals decision time, OTP race (T13b), identity expiry sweep, upgrade rehearsal (59), partition roll-forward (A.9) | done; detail in `evidence/s11/state-history.md` §3g |
+| 11 cloud | Parts 12, 14, 24, 29, process parts, PostgreSQL IN-list diagnosis, browser check | done; `evidence/s11/cloud-report.md` |
+| 12 | Lane A (11, 14, 29, 38, 40, 42) and lane B (48 to 50, 56 axe); 25, 28, 54, 55, 59 evidence; 52 amd64 probe | done; `evidence/s12/` |
+
+Branches: `master` holds everything (pushed through batch 3, `9680ddb`; batch 4 `0bf1f07` committed, not pushed), including `origin/cloud/path-to-9-finish` and the cloud pass
+(`origin/claude/path-to-9-finish-ax6hie`). The other lanes' uncommitted work (P0-P3 isolation, SMTP TLS, section 2 scope mode, A5
+packages, docs) was committed on 2026-10-20 after its suites passed. Not merged: `origin/codex/harness-a1` to `a5`.
+

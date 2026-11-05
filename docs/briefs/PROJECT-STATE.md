@@ -1,6 +1,6 @@
 # Harness Multiplayer AI: project state and resume guide
 
-Updated 2026-10-21 (path-to-9 batch 5 doc refresh after batch 4: pilot alert tests and staged rollout A8, webhook channel and backup-never-ran alert A9, notification purge and metrics A10; B3 skipped). Read this first in a new session, then
+Updated 2026-11-05 (section 2 now tracks Roadmap 3.0; the rest is the path-to-9 record from 2026-10-21). Read this first in a new session, then
 `docs/briefs/path-to-9-plan.md`, `docs/briefs/capability-matrix.md` and `docs/briefs/path-to-9-checkpoint.md`. The repository is the
 source of truth: re-verify any number before relying on it. Nothing here claims readiness for real users (see "Not cleared").
 Per-session results, the old verification records and the local Session 11 detail (§3g) are in `docs/briefs/evidence/s11/state-history.md`.
@@ -17,31 +17,14 @@ Layout: section1 identity, auth, audit, event bus, orgs, policy, workspaces, int
 auxiliary · section4 orchestrator · section5 sandbox · section7 Next.js UI and Playwright · `packages/` (A5 extensions, ops, telemetry) ·
 `integrations/connectors/` · `deploy/` compose stack, runners, observability, `deploy/pilot` smoke stack · `docs/` · `scripts/` · `clients/`.
 
-## 2. Sessions
+## 2. Where the work is now: Roadmap 3.0 (2026-11-05)
 
-Sessions 1 to 10 are built. Codex built Sessions 6 to 10; Claude re-ran their suites, fixed the regressions it found (`6b6adfb`) and
-closed part 44 (`00a1412`). Session 11 ran twice in parallel: locally (gap closure plus live-PostgreSQL evidence) and in the cloud
-(parts 12, 14, 24, 29, process parts, a real-browser check). Both are merged into `master`.
-
-| Session | Objective | State |
-|---|---|---|
-| 1 | Truth ledger, baseline | done |
-| 2 | Pilot residuals, sandbox fixes | done (parts 05 to 08, 10, 11, 22, 23, 27 verified) |
-| 3 | Orgs, permissions, workspaces (37 to 39) | done |
-| 4 | Sessions, presence, control leases, agent registry (40 to 42, 45) | done |
-| 5 | Discussion, notifications, real-time delivery, collab UI (43, 46, 47) | done |
-| 6 | Plans, artifacts, search and export (44, 48, 50) | done; 44 closed by `00a1412` |
-| 7 | Integrations, admin, billing controls (49, 51, 57) | done; partial for provider breadth, residency, in-flight spend |
-| 8 | Security, compliance, data lifecycle (31, 52, 58) | done; partial, 52 and 58 externally capped |
-| 9 | Reliability, scale, observability (53 to 55) | done; partial, 53 capped |
-| 10 | Release, accessibility, readiness (56, 59 to 61) | done; NO-GO report |
-| 11 local | Workspace gaps (39), retention holds and account erasure (31/58), budget alerts (57), approvals decision time, OTP race (T13b), identity expiry sweep, upgrade rehearsal (59), partition roll-forward (A.9) | done; detail in `evidence/s11/state-history.md` §3g |
-| 11 cloud | Parts 12, 14, 24, 29, process parts, PostgreSQL IN-list diagnosis, browser check | done; `evidence/s11/cloud-report.md` |
-| 12 | Lane A (11, 14, 29, 38, 40, 42) and lane B (48 to 50, 56 axe); 25, 28, 54, 55, 59 evidence; 52 amd64 probe | done; `evidence/s12/` |
-
-Branches: `master` holds everything (pushed through batch 3, `9680ddb`; batch 4 `0bf1f07` committed, not pushed), including `origin/cloud/path-to-9-finish` and the cloud pass
-(`origin/claude/path-to-9-finish-ax6hie`). The other lanes' uncommitted work (P0-P3 isolation, SMTP TLS, section 2 scope mode, A5
-packages, docs) was committed on 2026-10-20 after its suites passed. Not merged: `origin/codex/harness-a1` to `a5`.
+The live plan is `docs/roadmap-3.0.md` (stages 0 to 10); the path-to-9 sessions table moved to `evidence/s11/state-history.md`.
+Done: 0 stabilize (PR #7), 1 trust and recovery (code side), 2 reliability W17 (code side), 3 daily loop W23/W24/W7, 7 W30 audit
+(`docs/decisions/2026-11-05-w30-candidate-audit.md`), 8 W31 Scheduler pilot (`docs/decisions/2026-11-04-w31-scheduler.md`).
+Partial: 4 benchmark (W25 protocol in `docs/eval/`, live set not run), 6 delegation (W28 S1a delegate verb behind `HARNESS_SUBAGENTS`; S1b
+isolated roots, claim path and synthesis not built; W13 exec leg built), 9 W32 (seam analysis only, gated on W28).
+Not started: 5 governance W27, 10 W33. Verdict unchanged: NOT READY. Newer detail is in `STATUS.md`.
 
 ## 3. Where the matrix stands
 
