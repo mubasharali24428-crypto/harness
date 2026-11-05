@@ -207,3 +207,66 @@ def test_delegation_router_is_mounted_by_the_deployed_app():
 
     services = Path(__file__).resolve().parents[3] / "deploy" / "runners" / "services.py"
     assert "delegation.router" in services.read_text()
+
+
+# --------------------------------------------------------------------------- S1b-2
+# The synthesis is a read-only view for a human: who owns what, what each child returned, and
+# where siblings' paths overlap. It merges nothing.
+
+
+def _synthesis(env, run="r1", user="eng"):
+    return env.as_(user).get(f"{P}/{run}/synthesis")
+
+
+def test_synthesis_lists_children_with_owner_state_and_result(env):
+    env.mp.setenv("HARNESS_SUBAGENTS", "1")
+    agent = env.add_def()
+    kids = deleg(env, agent, count=2, requestId="s2-1").json()["children"]
+    r = _synthesis(env)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["reviewRequired"] is True and body["autoMerge"] is False
+    by_id = {c["assignmentId"]: c for c in body["children"]}
+    assert set(by_id) == {k["id"] for k in kids}
+    one = by_id[kids[0]["id"]]
+    assert one["childRunId"] == kids[0]["childRunId"]
+    assert one["agentName"] and one["delegatedBy"] and one["scope"]["paths"]
+    assert one["runStatus"] == "not_started" and one["result"] is None  # nothing ran yet
+
+
+def test_synthesis_reports_a_childs_final_response(env):
+    env.mp.setenv("HARNESS_SUBAGENTS", "1")
+    agent = env.add_def()
+    kid = deleg(env, agent, requestId="s2-2").json()["children"][0]
+
+    async def done(run_id):
+        return {"status": "completed", "finalResponse": "wrote src/a.txt"}
+
+    env.mp.setattr(env.svc, "get_engine_result", done)
+    child = _synthesis(env).json()["children"][0]
+    assert child["assignmentId"] == kid["id"]
+    assert child["runStatus"] == "completed" and child["result"] == "wrote src/a.txt"
+
+
+def test_synthesis_flags_overlapping_sibling_paths(env):
+    env.mp.setenv("HARNESS_SUBAGENTS", "1")
+    agent = env.add_def()
+    kids = deleg(env, agent, count=2, budgetUsd="0.2", requestId="s2-3").json()["children"]
+    body = _synthesis(env).json()  # both children hold the same paths from default_scope()
+    assert len(body["conflicts"]) == 1
+    assert set(body["conflicts"][0]["assignmentIds"]) == {k["id"] for k in kids}
+    assert body["conflicts"][0]["paths"]
+
+
+def test_synthesis_ignores_cancelled_children_for_conflicts(env):
+    env.mp.setenv("HARNESS_SUBAGENTS", "1")
+    agent = env.add_def()
+    kids = deleg(env, agent, count=2, budgetUsd="0.2", requestId="s2-4").json()["children"]
+    assert env.as_("eng").post(f"{P}/r1/agents/{kids[0]['id']}/cancel").status_code == 200
+    body = _synthesis(env).json()
+    assert body["conflicts"] == []
+    assert {c["assignmentId"]: c["state"] for c in body["children"]}[kids[0]["id"]] == "cancelled"
+
+
+def test_synthesis_is_empty_for_a_run_without_delegations(env):
+    assert _synthesis(env).json()["children"] == []

@@ -908,3 +908,5 @@ editor surface + MCP-client direction never shipped; counsel review required
 on TERMS/PRIVACY placeholders.
 
 Campaign: 13 missions, ~90 agent lanes, ELITE-FORCE standing team.
+
+W28 S1b-2 (2026-11-05): `GET /api/v1/orchestrator/runs/{runId}/synthesis` gives a human a read-only review of a run's delegated children: owner, scope, state, spend, run status, final response, and `conflicts` where live sibling path scopes overlap (`reviewRequired` true, `autoMerge` false, nothing merged). Five new tests; section 4 unit suite 1889 passed / 41 skipped. Verified on SQLite only: not deployed to the live stack, so the endpoint has not been exercised on real children, and the conflict check is on declared scope, not files actually written. Stage 6 stays partial.

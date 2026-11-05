@@ -29,5 +29,8 @@ executes. It may come back as an opt-in once W27 defines delegated approval.
   its own id. No fixed workspace path is written by delegation.
 * The live two-agent drill passed on 2026-11-05 (`evidence/w28/two-agent-drill.json`). Delegation returns
   `childPlanId` so a human can approve a child.
-* Not built yet (S1b-2): collecting child results into a parent synthesis. Still inert unless
-  `HARNESS_SUBAGENTS=1`.
+* S1b-2 (2026-11-05): `GET /runs/{runId}/synthesis` is a read-only review view: per delegated child its
+  owner, scope, state, spend, run status and final response, plus `conflicts` where live sibling path
+  scopes overlap. `reviewRequired` is always true and `autoMerge` false; nothing is merged. A cancelled
+  child cannot conflict. Overlap is checked on declared scope only, not on files actually written.
+  Still inert unless `HARNESS_SUBAGENTS=1` (the endpoint itself is a read and is not gated).

@@ -19,12 +19,13 @@ this from a live run (the true "engine-driven" wiring) is the next slice, and
 the child-run dispatch branch lands with it. Until then the verb is API-level —
 plus the kill-switch means it ships inert.
 
-S1a scope: minting children only, ``count``-many per call. Claiming, isolated
-roots, synthesis and cancellation cascade are subsequent slices of W28.
+S1a scope: minting children only, ``count``-many per call. S1b-1 gave each child its own run
+and the cancellation cascade; S1b-2 is the read-only synthesis a human reviews (``/synthesis``).
 """
 
 from __future__ import annotations
 
+import json
 import os
 from decimal import Decimal
 from typing import Any
@@ -36,9 +37,11 @@ from sqlalchemy import text
 
 from harness_orchestrator import agent_tree as _at
 from harness_orchestrator.agent_tree import (
+    Reader,
     ScopeBody,
     Writer,
     _audit,
+    _covered,
     _http,
     _micro,
     _mint_child,
@@ -141,3 +144,44 @@ async def delegate(
                 factory, p, runId, child["id"], title=child["title"], description=body.description)
         children.append({**child, "duplicate": duplicate})
     return {"children": children, "minted": sum(1 for child in children if not child["duplicate"])}
+
+
+def _overlaps(a: list[str], b: list[str]) -> list[str]:
+    """Paths of ``a`` that fall under, or contain, a path of ``b``."""
+    return sorted({x for x in a if _covered(x, b)} | {y for y in b if _covered(y, a)})
+
+
+@router.get("/runs/{runId}/synthesis")
+async def synthesis(runId: str, p: Reader) -> dict[str, Any]:
+    """What the delegated children did, for a human to review. Read-only: nothing is merged.
+
+    Per child: owner, scope, state, spend and the run's final response. ``conflicts`` lists live or
+    finished siblings (same parent) whose path scopes overlap, which is where two agents could have
+    written the same file. A cancelled child cannot conflict.
+    """
+    async with _at._factory()() as db:
+        rows = (await db.execute(
+            text("SELECT * FROM agent_assignments WHERE run_id=:r AND team_id=:t"
+                 " ORDER BY created_at, id"), {"r": runId, "t": p.teamId})).mappings().all()
+    children = []
+    for r in rows:
+        if not r["child_run_id"]:
+            continue  # a plain spawn has no run of its own, so it has no result to review
+        result = await _at._svc().get_engine_result(r["child_run_id"])
+        children.append({
+            "assignmentId": r["id"], "parentId": r["parent_id"], "childRunId": r["child_run_id"],
+            "title": r["title"], "state": r["state"], "agentName": r["agent_name"],
+            "agentVersion": r["agent_version"], "delegatedBy": r["delegated_by"],
+            "scope": json.loads(r["scope"]), "spentUsd": _at._usd(r["spent_microusd"]),
+            "runStatus": result.get("status"), "result": result.get("finalResponse"),
+        })
+    live = [c for c in children if c["state"] != "cancelled"]
+    conflicts = []
+    for i, a in enumerate(live):
+        for b in live[i + 1:]:
+            shared = _overlaps(a["scope"]["paths"], b["scope"]["paths"])
+            if a["parentId"] == b["parentId"] and shared:
+                conflicts.append({"assignmentIds": [a["assignmentId"], b["assignmentId"]],
+                                  "paths": shared})
+    return {"runId": runId, "children": children, "conflicts": conflicts,
+            "reviewRequired": True, "autoMerge": False}
