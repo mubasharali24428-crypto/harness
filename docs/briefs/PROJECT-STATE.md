@@ -24,7 +24,7 @@ Done: 0 stabilize (PR #7), 1 trust and recovery (code side), 2 reliability W17 (
 (`docs/decisions/2026-11-05-w30-candidate-audit.md`), 8 W31 Scheduler pilot (`docs/decisions/2026-11-04-w31-scheduler.md`).
 Partial: 4 benchmark (W25/W26 run 2026-11-05: 5 sequential runs per task on each of two models, 3 concurrent; Haiku is the stack default; the three formerly local-model tasks now pass on Haiku; the other-harness comparison is open), 6 delegation (W28 S1a delegate verb behind `HARNESS_SUBAGENTS`; S1b-1
 child runs with own approval and cancel cascade built and live-drilled; synthesis S1b-2 built (read-only, not deployed); W13 exec leg built), 9 W32 (seam analysis only, gated on W28).
-Not started: 5 governance W27, 10 W33. Verdict unchanged: NOT READY. Newer detail is in `STATUS.md`.
+Partial: 5 governance W27 (slice 1: gate denials carry reason, alternative and the scope to request; drilled on Haiku, not deployed). Not started: 10 W33. Verdict unchanged: NOT READY. Newer detail is in `STATUS.md`.
 
 ## 3. Where the matrix stands
 

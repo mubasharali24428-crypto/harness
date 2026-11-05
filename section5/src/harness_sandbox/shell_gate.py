@@ -43,8 +43,25 @@ policy = _load("policy")
 confinement = _load("confinement")
 
 
+def deny(reason: str, code: str, alternative: str, request_scope: str | None = None) -> dict:
+    """W27: a refusal says why (`denied`, unchanged), what to do instead, and what to ask for.
+
+    `requestScope` names the one path whose addition to the run's scope would unblock the
+    command. Nothing here retries, switches model or widens scope: that stays the user's call.
+    """
+    out = {"denied": reason, "code": code, "alternative": alternative}
+    if request_scope:
+        out["requestScope"] = request_scope
+    return out
+
+
 def scope_violation(command: str, cwd: str, scope_paths: list[str]) -> str | None:
     """First workspace path named by the command that lies outside every scope path."""
+    token = _scope_hit(command, cwd, scope_paths)
+    return f"path '{token}' is outside the run intent's scope paths" if token else None
+
+
+def _scope_hit(command: str, cwd: str, scope_paths: list[str]) -> str | None:
     if not scope_paths:
         return None
     root = os.path.realpath(cwd)
@@ -61,7 +78,7 @@ def scope_violation(command: str, cwd: str, scope_paths: list[str]) -> str | Non
         if real != root and not real.startswith(root + os.sep):
             continue  # outside the workspace: confinement already stops writes there
         if not any(real == s or real.startswith(s + os.sep) for s in scopes):
-            return f"path '{token}' is outside the run intent's scope paths"
+            return token
     return None
 
 
@@ -110,14 +127,25 @@ def run(req: dict) -> dict:
         if not install_ok and any(p.search(command) for p in policy.INSTALL_PATTERNS):
             # say WHY: an agent (and the human reading the transcript) should see
             # that installs are gated by the boundary, not merely forbidden
-            return {"denied": f"{exc} — installs: {install_reason}"}
-        return {"denied": str(exc)}
+            return deny(f"{exc} — installs: {install_reason}", "INSTALL_BLOCKED",
+                        "Use only what is already in the workspace, or stop and tell the user "
+                        "which package you need so they can decide.")
+        return deny(str(exc), "COMMAND_REFUSED",
+                    "Do this with the file tools (read, write, edit) instead of the shell, or "
+                    "stop and tell the user what you were trying to do.")
     open_path = unprotected_forbidden(cwd, req.get("forbiddenPaths") or [])
     if open_path:
-        return {"denied": f"forbidden path '{open_path}' is not read-only here; refusing to run"}
-    reason = scope_violation(command, cwd, req.get("scopePaths") or [])
-    if reason:
-        return {"denied": reason}
+        return deny(f"forbidden path '{open_path}' is not read-only here; refusing to run",
+                    "FORBIDDEN_PATH_EXPOSED",
+                    "Do not touch that path. Stop and tell the user; this is an environment "
+                    "problem, not something a retry fixes.")
+    scopes = req.get("scopePaths") or []
+    hit = _scope_hit(command, cwd, scopes)
+    if hit:
+        return deny(f"path '{hit}' is outside the run intent's scope paths", "OUT_OF_SCOPE",
+                    f"Stay inside: {', '.join(scopes)}. If '{hit}' is needed, stop and tell the "
+                    f"user to add it to this run's scope (an intent edit, which asks for "
+                    f"approval again); do not look for another way around.", hit)
     with tempfile.TemporaryDirectory(prefix="harness-shell-") as tmp:
         try:
             argv = confinement.confine_argv(
@@ -125,7 +153,9 @@ def run(req: dict) -> dict:
                 write_roots=scope_roots(cwd, req.get("scopePaths") or []),
             )
         except confinement.ConfinementUnavailableError as exc:
-            return {"denied": f"{exc}; refusing to run unconfined"}
+            return deny(f"{exc}; refusing to run unconfined", "CONFINEMENT_UNAVAILABLE",
+                        "No safe alternative exists in this worker. Stop and tell the user so "
+                        "the operator can fix the worker; commands are never run unconfined.")
         env = policy.sanitize_environment(os.environ)
         env.update(TMPDIR=tmp, TMP=tmp, TEMP=tmp)
         proc = subprocess.Popen(

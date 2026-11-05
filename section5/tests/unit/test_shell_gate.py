@@ -125,3 +125,17 @@ def test_scope_roots(tmp_path):
     assert shell_gate.scope_roots(str(tmp_path), []) is None
     assert shell_gate.scope_roots(str(tmp_path), ["src", "."]) is None  # whole workspace
     assert shell_gate.scope_roots(str(tmp_path), ["src/", "missing", "away"]) == [real / "src"]
+
+
+def test_denials_carry_a_code_an_alternative_and_the_scope_to_ask_for(tmp_path):
+    """W27: every refusal says what to do instead; only a scope miss names a path to request,
+    and no alternative suggests retrying, bypassing, or another model."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "docs").mkdir()
+    miss = gate(tmp_path, "ls docs", scopePaths=["src"])
+    assert miss["code"] == "OUT_OF_SCOPE" and miss["requestScope"] == "docs"
+    assert "src" in miss["alternative"] and "add it to this run's scope" in miss["alternative"]
+    cmd = gate(tmp_path, "git push")
+    assert cmd["code"] == "COMMAND_REFUSED" and cmd["alternative"] and "requestScope" not in cmd
+    for res in (miss, cmd):
+        assert not any(w in res["alternative"].lower() for w in ("retry", "try again", "model"))

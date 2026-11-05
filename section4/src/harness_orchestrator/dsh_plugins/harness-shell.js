@@ -68,7 +68,11 @@ export function apply(ctx, config) {
         scopePaths: config.scopePaths ?? [],
         timeoutSeconds: config.timeoutSeconds ?? 300,
       }, exec.signal);
-      if (res.denied) throw new Error(`Denied by the harness command policy: ${res.denied}`);
+      if (res.denied) {
+        // W27: reason, then what to do instead. Retrying or switching model is never suggested.
+        const next = res.alternative ? ` Instead: ${res.alternative}` : "";
+        throw new Error(`Denied by the harness command policy: ${res.denied}.${next}`);
+      }
       return `${res.output}\n[exit code: ${res.exitCode ?? "timeout"}]`;
     },
   });
