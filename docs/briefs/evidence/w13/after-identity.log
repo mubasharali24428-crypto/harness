@@ -1,45 +1,48 @@
-23:18:49 INFO    uvicorn.error Started server process [53177]
-23:18:49 INFO    uvicorn.error Waiting for application startup.
-23:18:49 INFO    uvicorn.error Application startup complete.
-23:18:49 INFO    uvicorn.error Uvicorn running on http://127.0.0.1:18601 (Press CTRL+C to quit)
-23:18:50 INFO    uvicorn.access 127.0.0.1:52532 - "GET /health HTTP/1.1" 200
-23:18:50 INFO    harness.deploy.request http request
-23:18:50 INFO    uvicorn.access 127.0.0.1:52535 - "POST /api/v1/team-runners HTTP/1.1" 201
-23:18:50 INFO    harness.deploy.request http request
-23:18:50 INFO    uvicorn.access 127.0.0.1:52537 - "POST /api/v1/team-runners HTTP/1.1" 201
-23:18:50 INFO    harness.deploy.request http request
-23:18:50 INFO    uvicorn.access 127.0.0.1:52540 - "POST /api/v1/team-runners/9805cf4c-6ccc-403a-bc9e-7e4a2f52e79f/jobs HTTP/1.1" 201
-23:18:50 INFO    harness.deploy.request http request
-23:18:55 INFO    uvicorn.access 127.0.0.1:52547 - "GET /api/v1/runner/jobs/85125d8f-763e-4acc-9c0b-bd6435898a51/spec HTTP/1.1" 404
-23:18:55 INFO    harness.deploy.request http request
-23:18:55 INFO    uvicorn.access 127.0.0.1:52548 - "POST /api/v1/runner/jobs/85125d8f-763e-4acc-9c0b-bd6435898a51/events HTTP/1.1" 404
-23:18:55 INFO    harness.deploy.request http request
-23:18:55 INFO    uvicorn.access 127.0.0.1:52549 - "GET /api/v1/runner/jobs/000000000000000000000000000000000000/spec HTTP/1.1" 404
-23:18:55 INFO    harness.deploy.request http request
-23:18:55 INFO    uvicorn.access 127.0.0.1:52550 - "POST /api/v1/runner/heartbeat HTTP/1.1" 200
-23:18:55 INFO    harness.deploy.request http request
-23:18:55 INFO    uvicorn.access 127.0.0.1:52551 - "GET /api/v1/runner/jobs HTTP/1.1" 200
-23:18:55 INFO    harness.deploy.request http request
-23:18:55 INFO    uvicorn.access 127.0.0.1:52552 - "POST /api/v1/runner/jobs/85125d8f-763e-4acc-9c0b-bd6435898a51/claim HTTP/1.1" 200
-23:18:55 INFO    harness.deploy.request http request
-23:18:55 INFO    uvicorn.access 127.0.0.1:52553 - "GET /api/v1/runner/jobs/85125d8f-763e-4acc-9c0b-bd6435898a51/spec HTTP/1.1" 200
-23:18:55 INFO    harness.deploy.request http request
-23:18:55 INFO    uvicorn.access 127.0.0.1:52554 - "POST /api/v1/runner/jobs/85125d8f-763e-4acc-9c0b-bd6435898a51/heartbeat HTTP/1.1" 200
-23:18:55 INFO    harness.deploy.request http request
-23:18:55 INFO    uvicorn.access 127.0.0.1:52555 - "POST /api/v1/runner/jobs/85125d8f-763e-4acc-9c0b-bd6435898a51/events HTTP/1.1" 200
-23:18:55 INFO    harness.deploy.request http request
-23:18:55 INFO    uvicorn.access 127.0.0.1:52557 - "POST /api/v1/runner/jobs/85125d8f-763e-4acc-9c0b-bd6435898a51/events HTTP/1.1" 200
-23:18:55 INFO    harness.deploy.request http request
-23:18:55 INFO    uvicorn.access 127.0.0.1:52558 - "POST /api/v1/runner/jobs/85125d8f-763e-4acc-9c0b-bd6435898a51/finish HTTP/1.1" 200
-23:18:55 INFO    harness.deploy.request http request
-23:18:55 INFO    uvicorn.access 127.0.0.1:52569 - "POST /api/v1/team-runners HTTP/1.1" 201
-23:18:55 INFO    harness.deploy.request http request
-23:18:56 INFO    uvicorn.access 127.0.0.1:52572 - "POST /api/v1/team-runners/f420900f-ffb4-4629-9c71-b85a2620eacb/jobs HTTP/1.1" 201
-23:18:56 INFO    harness.deploy.request http request
-23:18:56 INFO    uvicorn.access 127.0.0.1:52574 - "POST /api/v1/runner/jobs/fdcfdd93-986a-49ca-be26-912f41f372f5/claim HTTP/1.1" 200
-23:18:56 INFO    harness.deploy.request http request
-23:18:56 INFO    uvicorn.access 127.0.0.1:52575 - "POST /api/v1/runner/jobs/fdcfdd93-986a-49ca-be26-912f41f372f5/events HTTP/1.1" 422
-23:18:56 INFO    harness.deploy.request http request
-23:18:56 INFO    uvicorn.access 127.0.0.1:52577 - "POST /api/v1/runner/jobs/fdcfdd93-986a-49ca-be26-912f41f372f5/finish HTTP/1.1" 200
-23:18:56 INFO    harness.deploy.request http request
-23:18:56 INFO    uvicorn.error Shutting down
+05:29:52 INFO    uvicorn.error Started server process [9941]
+05:29:52 INFO    uvicorn.error Waiting for application startup.
+05:29:52 INFO    uvicorn.error Application startup complete.
+05:29:52 INFO    uvicorn.error Uvicorn running on http://127.0.0.1:18601 (Press CTRL+C to quit)
+05:29:52 INFO    uvicorn.access 127.0.0.1:50963 - "GET /health HTTP/1.1" 200
+05:29:52 INFO    harness.deploy.request http request
+05:29:53 INFO    uvicorn.access 127.0.0.1:50966 - "POST /api/v1/team-runners HTTP/1.1" 201
+05:29:53 INFO    harness.deploy.request http request
+05:29:53 INFO    uvicorn.access 127.0.0.1:50968 - "POST /api/v1/team-runners HTTP/1.1" 201
+05:29:53 INFO    harness.deploy.request http request
+05:29:53 INFO    uvicorn.access 127.0.0.1:50971 - "POST /api/v1/team-runners/c8a3d236-dab2-42fc-b1c9-23f91de8bdf9/jobs HTTP/1.1" 201
+05:29:53 INFO    harness.deploy.request http request
+05:29:57 INFO    uvicorn.access 127.0.0.1:50979 - "GET /api/v1/runner/jobs/c062014e-2441-4e7b-b348-193e490cd747/spec HTTP/1.1" 404
+05:29:57 INFO    harness.deploy.request http request
+05:29:57 INFO    uvicorn.access 127.0.0.1:50980 - "POST /api/v1/runner/jobs/c062014e-2441-4e7b-b348-193e490cd747/events HTTP/1.1" 404
+05:29:57 INFO    harness.deploy.request http request
+05:29:57 INFO    uvicorn.access 127.0.0.1:50981 - "GET /api/v1/runner/jobs/000000000000000000000000000000000000/spec HTTP/1.1" 404
+05:29:57 INFO    harness.deploy.request http request
+05:29:57 INFO    uvicorn.access 127.0.0.1:50983 - "POST /api/v1/runner/heartbeat HTTP/1.1" 200
+05:29:57 INFO    harness.deploy.request http request
+05:29:57 INFO    uvicorn.access 127.0.0.1:50984 - "GET /api/v1/runner/jobs HTTP/1.1" 200
+05:29:57 INFO    harness.deploy.request http request
+05:29:57 INFO    uvicorn.access 127.0.0.1:50985 - "POST /api/v1/runner/jobs/c062014e-2441-4e7b-b348-193e490cd747/claim HTTP/1.1" 200
+05:29:57 INFO    harness.deploy.request http request
+05:29:57 INFO    uvicorn.access 127.0.0.1:50986 - "GET /api/v1/runner/jobs/c062014e-2441-4e7b-b348-193e490cd747/spec HTTP/1.1" 200
+05:29:57 INFO    harness.deploy.request http request
+05:29:57 INFO    uvicorn.access 127.0.0.1:50987 - "POST /api/v1/runner/jobs/c062014e-2441-4e7b-b348-193e490cd747/heartbeat HTTP/1.1" 200
+05:29:57 INFO    harness.deploy.request http request
+05:29:57 INFO    uvicorn.access 127.0.0.1:50988 - "POST /api/v1/runner/jobs/c062014e-2441-4e7b-b348-193e490cd747/events HTTP/1.1" 200
+05:29:57 INFO    harness.deploy.request http request
+05:29:58 INFO    uvicorn.access 127.0.0.1:50990 - "POST /api/v1/runner/jobs/c062014e-2441-4e7b-b348-193e490cd747/events HTTP/1.1" 200
+05:29:58 INFO    harness.deploy.request http request
+05:29:58 INFO    uvicorn.access 127.0.0.1:50991 - "POST /api/v1/runner/jobs/c062014e-2441-4e7b-b348-193e490cd747/finish HTTP/1.1" 200
+05:29:58 INFO    harness.deploy.request http request
+05:29:58 INFO    uvicorn.access 127.0.0.1:51003 - "POST /api/v1/team-runners HTTP/1.1" 201
+05:29:58 INFO    harness.deploy.request http request
+05:29:58 INFO    uvicorn.access 127.0.0.1:51006 - "POST /api/v1/team-runners/8a25f2da-8eda-4275-af07-92dd8a563c7c/jobs HTTP/1.1" 201
+05:29:58 INFO    harness.deploy.request http request
+05:29:58 INFO    uvicorn.access 127.0.0.1:51008 - "POST /api/v1/runner/jobs/b5de3623-2875-48b6-91a6-fc0c23c6a849/claim HTTP/1.1" 200
+05:29:58 INFO    harness.deploy.request http request
+05:29:58 INFO    uvicorn.access 127.0.0.1:51009 - "POST /api/v1/runner/jobs/b5de3623-2875-48b6-91a6-fc0c23c6a849/events HTTP/1.1" 422
+05:29:58 INFO    harness.deploy.request http request
+05:29:58 INFO    uvicorn.access 127.0.0.1:51011 - "POST /api/v1/runner/jobs/b5de3623-2875-48b6-91a6-fc0c23c6a849/finish HTTP/1.1" 200
+05:29:58 INFO    harness.deploy.request http request
+05:29:58 INFO    uvicorn.error Shutting down
+05:29:58 INFO    uvicorn.error Waiting for application shutdown.
+05:29:58 INFO    uvicorn.error Application shutdown complete.
+05:29:58 INFO    uvicorn.error Finished server process [9941]
