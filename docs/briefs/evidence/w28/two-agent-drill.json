@@ -1,0 +1,101 @@
+{
+  "date": "2026-11-05",
+  "week": "W28",
+  "verdict": "PASS",
+  "runs": {
+    "root": "703d495a-3b81-4d3d-afa0-ee997620f943",
+    "A": "a415f78c-3c47-4c05-b2b9-6b3d4c141bd0",
+    "B": "c2c4ea81-e957-4f0a-be08-f4510335c97a"
+  },
+  "steps": [
+    {
+      "step": "parent run exists",
+      "ok": true,
+      "status": 201
+    },
+    {
+      "step": "agent definition approved",
+      "ok": true,
+      "create": 201,
+      "approve": 200
+    },
+    {
+      "step": "root and two children delegated, each with its own run",
+      "ok": true,
+      "runs": {
+        "root": "703d495a-3b81-4d3d-afa0-ee997620f943",
+        "A": "a415f78c-3c47-4c05-b2b9-6b3d4c141bd0",
+        "B": "c2c4ea81-e957-4f0a-be08-f4510335c97a"
+      },
+      "status": 201,
+      "response": null
+    },
+    {
+      "step": "children wait for human approval",
+      "ok": true
+    },
+    {
+      "step": "child B cancelled before approval, its run stopped",
+      "ok": true,
+      "runStatus": "paused"
+    },
+    {
+      "step": "child A approved by a human and started",
+      "ok": true,
+      "approve": 200,
+      "start": 200
+    },
+    {
+      "step": "child A observed",
+      "ok": true,
+      "state": "executing",
+      "midRun": true,
+      "networkBeforeCancel": "harness-2f2c8fa5d0a24b7b896d765a83b8915b-net"
+    },
+    {
+      "step": "root cancelled",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "step": "every delegated run was stopped by the cascade",
+      "ok": true,
+      "final": {
+        "root": "paused",
+        "A": "paused",
+        "B": "paused"
+      },
+      "stopEvents": {
+        "root": true,
+        "A": true,
+        "B": true
+      }
+    },
+    {
+      "step": "no run_claims row left",
+      "ok": true,
+      "claims": {
+        "root": null,
+        "A": null,
+        "B": null
+      }
+    },
+    {
+      "step": "no worker container or network left for A",
+      "ok": true,
+      "network": null,
+      "containers": []
+    },
+    {
+      "step": "no live assignment left",
+      "ok": true,
+      "live": []
+    }
+  ],
+  "drive": "HTTP + docker/psql reads",
+  "limits": [
+    "assignment scope is recorded but not yet bound to the child engine",
+    "one trial; the cancel is mid-run only where midRunCancel is true"
+  ],
+  "midRunCancel": true
+}

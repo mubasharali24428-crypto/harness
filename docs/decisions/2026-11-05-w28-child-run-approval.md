@@ -27,5 +27,7 @@ executes. It may come back as an opt-in once W27 defines delegated approval.
   released (`CHILD_RUN_FAILED`, 502): a failed delegation leaves nothing live.
 * Workspace isolation comes from the engine creating one workspace per run id; a child run has
   its own id. No fixed workspace path is written by delegation.
-* Not built yet (S1b-2): collecting child results into a parent synthesis, and a live-stack
-  two-agent drill. Still inert unless `HARNESS_SUBAGENTS=1`.
+* The live two-agent drill passed on 2026-11-05 (`evidence/w28/two-agent-drill.json`). Delegation returns
+  `childPlanId` so a human can approve a child.
+* Not built yet (S1b-2): collecting child results into a parent synthesis. Still inert unless
+  `HARNESS_SUBAGENTS=1`.

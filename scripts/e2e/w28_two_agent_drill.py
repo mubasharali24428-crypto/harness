@@ -144,8 +144,17 @@ def main() -> int:
         if state in ("executing", *tpl.SETTLED):
             break
         time.sleep(1)
-    mid_run = state == "executing"
-    net_before = w8.network_of(runs["A"])
+    # "executing" can precede the worker by seconds. Cancel only once the engine has a network or has
+    # spent money, so the cancel is genuinely mid-run; otherwise say it was not.
+    net_before, deadline = None, time.time() + 90
+    while time.time() < deadline and state == "executing":
+        net_before = w8.network_of(runs["A"])
+        if net_before or psql(f"select count(*) from cost_ledger where run_id='{runs['A']}'") != "0":
+            break
+        time.sleep(1)
+        state = status_of(token, runs["A"])
+    mid_run = state == "executing" and bool(net_before or psql(
+        f"select count(*) from cost_ledger where run_id='{runs['A']}'") != "0")
     step("child A observed", state is not None, state=state, midRun=mid_run,
          networkBeforeCancel=net_before)
 
