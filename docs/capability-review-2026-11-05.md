@@ -143,7 +143,7 @@ Items 1 to 3 above now exist in the harness as a first slice (see `STATUS.md`, W
 denial circuit breaker with Codex's thresholds, a timeout marked apart from a denial, and a
 `scopeRequest` object. A later slice makes the orchestrator end the run on repeated denials
 and carry the scope request on the tool-result event. Gaps that remain: no UI reads the scope
-request, and the backend half is not deployed.
+request, and the UI and the scope-miss path have no live proof.
 
 ## Limits of this review
 

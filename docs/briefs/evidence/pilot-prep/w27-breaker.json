@@ -1,0 +1,116 @@
+{
+ "date": "2026-11-05",
+ "milestone": "M07 API-driven run",
+ "runId": "m07api-1793899559",
+ "drive": "HTTP only",
+ "projectId": "388dfd64-0ac1-4572-a42f-2830d01fad63",
+ "planId": "plan-e5d109cb",
+ "engine": {
+  "keys": [
+   "engine",
+   "finalResponse",
+   "sessionId",
+   "source",
+   "status"
+  ],
+  "status": "error",
+  "usedModel": null,
+  "model": null,
+  "usage": null,
+  "engineField": "replayed",
+  "finalResponse": "DeepSeek Harness run failed: denials_repeated after 3 tool calls",
+  "replayLosesModelAndUsage": true
+ },
+ "statePath": [
+  "executing",
+  "blocked"
+ ],
+ "workersObserved": [
+  {
+   "name": "harness-9addb0da18dc44be8549be8cef6fbbf2-relay",
+   "role": "relay",
+   "image": "harness-engine-worker:vw27s2",
+   "user": "10001:10001",
+   "readonlyRootfs": true,
+   "capDrop": [
+    "ALL"
+   ],
+   "networks": [
+    "bridge",
+    "harness-9addb0da18dc44be8549be8cef6fbbf2-net"
+   ],
+   "mounts": []
+  },
+  {
+   "name": "harness-9addb0da18dc44be8549be8cef6fbbf2",
+   "role": "worker",
+   "image": "harness-engine-worker:vw27s2",
+   "user": "999:999",
+   "readonlyRootfs": true,
+   "capDrop": [
+    "ALL"
+   ],
+   "networks": [
+    "harness-9addb0da18dc44be8549be8cef6fbbf2-net"
+   ],
+   "mounts": [
+    {
+     "type": "bind",
+     "src": "/var/lib/docker/volumes/harness_runs/_data/workspace/m07api-1793899559",
+     "dst": "/var/lib/harness-runs/workspace/m07api-1793899559",
+     "readOnly": false,
+     "subpath": null
+    },
+    {
+     "type": "bind",
+     "src": "/var/lib/docker/volumes/harness_runs/_data/sessions/m07api-1793899559",
+     "dst": "/var/lib/harness-runs/sessions/m07api-1793899559",
+     "readOnly": false,
+     "subpath": null
+    }
+   ]
+  }
+ ],
+ "calcAfter": "def add(a, b):\n    return a - b\n\n",
+ "readmeUnchanged": true,
+ "orchestratorHasNoDockerSocket": true,
+ "steps": [
+  {
+   "step": "login",
+   "ok": true
+  },
+  {
+   "step": "create project",
+   "ok": "388dfd64-0ac1-4572-a42f-2830d01fad63",
+   "status": 201
+  },
+  {
+   "step": "seed fixture",
+   "ok": true
+  },
+  {
+   "step": "propose plan",
+   "ok": "plan-e5d109cb",
+   "status": 201
+  },
+  {
+   "step": "approve plan",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "start",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "terminal state",
+   "ok": true,
+   "state": "blocked"
+  }
+ ],
+ "engineFailedPayload": "{\"runId\": \"m07api-1793899559\", \"reason\": \"denials_repeated after 3 tool calls\"}",
+ "calcUnchanged": true,
+ "ok": true,
+ "verdict": "PASS"
+}
