@@ -74,8 +74,10 @@ class DelegationBody(BaseModel):
 
 async def _open_child_run(
     factory: Any, p: Any, parent_run_id: str, assignment_id: str, *, title: str, description: str
-) -> str:
+) -> tuple[str, str]:
     """Give a freshly minted child its own run and propose its plan for human approval.
+
+    Returns ``(run_id, plan_id)``: a human approves with the plan id, which only this call knows.
 
     The child follows the ordinary lifecycle (propose, approve, start, queue, claim), so every gate
     that guards a normal run guards it too, and its engine gets its own workspace from its run id.
@@ -91,7 +93,7 @@ async def _open_child_run(
         await db.commit()
     try:
         goal = f"{title}\n\n{description}".strip()
-        await _at._svc().propose_plan(child_run_id, goal=goal, project_id=project_id)
+        plan_id = await _at._svc().propose_plan(child_run_id, goal=goal, project_id=project_id)
     except Exception as e:  # noqa: BLE001 - any planning failure must undo the delegation
         async with factory() as db:
             await db.execute(text("UPDATE agent_assignments SET child_run_id=NULL WHERE id=:i"),
@@ -103,7 +105,7 @@ async def _open_child_run(
             await db.commit()
         raise _http(502, "CHILD_RUN_FAILED",
                     f"the child run could not be planned: {type(e).__name__}") from e
-    return child_run_id
+    return child_run_id, plan_id
 
 
 @router.post("/runs/{runId}/delegations", status_code=201)
@@ -135,7 +137,7 @@ async def delegate(
             budget_microusd=budget,
         )
         if not duplicate:
-            child["childRunId"] = await _open_child_run(
+            child["childRunId"], child["childPlanId"] = await _open_child_run(
                 factory, p, runId, child["id"], title=child["title"], description=body.description)
         children.append({**child, "duplicate": duplicate})
     return {"children": children, "minted": sum(1 for child in children if not child["duplicate"])}

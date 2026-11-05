@@ -154,6 +154,7 @@ def test_delegated_child_gets_its_own_run_awaiting_approval(env):
     run_id = _child_run(env, child["id"])
     assert run_id and run_id != "r1"
     assert child["childRunId"] == run_id
+    assert child["childPlanId"]  # the id a human needs to approve the child's plan
     assert _state(env, run_id) == "awaiting_plan_approval"  # never auto-approved
 
 

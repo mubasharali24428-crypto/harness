@@ -47,6 +47,19 @@ GOAL = ("Create the files src/a.txt, src/b.txt and src/c.txt, one tool call each
         "its own letter, then reply with the single word: done")
 
 
+def psql(sql: str) -> str:
+    cid = tpl.sh("docker", "ps", "-q", "--filter",
+                 "label=com.docker.compose.service=db").stdout.split()[0]
+    return tpl.sh("docker", "exec", cid, "sh", "-lc",
+                  f'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "{sql}"').stdout.strip()
+
+
+def stopped(run_id: str) -> bool:
+    """A stopped run's durable trace: a `paused` event with the cancel reason (the stop encoding)."""
+    return psql("select count(*) from agent_events where type='paused' and "
+                f"run_id='{run_id}' and payload->>'reason'='assignment_cancelled'") not in ("", "0")
+
+
 def status_of(token: str, run_id: str) -> str | None:
     _, body = tpl.http("GET", f"{O}/{run_id}/status", token=token)
     return body.get("state") if isinstance(body, dict) else None
@@ -80,7 +93,6 @@ def main() -> int:
     # Four-eyes: a definition cannot be approved by its creator, so a second admin joins the team
     # (invite, redeem, then the local dev team-bound login, as w16_scim_deprovision_drill does).
     team_id = tpl.http("GET", f"{tpl.IDENTITY}/api/v1/me", token=token)[1]["teamId"]
-    tpl.http("PUT", f"{tpl.IDENTITY}/api/v1/billing/plan", token=token, body={"plan": "team"})
     email2 = f"w28-approver-{stamp}@example.com"
     _, invite = tpl.http("POST", f"{tpl.IDENTITY}/api/v1/teams/{team_id}/invites", token=token,
                          body={"email": email2, "role": "admin"})
@@ -99,7 +111,8 @@ def main() -> int:
             "agentId": agent_id, "scope": SCOPE, "budgetUsd": "0.2",
             "requestId": f"w28-{stamp}-{rid}", **body})
 
-    st, out = delegate("root", title="coordinator", description="coordinates two workers")
+    st, out = delegate("root", title="coordinator", description="coordinates two workers",
+                        budgetUsd="0.5")
     root = out["children"][0] if st == 201 else {}
     st, out = delegate("kids", title="worker", description=GOAL, count=2,
                        parentAssignmentId=root.get("id"))
@@ -107,7 +120,8 @@ def main() -> int:
     runs = {"root": root.get("childRunId"), "A": kids[0].get("childRunId") if kids else None,
             "B": kids[1].get("childRunId") if len(kids) > 1 else None}
     if not step("root and two children delegated, each with its own run",
-                len(set(filter(None, runs.values()))) == 3, runs=runs, status=st):
+                len(set(filter(None, runs.values()))) == 3, runs=runs, status=st,
+                response=out if st != 201 else None):
         return finish(steps, runs, False)
     step("children wait for human approval", all(
         status_of(token, runs[k]) == "awaiting_plan_approval" for k in ("A", "B")))
@@ -115,11 +129,10 @@ def main() -> int:
     st, _ = tpl.http("POST", f"{O}/{parent}/agents/{kids[1]['id']}/cancel", token=token)
     time.sleep(1)
     step("child B cancelled before approval, its run stopped",
-         st == 200 and status_of(token, runs["B"]) in tpl.SETTLED, runStatus=status_of(token, runs["B"]))
+         st == 200 and stopped(runs["B"]), runStatus=status_of(token, runs["B"]))
 
     base = f"{O}/{runs['A']}"
-    _, planA = tpl.http("GET", f"{base}/plan", token=token)
-    pid_a = (planA or {}).get("planId") or (planA or {}).get("id")
+    pid_a = kids[0].get("childPlanId")
     tpl.http("PUT", f"{base}/execution-limits", token=token, body={"maxToolCalls": 8})
     sa, _ = tpl.http("POST", f"{base}/plan/approve", token=token, body={"planId": pid_a})
     ss, _ = tpl.http("POST", f"{base}/start", token=token)
@@ -140,7 +153,9 @@ def main() -> int:
     step("root cancelled", st == 200, status=st)
     time.sleep(8)
     final = {k: status_of(token, runs[k]) for k in runs}
-    step("every delegated run is settled", all(v in tpl.SETTLED for v in final.values()), final=final)
+    step("every delegated run was stopped by the cascade",
+         all(stopped(runs[k]) or final[k] in tpl.SETTLED for k in runs), final=final,
+         stopEvents={k: stopped(runs[k]) for k in runs})
     claims = {k: w8.claim_row(runs[k]) for k in runs}
     step("no run_claims row left", all(v is None for v in claims.values()), claims=claims)
     net_after = w8.network_of(runs["A"])
