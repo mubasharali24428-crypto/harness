@@ -123,6 +123,12 @@ def main() -> int:
                 len(set(filter(None, runs.values()))) == 3, runs=runs, status=st,
                 response=out if st != 201 else None):
         return finish(steps, runs, False)
+    bound = {k: psql("select scope_paths from run_intent_versions where run_id="
+                     f"'{runs[k]}' order by version desc limit 1") for k in runs}
+    step("every child run's intent is bound to its assignment paths",
+         all(json.loads(v or "[]") == SCOPE["paths"] for v in bound.values()), bound=bound)
+    st, _ = delegate("nopaths", title="unconfined", scope={**SCOPE, "paths": []})
+    step("a scope without paths is refused, not left unconfined", st == 422, status=st)
     step("children wait for human approval", all(
         status_of(token, runs[k]) == "awaiting_plan_approval" for k in ("A", "B")))
 
@@ -175,6 +181,10 @@ def main() -> int:
     live = [a for a in (listing or {}).get("items", [])
             if a.get("state") not in ("cancelled", "done", "failed")]
     step("no live assignment left", not live, live=[a.get("id") for a in live])
+    dup = {k: psql("select count(*) from agent_events where type='paused' and "
+                   f"run_id='{runs[k]}' and payload->>'reason'='assignment_cancelled'") for k in runs}
+    step("each stopped run has exactly one stop event (no duplicate on cascade)",
+         all(v == "1" for v in dup.values()), counts=dup)
     st, syn = tpl.http("GET", f"{O}/{parent}/synthesis", token=token)
     seen = {c["childRunId"]: c for c in (syn or {}).get("children", [])} if st == 200 else {}
     step("synthesis lists all three delegated runs for review, merging nothing",

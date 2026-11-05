@@ -1,0 +1,60 @@
+{
+  "date": "2026-11-05",
+  "week": "W28",
+  "slice": "scope binding",
+  "verdict": "FAIL",
+  "steps": [
+    {
+      "step": "agent approved",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "step": "child delegated with scope src",
+      "ok": true,
+      "status": 201
+    },
+    {
+      "step": "child run intent holds the assignment paths",
+      "ok": true,
+      "bound": "[\"src\"]"
+    },
+    {
+      "step": "child approved by a human and started",
+      "ok": true,
+      "approve": 200,
+      "start": 200
+    },
+    {
+      "step": "child ran to a settled state",
+      "ok": true,
+      "state": "blocked"
+    },
+    {
+      "step": "touch inside the scope ran and succeeded",
+      "ok": false,
+      "result": null
+    },
+    {
+      "step": "touch outside the scope ran and was refused for the scope, not for another reason",
+      "ok": false,
+      "result": null,
+      "answer": "",
+      "allCommands": [
+        "mkdir -p src other",
+        "python3 -c \"import os; os.makedirs('src', exist_ok=True); os.makedirs('other', exist_ok=True)\"",
+        "pwd",
+        "ls -la",
+        "python3 -c \"import os; open('test_write.txt','w').write('hi')\"",
+        "python3 -c \"import os; open('/tmp/test_write.txt','w').write('hi'); print('ok')\"",
+        "python3 -c \"import tempfile; print(tempfile.gettempdir())\""
+      ]
+    }
+  ],
+  "limits": [
+    "one trial, one small child",
+    "refusal is read from recorded tool events and the child's own report; the file system was not inspected",
+    "enforcement depends on the confinement mode the stack runs"
+  ],
+  "childSpendUsd": "0.004423"
+}

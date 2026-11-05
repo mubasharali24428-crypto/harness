@@ -34,3 +34,8 @@ executes. It may come back as an opt-in once W27 defines delegated approval.
   scopes overlap. `reviewRequired` is always true and `autoMerge` false; nothing is merged. A cancelled
   child cannot conflict. Overlap is checked on declared scope only, not on files actually written.
   Still inert unless `HARNESS_SUBAGENTS=1` (the endpoint itself is a read and is not gated).
+* Scope binding (2026-11-05): the child run's intent v1 is written from the assignment's `paths`, and a
+  delegation whose scope has no paths is refused (`SCOPE_UNBINDABLE`), because an intent without paths is
+  unconfined. Consequence found live: a child whose scope paths do not exist in its workspace gets a
+  fully read-only workspace (fail closed), so delegation assumes the project workspace already holds the
+  paths. Only `paths` is bound; `tools`, `permissions` and `network` are recorded but not enforced.
