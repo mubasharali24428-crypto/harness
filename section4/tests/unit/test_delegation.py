@@ -198,3 +198,11 @@ def test_planning_failure_leaves_no_live_assignment(env):
     live = rows(env.f, "SELECT id FROM agent_assignments"
                        " WHERE state NOT IN ('cancelled','done','failed')")
     assert live == []
+
+
+def test_delegation_router_is_mounted_by_the_deployed_app():
+    """S1a shipped the router but never mounted it, so the verb 404'd on a real stack."""
+    from pathlib import Path
+
+    services = Path(__file__).resolve().parents[3] / "deploy" / "runners" / "services.py"
+    assert "delegation.router" in services.read_text()
