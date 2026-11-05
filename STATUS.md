@@ -113,7 +113,7 @@ For the merge decision's legibility: runs `41774029511` (green) and `41774372699
 
 **Verdict unchanged: NOT READY** for production or a general pilot.
 
-Open items carried forward: W17 lost-lease re-dispatch (`stash@{0}`; migration 0073 absent; attempt-scoped tests unwritten) still blocks W31; W7 real-window VS Code task owed; external human gates (counsel TERMS/PRIVACY, SLO/on-call adoption, dedicated sandbox worker certification, Hermes rights) untouched; status of the master CI cadence post-merge to be confirmed by the next 06:17 nightly.
+Open items carried forward: W17 lost-lease re-dispatch shipped **in this merge** (`76317e4`: migration 0073, attempt-keyed `runner_jobs`, `evidence_from_seq`, 5 attempt-scoped tests green), so it does not block W31; W7 real-window VS Code task owed; external human gates (counsel TERMS/PRIVACY, SLO/on-call adoption, dedicated sandbox worker certification, Hermes rights) untouched; status of the master CI cadence post-merge to be confirmed by the next 06:17 nightly.
 
 ## 2026-11-04 — CI repair wave: nightly lane green, three PRs merged (CI, not product)
 
