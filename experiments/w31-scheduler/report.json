@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-11-05T04:04:50+00:00",
+  "generated_at": "2026-11-05T04:37:01+00:00",
   "environment": {
     "python": "3.13.13",
     "ortools": "9.15.6755",
-    "harness_commit": "cbb36856fda2745c86bd9e4e4723702e015154a0",
+    "harness_commit": "326200f5b7261a62a5580e0bf3f75a3cafb4b68d",
     "harness_dirty": true,
     "scheduler_root": "/Users/user/scheduler",
     "scheduler_commit": "77d895ecc5d07de733ece0edf8b3e2da789e1d3e",
@@ -37,11 +37,11 @@
           "reason": null,
           "optimized": false,
           "latency": {
-            "median_ms": 279,
-            "min_ms": 275,
+            "median_ms": 280,
+            "min_ms": 279,
             "samples_ms": [
-              281,
-              275,
+              289,
+              280,
               279
             ],
             "internal_elapsed_ms": 279
@@ -91,14 +91,14 @@
           "reason": null,
           "optimized": false,
           "latency": {
-            "median_ms": 2557,
-            "min_ms": 2553,
+            "median_ms": 2643,
+            "min_ms": 2620,
             "samples_ms": [
-              2557,
-              2553,
-              2566
+              2620,
+              2643,
+              2660
             ],
-            "internal_elapsed_ms": 2566
+            "internal_elapsed_ms": 2660
           }
         },
         "scheduler_allocation": {
@@ -113,14 +113,14 @@
           "reason": null,
           "optimized": false,
           "latency": {
-            "median_ms": 25,
-            "min_ms": 25,
+            "median_ms": 26,
+            "min_ms": 26,
             "samples_ms": [
+              27,
               26,
-              25,
-              25
+              26
             ],
-            "internal_elapsed_ms": 25
+            "internal_elapsed_ms": 26
           }
         },
         "agreement": {
@@ -145,14 +145,14 @@
           "reason": null,
           "optimized": false,
           "latency": {
-            "median_ms": 4505,
-            "min_ms": 4434,
+            "median_ms": 4721,
+            "min_ms": 4601,
             "samples_ms": [
-              4505,
-              4434,
-              4508
+              4601,
+              5140,
+              4721
             ],
-            "internal_elapsed_ms": 4508
+            "internal_elapsed_ms": 4721
           }
         },
         "scheduler_allocation": {
@@ -167,14 +167,14 @@
           "reason": null,
           "optimized": false,
           "latency": {
-            "median_ms": 56,
+            "median_ms": 57,
             "min_ms": 56,
             "samples_ms": [
+              57,
               56,
-              56,
-              56
+              59
             ],
-            "internal_elapsed_ms": 56
+            "internal_elapsed_ms": 59
           }
         },
         "agreement": {
@@ -199,14 +199,14 @@
           "reason": null,
           "optimized": false,
           "latency": {
-            "median_ms": 6514,
-            "min_ms": 6496,
+            "median_ms": 7025,
+            "min_ms": 6848,
             "samples_ms": [
-              6745,
-              6514,
-              6496
+              7070,
+              6848,
+              7025
             ],
-            "internal_elapsed_ms": 6496
+            "internal_elapsed_ms": 7025
           }
         },
         "scheduler_allocation": {
@@ -221,14 +221,14 @@
           "reason": null,
           "optimized": false,
           "latency": {
-            "median_ms": 127,
-            "min_ms": 122,
+            "median_ms": 171,
+            "min_ms": 142,
             "samples_ms": [
-              138,
-              127,
-              122
+              142,
+              171,
+              180
             ],
-            "internal_elapsed_ms": 122
+            "internal_elapsed_ms": 180
           }
         },
         "agreement": {
@@ -255,14 +255,14 @@
           "reason": null,
           "optimized": true,
           "latency": {
-            "median_ms": 530,
-            "min_ms": 513,
+            "median_ms": 547,
+            "min_ms": 537,
             "samples_ms": [
-              531,
-              513,
-              530
+              547,
+              537,
+              561
             ],
-            "internal_elapsed_ms": 530
+            "internal_elapsed_ms": 561
           }
         },
         "scheduler_allocation": {
@@ -277,14 +277,14 @@
           "reason": null,
           "optimized": true,
           "latency": {
-            "median_ms": 28,
+            "median_ms": 29,
             "min_ms": 28,
             "samples_ms": [
               29,
               28,
-              28
+              29
             ],
-            "internal_elapsed_ms": 28
+            "internal_elapsed_ms": 29
           }
         },
         "agreement": {
@@ -311,14 +311,14 @@
           "reason": null,
           "optimized": true,
           "latency": {
-            "median_ms": 10211,
-            "min_ms": 10211,
+            "median_ms": 10237,
+            "min_ms": 10208,
             "samples_ms": [
-              10217,
-              10211,
-              10211
+              10237,
+              10208,
+              10237
             ],
-            "internal_elapsed_ms": 10211
+            "internal_elapsed_ms": 10237
           }
         },
         "scheduler_allocation": {
@@ -333,14 +333,14 @@
           "reason": null,
           "optimized": true,
           "latency": {
-            "median_ms": 10006,
-            "min_ms": 10006,
+            "median_ms": 10008,
+            "min_ms": 10008,
             "samples_ms": [
-              10007,
-              10006,
-              10006
+              10008,
+              10011,
+              10008
             ],
-            "internal_elapsed_ms": 10006
+            "internal_elapsed_ms": 10008
           }
         },
         "agreement": {
@@ -362,19 +362,19 @@
           "violations": [],
           "objective": {
             "makespan_slots": 100,
-            "weighted_completion": 5510
+            "weighted_completion": 5562
           },
           "reason": null,
           "optimized": true,
           "latency": {
-            "median_ms": 10424,
-            "min_ms": 10418,
+            "median_ms": 10426,
+            "min_ms": 10420,
             "samples_ms": [
-              10498,
-              10424,
-              10418
+              10514,
+              10426,
+              10420
             ],
-            "internal_elapsed_ms": 10418
+            "internal_elapsed_ms": 10420
           }
         },
         "scheduler_allocation": {
@@ -384,19 +384,19 @@
           "violations": [],
           "objective": {
             "makespan_slots": 98,
-            "weighted_completion": 5805
+            "weighted_completion": 6645
           },
           "reason": null,
           "optimized": true,
           "latency": {
-            "median_ms": 10012,
+            "median_ms": 10013,
             "min_ms": 10012,
             "samples_ms": [
-              10015,
               10012,
-              10012
+              10015,
+              10013
             ],
-            "internal_elapsed_ms": 10012
+            "internal_elapsed_ms": 10013
           }
         },
         "agreement": {
@@ -420,14 +420,14 @@
           "reason": "solver returned no usable assignment",
           "optimized": true,
           "latency": {
-            "median_ms": 10784,
-            "min_ms": 10761,
+            "median_ms": 10833,
+            "min_ms": 10794,
             "samples_ms": [
-              10761,
-              10798,
-              10784
+              10794,
+              10833,
+              11711
             ],
-            "internal_elapsed_ms": 10784
+            "internal_elapsed_ms": 11711
           }
         },
         "scheduler_allocation": {
@@ -442,14 +442,14 @@
           "reason": null,
           "optimized": true,
           "latency": {
-            "median_ms": 10022,
-            "min_ms": 10021,
+            "median_ms": 10028,
+            "min_ms": 10023,
             "samples_ms": [
-              10022,
-              10021,
-              10022
+              10054,
+              10023,
+              10028
             ],
-            "internal_elapsed_ms": 10022
+            "internal_elapsed_ms": 10028
           }
         },
         "agreement": {
@@ -476,14 +476,14 @@
         "reason": null,
         "optimized": true,
         "latency": {
-          "median_ms": 1257,
-          "min_ms": 1256,
+          "median_ms": 1513,
+          "min_ms": 1439,
           "samples_ms": [
-            1281,
-            1257,
-            1256
+            1439,
+            1513,
+            3946
           ],
-          "internal_elapsed_ms": 1256
+          "internal_elapsed_ms": 3946
         }
       },
       "translation": {
@@ -497,18 +497,21 @@
         "assigned": 10,
         "task_count": 10,
         "violations": [],
-        "objective": null,
+        "objective": {
+          "makespan_slots": 7,
+          "weighted_completion": 53
+        },
         "reason": null,
-        "optimized": true,
+        "optimized": null,
         "latency": {
-          "median_ms": 65,
-          "min_ms": 65,
+          "median_ms": 66,
+          "min_ms": 66,
           "samples_ms": [
-            65,
-            65,
-            65
+            66,
+            66,
+            67
           ],
-          "internal_elapsed_ms": 65
+          "internal_elapsed_ms": 67
         },
         "scheduler_score": 0,
         "scheduler_conflicts": 0
@@ -534,14 +537,14 @@
         "reason": null,
         "optimized": true,
         "latency": {
-          "median_ms": 10399,
-          "min_ms": 10374,
+          "median_ms": 10487,
+          "min_ms": 10423,
           "samples_ms": [
-            10399,
-            10465,
-            10374
+            10497,
+            10487,
+            10423
           ],
-          "internal_elapsed_ms": 10374
+          "internal_elapsed_ms": 10423
         }
       },
       "translation": {
@@ -555,18 +558,21 @@
         "assigned": 50,
         "task_count": 50,
         "violations": [],
-        "objective": null,
+        "objective": {
+          "makespan_slots": 22,
+          "weighted_completion": 613
+        },
         "reason": null,
-        "optimized": true,
+        "optimized": null,
         "latency": {
-          "median_ms": 348,
-          "min_ms": 347,
+          "median_ms": 350,
+          "min_ms": 348,
           "samples_ms": [
             348,
-            348,
-            347
+            356,
+            350
           ],
-          "internal_elapsed_ms": 347
+          "internal_elapsed_ms": 350
         },
         "scheduler_score": 0,
         "scheduler_conflicts": 0
@@ -587,19 +593,19 @@
         "violations": [],
         "objective": {
           "makespan_slots": 99,
-          "weighted_completion": 4876
+          "weighted_completion": 5033
         },
         "reason": null,
         "optimized": true,
         "latency": {
-          "median_ms": 10767,
-          "min_ms": 10748,
+          "median_ms": 10814,
+          "min_ms": 10784,
           "samples_ms": [
-            10748,
-            10767,
-            10770
+            10784,
+            10860,
+            10814
           ],
-          "internal_elapsed_ms": 10770
+          "internal_elapsed_ms": 10814
         }
       },
       "translation": {
@@ -613,18 +619,21 @@
         "assigned": 100,
         "task_count": 100,
         "violations": [],
-        "objective": null,
+        "objective": {
+          "makespan_slots": 35,
+          "weighted_completion": 2139
+        },
         "reason": null,
-        "optimized": true,
+        "optimized": null,
         "latency": {
-          "median_ms": 629,
-          "min_ms": 628,
+          "median_ms": 642,
+          "min_ms": 638,
           "samples_ms": [
-            629,
-            629,
-            628
+            638,
+            663,
+            642
           ],
-          "internal_elapsed_ms": 628
+          "internal_elapsed_ms": 642
         },
         "scheduler_score": 0,
         "scheduler_conflicts": 0
@@ -647,14 +656,14 @@
         "reason": "solver returned no usable assignment",
         "optimized": true,
         "latency": {
-          "median_ms": 11539,
-          "min_ms": 11512,
+          "median_ms": 11610,
+          "min_ms": 10866,
           "samples_ms": [
-            11512,
-            11633,
-            11539
+            11610,
+            10866,
+            11648
           ],
-          "internal_elapsed_ms": 11539
+          "internal_elapsed_ms": 11648
         }
       },
       "translation": {
@@ -668,18 +677,21 @@
         "assigned": 200,
         "task_count": 200,
         "violations": [],
-        "objective": null,
+        "objective": {
+          "makespan_slots": 69,
+          "weighted_completion": 7967
+        },
         "reason": null,
-        "optimized": true,
+        "optimized": null,
         "latency": {
-          "median_ms": 1035,
-          "min_ms": 1025,
+          "median_ms": 973,
+          "min_ms": 970,
           "samples_ms": [
-            1035,
-            1070,
-            1025
+            973,
+            970,
+            976
           ],
-          "internal_elapsed_ms": 1025
+          "internal_elapsed_ms": 976
         },
         "scheduler_score": 0,
         "scheduler_conflicts": 0

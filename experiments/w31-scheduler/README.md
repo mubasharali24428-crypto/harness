@@ -45,17 +45,20 @@ that has not been made.
 ## Measured results
 
 From [`report.json`](report.json), 2026-11-04, Python 3.13.13, OR-Tools
-9.15.6755, Scheduler `77d895e`. Latency is the median of three runs and includes
-input validation and model construction.
+9.15.6755, Scheduler `77d895e` (`scheduler_dirty: false`). The Harness tree is
+recorded dirty because of deliberate local-only evidence files; `w31/` was
+clean of them. Latency is the median of three runs and includes
+input validation and model construction. Latency varies run to run — the
+report records all samples; only orders of magnitude are load-bearing.
 
 ### Feasibility mode (no objective; first complete assignment)
 
 | Tasks | Fresh time-indexed | Scheduler interval | Ratio |
 |---:|---:|---:|---:|
-| 10 | 279 ms | 6 ms | 47x |
-| 50 | 2,557 ms | 25 ms | 102x |
-| 100 | 4,505 ms | 56 ms | 80x |
-| 200 | 6,514 ms | 127 ms | 51x |
+| 10 | 280 ms | 6 ms | 47x |
+| 50 | 2,643 ms | 26 ms | 102x |
+| 100 | 4,721 ms | 57 ms | 83x |
+| 200 | 7,025 ms | 171 ms | 41x |
 
 Both models returned a complete, independently valid assignment at every size.
 
@@ -63,7 +66,7 @@ Both models returned a complete, independently valid assignment at every size.
 
 | Tasks | Fresh | Scheduler | Fresh makespan | Scheduler makespan |
 |---:|---|---|---:|---:|
-| 10 | optimal, 530 ms | optimal, 28 ms | 4 | 4 |
+| 10 | optimal, 547 ms | optimal, 29 ms | 4 | 4 |
 | 50 | feasible, 10.2 s | feasible, 10.0 s | 40 | 54 |
 | 100 | feasible, 10.4 s | feasible, 10.0 s | 100 | 98 |
 | 200 | **unknown, no assignment** | feasible, 10.0 s | — | 100 |
@@ -79,10 +82,10 @@ not a clean win for either encoding.
 
 | Tasks | Fresh (same workload) | Timetable bridge | Bridge violations |
 |---:|---|---:|---:|
-| 10 | optimal, 1,257 ms | solved, 65 ms | 0 |
-| 50 | feasible, 10.4 s | solved, 348 ms | 0 |
-| 100 | feasible, 10.8 s | solved, 629 ms | 0 |
-| 200 | unknown | solved, 1,035 ms | 0 |
+| 10 | optimal, 1,513 ms | solved, 66 ms | 0 |
+| 50 | feasible, 10.5 s | solved, 350 ms | 0 |
+| 100 | feasible, 10.8 s | solved, 642 ms | 0 |
+| 200 | unknown | solved, 973 ms | 0 |
 
 The bridge is fast because the Scheduler's default timetable engine is a
 constructive heuristic, not because the contract is more expressive. Its
