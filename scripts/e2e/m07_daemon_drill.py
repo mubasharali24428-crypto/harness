@@ -39,7 +39,11 @@ IN_CONTAINER = r"""
 import json, os, sys, time
 from harness_orchestrator.engine import DeepSeekHarnessWrapper
 sid, model, base, goal = sys.argv[1:5]
-e = DeepSeekHarnessWrapper(model=model, base_url=base, api_key="local", live_mode="live")
+if base == "stack":  # hosted: the orchestrator container already holds the stack's key and endpoint
+    base, key = os.environ["DEEPSEEK_BASE_URL"], os.environ["DEEPSEEK_API_KEY"]
+else:
+    key = "local"
+e = DeepSeekHarnessWrapper(model=model, base_url=base, api_key=key, live_mode="live")
 ws = e.provision_workspace(sid)
 open(os.path.join(ws, "calc.py"), "w").write("def add(a, b):\n    return a - b\n")
 open(os.path.join(ws, "README.md"), "w").write("calc fixture: add() must return the sum.\n")

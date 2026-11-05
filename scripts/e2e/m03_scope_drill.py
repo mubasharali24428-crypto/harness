@@ -48,10 +48,13 @@ def main() -> int:
     ap.add_argument("--evidence", default=str(REPO / "docs/briefs/evidence/pilot-prep"
                                               / "m03-scope-mounts.json"))
     args = ap.parse_args()
-    if "127.0.0.1" not in args.base_url and "localhost" not in args.base_url:
-        print("this drill only targets a local endpoint (no spend)", file=sys.stderr)
-        return 2
-
+    local = "127.0.0.1" in args.base_url or "localhost" in args.base_url
+    if not local:
+        # hosted: paid, so explicit opt-in; the key comes from the operator's env, never argv
+        if os.environ.get("HARNESS_ALLOW_PAID_SMOKE") != "1" or not os.environ.get("OPENROUTER_API_KEY"):
+            print("hosted endpoint: set HARNESS_ALLOW_PAID_SMOKE=1 and OPENROUTER_API_KEY", file=sys.stderr)
+            return 2
+        os.environ["DEEPSEEK_API_KEY"] = os.environ["OPENROUTER_API_KEY"]
     os.environ.setdefault("DEEPSEEK_API_KEY", "local")
     os.environ.update(
         {

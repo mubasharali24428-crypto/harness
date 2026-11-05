@@ -1,0 +1,436 @@
+{
+  "schema": 1,
+  "kind": "marathon2-baseline",
+  "corpusRevision": "m2-w8",
+  "startedAt": "2026-11-05T15:28:06.198716+00:00",
+  "finishedAt": "2026-11-05T15:28:45.017850+00:00",
+  "environment": {
+    "git": {
+      "head": "d6768e92c17fbf6163a2308bec7490cd1c478dbf",
+      "branch": "w28-s1-delegate",
+      "dirty": true
+    },
+    "revisionCheck": {
+      "orchestratorContainer": "harness-orchestrator-1",
+      "workerImage": "harness-engine-worker:vw28s3",
+      "workerDaemonContainer": "harness-worker-daemon-1",
+      "backend": {
+        "engine.py": {
+          "host": "1f78b9c5da14dfc11dce435f80aaa62f00999f45af57eb0f954b61383fc0f6e6",
+          "deployed": "1f78b9c5da14dfc11dce435f80aaa62f00999f45af57eb0f954b61383fc0f6e6",
+          "match": true
+        },
+        "image_gate.py": {
+          "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "match": true
+        }
+      },
+      "worker": {
+        "image_gate.py": {
+          "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "match": true
+        },
+        "engine.py": {
+          "host": "1f78b9c5da14dfc11dce435f80aaa62f00999f45af57eb0f954b61383fc0f6e6",
+          "deployed": "1f78b9c5da14dfc11dce435f80aaa62f00999f45af57eb0f954b61383fc0f6e6",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "match": true
+        }
+      },
+      "daemon": {
+        "engine.py": {
+          "host": "1f78b9c5da14dfc11dce435f80aaa62f00999f45af57eb0f954b61383fc0f6e6",
+          "deployed": "1f78b9c5da14dfc11dce435f80aaa62f00999f45af57eb0f954b61383fc0f6e6",
+          "match": true
+        },
+        "image_gate.py": {
+          "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "match": true
+        }
+      },
+      "verified": true
+    },
+    "images": {
+      "backend": "sha256:29bd710afb127c41ba9166d5cedb37a57c5991a16e0df0ecf70360ad8c208e7b",
+      "engineWorker": "sha256:521480b3e15ca8c5539aa6b66552171d55dd7a11e62476e4b8d1235611aa765b"
+    },
+    "model": null,
+    "repeats": 1,
+    "gapSeconds": 0.0
+  },
+  "selection": {
+    "includeLive": true,
+    "costs": [],
+    "tasks": [
+      "m03-scope",
+      "m04-streaming",
+      "m07-daemon-topology"
+    ],
+    "categories": []
+  },
+  "summary": {
+    "executed": 3,
+    "passed": 3,
+    "failed": 0,
+    "errors": 0,
+    "deferred": 36,
+    "corpus": 39,
+    "revisionVerified": true
+  },
+  "results": [
+    {
+      "id": "m03-scope",
+      "category": "confinement",
+      "kind": "boundary",
+      "cost": "live",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-11-05T15:28:10.291605+00:00",
+          "durationSec": 10.23,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": null,
+          "failedChecks": [],
+          "stdoutTail": "{\n  \"date\": \"2026-11-05\",\n  \"milestone\": \"M03\",\n  \"confinement\": \"container\",\n  \"workerImage\": \"harness-engine-worker:m03\",\n  \"model\": \"anthropic/claude-haiku-5.5\",\n  \"scopePaths\": [\n    \"src\"\n  ],\n  \"status\": \"completed\",\n  \"seconds\": 9.94,\n  \"insideWritten\": \"inside\",\n  \"outsideWritten\": false,\n  \"outsideScopeUnchanged\": true,\n  \"finalResponseExcerpt\": \"I created `src/m03.txt` with the content `inside`. The write to `docs/m03.txt` failed: the filesystem returned `EROFS: read-only file system` when creating a temporary directory under `docs/`. As you instructed, I stopped there and did not retry or try another way to create that file. `docs/m03.txt` does not exist.\"\n}\n",
+          "stderrTail": "\nPASS - outside scope written=False, inside='inside'\n"
+        }
+      ],
+      "durationSec": 10.23,
+      "budget": {
+        "timeoutSeconds": 900,
+        "maxToolCalls": 12,
+        "maxCostUsd": 0.05
+      },
+      "model": "anthropic/claude-haiku-5.5",
+      "fixture": {
+        "repo": "generated fixture",
+        "revision": "m03",
+        "seed": []
+      },
+      "expected": "exit 0 and the disk verdict",
+      "driver": "scripts/e2e/m03_scope_drill.py",
+      "verifier": "src/m03.txt exists; docs/m03.txt and m03.txt absent; nothing outside src/ changed"
+    },
+    {
+      "id": "m04-streaming",
+      "category": "streaming",
+      "kind": "infra",
+      "cost": "live",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-11-05T15:28:20.520231+00:00",
+          "durationSec": 11.36,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": null,
+          "failedChecks": [],
+          "stdoutTail": "{\n  \"date\": \"2026-11-05\",\n  \"milestone\": \"M04\",\n  \"confinement\": \"container\",\n  \"workerImage\": \"harness-engine-worker:m04-1026\",\n  \"model\": \"anthropic/claude-haiku-5.5\",\n  \"provider\": \"ollama-local\",\n  \"patchPathInWorker\": \"/opt/harness/patches/openrouter.patch.yml\",\n  \"goalImagesAttached\": 0,\n  \"screenshotFixture\": null,\n  \"status\": \"completed\",\n  \"runCompletedAtSeconds\": 11.06,\n  \"progressRecords\": 4,\n  \"callRecords\": 2,\n  \"resultRecords\": 2,\n  \"recordsArrivingBeforeCompletion\": 4,\n  \"streamedLive\": true,\n  \"callIdsWithCallThenResult\": [\n    \"toolu_01JKANoE2d2qvPu9ptBzio2X\",\n    \"toolu_01UnRoQeKCoRsreZpJjgJ7mu\"\n  ],\n  \"firstArrivalSeconds\": 5.66,\n  \"finalResponseExcerpt\": \"I created `notes.txt` in the workspace directory (`/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/m04-stream/workspace/m04-352838/notes.txt`) with the content `m04 streaming`.\\n\\nI couldn't list the directory beforehand because `ls` returned \\\"Permission denied\\\", so I didn't confirm the file'\",\n  \"fileSideEffect\": \"m04 streaming\",\n  \"fileSideEffectPath\": \"m04-352755/notes.txt\",\n  \"usage\": {\n    \"inputTokens\": 5626,\n    \"outputTokens\": 635,\n    \"cacheReadTokens\": 0\n  },\n  \"context\": {\n    \"contextWindow\": null,\n    \"compactions\": 0,\n    \"compactedTokens\": 0\n  },\n  \"paidSmokeOptIn\": true,\n  \"keyInOutput\": false\n}\n",
+          "stderrTail": "\nPASS \u2014 live streaming=True records=4 status=completed in 11.06s\n"
+        }
+      ],
+      "durationSec": 11.36,
+      "budget": {
+        "timeoutSeconds": 900,
+        "maxToolCalls": 12,
+        "maxCostUsd": 0.05
+      },
+      "model": "anthropic/claude-haiku-5.5",
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "exit 0",
+      "driver": "scripts/e2e/m04_streaming_smoke.py",
+      "verifier": "tool_call/tool_result events with stable callId, bounded output, persisted before completion"
+    },
+    {
+      "id": "m07-daemon-topology",
+      "category": "confinement",
+      "kind": "infra",
+      "cost": "live",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-11-05T15:28:31.882291+00:00",
+          "durationSec": 13.14,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": null,
+          "failedChecks": [],
+          "stdoutTail": "{\n  \"date\": \"2026-11-05\",\n  \"milestone\": \"M07 topology\",\n  \"runId\": \"m07d-1793892512\",\n  \"model\": \"anthropic/claude-haiku-5.5\",\n  \"orchestratorHasNoDockerSocket\": true,\n  \"orchestratorHasNoDockerCli\": true,\n  \"workersObserved\": [\n    {\n      \"role\": \"relay\",\n      \"user\": \"10001:10001\",\n      \"readonlyRootfs\": true,\n      \"capDrop\": [\n        \"ALL\"\n      ],\n      \"networks\": [\n        \"bridge\",\n        \"harness-15de18d0df1f4aa583dea420b493efff-net\"\n      ],\n      \"mounts\": []\n    },\n    {\n      \"role\": \"worker\",\n      \"user\": \"999:999\",\n      \"readonlyRootfs\": true,\n      \"capDrop\": [\n        \"ALL\"\n      ],\n      \"networks\": [\n        \"harness-15de18d0df1f4aa583dea420b493efff-net\"\n      ],\n      \"mounts\": [\n        {\n          \"type\": \"bind\",\n          \"src\": \"/var/lib/docker/volumes/harness_runs/_data/workspace/m07d-1793892512\",\n          \"dst\": \"/var/lib/harness-runs/workspace/m07d-1793892512\",\n          \"readOnly\": false,\n          \"subpath\": null\n        },\n        {\n          \"type\": \"bind\",\n          \"src\": \"/var/lib/docker/volumes/harness_runs/_data/sessions/m07d-1793892512\",\n          \"dst\": \"/var/lib/harness-runs/sessions/m07d-1793892512\",\n          \"readOnly\": false,\n          \"subpath\": null\n        },\n        {\n          \"type\": \"bind\",\n          \"src\": \"/var/lib/docker/volumes/harness_runs/_data/workspace/m07d-1793892512/README.md\",\n          \"dst\": \"/var/lib/harness-runs/workspace/m07d-1793892512/README.md\",\n          \"readOnly\": true,\n          \"subpath\": null\n        }\n      ]\n    }\n  ],\n  \"daemonUrl\": \"http://worker-daemon:8010\",\n  \"status\": \"completed\",\n  \"seconds\": 12.1,\n  \"calc\": \"def add(a, b):\\n    return a + b\\n\",\n  \"readmeUnchanged\": true,\n  \"finalResponseExcerpt\": \"DONE\"\n}\n",
+          "stderrTail": "\nPASS - workers seen=2 fixed=True status=completed\n"
+        }
+      ],
+      "durationSec": 13.14,
+      "budget": {
+        "timeoutSeconds": 900,
+        "maxToolCalls": 20,
+        "maxCostUsd": 0.05
+      },
+      "model": "anthropic/claude-haiku-5.5",
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": []
+      },
+      "expected": "exit 0",
+      "driver": "scripts/e2e/m07_daemon_drill.py",
+      "verifier": "orchestrator has no docker socket; worker container is spawned by the daemon with expected uid/limits"
+    }
+  ],
+  "deferred": [
+    {
+      "id": "stack-compose-journey",
+      "category": "stack_health",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-egress-deny",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "m07-api-run",
+      "category": "bug_fix",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "m07-vision-api",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w3-rewind",
+      "category": "cancellation_recovery",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w3-partial-write",
+      "category": "cancellation_recovery",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-web-fetch",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-install",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-mcp-client",
+      "category": "mcp",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-credential-leak",
+      "category": "tenant_isolation",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-concurrency",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-crash-cleanup",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-apply-conflict",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-agent-quotas",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-quotas-isolation",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w9-share-deploy",
+      "category": "artifact_authz",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w10-browser-repro",
+      "category": "ui_screenshot",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w11-vision",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "cli-parity",
+      "category": "cli_parity",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "cli-diagnostics",
+      "category": "cli_parity",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "skills-governance",
+      "category": "skills",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "stale-edit",
+      "category": "stale_edit",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "code-search",
+      "category": "code_search",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "multi-file-refactor",
+      "category": "refactor",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "tests-written",
+      "category": "tests",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "tenant-isolation-api",
+      "category": "tenant_isolation",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "native-tool-confinement",
+      "category": "confinement",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "ast-lsp-confinement",
+      "category": "confinement",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "lsp-real-server",
+      "category": "confinement",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "code-search-heldout",
+      "category": "code_search",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w9-visuals",
+      "category": "artifact_authz",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w10-browser-session",
+      "category": "ui_screenshot",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w11-grounding",
+      "category": "ui_screenshot",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w12-skills-memory",
+      "category": "skills",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w13-byo-runner",
+      "category": "tenant_isolation",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w14-design-heldout",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    }
+  ],
+  "limitations": [
+    "n=1 unless --repeats was raised; a single pass is an existence proof, not a rate.",
+    "A task is deferred, blocked or fixture-owed is not a pass.",
+    "Revision verification compares runtime files inside the deployed containers/images with this worktree; a mismatch makes every result stale for HEAD."
+  ]
+}

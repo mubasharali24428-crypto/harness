@@ -1,72 +1,68 @@
 {
-  "date": "2026-10-26",
+  "date": "2026-11-05",
   "milestone": "M04",
   "confinement": "container",
   "workerImage": "harness-engine-worker:m04-1026",
-  "model": "qwen-local:latest",
+  "model": "anthropic/claude-haiku-5.5",
   "provider": "ollama-local",
   "patchPathInWorker": "/opt/harness/patches/openrouter.patch.yml",
+  "goalImagesAttached": 0,
+  "screenshotFixture": null,
   "status": "completed",
-  "runCompletedAtSeconds": 68.42,
+  "runCompletedAtSeconds": 11.06,
   "progressRecords": 4,
   "callRecords": 2,
   "resultRecords": 2,
   "recordsArrivingBeforeCompletion": 4,
   "streamedLive": true,
   "callIdsWithCallThenResult": [
-    "2mAp2CCqm7Rs9xaYqxO2rESIACod415i",
-    "YI930okPxu6wmzCijKRrdliVMQfOOpvp"
+    "toolu_01JKANoE2d2qvPu9ptBzio2X",
+    "toolu_01UnRoQeKCoRsreZpJjgJ7mu"
   ],
-  "firstArrivalSeconds": 34.85,
+  "firstArrivalSeconds": 5.66,
   "arrivals": [
     {
-      "offsetSeconds": 34.85,
+      "offsetSeconds": 5.66,
       "phase": "call",
-      "callId": "YI930okPxu6wmzCijKRrdliVMQfOOpvp",
-      "tool": "read",
+      "callId": "toolu_01UnRoQeKCoRsreZpJjgJ7mu",
+      "tool": "bash",
       "outcome": null
     },
     {
-      "offsetSeconds": 34.91,
+      "offsetSeconds": 6.07,
       "phase": "result",
-      "callId": "YI930okPxu6wmzCijKRrdliVMQfOOpvp",
+      "callId": "toolu_01UnRoQeKCoRsreZpJjgJ7mu",
       "tool": null,
       "outcome": null
     },
     {
-      "offsetSeconds": 48.89,
+      "offsetSeconds": 8.32,
       "phase": "call",
-      "callId": "2mAp2CCqm7Rs9xaYqxO2rESIACod415i",
+      "callId": "toolu_01JKANoE2d2qvPu9ptBzio2X",
       "tool": "write",
       "outcome": null
     },
     {
-      "offsetSeconds": 48.92,
+      "offsetSeconds": 8.33,
       "phase": "result",
-      "callId": "2mAp2CCqm7Rs9xaYqxO2rESIACod415i",
+      "callId": "toolu_01JKANoE2d2qvPu9ptBzio2X",
       "tool": null,
       "outcome": null
     }
   ],
-  "finalResponseExcerpt": "Created notes.txt containing exactly \"m04 streaming\".",
+  "finalResponseExcerpt": "I created `notes.txt` in the workspace directory (`/private/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/m04-stream/workspace/m04-352838/notes.txt`) with the content `m04 streaming`.\n\nI couldn't list the directory beforehand because `ls` returned \"Permission denied\", so I didn't confirm the file'",
   "fileSideEffect": "m04 streaming",
-  "fileSideEffectPath": "m04-70570/notes.txt",
-  "usage": null,
+  "fileSideEffectPath": "m04-352755/notes.txt",
+  "usage": {
+    "inputTokens": 5626,
+    "outputTokens": 635,
+    "cacheReadTokens": 0
+  },
   "context": {
     "contextWindow": null,
     "compactions": 0,
     "compactedTokens": 0
   },
-  "findings": [
-    "M04's gate claim is now proven on the isolated worker: both call/result pairs (2mAp2C\u2026, YI930o\u2026) arrived at 34.85s and 40.0s while the run completed at 68.42s. Nothing in this evidence could have been produced by the post-run sweep alone.",
-    "the native `write` tool appears in the confined transcript, so 8438b19's file-tool enablement is live on the real worker, not only under test doubles",
-    "real filesystem side effect: m04-70570/notes.txt contains exactly 'm04 streaming'",
-    "HARNESS_ENGINE_CONFINEMENT=container is the mode that works; the earlier refusal message names Seatbelt even on Linux because it is a fixed string for 'not container and not off', which is misleading and worth rewording",
-    "BUG FOUND: a host DSH_PATCH_FILES path is invisible inside the worker image. openrouter_smoke.py writes the patch to the host TMPDIR, so the confined worker died with 'DSH_PATCH_FILES entry not found' before any model call. Fixed by committing deploy/patches/openrouter-vision.patch.yml so the modality declaration is an image artifact, reviewed rather than synthesised at run time.",
-    "run workspaces under the macOS per-user temp dir can fail the bind mount ('bind source path does not exist') when the tree is recreated mid-flight; use a stable path for repeatable container-boundary drills",
-    "usage is still null on this transport, so cost metering remains unproven",
-    "contextWindow came back null rather than 1000000 \u2014 the honest unknown is reachable on this path, which is the behaviour the flagged defect should adopt everywhere"
-  ],
-  "spend": "none \u2014 local Ollama qwen-local:latest",
-  "guard": "HARNESS_ENGINE_CONFINEMENT=off was never set; the run is confined"
+  "paidSmokeOptIn": true,
+  "keyInOutput": false
 }
