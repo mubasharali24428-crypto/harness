@@ -1,0 +1,64 @@
+{
+  "date": "2026-11-05",
+  "week": "W28",
+  "slice": "S1b-2",
+  "verdict": "PASS",
+  "steps": [
+    {
+      "step": "agent approved",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "step": "root and two siblings delegated",
+      "ok": true
+    },
+    {
+      "step": "child A approved and started",
+      "ok": true,
+      "approve": 200,
+      "start": 200
+    },
+    {
+      "step": "child A ran to a settled state",
+      "ok": true,
+      "state": "awaiting_done_signal"
+    },
+    {
+      "step": "synthesis shows A's real result",
+      "ok": true,
+      "runStatus": "completed",
+      "result": "done",
+      "spentUsd": "0"
+    },
+    {
+      "step": "synthesis flags A and B as overlapping",
+      "ok": true,
+      "conflicts": [
+        {
+          "assignmentIds": [
+            "6868fbff-9447-4f4c-9ab7-2c668b57e3d7",
+            "ed14df1a-c490-4165-9164-7a9ac284a8d7"
+          ],
+          "paths": [
+            "src"
+          ]
+        }
+      ]
+    },
+    {
+      "step": "review required, nothing merged",
+      "ok": true
+    },
+    {
+      "step": "nothing live after the root is cancelled",
+      "ok": true,
+      "live": []
+    }
+  ],
+  "limits": [
+    "one trial, one small child",
+    "conflicts judge declared scope, not files written"
+  ],
+  "childSpendUsd": "0.001062"
+}
