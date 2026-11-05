@@ -1,0 +1,750 @@
+{
+  "generated_at": "2026-11-05T04:04:50+00:00",
+  "environment": {
+    "python": "3.13.13",
+    "ortools": "9.15.6755",
+    "harness_commit": "cbb36856fda2745c86bd9e4e4723702e015154a0",
+    "harness_dirty": true,
+    "scheduler_root": "/Users/user/scheduler",
+    "scheduler_commit": "77d895ecc5d07de733ece0edf8b3e2da789e1d3e",
+    "scheduler_dirty": false
+  },
+  "config": {
+    "sizes": [
+      10,
+      50,
+      100,
+      200
+    ],
+    "repeat": 3,
+    "time_limit_s": 10.0
+  },
+  "allocation": {
+    "feasibility": [
+      {
+        "size": 10,
+        "workload": "allocation",
+        "mode": "feasibility",
+        "fresh": {
+          "status": "optimal",
+          "assigned": 10,
+          "task_count": 10,
+          "violations": [],
+          "objective": {
+            "makespan_slots": 13,
+            "weighted_completion": 147
+          },
+          "reason": null,
+          "optimized": false,
+          "latency": {
+            "median_ms": 279,
+            "min_ms": 275,
+            "samples_ms": [
+              281,
+              275,
+              279
+            ],
+            "internal_elapsed_ms": 279
+          }
+        },
+        "scheduler_allocation": {
+          "status": "optimal",
+          "assigned": 10,
+          "task_count": 10,
+          "violations": [],
+          "objective": {
+            "makespan_slots": 10,
+            "weighted_completion": 114
+          },
+          "reason": null,
+          "optimized": false,
+          "latency": {
+            "median_ms": 6,
+            "min_ms": 6,
+            "samples_ms": [
+              6,
+              6,
+              6
+            ],
+            "internal_elapsed_ms": 6
+          }
+        },
+        "agreement": {
+          "both_solved": true,
+          "both_valid": true,
+          "status_equal": true
+        }
+      },
+      {
+        "size": 50,
+        "workload": "allocation",
+        "mode": "feasibility",
+        "fresh": {
+          "status": "optimal",
+          "assigned": 50,
+          "task_count": 50,
+          "violations": [],
+          "objective": {
+            "makespan_slots": 48,
+            "weighted_completion": 1497
+          },
+          "reason": null,
+          "optimized": false,
+          "latency": {
+            "median_ms": 2557,
+            "min_ms": 2553,
+            "samples_ms": [
+              2557,
+              2553,
+              2566
+            ],
+            "internal_elapsed_ms": 2566
+          }
+        },
+        "scheduler_allocation": {
+          "status": "optimal",
+          "assigned": 50,
+          "task_count": 50,
+          "violations": [],
+          "objective": {
+            "makespan_slots": 57,
+            "weighted_completion": 2246
+          },
+          "reason": null,
+          "optimized": false,
+          "latency": {
+            "median_ms": 25,
+            "min_ms": 25,
+            "samples_ms": [
+              26,
+              25,
+              25
+            ],
+            "internal_elapsed_ms": 25
+          }
+        },
+        "agreement": {
+          "both_solved": true,
+          "both_valid": true,
+          "status_equal": true
+        }
+      },
+      {
+        "size": 100,
+        "workload": "allocation",
+        "mode": "feasibility",
+        "fresh": {
+          "status": "optimal",
+          "assigned": 100,
+          "task_count": 100,
+          "violations": [],
+          "objective": {
+            "makespan_slots": 100,
+            "weighted_completion": 5869
+          },
+          "reason": null,
+          "optimized": false,
+          "latency": {
+            "median_ms": 4505,
+            "min_ms": 4434,
+            "samples_ms": [
+              4505,
+              4434,
+              4508
+            ],
+            "internal_elapsed_ms": 4508
+          }
+        },
+        "scheduler_allocation": {
+          "status": "optimal",
+          "assigned": 100,
+          "task_count": 100,
+          "violations": [],
+          "objective": {
+            "makespan_slots": 100,
+            "weighted_completion": 7641
+          },
+          "reason": null,
+          "optimized": false,
+          "latency": {
+            "median_ms": 56,
+            "min_ms": 56,
+            "samples_ms": [
+              56,
+              56,
+              56
+            ],
+            "internal_elapsed_ms": 56
+          }
+        },
+        "agreement": {
+          "both_solved": true,
+          "both_valid": true,
+          "status_equal": true
+        }
+      },
+      {
+        "size": 200,
+        "workload": "allocation",
+        "mode": "feasibility",
+        "fresh": {
+          "status": "optimal",
+          "assigned": 200,
+          "task_count": 200,
+          "violations": [],
+          "objective": {
+            "makespan_slots": 100,
+            "weighted_completion": 13087
+          },
+          "reason": null,
+          "optimized": false,
+          "latency": {
+            "median_ms": 6514,
+            "min_ms": 6496,
+            "samples_ms": [
+              6745,
+              6514,
+              6496
+            ],
+            "internal_elapsed_ms": 6496
+          }
+        },
+        "scheduler_allocation": {
+          "status": "optimal",
+          "assigned": 200,
+          "task_count": 200,
+          "violations": [],
+          "objective": {
+            "makespan_slots": 100,
+            "weighted_completion": 16125
+          },
+          "reason": null,
+          "optimized": false,
+          "latency": {
+            "median_ms": 127,
+            "min_ms": 122,
+            "samples_ms": [
+              138,
+              127,
+              122
+            ],
+            "internal_elapsed_ms": 122
+          }
+        },
+        "agreement": {
+          "both_solved": true,
+          "both_valid": true,
+          "status_equal": true
+        }
+      }
+    ],
+    "optimized": [
+      {
+        "size": 10,
+        "workload": "allocation",
+        "mode": "optimized",
+        "fresh": {
+          "status": "optimal",
+          "assigned": 10,
+          "task_count": 10,
+          "violations": [],
+          "objective": {
+            "makespan_slots": 4,
+            "weighted_completion": 61
+          },
+          "reason": null,
+          "optimized": true,
+          "latency": {
+            "median_ms": 530,
+            "min_ms": 513,
+            "samples_ms": [
+              531,
+              513,
+              530
+            ],
+            "internal_elapsed_ms": 530
+          }
+        },
+        "scheduler_allocation": {
+          "status": "optimal",
+          "assigned": 10,
+          "task_count": 10,
+          "violations": [],
+          "objective": {
+            "makespan_slots": 4,
+            "weighted_completion": 61
+          },
+          "reason": null,
+          "optimized": true,
+          "latency": {
+            "median_ms": 28,
+            "min_ms": 28,
+            "samples_ms": [
+              29,
+              28,
+              28
+            ],
+            "internal_elapsed_ms": 28
+          }
+        },
+        "agreement": {
+          "both_solved": true,
+          "both_valid": true,
+          "status_equal": true,
+          "makespan_equal": true,
+          "weighted_completion_equal": true
+        }
+      },
+      {
+        "size": 50,
+        "workload": "allocation",
+        "mode": "optimized",
+        "fresh": {
+          "status": "feasible",
+          "assigned": 50,
+          "task_count": 50,
+          "violations": [],
+          "objective": {
+            "makespan_slots": 40,
+            "weighted_completion": 1076
+          },
+          "reason": null,
+          "optimized": true,
+          "latency": {
+            "median_ms": 10211,
+            "min_ms": 10211,
+            "samples_ms": [
+              10217,
+              10211,
+              10211
+            ],
+            "internal_elapsed_ms": 10211
+          }
+        },
+        "scheduler_allocation": {
+          "status": "feasible",
+          "assigned": 50,
+          "task_count": 50,
+          "violations": [],
+          "objective": {
+            "makespan_slots": 54,
+            "weighted_completion": 1095
+          },
+          "reason": null,
+          "optimized": true,
+          "latency": {
+            "median_ms": 10006,
+            "min_ms": 10006,
+            "samples_ms": [
+              10007,
+              10006,
+              10006
+            ],
+            "internal_elapsed_ms": 10006
+          }
+        },
+        "agreement": {
+          "both_solved": true,
+          "both_valid": true,
+          "status_equal": true,
+          "makespan_equal": false,
+          "weighted_completion_equal": false
+        }
+      },
+      {
+        "size": 100,
+        "workload": "allocation",
+        "mode": "optimized",
+        "fresh": {
+          "status": "feasible",
+          "assigned": 100,
+          "task_count": 100,
+          "violations": [],
+          "objective": {
+            "makespan_slots": 100,
+            "weighted_completion": 5510
+          },
+          "reason": null,
+          "optimized": true,
+          "latency": {
+            "median_ms": 10424,
+            "min_ms": 10418,
+            "samples_ms": [
+              10498,
+              10424,
+              10418
+            ],
+            "internal_elapsed_ms": 10418
+          }
+        },
+        "scheduler_allocation": {
+          "status": "feasible",
+          "assigned": 100,
+          "task_count": 100,
+          "violations": [],
+          "objective": {
+            "makespan_slots": 98,
+            "weighted_completion": 5805
+          },
+          "reason": null,
+          "optimized": true,
+          "latency": {
+            "median_ms": 10012,
+            "min_ms": 10012,
+            "samples_ms": [
+              10015,
+              10012,
+              10012
+            ],
+            "internal_elapsed_ms": 10012
+          }
+        },
+        "agreement": {
+          "both_solved": true,
+          "both_valid": true,
+          "status_equal": true,
+          "makespan_equal": false,
+          "weighted_completion_equal": false
+        }
+      },
+      {
+        "size": 200,
+        "workload": "allocation",
+        "mode": "optimized",
+        "fresh": {
+          "status": "unknown",
+          "assigned": 0,
+          "task_count": 200,
+          "violations": [],
+          "objective": null,
+          "reason": "solver returned no usable assignment",
+          "optimized": true,
+          "latency": {
+            "median_ms": 10784,
+            "min_ms": 10761,
+            "samples_ms": [
+              10761,
+              10798,
+              10784
+            ],
+            "internal_elapsed_ms": 10784
+          }
+        },
+        "scheduler_allocation": {
+          "status": "feasible",
+          "assigned": 200,
+          "task_count": 200,
+          "violations": [],
+          "objective": {
+            "makespan_slots": 100,
+            "weighted_completion": 15433
+          },
+          "reason": null,
+          "optimized": true,
+          "latency": {
+            "median_ms": 10022,
+            "min_ms": 10021,
+            "samples_ms": [
+              10022,
+              10021,
+              10022
+            ],
+            "internal_elapsed_ms": 10022
+          }
+        },
+        "agreement": {
+          "both_solved": false,
+          "both_valid": true,
+          "status_equal": false
+        }
+      }
+    ]
+  },
+  "timetable": [
+    {
+      "size": 10,
+      "workload": "timetable-expressible",
+      "fresh": {
+        "status": "optimal",
+        "assigned": 10,
+        "task_count": 10,
+        "violations": [],
+        "objective": {
+          "makespan_slots": 7,
+          "weighted_completion": 50
+        },
+        "reason": null,
+        "optimized": true,
+        "latency": {
+          "median_ms": 1257,
+          "min_ms": 1256,
+          "samples_ms": [
+            1281,
+            1257,
+            1256
+          ],
+          "internal_elapsed_ms": 1256
+        }
+      },
+      "translation": {
+        "ok": true,
+        "unsupported": [],
+        "sessions": 10,
+        "rooms": 12
+      },
+      "timetable_bridge": {
+        "status": "solved",
+        "assigned": 10,
+        "task_count": 10,
+        "violations": [],
+        "objective": null,
+        "reason": null,
+        "optimized": true,
+        "latency": {
+          "median_ms": 65,
+          "min_ms": 65,
+          "samples_ms": [
+            65,
+            65,
+            65
+          ],
+          "internal_elapsed_ms": 65
+        },
+        "scheduler_score": 0,
+        "scheduler_conflicts": 0
+      },
+      "agreement": {
+        "both_solved": true,
+        "timetable_valid": true,
+        "same_task_count": true
+      }
+    },
+    {
+      "size": 50,
+      "workload": "timetable-expressible",
+      "fresh": {
+        "status": "feasible",
+        "assigned": 50,
+        "task_count": 50,
+        "violations": [],
+        "objective": {
+          "makespan_slots": 95,
+          "weighted_completion": 1777
+        },
+        "reason": null,
+        "optimized": true,
+        "latency": {
+          "median_ms": 10399,
+          "min_ms": 10374,
+          "samples_ms": [
+            10399,
+            10465,
+            10374
+          ],
+          "internal_elapsed_ms": 10374
+        }
+      },
+      "translation": {
+        "ok": true,
+        "unsupported": [],
+        "sessions": 50,
+        "rooms": 12
+      },
+      "timetable_bridge": {
+        "status": "solved",
+        "assigned": 50,
+        "task_count": 50,
+        "violations": [],
+        "objective": null,
+        "reason": null,
+        "optimized": true,
+        "latency": {
+          "median_ms": 348,
+          "min_ms": 347,
+          "samples_ms": [
+            348,
+            348,
+            347
+          ],
+          "internal_elapsed_ms": 347
+        },
+        "scheduler_score": 0,
+        "scheduler_conflicts": 0
+      },
+      "agreement": {
+        "both_solved": true,
+        "timetable_valid": true,
+        "same_task_count": true
+      }
+    },
+    {
+      "size": 100,
+      "workload": "timetable-expressible",
+      "fresh": {
+        "status": "feasible",
+        "assigned": 100,
+        "task_count": 100,
+        "violations": [],
+        "objective": {
+          "makespan_slots": 99,
+          "weighted_completion": 4876
+        },
+        "reason": null,
+        "optimized": true,
+        "latency": {
+          "median_ms": 10767,
+          "min_ms": 10748,
+          "samples_ms": [
+            10748,
+            10767,
+            10770
+          ],
+          "internal_elapsed_ms": 10770
+        }
+      },
+      "translation": {
+        "ok": true,
+        "unsupported": [],
+        "sessions": 100,
+        "rooms": 12
+      },
+      "timetable_bridge": {
+        "status": "solved",
+        "assigned": 100,
+        "task_count": 100,
+        "violations": [],
+        "objective": null,
+        "reason": null,
+        "optimized": true,
+        "latency": {
+          "median_ms": 629,
+          "min_ms": 628,
+          "samples_ms": [
+            629,
+            629,
+            628
+          ],
+          "internal_elapsed_ms": 628
+        },
+        "scheduler_score": 0,
+        "scheduler_conflicts": 0
+      },
+      "agreement": {
+        "both_solved": true,
+        "timetable_valid": true,
+        "same_task_count": true
+      }
+    },
+    {
+      "size": 200,
+      "workload": "timetable-expressible",
+      "fresh": {
+        "status": "unknown",
+        "assigned": 0,
+        "task_count": 200,
+        "violations": [],
+        "objective": null,
+        "reason": "solver returned no usable assignment",
+        "optimized": true,
+        "latency": {
+          "median_ms": 11539,
+          "min_ms": 11512,
+          "samples_ms": [
+            11512,
+            11633,
+            11539
+          ],
+          "internal_elapsed_ms": 11539
+        }
+      },
+      "translation": {
+        "ok": true,
+        "unsupported": [],
+        "sessions": 200,
+        "rooms": 12
+      },
+      "timetable_bridge": {
+        "status": "solved",
+        "assigned": 200,
+        "task_count": 200,
+        "violations": [],
+        "objective": null,
+        "reason": null,
+        "optimized": true,
+        "latency": {
+          "median_ms": 1035,
+          "min_ms": 1025,
+          "samples_ms": [
+            1035,
+            1070,
+            1025
+          ],
+          "internal_elapsed_ms": 1025
+        },
+        "scheduler_score": 0,
+        "scheduler_conflicts": 0
+      },
+      "agreement": {
+        "both_solved": false,
+        "timetable_valid": true,
+        "same_task_count": false
+      }
+    }
+  ],
+  "constraint_coverage": [
+    {
+      "feature": "capability tags",
+      "fresh": "hard",
+      "scheduler_allocation": "hard",
+      "timetable_bridge": "hard via required_features"
+    },
+    {
+      "feature": "arbitrary duration (1+ slots)",
+      "fresh": "hard",
+      "scheduler_allocation": "hard",
+      "timetable_bridge": "not expressible outside 2-6 slots (60-180 min)"
+    },
+    {
+      "feature": "dependencies",
+      "fresh": "hard",
+      "scheduler_allocation": "hard",
+      "timetable_bridge": "not expressible"
+    },
+    {
+      "feature": "deadlines",
+      "fresh": "hard",
+      "scheduler_allocation": "hard",
+      "timetable_bridge": "not expressible"
+    },
+    {
+      "feature": "concurrent capacity > 1",
+      "fresh": "hard",
+      "scheduler_allocation": "hard",
+      "timetable_bridge": "emulated by duplicating a room per capacity unit"
+    },
+    {
+      "feature": "availability windows",
+      "fresh": "hard",
+      "scheduler_allocation": "hard",
+      "timetable_bridge": "hard on the 08:00-18:00 Mon-Fri grid"
+    },
+    {
+      "feature": "horizon beyond one week",
+      "fresh": "hard",
+      "scheduler_allocation": "hard",
+      "timetable_bridge": "not expressible above 100 slots"
+    },
+    {
+      "feature": "per-task priority",
+      "fresh": "objective tie-break",
+      "scheduler_allocation": "objective tie-break",
+      "timetable_bridge": "not expressible"
+    },
+    {
+      "feature": "objective",
+      "fresh": "makespan, then weighted completion",
+      "scheduler_allocation": "makespan, then weighted completion",
+      "timetable_bridge": "timetable score (unplaced, gaps, home room)"
+    }
+  ]
+}

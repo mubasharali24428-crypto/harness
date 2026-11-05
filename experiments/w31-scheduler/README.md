@@ -53,9 +53,9 @@ input validation and model construction.
 | Tasks | Fresh time-indexed | Scheduler interval | Ratio |
 |---:|---:|---:|---:|
 | 10 | 279 ms | 6 ms | 47x |
-| 50 | 2,620 ms | 26 ms | 101x |
-| 100 | 4,599 ms | 177 ms | 26x |
-| 200 | 6,980 ms | 128 ms | 55x |
+| 50 | 2,557 ms | 25 ms | 102x |
+| 100 | 4,505 ms | 56 ms | 80x |
+| 200 | 6,514 ms | 127 ms | 51x |
 
 Both models returned a complete, independently valid assignment at every size.
 
@@ -63,7 +63,7 @@ Both models returned a complete, independently valid assignment at every size.
 
 | Tasks | Fresh | Scheduler | Fresh makespan | Scheduler makespan |
 |---:|---|---|---:|---:|
-| 10 | optimal, 549 ms | optimal, 30 ms | 4 | 4 |
+| 10 | optimal, 530 ms | optimal, 28 ms | 4 | 4 |
 | 50 | feasible, 10.2 s | feasible, 10.0 s | 40 | 54 |
 | 100 | feasible, 10.4 s | feasible, 10.0 s | 100 | 98 |
 | 200 | **unknown, no assignment** | feasible, 10.0 s | — | 100 |
@@ -79,10 +79,10 @@ not a clean win for either encoding.
 
 | Tasks | Fresh (same workload) | Timetable bridge | Bridge violations |
 |---:|---|---:|---:|
-| 10 | optimal, 1,316 ms | solved, 65 ms | 0 |
-| 50 | feasible, 10.4 s | solved, 347 ms | 0 |
-| 100 | feasible, 11.0 s | solved, 632 ms | 0 |
-| 200 | unknown | solved, 950 ms | 0 |
+| 10 | optimal, 1,257 ms | solved, 65 ms | 0 |
+| 50 | feasible, 10.4 s | solved, 348 ms | 0 |
+| 100 | feasible, 10.8 s | solved, 629 ms | 0 |
+| 200 | unknown | solved, 1,035 ms | 0 |
 
 The bridge is fast because the Scheduler's default timetable engine is a
 constructive heuristic, not because the contract is more expressive. Its
