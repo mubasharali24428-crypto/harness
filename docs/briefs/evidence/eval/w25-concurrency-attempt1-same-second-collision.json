@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "kind": "w25-failed-attempt",
+  "date": "2026-11-05",
+  "attempt": "concurrency batch 1 (3 processes started in the same second)",
+  "outcome": {
+    "conc_1": "FAIL in 0.35s",
+    "conc_2": "PASS in 57.34s",
+    "conc_3": "FAIL in 0.22s"
+  },
+  "diagnosis": "INFERRED, error text not retained: code_change_task builds run_id as w20-<task>-<unix seconds> and run_eval names baselines by second, so same-second launches shared a run id and a baseline file; the baselines of the two failures were overwritten by the survivor. A harness launch artifact, not a measurement of concurrent runs.",
+  "consequence": "two failed attempts lost their baseline records; only these stdout logs remain",
+  "stdout": {
+    "conc_1": "[eval] multi-file-refactor (live) ...\n[eval] multi-file-refactor: FAIL (0.35s)\n{\n  \"summary\": {\n    \"executed\": 1,\n    \"passed\": 0,\n    \"failed\": 1,\n    \"errors\": 0,\n    \"deferred\": 38,\n    \"corpus\": 39,\n    \"revisionVerified\": true\n  },\n  \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/eval/baseline-20261105T144019Z.json\"\n}\n",
+    "conc_2": "[eval] multi-file-refactor (live) ...\n[eval] multi-file-refactor: PASS (57.34s)\n{\n  \"summary\": {\n    \"executed\": 1,\n    \"passed\": 1,\n    \"failed\": 0,\n    \"errors\": 0,\n    \"deferred\": 38,\n    \"corpus\": 39,\n    \"revisionVerified\": true\n  },\n  \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/eval/baseline-20261105T144019Z.json\"\n}\n",
+    "conc_3": "[eval] multi-file-refactor (live) ...\n[eval] multi-file-refactor: FAIL (0.22s)\n{\n  \"summary\": {\n    \"executed\": 1,\n    \"passed\": 0,\n    \"failed\": 1,\n    \"errors\": 0,\n    \"deferred\": 38,\n    \"corpus\": 39,\n    \"revisionVerified\": true\n  },\n  \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/eval/baseline-20261105T144019Z.json\"\n}\n"
+  }
+}

@@ -22,7 +22,7 @@ auxiliary · section4 orchestrator · section5 sandbox · section7 Next.js UI an
 The live plan is `docs/roadmap-3.0.md` (stages 0 to 10); the path-to-9 sessions table moved to `evidence/s11/state-history.md`.
 Done: 0 stabilize (PR #7), 1 trust and recovery (code side), 2 reliability W17 (code side), 3 daily loop W23/W24/W7, 7 W30 audit
 (`docs/decisions/2026-11-05-w30-candidate-audit.md`), 8 W31 Scheduler pilot (`docs/decisions/2026-11-04-w31-scheduler.md`).
-Partial: 4 benchmark (W25 protocol in `docs/eval/`, live set passed once as a smoke test, not a benchmark), 6 delegation (W28 S1a delegate verb behind `HARNESS_SUBAGENTS`; S1b-1
+Partial: 4 benchmark (W25/W26 run 2026-11-05: 5 sequential runs per task on each of two models, 3 concurrent; model decision, other-harness comparison and pinned-task retirement still open), 6 delegation (W28 S1a delegate verb behind `HARNESS_SUBAGENTS`; S1b-1
 child runs with own approval and cancel cascade built and live-drilled; synthesis S1b-2 built (read-only, not deployed); W13 exec leg built), 9 W32 (seam analysis only, gated on W28).
 Not started: 5 governance W27, 10 W33. Verdict unchanged: NOT READY. Newer detail is in `STATUS.md`.
 

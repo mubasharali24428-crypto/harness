@@ -14,14 +14,20 @@ shift
 [ "$#" -gt 0 ] || { echo "with_model.sh: no command given" >&2; exit 2; }
 
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
-IMAGE="$(docker inspect harness-orchestrator-1 --format '{{.Config.Image}}')"  # harness-backend:vw25b1
-TAG="${IMAGE##*:v}"                                                            # w25b1
+# Each service keeps its OWN image tag: the backend services and the worker-daemon are rebuilt
+# separately, so one shared tag would name an image that does not exist for the other (it aborted
+# the switch half-applied and left the orchestrator stopped on 2026-11-05).
+tag_of() { local image; image="$(docker inspect "harness-$1-1" --format '{{.Config.Image}}')"; echo "${image##*:v}"; }
+TAG_ORCHESTRATOR="$(tag_of orchestrator)"
+TAG_WORKER_DAEMON="$(tag_of worker-daemon)"
 PREVIOUS="$(docker exec harness-orchestrator-1 printenv DSH_MODEL)"
 
 apply() {
-  (cd "$REPO/deploy" && DSH_MODEL="$1" HARNESS_IMAGE_TAG="$TAG" docker compose \
-    --env-file ../.env -f docker-compose.yml up -d --no-build --no-deps --wait \
-    orchestrator worker-daemon >/dev/null)
+  (cd "$REPO/deploy" &&
+    DSH_MODEL="$1" HARNESS_IMAGE_TAG="$TAG_ORCHESTRATOR" docker compose --env-file ../.env \
+      -f docker-compose.yml up -d --no-build --no-deps --wait orchestrator >/dev/null &&
+    DSH_MODEL="$1" HARNESS_IMAGE_TAG="$TAG_WORKER_DAEMON" docker compose --env-file ../.env \
+      -f docker-compose.yml up -d --no-build --no-deps --wait worker-daemon >/dev/null)
 }
 
 restore() { echo "[with_model] restoring DSH_MODEL=$PREVIOUS" >&2; apply "$PREVIOUS"; }

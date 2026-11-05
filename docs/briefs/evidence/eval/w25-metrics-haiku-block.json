@@ -1,0 +1,573 @@
+{
+  "schema": 1,
+  "kind": "w25-metrics",
+  "label": "haiku-block",
+  "window": [
+    "2026-11-05T14:24:00Z",
+    "2026-11-05T14:40:00Z"
+  ],
+  "generatedAt": "2026-11-05T14:46:29.389458+00:00",
+  "note": "nearest-rank percentiles over the attempts present; with n < 20 the p95 is the slowest attempt, not a stable tail estimate",
+  "summary": [
+    {
+      "task": "multi-file-refactor",
+      "model": "anthropic/claude-haiku-5.5",
+      "n": 5,
+      "passes": 5,
+      "failures": [],
+      "wallSeconds": {
+        "n": 5,
+        "min": 25.03,
+        "p50": 28.97,
+        "p95": 37.03,
+        "max": 37.03
+      },
+      "startLatencyS": {
+        "n": 5,
+        "min": 0.015,
+        "p50": 0.016,
+        "p95": 0.021,
+        "max": 0.021
+      },
+      "firstToolCallS": {
+        "n": 5,
+        "min": 6.5,
+        "p50": 7.062,
+        "p95": 8.15,
+        "max": 8.15
+      },
+      "engineS": {
+        "n": 5,
+        "min": 23.176,
+        "p50": 27.069,
+        "p95": 34.637,
+        "max": 34.637
+      },
+      "toolCalls": {
+        "n": 5,
+        "min": 16,
+        "p50": 17,
+        "p95": 20,
+        "max": 20
+      },
+      "ledgerRowLatencyMs": {
+        "n": 5,
+        "min": 0,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "costUsd": {
+        "knownTotal": 0.04003,
+        "knownPerAttemptMean": 0.008006,
+        "unknownAttempts": 0
+      },
+      "firstAttemptWallS": 33.21,
+      "laterAttemptsWallP50": 28.97
+    },
+    {
+      "task": "tests-written",
+      "model": "anthropic/claude-haiku-5.5",
+      "n": 5,
+      "passes": 5,
+      "failures": [],
+      "wallSeconds": {
+        "n": 5,
+        "min": 21.14,
+        "p50": 25.05,
+        "p95": 25.12,
+        "max": 25.12
+      },
+      "startLatencyS": {
+        "n": 5,
+        "min": 0.014,
+        "p50": 0.016,
+        "p95": 0.033,
+        "max": 0.033
+      },
+      "firstToolCallS": {
+        "n": 5,
+        "min": 6.481,
+        "p50": 6.613,
+        "p95": 7.322,
+        "max": 7.322
+      },
+      "engineS": {
+        "n": 5,
+        "min": 16.69,
+        "p50": 20.383,
+        "p95": 22.372,
+        "max": 22.372
+      },
+      "toolCalls": {
+        "n": 5,
+        "min": 6,
+        "p50": 9,
+        "p95": 10,
+        "max": 10
+      },
+      "ledgerRowLatencyMs": {
+        "n": 5,
+        "min": 0,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "costUsd": {
+        "knownTotal": 0.028083,
+        "knownPerAttemptMean": 0.005617,
+        "unknownAttempts": 0
+      },
+      "firstAttemptWallS": 25.06,
+      "laterAttemptsWallP50": 21.31
+    },
+    {
+      "task": "w11-grounding",
+      "model": "openai/gpt-4o-mini",
+      "n": 5,
+      "passes": 5,
+      "failures": [],
+      "wallSeconds": {
+        "n": 5,
+        "min": 31.27,
+        "p50": 31.7,
+        "p95": 39.79,
+        "max": 39.79
+      },
+      "startLatencyS": {
+        "n": 0,
+        "min": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "firstToolCallS": {
+        "n": 0,
+        "min": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "engineS": {
+        "n": 0,
+        "min": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "toolCalls": {
+        "n": 5,
+        "min": 0,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "ledgerRowLatencyMs": {
+        "n": 5,
+        "min": 1539,
+        "p50": 1997,
+        "p95": 10055,
+        "max": 10055
+      },
+      "costUsd": {
+        "knownTotal": 0.000207,
+        "knownPerAttemptMean": 4.1e-05,
+        "unknownAttempts": 0
+      },
+      "firstAttemptWallS": 33.02,
+      "laterAttemptsWallP50": 31.45
+    }
+  ],
+  "attempts": [
+    {
+      "task": "multi-file-refactor",
+      "startedAt": "2026-11-05T14:24:35.525389+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 33.21,
+      "runId": "w20-refactor-1793888675",
+      "startLatencyS": 0.021,
+      "firstToolCallS": 8.15,
+      "engineS": 31.063,
+      "toolCalls": 18,
+      "attribution": "run_id",
+      "models": {
+        "anthropic/claude-haiku-5.5": {
+          "calls": 1,
+          "in": 66348,
+          "out": 2504,
+          "usd": 0.007887,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "anthropic/claude-haiku-5.5",
+      "costUsd": 0.007887,
+      "baseline": "baseline-20261105T142431Z.json"
+    },
+    {
+      "task": "tests-written",
+      "startedAt": "2026-11-05T14:25:38.738496+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 25.06,
+      "runId": "w20-tests-written-1793888738",
+      "startLatencyS": 0.022,
+      "firstToolCallS": 7.322,
+      "engineS": 22.372,
+      "toolCalls": 10,
+      "attribution": "run_id",
+      "models": {
+        "anthropic/claude-haiku-5.5": {
+          "calls": 1,
+          "in": 59697,
+          "out": 1136,
+          "usd": 0.006538,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "anthropic/claude-haiku-5.5",
+      "costUsd": 0.006538,
+      "baseline": "baseline-20261105T142431Z.json"
+    },
+    {
+      "task": "w11-grounding",
+      "startedAt": "2026-11-05T14:26:33.805746+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 33.02,
+      "runId": "w11ground-1793888793",
+      "startLatencyS": null,
+      "firstToolCallS": null,
+      "engineS": null,
+      "toolCalls": 0,
+      "attribution": "time-window",
+      "models": {
+        "openai/gpt-4o-mini": {
+          "calls": 1,
+          "in": 112,
+          "out": 46,
+          "usd": 4.4e-05,
+          "latMs": [
+            1997
+          ]
+        }
+      },
+      "primaryModel": "openai/gpt-4o-mini",
+      "costUsd": 4.4e-05,
+      "baseline": "baseline-20261105T142431Z.json"
+    },
+    {
+      "task": "multi-file-refactor",
+      "startedAt": "2026-11-05T14:27:40.668305+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 28.97,
+      "runId": "w20-refactor-1793888860",
+      "startLatencyS": 0.016,
+      "firstToolCallS": 6.5,
+      "engineS": 25.552,
+      "toolCalls": 17,
+      "attribution": "run_id",
+      "models": {
+        "anthropic/claude-haiku-5.5": {
+          "calls": 1,
+          "in": 53714,
+          "out": 2254,
+          "usd": 0.006498,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "anthropic/claude-haiku-5.5",
+      "costUsd": 0.006498,
+      "baseline": "baseline-20261105T142736Z.json"
+    },
+    {
+      "task": "tests-written",
+      "startedAt": "2026-11-05T14:28:39.645901+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 21.14,
+      "runId": "w20-tests-written-1793888919",
+      "startLatencyS": 0.014,
+      "firstToolCallS": 6.481,
+      "engineS": 19.625,
+      "toolCalls": 9,
+      "attribution": "run_id",
+      "models": {
+        "anthropic/claude-haiku-5.5": {
+          "calls": 1,
+          "in": 51598,
+          "out": 1078,
+          "usd": 0.005699,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "anthropic/claude-haiku-5.5",
+      "costUsd": 0.005699,
+      "baseline": "baseline-20261105T142736Z.json"
+    },
+    {
+      "task": "w11-grounding",
+      "startedAt": "2026-11-05T14:29:30.793151+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 39.79,
+      "runId": "w11ground-1793888970",
+      "startLatencyS": null,
+      "firstToolCallS": null,
+      "engineS": null,
+      "toolCalls": 0,
+      "attribution": "time-window",
+      "models": {
+        "openai/gpt-4o-mini": {
+          "calls": 1,
+          "in": 112,
+          "out": 47,
+          "usd": 4.5e-05,
+          "latMs": [
+            10055
+          ]
+        }
+      },
+      "primaryModel": "openai/gpt-4o-mini",
+      "costUsd": 4.5e-05,
+      "baseline": "baseline-20261105T142736Z.json"
+    },
+    {
+      "task": "multi-file-refactor",
+      "startedAt": "2026-11-05T14:30:44.465245+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 28.97,
+      "runId": "w20-refactor-1793889044",
+      "startLatencyS": 0.016,
+      "firstToolCallS": 7.692,
+      "engineS": 27.069,
+      "toolCalls": 16,
+      "attribution": "run_id",
+      "models": {
+        "anthropic/claude-haiku-5.5": {
+          "calls": 1,
+          "in": 71157,
+          "out": 2325,
+          "usd": 0.008278,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "anthropic/claude-haiku-5.5",
+      "costUsd": 0.008278,
+      "baseline": "baseline-20261105T143040Z.json"
+    },
+    {
+      "task": "tests-written",
+      "startedAt": "2026-11-05T14:31:43.441615+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 25.05,
+      "runId": "w20-tests-written-1793889103",
+      "startLatencyS": 0.015,
+      "firstToolCallS": 6.579,
+      "engineS": 22.327,
+      "toolCalls": 9,
+      "attribution": "run_id",
+      "models": {
+        "anthropic/claude-haiku-5.5": {
+          "calls": 1,
+          "in": 58133,
+          "out": 1209,
+          "usd": 0.006418,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "anthropic/claude-haiku-5.5",
+      "costUsd": 0.006418,
+      "baseline": "baseline-20261105T143040Z.json"
+    },
+    {
+      "task": "w11-grounding",
+      "startedAt": "2026-11-05T14:32:38.500539+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 31.7,
+      "runId": "w11ground-1793889158",
+      "startLatencyS": null,
+      "firstToolCallS": null,
+      "engineS": null,
+      "toolCalls": 0,
+      "attribution": "time-window",
+      "models": {
+        "openai/gpt-4o-mini": {
+          "calls": 1,
+          "in": 112,
+          "out": 39,
+          "usd": 4e-05,
+          "latMs": [
+            1539
+          ]
+        }
+      },
+      "primaryModel": "openai/gpt-4o-mini",
+      "costUsd": 4e-05,
+      "baseline": "baseline-20261105T143040Z.json"
+    },
+    {
+      "task": "multi-file-refactor",
+      "startedAt": "2026-11-05T14:33:43.973978+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 25.03,
+      "runId": "w20-refactor-1793889224",
+      "startLatencyS": 0.015,
+      "firstToolCallS": 6.71,
+      "engineS": 23.176,
+      "toolCalls": 17,
+      "attribution": "run_id",
+      "models": {
+        "anthropic/claude-haiku-5.5": {
+          "calls": 1,
+          "in": 54355,
+          "out": 2239,
+          "usd": 0.006555,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "anthropic/claude-haiku-5.5",
+      "costUsd": 0.006555,
+      "baseline": "baseline-20261105T143340Z.json"
+    },
+    {
+      "task": "tests-written",
+      "startedAt": "2026-11-05T14:34:39.016730+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 21.31,
+      "runId": "w20-tests-written-1793889279",
+      "startLatencyS": 0.033,
+      "firstToolCallS": 6.613,
+      "engineS": 16.69,
+      "toolCalls": 6,
+      "attribution": "run_id",
+      "models": {
+        "anthropic/claude-haiku-5.5": {
+          "calls": 1,
+          "in": 32138,
+          "out": 1120,
+          "usd": 0.003774,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "anthropic/claude-haiku-5.5",
+      "costUsd": 0.003774,
+      "baseline": "baseline-20261105T143340Z.json"
+    },
+    {
+      "task": "w11-grounding",
+      "startedAt": "2026-11-05T14:35:30.356329+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 31.45,
+      "runId": "w11ground-1793889330",
+      "startLatencyS": null,
+      "firstToolCallS": null,
+      "engineS": null,
+      "toolCalls": 0,
+      "attribution": "time-window",
+      "models": {
+        "openai/gpt-4o-mini": {
+          "calls": 1,
+          "in": 112,
+          "out": 34,
+          "usd": 3.7e-05,
+          "latMs": [
+            2062
+          ]
+        }
+      },
+      "primaryModel": "openai/gpt-4o-mini",
+      "costUsd": 3.7e-05,
+      "baseline": "baseline-20261105T143340Z.json"
+    },
+    {
+      "task": "multi-file-refactor",
+      "startedAt": "2026-11-05T14:36:35.696368+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 37.03,
+      "runId": "w20-refactor-1793889395",
+      "startLatencyS": 0.015,
+      "firstToolCallS": 7.062,
+      "engineS": 34.637,
+      "toolCalls": 20,
+      "attribution": "run_id",
+      "models": {
+        "anthropic/claude-haiku-5.5": {
+          "calls": 1,
+          "in": 93348,
+          "out": 2955,
+          "usd": 0.010812,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "anthropic/claude-haiku-5.5",
+      "costUsd": 0.010812,
+      "baseline": "baseline-20261105T143631Z.json"
+    },
+    {
+      "task": "tests-written",
+      "startedAt": "2026-11-05T14:37:42.735121+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 25.12,
+      "runId": "w20-tests-written-1793889462",
+      "startLatencyS": 0.016,
+      "firstToolCallS": 6.896,
+      "engineS": 20.383,
+      "toolCalls": 8,
+      "attribution": "run_id",
+      "models": {
+        "anthropic/claude-haiku-5.5": {
+          "calls": 1,
+          "in": 50484,
+          "out": 1211,
+          "usd": 0.005654,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "anthropic/claude-haiku-5.5",
+      "costUsd": 0.005654,
+      "baseline": "baseline-20261105T143631Z.json"
+    },
+    {
+      "task": "w11-grounding",
+      "startedAt": "2026-11-05T14:38:37.862302+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 31.27,
+      "runId": "w11ground-1793889517",
+      "startLatencyS": null,
+      "firstToolCallS": null,
+      "engineS": null,
+      "toolCalls": 0,
+      "attribution": "time-window",
+      "models": {
+        "openai/gpt-4o-mini": {
+          "calls": 1,
+          "in": 112,
+          "out": 40,
+          "usd": 4.1e-05,
+          "latMs": [
+            1893
+          ]
+        }
+      },
+      "primaryModel": "openai/gpt-4o-mini",
+      "costUsd": 4.1e-05,
+      "baseline": "baseline-20261105T143631Z.json"
+    }
+  ]
+}

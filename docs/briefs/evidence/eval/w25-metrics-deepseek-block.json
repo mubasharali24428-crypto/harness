@@ -1,0 +1,387 @@
+{
+  "schema": 1,
+  "kind": "w25-metrics",
+  "label": "deepseek-block",
+  "window": [
+    "2026-11-05T14:00:00Z",
+    "2026-11-05T14:13:00Z"
+  ],
+  "generatedAt": "2026-11-05T14:46:24.736426+00:00",
+  "note": "nearest-rank percentiles over the attempts present; with n < 20 the p95 is the slowest attempt, not a stable tail estimate",
+  "summary": [
+    {
+      "task": "multi-file-refactor",
+      "model": "deepseek/deepseek-v4-flash",
+      "n": 5,
+      "passes": 5,
+      "failures": [],
+      "wallSeconds": {
+        "n": 5,
+        "min": 53.02,
+        "p50": 57.18,
+        "p95": 61.15,
+        "max": 61.15
+      },
+      "startLatencyS": {
+        "n": 5,
+        "min": 0.012,
+        "p50": 0.014,
+        "p95": 0.023,
+        "max": 0.023
+      },
+      "firstToolCallS": {
+        "n": 5,
+        "min": 7.626,
+        "p50": 8.807,
+        "p95": 9.703,
+        "max": 9.703
+      },
+      "engineS": {
+        "n": 5,
+        "min": 48.249,
+        "p50": 52.534,
+        "p95": 59.024,
+        "max": 59.024
+      },
+      "toolCalls": {
+        "n": 5,
+        "min": 24,
+        "p50": 26,
+        "p95": 32,
+        "max": 32
+      },
+      "ledgerRowLatencyMs": {
+        "n": 5,
+        "min": 0,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "costUsd": {
+        "knownTotal": 0.038991,
+        "knownPerAttemptMean": 0.007798,
+        "unknownAttempts": 0
+      },
+      "firstAttemptWallS": 53.15,
+      "laterAttemptsWallP50": 57.18
+    },
+    {
+      "task": "tests-written",
+      "model": "deepseek/deepseek-v4-flash",
+      "n": 5,
+      "passes": 5,
+      "failures": [],
+      "wallSeconds": {
+        "n": 5,
+        "min": 41.41,
+        "p50": 45.21,
+        "p95": 49.19,
+        "max": 49.19
+      },
+      "startLatencyS": {
+        "n": 5,
+        "min": 0.012,
+        "p50": 0.017,
+        "p95": 0.026,
+        "max": 0.026
+      },
+      "firstToolCallS": {
+        "n": 5,
+        "min": 7.262,
+        "p50": 8.385,
+        "p95": 10.035,
+        "max": 10.035
+      },
+      "engineS": {
+        "n": 5,
+        "min": 40.163,
+        "p50": 43.891,
+        "p95": 46.804,
+        "max": 46.804
+      },
+      "toolCalls": {
+        "n": 5,
+        "min": 10,
+        "p50": 11,
+        "p95": 15,
+        "max": 15
+      },
+      "ledgerRowLatencyMs": {
+        "n": 5,
+        "min": 0,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "costUsd": {
+        "knownTotal": 0.032127,
+        "knownPerAttemptMean": 0.006425,
+        "unknownAttempts": 0
+      },
+      "firstAttemptWallS": 49.19,
+      "laterAttemptsWallP50": 45.08
+    }
+  ],
+  "attempts": [
+    {
+      "task": "multi-file-refactor",
+      "startedAt": "2026-11-05T14:00:10.800616+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 53.15,
+      "runId": "w20-refactor-1793887210",
+      "startLatencyS": 0.023,
+      "firstToolCallS": 8.966,
+      "engineS": 48.249,
+      "toolCalls": 24,
+      "attribution": "run_id",
+      "models": {
+        "deepseek/deepseek-v4-flash": {
+          "calls": 1,
+          "in": 64557,
+          "out": 1989,
+          "usd": 0.006237,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "deepseek/deepseek-v4-flash",
+      "costUsd": 0.006237,
+      "baseline": "baseline-20261105T140006Z.json"
+    },
+    {
+      "task": "tests-written",
+      "startedAt": "2026-11-05T14:01:33.955203+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 49.19,
+      "runId": "w20-tests-written-1793887294",
+      "startLatencyS": 0.026,
+      "firstToolCallS": 10.035,
+      "engineS": 46.804,
+      "toolCalls": 13,
+      "attribution": "run_id",
+      "models": {
+        "deepseek/deepseek-v4-flash": {
+          "calls": 1,
+          "in": 75127,
+          "out": 1561,
+          "usd": 0.007121,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "deepseek/deepseek-v4-flash",
+      "costUsd": 0.007121,
+      "baseline": "baseline-20261105T140006Z.json"
+    },
+    {
+      "task": "multi-file-refactor",
+      "startedAt": "2026-11-05T14:02:57.075535+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 57.18,
+      "runId": "w20-refactor-1793887377",
+      "startLatencyS": 0.016,
+      "firstToolCallS": 9.703,
+      "engineS": 52.534,
+      "toolCalls": 26,
+      "attribution": "run_id",
+      "models": {
+        "deepseek/deepseek-v4-flash": {
+          "calls": 1,
+          "in": 75982,
+          "out": 2500,
+          "usd": 0.007369,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "deepseek/deepseek-v4-flash",
+      "costUsd": 0.007369,
+      "baseline": "baseline-20261105T140253Z.json"
+    },
+    {
+      "task": "tests-written",
+      "startedAt": "2026-11-05T14:04:24.210034+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 45.08,
+      "runId": "w20-tests-written-1793887464",
+      "startLatencyS": 0.017,
+      "firstToolCallS": 7.523,
+      "engineS": 43.886,
+      "toolCalls": 11,
+      "attribution": "run_id",
+      "models": {
+        "deepseek/deepseek-v4-flash": {
+          "calls": 1,
+          "in": 60014,
+          "out": 1337,
+          "usd": 0.005705,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "deepseek/deepseek-v4-flash",
+      "costUsd": 0.005705,
+      "baseline": "baseline-20261105T140253Z.json"
+    },
+    {
+      "task": "multi-file-refactor",
+      "startedAt": "2026-11-05T14:05:43.118177+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 61.15,
+      "runId": "w20-refactor-1793887543",
+      "startLatencyS": 0.012,
+      "firstToolCallS": 7.626,
+      "engineS": 59.024,
+      "toolCalls": 27,
+      "attribution": "run_id",
+      "models": {
+        "deepseek/deepseek-v4-flash": {
+          "calls": 1,
+          "in": 93707,
+          "out": 2483,
+          "usd": 0.008979,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "deepseek/deepseek-v4-flash",
+      "costUsd": 0.008979,
+      "baseline": "baseline-20261105T140539Z.json"
+    },
+    {
+      "task": "tests-written",
+      "startedAt": "2026-11-05T14:07:14.273399+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 41.41,
+      "runId": "w20-tests-written-1793887634",
+      "startLatencyS": 0.017,
+      "firstToolCallS": 8.385,
+      "engineS": 40.163,
+      "toolCalls": 10,
+      "attribution": "run_id",
+      "models": {
+        "deepseek/deepseek-v4-flash": {
+          "calls": 1,
+          "in": 51813,
+          "out": 1203,
+          "usd": 0.004934,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "deepseek/deepseek-v4-flash",
+      "costUsd": 0.004934,
+      "baseline": "baseline-20261105T140539Z.json"
+    },
+    {
+      "task": "multi-file-refactor",
+      "startedAt": "2026-11-05T14:08:29.548893+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 57.22,
+      "runId": "w20-refactor-1793887709",
+      "startLatencyS": 0.014,
+      "firstToolCallS": 8.201,
+      "engineS": 54.924,
+      "toolCalls": 32,
+      "attribution": "run_id",
+      "models": {
+        "deepseek/deepseek-v4-flash": {
+          "calls": 1,
+          "in": 91306,
+          "out": 2944,
+          "usd": 0.008845,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "deepseek/deepseek-v4-flash",
+      "costUsd": 0.008845,
+      "baseline": "baseline-20261105T140825Z.json"
+    },
+    {
+      "task": "tests-written",
+      "startedAt": "2026-11-05T14:09:56.769448+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 45.21,
+      "runId": "w20-tests-written-1793887796",
+      "startLatencyS": 0.012,
+      "firstToolCallS": 9.32,
+      "engineS": 43.891,
+      "toolCalls": 10,
+      "attribution": "run_id",
+      "models": {
+        "deepseek/deepseek-v4-flash": {
+          "calls": 1,
+          "in": 66080,
+          "out": 2162,
+          "usd": 0.006407,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "deepseek/deepseek-v4-flash",
+      "costUsd": 0.006407,
+      "baseline": "baseline-20261105T140825Z.json"
+    },
+    {
+      "task": "multi-file-refactor",
+      "startedAt": "2026-11-05T14:11:15.818291+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 53.02,
+      "runId": "w20-refactor-1793887875",
+      "startLatencyS": 0.012,
+      "firstToolCallS": 8.807,
+      "engineS": 48.734,
+      "toolCalls": 24,
+      "attribution": "run_id",
+      "models": {
+        "deepseek/deepseek-v4-flash": {
+          "calls": 1,
+          "in": 77984,
+          "out": 2550,
+          "usd": 0.007561,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "deepseek/deepseek-v4-flash",
+      "costUsd": 0.007561,
+      "baseline": "baseline-20261105T141112Z.json"
+    },
+    {
+      "task": "tests-written",
+      "startedAt": "2026-11-05T14:12:38.844599+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 49.15,
+      "runId": "w20-tests-written-1793887958",
+      "startLatencyS": 0.014,
+      "firstToolCallS": 7.262,
+      "engineS": 45.817,
+      "toolCalls": 15,
+      "attribution": "run_id",
+      "models": {
+        "deepseek/deepseek-v4-flash": {
+          "calls": 1,
+          "in": 84446,
+          "out": 1516,
+          "usd": 0.00796,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "deepseek/deepseek-v4-flash",
+      "costUsd": 0.00796,
+      "baseline": "baseline-20261105T141112Z.json"
+    }
+  ]
+}

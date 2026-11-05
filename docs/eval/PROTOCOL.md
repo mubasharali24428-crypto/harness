@@ -176,3 +176,14 @@ run on `anthropic/claude-haiku-5.5`; every other live task runs on the stack def
 it switches `DSH_MODEL` on the orchestrator and worker-daemon for that one command and restores it on exit
 (also on failure). The corpus `model` field for these tasks still names the older `qwen/qwen3.7-flash` pin; the
 evidence file records the model actually used. Only `w11-grounding` has been run this way so far (PASS).
+
+## Concurrent launches (found 2026-11-05)
+
+`code_change_task.py` names its run `w20-<task>-<unix seconds>` and `run_eval.py` names its baseline file by
+the second. Two runner processes started in the same second therefore share a run id and a baseline file: in
+the first concurrency batch two attempts failed in under half a second and their baseline records were
+overwritten by the survivor (kept as `w25-concurrency-attempt1-same-second-collision.json`, with the stdout
+only). To measure concurrent runs, start the processes at least 1 s apart and give each its own `--out`. The
+metrics are collected afterwards with `scripts/eval/w25_metrics.py`, which reads start latency, time to first
+tool call, engine time, tool calls and cost from `agent_events` and `cost_ledger` by run id.
+
