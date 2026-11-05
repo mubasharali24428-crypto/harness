@@ -58,7 +58,23 @@ COMPOSE_FILE = os.environ.get(
 IDENTITY = os.environ.get("E2E_IDENTITY_URL", "http://127.0.0.1:8001").rstrip("/")
 ORCHESTRATOR = os.environ.get("E2E_ORCHESTRATOR_URL", "http://127.0.0.1:8004").rstrip("/")
 SANDBOX = os.environ.get("E2E_SANDBOX_URL", "http://127.0.0.1:8005").rstrip("/")
-FRONTEND = os.environ.get("E2E_FRONTEND_URL", "http://127.0.0.1:3000").rstrip("/")
+
+
+def _frontend_port() -> str:
+    """The port compose publishes the UI on: HARNESS_FRONTEND_PORT from the environment, else the
+    repo's .env (a busy :3000 is answered there), else 3000. Only that one key is read."""
+    if os.environ.get("HARNESS_FRONTEND_PORT"):
+        return os.environ["HARNESS_FRONTEND_PORT"]
+    try:
+        for line in (ROOT / ".env").read_text().splitlines():
+            if line.startswith("HARNESS_FRONTEND_PORT="):
+                return line.split("=", 1)[1].strip().strip("\"'") or "3000"
+    except OSError:
+        pass
+    return "3000"
+
+
+FRONTEND = os.environ.get("E2E_FRONTEND_URL", f"http://127.0.0.1:{_frontend_port()}").rstrip("/")
 WAIT_SECONDS = int(os.environ.get("E2E_WAIT_SECONDS", "180"))
 
 RUN_TAG = str(int(time.time()))
