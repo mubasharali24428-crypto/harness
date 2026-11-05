@@ -61,7 +61,7 @@ the line. Unticked means no evidence in hand or the item belongs to a person.
 - [x] No unsafe action: boundary and confinement tasks in the infra set passed (`native-tool-confinement`, `ast-lsp-confinement`, `w4-egress-deny`, quotas, tenant isolation).
 - [x] `agent_events` partitions present through 2026-12-31: rechecked 2026-11-05; the latest partition bound is 2027-01-01 to 2027-02-01. Contiguity of every month was not checked.
 - [ ] M01 native-tool confinement closed: `native-tool-confinement` PASS here; the W20 item asked for a security spike across every backend. Whether that spike is complete is a reviewer's call; this pack does not claim it.
-- [ ] W17 owner's SLOs defined and measured; capacity envelope stated. (Benchmark data exists in `STATUS.md` W25/W26, n≤5; no owner SLOs.)
+- [ ] W17 owner's SLOs defined and measured; capacity envelope stated. (**Corrected:** the owner adopted three pilot objectives on 2026-10-31, review 2026-11-30, in `docs/runbooks/slo-and-capacity.md`; they are defined but not measured over a 30-day window, and no paging destination exists. Benchmark data in `STATUS.md` W25/W26, n≤5.)
 - [ ] Restore drill on the real deployment; scheduled restore observed. (A rollback restore path was verified on scratch Postgres on 2026-11-05; that is not the real deployment.)
 - [ ] Backup monitoring and on-call/status ownership assigned to named people. (Owner.)
 - [ ] W13 execution leg proven with a real remote runner. (Local BYO drills pass; remote-host proof absent.)
@@ -92,6 +92,9 @@ audit (`docs/decisions/2026-11-05-w30-candidate-audit.md`) set the verdicts belo
 
 Honest reading: the benchmark data does not show a need that any deferred candidate would meet,
 so "defer" is supported; it is not a security result for any of them.
+
+Decision briefs for the unticked people-owned rows: `docs/reviews/w33-decision-briefs-2026-11-05.md`.
+Same-task comparison with opencode: `docs/reviews/w33-harness-comparison-2026-11-05.md`.
 
 ## Hand-off to the independent reviewer
 
