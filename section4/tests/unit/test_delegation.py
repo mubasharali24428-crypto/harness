@@ -42,6 +42,11 @@ def env(tmp_path, monkeypatch):
         async with factory() as db:
             await db.execute(text("CREATE TABLE IF NOT EXISTS cost_ledger"
                                   " (run_id VARCHAR(36), cost_usd NUMERIC)"))
+            await db.execute(text(
+                "CREATE TABLE IF NOT EXISTS run_intent_versions (run_id VARCHAR(36), version INTEGER,"
+                " team_id VARCHAR(36), goal TEXT, scope_paths TEXT, permissions TEXT,"
+                " changed_fields TEXT, updated_by VARCHAR(36), updated_at TIMESTAMP,"
+                " request_id VARCHAR(64), PRIMARY KEY (run_id, version))"))
             await db.commit()
 
     asyncio.run(_ledger())
@@ -297,3 +302,41 @@ def test_synthesis_spend_is_the_runs_ledger_cost(env):
     by_id = {c["assignmentId"]: c for c in _synthesis(env).json()["children"]}
     assert by_id[kids[0]["id"]]["spentUsd"] == "0.001062"  # summed over the run's ledger rows
     assert by_id[kids[1]["id"]]["spentUsd"] == "0"  # no ledger rows yet
+
+
+def test_a_stop_envelope_carries_the_replay_tombstone(env):
+    """Any stop reason is tombstoned (`stopped`), else replay reads the run as resumable PAUSED."""
+    env.mp.setenv("HARNESS_SUBAGENTS", "1")
+    agent = env.add_def()
+    kid = deleg(env, agent, requestId="s2-7").json()["children"][0]
+    seen = []
+    env.svc.on_event = lambda etype, payload: seen.append((etype.value, payload))
+    assert env.as_("eng").post(f"{P}/r1/agents/{kid['id']}/cancel").status_code == 200
+    stops = [p for t, p in seen if t == "paused" and p.get("runId") == kid["childRunId"]]
+    assert len(stops) == 1 and stops[0]["reason"] == "assignment_cancelled"
+    assert stops[0]["stopped"] is True
+
+
+# --------------------------------------------------------------------------- scope binding
+# The engine confines a run to its intent's scopePaths (collab.intent_scope_paths), and a run with
+# no intent paths is unconfined. So a delegated child's paths must become its run's intent.
+
+
+def test_child_run_intent_is_bound_to_the_assignment_scope(env):
+    from harness_orchestrator import collab
+
+    env.mp.setenv("HARNESS_SUBAGENTS", "1")
+    agent = env.add_def()
+    kid = deleg(env, agent, requestId="s2-8").json()["children"][0]
+    bound = asyncio.run(collab.intent_scope_paths(env.f, kid["childRunId"]))
+    assert bound == kid["scope"]["paths"] and bound  # what the engine's shell gate will enforce
+
+
+def test_scope_without_paths_is_refused_because_it_would_be_unconfined(env):
+    env.mp.setenv("HARNESS_SUBAGENTS", "1")
+    agent = env.add_def()
+    scope = {**default_scope(), "paths": []}
+    r = env.as_("eng").post(f"{P}/r1/delegations", json={
+        "agentId": agent, "title": "x", "scope": scope, "requestId": "s2-9"})
+    err(r, 422, "SCOPE_UNBINDABLE")
+    assert rows(env.f, "SELECT count(*) as c FROM agent_assignments")[0]["c"] == 0

@@ -129,3 +129,32 @@ async def test_midflight_history_is_not_over_sealed(factory):
     svc = _service(factory)
     rd = await svc._ensure_run("run-x")
     assert rd["state_machine"].state is AgentState.PAUSED
+
+
+async def test_stop_with_a_custom_reason_replays_as_done(factory):
+    """Delegation stops a child with reason `assignment_cancelled`; replay must seal it as DONE,
+    not read it as resumable PAUSED (which also made a repeat stop emit a second `paused`)."""
+    rows = [
+        ("plan_proposed", {"planId": "p1"}),
+        ("plan_approved", {"planId": "p1"}),
+        ("execution_started", {}),
+        ("paused", {"runId": "run-x", "reason": "assignment_cancelled", "stopped": True}),
+        ("resumed", {}),  # post-stop rows are inert
+    ]
+    await _insert_log(factory, "run-x", rows)
+    svc = _service(factory)
+    assert await svc.stop_agent("run-x", reason="assignment_cancelled") is False  # idempotent
+    rd = await svc._ensure_run("run-x")
+    assert rd["state_machine"].state is AgentState.DONE
+
+
+async def test_paused_with_a_custom_reason_and_no_marker_stays_resumable(factory):
+    rows = [
+        ("plan_proposed", {"planId": "p1"}),
+        ("plan_approved", {"planId": "p1"}),
+        ("execution_started", {}),
+        ("paused", {"reason": "human_edit"}),
+    ]
+    await _insert_log(factory, "run-x", rows)
+    rd = await _service(factory)._ensure_run("run-x")
+    assert rd["state_machine"].state is AgentState.PAUSED

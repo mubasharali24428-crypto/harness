@@ -871,7 +871,10 @@ class OrchestratorService(Orchestrator):
             if (
                 etype == EventType.PAUSED.value
                 and isinstance(payload, dict)
-                and payload.get("reason") == "user_requested_stop"
+                and (
+                    payload.get("reason") == "user_requested_stop"
+                    or payload.get("stopped") is True
+                )
             ):
                 # S1-R05c stop tombstone: the live path reached DONE in RAM
                 # (finish() is silent), so the PAUSED(reason=stop) envelope is
@@ -2101,7 +2104,9 @@ class OrchestratorService(Orchestrator):
         try:
             self._emit(
                 EventType.PAUSED,
-                {"runId": run_data["runId"], "reason": reason},
+                # `stopped` is the tombstone for any stop reason, so a stop with a caller-chosen
+                # reason (e.g. assignment_cancelled) replays as DONE, not as a resumable PAUSED.
+                {"runId": run_data["runId"], "reason": reason, "stopped": True},
             )
         except Exception:  # noqa: BLE001 — telemetry must never break stopping
             logger.exception("paused-event emission failed for %s", run_data.get("runId"))

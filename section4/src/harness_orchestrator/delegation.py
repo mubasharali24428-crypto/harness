@@ -76,7 +76,8 @@ class DelegationBody(BaseModel):
 
 
 async def _open_child_run(
-    factory: Any, p: Any, parent_run_id: str, assignment_id: str, *, title: str, description: str
+    factory: Any, p: Any, parent_run_id: str, assignment_id: str, *, title: str, description: str,
+    paths: list[str],
 ) -> tuple[str, str]:
     """Give a freshly minted child its own run and propose its plan for human approval.
 
@@ -97,6 +98,18 @@ async def _open_child_run(
     try:
         goal = f"{title}\n\n{description}".strip()
         plan_id = await _at._svc().propose_plan(child_run_id, goal=goal, project_id=project_id)
+        # Bind the scope: the engine's shell gate and container mounts enforce the run intent's
+        # scopePaths, and a run without them is unconfined. Version 1, so a later human edit of
+        # the intent (audited, and it voids open approvals) is the only way to widen it.
+        async with factory() as db:
+            await db.execute(text(
+                "INSERT INTO run_intent_versions (run_id, version, team_id, goal, scope_paths,"
+                " permissions, changed_fields, updated_by, updated_at, request_id)"
+                " VALUES (:r, 1, :t, :g, :s, '[]', :c, :u, :n, :q)"),
+                {"r": child_run_id, "t": p.teamId, "g": goal, "s": json.dumps(paths),
+                 "c": json.dumps(["scopePaths"]), "u": p.userId, "n": _at.db_now(),
+                 "q": f"deleg-scope-{assignment_id}"})
+            await db.commit()
     except Exception as e:  # noqa: BLE001 - any planning failure must undo the delegation
         async with factory() as db:
             await db.execute(text("UPDATE agent_assignments SET child_run_id=NULL WHERE id=:i"),
@@ -127,6 +140,9 @@ async def delegate(
     title = body.title.strip()
     if not title:
         raise _http(400, "TITLE_REQUIRED", "title must not be blank")
+    if not scope["paths"]:  # an intent without paths is unconfined, so it cannot bind anything
+        raise _http(422, "SCOPE_UNBINDABLE",
+                    "a delegated scope must name at least one path; none would mean unrestricted")
     factory = _at._factory()
     children: list[dict[str, Any]] = []
     for index in range(body.count):
@@ -141,7 +157,8 @@ async def delegate(
         )
         if not duplicate:
             child["childRunId"], child["childPlanId"] = await _open_child_run(
-                factory, p, runId, child["id"], title=child["title"], description=body.description)
+                factory, p, runId, child["id"], title=child["title"], description=body.description,
+                paths=scope["paths"])
         children.append({**child, "duplicate": duplicate})
     return {"children": children, "minted": sum(1 for child in children if not child["duplicate"])}
 
