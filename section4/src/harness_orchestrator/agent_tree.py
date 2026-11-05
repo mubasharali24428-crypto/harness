@@ -387,65 +387,80 @@ async def _existing_by_request(db: Any, run_id: str, request_id: str | None):
         {"r": run_id, "q": request_id})).mappings().first()
 
 
-@router.post("/runs/{runId}/agents/spawn", status_code=201)
-async def spawn(runId: str, body: SpawnBody, response: Response, p: Writer) -> dict[str, Any]:
-    factory = _factory()
-    scope = _norm_scope(body.scope)
-    budget = _micro(body.budgetUsd)
+async def _mint_child(
+    factory: Any,
+    p: Principal,
+    run_id: str,
+    *,
+    request_id: str | None,
+    parent_assignment_id: str | None,
+    agent_id: str,
+    title: str,
+    scope: dict[str, list[str]],
+    budget_microusd: int,
+) -> tuple[dict[str, Any], bool]:
+    """Mint one assignment behind the full gate chain.
+
+    The single implementation shared by ``spawn`` and the W28 delegate verb.
+    Returns ``(out, duplicate)``. Anything ending in a refusal raises; the
+    caller never sees a half-minted child.
+    """
     async with factory() as db:
-        dup = await _existing_by_request(db, runId, body.requestId)
+        dup = await _existing_by_request(db, run_id, request_id)
         if dup is not None:
-            response.status_code = 200
-            return {**_out(dup), "duplicate": True}
-        d = await _definition(db, p, body.agentId)
-        parent = (await _assignment(db, p, runId, body.parentAssignmentId)
-                  if body.parentAssignmentId else None)
+            return _out(dup), True
+        d = await _definition(db, p, agent_id)
+        parent = (
+            await _assignment(db, p, run_id, parent_assignment_id)
+            if parent_assignment_id
+            else None
+        )
         project_id = (await db.execute(text("SELECT project_id FROM agent_runs WHERE id=:r"),
-                                       {"r": runId})).scalar()
-        missing = await missing_permissions(db, p, scope["permissions"], runId, project_id)
+                                       {"r": run_id})).scalar()
+        missing = await missing_permissions(db, p, scope["permissions"], run_id, project_id)
     ctx = {"agentId": d["id"], "parentId": parent["id"] if parent else None}
 
     if d["state"] != "approved":
-        await _refuse(p, runId, 409, "AGENT_NOT_APPROVED",
+        await _refuse(p, run_id, 409, "AGENT_NOT_APPROVED",
                       f"agent version is {d['state']}; only approved agents can be spawned",
                       detail=ctx)
     if parent is not None:
         if parent["state"] != "active":
-            await _refuse(p, runId, 409, "PARENT_NOT_ACTIVE",
+            await _refuse(p, run_id, 409, "PARENT_NOT_ACTIVE",
                           f"parent assignment is {parent['state']}", detail=ctx)
         if parent["max_children"] == 0:
-            await _refuse(p, runId, 409, "SPAWN_NOT_ALLOWED",
+            await _refuse(p, run_id, 409, "SPAWN_NOT_ALLOWED",
                           "the parent agent may not spawn subagents", detail=ctx)
         if parent["depth"] + 1 > parent["max_depth"]:
-            await _refuse(p, runId, 409, "SPAWN_DEPTH_EXCEEDED",
+            await _refuse(p, run_id, 409, "SPAWN_DEPTH_EXCEEDED",
                           f"depth limit {parent['max_depth']} reached", detail=ctx)
     over = _exceeds(scope, _def_ceiling(d))
     if over:
-        await _refuse(p, runId, 403, "SCOPE_EXCEEDS_AGENT",
+        await _refuse(p, run_id, 403, "SCOPE_EXCEEDS_AGENT",
                       f"requested scope exceeds the agent definition: {over}",
                       action="agent.delegation_denied", detail={**ctx, "exceeds": over})
     if parent is not None:
         over = _exceeds(scope, json.loads(parent["scope"]))
         if over:
-            await _refuse(p, runId, 403, "SCOPE_EXCEEDS_PARENT",
+            await _refuse(p, run_id, 403, "SCOPE_EXCEEDS_PARENT",
                           f"requested scope exceeds the parent assignment: {over}",
                           action="agent.delegation_denied", detail={**ctx, "exceeds": over})
     if missing:
-        await _refuse(p, runId, 403, "DELEGATION_DENIED",
+        await _refuse(p, run_id, 403, "DELEGATION_DENIED",
                       f"you do not hold {missing}; an agent cannot receive more than you have",
                       action="agent.delegation_denied", detail={**ctx, "missing": missing})
-    if budget > d["max_budget_microusd"]:
-        await _refuse(p, runId, 422, "BUDGET_EXCEEDS_AGENT_MAX",
+    if budget_microusd > d["max_budget_microusd"]:
+        await _refuse(p, run_id, 422, "BUDGET_EXCEEDS_AGENT_MAX",
                       f"budget exceeds the agent maximum of {_usd(d['max_budget_microusd'])} USD",
                       detail=ctx)
     try:
         model, fb_reason = _resolve_model(d)
     except HTTPException as e:
-        await _refuse(p, runId, e.status_code, "AGENT_MODEL_UNAVAILABLE",
+        await _refuse(p, run_id, e.status_code, "AGENT_MODEL_UNAVAILABLE",
                       e.detail["error"]["message"], detail=ctx)
     blocked = await check_budget(factory, p.teamId, estimated_call_cost_usd=0.0)
     if not blocked.allowed:
-        await _refuse(p, runId, 409, "TEAM_BUDGET_EXHAUSTED",
+        await _refuse(p, run_id, 409, "TEAM_BUDGET_EXHAUSTED",
                       f"team budget does not allow new agent work: {blocked.reason}", detail=ctx)
 
     depth = parent["depth"] + 1 if parent else 0
@@ -458,18 +473,18 @@ async def spawn(runId: str, body: SpawnBody, response: Response, p: Writer) -> d
             text("INSERT INTO agent_run_pools (run_id, team_id, max_agents, total_spawned,"
                  " budget_microusd, reserved_microusd, spent_microusd, created_at)"
                  " VALUES (:r,:t,:m,0,:b,0,0,:n) ON CONFLICT (run_id) DO NOTHING"),
-            {"r": runId, "t": p.teamId, "m": _env_int(RUN_AGENTS_ENV, "agents"),
+            {"r": run_id, "t": p.teamId, "m": _env_int(RUN_AGENTS_ENV, "agents"),
              "b": pool_budget, "n": now})
         if parent is None:  # a root reserves from the run pool, a child from its parent
             pool_sql = ("UPDATE agent_run_pools SET total_spawned=total_spawned+1,"
                         " reserved_microusd=reserved_microusd+:b WHERE run_id=:r"
                         " AND total_spawned<max_agents"
                         " AND reserved_microusd+spent_microusd+:b<=budget_microusd")
-            pool_args: dict[str, Any] = {"r": runId, "b": budget}
+            pool_args: dict[str, Any] = {"r": run_id, "b": budget_microusd}
         else:
             pool_sql = ("UPDATE agent_run_pools SET total_spawned=total_spawned+1"
                         " WHERE run_id=:r AND total_spawned<max_agents")
-            pool_args = {"r": runId}
+            pool_args = {"r": run_id}
         got = await db.execute(text(pool_sql), pool_args)
         pool_ok = got.rowcount == 1
         parent_ok = True
@@ -479,12 +494,13 @@ async def spawn(runId: str, body: SpawnBody, response: Response, p: Writer) -> d
                      " reserved_microusd=reserved_microusd+:b, updated_at=:n"
                      " WHERE id=:p AND state='active' AND children_count<max_children"
                      " AND spent_microusd+reserved_microusd+:b<=budget_microusd"),
-                {"p": parent["id"], "b": budget, "n": now})
+                {"p": parent["id"], "b": budget_microusd, "n": now})
             parent_ok = got.rowcount == 1
         if not (pool_ok and parent_ok):
             await db.rollback()
-            code, msg = await _limit_reason(factory, runId, parent, pool_ok)
-            await _refuse(p, runId, 409, code, msg, detail={**ctx, "budgetMicroUsd": budget})
+            code, msg = await _limit_reason(factory, run_id, parent, pool_ok)
+            await _refuse(p, run_id, 409, code, msg,
+                          detail={**ctx, "budgetMicroUsd": budget_microusd})
         try:
             await db.execute(
                 text("INSERT INTO agent_assignments (id, run_id, team_id, parent_id, agent_id,"
@@ -492,24 +508,24 @@ async def spawn(runId: str, body: SpawnBody, response: Response, p: Writer) -> d
                      " max_depth, max_children, budget_microusd, model_requested, model_used,"
                      " fallback_reason, request_id, created_at, updated_at) VALUES (:id,:r,:t,:p,"
                      ":a,:an,:av,:dp,:ti,'active',:u,:sc,:md,:mc,:b,:mr,:mu,:fr,:q,:n,:n)"),
-                {"id": aid, "r": runId, "t": p.teamId, "p": parent["id"] if parent else None,
+                {"id": aid, "r": run_id, "t": p.teamId, "p": parent["id"] if parent else None,
                  "a": d["id"], "an": d["name"], "av": d["version"], "dp": depth,
-                 "ti": body.title.strip(), "u": p.userId, "sc": json.dumps(scope, sort_keys=True),
-                 "md": max_depth, "mc": max_children, "b": budget, "mr": d["model"], "mu": model,
-                 "fr": fb_reason, "q": body.requestId, "n": now})
+                 "ti": title, "u": p.userId, "sc": json.dumps(scope, sort_keys=True),
+                 "md": max_depth, "mc": max_children, "b": budget_microusd, "mr": d["model"],
+                 "mu": model,
+                 "fr": fb_reason, "q": request_id, "n": now})
         except IntegrityError:  # concurrent retry with the same requestId
             await db.rollback()
             async with factory() as db2:
-                dup = await _existing_by_request(db2, runId, body.requestId)
+                dup = await _existing_by_request(db2, run_id, request_id)
             if dup is None:
                 raise
-            response.status_code = 200
-            return {**_out(dup), "duplicate": True}
+            return _out(dup), True
         await _audit(db, p, "agent.spawned", aid, {
-            "runId": runId, "agentId": d["id"], "agentName": d["name"], "version": d["version"],
+            "runId": run_id, "agentId": d["id"], "agentName": d["name"], "version": d["version"],
             "parentId": parent["id"] if parent else None, "depth": depth,
             "scope": {k: scope[k] for k in ("permissions", "tools", "paths", "network")},
-            "refCount": len(scope["credentialRefs"]), "budgetMicroUsd": budget,
+            "refCount": len(scope["credentialRefs"]), "budgetMicroUsd": budget_microusd,
             "model": model})
         if fb_reason:
             await _audit(db, p, "agent.fallback_used", aid, {
@@ -517,7 +533,26 @@ async def spawn(runId: str, body: SpawnBody, response: Response, p: Writer) -> d
         await db.commit()
         row = (await db.execute(text("SELECT * FROM agent_assignments WHERE id=:i"),
                                 {"i": aid})).mappings().one()
-    return _out(row)
+    return _out(row), False
+
+
+@router.post("/runs/{runId}/agents/spawn", status_code=201)
+async def spawn(runId: str, body: SpawnBody, response: Response, p: Writer) -> dict[str, Any]:
+    scope = _norm_scope(body.scope)
+    budget = _micro(body.budgetUsd)
+    row, duplicate = await _mint_child(
+        _factory(), p, runId,
+        request_id=body.requestId,
+        parent_assignment_id=body.parentAssignmentId,
+        agent_id=body.agentId,
+        title=body.title.strip(),
+        scope=scope,
+        budget_microusd=budget,
+    )
+    if duplicate:
+        response.status_code = 200
+        return {**row, "duplicate": True}
+    return row
 
 
 async def _limit_reason(factory: Any, run_id: str, parent: Mapping[str, Any] | None,
