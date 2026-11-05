@@ -43,7 +43,8 @@ def env(tmp_path, monkeypatch):
             await db.execute(text("CREATE TABLE IF NOT EXISTS cost_ledger"
                                   " (run_id VARCHAR(36), cost_usd NUMERIC)"))
             await db.execute(text(
-                "CREATE TABLE IF NOT EXISTS run_intent_versions (run_id VARCHAR(36), version INTEGER,"
+                "CREATE TABLE IF NOT EXISTS run_intent_versions"
+                " (run_id VARCHAR(36), version INTEGER,"
                 " team_id VARCHAR(36), goal TEXT, scope_paths TEXT, permissions TEXT,"
                 " changed_fields TEXT, updated_by VARCHAR(36), updated_at TIMESTAMP,"
                 " request_id VARCHAR(64), PRIMARY KEY (run_id, version))"))
@@ -141,7 +142,8 @@ def test_two_agent_task_one_cancelled_no_orphan(env):
     c = env.as_("eng")
     assert c.post(f"{P}/r1/agents/{kids[0]['id']}/cancel").json()["state"] == "cancelled"
     assert c.post(f"{P}/r1/agents/{root['id']}/cancel").json()["state"] == "cancelled"
-    live = rows(env.f, "SELECT id FROM agent_assignments WHERE state NOT IN ('cancelled','done','failed')")
+    live = rows(env.f, "SELECT id FROM agent_assignments"
+                       " WHERE state NOT IN ('cancelled','done','failed')")
     assert live == []
     assert c.get(f"{P}/r1/agents").json()["pool"]["reservedUsd"] == "0"
 
