@@ -1,0 +1,372 @@
+{
+  "schema": 1,
+  "kind": "marathon2-baseline",
+  "corpusRevision": "m2-w8",
+  "startedAt": "2026-11-05T12:33:17.524598+00:00",
+  "finishedAt": "2026-11-05T12:33:32.208929+00:00",
+  "environment": {
+    "git": {
+      "head": "f071ff2891720601a375037b75a9e104a17e33c4",
+      "branch": "w28-s1-delegate",
+      "dirty": true
+    },
+    "revisionCheck": {
+      "orchestratorContainer": "harness-orchestrator-1",
+      "workerImage": "harness-engine-worker:vw25b1",
+      "workerDaemonContainer": "harness-worker-daemon-1",
+      "backend": {
+        "engine.py": {
+          "host": "1f78b9c5da14dfc11dce435f80aaa62f00999f45af57eb0f954b61383fc0f6e6",
+          "deployed": "1f78b9c5da14dfc11dce435f80aaa62f00999f45af57eb0f954b61383fc0f6e6",
+          "match": true
+        },
+        "image_gate.py": {
+          "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "match": true
+        }
+      },
+      "worker": {
+        "image_gate.py": {
+          "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "match": true
+        },
+        "engine.py": {
+          "host": "1f78b9c5da14dfc11dce435f80aaa62f00999f45af57eb0f954b61383fc0f6e6",
+          "deployed": "1f78b9c5da14dfc11dce435f80aaa62f00999f45af57eb0f954b61383fc0f6e6",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "match": true
+        }
+      },
+      "daemon": {
+        "engine.py": {
+          "host": "1f78b9c5da14dfc11dce435f80aaa62f00999f45af57eb0f954b61383fc0f6e6",
+          "deployed": "1f78b9c5da14dfc11dce435f80aaa62f00999f45af57eb0f954b61383fc0f6e6",
+          "match": true
+        },
+        "image_gate.py": {
+          "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "match": true
+        }
+      },
+      "verified": true
+    },
+    "images": {
+      "backend": "sha256:29bd710afb127c41ba9166d5cedb37a57c5991a16e0df0ecf70360ad8c208e7b",
+      "engineWorker": "sha256:521480b3e15ca8c5539aa6b66552171d55dd7a11e62476e4b8d1235611aa765b"
+    },
+    "model": "anthropic/claude-haiku-5.5",
+    "repeats": 1,
+    "gapSeconds": 0.0
+  },
+  "selection": {
+    "includeLive": true,
+    "costs": [],
+    "tasks": [
+      "m07-vision-api"
+    ],
+    "categories": []
+  },
+  "summary": {
+    "executed": 1,
+    "passed": 1,
+    "failed": 0,
+    "errors": 0,
+    "deferred": 38,
+    "corpus": 39,
+    "revisionVerified": true
+  },
+  "results": [
+    {
+      "id": "m07-vision-api",
+      "category": "visual_interaction",
+      "kind": "agent",
+      "cost": "live",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-11-05T12:33:21.626932+00:00",
+          "durationSec": 10.58,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": null,
+          "failedChecks": [],
+          "stdoutTail": "{\n \"date\": \"2026-11-05\",\n \"milestone\": \"M07 screenshot through the container\",\n \"runId\": \"m07vis-1793882001\",\n \"drive\": \"HTTP only\",\n \"paidSmokeOptIn\": true,\n \"expectedColour\": \"orange\",\n \"goalNamesAColour\": false,\n \"solidRgb\": [\n  232,\n  106,\n  12\n ],\n \"maxToolCalls\": 4,\n \"budgetSet\": true,\n \"artifactId\": \"9b00017f-470b-4315-b737-772ee77f07fc\",\n \"engine\": {\n  \"engine\": \"replayed\",\n  \"status\": \"completed\",\n  \"finalResponse\": \"orange\"\n },\n \"engineKeys\": [\n  \"engine\",\n  \"finalResponse\",\n  \"sessionId\",\n  \"source\",\n  \"status\"\n ],\n \"usage\": null,\n \"answer\": \"orange\",\n \"answerNamesTheColour\": true,\n \"statePath\": [\n  \"executing\",\n  \"awaiting_done_signal\"\n ],\n \"workersObserved\": [\n  {\n   \"name\": \"harness-7e4c80c975c142c7b39393f48c82706d-relay\",\n   \"role\": \"relay\",\n   \"user\": \"10001:10001\",\n   \"readonlyRootfs\": true,\n   \"capDrop\": [\n    \"ALL\"\n   ],\n   \"networks\": [\n    \"bridge\",\n    \"harness-7e4c80c975c142c7b39393f48c82706d-net\"\n   ],\n   \"mounts\": []\n  },\n  {\n   \"name\": \"harness-7e4c80c975c142c7b39393f48c82706d\",\n   \"role\": \"worker\",\n   \"user\": \"999:999\",\n   \"readonlyRootfs\": true,\n   \"capDrop\": [\n    \"ALL\"\n   ],\n   \"networks\": [\n    \"harness-7e4c80c975c142c7b39393f48c82706d-net\"\n   ],\n   \"mounts\": [\n    {\n     \"src\": \"/var/lib/docker/volumes/harness_runs/_data/workspace/m07vis-1793882001\",\n     \"dst\": \"/var/lib/harness-runs/workspace/m07vis-1793882001\",\n     \"readOnly\": false,\n     \"subpath\": null\n    },\n    {\n     \"src\": \"/var/lib/docker/volumes/harness_runs/_data/sessions/m07vis-1793882001\",\n     \"dst\": \"/var/lib/harness-runs/sessions/m07vis-1793882001\",\n     \"readOnly\": false,\n     \"subpath\": null\n    }\n   ]\n  }\n ],\n \"elapsedSeconds\": 10.49,\n \"steps\": [\n  {\n   \"step\": \"login\",\n   \"ok\": true\n  },\n  {\n   \"step\": \"create project\",\n   \"ok\": \"ed8ff528-979b-4a16-aacf-6a14a8414873\",\n   \"status\": 201\n  },\n  {\n   \"step\": \"propose plan\",\n   \"ok\": \"plan-533df212\",\n   \"status\": 201\n  },\n  {\n   \"step\": \"set tool budget\",\n   \"ok\": true,\n   \"status\": 200\n  },\n  {\n   \"step\": \"upload screenshot\",\n   \"ok\": \"9b00017f-470b-4315-b737-772ee77f07fc\",\n   \"status\": 201,\n   \"bytes\": 136\n  },\n  {\n   \"step\": \"approve plan\",\n   \"ok\": true,\n   \"status\": 200\n  },\n  {\n   \"step\": \"start\",\n   \"ok\": true,\n   \"status\": 200\n  },\n  {\n   \"step\": \"settled\",\n   \"ok\": true,\n   \"state\": \"awaiting_done_signal\"\n  }\n ],\n \"ok\": true\n}\n\nevidence: /Users/user/untitled folder 2/harness/docs/briefs/evidence/pilot-prep/m07-vision-api.json\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 10.58,
+      "budget": {
+        "timeoutSeconds": 420,
+        "maxToolCalls": 4,
+        "maxCostUsd": 0.05
+      },
+      "model": "qwen/qwen3.7-flash (OpenRouter, vision patch)",
+      "fixture": {
+        "repo": null,
+        "revision": null,
+        "seed": [
+          "solid-colour PNG"
+        ]
+      },
+      "expected": "exit 0 with the recorded model",
+      "driver": "scripts/e2e/m07_vision_api_drill.py",
+      "verifier": "artifact MIME/size checks; the model names the solid colour; two different fills produce two different answers"
+    }
+  ],
+  "deferred": [
+    {
+      "id": "stack-compose-journey",
+      "category": "stack_health",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-egress-deny",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "m03-scope",
+      "category": "confinement",
+      "status": "blocked",
+      "reason": "blocked 2026-10-28: local Ollama has only nomic-embed-text, no chat model. Prerequisite: pull a local chat model or point the drill at a compatible endpoint."
+    },
+    {
+      "id": "m04-streaming",
+      "category": "streaming",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent (nomic-embed-text only)"
+    },
+    {
+      "id": "m07-api-run",
+      "category": "bug_fix",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "m07-daemon-topology",
+      "category": "confinement",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "w3-rewind",
+      "category": "cancellation_recovery",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "w3-partial-write",
+      "category": "cancellation_recovery",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "w4-web-fetch",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-install",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-mcp-client",
+      "category": "mcp",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-credential-leak",
+      "category": "tenant_isolation",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-concurrency",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-crash-cleanup",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-apply-conflict",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-agent-quotas",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-quotas-isolation",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w9-share-deploy",
+      "category": "artifact_authz",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w10-browser-repro",
+      "category": "ui_screenshot",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w11-vision",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "cli-parity",
+      "category": "cli_parity",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "cli-diagnostics",
+      "category": "cli_parity",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "skills-governance",
+      "category": "skills",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "stale-edit",
+      "category": "stale_edit",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "code-search",
+      "category": "code_search",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "multi-file-refactor",
+      "category": "refactor",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "tests-written",
+      "category": "tests",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "tenant-isolation-api",
+      "category": "tenant_isolation",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "native-tool-confinement",
+      "category": "confinement",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "ast-lsp-confinement",
+      "category": "confinement",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "lsp-real-server",
+      "category": "confinement",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "code-search-heldout",
+      "category": "code_search",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w9-visuals",
+      "category": "artifact_authz",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w10-browser-session",
+      "category": "ui_screenshot",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w11-grounding",
+      "category": "ui_screenshot",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w12-skills-memory",
+      "category": "skills",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w13-byo-runner",
+      "category": "tenant_isolation",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w14-design-heldout",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    }
+  ],
+  "limitations": [
+    "n=1 unless --repeats was raised; a single pass is an existence proof, not a rate.",
+    "A task is deferred, blocked or fixture-owed is not a pass.",
+    "Revision verification compares runtime files inside the deployed containers/images with this worktree; a mismatch makes every result stale for HEAD."
+  ]
+}

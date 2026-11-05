@@ -1,0 +1,447 @@
+{
+  "date": "2026-11-04",
+  "week": "W10",
+  "claim": "a persistent browser drives bounded, audited actions inside the boundary; AX data and pixels agree; refused destinations and downloads stay out",
+  "drive": "one detached worker container (--network none, read-only, cap-drop ALL); the adapter speaks CDP over its own stdlib WebSocket client",
+  "runId": "w10sess-1793786650",
+  "steps": [
+    {
+      "action": "start",
+      "ok": true,
+      "width": 640,
+      "height": 400,
+      "proxy": false,
+      "envKeys": [
+        "HOME",
+        "LANG",
+        "PATH"
+      ],
+      "target": "D6DEC72003030BC9207B57D587CE121A"
+    },
+    {
+      "action": "navigate",
+      "ok": true,
+      "target": "file:///ws/w10_session.html",
+      "ms": 52.5,
+      "url": "file:///ws/w10_session.html",
+      "title": "W10 session fixture"
+    },
+    {
+      "action": "inspect",
+      "ok": true,
+      "target": "ax",
+      "ms": 10.4,
+      "url": "file:///ws/w10_session.html",
+      "ax": [
+        {
+          "role": "RootWebArea",
+          "name": "W10 session fixture",
+          "backendNodeId": 9
+        },
+        {
+          "role": "generic",
+          "name": "",
+          "backendNodeId": 16
+        },
+        {
+          "role": "heading",
+          "name": "Notification settings",
+          "backendNodeId": 17
+        },
+        {
+          "role": "image",
+          "name": "Weekly signups chart",
+          "backendNodeId": 18
+        },
+        {
+          "role": "button",
+          "name": "Notifications off",
+          "backendNodeId": 19
+        },
+        {
+          "role": "LabelText",
+          "name": "",
+          "backendNodeId": 20
+        },
+        {
+          "role": "textbox",
+          "name": "Your name",
+          "backendNodeId": 21
+        },
+        {
+          "role": "generic",
+          "name": "",
+          "backendNodeId": 23
+        },
+        {
+          "role": "generic",
+          "name": "",
+          "backendNodeId": 24
+        },
+        {
+          "role": "link",
+          "name": "Download report",
+          "backendNodeId": 25
+        },
+        {
+          "role": "StaticText",
+          "name": "Notification settings",
+          "backendNodeId": 3
+        },
+        {
+          "role": "StaticText",
+          "name": "Weekly signups",
+          "backendNodeId": 28
+        },
+        {
+          "role": "StaticText",
+          "name": "Notifications off",
+          "backendNodeId": 4
+        },
+        {
+          "role": "StaticText",
+          "name": "Your name",
+          "backendNodeId": 5
+        },
+        {
+          "role": "generic",
+          "name": "",
+          "backendNodeId": 22
+        },
+        {
+          "role": "StaticText",
+          "name": "Hello,",
+          "backendNodeId": 6
+        },
+        {
+          "role": "StaticText",
+          "name": "CLIP: DENIED:NotAllowedError",
+          "backendNodeId": 7
+        },
+        {
+          "role": "StaticText",
+          "name": "Download report",
+          "backendNodeId": 8
+        },
+        {
+          "role": "InlineTextBox",
+          "name": "Notification settings",
+          "backendNodeId": null
+        },
+        {
+          "role": "InlineTextBox",
+          "name": "Notifications off",
+          "backendNodeId": null
+        },
+        {
+          "role": "InlineTextBox",
+          "name": "Your name",
+          "backendNodeId": null
+        },
+        {
+          "role": "InlineTextBox",
+          "name": "Hello,",
+          "backendNodeId": null
+        },
+        {
+          "role": "InlineTextBox",
+          "name": "CLIP: DENIED:NotAllowedError",
+          "backendNodeId": null
+        },
+        {
+          "role": "InlineTextBox",
+          "name": "Download report",
+          "backendNodeId": null
+        }
+      ],
+      "text": "Notification settings\nNotifications off\nYour name\nHello,\nCLIP: DENIED:NotAllowedError\nDownload report"
+    },
+    {
+      "action": "screenshot",
+      "ok": true,
+      "target": "shots/before.png",
+      "ms": 59.0,
+      "path": "shots/before.png",
+      "bytes": 12432,
+      "width": 640,
+      "height": 400
+    },
+    {
+      "action": "clickAx",
+      "ok": true,
+      "target": "button:Notifications off",
+      "ms": 12.1,
+      "x": 117,
+      "y": 317,
+      "backendNodeId": 19,
+      "ariaPressed": "true",
+      "stillThere": false
+    },
+    {
+      "action": "screenshot",
+      "ok": true,
+      "target": "shots/after.png",
+      "ms": 68.3,
+      "path": "shots/after.png",
+      "bytes": 12377,
+      "width": 640,
+      "height": 400
+    },
+    {
+      "action": "type",
+      "ok": true,
+      "target": "#name",
+      "ms": 5.7,
+      "typed": 8,
+      "value": "Mubashar"
+    },
+    {
+      "action": "scroll",
+      "ok": true,
+      "target": "600",
+      "ms": 108.2,
+      "deltaY": 600,
+      "scrollY": 600
+    },
+    {
+      "action": "clipboard",
+      "ok": true,
+      "target": "readText",
+      "ms": 2.7,
+      "outcome": "DENIED:NotAllowedError",
+      "permission": "prompt"
+    },
+    {
+      "action": "requests",
+      "ok": true,
+      "target": "network",
+      "ms": 0.0,
+      "urls": [
+        "file:///ws/w10_session.html"
+      ],
+      "downloads": []
+    },
+    {
+      "action": "navigate",
+      "ok": false,
+      "denied": "file url 'file:///etc/passwd' is outside the workspace",
+      "ms": 0.1
+    },
+    {
+      "action": "navigate",
+      "ok": false,
+      "denied": "remote pages need the egress proxy (none configured for this run)",
+      "ms": 0.4
+    },
+    {
+      "action": "navigate",
+      "ok": false,
+      "denied": "only https:// and file:// are reachable (got 'http')",
+      "ms": 0.0
+    },
+    {
+      "action": "navigate",
+      "ok": false,
+      "denied": "redirect reached 'file:///etc/hostname': file url 'file:///etc/hostname' is outside the workspace (quarantined; fetched: ['file:///ws/w10_session.html', 'file:///ws/redirect.html', 'file:///etc/hostname'])",
+      "ms": 43.9
+    },
+    {
+      "action": "inspect",
+      "ok": true,
+      "target": "ax",
+      "ms": 1.9,
+      "url": "about:blank",
+      "ax": [
+        {
+          "role": "RootWebArea",
+          "name": "",
+          "backendNodeId": 39
+        }
+      ],
+      "text": ""
+    },
+    {
+      "action": "screenshot",
+      "ok": false,
+      "denied": "path '../escape.png' escapes the workspace",
+      "ms": 0.2
+    },
+    {
+      "action": "navigate",
+      "ok": true,
+      "target": "file:///ws/w10_session.html",
+      "ms": 15.2,
+      "url": "file:///ws/w10_session.html",
+      "title": "W10 session fixture"
+    },
+    {
+      "action": "clickAx",
+      "ok": true,
+      "target": "link:Download report",
+      "ms": 21.5,
+      "x": 98,
+      "y": 393,
+      "backendNodeId": 65,
+      "ariaPressed": "false",
+      "stillThere": true
+    },
+    {
+      "action": "wait",
+      "ok": true,
+      "target": "800",
+      "ms": 801.1,
+      "requestedMs": 800
+    },
+    {
+      "action": "requests",
+      "ok": true,
+      "target": "network",
+      "ms": 0.1,
+      "urls": [
+        "file:///ws/w10_session.html",
+        "file:///ws/redirect.html",
+        "file:///etc/hostname"
+      ],
+      "downloads": [
+        {
+          "event": "Browser.downloadWillBegin",
+          "file": "w10-report.txt",
+          "state": null
+        },
+        {
+          "event": "Browser.downloadProgress",
+          "file": null,
+          "state": "inProgress"
+        },
+        {
+          "event": "Browser.downloadProgress",
+          "file": null,
+          "state": "canceled"
+        }
+      ]
+    },
+    {
+      "action": "cleanup",
+      "ok": true,
+      "closed": true,
+      "profileRemoved": true
+    }
+  ],
+  "stderr": "",
+  "axVsPixels": {
+    "axRole": "button",
+    "axName": "Notifications off",
+    "clickedAt": [
+      117,
+      317
+    ],
+    "backendNodeId": 19,
+    "ariaPressedAfter": "true",
+    "beforePixel": [
+      179,
+      38,
+      30
+    ],
+    "afterPixel": [
+      26,
+      127,
+      55
+    ]
+  },
+  "clipboard": {
+    "outcome": "DENIED:NotAllowedError",
+    "permission": "prompt"
+  },
+  "denials": [
+    "file url 'file:///etc/passwd' is outside the workspace",
+    "remote pages need the egress proxy (none configured for this run)",
+    "only https:// and file:// are reachable (got 'http')",
+    "redirect reached 'file:///etc/hostname': file url 'file:///etc/hostname' is outside the workspace (quarantined; fetched: ['file:///ws/w10_session.html', 'file:///ws/redirect.html', 'file:///etc/hostname'])",
+    "path '../escape.png' escapes the workspace"
+  ],
+  "quarantine": {
+    "url": "about:blank",
+    "text": ""
+  },
+  "downloads": [
+    {
+      "event": "Browser.downloadWillBegin",
+      "file": "w10-report.txt",
+      "state": null
+    },
+    {
+      "event": "Browser.downloadProgress",
+      "file": null,
+      "state": "inProgress"
+    },
+    {
+      "event": "Browser.downloadProgress",
+      "file": null,
+      "state": "canceled"
+    }
+  ],
+  "visualPair": {
+    "before": {
+      "status": 201,
+      "id": "b4ce002d-acd8-4b1c-8ad4-36796691d644",
+      "provenance": {
+        "runHeadSha": "cccccccccccccccccccccccccccccccccccccccc",
+        "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "repo": "",
+        "planVersion": 1,
+        "changesDigest": "aca4b8612e8de088d560503f17aa87039e78d07076a63c74fed1faf5cd746d71",
+        "stale": false,
+        "recordedAt": "2026-11-04T10:04:16.397295+00:00"
+      }
+    },
+    "after": {
+      "status": 201,
+      "id": "eaaf05ba-b43a-4500-a297-76f445b15a5e",
+      "pairId": "b4ce002d-acd8-4b1c-8ad4-36796691d644",
+      "provenance": {
+        "runHeadSha": "cccccccccccccccccccccccccccccccccccccccc",
+        "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "repo": "",
+        "planVersion": 1,
+        "changesDigest": "aca4b8612e8de088d560503f17aa87039e78d07076a63c74fed1faf5cd746d71",
+        "stale": false,
+        "recordedAt": "2026-11-04T10:04:16.411997+00:00"
+      }
+    },
+    "pairs": 1,
+    "runHeadSha": "cccccccccccccccccccccccccccccccccccccccc",
+    "changesDigest": "aca4b8612e8de088d560503f17aa87039e78d07076a63c74fed1faf5cd746d71",
+    "planVersion": 1,
+    "screenshotSha256": "38bce2f8423bd555d9d73b28e4b62d163647d671834fc0e0ab73a96f27bbb8ad"
+  },
+  "checks": {
+    "sessionStarted": true,
+    "browserEnvScrubbed": true,
+    "navigated": true,
+    "accessibilityTreeNamesControls": true,
+    "pageTextCaptured": true,
+    "clickUsedTheBoxCentre": true,
+    "clickEffectVisibleInAr": true,
+    "pixelsProveTheSameChange": true,
+    "screenshotsBounded": true,
+    "typedIntoTheFocusedField": true,
+    "scrolled": true,
+    "clipboardDenied": true,
+    "onlyTheWorkspaceWasRequested": true,
+    "fileOutsideRefused": true,
+    "httpsWithoutProxyRefused": true,
+    "httpSchemeRefused": true,
+    "redirectRefused": true,
+    "screenshotEscapeRefused": true,
+    "redirectQuarantinedToBlank": true,
+    "downloadCanceled": true,
+    "noDownloadFileWritten": true,
+    "profileRemoved": true,
+    "chromiumGone": true,
+    "everyStepHasAResult": true,
+    "everyStepAudited": true,
+    "visualPairAttached": true,
+    "pairCarriesTheReviewedRevision": true
+  },
+  "verdict": "PASS"
+}
