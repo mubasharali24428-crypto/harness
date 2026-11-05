@@ -137,6 +137,13 @@ piece; its remote-host evidence is a roadmap exit criterion that this review doe
 5. **Strengths to keep stating only with evidence:** per-child plan approval, bound child scope,
    cascading cancel, read-only synthesis. These are drilled in `docs/briefs/evidence/w28/`.
 
+## Update after the review (2026-11-05)
+
+Items 1 to 3 above now exist in the harness as a first slice (see `STATUS.md`, W27 slice 2): a
+denial circuit breaker with Codex's thresholds, a timeout marked apart from a denial, and a
+`scopeRequest` object. Gaps that remain: it stops tool calls rather than ending the run, no UI
+reads the scope request, and it is not deployed.
+
 ## Limits of this review
 
 * No page dates; versions appear only as feature requirements (for example Claude Code

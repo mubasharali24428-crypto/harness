@@ -52,6 +52,8 @@ def deny(reason: str, code: str, alternative: str, request_scope: str | None = N
     out = {"denied": reason, "code": code, "alternative": alternative}
     if request_scope:
         out["requestScope"] = request_scope
+        # a first-class request the relay can surface: one path, nothing granted by asking
+        out["scopeRequest"] = {"path": request_scope, "grants": False}
     return out
 
 
@@ -171,7 +173,8 @@ def run(req: dict) -> dict:
         except subprocess.TimeoutExpired:
             os.killpg(proc.pid, signal.SIGKILL)
             out, _ = proc.communicate()
-            return {"exitCode": None, "output": out[-MAX_OUTPUT_CHARS:] + "\n[timed out]"}
+            return {"exitCode": None, "timedOut": True,
+                    "output": out[-MAX_OUTPUT_CHARS:] + "\n[timed out]"}
     return {"exitCode": proc.returncode, "output": out[-MAX_OUTPUT_CHARS:]}
 
 
