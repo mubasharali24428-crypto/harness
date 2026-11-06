@@ -1,0 +1,47 @@
+{
+  "date": "2026-11-05",
+  "milestone": "M01 (native edit, separate from M03's native write)",
+  "model": "none - direct call to tool-fs edit path, no LLM, no provider",
+  "spend": "0",
+  "engineImage": "harness-engine-worker:vw27s2",
+  "scopePaths": [
+    "src"
+  ],
+  "mounts": [
+    "type=bind,src=/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/m01-native-edit-91579/workspace,dst=/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/m01-native-edit-91579/workspace,readonly=true",
+    "type=bind,src=/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/m01-native-edit-91579/sessions,dst=/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/m01-native-edit-91579/sessions,readonly=false",
+    "type=bind,src=/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/m01-native-edit-91579/workspace/src,dst=/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/m01-native-edit-91579/workspace/src,readonly=false"
+  ],
+  "editCodePath": [
+    "@deepseek-ai/dsh-tool-fs/lib/index.js: applyEditTool -> ctx.fs.resolve/editText",
+    "@deepseek-ai/dsh-fs-local/lib/index.js: LocalFileSystem.editText -> writeFileAtomic"
+  ],
+  "vfsFilesExtracted": 10232,
+  "dockerReturnCode": 0,
+  "seconds": 0.68,
+  "inside": {
+    "path": "src/x.txt",
+    "ok": true,
+    "contentAfter": "after",
+    "detail": {
+      "ok": true,
+      "errno": null,
+      "message": null
+    }
+  },
+  "outside": {
+    "path": "docs/y.txt",
+    "refusedByOS": true,
+    "contentAfter": "before",
+    "detail": {
+      "ok": false,
+      "errno": "EROFS",
+      "message": "EROFS: read-only file system, mkdir '/var/folders/6s/6cr386jx5nz7y95nkjxy8t300000gn/T/m01-native-edit-91579/workspace/docs/.y.txt.1.3d5ab212-0faf-4b55-a916-5c6060868f6f.tmpdir'"
+    }
+  },
+  "outsideScopeUnchanged": true,
+  "filesHashedOutsideSrc": 2,
+  "containerRemoved": true,
+  "ok": true,
+  "verdict": "PASS"
+}
