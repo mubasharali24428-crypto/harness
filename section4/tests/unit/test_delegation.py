@@ -381,3 +381,15 @@ def test_overlaps_dot_slash_is_the_same_directory():
 ])
 def test_overlaps_noise_and_non_noise_edges(a, b, expected):
     assert delegation._overlaps(a, b) == expected
+
+
+# D1 step 2: _overlaps returns paths from EITHER side that fall under a path of
+# the other side. A .-style scope is the whole workspace, so a src path is
+# covered by it and must appear in the union.
+@pytest.mark.parametrize(("a", "b", "expected"), [
+    pytest.param(["."], ["src"], ["src"], id="dot-ceiling-vs-src"),
+    pytest.param(["src"], ["."], ["src"], id="src-vs-dot-ceiling"),
+    pytest.param(["./"], ["src/x"], ["src/x"], id="dot-slash-ceiling-vs-nested"),
+])
+def test_overlaps_workspace_root_scope(a, b, expected):
+    assert delegation._overlaps(a, b) == expected

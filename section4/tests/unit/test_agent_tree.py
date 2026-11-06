@@ -559,3 +559,69 @@ def _old_covered(path: str, prefixes: list[str]) -> bool:
 ])
 def test_covered_diff_from_batch_2_is_empty_outside_noise(path, prefixes):
     assert agent_tree._covered(path, prefixes) is _old_covered(path, prefixes)
+
+
+# ------------------------------------------------------------------- D1 step 1
+# The "batch 2 answer is never taken away" early return is the only thing that
+# keeps these pairs True. The reviewer's mutation B (delete that branch) left
+# 117 tests passing, so pin the branch before changing _covered again.
+@pytest.mark.parametrize(("path", "prefix"), [
+    pytest.param("./src", ".", id="dot-path-under-dot"),
+    pytest.param("./src", "./", id="dot-path-under-dot-slash"),
+    pytest.param("./src/", ".", id="dot-path-trailing-under-dot"),
+    pytest.param("./src/", "./", id="dot-path-trailing-under-dot-slash"),
+    pytest.param("./src/x", ".", id="nested-dot-path-under-dot"),
+    pytest.param("./src/x", "./", id="nested-dot-path-under-dot-slash"),
+    pytest.param("./x", ".", id="other-dot-path-under-dot"),
+    pytest.param("./x", "./", id="other-dot-path-under-dot-slash"),
+    # Wider spellings found by the old=True / noise-only=False search.
+    pytest.param("./src", ".//", id="doubled-slash-prefix"),
+    pytest.param("./src", ".///", id="tripled-slash-prefix"),
+    pytest.param("./x/y", "./", id="two-deep-dot-path"),
+    pytest.param("./docs", ".", id="sibling-dot-path"),
+    pytest.param("./src2/x", "./", id="lookalike-dot-path"),
+    pytest.param("././src", "./.", id="repeated-dot-prefix"),
+    pytest.param("./a//b", ".//", id="doubled-slash-in-dot-path"),
+    pytest.param("./x/", ".//", id="trailing-slash-in-dot-path"),
+])
+def test_covered_never_lose_batch_2_answer(path, prefix):
+    assert agent_tree._covered(path, [prefix]) is True
+
+
+# ------------------------------------------------------------------- D1 step 2
+# A .-style prefix is the whole workspace (shell_gate.scope_roots returns None
+# for it). Expected values below come from that meaning, NOT from today's output:
+# a non-empty relative path without a .. component is inside the workspace;
+# an empty string, an absolute path and any .. component are outside it.
+_D1_DOT_PREFIXES = (".", "./", ".//", "./.")
+_D1_DOT_PATH_EXPECTED = (
+    ("src", True), ("./src", True), ("src/x", True), ("docs", True),
+    ("src2", True), (".", True), ("./", True), ("", False),
+    ("/etc/passwd", False), ("..", False), ("src/..", False), ("../src", False),
+)
+def _d1_dot_params():
+    rows = [pytest.param(p, q, expected, id=f"{p!r}-under-{q!r}")
+            for q in _D1_DOT_PREFIXES for p, expected in _D1_DOT_PATH_EXPECTED]
+    # A whole-workspace child is broader than a src parent, so it stays False.
+    rows.append(pytest.param(".", "src", False, id="workspace-root-path-under-src"))
+    return rows
+
+
+@pytest.mark.parametrize(("path", "prefix", "expected"), _d1_dot_params())
+def test_covered_dot_style_scopes(path, prefix, expected):
+    assert agent_tree._covered(path, [prefix]) is expected
+
+
+def _d1_scope(paths):
+    return {"permissions": [], "tools": [], "network": [], "credentialRefs": [],
+            "paths": list(paths)}
+
+
+@pytest.mark.parametrize(("child_paths", "ceiling_paths", "expected"), [
+    pytest.param(["src"], ["."], [], id="src-child-under-dot-ceiling"),
+    pytest.param(["src"], ["./"], [], id="src-child-under-dot-slash-ceiling"),
+    pytest.param(["src"], ["src"], [], id="identical-scopes-stay-within"),
+    pytest.param(["docs"], ["src"], ["paths"], id="disjoint-child-still-exceeds"),
+])
+def test_exceeds_with_workspace_root_ceiling(child_paths, ceiling_paths, expected):
+    assert agent_tree._exceeds(_d1_scope(child_paths), _d1_scope(ceiling_paths)) == expected

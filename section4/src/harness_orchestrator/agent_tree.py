@@ -215,10 +215,14 @@ def _covered(path: str, prefixes: list[str]) -> bool:
         return ("/" if absolute else "") + cleaned
 
     path_key = noise(path)
+    in_workspace = (bool(path_key) and not path_key.startswith("/")
+                    and ".." not in path_key.split("/"))
     for q in prefixes:
         if path == q or path.startswith(q.rstrip("/") + "/"):
             return True  # the batch 2 answer is never taken away
         prefix_key = noise(q)
+        if prefix_key == "." and in_workspace:
+            return True  # a . scope is the whole workspace (scope_roots -> None)
         if path_key == prefix_key or path_key.startswith(prefix_key.rstrip("/") + "/"):
             return True
     return False
