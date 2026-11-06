@@ -1,6 +1,6 @@
 # Harness Multiplayer AI: project state and resume guide
 
-Updated 2026-11-05 (section 2 now tracks Roadmap 3.0; the rest is the path-to-9 record from 2026-10-21). Read this first in a new session, then
+Updated 2026-11-06 (reconciled against git, GitHub and `docker ps`; section 2 tracks Roadmap 3.0; the rest is the path-to-9 record from 2026-10-21, so the matrix counts in §3 are stale). Read this first in a new session, then
 `docs/briefs/path-to-9-plan.md`, `docs/briefs/capability-matrix.md` and `docs/briefs/path-to-9-checkpoint.md`. The repository is the
 source of truth: re-verify any number before relying on it. Nothing here claims readiness for real users (see "Not cleared").
 Per-session results, the old verification records and the local Session 11 detail (§3g) are in `docs/briefs/evidence/s11/state-history.md`.
@@ -13,7 +13,7 @@ The programme brings every part to 9/10: each directive implemented or explicitl
 `docs/briefs/evidence/`, docs that match behaviour including limits, and a `verified` matrix row. Parts that need an outside party stay
 capped at 8: 03, 37, 52, 53, 58, 61. Part 57's cap was removed because Stripe is out of scope (owner direction, 2026-10-19).
 
-Layout: section1 identity, auth, audit, event bus, orgs, policy, workspaces, integrations (migrations 0001 to 0060) · section3, 6, 8, 10
+Layout: section1 identity, auth, audit, event bus, orgs, policy, workspaces, integrations (migrations 0001 to 0075) · section3, 6, 8, 10
 auxiliary · section4 orchestrator · section5 sandbox · section7 Next.js UI and Playwright · `packages/` (A5 extensions, ops, telemetry) ·
 `integrations/connectors/` · `deploy/` compose stack, runners, observability, `deploy/pilot` smoke stack · `docs/` · `scripts/` · `clients/`.
 
@@ -23,8 +23,14 @@ The live plan is `docs/roadmap-3.0.md` (stages 0 to 10); the path-to-9 sessions 
 Done: 0 stabilize (PR #7), 1 trust and recovery (code side), 2 reliability W17 (code side), 3 daily loop W23/W24/W7, 7 W30 audit
 (`docs/decisions/2026-11-05-w30-candidate-audit.md`), 8 W31 Scheduler pilot (`docs/decisions/2026-11-04-w31-scheduler.md`).
 Partial: 4 benchmark (W25/W26 run 2026-11-05: 5 sequential runs per task on each of two models, 3 concurrent; Haiku is the stack default; the three formerly local-model tasks now pass on Haiku; the other-harness comparison is open), 6 delegation (W28 S1a delegate verb behind `HARNESS_SUBAGENTS`; S1b-1
-child runs with own approval and cancel cascade built and live-drilled; synthesis S1b-2 built (read-only, not deployed); W13 exec leg built), 9 W32 (seam analysis only, gated on W28).
+child runs with own approval and cancel cascade built and live-drilled; synthesis S1b-2 built (read-only; deployed as vw28s4 with live drills 12/12 and 9/9 per commits `41fc733`, `eb53563`); W13 exec leg built), 9 W32 (seam analysis only, gated on W28).
 Partial: 5 governance W27 (slice 1: gate denials carry reason, alternative and the scope to request, drilled on Haiku and deployed; slice 2: denial circuit breaker, timeout marked apart from denial, `scopeRequest` object, tested without a model, deployed on vw27s2; slice 3: the orchestrator ends a run on repeated denials, the scope request rides the tool-result event, and the run read returns `estimatedCostUsd`, deployed on vw27s3 and proved live for the stop). All 23 live eval tasks pass at n=1 on 2026-11-05. W29 capability review first pass written (`docs/capability-review-2026-11-05.md`, summary-derived facts tagged). W33 readiness pack prepared for an independent reviewer (`docs/reviews/w33-readiness-pack-2026-11-05.md`), not reviewed; candidate measurement not done. Verdict unchanged: NOT READY. Newer detail is in `STATUS.md`.
+
+2026-11-06 reconciliation (see the `STATUS.md` entry of that date): the work above sat as 41 local-only commits on `w28-s1-delegate` until this PR.
+The live stack runs mixed image tags (orchestrator `vw27s3`, worker-daemon `vw27s2`, other backends `vw28s6`, frontend `vw24b2`), so the
+frontend lacks the synthesis panel and scope-request editor; redeploy one tag set and run `scripts/ops/stack_tags.py` before any claim about the running system.
+hy4 batches 1 to 4 are committed (`57b466e` to `7cdd365`). Open from them: four strict-xfail shell-gate bypasses (not fixed), and two owner rulings
+(delegating to paths that do not exist yet; what `0` means for the denial knobs). Part 52 below is therefore not closed at argument level.
 
 ## 3. Where the matrix stands
 
@@ -83,7 +89,7 @@ Not a gap: a paused workspace only blocks new starts, by design (`workspace_gate
 - `run_smoke.py` needs about 2 minutes between runs (port 8101 TIME_WAIT) and overwrites `docs/briefs/evidence/p1/*`.
 - FastAPI 0.141 nests included routers: walk `app.openapi()["paths"]`, not `app.routes`.
 - Dev SQLite has no `teams.org_id` (migration 0038 adds it on PostgreSQL); `require_team_stepup` tolerates that.
-- Migrations are 59 files numbered 0001 to 0060 (there is no 0014); `deploy/runners/migrate_selftest.py` checks disk against the ledger.
+- Migrations are 73 files numbered 0001 to 0075 (there is no 0014 and no 0074); `deploy/runners/migrate_selftest.py` checks disk against the ledger.
 - Owner's machine is macOS zsh (no `timeout`, BSD `sed -i ''`, repo path has a space, `--include=*.py` does not expand). The cloud
   box is Linux, root, no Docker daemon.
 - `AGENTS.md` may carry an auto-injected `<claude-mem-context>` block from a memory plugin: never commit it.
@@ -105,7 +111,7 @@ cd "/Users/user/untitled folder 2/harness"
 git fetch origin && git log --oneline -8 && git status --short | head -40
 cd section1 && .venv/bin/python -m pytest tests -q        # add the live-PG env from §5 for PostgreSQL
 cd ../section4 && .venv/bin/python -m pytest tests -q
-# Docker up: make pg-probe-s1 && make pg-probe-migrate      (expect 59 migrations, 0001 to 0060)
+# Docker up: make pg-probe-s1 && make pg-probe-migrate      (expect 73 migrations, 0001 to 0075)
 ```
 
 Per-part work: read the matrix row, audit directive by directive, add the missing invariant test, write

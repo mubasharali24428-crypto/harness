@@ -85,6 +85,21 @@ it recorded but cannot undo one; a module is only as trustworthy as the resolver
 host hands it; Section 4 still cannot pin a multi-file program until `WorkflowRequest`
 carries a program digest; and the track adds no approval surface of its own.
 
+## 2026-11-06 — Reconciliation: what was local-only, what is deployed, what is open
+
+Written from git, `gh pr list` and `docker ps`; no test suite was run for this entry. It supersedes the entry below where they differ (that entry is kept as the record of its day).
+
+* **Pushed state.** Until this PR, `w28-s1-delegate` held 41 commits (290 files) that existed only locally: W25/W26 benchmark runs, W27 slices 1 to 3 with their deploys, W28 S1b-1 and S1b-2, the W13 runner (43/43) and exec (16/16) drills, the W29 capability review, the W33 readiness pack, and hy4 batches 1 to 4. `origin/master` was 5 commits ahead (PR #22 and #23 merges), merged into the branch here.
+* **Stage 5 (W27) has started.** The entry below says W27 and W33 "have not started"; that is out of date. W27 slices 1 to 3 are committed and deployed, and the W33 pack plus a same-task comparison with opencode are written (`4fd8b3a`); neither is independently reviewed.
+* **Migrations:** 73 files on disk, 0001 to 0075 (no 0014, no 0074).
+* **Live stack (observed with `docker ps` on 2026-11-06):** orchestrator `vw27s3`, worker-daemon `vw27s2`, the other backend services `vw28s6`, frontend `vw24b2`. The source commit behind `vw28s6` is not recorded here. The frontend does not include the synthesis panel or scope-request editor, and the orchestrator image predates `57b466e` (repeated-denial stop in the loop guard), so the running system is behind the branch. Redeploy one tag set (`docs/runbooks/redeploy-worker-and-orchestrator.md`) and run `scripts/ops/stack_tags.py` to check drift.
+* **hy4 (cheap-model agent) batches 1 to 4** are committed in `57b466e`, `4d1cfbe`, `e59f7ab`, `bcf79d7`, `0c57564`, `7cdd365`. The hy4 hand-backs that say "uncommitted" were true when written. Their draft text reports the reviewer re-ran `make frontend` and `npm run build` with rc=0. Still open: four strict-xfail shell-gate bypasses documented in `docs/briefs/hy4-b3-handback-C2.md` (for example `cat --file=docs/y.txt` is allowed outside scope), not fixed; and two owner rulings (delegating to paths that do not exist yet, in `docs/decisions/2026-11-05-delegated-scope-existing-paths.md`; what `0` means for the denial knobs). A batch 4 prompt exists (`hy4-master-prompt-batch4-2026-11-06.md`) with no hand-back yet.
+* **Not merged, not checked for supersession:** Oct 17 Codex branches (`codex/harness-a5-deploy-fixes` 26 patch-unique commits, `codex/harness-a5` 3, `integration/local` 25, `codex/harness-a1` 6, `codex/harness-a3` 6) and `provider-registry` (PR #6 closed). PR #7 may have replaced them; a person must decide merge, port or delete. Seven Cline worktrees and `s12/*`, `h1-tool-diagnostics`, `w1-day0-egress` carry nothing unique.
+* **Untracked:** `docs/yc/` (application and video plans), eval baseline JSON in the `harness-baseline` worktree, and `docs/briefs/evidence/s12/` in the `harness-s12` worktree (not compared with the tracked copy).
+* The matrix counts in `PROJECT-STATE.md` §3 (50 verified) date from 2026-10-21 and were not refreshed.
+
+Verdict unchanged: **NOT READY**.
+
 ## 2026-11-05 — Roadmap 3.0 position after PRs #18–#21 and W28 S1a
 
 Merged since PR #12: W31 Scheduler experiment (`1dd3ebc`, decision `docs/decisions/2026-11-04-w31-scheduler.md`, ACCEPTED for pilot scope only: proposals behind approval, no dispatch), W32 seam analysis (`832c5d6`), W30 candidate audit (`b822923`, `docs/decisions/2026-11-05-w30-candidate-audit.md`, no candidate adopted for production). Stages 0–3, 7 and 8 are done on the evidence in those records; stage 4 (W25 protocol and corpus exist, live set not run, no model spend yet), 6 (W28 S1a: `delegate` verb behind `HARNESS_SUBAGENTS`, inert by default; two-agent/one-cancelled/no-live-orphan test at `9d7d67c`) and 9 (seam analysis only) are partial; stage 5 (W27) and 10 (W33) have not started. W28 S1b (isolated root, claim path, synthesis) is not built; an uncommitted draft in `agent_tree.py` plus migration 0075 is deliberately left uncommitted (guessed column lists, swallowed `OperationalError`, hard-coded `/workspace`). Verdict unchanged: **NOT READY**.
