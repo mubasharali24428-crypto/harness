@@ -29,7 +29,7 @@ Partial: 5 governance W27 (slice 1: gate denials carry reason, alternative and t
 2026-11-06 reconciliation (see the `STATUS.md` entry of that date): the work above sat as 41 local-only commits on `w28-s1-delegate` until this PR.
 The live stack runs mixed image tags (orchestrator `vw27s3`, worker-daemon `vw27s2`, other backends `vw28s6`, frontend `vw24b2`), so the
 frontend lacks the synthesis panel and scope-request editor; redeploy one tag set and run `scripts/ops/stack_tags.py` before any claim about the running system.
-hy4 batches 1 to 4 are committed (`57b466e` to `7cdd365`). Open from them: four strict-xfail shell-gate bypasses (not fixed), and two owner rulings
+hy4 batches 1 to 4 are committed (`57b466e` to `7cdd365`). Open from them: security items kept in the private hand-backs (not summarised here), and two owner rulings
 (delegating to paths that do not exist yet; what `0` means for the denial knobs). Part 52 below is therefore not closed at argument level.
 
 ## 3. Where the matrix stands
