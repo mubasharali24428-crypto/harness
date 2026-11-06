@@ -202,7 +202,26 @@ def _norm_scope(b: ScopeBody) -> dict[str, list[str]]:
 
 
 def _covered(path: str, prefixes: list[str]) -> bool:
-    return any(path == q or path.startswith(q.rstrip("/") + "/") for q in prefixes)
+    def noise(value: str) -> str:
+        # Only cosmetic slash noise is equivalent: a leading ./, a trailing /
+        # and doubled /. Keep a leading /, .., internal . and symlinks
+        # significant; a bare ./ keeps its single . part so it cannot turn into
+        # the empty prefix (which the old comparison reads as absolute).
+        absolute = value.startswith("/")
+        parts = [p for p in value.split("/") if p]
+        while parts and parts[0] == "." and len(parts) > 1:
+            parts.pop(0)
+        cleaned = "/".join(parts)
+        return ("/" if absolute else "") + cleaned
+
+    path_key = noise(path)
+    for q in prefixes:
+        if path == q or path.startswith(q.rstrip("/") + "/"):
+            return True  # the batch 2 answer is never taken away
+        prefix_key = noise(q)
+        if path_key == prefix_key or path_key.startswith(prefix_key.rstrip("/") + "/"):
+            return True
+    return False
 
 
 def _exceeds(scope: dict[str, list[str]], ceil: dict[str, list[str]]) -> list[str]:

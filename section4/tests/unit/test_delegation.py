@@ -342,3 +342,42 @@ def test_scope_without_paths_is_refused_because_it_would_be_unconfined(env):
         "agentId": agent, "title": "x", "scope": scope, "requestId": "s2-9"})
     err(r, 422, "SCOPE_UNBINDABLE")
     assert rows(env.f, "SELECT count(*) as c FROM agent_assignments")[0]["c"] == 0
+
+
+# ------------------------------------------------------------------- A3 characterisation
+# _overlaps (delegation.py:166) feeds /synthesis' conflicts. Pin its edges so the first
+# change to _covered (agent_tree.py:204) that breaks a sibling-scope check is loud.
+# Test-only: no production function is changed here.
+
+
+@pytest.mark.parametrize(("a", "b", "expected"), [
+    pytest.param(["src"], ["src/a.py"], ["src/a.py"], id="parent-and-child-file"),
+    pytest.param(["src"], ["src2"], [], id="string-prefix-is-not-a-path-parent"),
+    pytest.param(["src/"], ["src"], ["src", "src/"], id="trailing-slash"),
+    pytest.param(["src/a"], ["src/b"], [], id="disjoint-siblings"),
+    pytest.param(["src"], ["src"], ["src"], id="identical"),
+    pytest.param([], [], [], id="both-empty"),
+    pytest.param(["src"], [], [], id="one-empty"),
+    pytest.param(["src", "src"], ["src"], ["src"], id="duplicates"),
+    pytest.param(["src"], ["src/a/b/c.txt"], ["src/a/b/c.txt"], id="nested-three-deep"),
+    pytest.param(["src with space"], ["src with space/file.txt"],
+                 ["src with space/file.txt"], id="path-with-a-space"),
+])
+def test_overlaps_characterisation(a, b, expected):
+    assert delegation._overlaps(a, b) == expected
+
+
+def test_overlaps_dot_slash_is_the_same_directory():
+    assert delegation._overlaps(["./src"], ["src"]) != []
+
+
+@pytest.mark.parametrize(("a", "b", "expected"), [
+    pytest.param(["src//"], ["src"], ["src", "src//"], id="doubled-slash"),
+    pytest.param(["src2"], ["src"], [], id="prefix-lookalike-is-not-an-overlap"),
+    pytest.param(["/src"], ["src"], [], id="absolute-does-not-overlap-relative"),
+    pytest.param(["../src"], ["src"], [], id="dotdot-is-not-normalised"),
+    pytest.param([], ["src"], [], id="empty-side"),
+    pytest.param([""], ["src"], [], id="empty-string-side"),
+])
+def test_overlaps_noise_and_non_noise_edges(a, b, expected):
+    assert delegation._overlaps(a, b) == expected

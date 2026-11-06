@@ -477,3 +477,85 @@ def test_finish_requires_no_live_children_and_rolls_up(env):
     assert r.json()["assignmentState"] == "failed"
     pool = env.as_("eng").get(f"{P}/r1/agents").json()["pool"]
     assert pool["reservedUsd"] == "0" and pool["spentUsd"] == "0.2"
+
+
+# ------------------------------------------------------------------- A3 characterisation
+# _covered (agent_tree.py:204) is used by the agent-tree scope checks AND by
+# delegation._overlaps. Pin its edges; test-only, no production change.
+
+
+@pytest.mark.parametrize(("path", "prefixes", "expected"), [
+    pytest.param("src/a.py", ["src"], True, id="child-under-parent"),
+    pytest.param("src", ["src/a.py"], False, id="parent-is-not-under-child"),
+    pytest.param("src2", ["src"], False, id="string-prefix-is-not-a-parent"),
+    pytest.param("src/", ["src"], True, id="trailing-slash-path-under-parent"),
+    pytest.param("src", ["src/"], True, id="trailing-slash-prefix-is-equivalent"),
+    pytest.param("src/a/b/c.txt", ["src"], True, id="nested-three-deep"),
+    pytest.param("src/a", ["src/b"], False, id="disjoint-siblings"),
+    pytest.param("src with space/file.txt", ["src with space"], True,
+                 id="path-with-a-space"),
+    pytest.param("src", [], False, id="empty-prefixes"),
+    pytest.param("src", ["src"], True, id="identical"),
+    pytest.param("src", ["src", "src"], True, id="duplicate-prefixes"),
+])
+def test_covered_characterisation(path, prefixes, expected):
+    assert agent_tree._covered(path, prefixes) is expected
+
+
+def test_covered_dot_slash_path_is_under_src():
+    assert agent_tree._covered("./src", ["src"]) is True
+
+
+def test_covered_dot_slash_prefix_covers_src():
+    assert agent_tree._covered("src", ["./src"]) is True
+
+
+@pytest.mark.parametrize(("path", "prefixes", "expected"), [
+    pytest.param("src//a.py", ["src"], True, id="doubled-slash-in-path"),
+    pytest.param("src/a.py", ["src//"], True, id="doubled-slash-in-prefix"),
+    pytest.param("./src/a.py", ["src"], True, id="leading-dot-slash-in-nested-path"),
+    pytest.param("src/a.py", ["./src"], True, id="leading-dot-slash-in-nested-prefix"),
+])
+def test_covered_slash_noise_is_equivalent(path, prefixes, expected):
+    assert agent_tree._covered(path, prefixes) is expected
+
+
+@pytest.mark.parametrize(("path", "prefixes", "expected"), [
+    pytest.param("../src", ["src"], False, id="dotdot-is-not-collapsed"),
+    pytest.param("src/../docs/y.txt", ["src"], True,
+                 id="dotdot-inside-path-keeps-current-answer"),
+    pytest.param("src", [".."], False, id="dotdot-prefix-covers-nothing"),
+    pytest.param("/etc/passwd", ["src"], False, id="absolute-path-is-not-covered"),
+    pytest.param("/src/x.txt", ["src"], False,
+                 id="absolute-inside-src-stays-uncovered"),
+    pytest.param("src2", ["src"], False, id="string-prefix-is-not-a-parent"),
+    pytest.param("", ["src"], False, id="empty-path-is-not-covered"),
+    pytest.param("src", [""], False, id="empty-prefix-does-not-cover-relative"),
+    pytest.param("", [], False, id="both-empty-stay-uncovered"),
+])
+def test_covered_non_noise_edges_stay_unchanged(path, prefixes, expected):
+    """The narrow fix must not widen coverage beyond the equivalent spellings."""
+    assert agent_tree._covered(path, prefixes) is expected
+
+
+def _old_covered(path: str, prefixes: list[str]) -> bool:
+    """The batch 2 expression, kept here to prove the diff is narrow."""
+    return any(path == q or path.startswith(q.rstrip("/") + "/") for q in prefixes)
+
+
+@pytest.mark.parametrize(("path", "prefixes"), [
+    pytest.param("src2", ["src"], id="prefix-lookalike"),
+    pytest.param("src", ["src/a.py"], id="parent-is-not-under-child"),
+    pytest.param("/etc/passwd", ["src"], id="absolute"),
+    pytest.param("src/../docs", ["src"], id="dotdot"),
+    pytest.param("src/./x.txt", ["src"], id="internal-dot"),
+    pytest.param("src with space/file.txt", ["src"], id="space"),
+    pytest.param("a/b", ["a/c"], id="disjoint"),
+    pytest.param("", ["src"], id="empty-path"),
+    pytest.param("src", [""], id="empty-prefix"),
+    pytest.param("/src/x", ["src"], id="absolute-under-src"),
+    pytest.param("../src", ["src"], id="leading-dotdot"),
+    pytest.param("src", [".."], id="dotdot-prefix"),
+])
+def test_covered_diff_from_batch_2_is_empty_outside_noise(path, prefixes):
+    assert agent_tree._covered(path, prefixes) is _old_covered(path, prefixes)
