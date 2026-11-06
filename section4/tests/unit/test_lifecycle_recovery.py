@@ -169,6 +169,20 @@ async def test_reclaimed_run_fences_the_original_worker(replica_pair, monkeypatc
     eng_a, eng_b = CountingEngine(park=True), CountingEngine(park=True)
     replica_a.engine, replica_b.engine = eng_a.build(), eng_b.build()
 
+    # A's heartbeat must ACTUALLY stall for the stale-claim step. Shortening its
+    # interval is not a stall: under load a tick lands between _age_claim and
+    # reap_zombies, refreshes heartbeat_at, and B finds nothing to reap. Park A's
+    # ticks until B holds the claim, then let it see the claim is gone and fence.
+    resume_heartbeat = asyncio.Event()
+    real_heartbeat = service_mod.heartbeat_run
+
+    async def stalled_heartbeat(factory_, run_id, worker_id):
+        if worker_id == replica_a.worker_id:
+            await resume_heartbeat.wait()
+        return await real_heartbeat(factory_, run_id, worker_id)
+
+    monkeypatch.setattr(service_mod, "heartbeat_run", stalled_heartbeat)
+
     await _start_in_queue(replica_a)
     assert await replica_a.poll_once() == RUN
     assert await _entered(eng_a)
@@ -181,6 +195,7 @@ async def test_reclaimed_run_fences_the_original_worker(replica_pair, monkeypatc
     await replica_b.resume_agent(RUN)
     assert await replica_b.poll_once() == RUN
     assert await _entered(eng_b)
+    resume_heartbeat.set()  # A's stalled heartbeat wakes onto B's claim
 
     # A's next heartbeat notices the claim is gone and fences its own run.
     a_run = replica_a.runs[RUN]
