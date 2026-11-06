@@ -49,7 +49,13 @@ from harness_orchestrator.engine_runtime import (
 )
 from harness_orchestrator.goal_images import GoalImages, resolve_goal_images
 from harness_orchestrator.lifecycle import lifecycle_view
-from harness_orchestrator.loop_guard import LoopGuard, loop_repeat_limit, scope_request_of
+from harness_orchestrator.loop_guard import (
+    LoopGuard,
+    denial_run_limit,
+    denial_window_limit,
+    loop_repeat_limit,
+    scope_request_of,
+)
 from harness_orchestrator.planner import PlanNotApprovedError, PlanService
 from harness_orchestrator.redact import scrub_secrets
 from harness_orchestrator.reviewer import ReviewerSubAgent, ReviewFindings
@@ -1637,7 +1643,12 @@ class OrchestratorService(Orchestrator):
                     # before the run, from a table `record_engine_tool_calls` only
                     # populates after it, so nothing else in the stack knows a run
                     # has gone round the same hole 30 times.
-                    guard = LoopGuard(max_calls=budget, repeat_limit=loop_repeat_limit())
+                    guard = LoopGuard(
+                        max_calls=budget,
+                        repeat_limit=loop_repeat_limit(),
+                        denial_run_limit=denial_run_limit(),
+                        denial_window_limit=denial_window_limit(),
+                    )
 
                     def _progress(record: dict[str, Any]) -> None:
                         records.put(record)

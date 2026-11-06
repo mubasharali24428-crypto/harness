@@ -101,6 +101,33 @@ def loop_repeat_limit() -> int | None:
     return value if value > 0 else None
 
 
+def _denial_limit(raw: str | None, default: int) -> int | None:
+    """Same knob semantics as ``loop_repeat_limit``: unset or garbage means the
+    shipped default; empty/off/none/0 (or a negative) disables that one stop;
+    a positive integer replaces it."""
+    if raw is None:
+        return default
+    raw = raw.strip()
+    if not raw or raw.lower() in {"off", "none", "0"}:
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else None
+
+
+def denial_run_limit() -> int | None:
+    """HARNESS_DENIAL_RUN_LIMIT: denials in a row before ``denials_repeated``."""
+    # Literal keys (not constants): scripts/check_env_knobs.py only catalogues
+    # os.environ reads whose key is a string literal.
+    return _denial_limit(os.environ.get("HARNESS_DENIAL_RUN_LIMIT"), DENIAL_RUN_LIMIT)
+
+
+def denial_window_limit() -> int | None:
+    """HARNESS_DENIAL_WINDOW_LIMIT: denials within the last DENIAL_WINDOW results."""
+    return _denial_limit(os.environ.get("HARNESS_DENIAL_WINDOW_LIMIT"), DENIAL_WINDOW_LIMIT)
+
 
 def _shape(name: str | None, arguments: str | None) -> str:
     """The identity of a call: which tool, doing what.
@@ -116,12 +143,25 @@ def _shape(name: str | None, arguments: str | None) -> str:
 class LoopGuard:
     """Observes live tool records and names the reason a run should stop."""
 
-    def __init__(self, max_calls: int | None, repeat_limit: int | None) -> None:
-        for label, value in (("max_calls", max_calls), ("repeat_limit", repeat_limit)):
+    def __init__(
+        self,
+        max_calls: int | None,
+        repeat_limit: int | None,
+        denial_run_limit: int | None = DENIAL_RUN_LIMIT,
+        denial_window_limit: int | None = DENIAL_WINDOW_LIMIT,
+    ) -> None:
+        for label, value in (
+            ("max_calls", max_calls),
+            ("repeat_limit", repeat_limit),
+            ("denial_run_limit", denial_run_limit),
+            ("denial_window_limit", denial_window_limit),
+        ):
             if value is not None and value <= 0:
                 raise ValueError(f"{label} must be positive or None, got {value!r}")
         self._max_calls = max_calls
         self._repeat_limit = repeat_limit
+        self._denial_run_limit = denial_run_limit
+        self._denial_window_limit = denial_window_limit
         self._calls = 0
         self._shapes: dict[str, int] = {}
         self._stop: str | None = None
@@ -143,7 +183,11 @@ class LoopGuard:
             if not was_denied:
                 break
             run += 1
-        if run >= DENIAL_RUN_LIMIT or sum(self._denials) >= DENIAL_WINDOW_LIMIT:
+        if (
+            (self._denial_run_limit is not None and run >= self._denial_run_limit)
+            or (self._denial_window_limit is not None
+                and sum(self._denials) >= self._denial_window_limit)
+        ):
             self._stop = DENIALS_REPEATED
             return self._stop
         return None

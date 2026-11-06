@@ -190,3 +190,26 @@ def test_repeated_denials_fail_the_run_and_carry_the_scope_request(tmp_path):
     results = [p for t, p in seen if getattr(t, "value", t) == "tool_result"]
     assert results and results[0]["scopeRequest"] == {"path": "docs", "grants": False}
     assert run_data.get("engine_result", {}).get("status") != "completed"
+
+
+def test_disabled_denial_knobs_reach_the_guard_the_service_builds(tmp_path, monkeypatch):
+    """W28: the env knobs must be wired at the service seam, not only in the
+    pure guard. With both stops off, the same probing stream must NOT stop."""
+    monkeypatch.setenv("HARNESS_DENIAL_RUN_LIMIT", "off")
+    monkeypatch.setenv("HARNESS_DENIAL_WINDOW_LIMIT", "off")
+    engine = ProbingEngine(repeats=0)
+    _svc, run_data, seen = _execute(tmp_path, engine)
+
+    assert not run_data.get("_guard_stopped")
+    assert [p for t, p in seen if getattr(t, "value", t) == "engine_failed"] == []
+
+
+def test_a_run_knob_of_one_reaches_the_guard_the_service_builds(tmp_path, monkeypatch):
+    monkeypatch.setenv("HARNESS_DENIAL_RUN_LIMIT", "1")
+    monkeypatch.setenv("HARNESS_DENIAL_WINDOW_LIMIT", "off")
+    engine = ProbingEngine(repeats=0)
+    _svc, run_data, seen = _execute(tmp_path, engine)
+
+    assert run_data.get("_guard_stopped") == "denials_repeated"
+    failed = [p for t, p in seen if getattr(t, "value", t) == "engine_failed"]
+    assert failed and "denials_repeated" in failed[-1]["reason"]
