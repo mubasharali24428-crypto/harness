@@ -44,6 +44,7 @@ function fullBody() {
     prId: "pr-777",
     url: "https://github.com/acme/repo/pull/42",
     costUsd: 12.5,
+    estimatedCostUsd: 13.75,
     steps: [
       { seq: 1, type: "plan_proposed", ts: "2026-08-23T10:00:00Z" },
       { seq: 2, type: "plan_approved", ts: "2026-08-23T10:01:00Z" },
@@ -82,12 +83,14 @@ describe("getRunAggregate", () => {
   it("keeps explicit nulls null — never coerces them to zero/empty fakes", async () => {
     const body = fullBody();
     delete (body as Record<string, unknown>).costUsd;
+    delete (body as Record<string, unknown>).estimatedCostUsd;
     delete (body as Record<string, unknown>).prId;
     delete (body as Record<string, unknown>).url;
     delete (body as Record<string, unknown>).steps;
     fetchMock.mockResolvedValueOnce(jsonRes(body));
     const agg = await getRunAggregate("run-abc", "tok");
     expect(agg.costUsd).toBeNull(); // NOT 0
+    expect(agg.estimatedCostUsd).toBeNull(); // NOT 0
     expect(agg.prId).toBeNull();
     expect(agg.url).toBeNull();
     expect(agg.steps).toEqual([]);
@@ -97,6 +100,19 @@ describe("getRunAggregate", () => {
     fetchMock.mockResolvedValueOnce(jsonRes({ ...fullBody(), costUsd: null }));
     const agg = await getRunAggregate("run-abc", "tok");
     expect(agg.costUsd).toBeNull();
+  });
+
+  it("preserves a populated estimatedCostUsd exactly (W28)", async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes(fullBody()));
+    const agg = await getRunAggregate("run-abc", "tok");
+    expect(agg.estimatedCostUsd).toBe(13.75);
+  });
+
+  it("maps null and string-drift estimatedCostUsd to null, never a fake 0", async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes({ ...fullBody(), estimatedCostUsd: null }));
+    expect((await getRunAggregate("run-abc", "tok")).estimatedCostUsd).toBeNull();
+    fetchMock.mockResolvedValueOnce(jsonRes({ ...fullBody(), estimatedCostUsd: "13.750000" }));
+    expect((await getRunAggregate("run-abc", "tok")).estimatedCostUsd).toBeNull();
   });
 
   it("degrades non-finite garbage costUsd to null instead of NaN", async () => {

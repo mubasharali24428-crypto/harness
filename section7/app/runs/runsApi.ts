@@ -177,6 +177,9 @@ export interface RunAggregateDto {
   /** SUM(cost_ledger.cost_usd) for this run at NUMERIC-exact scale-6 money,
    *  or null while metering has recorded nothing — NEVER defaulted to 0. */
   costUsd: number | null;
+  /** The run's latest plan estimate, or null when there is no plan. Independent
+   *  of costUsd (metered from cost_ledger) — each null has its own words. */
+  estimatedCostUsd: number | null;
   /** agent_runs.pr_id once Section 2 binds a PR to this run; null before. */
   prId: string | null;
   /** The bound PR's url; independently nullable (prId can exist without it). */
@@ -352,6 +355,10 @@ export async function getRunAggregate(
     costUsd:
       typeof data.costUsd === "number" && Number.isFinite(data.costUsd)
         ? data.costUsd
+        : null,
+    estimatedCostUsd:
+      typeof data.estimatedCostUsd === "number" && Number.isFinite(data.estimatedCostUsd)
+        ? data.estimatedCostUsd
         : null,
     prId: asStringOrNull(data.prId),
     url: asStringOrNull(data.url),

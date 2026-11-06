@@ -25,6 +25,7 @@ function fullAgg(partial: Partial<RunAggregateDto> = {}): RunAggregateDto {
     executing: partial.executing ?? false,
     engineMode: partial.engineMode ?? "live",
     costUsd: partial.costUsd !== undefined ? partial.costUsd : 12.5,
+    estimatedCostUsd: partial.estimatedCostUsd !== undefined ? partial.estimatedCostUsd : null,
     budget: partial.budget ?? { degraded: false },
     prId:
       partial.prId !== undefined ? partial.prId : "pr-777",
@@ -79,10 +80,33 @@ describe("RunDetailAggregate — all fields present", () => {
 });
 
 describe("RunDetailAggregate — degradation per missing field", () => {
-  it("costUsd null → NO cost line at all, never a fabricated $0", () => {
-    const html = htmlFor(fullAgg({ costUsd: null }));
+  // W28: null is now stated in words instead of hiding the line. That is a
+  // deliberate change from the old "no cost line at all" behaviour.
+  it("costUsd null → explicit 'not metered yet', never a fabricated $0", () => {
+    const html = htmlFor(fullAgg({ costUsd: null, estimatedCostUsd: null }));
+    expect(html).toContain("not metered yet");
     expect(html).not.toContain("$");
-    expect(html).not.toContain("Cost:");
+  });
+
+  it("estimatedCostUsd null → explicit 'no plan estimate'", () => {
+    const html = htmlFor(fullAgg({ estimatedCostUsd: null }));
+    expect(html).toContain("no plan estimate");
+  });
+
+  it("both costs null → both null texts, never a figure or a zero-looking dash", () => {
+    const html = htmlFor(fullAgg({ costUsd: null, estimatedCostUsd: null }));
+    expect(html).toContain("not metered yet");
+    expect(html).toContain("no plan estimate");
+    expect(html).not.toContain("$");
+    expect(html).not.toContain(">$0.000000<");
+  });
+
+  it("both costs present → two exact scale-6 figures side by side", () => {
+    const html = htmlFor(fullAgg({ costUsd: 12.5, estimatedCostUsd: 0 }));
+    expect(html).toContain("$12.500000");
+    expect(html).toContain("$0.000000"); // a genuine zero estimate is real data
+    expect(html).not.toContain("no plan estimate");
+    expect(html).not.toContain("not metered yet");
   });
 
   it("costUsd 0 (server-sent genuine zero) → honest $0.000000", () => {

@@ -36,6 +36,8 @@ import {
   runSettled,
 } from "../../../../runs/runsApi";
 import { RunDetailAggregate } from "./runDetailAggregate";
+import { ScopeRequestSection } from "./scopeRequestSection";
+import { SynthesisSection } from "./synthesisPanel";
 import { PlanGateCard } from "../../../../dashboard/planGate";
 import { SharedRunPanel } from "./sharedRunPanel";
 import { SessionSixWorkbench } from "./sessionSixWorkbench";
@@ -60,6 +62,8 @@ export default function RunDetailPage({
   const [loading, setLoading] = useState(false);
   const [stale, setStale] = useState(false); // W23: last background refresh failed
   const [notFound, setNotFound] = useState(false);
+  // A tool denial names a path; the editor is opened by a person, never by the event.
+  const [scopePath, setScopePath] = useState<string | null>(null);
 
   // Next 15 hands route params as a Promise; accept both shapes so tests can
   // construct the component without awaiting a fake Promise.
@@ -203,6 +207,8 @@ export default function RunDetailPage({
           <RunDetailAggregate agg={agg} now={Date.now()} conn={stale ? "reconnecting" : "polling"}
             onPauseResume={(a) => void pauseResume(a)} controlBusy={controlBusy} controlNote={controlNote} />
         )}
+        {/* W28: read-only delegated-children review; reveals itself only for a run with children. */}
+        {runId && token && <SynthesisSection runId={runId} token={token} />}
       </RunTabPanel>
 
       <RunTabPanel id="plan" active={tab === "plan"}>
@@ -228,7 +234,12 @@ export default function RunDetailPage({
       <RunTabPanel id="working" active={tab === "working"}>
         {/* Self-guards on session absence, so it renders nothing without one. */}
         {projectId && runId && (
-          <WorkingArea projectId={projectId} runId={runId} stagedPending={stagedPending} />
+          <WorkingArea projectId={projectId} runId={runId} stagedPending={stagedPending}
+            onScopeRequest={setScopePath} />
+        )}
+        {scopePath !== null && runId && token && (
+          <ScopeRequestSection runId={runId} token={token} requestedPath={scopePath}
+            onClose={() => setScopePath(null)} />
         )}
       </RunTabPanel>
 

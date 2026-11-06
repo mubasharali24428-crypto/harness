@@ -46,7 +46,7 @@ describe("liveStatus", () => {
 
 const agg = (userStatus?: string): RunAggregateDto => ({
   runId: "r1", state: "executing", planId: null, planApproved: true, isHumanEditing: false,
-  executing: true, engineMode: null, costUsd: null, prId: null, url: null, steps: [],
+  executing: true, engineMode: null, costUsd: null, estimatedCostUsd: null, prId: null, url: null, steps: [],
   budget: { degraded: false },
   lifecycle: userStatus === undefined ? undefined
     : { phase: "running", cancelConfirmed: false, mutationPossible: true, userStatus },

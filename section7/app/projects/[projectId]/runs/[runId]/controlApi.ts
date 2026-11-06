@@ -131,3 +131,31 @@ export const getSessionMembers = (sid: string, t: string) =>
   call<{ items: SessionMember[] }>(sessionsUrl(`/${encodeURIComponent(sid)}/members?status=active`), t);
 export const transferOwner = (sid: string, t: string, toUserId: string, expectedOwnerUserId: string) =>
   post<SessionView>(sessionsUrl(`/${encodeURIComponent(sid)}/owner`), t, { toUserId, expectedOwnerUserId });
+
+// ---- W28 S1b-2 synthesis: a read-only review of the run's delegated children ----
+export interface SynthesisChild {
+  assignmentId: string;
+  parentId: string | null;
+  childRunId: string;
+  title: string;
+  state: string;
+  agentName: string;
+  agentVersion: number;
+  delegatedBy: string;
+  scope: { paths: string[] };
+  /** The API's own decimal string ("0", "0.002512"); never reformatted into a dash. */
+  spentUsd: string;
+  runStatus: string | null;
+  result: string | null;
+}
+export interface SynthesisConflict { assignmentIds: string[]; paths: string[] }
+export interface SynthesisView {
+  runId: string;
+  children: SynthesisChild[];
+  conflicts: SynthesisConflict[];
+  reviewRequired: boolean;
+  autoMerge: boolean;
+}
+/** GET /runs/{runId}/synthesis — the only request the synthesis panel makes. */
+export const getSynthesis = (runId: string, t: string) =>
+  call<SynthesisView>(`${root(runId)}/synthesis`, t);

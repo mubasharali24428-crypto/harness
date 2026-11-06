@@ -80,15 +80,27 @@ export function RunDetailAggregate({
         </p>
       )}
 
-      {/* Cost line ONLY when the server sent a real number. Null means "no
-          ledger rows yet" and must stay invisible — never a fake $0. A
-          server-sent 0 IS real data and renders as $0.000000. */}
-      {typeof agg.costUsd === "number" && Number.isFinite(agg.costUsd) && (
+      {/* W28: metered cost beside the latest plan estimate. Each null is stated
+          in words — never a dash that reads as a zero. A server-sent 0 IS real
+          data and renders as $0.000000 through the exact scale-6 formatter. */}
+      <div data-testid="run-costs" style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
         <p style={{ margin: "4px 0", fontSize: 14 }}>
-          <strong>Cost:</strong>{" "}
-          <span data-testid="run-cost">{formatCostUsdExact(agg.costUsd)}</span>
+          <strong>Cost (metered):</strong>{" "}
+          <span data-testid="run-cost">
+            {typeof agg.costUsd === "number" && Number.isFinite(agg.costUsd)
+              ? formatCostUsdExact(agg.costUsd)
+              : <span style={mutedStyle}>not metered yet</span>}
+          </span>
         </p>
-      )}
+        <p style={{ margin: "4px 0", fontSize: 14 }}>
+          <strong>Estimated cost:</strong>{" "}
+          <span data-testid="run-estimated-cost">
+            {typeof agg.estimatedCostUsd === "number" && Number.isFinite(agg.estimatedCostUsd)
+              ? formatCostUsdExact(agg.estimatedCostUsd)
+              : <span style={mutedStyle}>no plan estimate</span>}
+          </span>
+        </p>
+      </div>
 
       {/* M18-C2: budget-gate health, surfaced ONLY when degraded — an
           operator-visible marker that a budget decision on this run was made

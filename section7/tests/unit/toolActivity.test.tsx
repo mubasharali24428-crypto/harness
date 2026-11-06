@@ -14,6 +14,7 @@ const call = (over: Partial<ToolCallView> = {}): ToolCallView => ({
   error: null,
   output: "",
   durationMs: null,
+  scopeRequest: null,
   ...over,
 });
 
@@ -52,6 +53,6 @@ describe("ToolActivity", () => {
   it("is mounted on the run page next to the terminal panel", () => {
     const src = readFileSync(join(process.cwd(), "src", "components", "WorkingArea.tsx"), "utf8");
     expect(src).toContain('import { ToolActivity } from "./ToolActivity"');
-    expect(src).toContain("<ToolActivity calls={derived.toolCalls} />");
+    expect(src).toContain("<ToolActivity calls={derived.toolCalls} onEditScope={onScopeRequest} />");
   });
 });
