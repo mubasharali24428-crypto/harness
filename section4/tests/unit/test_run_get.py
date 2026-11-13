@@ -342,7 +342,8 @@ def test_aggregate_steps_ordered_and_capped_at_last_100(monkeypatch, db):
     assert len(steps) == 100
     seqs = [s["seq"] for s in steps]
     assert seqs == list(range(51, 151))  # last 100, ascending order
-    assert all(set(s) == {"seq", "type", "ts", "reason"} for s in steps)  # reason: null when none
+    # reason and detail (2026-11-13, additive): null when none
+    assert all(set(s) == {"seq", "type", "ts", "reason", "detail"} for s in steps)
     assert all(s["type"] == "diff_progress" for s in steps)
     # Timestamps ascend together with seq (ordered summary, not a scramble).
     tss = [s["ts"] for s in steps]

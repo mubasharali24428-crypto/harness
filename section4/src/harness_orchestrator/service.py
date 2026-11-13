@@ -3220,7 +3220,61 @@ class OrchestratorService(Orchestrator):
         reason = payload.get("reason") if isinstance(payload, dict) else None
         if isinstance(reason, str) and reason:
             step["reason"] = reason[:200]
+        detail = OrchestratorService._step_detail(payload)
+        if detail:
+            step["detail"] = detail
         return step
+
+    # Payload facts the run timeline may show. Text is pattern-scrubbed (redact.py) and clamped;
+    # nothing else from the payload (output bodies, diffs, env, prompts) leaves the server.
+    _DETAIL_TEXT = ("callId", "name", "url", "error")
+    _DETAIL_PATH_KEYS = ("path", "file_path", "filePath", "file", "target")
+    _DETAIL_COMMAND_KEYS = ("command", "cmd")
+
+    @staticmethod
+    def _step_detail(payload: Any) -> dict[str, Any] | None:
+        from .redact import scrub_secret_patterns
+
+        if not isinstance(payload, dict):
+            return None
+
+        def clean(value: Any, limit: int = 200) -> str | None:
+            if not isinstance(value, str) or not value.strip():
+                return None
+            first = value.strip().splitlines()[0]
+            return scrub_secret_patterns(first)[:limit]
+
+        out: dict[str, Any] = {}
+        for key in OrchestratorService._DETAIL_TEXT:
+            v = clean(payload.get(key))
+            if v:
+                out[key] = v
+        args = payload.get("arguments")
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except Exception:  # noqa: BLE001
+                args = None
+        if isinstance(args, dict):
+            for key in OrchestratorService._DETAIL_PATH_KEYS:
+                v = clean(args.get(key))
+                if v:
+                    out["path"] = v
+                    break
+            for key in OrchestratorService._DETAIL_COMMAND_KEYS:
+                v = clean(args.get(key))
+                if v:
+                    out["command"] = v
+                    break
+        if isinstance(payload.get("ok"), bool):
+            out["ok"] = payload["ok"]
+        duration = payload.get("durationMs")
+        if isinstance(duration, (int, float)) and not isinstance(duration, bool) and duration >= 0:
+            out["durationMs"] = int(duration)
+        steps = payload.get("steps")
+        if isinstance(steps, list):
+            out["stepCount"] = len(steps)
+        return out or None
 
     @staticmethod
     def _cost_wire(cost_usd: Any) -> float | None:

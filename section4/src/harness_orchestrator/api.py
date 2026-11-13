@@ -485,6 +485,9 @@ class AggregateStepOut(BaseModel):
     type: str
     ts: datetime
     reason: str | None = None
+    # 2026-11-13 (U2 timeline): the few payload facts the run page shows, secret-scrubbed and
+    # clamped server-side, so the page no longer downloads the whole project's event replay.
+    detail: dict[str, str | int | bool] | None = None
 
 
 class BudgetDegradedOut(BaseModel):

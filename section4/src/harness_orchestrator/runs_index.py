@@ -82,6 +82,7 @@ _FILTER_SCAN_MAX_BATCHES = 20
 # The list now replays the event log the same way OrchestratorService._rehydrate does.
 _STATE_EVENT_TYPES = (
     "plan_proposed",
+    "plan_approved",
     "plan.rejected",
     "execution_started",
     "paused",
@@ -115,6 +116,34 @@ def _payload(raw: Any) -> dict:
         except ValueError:
             return {}
     return raw if isinstance(raw, dict) else {}
+
+
+_BLOCKED_BY = {
+    "blocked_awaiting_clarification": "question",
+    "engine_failed": "engine_failed",
+    "review_failed": "review_failed",
+}
+
+
+def replay_run(events: list[tuple[str, Any]], stored: str) -> tuple[str, bool, str | None]:
+    """(state, plan approved, what blocked it) from a run's ordered events.
+
+    The state machine keeps AWAITING_PLAN_APPROVAL after approve_plan (it only sets a flag),
+    so the list reports the flag separately: a run that is approved but not started needs a
+    person to START it, not to approve it. ``blocked_by`` names the last event that blocked
+    the run (question / engine_failed / review_failed) while it is blocked, else None.
+    """
+    state = replay_state(events, stored)
+    approved = False
+    blocked_by: str | None = None
+    for etype, _raw in events:
+        if etype == "plan_approved":
+            approved = True
+        elif etype in ("plan_proposed", "plan.rejected"):
+            approved = False
+        if etype in _BLOCKED_BY:
+            blocked_by = _BLOCKED_BY[etype]
+    return state, approved, (blocked_by if state == "blocked" else None)
 
 
 def replay_state(events: list[tuple[str, Any]], stored: str) -> str:
@@ -166,16 +195,16 @@ _STATE_EVENTS_SQL = text(
 )
 
 
-async def _replayed_states(db, rows) -> dict[str, str]:
+async def _replayed_states(db, rows) -> dict[str, tuple[str, bool, str | None]]:
     """One batched read of the page's state-bearing events, replayed per run."""
     ids = [row["id"] for row in rows]
-    out = {row["id"]: row["state"] for row in rows}
+    stored = {row["id"]: row["state"] for row in rows}
     if not ids:
-        return out
+        return {}
     events: dict[str, list[tuple[str, Any]]] = {i: [] for i in ids}
     for run_id, etype, payload in await db.execute(_STATE_EVENTS_SQL, {"page_run_ids": ids}):
         events[run_id].append((etype, payload))
-    return {i: replay_state(events[i], out[i]) for i in ids}
+    return {i: replay_run(events[i], stored[i]) for i in ids}
 
 # Lifecycle markers read out of agent_events (frozen EventType vocabulary).
 _START_EVENT_TYPES = ("execution_started", "resumed")
@@ -295,6 +324,10 @@ class RunItem(BaseModel):
     id: str
     projectId: str
     status: str
+    # 2026-11-13: true once the current plan is approved (status stays awaiting_plan_approval
+    # until the run is started); blockedBy says why a blocked run is blocked.
+    planApproved: bool = False
+    blockedBy: str | None = None
     createdAt: datetime | None = None
     startedAt: datetime | None = None
     finishedAt: datetime | None = None
@@ -352,7 +385,7 @@ async def list_runs(
     # filter, batches continue until the page is full, the runs run out, or the scan cap is hit.
     batch = page_limit + 1 if status_filter is None else _FILTER_SCAN_BATCH
     max_batches = 1 if status_filter is None else _FILTER_SCAN_MAX_BATCHES
-    picked: list[tuple[Any, str]] = []  # (row, replayed state)
+    picked: list[tuple[Any, tuple[str, bool, str | None]]] = []  # (row, replayed)
     last_scanned = None
     exhausted = False
     after = (cursor_created, cursor_run) if cursor is not None else None
@@ -368,7 +401,7 @@ async def list_runs(
             states = await _replayed_states(db, rows)
             for row in rows:
                 last_scanned = row
-                if status_filter is None or states[row["id"]] == status_filter:
+                if status_filter is None or states[row["id"]][0] == status_filter:
                     picked.append((row, states[row["id"]]))
                     if len(picked) > page_limit:
                         break
@@ -384,7 +417,9 @@ async def list_runs(
         RunItem(
             id=row["id"],
             projectId=row["project_id"],
-            status=state,
+            status=state[0],
+            planApproved=state[1],
+            blockedBy=state[2],
             createdAt=row["created_at"],
             startedAt=extremes.get(row["id"], {}).get("started_at"),
             finishedAt=extremes.get(row["id"], {}).get("finished_at"),

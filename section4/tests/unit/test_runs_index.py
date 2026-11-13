@@ -196,6 +196,8 @@ def test_default_paging_and_shape(monkeypatch, seeded_db):
         "id",
         "projectId",
         "status",
+        "planApproved",  # 2026-11-13, additive
+        "blockedBy",  # 2026-11-13, additive
         "createdAt",
         "startedAt",
         "finishedAt",
@@ -543,3 +545,53 @@ from harness_orchestrator.runs_index import replay_state  # noqa: E402
 )
 def test_replay_state_follows_the_state_machine(events, expected):
     assert replay_state(events, "idle") == expected
+
+
+from harness_orchestrator.runs_index import replay_run  # noqa: E402
+
+
+def test_approved_but_not_started_is_reported_separately(monkeypatch, seeded_db):
+    """approve_plan leaves the state at awaiting_plan_approval; the list must say it is approved."""
+    _seed_run(seeded_db, "run-ok", "proj-ours", "idle", 6)
+    _add_events(seeded_db, "run-ok", [("plan_proposed", None), ("plan_approved", None)], 20000)
+    _seed_run(seeded_db, "run-wait", "proj-ours", "idle", 7)
+    _add_events(seeded_db, "run-wait", [("plan_proposed", None)], 20100)
+    client = _client(monkeypatch, seeded_db, _principal())
+    items = {i["id"]: i for i in client.get("/api/v1/orchestrator/runs").json()["items"]}
+    assert items["run-ok"]["status"] == "awaiting_plan_approval"
+    assert items["run-ok"]["planApproved"] is True
+    assert items["run-wait"]["planApproved"] is False
+
+
+@pytest.mark.parametrize(
+    ("events", "expected"),
+    [
+        ([("plan_proposed", None)], ("awaiting_plan_approval", False, None)),
+        (
+            [("plan_proposed", None), ("plan_approved", None)],
+            ("awaiting_plan_approval", True, None),
+        ),
+        # a new proposal after a rejection needs approving again
+        (
+            [("plan_proposed", None), ("plan_approved", None), ("plan.rejected", None),
+             ("plan_proposed", None)],
+            ("awaiting_plan_approval", False, None),
+        ),
+        (
+            [("plan_proposed", None), ("plan_approved", None), ("execution_started", None),
+             ("engine_failed", None)],
+            ("blocked", True, "engine_failed"),
+        ),
+        ([("execution_started", None), ("blocked_awaiting_clarification", None)],
+         ("blocked", False, "question")),
+        (
+            [("execution_started", None), ("review_failed", None)],
+            ("blocked", False, "review_failed"),
+        ),
+        # resumed after a failure: no longer blocked, so no blocker is reported
+        ([("execution_started", None), ("engine_failed", None), ("resumed", None)],
+         ("executing", False, None)),
+    ],
+)
+def test_replay_run_reports_approval_and_blocker(events, expected):
+    assert replay_run(events, "idle") == expected
