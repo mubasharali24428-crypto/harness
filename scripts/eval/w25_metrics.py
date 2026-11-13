@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import glob
 import json
+import os
 import math
 import re
 import subprocess
@@ -32,9 +33,22 @@ REPO = Path(__file__).resolve().parents[2]
 EVAL = REPO / "docs" / "briefs" / "evidence" / "eval"
 
 
+def db_container() -> str:
+    """The Postgres container: the one in E2E_COMPOSE_PROJECT when set, else the default stack's."""
+    project = os.environ.get("E2E_COMPOSE_PROJECT")
+    if project:
+        found = subprocess.run(
+            ["docker", "ps", "-q", "--filter", "label=com.docker.compose.service=db",
+             "--filter", f"label=com.docker.compose.project={project}"],
+            capture_output=True, text=True, timeout=30).stdout.split()
+        if found:
+            return found[0]
+    return "harness-db-1"
+
+
 def psql(sql: str) -> str:
     out = subprocess.run(
-        ["docker", "exec", "-i", "harness-db-1", "sh", "-lc",
+        ["docker", "exec", "-i", db_container(), "sh", "-lc",
          'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At'],
         input=sql, capture_output=True, text=True, timeout=60)
     return out.stdout.strip()

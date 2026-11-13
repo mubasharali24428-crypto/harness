@@ -36,6 +36,18 @@ SRC = REPO / "scripts" / "eval" / "tasks" / "code_change_task.py"
 OUT = REPO / "docs" / "briefs" / "evidence" / "w33-compare"
 MODEL = "anthropic/claude-haiku-5.5"
 RATE_IN, RATE_OUT = 0.10 / 1e6, 0.50 / 1e6  # USD per token, as this stack's cost_ledger charged it
+CORPUS = REPO / "docs" / "eval" / "corpus.json"
+CORPUS_TASK = {"refactor": "multi-file-refactor", "tests-written": "tests-written"}
+
+
+def harness_budget(task: str) -> dict:
+    """The corpus budget for the harness side of this comparison (same-conditions rule)."""
+    doc = json.loads(CORPUS.read_text(encoding="utf-8"))
+    cid = CORPUS_TASK[task]
+    for t in doc["tasks"]:
+        if t["id"] == cid:
+            return t.get("budget") or {}
+    return {}
 
 CONFIG = {
     "$schema": "https://opencode.ai/config.json",
@@ -91,9 +103,13 @@ def parse_events(stdout: str) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--task", choices=("refactor", "tests-written"), required=True)
-    ap.add_argument("--timeout", type=float, default=600.0)
+    ap.add_argument("--timeout", type=float, default=None,
+                    help="default: the corpus task's timeoutSeconds (same budget as the harness)")
     ap.add_argument("--scratch", required=True, help="directory for opencode's private config")
     args = ap.parse_args()
+    hb = harness_budget(args.task)
+    corpus_timeout = float(hb.get("timeoutSeconds") or 1200)
+    timeout = args.timeout if args.timeout is not None else corpus_timeout
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key:
         raise SystemExit("OPENROUTER_API_KEY is not set")
@@ -118,7 +134,7 @@ def main() -> int:
             proc = subprocess.run(
                 ["opencode", "run", "--format", "json", "-m", f"openrouter/{MODEL}",
                  "--dir", str(ws), goal],
-                cwd=ws, env=env, capture_output=True, text=True, timeout=args.timeout, check=False)
+                cwd=ws, env=env, capture_output=True, text=True, timeout=timeout, check=False)
             stdout, rc = proc.stdout, proc.returncode
         except subprocess.TimeoutExpired as exc:
             stdout, rc = (exc.stdout or b"").decode() if isinstance(exc.stdout, bytes) \
@@ -127,6 +143,15 @@ def main() -> int:
         measured = parse_events(stdout)
         verified = verify(str(ws))
         checks = verified.pop("checks")
+        budget_diffs = []
+        if timeout != corpus_timeout:
+            budget_diffs.append(f"timeout {timeout}s != corpus {corpus_timeout}s")
+        if hb.get("maxToolCalls") is not None:
+            budget_diffs.append(
+                f"harness tool-call cap {hb['maxToolCalls']}; opencode uncapped")
+        if hb.get("maxCostUsd"):
+            budget_diffs.append(
+                f"harness cost cap ${hb['maxCostUsd']}; opencode priced post-hoc, uncapped")
         evidence = {
             "schema": 1, "harness": "opencode " + subprocess.run(
                 ["opencode", "--version"], capture_output=True, text=True, env=env,
@@ -135,9 +160,13 @@ def main() -> int:
             **measured, "checks": checks, "failedChecks": [k for k, v in checks.items() if not v],
             "verdict": "PASS" if rc == 0 and all(checks.values()) else "FAIL",
             "changed": verified.get("changed"), "diff": verified.get("diff"),
+            "budget": {"timeoutSeconds": timeout, "corpusTimeoutSeconds": corpus_timeout,
+                       "harness": hb, "sameTimeout": timeout == corpus_timeout,
+                       "differences": budget_diffs},
             "notSameAsHarness": [
                 "tool set", "system prompt",
-                "permission layer (own allow-list, no container, no tool-call cap)"],
+                "permission layer (own allow-list, no container, no tool-call cap)",
+                *budget_diffs],
         }
     finally:
         shutil.rmtree(ws, ignore_errors=True)
