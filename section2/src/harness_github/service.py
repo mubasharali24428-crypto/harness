@@ -1,4 +1,5 @@
 import json
+import re
 
 import httpx
 from harness_contracts import KeyVault
@@ -34,6 +35,35 @@ class GitHubWritesDisabledError(RuntimeError):
 
 class WriteInProgressError(RuntimeError):
     pass
+
+
+_RUN_ID_UNSAFE = re.compile(r"[^A-Za-z0-9_.-]")
+_VERDICT_MARKER_PREFIX = "<!-- harness-verdict:v1 run="
+
+
+def verdict_marker(run_id: str) -> str:
+    """Server-derived marker for a run's verdict comment. Same literal format as the
+    orchestrator's builder (section4 verdict_comment.verdict_marker); the two sections
+    cannot import each other, so tests on both sides pin the format."""
+    safe = _RUN_ID_UNSAFE.sub("_", str(run_id or "unknown"))[:200] or "unknown"
+    return f"{_VERDICT_MARKER_PREFIX}{safe} -->"
+
+
+async def _post_or_update(client, repo, pr_number, body_md, known_id, marker):
+    """Update the run's comment (stored id, else found by exact marker), else create it.
+    A comment deleted on GitHub (404 on update) is recreated."""
+    if known_id is None:
+        for c in await client.list_pr_comments(repo, pr_number):
+            if marker in (c.get("body") or ""):
+                known_id = c["id"]
+                break
+    if known_id is not None:
+        try:
+            return await client.update_comment(repo, known_id, body_md), "updated"
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 404:
+                raise
+    return await client.comment_on_pr(repo, pr_number, body_md), "created"
 
 
 class GitHubService:
@@ -227,3 +257,75 @@ class GitHubService:
         repo = await get_repo_full_name(self._db, project_id, team_id)
         diff_text = await client.get_pr_diff(repo, pr_number)
         return {"projectId": project_id, "prNumber": pr_number, "diff": diff_text}
+
+    async def postVerdictComment(
+        self,
+        user_id: str,
+        project_id: str,
+        pr_number: int,
+        body_md: str,
+        *,
+        run_id: str,
+        team_id: str,
+        marker: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict:
+        """P-15 (I-02): post the advisory verdict comment for a run's PR.
+
+        Gated by the team-admin write opt-in and tenant-scoped via the project lookup.
+        The run must be linked to this PR in this project (pull_requests), the marker is
+        derived here from the run id (a caller-supplied marker must equal it), and the body
+        must carry it, so only that run's own comment is ever created or updated.
+        Idempotent through github_write_keys. The body is built by the orchestrator side;
+        this service never imports section4. The bot only comments; a human merges.
+        """
+        await self._require_writes(project_id, team_id)
+        repo = await get_repo_full_name(self._db, project_id, team_id)
+        expected = verdict_marker(run_id)
+        if marker and marker != expected:
+            raise ValueError("marker does not match the run's verdict marker")
+        if expected not in body_md:
+            raise ValueError("comment body must carry the run's verdict marker")
+        linked = (
+            await self._db.execute(
+                text(
+                    "SELECT 1 FROM pull_requests WHERE project_id = :p AND run_id = :r"
+                    " AND github_pr_number = :n LIMIT 1"
+                ),
+                {"p": project_id, "r": run_id, "n": int(pr_number)},
+            )
+        ).first()
+        if linked is None:
+            raise LookupError("no run with this id is linked to that PR in this project")
+        idem = idempotency_key or f"verdict:{run_id}:{pr_number}"
+        client, _ = await self._client_for(user_id)
+        if not await reserve_write_key(self._db, project_id, idem, "verdict_comment"):
+            stored = await read_write_key(self._db, project_id, idem)
+            if stored is None:
+                raise WriteInProgressError(
+                    "an earlier verdict-comment request with this key is still running"
+                )
+            prior = json.loads(stored)
+            comment, action = await _post_or_update(
+                client, repo, pr_number, body_md, prior["commentId"], expected
+            )
+            result = {
+                "commentId": comment["id"], "url": comment["url"], "action": action,
+                "prNumber": pr_number, "runId": run_id,
+            }
+            await store_write_result(self._db, project_id, idem, json.dumps(result))
+            return result
+        try:
+            comment, action = await _post_or_update(
+                client, repo, pr_number, body_md, None, expected
+            )
+        except BaseException:
+            # Free the key so the caller can retry; nothing durable was created.
+            await release_write_key(self._db, project_id, idem)
+            raise
+        result = {
+            "commentId": comment["id"], "url": comment["url"], "action": action,
+            "prNumber": pr_number, "runId": run_id,
+        }
+        await store_write_result(self._db, project_id, idem, json.dumps(result))
+        return result

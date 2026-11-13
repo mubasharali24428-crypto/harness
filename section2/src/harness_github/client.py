@@ -193,3 +193,37 @@ class GitHubClient:
             "headBranch": pr["head"]["ref"],
             "baseBranch": pr["base"]["ref"],
         }
+
+    async def comment_on_pr(self, repo: str, number: int, body_md: str) -> dict:
+        """POST a comment on a PR (GitHub treats PRs as issues for comments)."""
+        resp = await self._request(
+            "POST", f"/repos/{repo}/issues/{number}/comments", {"body": body_md}
+        )
+        resp.raise_for_status()
+        c = resp.json()
+        return {"id": c["id"], "url": c["html_url"], "body": c.get("body", "")}
+
+    async def update_comment(self, repo: str, comment_id: int, body_md: str) -> dict:
+        """PATCH an existing issue/PR comment in place."""
+        resp = await self._request(
+            "PATCH", f"/repos/{repo}/issues/comments/{comment_id}", {"body": body_md}
+        )
+        resp.raise_for_status()
+        c = resp.json()
+        return {"id": c["id"], "url": c["html_url"], "body": c.get("body", "")}
+
+    async def list_pr_comments(self, repo: str, number: int) -> list[dict]:
+        """GET a PR's comments (up to 10 pages of 100) so the service can find its marker."""
+        out: list[dict] = []
+        for page in range(1, 11):
+            resp = await self._request(
+                "GET", f"/repos/{repo}/issues/{number}/comments?per_page=100&page={page}"
+            )
+            resp.raise_for_status()
+            batch = resp.json()
+            out += [
+                {"id": c["id"], "url": c["html_url"], "body": c.get("body", "")} for c in batch
+            ]
+            if len(batch) < 100:
+                break
+        return out

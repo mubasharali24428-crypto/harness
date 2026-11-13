@@ -48,6 +48,13 @@ export interface ValidationError {
   type: string;
 }
 
+/** VerdictCommentBody. Required keys: bodyMd, runId. */
+export interface VerdictCommentBody {
+  bodyMd: string;
+  marker?: string;  // optional
+  runId: string;
+}
+
 /** WritesBody. Required keys: enabled. */
 export interface WritesBody {
   enabled: boolean;
@@ -179,6 +186,13 @@ export class GithubClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
   }
 
+  /** Post Verdict Comment
+   *  POST /api/v1/projects/{project_id}/pulls/{pr_number}/verdict-comment */
+  post_verdict_comment(project_id: string, pr_number: string, body: VerdictCommentBody): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/pulls/${encodeURIComponent(pr_number)}/verdict-comment`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "POST", body);
+  }
+
   /** Connect Repo
    *  POST /api/v1/projects/{project_id}/repo/connect */
   connect_repo(project_id: string, body: ConnectBody): Promise<Record<string, unknown>> {
@@ -224,5 +238,6 @@ export class GithubClient {
  * export interface/type HTTPValidationError
  * export interface/type IssueBody
  * export interface/type ValidationError
+ * export interface/type VerdictCommentBody
  * export interface/type WritesBody
  */

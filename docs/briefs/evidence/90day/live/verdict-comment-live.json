@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "kind": "p15-verdict-comment-live",
+  "ok": true,
+  "checks": {
+    "section2_up": true,
+    "dry_run_ok_and_posts_nothing": true,
+    "dry_run_has_facts": true,
+    "create_ok": true,
+    "posted_carries_marker_and_footer": true,
+    "posted_has_no_secret_or_mention": true,
+    "update_in_place_same_comment": true,
+    "bad_token_refused": true,
+    "unknown_run_refused": true,
+    "writes_off_refused_no_github_call": true,
+    "github_only_got_get_post_patch_no_merge": true
+  },
+  "notes": {
+    "posted_leak_probe": {
+      "ghp_abcdef": false,
+      "hunter2": false,
+      "@everyone": false,
+      "tok1": false
+    },
+    "github_requests": [
+      [
+        "GET",
+        "/repos/org/repo/issues/7/comments"
+      ],
+      [
+        "POST",
+        "/repos/org/repo/issues/7/comments"
+      ],
+      [
+        "PATCH",
+        "/repos/org/repo/issues/comments/1"
+      ]
+    ],
+    "stderr_samples": {
+      "bad_token": "verdict_post: HTTPStatusError: Client error '401 Unauthorized' for url 'http://127.0.0.1:57538/api/v1/projects/p1/pulls/7/verdict-comment'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401\n",
+      "unknown_run": "verdict_post: LookupError: unknown run ghost\n",
+      "writes_off": "verdict_post: HTTPStatusError: Client error '403 Forbidden' for url 'http://127.0.0.1:57538/api/v1/projects/p1/pulls/7/verdict-comment'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403\n"
+    }
+  },
+  "scope": "real section2 service + real orchestrator CLI over localhost sockets; stand-in GitHub and review servers; no real PR, token, model or network",
+  "ranAt": "2026-11-13T07:39:02Z",
+  "sourceSha256": {
+    "section4/src/harness_orchestrator/verdict_post.py": "8cd01c14858a",
+    "section4/src/harness_orchestrator/verdict_comment.py": "d18b21659b6a",
+    "section2/src/harness_github/service.py": "2a8a9485d91e"
+  }
+}

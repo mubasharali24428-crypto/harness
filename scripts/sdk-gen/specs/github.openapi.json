@@ -148,6 +148,34 @@
     "title": "ValidationError",
     "type": "object"
    },
+   "VerdictCommentBody": {
+    "properties": {
+     "bodyMd": {
+      "maxLength": 65536,
+      "minLength": 1,
+      "title": "Bodymd",
+      "type": "string"
+     },
+     "marker": {
+      "default": "",
+      "maxLength": 300,
+      "title": "Marker",
+      "type": "string"
+     },
+     "runId": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Runid",
+      "type": "string"
+     }
+    },
+    "required": [
+     "runId",
+     "bodyMd"
+    ],
+    "title": "VerdictCommentBody",
+    "type": "object"
+   },
    "WritesBody": {
     "properties": {
      "enabled": {
@@ -861,6 +889,67 @@
      }
     },
     "summary": "Pr Diff"
+   }
+  },
+  "/api/v1/projects/{project_id}/pulls/{pr_number}/verdict-comment": {
+   "post": {
+    "description": "P-15 (I-02): post/update the advisory verdict comment on a run's PR.\n\nThe body is built by the orchestrator (section4) from recorded facts and\nsupplied here; section2 does not import section4. The team-admin write opt-in\nand tenant scope apply. The bot only comments \u2014 a human merges.",
+    "operationId": "post_verdict_comment_api_v1_projects__project_id__pulls__pr_number__verdict_comment_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "project_id",
+      "required": true,
+      "schema": {
+       "title": "Project Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "path",
+      "name": "pr_number",
+      "required": true,
+      "schema": {
+       "title": "Pr Number",
+       "type": "integer"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/VerdictCommentBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Post Verdict Comment Api V1 Projects  Project Id  Pulls  Pr Number  Verdict Comment Post",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Post Verdict Comment"
    }
   },
   "/api/v1/projects/{project_id}/repo/connect": {
