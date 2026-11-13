@@ -24,9 +24,8 @@ import { WorkingArea } from "@/components/WorkingArea";
 import { ChangeReview } from "@/components/ChangeReview";
 import { RunTabBar, RunTabPanel, tabFromSearch, type RunTabId } from "@/components/RunTabs";
 import { ErrorState, LoadingState } from "@/components/States";
-import { ApiError, replayEvents } from "@/lib/api";
+import { ApiError } from "@/lib/api";
 import { loadSession } from "@/lib/auth";
-import type { EventEnvelope } from "@contracts/events";
 // W4 gate repair: the presentational aggregate moved to ./runDetailAggregate
 // (Next route modules may export ONLY the default). The page keeps the data
 // fetch; rendering helpers live with the component that uses them.
@@ -59,10 +58,6 @@ export default function RunDetailPage({
   const [tab, setTab] = useState<RunTabId>("overview");
   const [stagedPending, setStagedPending] = useState(false);
   const [agg, setAgg] = useState<RunAggregateDto | null>(null);
-  // U2: full replay events back the interactive timeline (the aggregate's
-  // steps only carry type/seq/ts, not the tool receipts). Empty on failure so
-  // the aggregate's compact list remains the honest fallback.
-  const [events, setEvents] = useState<EventEnvelope[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [stale, setStale] = useState(false); // W23: last background refresh failed
@@ -137,25 +132,6 @@ export default function RunDetailPage({
     void fetchAgg();
   }, [fetchAgg]);
 
-  const fetchEvents = useCallback(async () => {
-    if (!projectId || !runId || !token) return;
-    try {
-      const { items } = await replayEvents(projectId, 0, token);
-      const mine = items.filter(
-        (e) =>
-          e.runId === runId ||
-          (typeof e.payload?.runId === "string" && e.payload.runId === runId),
-      );
-      setEvents(mine.slice(-500));
-    } catch {
-      /* the aggregate's compact steps stay as the fallback */
-    }
-  }, [projectId, runId, token]);
-
-  useEffect(() => {
-    void fetchEvents();
-  }, [fetchEvents]);
-
   // Keep the summary live (stop/done change the state after first load).
   // ponytail: 3s polling like the shared panel; push delivery is P4.
   const [controlBusy, setControlBusy] = useState(false);
@@ -181,12 +157,9 @@ export default function RunDetailPage({
   const terminal = runSettled(agg);
   useEffect(() => {
     if (!token || !runId || terminal) return;
-    const id = setInterval(() => {
-      void fetchAgg(true);
-      void fetchEvents();
-    }, 3000);
+    const id = setInterval(() => void fetchAgg(true), 3000);
     return () => clearInterval(id);
-  }, [fetchAgg, fetchEvents, token, runId, terminal]);
+  }, [fetchAgg, token, runId, terminal]);
 
   return (
     <AppShell active="/runs">
@@ -233,7 +206,7 @@ export default function RunDetailPage({
         {agg && (
           <RunDetailAggregate agg={agg} now={Date.now()} conn={stale ? "reconnecting" : "polling"}
             onPauseResume={(a) => void pauseResume(a)} controlBusy={controlBusy} controlNote={controlNote}
-            events={events} timelineLive={!terminal} />
+            timelineLive={!terminal} />
         )}
         {/* W28: read-only delegated-children review; reveals itself only for a run with children. */}
         {runId && token && <SynthesisSection runId={runId} token={token} />}

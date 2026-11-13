@@ -69,13 +69,13 @@ describe("RunDetailAggregate — all fields present", () => {
     expect(html).toContain("pr-777");
   });
 
-  it("renders the step timeline newest-first with human labels", () => {
+  // 2026-11-13: the U2 timeline (oldest first, scrubbable) replaced the compact newest-first list.
+  it("renders the step timeline oldest-first with human labels", () => {
     const execStart = html.indexOf("Execution started");
     const proposed = html.indexOf("Plan proposed");
-    expect(execStart).toBeGreaterThanOrEqual(0);
-    expect(proposed).toBeGreaterThan(execStart);
-    // raw wire type stays reachable in the title attr of unknown-ish rows
-    expect(html).toContain('title="—">'); // null ts renders as — via formatter
+    expect(proposed).toBeGreaterThanOrEqual(0);
+    expect(execStart).toBeGreaterThan(proposed);
+    expect(html).toContain(">—</span>"); // null ts renders as —, never a made-up time
   });
 });
 
@@ -146,7 +146,7 @@ describe("RunDetailAggregate — degradation per missing field", () => {
       }),
     );
     expect(html).toContain("Engine completed");
-    expect(html).toContain("title=\"—\"");
+    expect(html).toContain(">—</span>");
   });
 
   it("unknown event type humanizes instead of dropping", () => {
@@ -169,7 +169,7 @@ describe("RunDetailAggregate — degradation per missing field", () => {
 });
 
 describe("RunDetailAggregate — truncation honesty + cap", () => {
-  it("labels the timeline as latest-N-of-M when over the cap", () => {
+  it("says when only the latest steps are loaded", () => {
     const steps = Array.from({ length: 130 }, (_, i) => ({
       seq: i,
       type: "terminal_output",
@@ -177,7 +177,7 @@ describe("RunDetailAggregate — truncation honesty + cap", () => {
     }));
     const html = htmlFor(fullAgg({ steps }));
     expect(steps.length).toBeGreaterThan(RUN_AGGREGATE_STEPS_MAX);
-    expect(html).toContain(`(${RUN_AGGREGATE_STEPS_MAX} latest of 130)`);
+    expect(html).toContain(`Showing the latest ${RUN_AGGREGATE_STEPS_MAX} steps of this run`);
   });
 
   it("renders at most 100 rows even if handed more", () => {
@@ -191,9 +191,9 @@ describe("RunDetailAggregate — truncation honesty + cap", () => {
     expect(liCount).toBe(RUN_AGGREGATE_STEPS_MAX);
   });
 
-  it("shows plain counts when nothing was truncated", () => {
+  it("shows no truncation notice when nothing was truncated", () => {
     const html = htmlFor(fullAgg());
-    expect(html).toContain("(3 latest of 3)");
+    expect(html).not.toContain("Showing the latest");
   });
 });
 

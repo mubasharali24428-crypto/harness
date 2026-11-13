@@ -138,7 +138,8 @@ function eventReceipt(event: TimelineEventInput, payload: Record<string, unknown
       return toolResultReceipt(payload);
     case "plan_proposed": {
       const steps = payload?.steps;
-      return Array.isArray(steps) ? `${steps.length} proposed step${steps.length === 1 ? "" : "s"}` : null;
+      const n = Array.isArray(steps) ? steps.length : typeof payload?.stepCount === "number" ? payload.stepCount : null;
+      return n === null ? null : `${n} proposed step${n === 1 ? "" : "s"}`;
     }
     case "diff_progress":
     case "terminal_output":
@@ -163,6 +164,29 @@ function statusFor(type: string, payload: Record<string, unknown> | null): StepS
 
 function callIdOf(payload: Record<string, unknown> | null): string | null {
   return text(payload?.callId);
+}
+
+/** One step of the run aggregate (GET /orchestrator/runs/{id}): run-scoped, newest 100, with a
+ *  server-scrubbed `detail` instead of the raw payload. */
+export interface AggregateStepInput {
+  seq: number;
+  type: string;
+  ts: string | null;
+  reason?: string | null;
+  detail?: Record<string, string | number | boolean> | null;
+}
+
+/** Rebuild the narrow payload the timeline rules read from the aggregate's step detail. */
+export function stepsToEvents(steps: AggregateStepInput[]): TimelineEventInput[] {
+  return steps.map((s) => {
+    const d = s.detail ?? {};
+    const payload: Record<string, unknown> = { ...d };
+    if (s.reason) payload.reason = s.reason;
+    if (typeof d.path === "string" || typeof d.command === "string") {
+      payload.arguments = { path: d.path, command: d.command };
+    }
+    return { seq: s.seq, type: s.type, ts: s.ts, payload };
+  });
 }
 
 /** Group raw events (oldest→newest) into timeline blocks; a tool_call/result pair is one block. */

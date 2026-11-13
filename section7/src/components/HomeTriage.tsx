@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getToken } from "@/lib/auth";
 import { formatRelativeTime, formatTimestamp } from "@/lib/format";
-import { tabTitle, tabTone, triageRuns, type Triage } from "@/lib/triage";
+import { needsYouHref, tabTitle, tabTone, triageRuns, type Triage } from "@/lib/triage";
 import { listRuns, runDetailHref, shortId, stateLabel, type RunDto } from "../../app/runs/runsApi";
 
 const REFRESH_MS = 15_000;
@@ -44,7 +44,7 @@ function RunRow({ run, action, projectName }: { run: RunDto; action?: string; pr
   return (
     <li>
       <Link
-        href={runDetailHref(run)}
+        href={action ? needsYouHref(run) : runDetailHref(run)}
         className="group flex items-start justify-between gap-3 rounded-lg border border-border-soft bg-panel-2 px-3 py-2.5 no-underline hover:border-border focus-visible:outline-2 focus-visible:outline-accent"
       >
         <span className="min-w-0">

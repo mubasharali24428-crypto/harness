@@ -14,7 +14,7 @@
 import type { RunDto } from "./runsApi";
 import { runDetailHref, shortId } from "./runsApi";
 import { formatRelativeTime, formatTimestamp } from "@/lib/format";
-import { NEEDS_YOU } from "@/lib/triage";
+import { needsYouAction } from "@/lib/triage";
 // Classic JSX transform (vitest/esbuild) needs React in scope for the .tsx
 // extension (same convention as the other component files).
 import * as React from "react";
@@ -90,7 +90,7 @@ export function RunsTable({ runs, now }: { runs: RunDto[]; now: number }) {
                   needs-you line names the action, so a row is readable
                   without opening it (U1 inbox rule). */}
               <StatusPill status={r.status}>{r.status}</StatusPill>
-              {NEEDS_YOU[r.status] ? (
+              {needsYouAction(r) ? (
                 <span
                   style={{
                     display: "block",
@@ -99,7 +99,7 @@ export function RunsTable({ runs, now }: { runs: RunDto[]; now: number }) {
                     fontSize: fontSize.xs,
                   }}
                 >
-                  {NEEDS_YOU[r.status]}
+                  {needsYouAction(r)}
                 </span>
               ) : null}
             </td>

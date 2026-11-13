@@ -18,6 +18,8 @@ function run(partial: Partial<RunDto>): RunDto {
     createdAt: partial.createdAt ?? "2026-08-23T16:00:00Z",
     startedAt: partial.startedAt ?? null,
     finishedAt: partial.finishedAt ?? null,
+    planApproved: partial.planApproved,
+    blockedBy: partial.blockedBy,
   };
 }
 
@@ -56,12 +58,24 @@ describe("RunsTable click-through rendering", () => {
 
   it.each([
     ["awaiting_plan_approval", "Approve or reject the plan"],
-    ["blocked", "Answer the agent's question"],
+    // without blockedBy the reason is unknown, so the row does not guess "a question"
+    ["blocked", "Decide how to unblock the run"],
     ["pr_opened", "Review the pull request"],
   ])("shows the home action for %s", (status, action) => {
     const html = renderToStaticMarkup(<RunsTable runs={[run({ status })]} now={NOW} />);
     expect(html).toContain(action.replaceAll("'", "&#x27;"));
     expect(html).toContain(status);
+  });
+
+  it("uses the run's approval and block reason", () => {
+    const approved = renderToStaticMarkup(
+      <RunsTable runs={[run({ status: "awaiting_plan_approval", planApproved: true })]} now={NOW} />,
+    );
+    expect(approved).toContain("Start the approved run");
+    const failed = renderToStaticMarkup(
+      <RunsTable runs={[run({ status: "blocked", blockedBy: "engine_failed" })]} now={NOW} />,
+    );
+    expect(failed).toContain("The run failed: decide what to do next");
   });
 
   it("does not invent a pending action for an unknown status", () => {

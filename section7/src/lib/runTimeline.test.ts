@@ -174,3 +174,25 @@ describe("receipts never show secret shapes (2026-11-13 review)", () => {
     for (const secret of ["abc123SECRET", gh, "xyzSECRET", sk]) expect(shown).not.toContain(secret);
   });
 });
+
+describe("timeline from the run aggregate's steps (no project replay)", () => {
+  it("rebuilds the payload facts the rules read, from the server's scrubbed detail", async () => {
+    const { stepsToEvents, groupEvents } = await import("@/lib/runTimeline");
+    const steps = groupEvents(
+      stepsToEvents([
+        { seq: 1, type: "plan_proposed", ts: null, detail: { stepCount: 3 } },
+        { seq: 2, type: "tool_call", ts: null, detail: { callId: "c1", name: "bash", command: "npm test" } },
+        { seq: 3, type: "tool_result", ts: null, detail: { callId: "c1", ok: false, error: "exit 1", durationMs: 40 } },
+        { seq: 4, type: "engine_failed", ts: null, reason: "engine not configured" },
+        { seq: 5, type: "pr_opened", ts: null, detail: { url: "https://example.test/pull/1" } },
+      ]),
+    );
+    expect(steps.map((s) => s.receipt)).toEqual([
+      "3 proposed steps",
+      "failed: exit 1 · 40 ms",
+      null,
+      "https://example.test/pull/1",
+    ]);
+    expect(steps[2].label).toContain("engine not configured");
+  });
+});

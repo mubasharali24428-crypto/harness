@@ -37,6 +37,10 @@ export interface RunDto {
   id: string;
   projectId: string;
   status: string;
+  /** True once the plan is approved; status stays awaiting_plan_approval until the run starts. */
+  planApproved?: boolean;
+  /** Why a blocked run is blocked: "question" | "engine_failed" | "review_failed". */
+  blockedBy?: string | null;
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
@@ -163,6 +167,9 @@ export interface RunStepDto {
   ts: string | null;
   /** Payload reason when the server sent one: tells a stop from a pause and says why a run failed. */
   reason?: string;
+  /** Scrubbed, clamped payload facts for the timeline (callId, name, path, command, ok, error,
+   *  durationMs, url, stepCount). Absent on older servers. */
+  detail?: Record<string, string | number | boolean> | null;
 }
 
 /** W4-C2 run aggregate wire shape (camelCase per api-conventions.md). */

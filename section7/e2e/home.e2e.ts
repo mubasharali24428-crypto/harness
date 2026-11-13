@@ -75,7 +75,8 @@ test("home: needs-you and working match the API; oldest item opens by keyboard i
   }
   await expect(first).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(new RegExp(`${href}$`));
+  // the link may carry ?tab=plan: compare the path and query literally, not as a pattern
+  await expect.poll(() => new URL(page.url()).pathname + new URL(page.url()).search).toBe(href);
   const seconds = (Date.now() - t0) / 1000;
   console.log(`[home] oldest pending item opened by keyboard in ${seconds.toFixed(2)} s`);
   expect(seconds).toBeLessThan(10);

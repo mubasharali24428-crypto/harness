@@ -16,10 +16,11 @@ import {
   stateLabel,
   stepLabel,
   stepsNewestFirst,
+  RUN_AGGREGATE_STEPS_MAX,
 } from "../../../../runs/runsApi";
 import { type ConnStatus, type UserStatus, USER_STATUS_TEXT, liveStatus } from "./realtimeCore";
 import { RunTimeline } from "./runTimeline";
-import type { TimelineEventInput } from "@/lib/runTimeline";
+import { stepsToEvents } from "@/lib/runTimeline";
 
 const USER_STATUS_PILL: Record<UserStatus, string> = {
   working: "pill yellow",
@@ -41,7 +42,6 @@ export function RunDetailAggregate({
   onPauseResume,
   controlBusy = false,
   controlNote,
-  events,
   timelineLive = false,
 }: {
   agg: RunAggregateDto;
@@ -53,9 +53,6 @@ export function RunDetailAggregate({
   controlBusy?: boolean;
   /** What the last pause/resume answered, or why it failed. */
   controlNote?: string | null;
-  /** Full replay events for the interactive timeline. Without them, the
-   *  aggregate's compact last-≤100 list is the honest fallback. */
-  events?: TimelineEventInput[];
   /** True while the run can still produce events; Follow is live-only. */
   timelineLive?: boolean;
 }) {
@@ -162,8 +159,18 @@ export function RunDetailAggregate({
       {/* Interactive timeline when the page has fetched replay events; the
           compact last-≤100 list stays as the fallback for callers (and older
           servers) that only have the aggregate's steps summary. */}
-      {events && events.length > 0 ? (
-        <RunTimeline events={events} live={timelineLive} />
+      {agg.steps.length > 0 ? (
+        <>
+          {agg.steps.length >= RUN_AGGREGATE_STEPS_MAX ? (
+            <p style={{ ...mutedStyle, fontSize: 12, margin: "16px 0 0" }}>
+              Showing the latest {RUN_AGGREGATE_STEPS_MAX} steps of this run; earlier steps are not loaded.
+            </p>
+          ) : null}
+          <RunTimeline
+            events={stepsToEvents(agg.steps.slice(-RUN_AGGREGATE_STEPS_MAX))}
+            live={timelineLive}
+          />
+        </>
       ) : (
         <section aria-label="Step timeline">
           <h2 style={{ margin: "16px 0 8px 0", fontSize: 14 }}>
