@@ -1,460 +1,152 @@
-# TUTORIAL — your first hour with the Harness
+# First governed task — operator guide
 
-This walkthrough was executed command-by-command against a fresh stack (August
-2026). Everything below shows what the system actually returns — including one
-honest dead end you are meant to see. Time budget: ~15 minutes once the stack
-is up (stack boot itself is a few minutes the very first time, mostly Docker
-image builds).
+Reconciled with the source and deployed OpenAPI on 2026-11-12. The previous August
+walkthrough used obsolete client-generated run IDs and unsafe volume-reset advice.
+This revision has **not been executed end-to-end by a real design partner**. The separate
+test agent must rehearse it; partner acceptance requires a real partner, not a synthetic login.
 
-You will: bring up the stack, log in, create a project, walk one agent run
-through the full human-governance loop (propose → **you approve** → execute →
-review), and read the event trail it left behind.
+## 1. Before a partner connects anything
 
-Prerequisites: Docker, Python ≥ 3.11, GNU make, curl + jq. For the live-run
-half, any OpenAI-compatible provider works — the examples use local
-[Ollama](https://ollama.com).
+Read `deploy/ONBOARDING.md`, the current security limitations, and the approved pilot scope.
+Do not connect production repositories, secrets, regulated data or payment-card data.
+Do not use the local `harness-rc` scratch deployment as a customer environment.
 
----
+Prerequisites: Docker Compose >=2.24.4, Python >=3.11, GNU Make, curl and jq.
+A live model run additionally needs an approved provider, model, budget and data scope.
+Contributor tests are separate from operator onboarding; do not ask a partner to run them.
 
-## 0. Contributor setup (one time)
-
-The repo's gates (`make test-section1`, `make lint`, `make gate`) each run
-inside a per-section virtualenv. Nothing creates those venvs implicitly — this
-is the one command that does:
-
-```sh
-make bootstrap
-```
-
-It provisions all eight backend-section venvs exactly the way CI does
-(editable install of `contracts/` first, then the section with its `dev`
-extras) and installs frontend deps from the committed lockfile. Takes ~90
-seconds. It is idempotent — re-run any time. `make clean-venvs` removes the
-venvs if you want to start over.
-
-Prove it worked:
-
-```sh
-make test-section1     # cd section1 && ./.venv/bin/python -m pytest tests/ -q
-```
-
-## 1. Configure and boot the stack
+Use the operator's private `.env`; never print or share it. If creating a new one:
 
 ```sh
 cp .env.example .env
-# then set a real master key — uncomment the HARNESS_MASTER_KEY line in .env,
-# or simply append:
 printf '\nHARNESS_MASTER_KEY=%s\n' "$(openssl rand -hex 32)" >> .env
 ```
 
-`.env.example` documents every variable (name, purpose, default,
-required-or-optional). Only `HARNESS_MASTER_KEY` is required for a dev boot.
+Edit the file rather than repeatedly appending duplicate keys. Keep ownership verification
+enabled for an exposed deployment. Configure SMTP for real email delivery; development OTP
+codes in container logs are not a production authentication mechanism.
 
-> **Why `--env-file`:** when compose is invoked as
-> `docker compose -f deploy/docker-compose.yml …` from the repo root, some
-> Docker Compose versions do **not** read the repo-root `.env` — they look
-> next to the compose file. Passing `--env-file .env` explicitly works on
-> every version and is what this tutorial uses.
+## 2. Boot and inspect, without deleting data
 
-```sh
-docker compose --env-file .env -f deploy/docker-compose.yml up -d
-docker compose -f deploy/docker-compose.yml ps    # expect ~9 services Up/healthy
-```
-
-First boot builds images and runs the one-shot `migrate` service (schema
-migrations + demo-repo seed) before the services start. If you ever see
-`migrate … didn't complete successfully`, read its log before anything else:
+From the repository root, with Docker running:
 
 ```sh
-docker compose -f deploy/docker-compose.yml logs migrate
+export HARNESS_IMAGE_TAG=<approved-image-tag>
+docker compose -p harness --env-file .env \
+  -f deploy/docker-compose.yml --profile worker up -d --wait --wait-timeout 180
+docker compose -p harness --env-file .env \
+  -f deploy/docker-compose.yml --profile worker ps -a
+python3 scripts/ops/stack_tags.py --project harness
 ```
 
-Two known causes: an empty `HARNESS_MASTER_KEY` (fix: step 1 above), or a
-*pre-existing* Postgres volume whose schema predates your current checkout
-(fix: `docker compose --env-file .env -f deploy/docker-compose.yml down -v`
-— **destroys local data**, dev machines only).
+Use an explicit reviewed image tag, not `latest`. The worker profile is required for live
+isolated runs. Check the migrate one-shot exited 0 and inspect actual image IDs against the
+release manifest. A matching tag alone does not prove matching source.
 
-## 2. Log in (email + OTP)
+If migration reports schema drift, **stop**. Do not run `down -v`, delete a volume, or boot
+an older image against a newer database. Follow `docs/runbooks/rollback.md` and
+`docs/runbooks/backup-and-pitr.md`; use a scratch restore for rehearsal. The run volume has
+a fixed name unless explicitly scoped, so a different Compose project name alone is not isolation.
 
-The stack ships with ownership verification ON: a plain email login gets
-`403 OWNERSHIP_REQUIRED` until the address proves itself with a one-time
-code. Without SMTP configured, dev OTP codes print to the identity logs:
+## 3. Sign in and create a real project
+
+Open the configured frontend URL (default `http://localhost:3000`). Use email ownership
+verification. With SMTP configured, the code arrives by email. Only in a local development
+rehearsal may the operator retrieve a code from the identity container logs.
+
+Create a project in the UI. For an API rehearsal, use the authenticated identity endpoint:
 
 ```sh
-curl -s -X POST http://localhost:8001/api/v1/auth/request-login \
-  -H 'content-type: application/json' \
-  -d '{"email":"you@example.com"}'
-docker compose -f deploy/docker-compose.yml logs identity | grep HARNESS-OTP
-# identity-1  |  HARNESS-OTP login code for you@example.com: 374377
-
-OTP=374377   # yours will differ
-curl -s -X POST http://localhost:8001/api/v1/auth/verify-otp \
-  -H 'content-type: application/json' \
-  -d "{\"email\":\"you@example.com\",\"code\":\"$OTP\"}" | tee /tmp/login.json
+curl --fail-with-body -sS -X POST http://localhost:8001/api/v1/projects \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"first-governed-task"}' > /tmp/harness-project.json
+PROJECT_ID=$(jq -r '.id' /tmp/harness-project.json)
 ```
 
-Response (your token is the long string under `token`; save it):
+Keep tokens out of screenshots, shell history shared with others, and evidence documents.
+GitHub OAuth is optional and requires the operator's own OAuth app; see `deploy/ONBOARDING.md`.
 
-```json
-{
-  "token": "harn_…",
-  "principal": {
-    "userId": "69b7c0d9-…",
-    "teamId": "22596018-…",
-    "role": "admin"
-  }
-}
-```
+## 4. Propose, inspect and approve
 
-Verifying an email auto-mints your solo team with you as admin. Save the
-token and set convenience vars:
+The current contract is `POST /api/v1/orchestrator/plans`. The server creates the run ID;
+the client must not invent one. The plan is currently a displayed planning template, not proof
+of a model-generated task-specific plan.
 
 ```sh
-TOKEN=$(jq -r .token /tmp/login.json)
-AUTH="authorization: Bearer $TOKEN"
+curl --fail-with-body -sS -X POST http://localhost:8004/api/v1/orchestrator/plans \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d "{\"goal\":\"Create temperature.py and a unit test, then run the test\",\"projectId\":\"$PROJECT_ID\"}" \
+  > /tmp/harness-plan.json
+PLAN_ID=$(jq -r '.planId' /tmp/harness-plan.json)
+jq . /tmp/harness-plan.json
 ```
 
-(The browser at <http://localhost:3000> walks through this same flow on the
-login page's *Request login code* tab.)
-
-## 3. Create a project
-
-Projects group runs, budgets, rules, and the event stream:
+Inspect the goal, expected result, steps, tests, risks and forbidden paths. A human decides:
 
 ```sh
-curl -s -X POST http://localhost:8001/api/v1/projects \
-  -H "$AUTH" -H 'content-type: application/json' \
-  -d '{"name":"tutorial-first-project"}' | tee /tmp/proj.json
+curl --fail-with-body -sS -X POST \
+  "http://localhost:8004/api/v1/orchestrator/plans/$PLAN_ID/approve" \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{}' \
+  > /tmp/harness-approval.json
+RUN_ID=$(jq -r '.runId' /tmp/harness-approval.json)
 ```
 
-```json
-{
-  "id": "8c5409f0-c458-4355-968f-dd4e6bf3fd1f",
-  "name": "tutorial-first-project",
-  "repoFullName": null
-}
-```
+Rejection uses the same plan path with `/reject`. Do not approve merely to make a demo pass.
+
+## 5. Start and observe the actual run
 
 ```sh
-PROJECT_ID=$(jq -r .id /tmp/proj.json)
+curl --fail-with-body -sS -X POST \
+  "http://localhost:8004/api/v1/orchestrator/runs/$RUN_ID/start" \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{}'
+curl --fail-with-body -sS \
+  "http://localhost:8004/api/v1/orchestrator/runs/$RUN_ID/status" \
+  -H "Authorization: Bearer $TOKEN" | jq .
+curl --fail-with-body -sS \
+  "http://localhost:8004/api/v1/orchestrator/runs/$RUN_ID/engine" \
+  -H "Authorization: Bearer $TOKEN" | jq .
 ```
 
-## 4. Propose a plan — the human gate
+Dry mode is expected to report that no provider is configured; it is not a successful coding
+task. A live run requires the approved provider configuration and worker daemon. Do not infer
+live execution from a UI badge. Record the actual run ID, model, events, cost, failures and
+interventions. A completed engine call alone does not prove the requested tests passed.
 
-An agent never touches code until a human approves a plan. Ask the
-orchestrator (:8004) for one:
+## 6. Review real changes and accept deliberately
+
+Use the run's Changes/Review UI to inspect the actual diff and recorded test output. The
+human done-signal requires non-empty diff evidence and an authorized role; it must not be a
+rubber stamp. Do not paste a fabricated diff to obtain a green review.
 
 ```sh
-RUN_ID="run-tutorial$(date +%s)"   # the client supplies the run id here
-curl -s -X POST "http://localhost:8004/api/v1/orchestrator/runs/$RUN_ID/plan" \
-  -H "$AUTH" -H 'content-type: application/json' \
-  -d "{\"goal\":\"Write a hello.py that prints the current UTC time\",\"projectId\":\"$PROJECT_ID\"}"
+curl --fail-with-body -sS \
+  "http://localhost:8004/api/v1/orchestrator/runs/$RUN_ID/diff" \
+  -H "Authorization: Bearer $TOKEN" | jq .
 ```
 
-```json
-{"runId": "run-tutorial33599", "planId": "plan-9a5a7a1f"}
-```
+Only after inspecting real delivery, submit its actual diff through the UI or
+`POST /api/v1/orchestrator/runs/$RUN_ID/done-signal` with `{"diffText":"<actual diff>"}`.
+Resolve staged approvals before completion. Verify the resulting files and test command output
+independently; `__pycache__` is not proof of a passing test. Merges remain manual.
 
-Read the plan back, then decide:
+## 7. Evidence for the first-task acceptance
 
-```sh
-PLAN_ID=plan-9a5a7a1f
-curl -s "http://localhost:8004/api/v1/orchestrator/runs/$RUN_ID/plan" -H "$AUTH" | jq .
-curl -s -X POST "http://localhost:8004/api/v1/orchestrator/runs/$RUN_ID/plan/approve" \
-  -H "$AUTH" -H 'content-type: application/json' -d "{\"planId\":\"$PLAN_ID\"}"
-```
+Record in `docs/briefs/evidence/90day/week-04.md`:
 
-Note the approval body carries `planId` — the server checks the approved plan
-belongs to this run. In the UI this is the dashboard's Plan Gate.
+- partner identity/consent and approved scope, without secrets;
+- date, host, source revision, image IDs, provider/model and configuration limits;
+- project, plan and run IDs; who approved, and when;
+- actual diff, test command/output, review decisions, cost and interventions;
+- whether the partner completed the task without operator assistance;
+- friction, failures and the partner's continue/stop decision.
 
-## 5. First run — and the honest dead end (dry mode)
+The separate test agent may rehearse with synthetic data first. A rehearsal does not satisfy
+P-07's real-partner acceptance criterion.
 
-```sh
-curl -s -X POST "http://localhost:8004/api/v1/orchestrator/runs/$RUN_ID/start" \
-  -H "$AUTH"
-```
+## References
 
-With the shipped defaults (`ENGINE_LIVE_MODE=dry`) the run executes against an
-honest stub executor and finishes **blocked**, by design:
-
-```sh
-curl -s "http://localhost:8004/api/v1/orchestrator/runs/$RUN_ID/status" -H "$AUTH"
-# {"runId": "...", "state": "blocked", "planId": "...", "engineMode": "dry", ...}
-curl -s "http://localhost:8004/api/v1/orchestrator/runs/$RUN_ID/engine" -H "$AUTH" | jq .
-```
-
-```json
-{
-  "sessionId": "run-tutorial33599",
-  "engine": "stub",
-  "status": "not_configured",
-  "finalResponse": "DeepSeek Harness not configured: set ENGINE_LIVE_MODE=live
-  with DEEPSEEK_API_KEY (and DEEPSEEK_BASE_URL for OpenAI-compatible
-  endpoints) to enable live runs."
-}
-```
-
-Nothing is faked: dry mode tells you plainly that no provider is configured.
-To see an agent actually work, configure one — next step.
-
-## 6. Flip to LIVE mode (local Ollama example)
-
-Any OpenAI-compatible endpoint works. With Ollama running locally
-(`ollama pull qwen3.5:9b` or any model you have):
-
-```sh
-cat >> .env <<'EOF'
-ENGINE_LIVE_MODE=live
-DEEPSEEK_API_KEY=ollama-local          # Ollama ignores the value; must be non-empty
-DEEPSEEK_BASE_URL=http://host.docker.internal:11434/v1
-DSH_MODEL=qwen3.5:9b                   # any tag from `ollama list`
-EOF
-docker compose --env-file .env -f deploy/docker-compose.yml up -d   # recreates affected services
-```
-
-(Hosted providers: same three variables, real key, their base URL, their
-model name.)
-
-Repeat steps 4–5 (new `$RUN_ID`, propose → approve → start). This time:
-
-```sh
-sleep 30
-curl -s "http://localhost:8004/api/v1/orchestrator/runs/$RUN_ID/status" -H "$AUTH" | jq '{state}'
-# {"state": "awaiting_done_signal"}
-curl -s "http://localhost:8004/api/v1/orchestrator/runs/$RUN_ID/engine" -H "$AUTH" | jq '{status, engine, finalResponse}' 
-```
-
-```json
-{
-  "status": "completed",
-  "engine": "deepseek-harness-sdk:qwen3.5:9b",
-  "finalResponse": "I've created hello.py that prints the current UTC time…"
-}
-```
-
-`engine` always names the model that actually answered — no silent fallback.
-
-## 7. Done-signal → automated review
-
-The agent signals completion with its diff; the reviewer sub-agent checks it
-(syntax scan, merge-conflict markers, brief alignment):
-
-```sh
-curl -s -X POST "http://localhost:8004/api/v1/orchestrator/runs/$RUN_ID/done-signal" \
-  -H "$AUTH" -H 'content-type: application/json' \
-  -d '{"diffText":"diff --git a/hello.py b/hello.py\nnew file\n+++ b/hello.py\n+from datetime import datetime, timezone\n+print(datetime.now(timezone.utc))"}' | jq .
-```
-
-```json
-{
-  "runId": "run-live-33756",
-  "findings": {
-    "passed": true,
-    "syntaxOk": true,
-    "conflictsDetected": false,
-    "briefAligned": true,
-    "summary": "Review passed cleanly."
-  }
-}
-```
-
-```sh
-curl -s "http://localhost:8004/api/v1/orchestrator/runs/$RUN_ID/status" -H "$AUTH" | jq '{state}'
-# {"state": "done"}
-```
-
-## 8. Read the events — the audit trail
-
-Every transition appended immutable, ordered events to the project stream.
-Replay them from the identity service (:8001):
-
-```sh
-curl -s "http://localhost:8001/api/v1/projects/$PROJECT_ID/events/replay?afterSeq=0" \
-  -H "$AUTH" | jq '[.items[] | {seq, type}]'
-```
-
-A completed tutorial run leaves ten:
-
-| seq | type |
-|---|---|
-| 1 | plan_proposed |
-| 2 | plan_approved |
-| 3 | execution_started |
-| 4 | engine_failed ← the dry-mode dead end, still on the record |
-| 5 | plan_proposed |
-| 6 | plan_approved |
-| 7 | execution_started |
-| 8 | engine_completed |
-| 9 | done_signal_received |
-| 10 | review_passed |
-
-Each envelope also carries `ts`, `projectId`, and `runId`. Live tailing from a
-browser uses the ws-ticket dance (`POST /api/v1/ws-ticket`, single-use 30 s
-ticket, then WebSocket); for scripting, keep reading — the Python SDK does
-that dance for you.
-
-## 9. Scripting the API — the Python SDK
-
-Everything above works from plain `curl`, but the same hour in a script is
-one import away. `clients/python` ships `harness_sdk`: every section's REST
-surface generated from its OpenAPI spec, plus the ws-ticket /
-X-WS-Fingerprint / replay-dedupe runtime extracted from the S7 browser
-client. Install it against your checkout:
-
-```sh
-pip install -e clients/python        # deps: httpx, websockets; Python ≥ 3.11
-```
-
-### Authenticate
-
-```python
-from harness_sdk import Harness, ApiError
-
-try:
-    sdk = Harness.login("you@example.com")          # legacy passwordless login
-except ApiError as err:
-    assert err.code == "OWNERSHIP_REQUIRED"         # default since H2r
-    sdk = Harness()
-    sdk.request_otp("you@example.com")
-    code = input("code (dev: docker logs <identity> | grep HARNESS-OTP): ")
-    sdk.verify_otp("you@example.com", code)
-```
-
-Already have a token? `sdk = Harness(token)` skips straight to work.
-
-### One call per section
-
-```python
-projects   = sdk.identity.list_projects(5)
-models     = sdk.router.list_models()
-runs       = sdk.orchestrator.list_runs(project_id=pid, limit=10)
-tree       = sdk.sandbox.get_project_tree(pid)
-meeting    = sdk.meeting.create_meeting({"projectId": pid, "title": "sync"})
-thresholds = sdk.review.get_reviewer_threshold_settings()
-conn       = sdk.github.connection_status()
-```
-
-Methods return the decoded JSON body. Errors raise `ApiError` with the frozen
-envelope parsed out (`err.code`, `err.status`) — e.g. starting an unapproved
-plan surfaces exactly the `PLAN_NOT_APPROVED` you saw in step 5. Transient
-failures (429/502/503/504, connection errors on idempotent calls) retry
-automatically with exponential backoff + jitter.
-
-### Watch the bus live (step 8 as a generator)
-
-```python
-for env in sdk.events.stream(PROJECT_ID, sdk.token):
-    print(env["seq"], env["type"])     # plan_proposed, engine_completed, …
-```
-
-The stream mints single-use tickets, presents the server's fingerprint echo,
-resumes from the highest seq seen after any drop, dedupes, and backs off —
-the same lifecycle the dashboard uses. A one-time `{"replayTruncated": true}`
-marker tells you when a huge gap was capped; backfill with
-`sdk.replay_events(PROJECT_ID, after_seq)`.
-
-Prove it end to end without writing anything:
-
-```sh
-cd clients/python && ./.venv/bin/python ../../scripts/sdk-gen/smoke_sdk.py
-# …walks auth → one call per section → live event stream, SMOKE PASS at the end
-```
-
-## 9b. Scripting the API — the TypeScript SDK
-
-The same surface ships for TypeScript/JavaScript (Node ≥ 22): `clients/ts`
-generates from the **same recorded specs** (`scripts/sdk-gen/generate.py
---target ts`), so both SDKs move in lockstep when an API changes. The
-handwritten runtime mirrors the Python one — bearer auth, the frozen error
-envelope, backoff retries, and ws-ticket / fingerprint / replay-dedupe event
-streaming extracted from section7's browser client. Zero runtime dependencies;
-`@types/node`, `tsx`, `typescript` are dev-only.
-
-```sh
-cd clients/ts && npm install && npm run build   # emits dist/
-```
-
-### Authenticate
-
-```ts
-import { Harness } from "./src/index.js";
-
-let harness: Harness;
-try {
-  harness = await Harness.login("you@example.com");   // legacy passwordless login
-} catch (err) {
-  // err.code === "OWNERSHIP_REQUIRED" by default since H2r:
-  harness = new Harness();
-  await harness.request_otp("you@example.com");
-  const code = prompt("code (dev: docker logs <identity> | grep HARNESS-OTP): ") ?? "";
-  await harness.verify_otp("you@example.com", code);
-}
-
-console.log(harness.principal);   // { userId, teamId, role }
-```
-
-Already have a token? `new Harness({ token })` skips straight to work.
-
-### One call per section
-
-```ts
-const projects = await harness.identity.list_projects(5);
-const models   = await harness.router.list_models();
-const runs     = await harness.orchestrator.list_runs(pid, undefined, 10);
-const meeting  = await harness.meeting.create_meeting({ projectId: pid, title: "sync" });
-```
-
-Methods return the decoded JSON body; errors throw `ApiError` with the frozen
-envelope parsed out (`err.code`, `err.status`). Transient failures retry with
-the same exponential-backoff + full-jitter policy as Python (`Retry-After`
-honored).
-
-### Watch the bus live
-
-```ts
-const stop = new AbortController();
-for await (const env of harness.events.stream(PROJECT_ID, harness.token ?? undefined, stop.signal)) {
-  console.log(env.seq, env.type);    // plan_proposed, engine_completed, …
-}
-stop.abort();
-```
-
-Same lifecycle as §9's generator: single-use tickets per connect, fingerprint
-presentation (Node's WebSocket cannot set headers, so the echoed value rides
-on the `?fingerprint=` param — the same channel the S7 browser uses), resume
-from the highest seq seen, seq dedupe, backoff reconnects.
-
-Live proof without writing anything:
-
-```sh
-cd clients/ts && npm run smoke
-# …same journey as the Python smoke, SMOKE PASS at the end
-```
-
-## Where to go next
-
-- **UI tour:** <http://localhost:3000> → the `/onboarding` checklist mirrors
-  these steps and deep-links each one.
-- **GitHub connect** (real repos): `deploy/ONBOARDING.md` § GitHub OAuth —
-  requires registering your own OAuth app; everything else works without it.
-- **API surface:** per-service OpenAPI at `:8001/:8002/:8003/:8004/:8005/:8006/:8008/openapi.json`;
-  conventions in `docs/api-versioning.md`.
-- **Contribute:** `make bootstrap` (step 0), then `make gate` — the exact
-  command CI runs on PRs. Layout + laws: `AGENTS.md`. Glossary:
-  `docs/GLOSSARY.md`.
-
-## Known sharp edges (as executed August 2026)
-
-- **Stale containers, current source:** images only change when rebuilt. If a
-  route the docs mention 404s, `docker compose --env-file .env -f
-  deploy/docker-compose.yml build && docker compose --env-file .env -f
-  deploy/docker-compose.yml up -d` first.
-- **Pre-existing volumes vs. new migrations:** `migrate` failing with
-  `DuplicateColumnError` means your volume predates the tracked migration
-  ledger (`section1/migrations/`). Dev escape hatch: `down -v` and reboot
-  (wipes local data).
-- **No DELETE /projects/{id}:** probe projects accumulate; there is currently
-  no cleanup endpoint.
-- Some error responses (FastAPI validation arrays) do not yet use the frozen
-  error envelope everywhere — being closed under M17-B3; don't hard-code
-  against bare `detail` arrays.
+- `docs/api-versioning.md` and each service's `/openapi.json`
+- `clients/python/README.md` and `clients/ts/README.md` for SDK usage
+- `docs/runbooks/` for operations and restore procedures
+- `docs/briefs/evidence/90day/demo/verification-2026-11-11.md` for dated W24 demo evidence,
+  which does not certify the current RC or a customer deployment

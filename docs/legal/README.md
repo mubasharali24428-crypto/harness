@@ -14,6 +14,9 @@ rather than interviewing the operator first.
 | `SUBPROCESSORS.md` | Every third party that can touch customer data, with location and status | Operator contracts/removes; counsel approves the transfer mechanism |
 | `SECURITY_QUESTIONNAIRE.md` | Honest answers to the questions a design partner will ask | Operator keeps evidence links current |
 | `COUNSEL_OPEN_QUESTIONS.md` | The decisions only counsel can make | Counsel answers; operator records the answer and date |
+| `PILOT_SOW_TEMPLATE.md` | Fill-in pilot SOW skeleton (P-03 draft, 2026-11-11): scope, acceptance, commercial placeholders, evidence gates | Operator fills entity/price/rail blanks (P-D2/P-D4); counsel reviews before any signature |
+| `W4-COUNSEL-HANDOFF.md` | Week 4 factual packet index and unanswered legal/security questions | Owner selects counsel, records engagement and answers; no legal approval implied |
+| `../decisions/2026-11-12-payment-rail-P-D2-DRAFT.md` | Official-source payment-rail evidence and unresolved seller-eligibility questions | Owner obtains written provider/counsel confirmation before enabling billing |
 
 Related existing documents (also counsel-review drafts):
 

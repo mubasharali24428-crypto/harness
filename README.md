@@ -14,9 +14,9 @@ comment for the decision point) · [`TERMS.md`](TERMS.md) ·
 [`PRIVACY.md`](PRIVACY.md) · [`PRICING.md`](PRICING.md)
 (Free/Pro/Team tiers mapped to real `PLAN_TIERS` + metering).
 
-- New operator? Start with **[`docs/TUTORIAL.md`](docs/TUTORIAL.md)** — a
-  verified walkthrough: boot the stack, log in, run one governed agent task,
-  read its events.
+- New operator? Start with **[`docs/TUTORIAL.md`](docs/TUTORIAL.md)** — the
+  source-reconciled first-task guide. Independent rehearsal and real-partner
+  acceptance remain separate evidence gates.
 - Deploying? **[`deploy/ONBOARDING.md`](deploy/ONBOARDING.md)**:
   `cp .env.example .env`, then `docker compose --env-file .env -f deploy/docker-compose.yml up -d`.
   `.env.example` documents every environment variable (name, purpose, default,
