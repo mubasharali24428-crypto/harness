@@ -82,7 +82,7 @@ function testsFact(tests: VerdictFactsInput["tests"]): VerdictFact {
     return { key: "tests", label, value: "unknown (no recorded tool calls)", details: [], unknown: true };
   }
   if (tests.length === 0) {
-    return { key: "tests", label, value: "none recorded", details: [], unknown: false };
+    return { key: "tests", label, value: "not run (NO_TESTS_RUN)", details: [], unknown: false };
   }
   const details = tests.map((run) => {
     const command = run.command?.trim() || "(command not recorded)";

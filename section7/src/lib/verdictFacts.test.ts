@@ -75,7 +75,8 @@ describe("verdictFacts — plan and sandbox", () => {
 
 describe("verdictFacts — tests and cost", () => {
   it("distinguishes recorded-no-tests from not-recorded", () => {
-    expect(byKey({ tests: [] }, "tests").value).toBe("none recorded");
+    // same words as the Week 8 PR comment (verdict_comment.py _tests_section)
+    expect(byKey({ tests: [] }, "tests").value).toBe("not run (NO_TESTS_RUN)");
     expect(byKey({ tests: null }, "tests").value).toBe("unknown (no recorded tool calls)");
   });
 
