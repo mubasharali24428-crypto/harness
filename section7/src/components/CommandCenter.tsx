@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import * as React from "react";
 import { PlanGateCard } from "../../app/dashboard/planGate";
 import AppShell from "@/components/AppShell";
+import HomeTriage from "@/components/HomeTriage";
 import { getRunStatus, getPlan, replayEvents, listProjects } from "@/lib/api";
 import { useEventStream } from "@/lib/useEventStream";
 import type { ConnectionState } from "@/lib/useEventStream";
@@ -62,6 +63,7 @@ export function CommandCenterView() {
   const [plan, setPlan] = useState<AgentPlan | null>(null);
   const [events, setEvents] = useState<EventEnvelope[]>([]);
   const [projectName, setProjectName] = useState<string>("");
+  const [projectNames, setProjectNames] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
   const { connectionState, attempt } = useEventStream(
@@ -79,6 +81,7 @@ export function CommandCenterView() {
       try {
         if (projectId) {
           const projects = await listProjects(token);
+          setProjectNames(Object.fromEntries(projects.map((p) => [p.id, p.name])));
           setProjectName(projects.find((p) => p.id === projectId)?.name ?? projectId);
         }
       } catch {
@@ -131,6 +134,8 @@ export function CommandCenterView() {
             {pill.label}
           </Pill>
         </div>
+
+        <HomeTriage projectNames={projectNames} />
 
         <PlanGateCard token={getToken()!} principal={loadSession()?.principal ?? null} />
 
