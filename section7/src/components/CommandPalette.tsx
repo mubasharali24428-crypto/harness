@@ -7,10 +7,28 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
 import { NAV_COMMANDS, isTypingTarget, stepShortcut } from "@/lib/commands";
+import { applyTheme, nextTheme, normalizeTheme } from "@/lib/theme";
 
 const KBD = "rounded border border-border bg-panel-2 px-1.5 py-0.5 font-mono text-[11px] text-muted";
 
-export default function CommandPalette({ workingHref }: { workingHref?: string | null }) {
+export interface PaletteProject {
+  id: string;
+  name: string;
+}
+
+export default function CommandPalette({
+  workingHref,
+  projects = [],
+  selectedProject,
+  onSelectProject,
+  onSignOut,
+}: {
+  workingHref?: string | null;
+  projects?: PaletteProject[];
+  selectedProject?: string | null;
+  onSelectProject?: (id: string) => void;
+  onSignOut?: () => void;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const pending = useRef(false);
@@ -49,6 +67,12 @@ export default function CommandPalette({ workingHref }: { workingHref?: string |
     setOpen(false);
     router.push(href);
   };
+  const run = (fn: () => void) => {
+    setOpen(false);
+    fn();
+  };
+  const group =
+    "text-[11px] uppercase tracking-wider text-muted [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5";
   const item =
     "flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm text-text-2 " +
     "data-[selected=true]:bg-accent-soft data-[selected=true]:text-text";
@@ -76,7 +100,7 @@ export default function CommandPalette({ workingHref }: { workingHref?: string |
         />
         <Command.List className="max-h-[50vh] overflow-y-auto p-2">
           <Command.Empty className="px-3 py-6 text-center text-sm text-muted">Nothing matches.</Command.Empty>
-          <Command.Group heading="Go to" className="text-[11px] uppercase tracking-wider text-muted [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5">
+          <Command.Group heading="Go to" className={group}>
             {workingHref ? (
               <Command.Item value="Working current run" onSelect={() => go(workingHref)} className={item}>
                 <span className="normal-case tracking-normal">Working (current run)</span>
@@ -91,6 +115,32 @@ export default function CommandPalette({ workingHref }: { workingHref?: string |
                 </span>
               </Command.Item>
             ))}
+          </Command.Group>
+          {projects.length > 1 && onSelectProject ? (
+            <Command.Group heading="Switch project" className={group}>
+              {projects.map((p) => (
+                <Command.Item key={p.id} value={`project ${p.name} ${p.id}`} onSelect={() => run(() => onSelectProject(p.id))} className={item}>
+                  <span className="normal-case tracking-normal">{p.name}</span>
+                  {p.id === selectedProject ? <span className="normal-case text-muted">current</span> : null}
+                </Command.Item>
+              ))}
+            </Command.Group>
+          ) : null}
+          <Command.Group heading="Actions" className={group}>
+            <Command.Item
+              value="Switch theme light dark appearance"
+              onSelect={() =>
+                run(() => applyTheme(nextTheme(normalizeTheme(document.documentElement.dataset.theme) ?? "dark")))
+              }
+              className={item}
+            >
+              <span className="normal-case tracking-normal">Switch light / dark theme</span>
+            </Command.Item>
+            {onSignOut ? (
+              <Command.Item value="Sign out log out" onSelect={() => run(onSignOut)} className={item}>
+                <span className="normal-case tracking-normal">Sign out</span>
+              </Command.Item>
+            ) : null}
           </Command.Group>
         </Command.List>
       </Command.Dialog>

@@ -190,7 +190,19 @@ export default function AppShell({
           </select>
         </div>
         <NotificationBell />
-        <CommandPalette workingHref={workingHref} />
+        <CommandPalette
+          workingHref={workingHref}
+          projects={projects}
+          selectedProject={selected}
+          onSelectProject={(id) => {
+            setProjectId(id);
+            setSelected(id);
+          }}
+          onSignOut={() => {
+            clearSession();
+            router.push("/login");
+          }}
+        />
         <div className="nav-group-label">Workspace</div>
         <nav>
           {AREAS.slice(0, 1).map((a) => (
