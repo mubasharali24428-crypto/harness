@@ -14,10 +14,12 @@
 import type { RunDto } from "./runsApi";
 import { runDetailHref, shortId } from "./runsApi";
 import { formatRelativeTime, formatTimestamp } from "@/lib/format";
+import { NEEDS_YOU } from "@/lib/triage";
 // Classic JSX transform (vitest/esbuild) needs React in scope for the .tsx
 // extension (same convention as the other component files).
 import * as React from "react";
 import { Table, cellStyle, StatusPill } from "@/components/ui";
+import { cssVar, fontSize } from "@/components/tokens";
 
 export function isRowActivateKey(key: string): boolean {
   return key === "Enter" || key === " ";
@@ -84,8 +86,22 @@ export function RunsTable({ runs, now }: { runs: RunDto[]; now: number }) {
             </td>
             <td style={cellStyle}>
               {/* DS: semantic tone map over the real AgentState vocabulary;
-                  unknown statuses degrade to the neutral blue pill. */}
+                  unknown statuses degrade to the neutral blue pill. The
+                  needs-you line names the action, so a row is readable
+                  without opening it (U1 inbox rule). */}
               <StatusPill status={r.status}>{r.status}</StatusPill>
+              {NEEDS_YOU[r.status] ? (
+                <span
+                  style={{
+                    display: "block",
+                    marginTop: 4,
+                    color: cssVar("muted"),
+                    fontSize: fontSize.xs,
+                  }}
+                >
+                  {NEEDS_YOU[r.status]}
+                </span>
+              ) : null}
             </td>
             <td style={cellStyle} title={r.createdAt ? formatTimestamp(r.createdAt) : undefined}>
               {formatRelativeTime(r.createdAt, now)}

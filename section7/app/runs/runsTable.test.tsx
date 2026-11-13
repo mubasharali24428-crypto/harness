@@ -54,6 +54,22 @@ describe("RunsTable click-through rendering", () => {
     expect(html).toContain('aria-label="Open run run-1234"');
   });
 
+  it.each([
+    ["awaiting_plan_approval", "Approve or reject the plan"],
+    ["blocked", "Answer the agent's question"],
+    ["pr_opened", "Review the pull request"],
+  ])("shows the home action for %s", (status, action) => {
+    const html = renderToStaticMarkup(<RunsTable runs={[run({ status })]} now={NOW} />);
+    expect(html).toContain(action.replaceAll("'", "&#x27;"));
+    expect(html).toContain(status);
+  });
+
+  it("does not invent a pending action for an unknown status", () => {
+    const html = renderToStaticMarkup(<RunsTable runs={[run({ status: "unknown" })]} now={NOW} />);
+    expect(html).toContain("unknown");
+    expect(html).not.toContain("Approve or reject the plan");
+  });
+
   it("renders the honest empty state when there are no runs", () => {
     const html = renderToStaticMarkup(<RunsTable runs={[]} now={NOW} />);
     expect(html).toContain("No runs match the current filters.");

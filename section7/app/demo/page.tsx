@@ -13,7 +13,7 @@
 // the detail page via ?demo=1. This is recorded truth replayed, never a fake
 // live run.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 // Classic JSX transform (vitest/esbuild) needs React in scope for .tsx.
 import * as React from "react";
 import { useRouter } from "next/navigation";
@@ -29,6 +29,21 @@ export default function DemoEntryPage() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const autoStarted = useRef(false);
+
+  // U5 fix: after the login round-trip, ?start=1 seeds the replay without a
+  // second "Try the demo" click. Signed-out visitors still see the card and
+  // their click goes through login; only an existing session auto-starts.
+  useEffect(() => {
+    if (autoStarted.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("start") !== "1") return;
+    if (!window.localStorage.getItem("harness.session")) return;
+    autoStarted.current = true;
+    void startDemo();
+    // startDemo is a stable page-local action; this runs once per mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function startDemo() {
     const sessionRaw = window.localStorage.getItem("harness.session");

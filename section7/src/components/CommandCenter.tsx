@@ -79,9 +79,9 @@ export function CommandCenterView() {
 
     (async () => {
       try {
+        const projects = await listProjects(token);
+        setProjectNames(Object.fromEntries(projects.map((p) => [p.id, p.name])));
         if (projectId) {
-          const projects = await listProjects(token);
-          setProjectNames(Object.fromEntries(projects.map((p) => [p.id, p.name])));
           setProjectName(projects.find((p) => p.id === projectId)?.name ?? projectId);
         }
       } catch {
