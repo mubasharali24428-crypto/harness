@@ -21,7 +21,7 @@ import { loadSession } from "@/lib/auth";
 import { listProjects } from "@/lib/api";
 import { ApiError } from "@/lib/api";
 import { Button, Card, Pill, Table, cardTitleStyle, cellStyle } from "@/components/ui";
-import { colors, cssVar } from "@/components/tokens";
+import { cssVar } from "@/components/tokens";
 import {
   COST_DOCS_URL,
   SpendSummary,
@@ -194,7 +194,7 @@ export default function CostDashboardPage() {
               : "No usage was recorded for this period yet. Model calls work, but nothing has been metered — spend rows appear here after the first metered run."}
           </span>
           <br />
-          <a href={COST_DOCS_URL} target="_blank" rel="noreferrer" style={{ color: colors.accentSoft }}>
+          <a href={COST_DOCS_URL} target="_blank" rel="noreferrer" style={{ color: cssVar("accent") }}>
             Status &amp; docs reference ↗
           </a>
         </Card>
