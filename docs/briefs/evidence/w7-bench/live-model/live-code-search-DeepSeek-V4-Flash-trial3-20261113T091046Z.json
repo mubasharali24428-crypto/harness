@@ -21,8 +21,8 @@
   "firstOutputS": 13.31,
   "toolCalls": 6,
   "interventions": 0,
-  "costUsd": 0.018652,
-  "costSource": "run_id",
+  "costUsd": 0.000642,
+  "costSource": "cost_ledger, corrected 2026-11-13 to the Token Lab website-calibrated rate 0.0176 USD/M tokens (was fallback 0.50/1.50)",
   "budget": {
     "timeoutSeconds": 900,
     "maxToolCalls": 20,
@@ -36,5 +36,6 @@
     "head": "deea6c6caf5cdc3296b9f7705a1363543a04214c",
     "branch": "w28-s1-delegate",
     "dirty": true
-  }
+  },
+  "costUsdFallbackPriced": 0.018652
 }
