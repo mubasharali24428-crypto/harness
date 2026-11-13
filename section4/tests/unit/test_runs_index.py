@@ -61,7 +61,7 @@ def db(tmp_path):
                 text(
                     "CREATE TABLE agent_events ("
                     "seq INTEGER PRIMARY KEY, run_id VARCHAR(36),"
-                    " type VARCHAR(60) NOT NULL,"
+                    " type VARCHAR(60) NOT NULL, payload TEXT,"
                     " ts TIMESTAMP WITH TIME ZONE NOT NULL)"
                 )
             )
@@ -451,3 +451,95 @@ def test_valid_bearer_reaches_data(seeded_db, monkeypatch):
     ids = [i["id"] for i in body["items"]]
     assert len(ids) == 3  # team-a scope applied end to end
     assert all(i["projectId"] == "proj-ours" for i in body["items"])
+
+
+# ------------------------------------------- 2026-11-13: state replayed from events
+
+
+def _add_events(factory, run_id: str, events: list[tuple[str, str | None]], seq0: int):
+    async def _go():
+        async with factory() as session:
+            for i, (etype, payload) in enumerate(events):
+                await session.execute(
+                    text(
+                        "INSERT INTO agent_events (seq, run_id, type, payload, ts)"
+                        " VALUES (:seq, :r, :t, :p, :ts)"
+                    ),
+                    {"seq": seq0 + i, "r": run_id, "t": etype, "p": payload, "ts": _NOW},
+                )
+            await session.commit()
+
+    import asyncio as _asyncio
+
+    _asyncio.run(_go())
+
+
+def test_run_waiting_for_plan_approval_is_not_reported_idle(monkeypatch, seeded_db):
+    """The column says idle (it is only written at creation); the log says the plan is waiting."""
+    _seed_run(seeded_db, "run-plan", "proj-ours", "idle", 5)
+    _add_events(seeded_db, "run-plan", [("plan_proposed", '{"planId": "p1"}')], 9000)
+    client = _client(monkeypatch, seeded_db, _principal())
+    items = {i["id"]: i for i in client.get("/api/v1/orchestrator/runs").json()["items"]}
+    assert items["run-plan"]["status"] == "awaiting_plan_approval"
+    res = client.get("/api/v1/orchestrator/runs", params={"status": "awaiting_plan_approval"})
+    assert [i["id"] for i in res.json()["items"]] == ["run-plan"]
+    res = client.get("/api/v1/orchestrator/runs", params={"status": "idle"})
+    assert "run-plan" not in [i["id"] for i in res.json()["items"]]
+
+
+def test_filtered_paging_walks_every_match_once(monkeypatch, seeded_db):
+    """With the filter applied after replay, cursors must still visit each match exactly once."""
+    for n in range(7):
+        rid = f"run-w{n}"
+        _seed_run(seeded_db, rid, "proj-ours", "idle", 50 + n)
+        _add_events(seeded_db, rid, [("plan_proposed", None)], 10000 + n * 10)
+        _seed_run(seeded_db, f"run-x{n}", "proj-ours", "idle", 60 + n)  # never proposed
+    client = _client(monkeypatch, seeded_db, _principal())
+    seen, cursor = [], None
+    while True:
+        params = {"status": "awaiting_plan_approval", "limit": 3}
+        if cursor:
+            params["cursor"] = cursor
+        body = client.get("/api/v1/orchestrator/runs", params=params).json()
+        seen += [i["id"] for i in body["items"]]
+        cursor = body["nextCursor"]
+        if not cursor:
+            break
+    assert sorted(seen) == sorted(f"run-w{n}" for n in range(7))
+    assert len(seen) == len(set(seen))
+
+
+from harness_orchestrator.runs_index import replay_state  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    ("events", "expected"),
+    [
+        ([], "idle"),
+        ([("plan_proposed", None)], "awaiting_plan_approval"),
+        ([("plan_proposed", None), ("plan.rejected", None)], "idle"),
+        ([("execution_started", None), ("engine_completed", None)], "awaiting_done_signal"),
+        # done gate opened by the engine, then review passes: finished
+        (
+            [("execution_started", None), ("engine_completed", None),
+             ("done_signal_received", None), ("review_passed", None)],
+            "done",
+        ),
+        # review passes without the gate: the legacy loop continues
+        ([("execution_started", None), ("review_passed", None)], "executing"),
+        # engine_completed only counts from executing
+        ([("engine_completed", None)], "idle"),
+        # stop tombstone is terminal; later events cannot resurrect the run
+        (
+            [("execution_started", None), ("paused", '{"reason": "user_requested_stop"}'),
+             ("resumed", None)],
+            "done",
+        ),
+        ([("execution_started", None), ("paused", '{"reason": "user_requested"}')], "paused"),
+        ([("execution_started", None), ("engine_failed", None)], "blocked"),
+        ([("execution_started", None), ("pr_opened", None)], "pr_opened"),
+        ([("paused", {"stopped": True})], "done"),
+    ],
+)
+def test_replay_state_follows_the_state_machine(events, expected):
+    assert replay_state(events, "idle") == expected
