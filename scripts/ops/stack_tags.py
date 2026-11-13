@@ -7,10 +7,13 @@ mixed (STATUS.md, "W27 slice 2 deployed" / "W27 slice 3 deployed"), so a person
 needs to see the mix before choosing a redeploy.
 
 The ONLY external command is `docker ps`. Nothing here creates, stops, removes,
-rebuilds or reconfigures anything, and this script always exits 0.
+rebuilds or reconfigures anything. Exit status: 0 when `docker ps` answered (drift is reported in
+the text, not the status), 2 when `docker ps` failed: the stack could not be seen, so a quiet exit
+would read as "no drift".
 """
 from __future__ import annotations
 
+import argparse
 import subprocess
 
 PS_FORMAT = '{{.Label "com.docker.compose.service"}}|{{.Names}}|{{.Image}}'
@@ -97,16 +100,22 @@ def stack_report(ps_text: str) -> list[str]:
     return lines
 
 
-def main() -> int:
+def main(project: str | None = None) -> int:
+    command = ["docker", "ps", "--format", PS_FORMAT]
+    if project:
+        command.extend(["--filter", f"label=com.docker.compose.project={project}"])
+        print(f"Compose project: {project}")
     result = subprocess.run(
-        ["docker", "ps", "--format", PS_FORMAT],
+        command,
         capture_output=True, text=True, check=False,
     )
     if result.returncode != 0:
         print(f"docker ps exited {result.returncode}: {result.stderr.strip()}")
     print("\n".join(stack_report(result.stdout)))
-    return 0
+    return 2 if result.returncode != 0 else 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--project", help="Restrict the report to one Compose project")
+    raise SystemExit(main(project=parser.parse_args().project))

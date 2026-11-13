@@ -91,7 +91,8 @@ result and the criterion, not a command).
   is explicitly noted as an existing pattern in `STATUS.md:965`.
 * **Recreate only the service the slice changed**: `worker-daemon` for slice 2
   (`STATUS.md:972`), `orchestrator` for slice 3 (`STATUS.md:979`).
-* `scripts/ops/stack_tags.py` prints the current mix read-only and exits 0; use
+* `scripts/ops/stack_tags.py` prints the current mix read-only. It exits 0 when `docker ps`
+  answered (drift is in the text, not the status) and 2 when `docker ps` failed; use
   it before and after a redeploy to see whether agreement was restored.
 
 ## 4. "No worker running" check

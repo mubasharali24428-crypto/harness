@@ -94,6 +94,44 @@ def test_main_exits_zero_and_prints_the_mix_without_docker(monkeypatch, capsys):
     assert "Read-only:" in out
 
 
+def test_main_filters_the_requested_compose_project(monkeypatch, capsys):
+    commands = []
+
+    class Result:
+        returncode = 0
+        stdout = _ps()
+        stderr = ""
+
+    def run(command, **kwargs):
+        commands.append(command)
+        return Result()
+
+    monkeypatch.setattr(stack_tags.subprocess, "run", run)
+    assert stack_tags.main(project="harness-rc") == 0
+    assert commands == [[
+        "docker", "ps", "--format", stack_tags.PS_FORMAT,
+        "--filter", "label=com.docker.compose.project=harness-rc",
+    ]]
+    assert "Compose project: harness-rc" in capsys.readouterr().out
+
+
+def test_main_without_project_preserves_unfiltered_report(monkeypatch):
+    commands = []
+
+    class Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def run(command, **kwargs):
+        commands.append(command)
+        return Result()
+
+    monkeypatch.setattr(stack_tags.subprocess, "run", run)
+    assert stack_tags.main() == 0
+    assert commands == [["docker", "ps", "--format", stack_tags.PS_FORMAT]]
+
+
 # --------------------------------------------------------------------- B2 drift
 # EXPECTED_BACKEND_SERVICES must stay aligned with deploy/docker-compose.yml.
 # The script hard-codes the tuple; if a service is added/removed in the compose

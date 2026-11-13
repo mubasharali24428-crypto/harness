@@ -35,7 +35,10 @@ other than the stack itself.
 
 Env overrides (all optional):
   E2E_OTP_CODE        skip log scraping (fixed-code dev setups)
-  E2E_COMPOSE_FILE    default <repo>/deploy/docker-compose.yml
+  E2E_COMPOSE_FILE    base file, default <repo>/deploy/docker-compose.yml
+  E2E_COMPOSE_FILES   additional comma-separated override files
+  E2E_COMPOSE_PROJECT Compose project to inspect; omit for the file/default project
+  E2E_COMPOSE_ENV_FILE env file for Compose interpolation, default <repo>/.env if present
   E2E_WAIT_SECONDS    readiness deadline, default 180
   E2E_IDENTITY_URL / E2E_ORCHESTRATOR_URL / E2E_SANDBOX_URL / E2E_FRONTEND_URL
 """
@@ -55,6 +58,25 @@ ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_FILE = os.environ.get(
     "E2E_COMPOSE_FILE", str(ROOT / "deploy" / "docker-compose.yml")
 )
+COMPOSE_FILES = [COMPOSE_FILE] + [
+    path.strip() for path in os.environ.get("E2E_COMPOSE_FILES", "").split(",") if path.strip()
+]
+COMPOSE_PROJECT = os.environ.get("E2E_COMPOSE_PROJECT")
+_env_file = os.environ.get("E2E_COMPOSE_ENV_FILE")
+COMPOSE_ENV_FILE = Path(_env_file) if _env_file else ROOT / ".env"
+
+
+def compose_command(*args: str) -> list[str]:
+    command = ["docker", "compose"]
+    if COMPOSE_PROJECT:
+        command.extend(["-p", COMPOSE_PROJECT])
+    if COMPOSE_ENV_FILE.is_file():
+        command.extend(["--env-file", str(COMPOSE_ENV_FILE)])
+    for path in COMPOSE_FILES:
+        command.extend(["-f", path])
+    return command + list(args)
+
+
 IDENTITY = os.environ.get("E2E_IDENTITY_URL", "http://127.0.0.1:8001").rstrip("/")
 ORCHESTRATOR = os.environ.get("E2E_ORCHESTRATOR_URL", "http://127.0.0.1:8004").rstrip("/")
 SANDBOX = os.environ.get("E2E_SANDBOX_URL", "http://127.0.0.1:8005").rstrip("/")
@@ -147,6 +169,10 @@ def wait_ready(name: str, url: str, deadline: float) -> tuple[int, dict | str]:
 
 
 _ONE_SHOTS = {"migrate"}  # must exist and exit 0; never "running"
+# Image-only services (worker-daemon starts them once per run): with the `worker` profile they are
+# "enabled" yet may have no container at all. A missing container is fine; one that exists must
+# have exited 0.
+_BUILD_ONLY = {"engine-worker"}
 
 
 def _problems_from_rows(rows: list[dict], enabled: set[str]) -> list[str]:
@@ -174,13 +200,14 @@ def _problems_from_rows(rows: list[dict], enabled: set[str]) -> list[str]:
     for service in sorted(enabled):
         row = by_service.get(service)
         if row is None:
-            problems.append(f"{service}: no container")
+            if service not in _BUILD_ONLY:
+                problems.append(f"{service}: no container")
             continue
         state = str(row.get("State") or "").strip().lower()
         health = str(row.get("Health") or "").strip().lower()
         status = str(row.get("Status") or "").strip()
         suffix = f" ({status})" if status else ""
-        if service in _ONE_SHOTS:
+        if service in _ONE_SHOTS or service in _BUILD_ONLY:
             exit_code = row.get("ExitCode")
             if state == "exited" and exit_code == 0:
                 continue
@@ -194,7 +221,7 @@ def _problems_from_rows(rows: list[dict], enabled: set[str]) -> list[str]:
 
 def _compose_lines(args: list[str], what: str) -> list[str]:
     proc = subprocess.run(
-        ["docker", "compose", "-f", COMPOSE_FILE, *args],
+        compose_command(*args),
         cwd=str(ROOT),
         capture_output=True,
         text=True,
@@ -292,7 +319,7 @@ def _identity_log_text() -> str:
     docker-compose setup still works.
     """
     ident = subprocess.run(
-        ["docker", "compose", "-f", COMPOSE_FILE, "ps", "-q", "identity"],
+        compose_command("ps", "-q", "identity"),
         cwd=str(ROOT),
         capture_output=True,
         text=True,
@@ -310,7 +337,7 @@ def _identity_log_text() -> str:
         if direct.returncode == 0 and (direct.stdout or direct.stderr):
             return direct.stdout + direct.stderr
     proc = subprocess.run(
-        ["docker", "compose", "-f", COMPOSE_FILE, "logs", "--no-log-prefix", "identity"],
+        compose_command("logs", "--no-log-prefix", "identity"),
         cwd=str(ROOT),
         capture_output=True,
         text=True,
