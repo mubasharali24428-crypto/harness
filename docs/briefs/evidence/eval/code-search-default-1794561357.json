@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "kind": "w2-code-search",
+  "variant": "default",
+  "takenAt": "2026-11-13T09:16:42.103951+00:00",
+  "runId": "w2-code-search-default-1794561357",
+  "goal": "This repository has a wrong value: RETRY_BACKOFF_SECONDS is set to 5 and\nmust be 7. Find the module that defines it and change only that value. Do not\nmodify any other file. Reply with exactly one line:\nFILE: <the path of the file you changed>\n",
+  "target": "pkg/billing/invoice_retry.py",
+  "model": "the stack DSH_MODEL",
+  "modelPref": {
+    "requested": null,
+    "applied": null
+  },
+  "seededFiles": 100,
+  "changedFiles": [
+    "pkg/billing/invoice_retry.py"
+  ],
+  "addedFiles": [],
+  "state": "awaiting_done_signal",
+  "states": [
+    "executing",
+    "awaiting_done_signal"
+  ],
+  "durationSeconds": 44.27,
+  "toolCalls": 3,
+  "toolsUsed": [
+    "bash",
+    "edit",
+    "read"
+  ],
+  "usage": null,
+  "usageNote": "null on this transport per the M07 finding; wall clock and tool calls are recorded instead",
+  "answer": "FILE: pkg/billing/invoice_retry.py",
+  "checks": {
+    "runSettled": true,
+    "targetHasNewValue": true,
+    "onlyTargetChanged": true,
+    "answerNamesTheFile": true,
+    "noFilesDeleted": true,
+    "requestedModelApplied": true
+  },
+  "verdict": "PASS",
+  "failedChecks": []
+}
