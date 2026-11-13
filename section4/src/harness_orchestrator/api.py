@@ -930,8 +930,9 @@ async def signal_done(
             detail={"error": {"code": e.code, "message": e.message}},
         ) from e
     except DoneSignalRejectedError as e:
+        # The status follows the error class (role denied 403, verification required 400, ...).
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=e.http_status,
             detail={"error": {"code": e.code, "message": e.message}},
         ) from e
     # The reviewer's model call runs as the person who signalled done: their token, role, budget.

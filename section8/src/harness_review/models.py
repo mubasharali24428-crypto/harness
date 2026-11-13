@@ -87,3 +87,23 @@ class ReviewData(BaseModel):
     review_comments: list[dict[str, Any]] = Field(default_factory=list)
     test_results: list[TestResult] = Field(default_factory=list)
     model_config = {"protected_namespaces": ()}
+
+
+class PreReviewDigest(BaseModel):
+    """I-10: adversarial pre-review digest for the human reviewer (advisory only).
+
+    Combines deterministic path-risk flags with a cheap adversarial model pass
+    run BEFORE human review. It never approves, merges, or replaces the human
+    verdict. ``model_used`` records the model (no silent downgrade); ``None``
+    means deterministic-only or withheld. Secrets are redacted before any model
+    context. ``requires_human_attention`` highlights elevated risk; it is not an
+    approval gate.
+    """
+
+    risk_flags: list[RiskFlag] = Field(default_factory=list)
+    highest_severity: RiskSeverity = RiskSeverity.LOW
+    concerns: list[str] = Field(default_factory=list)
+    model_used: str | None = None
+    cost_usd: float | None = None
+    requires_human_attention: bool = False
+    basis: str = ""

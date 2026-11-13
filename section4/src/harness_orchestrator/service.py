@@ -58,6 +58,7 @@ from harness_orchestrator.loop_guard import (
 )
 from harness_orchestrator.planner import PlanNotApprovedError, PlanService
 from harness_orchestrator.redact import scrub_secrets
+from harness_orchestrator.review_summary import exit_code_from_summary, verification_evidence
 from harness_orchestrator.reviewer import ReviewerSubAgent, ReviewFindings
 from harness_orchestrator.rules_loader import build_rules_block, load_project_rules
 from harness_orchestrator.run_metering import record_engine_tool_calls, record_run_cost
@@ -2914,6 +2915,13 @@ class OrchestratorService(Orchestrator):
         sm.submit_human_edit(path=path)
         self._cancel_live_task(run_data)
 
+    @staticmethod
+    def _verification_first_enabled() -> bool:
+        """I-09: operator opt-in for verification-first done-signals (default off)."""
+        return os.environ.get("HARNESS_VERIFICATION_FIRST", "false").strip().lower() in {
+            "1", "true", "yes", "on",
+        }
+
     async def gate_done_signal(self, run_id: str, principal: Any, diff_text: str) -> None:
         """H-007: validate a done-signal BEFORE any transition or review spend.
 
@@ -2921,11 +2929,58 @@ class OrchestratorService(Orchestrator):
         route and any internal caller enforce identical role/evidence/liveness
         semantics. Raises the typed DoneSignalRejectedError subclasses (the
         route maps them to 403/409/400).
+
+        I-09: when HARNESS_VERIFICATION_FIRST is enabled, the gate also requires
+        a recorded test run going green, read from the run's engine tool calls.
         """
         run_data = await self._ensure_run(run_id)
         sm: AgentStateMachine = run_data["state_machine"]
-        gate_done_signal(principal, sm.state, diff_text)
+        verification_required = self._verification_first_enabled()
+        verification = (
+            await self._recorded_verification(run_id) if verification_required else None
+        )
+        gate_done_signal(
+            principal,
+            sm.state,
+            diff_text,
+            verification_required=verification_required,
+            verification=verification,
+        )
         await self._gate_staged_completion(run_id)
+
+    async def _recorded_verification(self, run_id: str) -> dict[str, Any] | None:
+        """I-09: verification evidence from the run's recorded engine tool calls.
+
+        Mirrors the review-summary source (agent_tool_calls, reported_by=engine).
+        No surfaced rows is ``None`` (unknown), never a pass. The run is already
+        ownership-checked by _ensure_run before this is called.
+        """
+        factory = self.run_queue_factory or self.session_factory
+        if factory is None:
+            return None
+        async with factory() as db:
+            rows = (
+                await db.execute(
+                    text(
+                        "SELECT tool, target, outcome, summary FROM agent_tool_calls"
+                        " WHERE run_id = :r AND reported_by = 'engine'"
+                        " ORDER BY created_at, id"
+                    ),
+                    {"r": run_id},
+                )
+            ).all()
+        if not rows:
+            return None
+        calls = [
+            {
+                "tool": r.tool,
+                "target": r.target,
+                "outcome": "ok" if r.outcome == "ok" else "error",
+                "exitCode": exit_code_from_summary(r.summary),
+            }
+            for r in rows
+        ]
+        return verification_evidence(calls)
 
     async def _gate_staged_completion(self, run_id: str) -> None:
         if self.session_factory is not None and await collab.unapplied_staged_approval(
@@ -2984,12 +3039,21 @@ class OrchestratorService(Orchestrator):
                         await deliver_budget_warning(factory, team_id)
 
         # The model call is blocking HTTP: run it off the event loop.
-        findings = await asyncio.to_thread(
-            reviewer.evaluate_changes,
-            brief_summary=run_data["goal"],
-            diff_text=diff_text,
-            budget_blocked_reason=budget_block,
-        )
+        # I-09: with verification-first enabled, the reviewer verdict reflects the
+        # run's RECORDED test evidence instead of the vacuous "passed" default.
+        review_kwargs: dict[str, Any] = {
+            "brief_summary": run_data["goal"],
+            "diff_text": diff_text,
+            "budget_blocked_reason": budget_block,
+        }
+        if self._verification_first_enabled():
+            evidence = await self._recorded_verification(run_id)
+            review_kwargs["test_results_summary"] = (
+                "passed" if evidence and evidence.get("green")
+                else "failed" if evidence and evidence.get("failed")
+                else "unknown"
+            )
+        findings = await asyncio.to_thread(reviewer.evaluate_changes, **review_kwargs)
         # M19-N2 (F9): stamp the stored reference onto the verdict payload
         # before it reaches the bus — REVIEW_* events carry WHERE the body
         # lives, never the 200KB-class body itself.

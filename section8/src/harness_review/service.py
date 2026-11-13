@@ -29,6 +29,7 @@ from .heuristic import (
     evaluate_review_verdict,
 )
 from .models import (
+    PreReviewDigest,
     ReviewData,
     ReviewStatus,
     RiskFlag,
@@ -423,6 +424,44 @@ class ReviewService(ReviewGate):
         """Re-generate and return the AI summary for a PR."""
         return await self.get_review_data(
             pr_id, diff_text=diff_text, team_id=team_id, actor_user_id=actor_user_id
+        )
+
+    async def get_pre_review_digest(
+        self,
+        pr_id: str,
+        diff_text: str | None = None,
+        *,
+        team_id: str | None = None,
+        actor_user_id: str | None = None,
+    ) -> PreReviewDigest:
+        """I-10: adversarial pre-review digest for the human reviewer.
+
+        Advisory only — does not approve, merge, or change the human verdict.
+        Resolves the diff the same way as get_review_data, then combines
+        path-risk flags with a recorded cheap adversarial model pass.
+        """
+        from .pre_review import build_pre_review_digest
+
+        async with await self._session() as db:
+            record = await get_pull_request_record(db, pr_id, team_id=team_id)
+            if record is None:
+                raise LookupError(f"PR record '{pr_id}' not found")
+            resolved_team = team_id or await self._project_team(db, record["project_id"])
+            if diff_text is None:
+                diff_text = await get_diff_from_summary(db, pr_id)
+            if diff_text is None:
+                diff_text = await self._provided_diff(
+                    record["project_id"], record["github_pr_number"],
+                    resolved_team, actor_user_id,
+                )
+            diff_text = self._require_nonempty_diff(diff_text, pr_id)
+        changed_files = parse_diff(diff_text)
+        return build_pre_review_digest(
+            diff_text,
+            [f.path for f in changed_files],
+            model_router=self._model_router,
+            risk_analyzer=self._risk_analyzer,
+            team_id=resolved_team,
         )
 
     async def evaluate_verdict(
