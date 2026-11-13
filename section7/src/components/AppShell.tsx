@@ -14,6 +14,7 @@ import { MAIN_CONTENT_ID, useSkipTarget } from "@/lib/focus";
 // Part 47: unread badge as a plain link (no sound, no popup); renders nothing without a session.
 import NotificationBell from "../../app/notifications/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import CommandPalette from "@/components/CommandPalette";
 
 const AREAS = [
   { href: "/", label: "Command Center" },
@@ -189,6 +190,7 @@ export default function AppShell({
           </select>
         </div>
         <NotificationBell />
+        <CommandPalette workingHref={workingHref} />
         <div className="nav-group-label">Workspace</div>
         <nav>
           {AREAS.slice(0, 1).map((a) => (

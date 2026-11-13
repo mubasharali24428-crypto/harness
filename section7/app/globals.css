@@ -1,3 +1,32 @@
+/* U0 (docs/plans/ui-overhaul-plan-2026-11-13.md): Tailwind v4 utilities beside the existing
+   stylesheet. No preflight import, so no existing page is reset. Utilities sit in a cascade
+   layer, so every unlayered rule below still wins: use utilities on NEW components only. */
+@import "tailwindcss/theme" layer(theme);
+@import "tailwindcss/utilities" layer(utilities);
+@source "../src";
+
+/* Our variables stay the single source of truth; these only give them utility names
+   (bg-panel, text-muted, border-border, ...), so light/dark keeps working unchanged. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-panel-3: var(--panel-3);
+  --color-border: var(--border);
+  --color-border-soft: var(--border-soft);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-green: var(--green);
+  --color-red: var(--red);
+  --color-yellow: var(--yellow);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
 /* Harness console theme — a neutral ink workspace with hairline borders, a
    single electric-blue accent and monospace metadata: the look of a desktop
    engineering tool rather than a web page. Every rule below consumes these
