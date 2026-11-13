@@ -128,3 +128,24 @@ describe("path 3 — honest empty", () => {
     expect(resolvePrId("", "   ")).toBeNull();
   });
 });
+
+describe("runIdForPr (verdict card must not borrow another run's facts)", () => {
+  const opened = (seq: number, runId: string, prId: string) =>
+    envelope({ seq, type: EventType.PR_OPENED, runId, payload: { runId, prId, url: "u" } });
+
+  it("returns the run that opened this PR, not the newest run on the stream", async () => {
+    const { runIdForPr } = await import("./prSource");
+    const events = [
+      opened(1, "run-a", "pr-1"),
+      envelope({ seq: 2, type: EventType.EXECUTION_STARTED, runId: "run-b", payload: { runId: "run-b" } }),
+    ];
+    expect(runIdForPr("pr-1", events)).toBe("run-a");
+  });
+
+  it("is null when no event links the PR to a run", async () => {
+    const { runIdForPr } = await import("./prSource");
+    expect(runIdForPr("pr-9", [opened(1, "run-a", "pr-1")])).toBeNull();
+    expect(runIdForPr(null, [opened(1, "run-a", "pr-1")])).toBeNull();
+    expect(runIdForPr("pr-1", [])).toBeNull();
+  });
+});

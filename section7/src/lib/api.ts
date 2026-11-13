@@ -638,12 +638,27 @@ export interface ReviewRiskFlag {
   reason: string;
 }
 
+export interface ReviewTestResult {
+  name: string;
+  status: string;
+  pass_count: number;
+  fail_count: number;
+  summary: string;
+}
+
 export interface ReviewDto {
   prId: string;
   pr_url: string;
-  review_status: string;
-  changed_files: ReviewChangedFile[];
+  /** Section 8 also sends camelCase; older/other surfaces used snake_case.
+   *  Both stay optional so the verdict card can tell "absent" from "empty". */
+  prUrl?: string;
+  changed_files?: ReviewChangedFile[];
+  changedFiles?: ReviewChangedFile[];
   risk_flags?: ReviewRiskFlag[];
+  riskFlags?: ReviewRiskFlag[];
+  testResults?: ReviewTestResult[];
+  approvedBy?: string | null;
+  review_status?: string;
   summary?: { sections: { label: string; text: string }[] };
 }
 
