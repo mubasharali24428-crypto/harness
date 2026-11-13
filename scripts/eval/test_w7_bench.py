@@ -151,3 +151,26 @@ def test_ambiguous_stack_is_refused(monkeypatch):
     monkeypatch.delenv("E2E_COMPOSE_PROJECT")
     R.stdout = "harness-rc harness-rc"
     assert bench_trials.ambiguous_stack() is None
+
+
+def test_spend_cap_stops_new_trials(tmp_path, monkeypatch):
+    task = {"id": "t", "cost": "live", "budget": {"maxCostUsd": 0.4}}
+    ran = []
+
+    def fake_live(task, trial, model):
+        ran.append(trial)
+        return {"model": model, "verdict": "PASS", "costUsd": 0.1, "budget": task["budget"]}
+    monkeypatch.setattr(bench_trials, "live_attempt", fake_live)
+    monkeypatch.setattr(bench_trials, "_manifest_sha", lambda: "x")
+    monkeypatch.setattr(bench_trials.run_eval, "git_revision", lambda: "x")
+    s = bench_trials.run_batch([task], 5, "m", False, tmp_path, max_total_usd=0.65)
+    assert ran == [1, 2, 3] and s["stoppedByCap"]  # 3 x 0.1 spent; a 4th trial could reach 0.7 > 0.65
+
+
+def test_provider_429_in_evidence_is_error_not_fail(tmp_path):
+    ev = tmp_path / "e.json"
+    ev.write_text(json.dumps({"answer": "run failed: 429: rate_limit_error"}))
+    assert bench_trials.provider_throttled('{"evidence": "%s"}' % ev)
+    ev.write_text(json.dumps({"answer": "FILE: a.py"}))
+    assert not bench_trials.provider_throttled('{"evidence": "%s"}' % ev)
+    assert not bench_trials.provider_throttled("no evidence here")

@@ -278,7 +278,10 @@ def execute(
         # W14 comparison: the driver/engine reads DSH_MODEL; the second name is
         # the documented seam for a driver that wants to record it explicitly.
         env["DSH_MODEL"] = model
-        env["HARNESS_EVAL_MODEL"] = model
+        if not os.environ.get("HARNESS_EVAL_STACK_MODEL"):
+            # set when the model is not in the models catalog (e.g. a TokenLab id): the stack's
+            # DSH_MODEL then governs and no per-user model preference is written
+            env["HARNESS_EVAL_MODEL"] = model
     results = []
     for attempt in range(1, repeats + 1):
         started = datetime.now(UTC)

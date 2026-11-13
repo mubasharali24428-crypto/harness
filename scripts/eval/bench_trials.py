@@ -94,6 +94,20 @@ def classify_verdict(attempt: dict) -> str:
     return verdict
 
 
+_THROTTLE = ("rate_limit", "rate limit", " 429")
+
+
+def provider_throttled(stdout_tail: str) -> bool:
+    """True when the driver's evidence file shows the model provider answered 429: that is the
+    provider throttling us (shared concurrency limit), not a product or model result."""
+    m = re.search(r'"evidence":\s*"([^"]+)"', stdout_tail or "")
+    try:
+        answer = str(json.loads(Path(m.group(1)).read_text(encoding="utf-8")).get("answer") or "")
+    except (AttributeError, OSError, ValueError):
+        return False
+    return any(t in answer.lower() for t in _THROTTLE)
+
+
 def ambiguous_stack() -> str | None:
     """Several compose projects running and no E2E_COMPOSE_PROJECT: the eval drivers would talk to
     the default ports but look up containers by service name only. Returns a message, else None."""
@@ -141,7 +155,10 @@ def live_attempt(task: dict, trial: int, model: str) -> dict:
         "ledgerModel": ledger_model, "trial": trial, "runId": run_id,
         "startedAt": a["startedAt"], "finishedAt": datetime.now(UTC).isoformat(),
         "durationSec": a["durationSec"], "exitCode": a["exitCode"], "timedOut": a["timedOut"],
-        "verdict": classify_verdict(a), "driverVerdict": a.get("driverVerdict"),
+        "verdict": "ERROR" if a["verdict"] == "FAIL" and provider_throttled(a.get("stdoutTail"))
+        else classify_verdict(a),
+        "errorReason": "provider 429 (rate limited)" if a["verdict"] == "FAIL"
+        and provider_throttled(a.get("stdoutTail")) else None, "driverVerdict": a.get("driverVerdict"),
         "failedChecks": a.get("failedChecks") or [],
         "firstOutputS": joined.get("firstToolCallS"),
         "toolCalls": joined.get("toolCalls"),
@@ -153,8 +170,14 @@ def live_attempt(task: dict, trial: int, model: str) -> dict:
     }
 
 
+def _spent(attempts: list[dict]) -> float:
+    """Recorded cost; a trial whose cost is unknown or 0 is charged its task's full budget."""
+    return sum(a["costUsd"] if a.get("costUsd") else (a.get("budget") or {}).get("maxCostUsd") or 0
+               for a in attempts)
+
+
 def run_batch(tasks: list[dict], trials: int, model: str, dry: bool,
-              out_dir: Path) -> dict:
+              out_dir: Path, max_total_usd: float | None = None) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
     batch_start = datetime.now(UTC)
     stamp = batch_start.strftime("%Y%m%dT%H%M%SZ")
@@ -163,8 +186,13 @@ def run_batch(tasks: list[dict], trials: int, model: str, dry: bool,
     git_rev = run_eval.git_revision()
     files: list[str] = []
     attempts: list[dict] = []
+    stopped = None
     for task in tasks:
         for trial in range(1, trials + 1):
+            nxt = (task.get("budget") or {}).get("maxCostUsd") or 0
+            if max_total_usd is not None and _spent(attempts) + nxt > max_total_usd:
+                stopped = f"spend cap ${max_total_usd} would be exceeded before {task['id']} trial {trial}"
+                break
             a = fake_attempt(task, trial) if dry else live_attempt(task, trial, model)
             a["trials"] = trials
             a["manifestSha256"] = manifest_sha
@@ -188,6 +216,7 @@ def run_batch(tasks: list[dict], trials: int, model: str, dry: bool,
             "error": sum(a["verdict"] == "ERROR" for a in attempts),
             "denied": sum(a.get("driverVerdict") == "DENIED" for a in attempts),
         },
+        "stoppedByCap": stopped, "maxTotalUsd": max_total_usd, "spentUsdConservative": _spent(attempts),
         "claimable": False if dry else None,
         "note": ("DRY pipeline exercise: fake model, zero spend, no Docker/network; "
                  "not a capability claim." if dry else
@@ -207,6 +236,8 @@ def main() -> int:
     ap.add_argument("--model", default=None)
     ap.add_argument("--dry", action="store_true", help="fake model, zero spend, no Docker/network")
     ap.add_argument("--include-live", action="store_true", help="allow live-spend tasks (owner-gated)")
+    ap.add_argument("--max-total-usd", type=float, default=None,
+                    help="stop launching trials once recorded (or budgeted, if unknown) cost would exceed this")
     ap.add_argument("--out", default=str(OUT))
     ap.add_argument("--corpus", default=str(run_eval.CORPUS))
     a = ap.parse_args()
@@ -246,9 +277,10 @@ def main() -> int:
         if clash:
             ap.error(clash)
 
-    summary = run_batch(tasks, a.trials, a.model or DRY_MODEL, a.dry, Path(a.out))
+    summary = run_batch(tasks, a.trials, a.model or DRY_MODEL, a.dry, Path(a.out), a.max_total_usd)
     print(json.dumps({k: summary[k] for k in
-                      ("mode", "model", "trialsPerTask", "tasks", "counts", "claimable", "note")},
+                      ("mode", "model", "trialsPerTask", "tasks", "counts", "claimable", "stoppedByCap",
+                       "spentUsdConservative", "note")},
                      indent=2))
     print(f"-> {len(summary['attemptFiles'])} attempt files in {a.out}")
     return 0
