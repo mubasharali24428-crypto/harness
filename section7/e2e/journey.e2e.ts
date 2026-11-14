@@ -184,7 +184,7 @@ test.describe("H-014 hero journey (compose stack)", () => {
     await test.step("runs index renders honestly", async () => {
       await page.goto("/runs");
       await expect(page.getByRole("heading", { name: "Runs", exact: true })).toBeVisible();
-      await expect(page.getByText(/Showing \d+–\d+ of \d+/)).toBeVisible();
+      await expect(page.getByText(/Showing \d+–\d+/)).toBeVisible();
     });
 
     // ---------------------------------------------------------- 8. review

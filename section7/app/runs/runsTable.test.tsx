@@ -122,3 +122,16 @@ describe("RunsTable keyboard contract (M14-F1b)", () => {
     expect(isRowActivateKey(" ")).toBe(true);
   });
 });
+
+
+describe("project column (plan §8 F6)", () => {
+  it("shows the project's name when known and a shortened id otherwise, never the raw id", () => {
+    const id = "5074474e-b2a5-4181-a395-76b4f55ef6b0";
+    const named = renderToStaticMarkup(
+      <RunsTable runs={[run({ projectId: id })]} now={NOW} projectNames={{ [id]: "demo-repo" }} />,
+    );
+    expect(named).toContain(">demo-repo</a>");
+    const unnamed = renderToStaticMarkup(<RunsTable runs={[run({ projectId: id })]} now={NOW} />);
+    expect(unnamed).not.toContain(`>${id}</a>`);
+  });
+});

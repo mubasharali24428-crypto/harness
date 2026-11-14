@@ -50,9 +50,9 @@ export interface RunDto {
  *  and drive the pager (never assume client-side totals). */
 export interface RunsPageDto {
   items: RunDto[];
-  total: number;
-  limit: number;
-  offset: number;
+  /** Opaque keyset cursor for the next page; null at the end. The server
+   *  dropped `total` and ignores `offset` (runs_index.py, M14-W4 F3a). */
+  nextCursor: string | null;
 }
 
 export interface RunsQuery {
@@ -60,7 +60,7 @@ export interface RunsQuery {
   status?: RunStatusValue | null;
   /** Contract cap: limit ≤ 100, server default 25. Clamped client-side too. */
   limit?: number;
-  offset?: number;
+  cursor?: string | null;
 }
 
 export const RUNS_DEFAULT_LIMIT = 25;
@@ -71,7 +71,7 @@ function normalizeLimit(limit: number): number {
   return Math.min(RUNS_MAX_LIMIT, Math.max(1, Math.floor(limit)));
 }
 
-/** Pure: builds the M10-C2 query string. Omits empty filters and offset=0 so
+/** Pure: builds the M10-C2 query string. Omits empty filters and cursor so
  *  the URL stays canonical; trims projectId; clamps limit to [1,100]. */
 export function buildRunsQueryString(query: RunsQuery): string {
   const params = new URLSearchParams();
@@ -81,13 +81,7 @@ export function buildRunsQueryString(query: RunsQuery): string {
   if (typeof query.limit === "number" && Number.isFinite(query.limit)) {
     params.set("limit", String(normalizeLimit(query.limit)));
   }
-  if (
-    typeof query.offset === "number" &&
-    Number.isFinite(query.offset) &&
-    query.offset > 0
-  ) {
-    params.set("offset", String(Math.floor(query.offset)));
-  }
+  if (query.cursor) params.set("cursor", query.cursor);
   return params.toString();
 }
 
@@ -127,12 +121,7 @@ export async function listRuns(
   // never as a crash on data.items.map.
   return {
     items: Array.isArray(data.items) ? data.items : [],
-    total: typeof data.total === "number" ? data.total : 0,
-    limit:
-      typeof data.limit === "number" && data.limit > 0
-        ? data.limit
-        : RUNS_DEFAULT_LIMIT,
-    offset: typeof data.offset === "number" && data.offset >= 0 ? data.offset : 0,
+    nextCursor: typeof data.nextCursor === "string" ? data.nextCursor : null,
   };
 }
 

@@ -25,7 +25,16 @@ export function isRowActivateKey(key: string): boolean {
   return key === "Enter" || key === " ";
 }
 
-export function RunsTable({ runs, now }: { runs: RunDto[]; now: number }) {
+export function RunsTable({
+  runs,
+  now,
+  projectNames = {},
+}: {
+  runs: RunDto[];
+  now: number;
+  /** Project id → name. An id with no known name shows shortened, never raw. */
+  projectNames?: Record<string, string>;
+}) {
   return (
     // M14-F2b (raw-03 P2): overflow-x wrapper keeps wide tables inside their
     // card on ≤900px viewports (page never scrolls sideways); CSS pins the
@@ -81,7 +90,7 @@ export function RunsTable({ runs, now }: { runs: RunDto[]; now: number }) {
                 style={{ color: "var(--accent)", textDecoration: "underline" }}
                 onClick={(e) => e.stopPropagation()}
               >
-                {r.projectId}
+                {projectNames[r.projectId] ?? shortId(r.projectId)}
               </a>
             </td>
             <td style={cellStyle}>
