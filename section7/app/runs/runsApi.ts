@@ -336,6 +336,11 @@ export async function getRunAggregate(
         type: typeof rec.type === "string" ? rec.type : "unknown",
         ts: asStringOrNull(rec.ts),
         ...(typeof rec.reason === "string" && rec.reason ? { reason: rec.reason } : {}),
+        // Scrubbed per-step facts (path/command/durationMs/ok/error). The
+        // timeline builds one-line receipts from these; absent stays absent.
+        ...(rec.detail && typeof rec.detail === "object" && !Array.isArray(rec.detail)
+          ? { detail: rec.detail as Record<string, string | number | boolean> }
+          : {}),
       });
       if (steps.length >= RUN_AGGREGATE_STEPS_MAX) break;
     }

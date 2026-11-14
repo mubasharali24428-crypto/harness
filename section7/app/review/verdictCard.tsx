@@ -8,6 +8,7 @@ import * as React from "react";
 import { Card } from "@/components/ui";
 import { cssVar, fontSize, space } from "@/components/tokens";
 import { verdictFacts, type VerdictFact } from "@/lib/verdictFacts";
+import { formatMoneyUsd } from "@/lib/format";
 import type { ReviewDto } from "@/lib/api";
 import type { RunAggregateDto } from "../runs/runsApi";
 
@@ -32,7 +33,12 @@ export function reviewVerdictFacts(
         : null
       : null,
     cost: runAgg
-      ? { actualUsd: runAgg.costUsd, estimatedUsd: runAgg.estimatedCostUsd }
+      ? {
+          // R1 money rule: two decimals from a cent up, "< $0.01" below,
+          // "unknown" when not recorded (the facts builder words the nulls).
+          actualUsd: runAgg.costUsd,
+          estimatedUsd: runAgg.estimatedCostUsd,
+        }
       : null,
     risk: liveReview
       ? {

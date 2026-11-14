@@ -40,3 +40,19 @@ export function teamNameSlug(name: string): string {
     .replace(/^-+|-+$/g, "");
   return slug.slice(0, 40);
 }
+
+/**
+ * R1 money rule (ui-master-prompt §Visual rules): two decimals from one cent
+ * up, "< $0.01" below a cent, "unknown" when not recorded. A genuine $0 IS
+ * recorded data and renders as "$0.00"; null/NaN/∞ never render as money.
+ * Pure so vitest covers it directly.
+ */
+export function formatMoneyUsd(
+  value: number | null | undefined,
+): string {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return "unknown";
+  }
+  if (value > 0 && value < 0.01) return "< $0.01";
+  return `$${value.toFixed(2)}`;
+}

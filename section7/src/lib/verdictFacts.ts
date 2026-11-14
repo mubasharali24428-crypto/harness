@@ -35,8 +35,13 @@ export interface VerdictFact {
 }
 
 function money(value: number | null | undefined): string | null {
+  // R1 money rule (ui-master-prompt §Visual rules): two decimals from one cent
+  // up, "< $0.01" below, unknown when not recorded. A recorded $0 is real data
+  // and renders as "$0.00"; null/NaN/negative stay null so the fact says
+  // "unknown" instead of a fabricated number.
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
-  return `$${value.toFixed(6)}`;
+  if (value > 0 && value < 0.01) return "< $0.01";
+  return `$${value.toFixed(2)}`;
 }
 
 function planFact(plan: VerdictFactsInput["plan"]): VerdictFact {

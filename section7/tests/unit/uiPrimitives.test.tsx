@@ -218,17 +218,17 @@ describe("Modal", () => {
 });
 
 describe("tokens.ts integrity", () => {
-  it("token palette matches globals.css :root exactly", async () => {
+  it("token palette matches globals.css :root exactly (R1 final set)", async () => {
     const { colors } = await import("@/components/tokens");
-    expect(colors.bg).toBe("#0a0b0e");
-    expect(colors.panel).toBe("#12161e");
-    expect(colors.panel2).toBe("#191e28");
-    expect(colors.border).toBe("#272c37");
-    expect(colors.text).toBe("#e9edf6");
-    expect(colors.muted).toBe("#8d96a8");
-    expect(colors.accent).toBe("#8ba8ff");
-    expect(colors.green).toBe("#58cf8a");
+    expect(colors.bg).toBe("#0c0d0f");
+    expect(colors.panel).toBe("#141518");
+    expect(colors.panel2).toBe("#1a1c20");
+    expect(colors.border).toBe("#2a2d33");
+    expect(colors.text).toBe("#ededef");
+    expect(colors.muted).toBe("#8f929a");
+    expect(colors.accent).toBe("#6e9bff");
+    expect(colors.green).toBe("#5ecf8f");
     expect(colors.red).toBe("#ff7b7b");
-    expect(colors.yellow).toBe("#e9b949");
+    expect(colors.yellow).toBe("#e3b341");
   });
 });

@@ -101,10 +101,10 @@ describe("verdictFacts — tests and cost", () => {
     expect(fact.unknown).toBe(true);
   });
 
-  it("formats a genuine zero at exact scale-6, but never a fabricated one", () => {
+  it("formats a genuine zero as $0.00 (R1 money rule), never a fabricated one", () => {
     const zero = byKey({ cost: { actualUsd: 0, estimatedUsd: 0 } }, "cost");
-    expect(zero.value).toBe("actual: $0.000000 (cost_ledger)");
-    expect(zero.details).toEqual(["estimated: $0.000000 (plan estimate, not actual)"]);
+    expect(zero.value).toBe("actual: $0.00 (cost_ledger)");
+    expect(zero.details).toEqual(["estimated: $0.00 (plan estimate, not actual)"]);
     expect(zero.unknown).toBe(false);
   });
 
@@ -112,9 +112,15 @@ describe("verdictFacts — tests and cost", () => {
     expect(byKey({ cost: { actualUsd: -1, estimatedUsd: Number.NaN } }, "cost").value).toBe("actual: unknown");
   });
 
+it("shows '< $0.01' for sub-cent spend (R1 money rule)", () => {
+    const fact = byKey({ cost: { actualUsd: 0.000057, estimatedUsd: 0.01 } }, "cost");
+    expect(fact.value).toBe("actual: < $0.01 (cost_ledger)");
+    expect(fact.details[0]).toBe("estimated: $0.01 (plan estimate, not actual)");
+  });
+
   it("states an absent estimate separately from a known actual", () => {
     const fact = byKey({ cost: { actualUsd: 1.2, estimatedUsd: null } }, "cost");
-    expect(fact.value).toBe("actual: $1.200000 (cost_ledger)");
+    expect(fact.value).toBe("actual: $1.20 (cost_ledger)");
     expect(fact.details).toEqual(["estimated: unknown"]);
     expect(fact.unknown).toBe(false);
   });

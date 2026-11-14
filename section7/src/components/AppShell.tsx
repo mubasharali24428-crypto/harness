@@ -26,15 +26,6 @@ const AREAS = [
   { href: "/settings", label: "Settings" },
 ];
 
-/** The section a route belongs to, for the chrome's breadcrumb. */
-function sectionLabel(active: string): string {
-  if (active.startsWith("/projects")) return "Working";
-  const exact = AREAS.find((a) => a.href === active);
-  if (exact) return exact.label;
-  const prefix = AREAS.filter((a) => a.href !== "/").find((a) => active.startsWith(a.href));
-  return prefix?.label ?? "Harness";
-}
-
 export default function AppShell({
   children,
   active,
@@ -53,10 +44,6 @@ export default function AppShell({
   // This boolean is the ONLY new JS in the shell — everything else about the
   // responsive behavior is pure CSS media queries in app/globals.css.
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  // A real clock, not decoration: the console's status line reads like an
-  // editor's. Rendered client-side only, so SSR and hydration agree.
-  const [clock, setClock] = useState("");
-
   useEffect(() => {
     if (!getToken()) {
       router.push("/login");
@@ -88,16 +75,6 @@ export default function AppShell({
     return () => document.body.classList.remove("has-open-sidebar");
   }, [sidebarOpen]);
 
-  useEffect(() => {
-    const tick = () =>
-      setClock(
-        new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      );
-    tick();
-    const id = window.setInterval(tick, 30_000);
-    return () => window.clearInterval(id);
-  }, []);
-
   return (
     <div className="shell">
       {/* M14-F1b (raw-03 P2): skip link is the FIRST element of the shell so
@@ -106,25 +83,6 @@ export default function AppShell({
       <a className="skip-link" href={skipHref} onClick={onSkipActivate}>
         Skip to content
       </a>
-      {/* Desktop window chrome. Decorative (aria-hidden): every value it shows
-          is already exposed by the sidebar, so assistive tech hears it once.
-          The dots are pure chrome — no window controls are implied. */}
-      <div className="titlebar" aria-hidden="true">
-        <span className="dots">
-          <i />
-          <i />
-          <i />
-        </span>
-        <span className="tb-section">{sectionLabel(active)}</span>
-        <span className="tb-sep">/</span>
-        <span className="tb-project">
-          {projects.find((p) => p.id === selected)?.name ?? "no project selected"}
-        </span>
-        <span className="tb-right">
-          <span className="tb-env">harness</span>
-          {clock ? <span className="tb-clock">{clock}</span> : null}
-        </span>
-      </div>
       {/* M14-F2b: mobile top bar. Hidden entirely on desktop (display:none in
           globals.css); ≤900px it carries the hamburger toggle. aria-expanded
           is the machine-readable source of truth for drawer state; the label
@@ -276,17 +234,7 @@ export default function AppShell({
       <main id={MAIN_CONTENT_ID} tabIndex={-1} className="content">
         {children}
       </main>
-      {/* Status line, like a native editor's: real state only — the principal's
-          role, the project this tab is scoped to, and the section. aria-hidden
-          because the sidebar already exposes all three. */}
-      <footer className="statusbar" aria-hidden="true">
-        <span className="sb-item">
-          <span className="sb-dot" />
-          {role}
-        </span>
-        <span className="sb-item">project: {selected ?? "—"}</span>
-        <span className="sb-item sb-right">{sectionLabel(active)}</span>
-      </footer>
+
     </div>
   );
 }
