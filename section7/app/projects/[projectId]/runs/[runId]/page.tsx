@@ -38,6 +38,7 @@ import {
 import { RunDetailAggregate } from "./runDetailAggregate";
 import { ScopeRequestSection } from "./scopeRequestSection";
 import { SynthesisSection } from "./synthesisPanel";
+import { PrReview } from "./prReview";
 import { PlanGateCard } from "../../../../dashboard/planGate";
 import { SharedRunPanel } from "./sharedRunPanel";
 import { SessionSixWorkbench } from "./sessionSixWorkbench";
@@ -245,8 +246,9 @@ export default function RunDetailPage({
       </RunTabPanel>
 
       <RunTabPanel id="changes" active={tab === "changes"}>
+        {token && agg?.prId && <PrReview prId={agg.prId} token={token} agg={agg} />}
         {projectId && token ? (
-          <ChangeReview projectId={projectId} token={token} />
+          <ChangeReview projectId={projectId} token={token} quietWhenEmpty={Boolean(agg?.prId)} />
         ) : (
           <LoadingState label="Waiting for your session…" rows={2} />
         )}

@@ -3,8 +3,9 @@
 // (route-module law, W4 carryover) — the page imports from here instead.
 
 /** Query carried to the run detail page so it can show the honest replay
- *  banner. Purely a UI marker; the backend has no notion of it. */
-export const DEMO_LANDING_QUERY = "demo=1";
+ *  banner. Purely a UI marker; the backend has no notion of it. The landing
+ *  opens on the Changes tab, where the run's diff and verdict are (plan §8 R0). */
+export const DEMO_LANDING_QUERY = "tab=changes&demo=1";
 
 export type DemoSeedPick = { runId: string; projectId: string };
 

@@ -45,6 +45,8 @@ const monospace: React.CSSProperties = {
 };
 
 export interface ChangeReviewViewProps {
+  /** Render nothing when there are no snapshots (the caller already shows the run's changes). */
+  quietWhenEmpty?: boolean;
   snapshots: CheckpointDto[];
   sha: string;
   files: CheckpointFile[];
@@ -64,6 +66,7 @@ export interface ChangeReviewViewProps {
 
 export function ChangeReviewView(p: ChangeReviewViewProps) {
   if (p.snapshots.length === 0) {
+    if (p.quietWhenEmpty) return null;
     return (
       <section aria-labelledby="changes-heading">
         <h2 id="changes-heading">Changes</h2>
@@ -241,7 +244,15 @@ export function ChangeReviewView(p: ChangeReviewViewProps) {
   );
 }
 
-export function ChangeReview({ projectId, token }: { projectId: string; token: string }) {
+export function ChangeReview({
+  projectId,
+  token,
+  quietWhenEmpty,
+}: {
+  projectId: string;
+  token: string;
+  quietWhenEmpty?: boolean;
+}) {
   const [snapshots, setSnapshots] = React.useState<CheckpointDto[] | null>(null);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [sha, setSha] = React.useState("");
@@ -341,6 +352,7 @@ export function ChangeReview({ projectId, token }: { projectId: string; token: s
 
   return (
     <ChangeReviewView
+      quietWhenEmpty={quietWhenEmpty}
       snapshots={snapshots}
       sha={sha}
       files={files}

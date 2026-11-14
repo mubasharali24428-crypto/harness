@@ -652,6 +652,8 @@ export interface ReviewDto {
   /** Section 8 also sends camelCase; older/other surfaces used snake_case.
    *  Both stay optional so the verdict card can tell "absent" from "empty". */
   prUrl?: string;
+  /** Unified diff text of the PR (section8 ReviewDataResponse.diff). */
+  diff?: string;
   changed_files?: ReviewChangedFile[];
   changedFiles?: ReviewChangedFile[];
   risk_flags?: ReviewRiskFlag[];

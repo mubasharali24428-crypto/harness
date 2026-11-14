@@ -28,8 +28,7 @@ import { PrEmptyState } from "./prEmptyState";
 import { Button, Card, Pill } from "@/components/ui";
 import { Notice } from "@/components/ui/Notice";
 import { getRunAggregate, type RunAggregateDto } from "../runs/runsApi";
-import { verdictFacts } from "@/lib/verdictFacts";
-import { VerdictCard } from "./verdictCard";
+import { VerdictCard, reviewVerdictFacts } from "./verdictCard";
 
 const RISKY_FILES = ["auth/", "payment/", "migrations", ".env", "secrets"];
 
@@ -138,39 +137,7 @@ export default function Review() {
     };
   }, [verdictRunId]);
 
-  const verdict = useMemo(() => {
-    const flags = liveReview ? (liveReview.risk_flags ?? liveReview.riskFlags) : undefined;
-    const testResults = liveReview?.testResults;
-    return verdictFacts({
-      plan: runAgg
-        ? { approved: runAgg.planApproved ? true : null, approvedBy: null, approvedAt: null }
-        : null,
-      // No browser-callable sandbox fact exists yet (verdict_post.collect_facts
-      // leaves it unrecorded); the card says so instead of guessing.
-      sandbox: null,
-      tests: liveReview
-        ? Array.isArray(testResults)
-          ? testResults.map((t) => ({ command: t.name, result: t.status }))
-          : null
-        : null,
-      cost: runAgg
-        ? { actualUsd: runAgg.costUsd, estimatedUsd: runAgg.estimatedCostUsd }
-        : null,
-      risk: liveReview
-        ? {
-            recorded: Array.isArray(flags),
-            flags: (flags ?? []).map((f) => ({
-              path: f.path,
-              severity: f.severity,
-              reason: f.reason,
-            })),
-          }
-        : null,
-      // The adversarial digest has no endpoint the browser can call (I-10 is
-      // server-side only). Recorded concerns stay "not recorded" here.
-      preReview: null,
-    });
-  }, [liveReview, runAgg]);
+  const verdict = useMemo(() => reviewVerdictFacts(liveReview, runAgg), [liveReview, runAgg]);
 
 
 
@@ -251,10 +218,16 @@ export default function Review() {
       <h1>
         Review Area{" "}
         <Pill
-          tone={liveReview ? "green" : "yellow"}
-          className={`pill ${liveReview ? "green" : "yellow"}`}
+          tone={liveReview ? "green" : loadError ? "red" : "yellow"}
+          className={`pill ${liveReview ? "green" : loadError ? "red" : "yellow"}`}
         >
-          {liveReview ? `PR ${liveReview.prId}` : prId ? `PR ${prId} loading…` : "no PR yet"}
+          {liveReview
+            ? `PR ${liveReview.prId}`
+            : !prId || prMissing
+              ? "no PR yet"
+              : loadError
+                ? `PR ${prId} not loaded`
+                : `PR ${prId} loading…`}
         </Pill>
       </h1>
       {!prId && <PrEmptyState />}

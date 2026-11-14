@@ -7,7 +7,48 @@
 import * as React from "react";
 import { Card } from "@/components/ui";
 import { cssVar, fontSize, space } from "@/components/tokens";
-import type { VerdictFact } from "@/lib/verdictFacts";
+import { verdictFacts, type VerdictFact } from "@/lib/verdictFacts";
+import type { ReviewDto } from "@/lib/api";
+import type { RunAggregateDto } from "../runs/runsApi";
+
+/** The card's facts from what the review service and the run aggregate recorded.
+ *  Shared by the review page and the run page so both say the same thing. */
+export function reviewVerdictFacts(
+  liveReview: ReviewDto | null,
+  runAgg: RunAggregateDto | null,
+): VerdictFact[] {
+  const flags = liveReview ? (liveReview.risk_flags ?? liveReview.riskFlags) : undefined;
+  const testResults = liveReview?.testResults;
+  return verdictFacts({
+    plan: runAgg
+      ? { approved: runAgg.planApproved ? true : null, approvedBy: null, approvedAt: null }
+      : null,
+    // No browser-callable sandbox fact exists yet (verdict_post.collect_facts
+    // leaves it unrecorded); the card says so instead of guessing.
+    sandbox: null,
+    tests: liveReview
+      ? Array.isArray(testResults)
+        ? testResults.map((t) => ({ command: t.name, result: t.status }))
+        : null
+      : null,
+    cost: runAgg
+      ? { actualUsd: runAgg.costUsd, estimatedUsd: runAgg.estimatedCostUsd }
+      : null,
+    risk: liveReview
+      ? {
+          recorded: Array.isArray(flags),
+          flags: (flags ?? []).map((f) => ({
+            path: f.path,
+            severity: f.severity,
+            reason: f.reason,
+          })),
+        }
+      : null,
+    // The adversarial digest has no endpoint the browser can call (I-10 is
+    // server-side only). Recorded concerns stay "not recorded" here.
+    preReview: null,
+  });
+}
 
 const muted = { color: cssVar("muted") } as const;
 

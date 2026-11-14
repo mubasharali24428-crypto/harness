@@ -28,9 +28,19 @@ test("demo: signed-out /demo reaches the replay view without looping", async ({ 
 
   // Login stores the session, returns to /demo?start=1, and the page seeds
   // itself — no second demo click. Landing is the completed run + replay banner.
-  await expect(page).toHaveURL(/\/projects\/[^/]+\/runs\/[^/?#]+\?demo=1$/, {
+  await expect(page).toHaveURL(/\/projects\/[^/]+\/runs\/[^/?#]+\?tab=changes&demo=1$/, {
     timeout: 45_000,
   });
   await expect(page.getByTestId("demo-replay-banner")).toBeVisible();
   await expect(page.getByTestId("demo-replay-banner")).toContainText(/recorded session/i);
+
+  // R0 (plan §8 F1/F2): two clicks in, the replay shows its own diff and a
+  // populated verdict card, with no GitHub connection on this account.
+  await expect(page.getByTestId("pr-diff")).toContainText("median_word_length", { timeout: 20_000 });
+  await expect(page.getByTestId("pr-diff")).toContainText("+    lengths.sort()");
+  await expect(page.getByTestId("verdict-card")).toBeVisible();
+  await expect(page.getByTestId("verdict-plan")).not.toBeEmpty();
+  await expect(page.getByTestId("verdict-cost")).toContainText("$");
+  await expect(page.getByText(/github not connected/i)).toHaveCount(0);
+  await expect(page.getByText("No snapshots yet")).toHaveCount(0);
 });
