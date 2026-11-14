@@ -39,13 +39,20 @@ async function axeViolations(page: Page): Promise<string[]> {
 
 test.describe("R1 preview workspace", () => {
   let runId: string;
+  let session: string;
 
   test.beforeAll(async ({ browser }) => {
     const page = await browser.newPage();
     await loginViaUi(page, `r1-preview-${Date.now().toString(36)}@harness.dev`);
     runId = await seedDemoRun(page);
+    session = (await page.evaluate(() => window.localStorage.getItem("harness.session"))) as string;
     await page.close();
   });
+
+  // Each test gets a fresh browser context, so restore the seeded team's session before the first load.
+  async function signIn(page: Page) {
+    await page.addInitScript((value) => window.localStorage.setItem("harness.session", value), session);
+  }
 
   test("signed-out visit shows the sign-in state, not a fake screen", async ({ page }) => {
     await page.goto("/preview/run");
@@ -55,6 +62,7 @@ test.describe("R1 preview workspace", () => {
   });
 
   test("/preview/run renders the demo run from real data with no console errors", async ({ page }) => {
+    await signIn(page);
     const errors: string[] = [];
     page.on("console", (msg) => {
       if (msg.type() === "error") errors.push(msg.text());
@@ -80,19 +88,21 @@ test.describe("R1 preview workspace", () => {
   });
 
   test("/preview/diff shows the real PR diff in the right pane", async ({ page }) => {
+    await signIn(page);
     const errors: string[] = [];
     page.on("console", (msg) => {
       if (msg.type() === "error") errors.push(msg.text());
     });
     await page.goto(`/preview/diff?run=${encodeURIComponent(runId)}`);
     await expect(page.getByTestId("preview-diff")).toBeVisible();
-    await expect(page.locator(".ws-diff-file-head code").first()).toContainText("src/textstats/stats.py");
+    await expect(page.locator(".ws-diff-path code").first()).toContainText("src/textstats/stats.py");
     await expect(page.locator(".ws-diff-line.add").first()).toBeVisible();
     await expect(page.locator(".ws-diff-line.del").first()).toBeVisible();
     expect(errors, "console errors on /preview/diff").toEqual([]);
   });
 
   test("/preview/review puts the verdict card above the diff", async ({ page }) => {
+    await signIn(page);
     const errors: string[] = [];
     page.on("console", (msg) => {
       if (msg.type() === "error") errors.push(msg.text());
@@ -112,11 +122,13 @@ test.describe("R1 preview workspace", () => {
   });
 
   test("a run id that does not exist renders the not-found state", async ({ page }) => {
+    await signIn(page);
     await page.goto("/preview/run?run=does-not-exist-xyz");
     await expect(page.getByText("Run not found")).toBeVisible();
   });
 
   test("no horizontal scroll at 375 on any of the three routes", async ({ page }) => {
+    await signIn(page);
     await page.setViewportSize({ width: 375, height: 812 });
     for (const route of ["run", "diff", "review"]) {
       await page.goto(`/preview/${route}?run=${encodeURIComponent(runId)}`);
@@ -129,6 +141,7 @@ test.describe("R1 preview workspace", () => {
   });
 
   test("axe clean at 1440 on all three routes", async ({ page }) => {
+    await signIn(page);
     await page.setViewportSize({ width: 1440, height: 900 });
     const failures: Record<string, string[]> = {};
     for (const route of ["run", "diff", "review"]) {
