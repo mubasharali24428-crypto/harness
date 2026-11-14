@@ -46,6 +46,8 @@ test("phone 375: home, palette, run timeline and verdict card do not scroll side
   await page.getByTestId("demo-seed-button").click();
   await page.waitForURL(/\/projects\/[^/]+\/runs\/[^/?]+/, { timeout: 60_000 });
   await page.waitForLoadState("networkidle");
+  // The demo lands on the Changes tab (plan §8 R0); the timeline is on Overview.
+  await page.getByRole("tab", { name: "Overview" }).click();
   await expect(page.getByTestId("run-timeline")).toBeVisible({ timeout: 30_000 });
   await expectNoHorizontalScroll(page, "run page");
   await page.screenshot({ path: `${SHOTS}/phone-run-375.png`, fullPage: true });

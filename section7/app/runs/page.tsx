@@ -315,8 +315,9 @@ export default function RunsPage() {
           <span style={{ color: "var(--muted)" }} aria-live="polite">
             {/* The server pages by cursor and sends no total: the count is
                 only known once the last page is on screen. */}
-            Showing {rangeStart}–{rangeEnd}
-            {nextCursor ? " (more on the next page)" : ` of ${rangeEnd}`}
+            {loading || page === null
+              ? "Loading runs…"
+              : `Showing ${rangeStart}–${rangeEnd}${nextCursor ? " (more on the next page)" : ` of ${rangeEnd}`}`}
           </span>
           <button
             type="button"
