@@ -44,7 +44,9 @@ Readiness: **NO-GO** for broad rollout (`docs/briefs/final-deliverables.md`, sec
    replaced by `section4/.../dsh_plugins/harness-shell.js`. The plugin sends every command through Section 5's
    `shell_gate.py` (allow-list, forbidden and intent scope paths, Landlock), and it runs in the hardened worker image
    (`evidence/s12/part52.md`). The same work fixed Section 5's Landlock, which never applied on Linux before. Left: external
-   pen test (cap 8), argument-level path checks, one program per call.
+   pen test (cap 8). Argument-level `..`/`~`/`$VAR`/`--flag=path`/`-o/path` checks and one
+   program per call are in place and pinned by `section5/tests/test_shell_gate_args.py`
+   (2026-11-14).
 2. Row 26: `run_smoke.py --real` needs an OpenRouter key (not configured).
 3. Row 55: dashboard not imported into Grafana and looked at (no Grafana image; pulling one not authorised).
 4. Row 56: no screen reader; only two pages walked by the browser check; English only (contrast and target size closed 2026-10-21).
