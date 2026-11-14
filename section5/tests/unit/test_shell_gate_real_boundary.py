@@ -4,7 +4,8 @@ Runs the real gate in a throw-away workspace with a canary beside it. Nothing is
 stubbed: ``Popen``, ``confine_argv`` and ``signal`` all run as shipped. Every row
 reuses the ``requires_confinement`` skip from ``test_shell_gate.py``; on a host
 with no OS backend the rows skip rather than running unconfined. Fixture paths
-are created with ``mktemp -d`` under /private/tmp and removed at teardown.
+are created with ``mktemp -d`` under /private/tmp (macOS; the default tmp dir
+elsewhere) and removed at teardown.
 
 The private hand-back holds the per-row measurements and the findings. This file
 contains only assertions and the one-line xfail reasons the rules allow.
@@ -73,7 +74,8 @@ def render(template: str, b) -> str:
 
 @pytest.fixture
 def boundary():
-    base = Path(tempfile.mkdtemp(prefix="hy4-b5-", dir="/private/tmp"))
+    tmp_root = "/private/tmp" if sys.platform == "darwin" else None  # Linux has no /private
+    base = Path(tempfile.mkdtemp(prefix="hy4-b5-", dir=tmp_root))
     ws = base / "ws"
     ws.mkdir()
     # A sibling of the workspace, never inside it; the name matches no
@@ -171,7 +173,7 @@ R_ROWS = [
                  id="R8-secret-looking-name-refused-by-policy"),
 ]
 
-_R_FAIL_OPEN = {"R2", "R3", "R4", "R5", "R6", "R7"}
+_R_FAIL_OPEN: set[str] = set()
 
 
 def r_params():

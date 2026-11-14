@@ -10,6 +10,8 @@ changed by this file.
 
 Fail-open rows are strict xfails: they assert the answer a human would expect
 and must fail today, with the exact command and the wrong output in the reason.
+All four (flag=path, ~, .., $HOME) were closed by the 2026-11-13/14 argument-level
+fix and now assert directly.
 """
 
 from pathlib import Path
@@ -88,18 +90,15 @@ CASES = [
     pytest.param("sed -i s/a/b/ docs/y.txt", (True, "COMMAND_REFUSED"), "docs/y.txt",
                  id="sed-in-place"),
     pytest.param("cat --file=docs/y.txt", (True, "OUT_OF_SCOPE"), "docs/y.txt",
-                 id="flag-equals-path",
-                 marks=_xfail("cat --file=docs/y.txt", "denied=False, code=None, hit=None")),
+                 id="flag-equals-path"),
     pytest.param("cat -- docs/y.txt", (True, "OUT_OF_SCOPE"), "docs/y.txt",
                  id="double-dash-then-path"),
-    pytest.param("cat $HOME/x", (True, "OUT_OF_SCOPE"), "$HOME/x", id="env-var-path",
-                 marks=_xfail("cat $HOME/x", "denied=False, code=None, hit=None")),
-    pytest.param("cat ~/x", (True, "OUT_OF_SCOPE"), "~/x", id="tilde-path",
-                 marks=_xfail("cat ~/x", "denied=False, code=None, hit=None")),
-    pytest.param("cat /etc/passwd", (True, "COMMAND_REFUSED"), None, id="etc-passwd"),
-    pytest.param("ls ..", (True, "OUT_OF_SCOPE"), "..", id="parent-directory",
-                 marks=_xfail("ls ..", "denied=False, code=None, hit=None")),
-    pytest.param("cd .. && cat docs/y.txt", (True, "COMMAND_REFUSED"), "docs/y.txt",
+    pytest.param("cat $HOME/x", (True, "OUT_OF_SCOPE"), "$HOME/x", id="env-var-path"),
+    pytest.param("cat ~/x", (True, "OUT_OF_SCOPE"), "~/x", id="tilde-path"),
+    pytest.param("cat /etc/passwd", (True, "COMMAND_REFUSED"), "/etc/passwd",
+                 id="etc-passwd"),
+    pytest.param("ls ..", (True, "OUT_OF_SCOPE"), "..", id="parent-directory"),
+    pytest.param("cd .. && cat docs/y.txt", (True, "COMMAND_REFUSED"), "..",
                  id="chained-cd"),
     pytest.param("cat {WS}/docs/y.txt", (True, "OUT_OF_SCOPE"), "{WS}/docs/y.txt",
                  id="absolute-in-workspace-outside-src"),
