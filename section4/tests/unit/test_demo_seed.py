@@ -274,6 +274,9 @@ def test_seed_is_idempotent(monkeypatch, db):
 
     assert second["projectId"] == first["projectId"]
     assert second["runId"] == first["runId"]
+    # A repeat visit still names the PR, so the review stays reachable.
+    assert second["prId"] == first["prId"]
+    assert second["prUrl"] == first["prUrl"]
 
     async def _counts():
         async with db() as session:
@@ -383,3 +386,34 @@ def test_seeded_trail_ends_now_and_keeps_the_recorded_spacing(monkeypatch, db):
     assert [b - a for a, b in zip(seeded, seeded[1:], strict=False)] == [
         b - a for a, b in zip(recorded, recorded[1:], strict=False)
     ]
+
+
+def test_seed_stores_the_recorded_diff_where_review_reads_it(monkeypatch, db):
+    """F1: section8 resolves a PR's diff from summary_md JSON; an empty summary
+    sent the demo review to GitHub, which a demo visitor has not connected."""
+    import json
+
+    client = _client(monkeypatch, db, principal=_principal(Role.ADMIN))
+    body = client.post("/api/v1/orchestrator/demo/seed").json()
+
+    async def _summary():
+        async with db() as session:
+            return (
+                await session.execute(
+                    text("SELECT summary_md FROM pull_requests WHERE id = :id"),
+                    {"id": body["prId"]},
+                )
+            ).scalar_one()
+
+    stored = json.loads(asyncio.run(_summary()))
+    assert stored["diff"].startswith("diff --git a/src/textstats/stats.py")
+
+    # A demo seeded before this fix (empty summary) is repaired by the next visit.
+    async def _blank():
+        async with db() as session:
+            await session.execute(text("UPDATE pull_requests SET summary_md = ''"))
+            await session.commit()
+
+    asyncio.run(_blank())
+    client.post("/api/v1/orchestrator/demo/seed")
+    assert json.loads(asyncio.run(_summary()))["diff"] == stored["diff"]
