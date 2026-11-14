@@ -93,7 +93,7 @@ function StepBlock({
   );
 }
 
-export function RunColumn({ view }: { view: PreviewView }) {
+export function RunColumn({ view, hideVerdict = false }: { view: PreviewView; hideVerdict?: boolean }) {
   const { agg, plan, review, runId } = view;
   if (!agg || !runId) return null;
   const blocks = React.useMemo(() => groupEvents(stepsToEvents(agg.steps)), [agg.steps]);
@@ -137,7 +137,7 @@ export function RunColumn({ view }: { view: PreviewView }) {
         </section>
       ) : null}
 
-      {finished ? <VerdictCard facts={verdict} /> : null}
+      {finished && !hideVerdict ? <VerdictCard facts={verdict} /> : null}
     </div>
   );
 }

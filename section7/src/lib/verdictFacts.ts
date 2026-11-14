@@ -87,7 +87,7 @@ function testsFact(tests: VerdictFactsInput["tests"]): VerdictFact {
     return { key: "tests", label, value: "unknown (no recorded tool calls)", details: [], unknown: true };
   }
   if (tests.length === 0) {
-    return { key: "tests", label, value: "not run (NO_TESTS_RUN)", details: [], unknown: false };
+    return { key: "tests", label, value: "not run", details: [], unknown: false };
   }
   const details = tests.map((run) => {
     const command = run.command?.trim() || "(command not recorded)";
@@ -114,7 +114,7 @@ function costFact(cost: VerdictFactsInput["cost"]): VerdictFact {
   return {
     key: "cost",
     label,
-    value: actual ? `actual: ${actual} (cost_ledger)` : "actual: unknown",
+    value: actual ? `actual: ${actual}` : "actual: unknown",
     details: [estimated ? `estimated: ${estimated} (plan estimate, not actual)` : "estimated: unknown"],
     unknown: actual === null,
   };

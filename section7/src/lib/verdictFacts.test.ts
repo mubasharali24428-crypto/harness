@@ -76,7 +76,7 @@ describe("verdictFacts — plan and sandbox", () => {
 describe("verdictFacts — tests and cost", () => {
   it("distinguishes recorded-no-tests from not-recorded", () => {
     // same words as the Week 8 PR comment (verdict_comment.py _tests_section)
-    expect(byKey({ tests: [] }, "tests").value).toBe("not run (NO_TESTS_RUN)");
+    expect(byKey({ tests: [] }, "tests").value).toBe("not run");
     expect(byKey({ tests: null }, "tests").value).toBe("unknown (no recorded tool calls)");
   });
 
@@ -103,7 +103,7 @@ describe("verdictFacts — tests and cost", () => {
 
   it("formats a genuine zero as $0.00 (R1 money rule), never a fabricated one", () => {
     const zero = byKey({ cost: { actualUsd: 0, estimatedUsd: 0 } }, "cost");
-    expect(zero.value).toBe("actual: $0.00 (cost_ledger)");
+    expect(zero.value).toBe("actual: $0.00");
     expect(zero.details).toEqual(["estimated: $0.00 (plan estimate, not actual)"]);
     expect(zero.unknown).toBe(false);
   });
@@ -114,13 +114,13 @@ describe("verdictFacts — tests and cost", () => {
 
 it("shows '< $0.01' for sub-cent spend (R1 money rule)", () => {
     const fact = byKey({ cost: { actualUsd: 0.000057, estimatedUsd: 0.01 } }, "cost");
-    expect(fact.value).toBe("actual: < $0.01 (cost_ledger)");
+    expect(fact.value).toBe("actual: < $0.01");
     expect(fact.details[0]).toBe("estimated: $0.01 (plan estimate, not actual)");
   });
 
   it("states an absent estimate separately from a known actual", () => {
     const fact = byKey({ cost: { actualUsd: 1.2, estimatedUsd: null } }, "cost");
-    expect(fact.value).toBe("actual: $1.20 (cost_ledger)");
+    expect(fact.value).toBe("actual: $1.20");
     expect(fact.details).toEqual(["estimated: unknown"]);
     expect(fact.unknown).toBe(false);
   });

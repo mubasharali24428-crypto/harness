@@ -1572,7 +1572,8 @@ a[href] {
   display: flex;
   gap: var(--space-2);
   padding: 0 var(--space-2);
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .ws-diff-line code {

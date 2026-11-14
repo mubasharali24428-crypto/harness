@@ -165,7 +165,7 @@ function CentreHeader({ view }: { view: PreviewView }) {
   );
 }
 
-function CentreBody({ view }: { view: PreviewView }) {
+function CentreBody({ view, hideVerdict }: { view: PreviewView; hideVerdict: boolean }) {
   if (view.status === "loading") {
     return (
       <div className="ws-centre-loading">
@@ -204,7 +204,7 @@ function CentreBody({ view }: { view: PreviewView }) {
   if (view.seedError) {
     return <ErrorState title="The demo didn’t start" message={view.seedError} onRetry={view.retry} />;
   }
-  return <RunColumn view={view} />;
+  return <RunColumn view={view} hideVerdict={hideVerdict} />;
 }
 
 /**
@@ -228,7 +228,7 @@ export default function PreviewWorkspace({ pane, deepLinkRunId }: { pane: Previe
       <Sidebar view={view} activeRunId={view.runId} goals={goals} />
       <main className="ws-centre" id="ws-main" tabIndex={-1}>
         <CentreHeader view={view} />
-        <CentreBody view={view} />
+        <CentreBody view={view} hideVerdict={showPane && pane === "review"} />
         {view.status === "ready" && connectionState === "reconnecting" ? (
           <p role="status" className="ws-conn-note">
             Reconnecting to the live event stream…
