@@ -25,7 +25,11 @@ Branch `w28-s1-delegate`, nothing pushed.
 
 ## Not done, not verified
 
-- **Not on `:3011`**: the RC frontend was not rebuilt for this slice.
+- **Verified on `:3011`** after the owner's go-ahead (frontend rebuilt, tag `vv90r4`): the new
+  `e2e/leftovers.e2e.ts` plus the composer, review and workspace specs pass **9 of 9 in three of
+  four runs**. The one failing run died in test setup: the identity service answered 429 to the
+  logins (three back-to-back runs make about twelve sign-ins in a minute). Run alone it passes; the
+  login rate limit is working as built, not a defect of these pages.
 - **Triage was only seen empty in a browser** ("Nothing is waiting on you"); approve and deny on a
   real pending plan are covered by the component's 12 unit tests, not by a browser run.
 - `PhoneTriage.tsx` and its test were another lane's uncommitted files; they are committed here
