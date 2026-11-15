@@ -16,6 +16,7 @@ import { WorkingArea } from "@/components/WorkingArea";
 import { ChangeReview } from "@/components/ChangeReview";
 import { RunColumn } from "@/components/workspace/RunColumn";
 import { ReviewPane } from "@/components/workspace/ReviewPane";
+import { RunEvidence } from "@/components/workspace/RunEvidence";
 import { useRun } from "@/components/workspace/useRun";
 import { Composer, COMPOSER_INPUT_ID } from "@/components/workspace/Composer";
 import { PlanPin } from "@/components/workspace/PlanPin";
@@ -248,6 +249,7 @@ export default function RunDetailPage({
 
           {pane === "evidence" && runId && (
             <>
+              {agg && token && <RunEvidence agg={agg} token={token} />}
               {agg && (
                 <RunDetailAggregate agg={agg} now={Date.now()} conn={view.stale ? "reconnecting" : "polling"}
                   timelineLive={!terminal} />

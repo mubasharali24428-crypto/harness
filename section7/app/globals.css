@@ -1720,6 +1720,21 @@ a[href] {
 
 .ws-evidence-links { display: flex; gap: var(--space-4); margin: 0; }
 
+/* R5: cost headline, trace waterfall, export. */
+.ws-evidence { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-4); }
+.ws-evidence h3 { margin: var(--space-2) 0 0; font-size: var(--text-sm); }
+.ws-evidence-cost { margin: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--text-xs); color: var(--text-2); }
+.ws-evidence-cost strong { font-size: 24px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.ws-evidence-note { margin: 0; font-size: var(--text-xs); color: var(--muted); }
+.ws-trace { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ws-trace li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--space-2); font-size: var(--text-xs); }
+.ws-trace-label { color: var(--text); overflow-wrap: anywhere; }
+.ws-trace-time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.ws-trace-track { grid-column: 1 / -1; height: 6px; background: var(--border-soft); border-radius: 3px; overflow: hidden; }
+.ws-trace-bar { display: block; height: 100%; background: var(--muted); border-radius: 3px; }
+.ws-trace-bar.measured { background: var(--accent); }
+.ws-evidence-export { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; font-size: var(--text-xs); color: var(--text-2); }
+
 @media (max-width: 900px) {
   .ws-run.with-pane { grid-template-columns: minmax(0, 1fr); }
 
