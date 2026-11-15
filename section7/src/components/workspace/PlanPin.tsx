@@ -41,6 +41,8 @@ export function PlanPin({
   const [versions, setVersions] = React.useState<Versions | null>(null);
   const [latestContent, setLatestContent] = React.useState<Partial<AgentPlan> | null>(null);
   const [editing, setEditing] = React.useState(false);
+  const [said, setSaid] = React.useState("");
+  const startRef = React.useRef<HTMLSpanElement>(null);
   const [goal, setGoal] = React.useState("");
   const [steps, setSteps] = React.useState("");
   const [tests, setTests] = React.useState("");
@@ -64,6 +66,12 @@ export function PlanPin({
   React.useEffect(() => {
     if (awaiting) void loadVersions();
   }, [awaiting, loadVersions]);
+
+  // Approve is replaced by Start: carry focus over instead of dropping it on <body>.
+  // (A disabled button cannot take focus, so wait until the action has finished.)
+  React.useEffect(() => {
+    if (said && busy === null) startRef.current?.querySelector("button")?.focus();
+  }, [said, busy, versions?.locked]);
 
   if (!plan) return null;
   const shown: AgentPlan = awaiting && latestContent ? { ...plan, ...latestContent } : plan;
@@ -163,7 +171,10 @@ export function PlanPin({
                   <span title={why}>
                     <Button variant="primary" size="sm" testId="plan-approve"
                       disabled={!canAct || busy !== null || versions?.latestVersion == null}
-                      onClick={() => void act("approve", () => post(`${versionsUrl(runId)}/${versions!.latestVersion}/approve`, token))}>
+                      onClick={() => void act("approve", async () => {
+                        await post(`${versionsUrl(runId)}/${versions!.latestVersion}/approve`, token);
+                        setSaid("Plan approved. Start the run when you are ready.");
+                      })}>
                       {busy === "approve" ? "Approving…" : "Approve plan"}
                     </Button>
                   </span>
@@ -185,7 +196,7 @@ export function PlanPin({
                 </>
               )}
               {approved && (
-                <span title={why}>
+                <span title={why} ref={startRef}>
                   <Button variant="primary" size="sm" disabled={!canAct || busy !== null} testId="plan-start"
                     onClick={() => void act("start", () => startRun(runId, token))}>
                     {busy === "start" ? "Starting…" : "Start run"}
@@ -197,6 +208,8 @@ export function PlanPin({
           )}
         </>
       )}
+      {/* Always present so the announcement is read when its text changes. */}
+      <p role="status" className="ws-composer-help" data-testid="plan-said">{said}</p>
       {error && <p role="alert" className="ws-composer-error">{error}</p>}
     </details>
   );

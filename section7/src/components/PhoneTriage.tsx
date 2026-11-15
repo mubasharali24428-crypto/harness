@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 // Classic JSX transform (vitest/esbuild) needs React in scope for .tsx.
 import * as React from "react";
 import { getToken } from "@/lib/auth";
+import { getPlan, getRunStatus } from "@/lib/api";
 import { formatRelativeTime, formatTimestamp } from "@/lib/format";
 import { triageRuns } from "@/lib/triage";
 import { listRuns, shortId, type RunDto } from "../../app/runs/runsApi";
@@ -168,7 +169,17 @@ export function PhoneTriage({
     if (!resolvedToken) return;
     try {
       const page = await listRuns({ limit: 100 }, resolvedToken);
-      setRuns(page.items);
+      // The runs list carries neither the plan id nor the goal, so a pending run could not be
+      // decided or told apart. Read both for the pending runs only (same calls the desktop makes).
+      const items = await Promise.all(page.items.map(async (r) => {
+        if (r.status !== "awaiting_plan_approval") return r;
+        const [status, plan] = await Promise.all([
+          getRunStatus(r.id, resolvedToken).catch(() => null),
+          getPlan(r.id, resolvedToken).catch(() => null),
+        ]);
+        return { ...r, planId: status?.planId ?? null, goal: plan?.goal ?? null };
+      }));
+      setRuns(items);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

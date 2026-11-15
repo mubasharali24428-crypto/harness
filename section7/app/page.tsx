@@ -15,6 +15,7 @@ import { PlanGateCard } from "./dashboard/planGate";
 
 export default function Home() {
   const [session, setSession] = useState<Session | null>(null);
+  const [gateOpen, setGateOpen] = useState(false);
 
   useEffect(() => {
     setSession(loadSession());
@@ -32,9 +33,10 @@ export default function Home() {
           role={session.principal.role} state={null} />
         {/* The older start card stays one click away: it is the only way to
             attach a screenshot to a goal. */}
-        <details className="ws-menu">
+        <details className="ws-menu" onToggle={(e) => e.currentTarget.open && setGateOpen(true)}>
           <summary>Start with a screenshot</summary>
-          <PlanGateCard token={session.token} principal={session.principal} />
+          {/* Mounted on first open: the closed card makes no requests. */}
+          {gateOpen && <PlanGateCard token={session.token} principal={session.principal} />}
         </details>
       </div>
     </AppShell>

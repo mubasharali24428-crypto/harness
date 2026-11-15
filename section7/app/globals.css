@@ -1901,3 +1901,19 @@ a[href] {
 .key-tour dt { white-space: nowrap; }
 .key-tour dd { margin: 0; }
 .key-tour kbd { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; color: var(--text); }
+
+/* Presence initials in the run header. */
+.ws-presence { display: inline-flex; align-items: center; background: none; border: 0; padding: 0; min-height: 24px; cursor: pointer; }
+.ws-avatar { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-left: -4px; border-radius: 50%; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font-size: 10px; font-weight: 600; }
+.ws-avatar:first-child { margin-left: 0; }
+.ws-avatar.idle { color: var(--muted); border-style: dashed; }
+
+/* Read-only run report. */
+.ws-report { max-width: 920px; margin: 0 auto; padding: var(--space-5) var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
+.ws-report > * { min-width: 0; max-width: 100%; }
+.ws-report h1 { margin: 0; font-size: 22px; overflow-wrap: anywhere; }
+.ws-report code { overflow-wrap: anywhere; }
+.ws-report h2 { margin: var(--space-3) 0 0; font-size: var(--text-sm); text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.ws-report ol { margin: 0; padding-left: var(--space-5); font-size: var(--text-sm); }
+.ws-report-kicker, .ws-report-meta { margin: 0; font-size: var(--text-xs); color: var(--muted); }
+.ws-report-meta a { color: var(--accent); }

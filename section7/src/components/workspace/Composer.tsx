@@ -75,6 +75,7 @@ export function Composer({
   const [note, setNote] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [sent, setSent] = React.useState<SentDirection[]>([]);
+  const [modelOpen, setModelOpen] = React.useState(false);
 
   const mode = composerMode(state);
   const disabledReason = mode === "plan" || mode === "finished" ? DISABLED_REASON[mode] : null;
@@ -176,9 +177,10 @@ export function Composer({
         <RefAutocomplete draft={draft} projectId={projectId} token={token} onSelect={setDraft} />
       )}
       <div className="ws-composer-foot">
-        <details className="ws-composer-model">
+        <details className="ws-composer-model" onToggle={(e) => e.currentTarget.open && setModelOpen(true)}>
           <summary>Model and effort</summary>
-          <ModelPrefsForm token={token} role={role} variant="compact" />
+          {/* Loaded on first open: a closed picker makes no model-service calls. */}
+          {modelOpen && <ModelPrefsForm token={token} role={role} variant="compact" />}
         </details>
         <span id="ws-composer-help" className="ws-composer-help">
           {disabledReason ?? "Enter to send · Shift+Enter for a new line"}

@@ -37,6 +37,9 @@ const GROUPS = [
   { key: "done", label: "Done", empty: "No finished runs yet." },
 ] as const;
 
+// False for the first page of a visit, so a fresh load keeps the browser's own focus order.
+let arrivedByNavigation = false;
+
 export default function AppShell({
   children,
   active,
@@ -49,6 +52,17 @@ export default function AppShell({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  // After an in-app page change focus is left on <body>; move it to the main region so
+  // keyboard and screen-reader users start in the new page, not at the top of the sidebar.
+  useEffect(() => {
+    // The document was loaded at another address: this page was reached without a reload.
+    const loadedAt = (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined)?.name;
+    const clientSide = arrivedByNavigation || (loadedAt !== undefined && loadedAt !== window.location.href);
+    if (clientSide && document.activeElement === document.body) {
+      document.getElementById(MAIN_CONTENT_ID)?.focus({ preventScroll: true });
+    }
+    arrivedByNavigation = true;
+  }, []);
   // M14-F1b: skip-link behavior — href fragment + explicit focus move.
   const { skipHref, onSkipActivate } = useSkipTarget(MAIN_CONTENT_ID);
   const list = useRunList(runId);

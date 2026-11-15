@@ -17,6 +17,7 @@ import { ChangeReview } from "@/components/ChangeReview";
 import { RunColumn } from "@/components/workspace/RunColumn";
 import { ReviewPane } from "@/components/workspace/ReviewPane";
 import { RunEvidence } from "@/components/workspace/RunEvidence";
+import { PresenceAvatars } from "@/components/workspace/PresenceAvatars";
 import { useRun } from "@/components/workspace/useRun";
 import { Composer, COMPOSER_INPUT_ID } from "@/components/workspace/Composer";
 import { PlanPin } from "@/components/workspace/PlanPin";
@@ -138,6 +139,7 @@ export default function RunDetailPage({
                     {control === "pause" ? "Pause" : "Resume"}
                   </Button>
                 )}
+                {runId && token && <PresenceAvatars runId={runId} token={token} onOpen={() => selectPane("advanced")} />}
                 {agg.url ? (
                   <a className="ws-run-pr" href={agg.url} target="_blank" rel="noreferrer">
                     Pull request ↗
@@ -258,6 +260,7 @@ export default function RunDetailPage({
               {token && <SynthesisSection runId={runId} token={token} />}
               {projectId && (
                 <p className="ws-evidence-links">
+                  <a className="ws-foot-link" href={`/projects/${projectId}/runs/${runId}/report`}>Read-only report →</a>
                   <a className="ws-foot-link" href={`/projects/${projectId}/runs/${runId}/checkpoints`}>Checkpoints →</a>
                   <a className="ws-foot-link" href={`/projects/${projectId}/tree`}>Repository files →</a>
                 </p>

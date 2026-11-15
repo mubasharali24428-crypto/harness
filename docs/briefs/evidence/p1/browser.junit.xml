@@ -1,6 +1,6 @@
-<testsuites id="" name="" tests="1" failures="0" skipped="0" errors="0" time="36.475483999999994">
-<testsuite name="multiplayer.e2e.ts" timestamp="2026-10-22T15:08:55.928Z" hostname="chromium" tests="1" failures="0" skipped="0" time="33.722" errors="0">
-<testcase name="P1 shared pilot: create → join → redirect → handoff → approve/apply → stop" classname="multiplayer.e2e.ts" time="33.722">
+<testsuites id="" name="" tests="1" failures="0" skipped="0" errors="0" time="34.842988">
+<testsuite name="multiplayer.e2e.ts" timestamp="2026-11-15T15:13:44.932Z" hostname="chromium" tests="1" failures="0" skipped="0" time="32.521" errors="0">
+<testcase name="P1 shared pilot: create → join → redirect → handoff → approve/apply → stop" classname="multiplayer.e2e.ts" time="32.521">
 </testcase>
 </testsuite>
 </testsuites>
