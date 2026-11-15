@@ -1579,6 +1579,28 @@ a[href] {
 
 .ws-review { display: flex; flex-direction: column; gap: var(--space-3); }
 
+/* R4: decide and comment inside the Diff pane. */
+.ws-decide { border: 1px solid var(--border-soft); border-radius: var(--radius-sm); padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
+.ws-decide h3 { margin: 0; font-size: var(--text-sm); }
+.ws-decide ul { margin: 0; padding-left: var(--space-4); font-size: var(--text-xs); color: var(--text-2); }
+.ws-decide p { margin: 0; font-size: var(--text-xs); color: var(--muted); }
+.ws-decide label, .ws-diff-reviewed, .ws-diff-comment label { display: flex; gap: var(--space-2); align-items: center; min-height: 24px; font-size: var(--text-xs); color: var(--text-2); }
+.ws-decide label.stack, .ws-diff-comment label { flex-direction: column; align-items: stretch; gap: 4px; }
+.ws-decide textarea, .ws-diff-comment textarea, .ws-diff-comment input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: 6px 8px;
+}
+.ws-decide-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.ws-diff-comment { margin-top: var(--space-1); font-size: var(--text-xs); color: var(--text-2); }
+.ws-diff-comment summary { cursor: pointer; min-height: 24px; }
+.ws-diff-comment form { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-1); align-items: flex-start; }
+.ws-diff-comment label { width: 100%; }
+
 /* --- Responsive ----------------------------------------------------------- */
 
 @media (max-width: 900px) {

@@ -691,6 +691,28 @@ export function requestChanges(
   });
 }
 
+export interface ReviewComment {
+  id: string;
+  file_path: string | null;
+  line: number | null;
+  body: string;
+}
+
+export function listReviewComments(prId: string, token: string): Promise<ReviewComment[]> {
+  return reviewFetch(`/api/v1/reviews/${prId}/comments`, token);
+}
+
+export function addReviewComment(
+  prId: string,
+  comment: { file_path: string; line: number | null; body: string },
+  token: string,
+): Promise<ReviewComment> {
+  return reviewFetch(`/api/v1/reviews/${prId}/comments`, token, {
+    method: "POST",
+    body: JSON.stringify(comment),
+  });
+}
+
 // ---------------------------------------------------------------- github (S2)
 
 export const GITHUB_BASE =

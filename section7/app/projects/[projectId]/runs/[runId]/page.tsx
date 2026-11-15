@@ -218,7 +218,7 @@ export default function RunDetailPage({
 
           {pane === "diff" && (
             <>
-              {agg && <ReviewPane view={view} />}
+              {agg && token && <ReviewPane view={view} token={token} role={role} />}
               {agg?.prId && (
                 <a className="ws-foot-link" href={`/review?pr=${encodeURIComponent(agg.prId)}`}>
                   Approve or request changes →

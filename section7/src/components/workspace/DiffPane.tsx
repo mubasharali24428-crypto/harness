@@ -9,6 +9,8 @@ import * as React from "react";
 import type { RunView } from "./useRun";
 import { fileStatLabel, parseUnifiedDiff, type DiffLine } from "./previewData";
 import { EmptyState, ErrorState, LoadingState } from "@/components/States";
+import { Button } from "@/components/ui";
+import type { DiffComment } from "./reviewFlow";
 
 function LineNo({ n }: { n: number | null }) {
   return <span className="ws-diff-no">{n === null ? "" : n}</span>;
@@ -25,8 +27,50 @@ function DiffLineRow({ line }: { line: DiffLine }) {
   );
 }
 
-export function DiffPane({ view, compact = false }: { view: RunView; compact?: boolean }) {
+function CommentForm({ path, onComment }: { path: string; onComment: (c: DiffComment) => Promise<void> }) {
+  const [line, setLine] = React.useState("");
+  const [body, setBody] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  return (
+    <details className="ws-diff-comment">
+      <summary>Comment on this file</summary>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!body.trim() || busy) return;
+          setBusy(true);
+          void onComment({ path, line: line ? Number(line) : null, body: body.trim() })
+            .then(() => {
+              setBody("");
+              setLine("");
+            })
+            .catch(() => {}) // the pane shows the error; the text stays in the form
+            .finally(() => setBusy(false));
+        }}
+      >
+        <label>
+          Line (optional)
+          <input type="number" min={1} value={line} onChange={(e) => setLine(e.target.value)} />
+        </label>
+        <label>
+          Comment
+          <textarea rows={2} required value={body} onChange={(e) => setBody(e.target.value)} />
+        </label>
+        <Button type="submit" size="sm" disabled={busy || !body.trim()}>{busy ? "Sending…" : "Add comment"}</Button>
+      </form>
+    </details>
+  );
+}
+
+export function DiffPane({ view, compact = false, onComment }: {
+  view: RunView;
+  compact?: boolean;
+  /** When given, each file gets a comment form. */
+  onComment?: (c: DiffComment) => Promise<void>;
+}) {
   const { review, reviewState, agg, error, retry } = view;
+  // ponytail: "reviewed" ticks live in this tab only; the review service has no per-file state.
+  const [reviewed, setReviewed] = React.useState<ReadonlySet<string>>(new Set());
 
   if (!agg) return null;
 
@@ -65,6 +109,9 @@ export function DiffPane({ view, compact = false }: { view: RunView; compact?: b
 
   return (
     <div className="ws-diff" data-testid="preview-diff">
+      <p className="ws-diff-note" role="status" data-testid="diff-reviewed-count">
+        {parsed.filter((f) => reviewed.has(f.path)).length} of {parsed.length} files marked reviewed
+      </p>
       {parsed.map((file, i) => (
         <section key={`${file.path}-${i}`} className="ws-diff-file" aria-label={`Diff of ${file.path}`}>
           <h3 className="ws-diff-path">
@@ -73,16 +120,32 @@ export function DiffPane({ view, compact = false }: { view: RunView; compact?: b
               <span className="ws-diff-stat">{statByPath.get(file.path)}</span>
             ) : null}
           </h3>
-          <div className={`ws-diff-code${compact ? " compact" : ""}`} tabIndex={0} aria-label={`Diff of ${file.path}, scrollable horizontally`}>
-            {file.lines.map((line, j) => (
-              <DiffLineRow key={j} line={line} />
-            ))}
-          </div>
+          <label className="ws-diff-reviewed">
+            <input
+              type="checkbox"
+              checked={reviewed.has(file.path)}
+              onChange={(e) => {
+                const next = new Set(reviewed);
+                if (e.target.checked) next.add(file.path);
+                else next.delete(file.path);
+                setReviewed(next);
+              }}
+            />
+            Reviewed (hides this file&rsquo;s diff)
+          </label>
+          {!reviewed.has(file.path) && (
+            <div className={`ws-diff-code${compact ? " compact" : ""}`} tabIndex={0} aria-label={`Diff of ${file.path}, scrollable horizontally`}>
+              {file.lines.map((line, j) => (
+                <DiffLineRow key={j} line={line} />
+              ))}
+            </div>
+          )}
+          {onComment && <CommentForm path={file.path} onComment={onComment} />}
         </section>
       ))}
       <p className="ws-diff-note">
-        Since the last iteration is the default view once the agent posts a second
-        revision; for now this is the pull request&rsquo;s full diff.
+        This is the pull request&rsquo;s full diff. The review service does not record
+        earlier revisions, so a &ldquo;since the last iteration&rdquo; view is not available.
       </p>
     </div>
   );

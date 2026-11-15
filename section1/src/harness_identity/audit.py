@@ -16,6 +16,7 @@ APPEND_ONLY_ACTIONS = frozenset(
         "pr.opened",
         "review.approved",
         "review.changes_requested",
+        "review.comment_added",
         "merge.performed",
         "apikey.added",
         "apikey.removed",

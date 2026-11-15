@@ -27,9 +27,9 @@ test("phone 375: home, palette, run timeline and verdict card do not scroll side
   await page.emulateMedia({ reducedMotion: "reduce" });
   await loginViaUi(page, journeyEmail());
 
-  // 1. Home — needs-you and working columns stack, no sideways scroll.
+  // 1. Home — the new-run composer, no sideways scroll.
   await page.goto("/");
-  await expect(page.getByTestId("home-needs-you")).toBeVisible();
+  await expect(page.getByTestId("composer")).toBeVisible();
   await page.waitForLoadState("networkidle");
   await expectNoHorizontalScroll(page, "home");
   await page.screenshot({ path: `${SHOTS}/phone-home-375.png`, fullPage: true });
@@ -46,8 +46,8 @@ test("phone 375: home, palette, run timeline and verdict card do not scroll side
   await page.getByTestId("demo-seed-button").click();
   await page.waitForURL(/\/projects\/[^/]+\/runs\/[^/?]+/, { timeout: 60_000 });
   await page.waitForLoadState("networkidle");
-  // The demo lands on the Changes tab (plan §8 R0); the timeline is on Overview.
-  await page.getByRole("tab", { name: "Overview" }).click();
+  // The demo lands on the Diff pane; the timeline is in the Evidence pane.
+  await page.getByRole("button", { name: "Evidence", exact: true }).click();
   await expect(page.getByTestId("run-timeline")).toBeVisible({ timeout: 30_000 });
   await expectNoHorizontalScroll(page, "run page");
   await page.screenshot({ path: `${SHOTS}/phone-run-375.png`, fullPage: true });
