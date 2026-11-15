@@ -1719,3 +1719,131 @@ a[href] {
 
 /* Unstyled buttons inside the older panels render 21px tall; WCAG 2.2 wants 24. */
 .ws-pane button { min-height: 24px; }
+
+/* ==========================================================================
+   R3: composer, pinned plan, inline approvals, next-step box.
+   ========================================================================== */
+
+.ws-home { max-width: 760px; display: flex; flex-direction: column; gap: var(--space-4); }
+
+.ws-dock {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg);
+  border-top: 1px solid var(--border-soft);
+  padding: var(--space-3) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ws-composer {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  background: var(--panel);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ws-composer:focus-within { border-color: var(--accent); }
+
+.ws-composer-input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-md, 15px);
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 48px;
+}
+
+.ws-composer-input::placeholder { color: var(--muted); }
+
+.ws-composer-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.ws-composer-help,
+.ws-composer-model summary {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.ws-composer-help { flex: 1; min-width: 160px; }
+.ws-composer-model summary { cursor: pointer; }
+.ws-composer-note { margin: 0; font-size: var(--text-sm); color: var(--text-2); }
+.ws-composer-error { margin: 0; font-size: var(--text-sm); color: var(--red); }
+
+.ws-commands,
+.ws-sent {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+.ws-commands .off { color: var(--muted); }
+.ws-sent li { display: flex; flex-direction: column; border-left: 2px solid var(--border); padding-left: var(--space-2); }
+.ws-sent-status { font-size: var(--text-xs); color: var(--muted); }
+
+.ws-planpin {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+}
+
+.ws-planpin summary { cursor: pointer; display: flex; gap: var(--space-2); align-items: baseline; min-height: 24px; }
+.ws-planpin-title { font-size: var(--text-sm); font-weight: 600; color: var(--text); }
+.ws-planpin-meta { font-size: var(--text-xs); color: var(--muted); }
+.ws-planpin-actions { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; margin-top: var(--space-2); }
+
+.ws-planpin-edit { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); }
+.ws-planpin-edit label { display: flex; flex-direction: column; gap: 4px; font-size: var(--text-xs); color: var(--muted); }
+
+.ws-planpin-edit textarea {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: 6px 8px;
+  resize: vertical;
+}
+
+.ws-approvals,
+.ws-next {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ws-approval + .ws-approval { border-top: 1px solid var(--border-soft); padding-top: var(--space-3); }
+.ws-approval-title { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--text); }
+.ws-approval-summary, .ws-next-recap { margin: 0; font-size: var(--text-sm); color: var(--text-2); }
+.ws-approval-paths { margin: 0; padding-left: var(--space-4); font-size: var(--text-sm); }
+.ws-approval-diff { overflow-x: auto; font-size: var(--text-xs); background: var(--panel-2); padding: var(--space-2); border-radius: var(--radius-sm); }
+.ws-next-question { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--text); }
+.ws-next .btn, .ws-next-link { align-self: flex-start; }
+.ws-next-link { color: var(--accent); font-size: var(--text-sm); }
+
+@media (max-width: 900px) {
+  .ws-composer-input { min-height: 44px; }
+  .ws-composer-model summary, .ws-planpin summary { min-height: 44px; align-items: center; }
+}
+
+.ws-step-line { min-height: 24px; }

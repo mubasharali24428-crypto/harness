@@ -17,6 +17,9 @@ import { ChangeReview } from "@/components/ChangeReview";
 import { RunColumn } from "@/components/workspace/RunColumn";
 import { ReviewPane } from "@/components/workspace/ReviewPane";
 import { useRun } from "@/components/workspace/useRun";
+import { Composer, COMPOSER_INPUT_ID } from "@/components/workspace/Composer";
+import { PlanPin } from "@/components/workspace/PlanPin";
+import { InlineApprovals, NextStepBox } from "@/components/workspace/RunPrompts";
 import { runRowTitle } from "@/components/workspace/previewData";
 import { PANES, paneFromSearch, searchWithPane, type PaneId } from "@/components/workspace/panes";
 import { formatMoneyUsd, formatRelativeTime } from "@/lib/format";
@@ -30,7 +33,6 @@ import { pauseOrResumeRun, runSettled, stateLabel } from "../../../../runs/runsA
 import { RunDetailAggregate } from "./runDetailAggregate";
 import { ScopeRequestSection } from "./scopeRequestSection";
 import { SynthesisSection } from "./synthesisPanel";
-import { PlanGateCard } from "../../../../dashboard/planGate";
 import { SharedRunPanel } from "./sharedRunPanel";
 import { SessionSixWorkbench } from "./sessionSixWorkbench";
 
@@ -42,6 +44,7 @@ export default function RunDetailPage({
   const [projectId, setProjectId] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   // M19-N4 (C10): the canned demo lands here with ?demo=1. The banner is a
   // UI honesty marker ONLY — the run's own events carry the durable replay
   // marker server-side.
@@ -67,6 +70,7 @@ export default function RunDetailPage({
 
   useEffect(() => {
     setToken(loadSession()?.token ?? null);
+    setRole(loadSession()?.principal.role ?? null);
     // Read markers off window so the statically prerendered page never needs
     // a Suspense boundary (same pattern as the login page).
     const read = () => {
@@ -183,6 +187,23 @@ export default function RunDetailPage({
           ) : (
             <RunColumn view={view} hideVerdict={pane === "diff"} />
           )}
+
+          {agg && runId && token && (
+            <>
+              <InlineApprovals runId={runId} token={token} role={role} tick={agg} />
+              <NextStepBox state={agg.state} busy={controlBusy}
+                onAction={(a) => {
+                  if (a === "diff") selectPane("diff");
+                  else if (a === "resume") void pauseResume("resume");
+                  else document.getElementById(COMPOSER_INPUT_ID)?.focus();
+                }} />
+              <div className="ws-dock">
+                <PlanPin runId={runId} token={token} role={role} plan={view.plan} state={agg.state} onChanged={() => void view.refresh()} />
+                <Composer runId={runId} projectId={projectId} token={token} role={role} state={agg.state}
+                  onChanged={() => void view.refresh()} />
+              </div>
+            </>
+          )}
         </div>
 
         {/* Always mounted: the Advanced section feeds stagedPending into the
@@ -210,10 +231,8 @@ export default function RunDetailPage({
           )}
 
           {pane === "plan" && runId && token && (
-            <>
-              <PlanGateCard token={token} principal={loadSession()?.principal ?? null} runId={runId} />
-              <SessionSixWorkbench runId={runId} token={token} />
-            </>
+            // Approve, Reject, Edit and Start live on the pinned plan above the composer.
+            <SessionSixWorkbench runId={runId} token={token} />
           )}
 
           {pane === "terminal" && projectId && runId && (

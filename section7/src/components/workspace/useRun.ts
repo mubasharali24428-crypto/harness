@@ -23,7 +23,7 @@ export interface RunView {
   /** True when the last background refresh failed. */
   stale: boolean;
   retry: () => void;
-  /** Quiet re-read of the aggregate (after pause/resume). */
+  /** Quiet re-read of the aggregate and plan; what is on screen stays until the answer arrives. */
   refresh: () => Promise<void>;
 }
 
@@ -72,6 +72,8 @@ export function useRun(runId: string | null, token: string | null): RunView {
     } catch {
       setStale(true);
     }
+    // The plan changes when a person edits it; keep the last one if this read fails.
+    await getPlan(runId, token).then(setPlan).catch(() => {});
   }, [token, runId]);
 
   const settled = runSettled(agg);

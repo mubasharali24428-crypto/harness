@@ -67,7 +67,7 @@ test.describe("H-014 hero journey (compose stack)", () => {
       // Observable truth: we are inside the app, actually signed in.
       await expect(page).toHaveURL(/:\d+\/$/);
       await expect(page.getByText(/Not signed in yet/i)).toBeHidden();
-      await expect(page.getByRole("heading", { name: /Command Center/i })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "New run" })).toBeVisible();
     });
 
     // ------------------------------------------------------ 2-3. meeting

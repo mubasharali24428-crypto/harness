@@ -141,18 +141,6 @@ describe("review page DS migration (M16-X4)", () => {
 describe("dashboard root DS migration (M16-X4)", () => {
   const ALLOWED = [/color: "var\(--accent\)"/]; // Go-to-login link ink
 
-  it("renders the command-center cards through Card with live-pill hook intact", async () => {
-    const { CommandCenterView } = await import("../../src/components/CommandCenter");
-    // The signed-in surface; the route swaps to it once a session is read.
-    const html = renderToStaticMarkup(React.createElement(CommandCenterView));
-
-    expect(html).toContain("Command Center");
-    expect(html).toContain('data-testid="live-pill"'); // H-012 WS-truthful pill
-    expect(html).toMatch(/class="card event-feed"/); // Card className merge keeps scroll behavior
-    expect(html).toContain("Activity");
-    expect(html).toContain("Guardrails"); // quiet guardrail strip
-  });
-
   it("serves the landing page to signed-out visitors, with both entry points", async () => {
     const { default: CommandCenter } = await import("../../app/page");
     const html = renderToStaticMarkup(React.createElement(CommandCenter));

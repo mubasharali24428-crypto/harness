@@ -11,7 +11,7 @@ export interface Command {
 }
 
 export const NAV_COMMANDS: Command[] = [
-  { id: "home", label: "Command Center", href: "/", key: "h", keywords: "home start" },
+  { id: "home", label: "New run", href: "/", key: "h", keywords: "home start goal" },
   { id: "runs", label: "Runs", href: "/runs", key: "r", keywords: "agents tasks" },
   { id: "review", label: "Review", href: "/review", key: "v", keywords: "diff approve" },
   { id: "meeting", label: "Meeting", href: "/meeting", key: "m", keywords: "plan discuss" },

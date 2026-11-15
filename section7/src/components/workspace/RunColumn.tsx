@@ -94,7 +94,7 @@ function StepBlock({
 }
 
 export function RunColumn({ view, hideVerdict = false }: { view: RunView; hideVerdict?: boolean }) {
-  const { agg, plan, review, runId } = view;
+  const { agg, review, runId } = view;
   // Compute derived values before any early return: conditional hooks would
   // crash when agg/runId transitions between null and set across renders.
   const blocks = React.useMemo(() => (agg ? groupEvents(stepsToEvents(agg.steps)) : []), [agg]);
@@ -127,17 +127,6 @@ export function RunColumn({ view, hideVerdict = false }: { view: RunView; hideVe
           })}
         </ol>
       )}
-
-      {plan ? (
-        <section className="ws-plan" aria-label="Plan">
-          <h2 className="ws-plan-title">Plan</h2>
-          <ol className="ws-plan-steps">
-            {plan.steps.map((s, i) => (
-              <li key={i}>{s}</li>
-            ))}
-          </ol>
-        </section>
-      ) : null}
 
       {finished && !hideVerdict ? <VerdictCard facts={verdict} /> : null}
     </div>

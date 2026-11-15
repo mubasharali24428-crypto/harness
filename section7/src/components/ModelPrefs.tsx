@@ -204,9 +204,30 @@ export function ModelPrefsForm({
   );
 
   if (variant === "compact") {
+    // A text box with a datalist is a native searchable picker: type part of a
+    // model or provider name and pick. Only an exact catalog model is saved.
+    const all = groups.flatMap((g) => g.models.map((m) => ({ model: m, provider: g.name })));
     return (
       <div style={fieldStyle} data-testid="model-prefs-compact">
-        {modelSelect(prefs.primaryModel, (v) => update({ primaryModel: v }), "Run model", "composer-model")}
+        <input
+          key={prefs.primaryModel}
+          list="composer-models"
+          aria-label="Run model (type to search)"
+          data-testid="composer-model"
+          defaultValue={prefs.primaryModel}
+          disabled={!editable || saving}
+          title={editable ? undefined : "Only team admins can change the model."}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v !== prefs.primaryModel && all.some((x) => x.model === v)) update({ primaryModel: v });
+          }}
+          style={selectStyle}
+        />
+        <datalist id="composer-models">
+          {all.map((x) => (
+            <option key={`${x.provider}:${x.model}`} value={x.model} label={x.provider} />
+          ))}
+        </datalist>
         {reasoningSelect}
         {status}
       </div>
