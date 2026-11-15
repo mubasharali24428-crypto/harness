@@ -9,6 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => {} }),
+  usePathname: () => "/",
 }));
 vi.mock("@/lib/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/auth")>();

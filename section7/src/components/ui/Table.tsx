@@ -52,6 +52,10 @@ export function Table({ children, caption, className, style, testId }: TableProp
   return (
     <div
       className="table-scroll" // F2b lane's shared overflow-x wrapper (+ sticky first col)
+      // A region that scrolls sideways must be reachable from the keyboard.
+      tabIndex={0}
+      role="region"
+      aria-label={typeof caption === "string" ? caption : "Table, scrolls sideways"}
       style={{ width: "100%", overflowX: "auto", ...style }}
       data-testid={testId !== undefined ? `${testId}-scroll` : undefined}
     >

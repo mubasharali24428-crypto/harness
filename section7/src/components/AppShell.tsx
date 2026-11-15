@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 // Classic JSX transform (vitest/esbuild) needs React in scope for the .tsx
 // extension; Next's compiler accepts this import too, so one source fits both.
 import * as React from "react";
@@ -18,6 +18,7 @@ import { MAIN_CONTENT_ID, useSkipTarget } from "@/lib/focus";
 import NotificationBell from "../../app/notifications/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import CommandPalette from "@/components/CommandPalette";
+import { SETTINGS_PAGES } from "@/lib/commands";
 
 // R2: the sidebar is the run list. Everything that used to be a nav
 // destination lives in this footer menu and in the command palette.
@@ -46,6 +47,7 @@ export default function AppShell({
   runId?: string | null;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   // M14-F1b: skip-link behavior — href fragment + explicit focus move.
   const { skipHref, onSkipActivate } = useSkipTarget(MAIN_CONTENT_ID);
   const list = useRunList(runId);
@@ -235,6 +237,15 @@ export default function AppShell({
           programmatic focus (skip link, route-change focus moves) without
           putting it in the Tab order. */}
       <main id={MAIN_CONTENT_ID} tabIndex={-1} className="content">
+        {active === "/settings" && (
+          <nav className="settings-nav" aria-label="Settings sections">
+            {[{ id: "settings", label: "Overview", href: "/settings" }, ...SETTINGS_PAGES].map((p) => (
+              <Link key={p.id} href={p.href} aria-current={pathname === p.href ? "page" : undefined}>
+                {p.label}
+              </Link>
+            ))}
+          </nav>
+        )}
         {children}
       </main>
 

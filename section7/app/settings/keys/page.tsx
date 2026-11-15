@@ -315,7 +315,7 @@ export default function KeysSettingsPage() {
       <section className="card" style={cardStyle}>
         <h2>Team keys</h2>
         {/* M14-F2b (raw-03 P2): overflow-x wrapper + sticky first column (CSS). */}
-        <div className="table-scroll">
+        <div className="table-scroll" tabIndex={0} role="region" aria-label="Provider keys, scrolls sideways">
           <table style={tableStyle}>
             <thead>
               <tr>

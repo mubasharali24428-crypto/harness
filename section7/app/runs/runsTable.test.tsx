@@ -109,7 +109,8 @@ describe("RunsTable keyboard contract (M14-F1b)", () => {
     // Both rows tabbable at the natural DOM position (tabindex="0"), and no
     // positive tabindex exists anywhere in the emitted markup — tab order
     // must follow DOM order, never a hand-authored sequence.
-    expect(html.split('tabindex="0"').length - 1).toBe(2);
+    // Two rows plus the sideways-scrolling table region itself.
+    expect(html.split('tabindex="0"').length - 1).toBe(3);
     expect(html).not.toMatch(/tabindex="[1-9]/);
   });
 

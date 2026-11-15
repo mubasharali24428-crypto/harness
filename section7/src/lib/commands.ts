@@ -21,6 +21,26 @@ export const NAV_COMMANDS: Command[] = [
   { id: "onboarding", label: "Get started", href: "/onboarding", key: "o", keywords: "setup checklist" },
 ];
 
+/** Pages the palette reaches without a shortcut: every settings section and the remaining routes. */
+export const SETTINGS_PAGES: Array<Pick<Command, "id" | "label" | "href" | "keywords">> = [
+  { id: "settings-project", label: "Project rules", href: "/settings/project", keywords: "settings conventions" },
+  { id: "settings-team", label: "Team and invites", href: "/settings/team", keywords: "settings members roles" },
+  { id: "settings-governance", label: "Organization governance", href: "/settings/governance", keywords: "settings policy" },
+  { id: "settings-notifications", label: "Notification settings", href: "/settings/notifications", keywords: "email quiet hours" },
+  { id: "settings-models", label: "Models and reasoning", href: "/settings/models", keywords: "settings effort" },
+  { id: "settings-keys", label: "API keys", href: "/settings/keys", keywords: "settings providers byo" },
+  { id: "settings-integrations", label: "Integrations and webhooks", href: "/settings/integrations", keywords: "settings github" },
+  { id: "settings-billing", label: "Billing and plan", href: "/settings/billing", keywords: "settings invoice" },
+  { id: "settings-account", label: "Your account", href: "/settings/account", keywords: "settings erase" },
+];
+
+export const OTHER_PAGES: Array<Pick<Command, "id" | "label" | "href" | "keywords">> = [
+  { id: "triage", label: "Phone triage", href: "/triage", keywords: "approve deny pending mobile" },
+  { id: "demo", label: "Demo", href: "/demo", keywords: "replay sample" },
+  { id: "docs", label: "Docs", href: "/docs", keywords: "help reference" },
+  { id: "pricing", label: "Pricing", href: "/pricing", keywords: "plans" },
+];
+
 /** True when a key press belongs to the page, not to something the user is typing into. */
 export function isTypingTarget(tag: string | undefined, editable: boolean): boolean {
   return editable || ["INPUT", "TEXTAREA", "SELECT"].includes((tag ?? "").toUpperCase());

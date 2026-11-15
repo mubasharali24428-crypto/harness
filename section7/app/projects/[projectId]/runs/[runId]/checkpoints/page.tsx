@@ -7,6 +7,7 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { loadSession } from "@/lib/auth";
+import AppShell from "@/components/AppShell";
 import { CheckpointsPanel } from "@/components/CheckpointsPanel";
 
 export default function CheckpointsPage({
@@ -28,12 +29,13 @@ export default function CheckpointsPage({
   }, [router]);
 
   return (
-    <main style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
+    <AppShell active="/runs" runId={runId}>
+      <p><a className="ws-foot-link" href={`/projects/${projectId}/runs/${runId}?pane=evidence`}>← Back to the run</a></p>
       <h1 style={{ fontSize: 18, marginBottom: 16 }}>
         Checkpoints{" "}
         <span style={{ color: "var(--muted)", fontWeight: 400 }}>· run {runId}</span>
       </h1>
       {!token ? null : <CheckpointsPanel projectId={projectId} token={token} />}
-    </main>
+    </AppShell>
   );
 }

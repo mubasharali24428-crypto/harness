@@ -6,7 +6,7 @@ import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
-import { NAV_COMMANDS, isTypingTarget, stepShortcut } from "@/lib/commands";
+import { NAV_COMMANDS, OTHER_PAGES, SETTINGS_PAGES, isTypingTarget, stepShortcut } from "@/lib/commands";
 import { applyTheme, nextTheme, normalizeTheme } from "@/lib/theme";
 
 const KBD = "rounded border border-border bg-panel-2 px-1.5 py-0.5 font-mono text-[11px] text-muted";
@@ -116,6 +116,15 @@ export default function CommandPalette({
               </Command.Item>
             ))}
           </Command.Group>
+          {[["Settings", SETTINGS_PAGES] as const, ["More pages", OTHER_PAGES] as const].map(([heading, pages]) => (
+            <Command.Group key={heading} heading={heading} className={group}>
+              {pages.map((c) => (
+                <Command.Item key={c.id} value={`${c.label} ${c.keywords ?? ""}`} onSelect={() => go(c.href)} className={item}>
+                  <span className="normal-case tracking-normal">{c.label}</span>
+                </Command.Item>
+              ))}
+            </Command.Group>
+          ))}
           {projects.length > 1 && onSelectProject ? (
             <Command.Group heading="Switch project" className={group}>
               {projects.map((p) => (
