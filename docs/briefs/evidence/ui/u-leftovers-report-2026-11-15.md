@@ -25,8 +25,10 @@ Branch `w28-s1-delegate`, nothing pushed.
   asserts sign-in to finished demo run in under 60 s.
 - The timed task for U1 was already recorded in `week-ui.md` (0.18 s, keyboard).
 - `prReview.tsx` (unused since R2) is deleted.
-- `node scripts/u-check.mjs` after these: **0 failures**; unit tests **1199 passed**. These later
-  items are **not yet on `:3011`** (the RC frontend was last rebuilt before them).
+- `node scripts/u-check.mjs` after these: **0 failures**; unit tests **1199 passed**. The RC frontend
+  was then rebuilt and the leftovers, composer, review and workspace specs pass on `:3011`
+  **9 of 9, three runs in a row** (70 s apart, under the login rate limit), including the tour and
+  the under-60-second assertion.
 
 ## Verification actually run (from `section7/`)
 
