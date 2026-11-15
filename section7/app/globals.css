@@ -345,19 +345,6 @@ samp,
   min-width: 0;
 }
 
-/* Page entrance: each top-level block rises 6px into place, staggered by
-   position. Cheap (transform/opacity only) and disabled by the reduced-motion
-   block at the bottom of this file. */
-.content > * {
-  animation: rise var(--dur-3) var(--ease) both;
-}
-
-.content > *:nth-child(2) { animation-delay: 40ms; }
-.content > *:nth-child(3) { animation-delay: 80ms; }
-.content > *:nth-child(4) { animation-delay: 120ms; }
-.content > *:nth-child(5) { animation-delay: 160ms; }
-.content > *:nth-child(n+6) { animation-delay: 200ms; }
-
 h1 {
   font-size: 20px;
   font-weight: 650;
@@ -980,17 +967,6 @@ a[href] {
    prefers-reduced-motion block below zeroes both duration AND delay.
    ========================================================================== */
 
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 /* LoadingState bars (inline-styled component) opt in with .skel. */
 .skel {
   background-color: var(--panel-2);
@@ -1024,9 +1000,6 @@ a[href] {
 /* The skip link and drawer keep their own transitions; nothing else moves
    when the reader asked for stillness. */
 @media (prefers-reduced-motion: reduce) {
-  .content > * {
-    animation-delay: 0ms !important;
-  }
   .brand::before,
   .skel,
   .pulse-dot {
