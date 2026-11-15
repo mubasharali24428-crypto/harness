@@ -4,6 +4,13 @@ const nextConfig = {
   experimental: {
     externalDir: true,
   },
+  // The R1 preview screens became the real workspace in R2.
+  async redirects() {
+    return [
+      { source: "/preview", destination: "/", permanent: false },
+      { source: "/preview/:path*", destination: "/", permanent: false },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -10,7 +10,7 @@ import * as React from "react";
 import { VerdictCard, reviewVerdictFacts } from "../../../app/review/verdictCard";
 import { stepsToEvents, groupEvents } from "@/lib/runTimeline";
 import { formatTimestamp } from "@/lib/format";
-import type { PreviewView } from "./usePreviewRun";
+import type { RunView } from "./useRun";
 
 /** Receipts that merely restate the verb ("terminal output recorded" under
  *  "Terminal output") add no information; the collapsed line shows target
@@ -93,12 +93,14 @@ function StepBlock({
   );
 }
 
-export function RunColumn({ view, hideVerdict = false }: { view: PreviewView; hideVerdict?: boolean }) {
+export function RunColumn({ view, hideVerdict = false }: { view: RunView; hideVerdict?: boolean }) {
   const { agg, plan, review, runId } = view;
+  // Compute derived values before any early return: conditional hooks would
+  // crash when agg/runId transitions between null and set across renders.
+  const blocks = React.useMemo(() => (agg ? groupEvents(stepsToEvents(agg.steps)) : []), [agg]);
   if (!agg || !runId) return null;
-  const blocks = React.useMemo(() => groupEvents(stepsToEvents(agg.steps)), [agg.steps]);
   const finished = /^(pr_opened|done|completed|stopped|cancelled|failed)$/i.test(agg.state);
-  const verdict = review || agg ? reviewVerdictFacts(review ?? null, agg) : [];
+  const verdict = reviewVerdictFacts(review ?? null, agg);
 
   return (
     <div className="ws-column">

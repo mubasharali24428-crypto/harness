@@ -5,11 +5,11 @@
 // facts before the diff, and the risk flags / tests sit in the card.
 
 import * as React from "react";
-import type { PreviewView } from "./usePreviewRun";
+import type { RunView } from "./useRun";
 import { DiffPane } from "./DiffPane";
 import { reviewVerdictFacts } from "../../../app/review/verdictCard";
 
-export function ReviewPane({ view }: { view: PreviewView }) {
+export function ReviewPane({ view }: { view: RunView }) {
   const { agg, review, reviewState } = view;
   if (!agg) return null;
   const facts = reviewVerdictFacts(reviewState === "ready" ? review : null, agg);

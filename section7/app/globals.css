@@ -49,7 +49,7 @@
   --text: #ededef;
   --text-2: #b8bac1;
   --muted: #8f929a;
-  --faint: #797d86;
+  --faint: #878b94;
   /* The one accent (cool blue) — primary actions and focus only. */
   --accent: #6e9bff;
   --accent-strong: #3b6fe0;
@@ -120,7 +120,7 @@
   --accent-soft: rgba(31, 79, 216, 0.08);
   --green: #1a7a45;
   --red: #b33a3a;
-  --yellow: #866000;
+  --yellow: #7a5700;
   --blue: #135fa3;
   --violet: #5636b8;
   --teal: #0d6a62;
@@ -192,7 +192,7 @@ samp,
 }
 
 .sidebar {
-  width: 232px;
+  width: 264px;
   background: var(--sidebar);
   border-right: 1px solid var(--border-soft);
   padding: 16px 12px 14px;
@@ -333,7 +333,7 @@ samp,
 }
 
 .content {
-  margin-left: 232px;
+  margin-left: 264px;
   padding: 28px 32px;
   flex: 1;
   width: 100%;
@@ -1635,3 +1635,114 @@ a[href] {
     border-top: 1px solid var(--border-soft);
   }
 }
+
+/* ==========================================================================
+   R2 shell: the app sidebar is the run list; the run page is a centre column
+   with one closable right pane.
+   ========================================================================== */
+
+.ws-link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.ws-menu summary {
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  padding: 8px 2px;
+}
+
+.ws-foot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.ws-run {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.ws-run.with-pane {
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 520px);
+}
+
+.ws-run .ws-centre { padding: 0; }
+
+.ws-run .ws-pane {
+  padding: 0 0 var(--space-6) var(--space-5);
+}
+
+.ws-replay {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+}
+
+.ws-pane-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid var(--border-soft);
+  padding-bottom: var(--space-2);
+}
+
+.ws-pane-tab {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.ws-pane-tab:hover { color: var(--text); background: var(--panel-2); }
+
+.ws-pane-tab[aria-pressed="true"] {
+  color: var(--text);
+  border-color: var(--border);
+  background: var(--panel-2);
+}
+
+.ws-pane-close { cursor: pointer; }
+
+.ws-pane[hidden] { display: none; }
+
+.ws-evidence-links { display: flex; gap: var(--space-4); margin: 0; }
+
+@media (max-width: 900px) {
+  .ws-run.with-pane { grid-template-columns: minmax(0, 1fr); }
+
+  /* One thing at a time on a phone: an open pane replaces the step column;
+     the header and the pane buttons stay. */
+  .ws-run.with-pane .ws-column { display: none; }
+
+  .ws-run .ws-pane {
+    padding-left: 0;
+    border-left: 0;
+    position: static;
+    max-height: none;
+  }
+
+  .ws-pane-tab,
+  .ws-pane-close,
+  .ws-menu summary { min-height: 44px; min-width: 44px; }
+}
+
+/* Unstyled buttons inside the older panels render 21px tall; WCAG 2.2 wants 24. */
+.ws-pane button { min-height: 24px; }

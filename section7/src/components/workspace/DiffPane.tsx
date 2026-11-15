@@ -6,7 +6,7 @@
 // ("no PR yet"), error and binary/absence are all real states.
 
 import * as React from "react";
-import type { PreviewView } from "./usePreviewRun";
+import type { RunView } from "./useRun";
 import { fileStatLabel, parseUnifiedDiff, type DiffLine } from "./previewData";
 import { EmptyState, ErrorState, LoadingState } from "@/components/States";
 
@@ -25,7 +25,7 @@ function DiffLineRow({ line }: { line: DiffLine }) {
   );
 }
 
-export function DiffPane({ view, compact = false }: { view: PreviewView; compact?: boolean }) {
+export function DiffPane({ view, compact = false }: { view: RunView; compact?: boolean }) {
   const { review, reviewState, agg, error, retry } = view;
 
   if (!agg) return null;

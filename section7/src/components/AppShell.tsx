@@ -6,9 +6,12 @@ import { useRouter } from "next/navigation";
 // Classic JSX transform (vitest/esbuild) needs React in scope for the .tsx
 // extension; Next's compiler accepts this import too, so one source fits both.
 import * as React from "react";
-import type { ProjectDto } from "@/lib/api";
-import { listProjects } from "@/lib/api";
-import { clearSession, getToken, getProjectId, getRunId, setProjectId, loadSession } from "@/lib/auth";
+import { clearSession, getToken, getProjectId, getRunId, loadSession } from "@/lib/auth";
+import { formatRelativeTime, formatTimestamp } from "@/lib/format";
+import { needsYouAction, needsYouHref } from "@/lib/triage";
+import { stateLabel } from "../../app/runs/runsApi";
+import { useRunList } from "@/components/workspace/useRunList";
+import { runRowTitle } from "@/components/workspace/previewData";
 // M14-F1b (raw-03 P2): skip-link behavior + the shared main-content landmark id.
 import { MAIN_CONTENT_ID, useSkipTarget } from "@/lib/focus";
 // Part 47: unread badge as a plain link (no sound, no popup); renders nothing without a session.
@@ -16,28 +19,37 @@ import NotificationBell from "../../app/notifications/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import CommandPalette from "@/components/CommandPalette";
 
-const AREAS = [
-  { href: "/", label: "Command Center" },
-  { href: "/onboarding", label: "Get started" }, // M12-E7 (raw-04 M2): first-run checklist reachable from the nav
-  { href: "/runs", label: "Runs" },
+// R2: the sidebar is the run list. Everything that used to be a nav
+// destination lives in this footer menu and in the command palette.
+const MENU = [
+  { href: "/runs", label: "All runs" },
   { href: "/meeting", label: "Meeting" },
-  { href: "/review", label: "Review" },
   { href: "/dashboard/cost", label: "Cost" },
   { href: "/settings", label: "Settings" },
+  { href: "/onboarding", label: "Get started" },
 ];
+
+const GROUPS = [
+  { key: "needsYou", label: "Needs you", empty: "Nothing is waiting on a person." },
+  { key: "working", label: "Working", empty: "No agent is working right now." },
+  { key: "done", label: "Done", empty: "No finished runs yet." },
+] as const;
 
 export default function AppShell({
   children,
   active,
+  runId = null,
 }: {
   children: React.ReactNode;
   active: string;
+  /** The run on screen, so its sidebar row reads as current. */
+  runId?: string | null;
 }) {
   const router = useRouter();
   // M14-F1b: skip-link behavior — href fragment + explicit focus move.
   const { skipHref, onSkipActivate } = useSkipTarget(MAIN_CONTENT_ID);
-  const [projects, setProjects] = useState<ProjectDto[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
+  const list = useRunList(runId);
+  const { projects, selectedProjectId: selected } = list;
   const [role, setRole] = useState<string>("viewer");
   const [workingHref, setWorkingHref] = useState<string | null>(null);
   // M14-F2b (raw-03 P2): ≤900px the sidebar becomes an off-canvas drawer.
@@ -54,17 +66,6 @@ export default function AppShell({
     const pid = getProjectId();
     const rid = getRunId();
     if (pid && rid) setWorkingHref(`/projects/${pid}/runs/${rid}`);
-    listProjects(getToken()!)
-      .then((items) => {
-        setProjects(items);
-        const saved = getProjectId();
-        const valid = items.find((i) => i.id === saved) ?? items[0];
-        if (valid) {
-          setProjectId(valid.id);
-          setSelected(valid.id);
-        }
-      })
-      .catch(() => {});
   }, [router]);
 
   // M14-F2b: lock page scroll while the drawer is open (≤900px only — the
@@ -115,29 +116,13 @@ export default function AppShell({
       <aside id="app-sidebar" className={`sidebar${sidebarOpen ? " open" : ""}`}>
         <div className="brand">HARNESS</div>
         <div className="switcher">
-          {/* M14-F1b: programmatic labels — the visual .label divs are not
-              real <label for> pairs, so screen-reader users heard "combobox"
-              with no name. */}
-          {/* M-A7: this was a <select> with one hardcoded option and no
-              onChange — it looked switchable and did nothing. A principal
-              carries exactly one teamId (contracts/ts/src/roles.ts:16), so
-              until multi-team membership exists this is a read-only value. */}
-          <div className="label" id="team-value-label">
-            TEAM
-          </div>
-          <div className="switcher-value" aria-labelledby="team-value-label">
-            My team
-          </div>
           <div className="label" id="project-select-label">
             PROJECT
           </div>
           <select
             aria-labelledby="project-select-label"
             value={selected ?? ""}
-            onChange={(e) => {
-              setProjectId(e.target.value);
-              setSelected(e.target.value);
-            }}
+            onChange={(e) => list.selectProject(e.target.value)}
           >
             {projects.length === 0 && <option value="">(no projects yet)</option>}
             {projects.map((prj) => (
@@ -147,72 +132,90 @@ export default function AppShell({
             ))}
           </select>
         </div>
-        <NotificationBell />
-        <CommandPalette
-          workingHref={workingHref}
-          projects={projects}
-          selectedProject={selected}
-          onSelectProject={(id) => {
-            setProjectId(id);
-            setSelected(id);
-          }}
-          onSignOut={() => {
-            clearSession();
-            router.push("/login");
-          }}
-        />
-        <div className="nav-group-label">Workspace</div>
-        <nav>
-          {AREAS.slice(0, 1).map((a) => (
-            <Link
-              key={a.href}
-              href={a.href}
-              className={`nav-item${active === a.href ? " active" : ""}`}
-            >
-              {a.label}
-            </Link>
-          ))}
-          {workingHref ? (
-            <Link
-              href={workingHref}
-              className={`nav-item${active.startsWith("/projects") ? " active" : ""}`}
-            >
-              Working
-            </Link>
+        <Link href="/" className={`nav-item${active === "/" ? " active" : ""}`}>
+          New run
+        </Link>
+        <div className="ws-groups" role="navigation" aria-label="Run list">
+          {list.error ? (
+            <p className="ws-group-empty" role="alert">
+              The run list didn’t load: {list.error}{" "}
+              <button type="button" className="ws-link-btn" onClick={list.retry}>
+                Try again
+              </button>
+            </p>
+          ) : !list.loaded ? (
+            <p className="ws-group-empty" role="status">
+              Loading runs…
+            </p>
           ) : (
-            // M14-F1b: an inert span with cursor:not-allowed reads as a broken
-            // control. A real disabled button is honest — keyboard users skip
-            // it natively and it can't be clicked into a dead end.
-            <button
-              type="button"
-              className="nav-item"
-              disabled
-              title="No run yet — start one from the Command Center"
-              style={{ opacity: 0.4, cursor: "not-allowed", textAlign: "left", border: "none", background: "none" }}
-            >
-              Working
-            </button>
+            GROUPS.map((g) => {
+              const items = list.groups[g.key];
+              return (
+                <section key={g.key} className="ws-group" aria-labelledby={`ws-group-${g.key}`}>
+                  <h2 id={`ws-group-${g.key}`} className="ws-group-label">
+                    {g.label}
+                    <span className="ws-group-count" aria-hidden="true">
+                      {items.length}
+                    </span>
+                  </h2>
+                  {items.length === 0 ? (
+                    <p className="ws-group-empty">{g.empty}</p>
+                  ) : (
+                    <ul className="ws-rows">
+                      {items.map((run) => {
+                        const when = run.startedAt ?? run.createdAt;
+                        const goal = list.goals[run.id] ?? null;
+                        return (
+                          <li key={run.id}>
+                            <Link
+                              href={needsYouHref(run)}
+                              className={`ws-row${run.id === runId ? " active" : ""}`}
+                              aria-current={run.id === runId ? "page" : undefined}
+                              title={goal ?? undefined}
+                            >
+                              <span className="ws-row-title">{runRowTitle(goal)}</span>
+                              <span className="ws-row-meta">
+                                <span className={`ws-dot ${run.status}`} aria-hidden="true" />
+                                {needsYouAction(run) ?? stateLabel(run.status)}
+                                <span aria-hidden="true">·</span>
+                                <time dateTime={when} title={formatTimestamp(when)}>
+                                  {formatRelativeTime(when)}
+                                </time>
+                              </span>
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </section>
+              );
+            })
           )}
-          {AREAS.slice(1).map((a) => (
-            <Link
-              key={a.href}
-              href={a.href}
-              className={`nav-item${active === a.href ? " active" : ""}`}
-            >
-              {a.label}
-            </Link>
-          ))}
-        </nav>
+        </div>
         <div className="footer">
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 8,
-              marginBottom: 8,
+          <NotificationBell />
+          <CommandPalette
+            workingHref={workingHref}
+            projects={projects}
+            selectedProject={selected}
+            onSelectProject={list.selectProject}
+            onSignOut={() => {
+              clearSession();
+              router.push("/login");
             }}
-          >
+          />
+          <details className="ws-menu">
+            <summary>Menu</summary>
+            <nav aria-label="More">
+              {MENU.map((a) => (
+                <Link key={a.href} href={a.href} className={`nav-item${active === a.href ? " active" : ""}`}>
+                  {a.label}
+                </Link>
+              ))}
+            </nav>
+          </details>
+          <div className="ws-foot-row">
             <div className="role-badge">{role}</div>
             <ThemeToggle compact />
           </div>
