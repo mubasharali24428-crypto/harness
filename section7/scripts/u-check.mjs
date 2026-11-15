@@ -142,6 +142,37 @@ try {
   await page.waitForLoadState("networkidle");
   await shot("checkpoints");
 
+  // Five-key tour: open on the first visit, closed for good after "Got it".
+  await page.evaluate(() => window.localStorage.removeItem("harness.keytour.seen"));
+  await page.goto(`${ORIGIN}/`);
+  await page.getByTestId("key-tour-done").waitFor({ timeout: 20000 });
+  check(await page.locator(".key-tour dt").count() === 5, "the tour shows five keys on a first visit");
+  await page.waitForLoadState("networkidle");
+  await shot("tour");
+  await page.getByTestId("key-tour-done").focus();
+  await page.keyboard.press("Enter");
+  await page.reload();
+  await page.locator("#ws-composer-input").waitFor({ timeout: 20000 });
+  check(!(await page.getByTestId("key-tour-done").isVisible()), "after Got it the tour stays closed on reload");
+
+  // Cost page: one headline number (or the honest no-data notice).
+  await page.goto(`${ORIGIN}/dashboard/cost`);
+  await page.waitForLoadState("networkidle");
+  const headline = await page.getByTestId("cost-headline").count();
+  log(`cost page: ${headline ? `headline "${(await page.getByTestId("cost-headline").innerText()).replace(/\n/g, " | ")}"` : "no spend in the period; the no-data notice is shown"}`);
+  check(await page.getByRole("heading", { name: "By day" }).count() <= 1, "By day appears once");
+  await shot("cost");
+
+  // First run: from the demo button to a finished run with a pull request.
+  await page.goto(`${ORIGIN}/demo`);
+  await page.getByTestId("demo-seed-button").waitFor();
+  const t0 = Date.now();
+  await page.getByTestId("demo-seed-button").click();
+  await page.waitForURL(/\/projects\/[^/]+\/runs\/[^/?#]+/, { timeout: 60000 });
+  await page.getByText("Pull request opened").first().waitFor({ timeout: 60000 });
+  const secs = (Date.now() - t0) / 1000;
+  check(secs < 60, `demo reaches a finished run in ${secs.toFixed(1)} s (limit 60)`);
+
   log("failures:", failures.length ? JSON.stringify(failures, null, 1) : "none");
   log("console errors:", consoleErrors.length ? JSON.stringify([...new Set(consoleErrors.map((e) => e.replace(/ticket=[^&]+/, "ticket=…")))], null, 1) : "none");
   await browser.close();

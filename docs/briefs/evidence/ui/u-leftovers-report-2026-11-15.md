@@ -14,6 +14,20 @@ Branch `w28-s1-delegate`, nothing pushed.
 - **Open a run's checkpoints inside the shell**, with a link back to the run.
 - **Scroll wide tables from the keyboard**: sideways-scrolling tables are now focusable regions.
 
+## Added later the same day
+
+- **Five-key tour** in the sidebar ("Keyboard"): open on a person's first visit, closed for good
+  after "Got it", one click away afterwards. A unit test checks its shortcuts exist.
+- **Cost page leads with one number**: total spend for the period in large type, tokens in the line
+  under it. The doubled "By day" heading is gone.
+- **Under-60-second first run**: measured, not built; the demo already finishes at once. Locally the
+  demo button reaches a finished run with a pull request in 0.2 s; `e2e/leftovers.e2e.ts` now
+  asserts sign-in to finished demo run in under 60 s.
+- The timed task for U1 was already recorded in `week-ui.md` (0.18 s, keyboard).
+- `prReview.tsx` (unused since R2) is deleted.
+- `node scripts/u-check.mjs` after these: **0 failures**; unit tests **1199 passed**. These later
+  items are **not yet on `:3011`** (the RC frontend was last rebuilt before them).
+
 ## Verification actually run (from `section7/`)
 
 | Check | Result |
@@ -34,7 +48,10 @@ Branch `w28-s1-delegate`, nothing pushed.
   real pending plan are covered by the component's 12 unit tests, not by a browser run.
 - `PhoneTriage.tsx` and its test were another lane's uncommitted files; they are committed here
   unchanged because the new route needs them.
-- Not started: the five-key tour, the under-60-second demo, the timed task recording (U1),
-  presence (U6, gated), the Cost page headline, the client portal (P-17).
-- `prReview.tsx` is still unused and not deleted. `e2e/multiplayer.e2e.ts` was not checked.
+- `e2e/multiplayer.e2e.ts` is **stale and not fixed**: it still signs in to the old "Command
+  Center", uses the removed "Open shared run" link and reads the shared-run panel that now lives in
+  the Advanced pane. It needs the pilot stack (`deploy/pilot/stack.py`), which was not running, so a
+  rewrite could not be verified and was not attempted.
+- **No recorded screen-reader journey**: that needs a person using a screen reader.
+- Presence (U6) and the client portal (P-17) are gated on owner decisions and not built.
 - D-U1 still records shadcn/ui, which is not installed.

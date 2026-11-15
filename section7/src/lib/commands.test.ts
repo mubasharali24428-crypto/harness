@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync } from "node:fs";
+import { TOUR_KEYS } from "@/components/KeyTour";
 import { join } from "node:path";
 import { NAV_COMMANDS, OTHER_PAGES, SETTINGS_PAGES, isTypingTarget, stepShortcut } from "@/lib/commands";
 
@@ -32,6 +33,12 @@ describe("command shortcuts (U0)", () => {
     const skip = ["/login", "/auth/sso/callback", "/notifications/unsubscribe"];
     const reachable = new Set([...NAV_COMMANDS, ...SETTINGS_PAGES, ...OTHER_PAGES].map((c) => c.href));
     expect(pages.filter((p) => !skip.includes(p) && !reachable.has(p))).toEqual([]);
+  });
+  it("the key tour teaches five keys, and its g-shortcuts are real", () => {
+    expect(TOUR_KEYS).toHaveLength(5);
+    for (const k of TOUR_KEYS.filter((t) => t.keys[0] === "g")) {
+      expect(stepShortcut(true, k.keys[1]).href).not.toBeNull();
+    }
   });
   it("never fires while the user is typing", () => {
     expect(isTypingTarget("input", false)).toBe(true);

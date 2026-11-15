@@ -18,6 +18,7 @@ import { MAIN_CONTENT_ID, useSkipTarget } from "@/lib/focus";
 import NotificationBell from "../../app/notifications/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import CommandPalette from "@/components/CommandPalette";
+import { KeyTour } from "@/components/KeyTour";
 import { SETTINGS_PAGES } from "@/lib/commands";
 
 // R2: the sidebar is the run list. Everything that used to be a nav
@@ -207,6 +208,7 @@ export default function AppShell({
               router.push("/login");
             }}
           />
+          <KeyTour />
           <details className="ws-menu">
             <summary>Menu</summary>
             <nav aria-label="More">

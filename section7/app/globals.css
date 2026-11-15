@@ -1889,3 +1889,15 @@ a[href] {
 .settings-nav { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); margin-bottom: var(--space-4); padding-bottom: var(--space-2); border-bottom: 1px solid var(--border-soft); font-size: var(--text-sm); }
 .settings-nav a { color: var(--text-2); min-height: 24px; display: inline-flex; align-items: center; }
 .settings-nav a[aria-current="page"] { color: var(--text); font-weight: 600; text-decoration: underline; }
+
+/* Cost page: one headline number, detail in the line under it. */
+.cost-headline { margin: 0 0 var(--space-4); display: flex; flex-direction: column; gap: 4px; font-size: var(--text-sm); color: var(--text-2); }
+.cost-headline strong { font-size: 40px; line-height: 1.1; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* Five-key tour in the sidebar footer. */
+.key-tour { font-size: var(--text-xs); color: var(--text-2); }
+.key-tour summary { cursor: pointer; min-height: 24px; color: var(--muted); }
+.key-tour dl { margin: var(--space-1) 0; display: grid; grid-template-columns: auto 1fr; gap: 4px var(--space-2); align-items: baseline; }
+.key-tour dt { white-space: nowrap; }
+.key-tour dd { margin: 0; }
+.key-tour kbd { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; color: var(--text); }

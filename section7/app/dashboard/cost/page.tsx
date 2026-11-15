@@ -35,7 +35,6 @@ import {
 const RANGES = [7, 30, 90] as const;
 type RangeDays = (typeof RANGES)[number];
 
-const kpiNumberStyle = { fontSize: 22 } as const;
 
 export default function CostDashboardPage() {
   const [rangeDays, setRangeDays] = useState<RangeDays>(30);
@@ -214,17 +213,14 @@ export default function CostDashboardPage() {
 
       {hasData && summary !== null && (
         <>
-          <div className="grid">
-            <Card title="Total cost">
-              <div style={kpiNumberStyle}>{formatUsd(summary.totals.costUsd)}</div>
-            </Card>
-            <Card title="Input tokens">
-              <div style={kpiNumberStyle}>{formatTokens(summary.totals.inputTokens)}</div>
-            </Card>
-            <Card title="Output tokens">
-              <div style={kpiNumberStyle}>{formatTokens(summary.totals.outputTokens)}</div>
-            </Card>
-          </div>
+          {/* One headline number; tokens are detail under it. */}
+          <p className="cost-headline" data-testid="cost-headline">
+            <strong>{formatUsd(summary.totals.costUsd)}</strong>
+            <span>
+              spent in the last {rangeDays} days · {formatTokens(summary.totals.inputTokens)} input tokens ·{" "}
+              {formatTokens(summary.totals.outputTokens)} output tokens
+            </span>
+          </p>
 
           <Card title="By model" aria-label="Spend by model" style={{ marginTop: 16 }}>
             <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
@@ -276,7 +272,7 @@ export default function CostDashboardPage() {
             </ul>
           </Card>
 
-          <Card title="By day" aria-label="Spend by day" style={{ marginTop: 16 }}>
+          <Card aria-label="Spend by day" style={{ marginTop: 16 }}>
             <div
               style={{
                 display: "flex",
