@@ -39,6 +39,7 @@ export function PlanPin({
   onChanged: () => void;
 }) {
   const [versions, setVersions] = React.useState<Versions | null>(null);
+  const [latestContent, setLatestContent] = React.useState<Partial<AgentPlan> | null>(null);
   const [editing, setEditing] = React.useState(false);
   const [goal, setGoal] = React.useState("");
   const [steps, setSteps] = React.useState("");
@@ -48,7 +49,16 @@ export function PlanPin({
 
   const awaiting = state === "awaiting_plan_approval";
   const loadVersions = React.useCallback(
-    () => call<Versions>(versionsUrl(runId), token).then(setVersions).catch((e) => setError(loadErrorMessage(e))),
+    () => call<Versions>(versionsUrl(runId), token)
+      .then(async (v) => {
+        setVersions(v);
+        // An edited version is not the run's plan until it is approved, so the pin reads it here.
+        if (v.latestVersion) {
+          const latest = await call<{ content: Partial<AgentPlan> }>(`${versionsUrl(runId)}/${v.latestVersion}`, token);
+          setLatestContent(latest.content);
+        }
+      })
+      .catch((e) => setError(loadErrorMessage(e))),
     [runId, token],
   );
   React.useEffect(() => {
@@ -56,10 +66,11 @@ export function PlanPin({
   }, [awaiting, loadVersions]);
 
   if (!plan) return null;
+  const shown: AgentPlan = awaiting && latestContent ? { ...plan, ...latestContent } : plan;
   const canAct = roleCanAct(role);
   const why = canAct ? undefined : "Only admins and engineers can decide on a plan.";
   const approved = !awaiting || versions?.locked === true;
-  const stepCount = (plan.steps ?? []).length;
+  const stepCount = (shown.steps ?? []).length;
   const standing = !awaiting ? "approved" : approved ? "approved, not started" : "waiting for approval";
 
   async function act(label: string, fn: () => Promise<unknown>) {
@@ -76,10 +87,13 @@ export function PlanPin({
     }
   }
 
-  function startEditing() {
-    setGoal(plan!.goal);
-    setSteps((plan!.steps ?? []).join("\n"));
-    setTests((plan!.tests ?? []).join("\n"));
+  async function startEditing() {
+    // The save names the version this edit is based on, so read it before the editor opens;
+    // an edit begun before the first read finished was refused as a conflict.
+    await loadVersions();
+    setGoal(shown.goal);
+    setSteps((shown.steps ?? []).join("\n"));
+    setTests((shown.tests ?? []).join("\n"));
     setEditing(true);
   }
 
@@ -91,11 +105,11 @@ export function PlanPin({
           goal: goal.trim(),
           steps: linesToList(steps),
           tests: linesToList(tests),
-          risks: plan!.risks ?? [],
-          filesLikelyToChange: plan!.filesLikelyToChange ?? [],
-          forbiddenPaths: plan!.forbiddenPaths ?? [],
-          expectedResult: plan!.expectedResult ?? "",
-          estimatedCostUsd: plan!.estimatedCostUsd ?? 0,
+          risks: shown.risks ?? [],
+          filesLikelyToChange: shown.filesLikelyToChange ?? [],
+          forbiddenPaths: shown.forbiddenPaths ?? [],
+          expectedResult: shown.expectedResult ?? "",
+          estimatedCostUsd: shown.estimatedCostUsd ?? 0,
         },
         expectedVersion: versions?.latestVersion ?? 0,
         requestId: crypto.randomUUID(),
@@ -138,7 +152,7 @@ export function PlanPin({
       ) : (
         <>
           <ol className="ws-plan-steps">
-            {(plan.steps ?? []).map((s, i) => (
+            {(shown.steps ?? []).map((s, i) => (
               <li key={i}>{s}</li>
             ))}
           </ol>

@@ -7,6 +7,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { loginViaUi } from "./support";
 
 async function press(page: Page, testId: string) {
+  await expect(page.getByTestId(testId)).toBeEnabled({ timeout: 30_000 }); // Enter on a busy button does nothing
   await page.getByTestId(testId).focus();
   await page.keyboard.press("Enter");
 }
@@ -33,7 +34,7 @@ test("propose, edit plan, approve, start, steer and stop with the keyboard", asy
   await page.keyboard.press("ControlOrMeta+End");
   await page.keyboard.type("\nRun the full test suite before finishing");
   await press(page, "plan-save");
-  await expect(page.getByTestId("plan-pin")).toContainText("Run the full test suite before finishing");
+  await expect(page.locator(".ws-plan-steps")).toContainText("Run the full test suite before finishing");
   await expect(page.getByTestId("plan-pin")).not.toContainText("{");
 
   await press(page, "plan-approve");
