@@ -53,3 +53,20 @@ test("propose, edit plan, approve, start, steer and stop with the keyboard", asy
   await expect(page.locator(".ws-composer-note")).toContainText(/stop/i);
   await expect(page.getByTestId("next-step")).toBeVisible({ timeout: 60_000 });
 });
+
+test("a goal opens its own run, titled in the sidebar, and nothing starts", async ({ page }) => {
+  await loginViaUi(page, `r3-propose-${Date.now().toString(36)}@harness.dev`);
+  await page.goto("/demo");
+  await page.getByTestId("demo-seed-button").click();
+  await page.waitForURL(/\/projects\/[^/]+\/runs\/[^/?#]+/, { timeout: 60_000 });
+
+  await page.goto("/");
+  const goal = `Rename a constant ${Date.now().toString(36)}`;
+  await page.locator("#ws-composer-input").fill(goal);
+  await page.keyboard.press("Enter");
+  // The run id comes from the propose response; the project is a real one, not a placeholder.
+  await page.waitForURL(/\/projects\/(?!none\/)[^/]+\/runs\/run-/, { timeout: 30_000 });
+  await expect(page.getByTestId("plan-approve")).toBeVisible();
+  // The sidebar title is the goal carried by the runs list.
+  await expect(page.getByRole("navigation", { name: "Run list" })).toContainText(goal);
+});

@@ -89,8 +89,11 @@ Only the RC frontend was rebuilt. `PhoneTriage.tsx` was changed (see 1).
 | Picker could not say which models have a key | The picker reads the team's keys and marks a provider "team key set". It cannot see platform keys, so it never says "no key". |
 
 Checks run: section4 `pytest` 2392 passed, 60 skipped (3 new assertions); section7 typecheck, 1201 unit
-tests and build pass. **Not verified in a browser**: `:3011` needs the orchestrator and frontend
-rebuilt. The "Delivered" line also needs a live run, which costs model calls.
+tests and build pass. **Verified on `:3011`** after the orchestrator and frontend were rebuilt (`vv90r4`):
+triage, workspace, leftovers and review specs pass (10 of 10), and a new free test in
+`e2e/composer.e2e.ts` shows a goal opening its own run with the goal as its sidebar title.
+**Not verified:** the "Delivered" line (needs a live run, which costs model calls) and the
+"team key set" mark (the e2e teams have no keys).
 
 Still not built: per-step plan progress (the engine emits no step events) and "since last
 iteration" in review (the review service stores one diff per pull request).
