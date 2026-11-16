@@ -92,8 +92,9 @@ Checks run: section4 `pytest` 2392 passed, 60 skipped (3 new assertions); sectio
 tests and build pass. **Verified on `:3011`** after the orchestrator and frontend were rebuilt (`vv90r4`):
 triage, workspace, leftovers and review specs pass (10 of 10), and a new free test in
 `e2e/composer.e2e.ts` shows a goal opening its own run with the goal as its sidebar title.
-**Not verified:** the "Delivered" line (needs a live run, which costs model calls) and the
-"team key set" mark (the e2e teams have no keys).
+The "Delivered to the agent" line is verified there too: the composer spec now pauses a live
+run, sends direction, resumes and sees the line change (1 run, 27 s, one paid run).
+**Not verified:** the "team key set" mark (the e2e teams have no keys).
 
 Still not built: per-step plan progress (the engine emits no step events) and "since last
 iteration" in review (the review service stores one diff per pull request).
