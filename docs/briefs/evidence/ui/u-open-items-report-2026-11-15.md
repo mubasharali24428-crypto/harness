@@ -78,3 +78,19 @@ mean re-skinning finished, verified screens; amending the decision is the owner'
 | `node scripts/sr-journey.mjs` on `:3011` | 0 findings (7 before the fixes) |
 
 Only the RC frontend was rebuilt. `PhoneTriage.tsx` was changed (see 1).
+
+## 2026-11-16: backend gaps closed (not yet on `:3011`)
+
+| Gap | Change |
+|---|---|
+| Propose returned no run id | `POST /plans` now returns `runId` and `projectId`. The composer opens the run from the response; the search through runs awaiting approval is deleted. |
+| Runs list had no goal or plan id | `GET /runs` items carry `planId` and `goal` (newest plan, one extra query per page). The sidebar and phone triage no longer make one status and one plan request per row. |
+| "Took effect" was not live | `GET /runs/{id}/collab-history` returns `deliveredUpTo` (the engine's delivery cursor). The composer polls it every 5 s while direction is waiting and then says "Delivered to the agent." |
+| Picker could not say which models have a key | The picker reads the team's keys and marks a provider "team key set". It cannot see platform keys, so it never says "no key". |
+
+Checks run: section4 `pytest` 2392 passed, 60 skipped (3 new assertions); section7 typecheck, 1201 unit
+tests and build pass. **Not verified in a browser**: `:3011` needs the orchestrator and frontend
+rebuilt. The "Delivered" line also needs a live run, which costs model calls.
+
+Still not built: per-step plan progress (the engine emits no step events) and "since last
+iteration" in review (the review service stores one diff per pull request).

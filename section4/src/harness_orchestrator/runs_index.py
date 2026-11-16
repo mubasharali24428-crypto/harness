@@ -318,6 +318,24 @@ async def _fetch_lifecycle_extremes(db, run_ids: list[str]) -> dict[str, dict[st
     return out
 
 
+# The newest plan per page run, one statement. Rows come oldest first so the last one seen per
+# run wins; a run has a handful of plans at most.
+_PLANS_SQL = text(
+    "SELECT run_id, id, goal FROM agent_plans WHERE run_id IN :page_run_ids"
+    " ORDER BY created_at ASC, id ASC"
+).bindparams(bindparam("page_run_ids", type_=String, expanding=True))
+
+
+async def _latest_plans(db, run_ids: list[str]) -> dict[str, tuple[str, str | None]]:
+    """run id → (plan id, goal) of its newest plan."""
+    if not run_ids:
+        return {}
+    return {
+        run_id: (plan_id, goal)
+        for run_id, plan_id, goal in await db.execute(_PLANS_SQL, {"page_run_ids": run_ids})
+    }
+
+
 class RunItem(BaseModel):
     """One row of the M10-C2 index payload (camelCase per api-conventions)."""
 
@@ -328,6 +346,10 @@ class RunItem(BaseModel):
     # until the run is started); blockedBy says why a blocked run is blocked.
     planApproved: bool = False
     blockedBy: str | None = None
+    # 2026-11-16: the run's newest plan, so a list can title a run and decide its plan
+    # without one status and one plan request per row.
+    planId: str | None = None
+    goal: str | None = None
     createdAt: datetime | None = None
     startedAt: datetime | None = None
     finishedAt: datetime | None = None
@@ -413,6 +435,7 @@ async def list_runs(
     picked = picked[:page_limit]
     async with factory() as db:
         extremes = await _fetch_lifecycle_extremes(db, [row["id"] for row, _ in picked])
+        plans = await _latest_plans(db, [row["id"] for row, _ in picked])
     items = [
         RunItem(
             id=row["id"],
@@ -420,6 +443,8 @@ async def list_runs(
             status=state[0],
             planApproved=state[1],
             blockedBy=state[2],
+            planId=plans.get(row["id"], (None, None))[0],
+            goal=plans.get(row["id"], (None, None))[1],
             createdAt=row["created_at"],
             startedAt=extremes.get(row["id"], {}).get("started_at"),
             finishedAt=extremes.get(row["id"], {}).get("finished_at"),

@@ -34,6 +34,9 @@ export type RunStatusValue = (typeof RUN_STATUSES)[number];
 
 /** Contract M10-C2 run item — camelCase per contracts/api-conventions.md. */
 export interface RunDto {
+  /** The run's newest plan: its id and goal. Null before a plan exists. */
+  planId?: string | null;
+  goal?: string | null;
   id: string;
   projectId: string;
   status: string;

@@ -5,6 +5,7 @@
 //   full    — Settings -> Models
 // Both read and write the same per-team preference; only admins may change it.
 
+import { listKeys } from "../../app/settings/keys/keysApi";
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -54,6 +55,9 @@ export function ModelPrefsForm({
   const [prefs, setPrefs] = useState<ModelPrefs | null>(null);
   const [providers, setProviders] = useState<CatalogProvider[]>([]);
   const [catalogFailed, setCatalogFailed] = useState(false);
+  // Providers the team has an active key for. Platform-level keys are not visible here,
+  // so the picker only ever says "team key set", never "no key".
+  const [keyed, setKeyed] = useState<Set<string>>(() => new Set());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -79,10 +83,16 @@ export function ModelPrefsForm({
       .catch(() => {
         if (!cancelled) setCatalogFailed(true);
       });
+    listKeys(undefined, token)
+      .then((res) => {
+        if (!cancelled) setKeyed(new Set(res.items.filter((k) => !k.revokedAt).map((k) => k.provider)));
+      })
+      .catch(() => {}); // the mark is a hint; the picker works without it
     return () => {
       cancelled = true;
     };
   }, [token]);
+  const keyMark = (provider: string) => (keyed.has(provider) ? `${provider} · team key set` : provider);
 
   const groups = useMemo(
     () =>
@@ -157,7 +167,7 @@ export function ModelPrefsForm({
       style={selectStyle}
     >
       {groups.map((group) => (
-        <optgroup key={group.name} label={group.name}>
+        <optgroup key={group.name} label={keyMark(group.name)}>
           {group.models.map((m) => (
             <option key={`${group.name}:${m}`} value={m}>
               {variant === "compact" ? shortModel(m) : m}
@@ -225,7 +235,7 @@ export function ModelPrefsForm({
         />
         <datalist id="composer-models">
           {all.map((x) => (
-            <option key={`${x.provider}:${x.model}`} value={x.model} label={x.provider} />
+            <option key={`${x.provider}:${x.model}`} value={x.model} label={keyMark(x.provider)} />
           ))}
         </datalist>
         {reasoningSelect}

@@ -68,7 +68,7 @@ def test_plan_gate_golden_walk_propose_approve_start(gate_service):
     res = client.post("/api/v1/orchestrator/plans", json={"goal": GOLDEN_GOAL})
     assert res.status_code == 201
     proposed = res.json()
-    assert set(proposed.keys()) == {"planId", "plan"}
+    assert set(proposed.keys()) == {"planId", "runId", "projectId", "plan"}  # run/project ids additive 2026-11-16
     assert isinstance(proposed["planId"], str) and proposed["planId"].startswith("plan-")
     plan = proposed["plan"]
     assert set(plan.keys()) == PLAN_GATE_PLAN_KEYS  # camelCase TS-mirror fields

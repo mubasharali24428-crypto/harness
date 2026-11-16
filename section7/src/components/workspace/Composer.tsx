@@ -7,38 +7,29 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { getRunStatus, stopAgent } from "@/lib/api";
+import { stopAgent } from "@/lib/api";
 import { getProjectId, setProjectId, setRunId } from "@/lib/auth";
 import { loadErrorMessage } from "@/lib/humanize";
 import { ModelPrefsForm } from "@/components/ModelPrefs";
 import { stopNotice } from "@/components/Controls";
 import { Button } from "@/components/ui";
 import { proposePlan } from "../../../app/dashboard/planGateApi";
-import { listRuns, pauseOrResumeRun, type RunDto } from "../../../app/runs/runsApi";
-import { joinRun, sendRedirect } from "../../../app/projects/[projectId]/runs/[runId]/collabApi";
+import { pauseOrResumeRun } from "../../../app/runs/runsApi";
+import { getHistory, joinRun, sendRedirect } from "../../../app/projects/[projectId]/runs/[runId]/collabApi";
 import { takesEffectText } from "../../../app/projects/[projectId]/runs/[runId]/collabModel";
 import { RefAutocomplete } from "../../../app/meeting/RefAutocomplete";
 import { COMMANDS, composerMode, parseDraft } from "./runFlow";
 
 export const COMPOSER_INPUT_ID = "ws-composer-input";
 
-// ponytail: the propose response carries no run id, so the new run is found by
-// its plan id among the runs awaiting approval. Replace with `runId` on the
-// propose response if the backend adds it.
-async function findRunForPlan(planId: string, token: string): Promise<RunDto | null> {
-  const page = await listRuns({ status: "awaiting_plan_approval", limit: 25 }, token);
-  for (const run of page.items) {
-    const status = await getRunStatus(run.id, token).catch(() => null);
-    if (status?.planId === planId) return run;
-  }
-  return null;
-}
-
 interface SentDirection {
   id: string;
   text: string;
   /** What the server said about when the agent reads it. */
   status: string;
+  /** Collab sequence of the direction; null when queued or not reported. */
+  seq: number | null;
+  delivered?: boolean;
 }
 
 const PLACEHOLDER = {
@@ -104,22 +95,17 @@ export function Composer({
         }
       } else if (action.kind === "text" && !runId) {
         const proposed = await proposePlan(action.text, token, projectId ?? getProjectId());
-        const run = await findRunForPlan(proposed.planId, token);
-        if (!run) {
-          setNote("The plan was proposed, but its run is not in the list yet. Open it from Needs you in the sidebar.");
-        } else {
-          setProjectId(run.projectId);
-          setRunId(run.id);
-          router.push(`/projects/${encodeURIComponent(run.projectId)}/runs/${encodeURIComponent(run.id)}`);
-          return; // keep the composer busy while the run page loads
-        }
+        if (proposed.projectId) setProjectId(proposed.projectId);
+        setRunId(proposed.runId);
+        router.push(`/projects/${encodeURIComponent(proposed.projectId ?? "none")}/runs/${encodeURIComponent(proposed.runId)}`);
+        return; // keep the composer busy while the run page loads
       } else if (action.kind === "text" && runId) {
         await joinRun(runId, token).catch(() => {}); // steering needs a seat; already seated is fine
         const r = await sendRedirect(runId, token, { kind: "guidance", content: action.text, requestId: crypto.randomUUID() });
         const status = r.queued
           ? "Queued: the person in control must accept it before the agent sees it."
           : takesEffectText(r.takesEffect) ?? "Sent to the agent.";
-        setSent((prev) => [...prev, { id: r.instructionId ?? String(r.seq ?? prev.length), text: action.text, status }]);
+        setSent((prev) => [...prev, { id: r.instructionId ?? String(r.seq ?? prev.length), text: action.text, status, seq: r.queued ? null : r.seq }]);
       }
       setDraft("");
       onChanged?.();
@@ -130,6 +116,22 @@ export function Composer({
     }
   }
 
+  // The engine records how far it has handed direction to the agent; poll that while
+  // something sent from this tab is still waiting.
+  const waiting = sent.some((s) => s.seq !== null && !s.delivered);
+  React.useEffect(() => {
+    if (!waiting || !runId || !token) return;
+    const timer = window.setInterval(() => {
+      getHistory(runId, token, Number.MAX_SAFE_INTEGER)
+        .then((page) => {
+          const upTo = page.deliveredUpTo ?? 0;
+          setSent((prev) => prev.map((s) => (s.seq !== null && s.seq <= upTo ? { ...s, delivered: true } : s)));
+        })
+        .catch(() => {}); // the send-time answer stays on screen
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [waiting, runId, token]);
+
   return (
     <div className="ws-composer" data-testid="composer">
       {sent.length > 0 && (
@@ -137,7 +139,7 @@ export function Composer({
           {sent.map((s) => (
             <li key={s.id}>
               <span className="ws-sent-text">{s.text}</span>
-              <span className="ws-sent-status">{s.status}</span>
+              <span className="ws-sent-status">{s.delivered ? "Delivered to the agent." : s.status}</span>
             </li>
           ))}
         </ul>

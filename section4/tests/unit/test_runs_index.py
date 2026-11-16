@@ -65,6 +65,12 @@ def db(tmp_path):
                     " ts TIMESTAMP WITH TIME ZONE NOT NULL)"
                 )
             )
+            await conn.execute(
+                text(
+                    "CREATE TABLE agent_plans (id VARCHAR(36) PRIMARY KEY, run_id VARCHAR(36),"
+                    " goal TEXT, created_at TIMESTAMP WITH TIME ZONE NOT NULL)"
+                )
+            )
             # For make_bearer_dep lookups (auth_sessions ⋈ team_members ⋈ users).
             await conn.execute(
                 text(
@@ -198,6 +204,8 @@ def test_default_paging_and_shape(monkeypatch, seeded_db):
         "status",
         "planApproved",  # 2026-11-13, additive
         "blockedBy",  # 2026-11-13, additive
+        "planId",  # 2026-11-16, additive
+        "goal",  # 2026-11-16, additive
         "createdAt",
         "startedAt",
         "finishedAt",
@@ -595,3 +603,27 @@ def test_approved_but_not_started_is_reported_separately(monkeypatch, seeded_db)
 )
 def test_replay_run_reports_approval_and_blocker(events, expected):
     assert replay_run(events, "idle") == expected
+
+
+def test_items_carry_the_newest_plan_id_and_goal(monkeypatch, seeded_db):
+    async def _plans():
+        async with seeded_db() as db:
+            for plan_id, goal, minutes_ago in (("p-old", "first", 9), ("p-new", "second", 1)):
+                await db.execute(
+                    text(
+                        "INSERT INTO agent_plans (id, run_id, goal, created_at)"
+                        " VALUES (:i, 'run-1', :g, :c)"
+                    ),
+                    {"i": plan_id, "g": goal,
+                     "c": datetime.now(UTC) - timedelta(minutes=minutes_ago)},
+                )
+            await db.commit()
+
+    import asyncio as _asyncio
+
+    _asyncio.run(_plans())
+    items = _client(monkeypatch, seeded_db, _principal()).get(
+        "/api/v1/orchestrator/runs").json()["items"]
+    by_id = {i["id"]: i for i in items}
+    assert (by_id["run-1"]["planId"], by_id["run-1"]["goal"]) == ("p-new", "second")
+    assert (by_id["run-2"]["planId"], by_id["run-2"]["goal"]) == (None, None)
