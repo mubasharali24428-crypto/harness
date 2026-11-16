@@ -30,6 +30,24 @@ test.describe("R4 review and R5 evidence", () => {
     await page.goto(url);
   }
 
+  test("a risky change cannot be approved before the risk tick", async ({ page }) => {
+    // The demo pull request has no risk flags, so one is added to the review response here.
+    await page.route(/\/api\/v1\/reviews\/[^/]+$/, async (route) => {
+      if (route.request().method() !== "GET") return route.continue();
+      const response = await route.fetch();
+      const json = await response.json();
+      json.riskFlags = [{ path: "auth/session.ts", severity: "high", rule: "auth-touch", reason: "touches auth" }];
+      await route.fulfill({ response, json });
+    });
+    await open(page, `${runPath}?pane=diff`);
+    await expect(page.getByTestId("review-risks")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("review-approve")).toBeDisabled();
+    await expect(page.getByTestId("review-blocked")).toContainText("risk flags");
+    await page.getByTestId("review-ack").focus();
+    await page.keyboard.press("Space");
+    await expect(page.getByTestId("review-approve")).toBeEnabled();
+  });
+
   test("a reviewer comments on a file and approves from the keyboard", async ({ page }) => {
     await open(page, `${runPath}?pane=diff`);
     await expect(page.getByTestId("review-decide")).toBeVisible({ timeout: 30_000 });
