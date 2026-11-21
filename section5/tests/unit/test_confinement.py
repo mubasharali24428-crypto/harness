@@ -91,11 +91,6 @@ def test_auto_mode_resolves_on_this_platform(tmp_path):
         assert mode == "seatbelt"
 
 
-@pytest.mark.skipif(sys.platform == "darwin", reason="landlock is linux-only")
-def test_landlock_module_imports():
-    from harness_sandbox import confinement  # noqa: F401
-
-
 @pytest.mark.asyncio
 async def test_seatbelt_blocks_forbidden_path_even_via_interpreter(tmp_path):
     """S-01 regression: allow-listed python must not read a forbidden path."""

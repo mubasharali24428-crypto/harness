@@ -35,3 +35,10 @@ raise SystemExit(0)
     assert proc.returncode == 3, (proc.returncode, proc.stderr)
     assert (ws / "inside.txt").read_text() == "ok"
     assert not outside.exists()
+
+
+# Lives here (not test_confinement.py) because that file's module-level Seatbelt
+# gate would skip it on Linux, so combined with its own darwin skipif it could
+# never run on any platform.
+def test_landlock_module_imports():
+    from harness_sandbox import confinement  # noqa: F401
