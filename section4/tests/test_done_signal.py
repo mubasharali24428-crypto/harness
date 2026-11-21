@@ -23,6 +23,7 @@ pattern (conftest.py is shared; no new fixtures are added there).
 
 import sys
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -211,6 +212,26 @@ def _service(factory) -> OrchestratorService:
     return svc
 
 
+@contextmanager
+def _wired_service(svc: OrchestratorService):
+    """Point the shared router at a scratch service, then restore the wiring.
+
+    ``configure_orchestrator`` swaps a module global, and leaking it makes every
+    REST test that runs after this file order-dependent: the stress and
+    conformance suites would resolve runs (and projects) against this file's
+    scratch SQLite and 404. Nothing in this file relied on the leak — the
+    previous wiring is restored on every exit path.
+    """
+    from harness_orchestrator import api as orch_api
+
+    previous = orch_api._service
+    configure_orchestrator(svc)
+    try:
+        yield svc
+    finally:
+        configure_orchestrator(previous)
+
+
 async def _walk_to_done_gate(svc: OrchestratorService, run_id: str = "run-ds") -> None:
     """propose → approve → start(engine stub settles instantly) → gate open."""
     svc.engine = _InstantEngine()
@@ -325,14 +346,14 @@ async def test_done_signal_on_stopped_run_is_conflict(db_factory):
         await svc.gate_done_signal("run-ds", _admin(), CLEAN_DIFF)
     assert excinfo.value.code == "RUN_NOT_LIVE"
     # And the HTTP seam maps it to 409 (router pointed at THIS service).
-    configure_orchestrator(svc)
-    app = FastAPI()
-    app.include_router(router)
-    app.dependency_overrides[get_principal] = lambda: _admin()
-    res = TestClient(app).post(
-        "/api/v1/orchestrator/runs/run-ds/done-signal",
-        json={"diffText": CLEAN_DIFF},
-    )
+    with _wired_service(svc):
+        app = FastAPI()
+        app.include_router(router)
+        app.dependency_overrides[get_principal] = lambda: _admin()
+        res = TestClient(app).post(
+            "/api/v1/orchestrator/runs/run-ds/done-signal",
+            json={"diffText": CLEAN_DIFF},
+        )
     assert res.status_code == 409
     assert res.json()["detail"]["error"]["code"] == "RUN_NOT_LIVE"
 
@@ -519,9 +540,22 @@ def test_verification_required_accepts_recorded_green():
     )
 
 
-def test_verification_default_off_needs_no_evidence():
-    # Default posture is unchanged: a non-empty diff alone still passes.
+def test_verification_explicit_off_needs_no_evidence():
+    # The plain signals.gate_done_signal is env-free: verification_required is
+    # caller-supplied. Env defaults are asserted on the service seam below and
+    # in the async tests above.
     gate_done_signal(_admin(), AgentState.AWAITING_DONE_SIGNAL, CLEAN_DIFF)
+
+
+def test_service_verification_default_is_on(monkeypatch):
+    # 2026-11-14 decision: with no env var set, the service seam defaults ON.
+    monkeypatch.delenv("HARNESS_VERIFICATION_FIRST", raising=False)
+    assert OrchestratorService._verification_first_enabled() is True
+
+
+def test_service_verification_explicit_off(monkeypatch):
+    monkeypatch.setenv("HARNESS_VERIFICATION_FIRST", "false")
+    assert OrchestratorService._verification_first_enabled() is False
 
 
 async def _record_tool_call(factory, run_id, target, summary, outcome="ok"):
@@ -540,11 +574,34 @@ async def _record_tool_call(factory, run_id, target, summary, outcome="ok"):
         await db.commit()
 
 
-async def test_verification_first_default_off_preserves_flow(db_factory, monkeypatch):
+async def test_verification_first_explicit_off_preserves_flow(db_factory, monkeypatch):
+    """2026-11-14 decision: the default is ON; this pins the explicit opt-out
+    (HARNESS_VERIFICATION_FIRST=false) used by dry/demo/no-live-test flows."""
+    monkeypatch.setenv("HARNESS_VERIFICATION_FIRST", "false")
+    svc = _service(db_factory)
+    await _walk_to_done_gate(svc)
+    # No engine tests recorded, but the flag is explicitly off ⇒ legacy flow.
+    await svc.gate_done_signal("run-ds", _admin(), CLEAN_DIFF)
+
+
+async def test_verification_first_default_is_on(db_factory, monkeypatch):
+    """2026-11-14 decision: with no env var set, a done-signal without recorded
+    green evidence is refused; explicit false is the only way through."""
     monkeypatch.delenv("HARNESS_VERIFICATION_FIRST", raising=False)
     svc = _service(db_factory)
     await _walk_to_done_gate(svc)
-    # No engine tests recorded, but the flag is off ⇒ existing behavior holds.
+    with pytest.raises(VerificationEvidenceError) as excinfo:
+        await svc.gate_done_signal("run-ds", _admin(), CLEAN_DIFF)
+    assert excinfo.value.code == "VERIFICATION_REQUIRED"
+
+
+async def test_verification_first_default_on_accepts_recorded_green(db_factory, monkeypatch):
+    """With no env var set, the gate accepts a done-signal backed by the run's
+    own recorded engine tool calls going green."""
+    monkeypatch.delenv("HARNESS_VERIFICATION_FIRST", raising=False)
+    svc = _service(db_factory)
+    await _walk_to_done_gate(svc)
+    await _record_tool_call(db_factory, "run-ds", "pytest -q", "engine bash call (exit 0)")
     await svc.gate_done_signal("run-ds", _admin(), CLEAN_DIFF)
 
 
@@ -592,16 +649,18 @@ async def test_verification_first_http_seam_is_400_with_code(db_factory, monkeyp
     monkeypatch.setenv("HARNESS_VERIFICATION_FIRST", "true")
     svc = _service(db_factory)
     await _walk_to_done_gate(svc)
-    configure_orchestrator(svc)
-    app = FastAPI()
-    app.include_router(router)
-    app.dependency_overrides[get_principal] = lambda: _admin()
-    client = TestClient(app)
-    res = client.post("/api/v1/orchestrator/runs/run-ds/done-signal", json={"diffText": CLEAN_DIFF})
-    assert res.status_code == 400, res.text
-    assert res.json()["detail"]["error"]["code"] == "VERIFICATION_REQUIRED"
-    # reader role is still a 403 (the status follows the error class, not a blanket)
-    app.dependency_overrides[get_principal] = lambda: Principal(
-        userId="u-view", teamId="team-ds", role=Role.VIEWER)
-    res = client.post("/api/v1/orchestrator/runs/run-ds/done-signal", json={"diffText": CLEAN_DIFF})
+    with _wired_service(svc):
+        app = FastAPI()
+        app.include_router(router)
+        app.dependency_overrides[get_principal] = lambda: _admin()
+        client = TestClient(app)
+        res = client.post(
+            "/api/v1/orchestrator/runs/run-ds/done-signal", json={"diffText": CLEAN_DIFF})
+        assert res.status_code == 400, res.text
+        assert res.json()["detail"]["error"]["code"] == "VERIFICATION_REQUIRED"
+        # reader role is still a 403 (the status follows the error class, not a blanket)
+        app.dependency_overrides[get_principal] = lambda: Principal(
+            userId="u-view", teamId="team-ds", role=Role.VIEWER)
+        res = client.post(
+            "/api/v1/orchestrator/runs/run-ds/done-signal", json={"diffText": CLEAN_DIFF})
     assert res.status_code == 403 and res.json()["detail"]["error"]["code"] == "ROLE_DENIED"

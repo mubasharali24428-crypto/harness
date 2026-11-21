@@ -91,7 +91,8 @@ def test_reviewer_uses_the_models_service_summary_when_it_answers(models_url):
     findings = ReviewerSubAgent(model_router=router).evaluate_changes(
         brief_summary="add a function", diff_text="+x = 1\n"
     )
-    assert findings.summary == "Looks fine."
+    # H3: the model text is a note, never a replacement of the deterministic verdict sentence.
+    assert findings.summary == "Review passed cleanly. Reviewer note: Looks fine."
     assert findings.modelUsed == "openai/gpt-4o-mini"
 
 

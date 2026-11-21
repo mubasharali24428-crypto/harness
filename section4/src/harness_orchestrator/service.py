@@ -2917,8 +2917,10 @@ class OrchestratorService(Orchestrator):
 
     @staticmethod
     def _verification_first_enabled() -> bool:
-        """I-09: operator opt-in for verification-first done-signals (default off)."""
-        return os.environ.get("HARNESS_VERIFICATION_FIRST", "false").strip().lower() in {
+        """I-09: verification-first done-signals, default on since the
+        2026-11-14 decision (docs/decisions/2026-11-14-verification-first-default-on.md).
+        An operator opts out explicitly with HARNESS_VERIFICATION_FIRST=false."""
+        return os.environ.get("HARNESS_VERIFICATION_FIRST", "true").strip().lower() in {
             "1", "true", "yes", "on",
         }
 

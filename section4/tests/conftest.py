@@ -13,6 +13,11 @@ import os
 os.environ.setdefault("HARNESS_AUTHZ_TEST_MODE", "1")
 # In-process fake SDKs by default; the isolation tests opt in explicitly.
 os.environ.setdefault("HARNESS_ENGINE_ISOLATED", "0")
+# I-09 default is ON in production since the 2026-11-14 decision
+# (docs/decisions/2026-11-14-verification-first-default-on.md). Most suites
+# here record no engine tool calls, so the session pins the explicit opt-out;
+# tests of the default itself use monkeypatch.delenv to see the real default.
+os.environ.setdefault("HARNESS_VERIFICATION_FIRST", "false")
 
 
 import pytest  # noqa: E402

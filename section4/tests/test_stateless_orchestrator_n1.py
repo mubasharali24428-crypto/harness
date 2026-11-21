@@ -470,7 +470,9 @@ async def _eviction_replica(tmp_path):
     return factory, svc
 
 
-async def test_terminal_run_with_persisted_log_is_evicted_and_replays(tmp_path):
+async def test_terminal_run_with_persisted_log_is_evicted_and_replays(tmp_path, monkeypatch):
+    monkeypatch.setenv("HARNESS_VERIFICATION_FIRST", "false")  # no live tests in this flow
+
     factory, svc = await _eviction_replica(tmp_path)
     plan_id = await svc.propose_plan(
         "evict-done", goal="n1 eviction", project_id="proj-evict"
@@ -491,7 +493,9 @@ async def test_terminal_run_with_persisted_log_is_evicted_and_replays(tmp_path):
     assert "evict-done" not in svc.runs  # reads do NOT resurrect the cache
 
 
-async def test_terminal_run_without_durable_log_keeps_ram_entry(tmp_path):
+async def test_terminal_run_without_durable_log_keeps_ram_entry(tmp_path, monkeypatch):
+    monkeypatch.setenv("HARNESS_VERIFICATION_FIRST", "false")  # no live tests in this flow
+
     factory, svc = await _eviction_replica(tmp_path)
     svc.bus = RecordingBus()  # non-persisting double: nothing durable lands
     plan_id = await svc.propose_plan(
@@ -507,7 +511,9 @@ async def test_terminal_run_without_durable_log_keeps_ram_entry(tmp_path):
     assert "keep-done" in svc.runs
 
 
-async def test_evicted_run_is_not_404_no_oracle_hole(tmp_path):
+async def test_evicted_run_is_not_404_no_oracle_hole(tmp_path, monkeypatch):
+    monkeypatch.setenv("HARNESS_VERIFICATION_FIRST", "false")  # no live tests in this flow
+
     """M14-W4 F3a guard: eviction must not turn a real finished run into a
     NOT_FOUND answer just because its agent_runs anchor is absent."""
     factory, svc = await _eviction_replica(tmp_path)
