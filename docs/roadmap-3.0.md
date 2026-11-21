@@ -17,24 +17,39 @@ permissions, bypasses forbidden paths or automatically merges work.
 
 ## Current position
 
+*(Refreshed 2026-11-21; the stage table below is scope and exit evidence, not
+status. Per-stage state and the freshness of every claim live in
+`STATUS.md` and `docs/briefs/PROJECT-STATE.md` §2 — read those first.)*
+
 * The recorded product verdict is **NOT READY** for production or a general
   pilot. A design-partner pilot requires its documented gates and owner decision.
-* Hx M1–M5 are committed (`332d273`): checked workflows, Section 4/1 event
-  integration, Section 5 host bridge, model relay and bounded language constructs.
-  Hx cost is not enforced, grants cannot be revoked mid-run, failure replay is
-  incomplete, and the driver is not a CPU sandbox.
-* W13 has an execution leg for approved commands and subsequent accounting and
-  notification work; the model-driven remote-host agent loop remains open.
-* W17 terminal-event retry and W19 cross-replica work are committed. Reconcile
-  their work orders and live evidence before making broader reliability claims.
-* W7 VS Code packaging and activation smoke passed; a real-window end-to-end
-  task remains to be demonstrated. Hermes H3 and rights clearance remain open.
-* W22 has passing and failing drills, plus active uncommitted changes. The
-  precise revisions and deployed images must be reconciled; passing unit tests
-  do not establish the deployed recovery gate.
-* At drafting, the tree includes local W22 changes, a staged login conflict
-  resolution and local auto-sign-in behavior. Review that behavior before any
-  deployment; it is not evidence of production authentication readiness.
+* Hx M1–M8 are complete (`332d273` … `9e54132`): checked workflows, Section 4/1
+  event integration, Section 5 host bridge, model relay, bounded constructs,
+  budget enforcement against a host price table, mid-run grant revocation,
+  honest failure replay, and multi-file programs with per-module digests. The
+  recorded limits stand (CPU bounding, replay cannot undo effects, resolver
+  trust) — see the 2026-10-25 STATUS entry.
+* Stage 4 (benchmark): the trial harness is built and dry-verified —
+  `bench_trials.py` enforces ≥5 independent trials per task per model, refuses
+  less, and the 2026-11-21 dry smoke ran 5 trials at zero spend
+  (`docs/briefs/evidence/w7-bench/`). The live ≥5-trial run and the
+  other-harness comparison remain open (model spend = owner budget call).
+* Stage 5 (governance W27): slices 1–3 committed and deployed (denial reason +
+  alternative + scope request; circuit breaker; repeated-denial stop), drilled
+  live on Haiku.
+* Stage 6 (delegation W28): the delegate verb, child runs with own approval and
+  cancel cascade, read-only synthesis and the W13 exec leg are built and
+  live-drilled; `HARNESS_SUBAGENTS` still gates it inert by default. A live
+  two-agent drill passed 11/11 on 2026-11-05.
+* Stage 9 (W32): seam analysis only, gated on W28 usage evidence. Stage 10
+  (W33): readiness pack written, independent review not done.
+* The Nov 13–16 UI overhaul wave landed 2026-11-21 with the P-17 client trust
+  portal verified (per-project guests, default-deny gate in both principal
+  resolvers) and I-09 verification-first default-on; suites at `e12890c`:
+  section1 1326/0, section4 2392/0, section5 542, section8 104, section7 1201 +
+  build. The nightly backup lane was repaired to a green run the same day after
+  12 red days (environmental root causes; two owner items open: demo-db port
+  collision on 5499, no offsite target).
 
 ## Delivery sequence
 
