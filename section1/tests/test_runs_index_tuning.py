@@ -138,7 +138,19 @@ def scale_db(tmp_path_factory):
             await conn.execute(
                 text("CREATE TABLE agent_events (seq INTEGER PRIMARY KEY,"
                      " run_id VARCHAR(36), type VARCHAR(60) NOT NULL,"
+                     # payload mirrors the production table (migration 0001):
+                     # the run-list status filter replays it since 9d4fab2,
+                     # so a scratch table without the column is not the shape
+                     # the query runs against.
+                     " payload TEXT NOT NULL DEFAULT '{}',"
                      " ts TIMESTAMP WITH TIME ZONE NOT NULL)")
+            )
+            # The run list also joins the plans table for goal display
+            # (runs_index.py: SELECT run_id, id, goal ... ORDER BY created_at).
+            await conn.execute(
+                text("CREATE TABLE agent_plans (id VARCHAR(36) PRIMARY KEY,"
+                     " run_id VARCHAR(36) NOT NULL, goal TEXT NOT NULL DEFAULT '',"
+                     " created_at TIMESTAMP WITH TIME ZONE NOT NULL)")
             )
             # Apply migration 0026 VERBATIM: its exact statements must stand
             # alone on a plain schema (additive, runner-compatible).
@@ -425,12 +437,18 @@ def test_request_statement_budget_no_per_row_probes(monkeypatch, scale_db, captu
     assert body["nextCursor"]  # 1500 team runs: more pages exist
 
     ev = cap.agent_events_statements
-    # Exactly TWO agent_events statements per request (one per marker family)
-    # regardless of page size — the legacy code issued 2 x LIMIT here.
-    assert len(ev) == 2, [s[:120] for s in ev]
-    for s in ev:
-        assert "GROUP BY" in s, s[:120]
+    # Exactly THREE agent_events statements per request regardless of page
+    # size: the two marker families (the legacy code issued 2 x LIMIT here)
+    # plus the bounded status replay that 9d4fab2 added — one statement over
+    # the page's run ids, never per-row.
+    assert len(ev) == 3, [s[:120] for s in ev]
+    grouped = [s for s in ev if "GROUP BY" in s]
+    assert len(grouped) == 2, [s[:120] for s in grouped]
+    for s in grouped:
         assert not re.search(r"\(\s*SELECT\s+MIN\s*\(\s*e\.ts", s, re.I), s[:120]
+    replay = [s for s in ev if s not in grouped]
+    assert len(replay) == 1, [s[:120] for s in replay]
+    assert "e.payload" in replay[0], replay[0][:120]  # the 9d4fab2 status replay
 
 
 def test_derived_timestamps_survive_the_rewrite(monkeypatch, scale_db):

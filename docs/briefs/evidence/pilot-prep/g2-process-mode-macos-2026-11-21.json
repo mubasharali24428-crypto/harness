@@ -1,0 +1,19 @@
+{
+  "drill": "G2-process-mode-read-exposure, macOS halves (p04-sandbox-review §7.3 item 3)",
+  "executedAt": "2026-11-21T08:30:00+05:00",
+  "host": "macOS (Darwin 25.6.0, arm64); confinement via production confine_argv → Seatbelt (sandbox-exec), allow_network=False, read allow-list = workspace + system roots + HOME (exec_read_roots)",
+  "worktreeRevision": "160dd30 (w28-s1-delegate)",
+  "probe": "probes/g2_probe.py — a runner process (bash 'exec env HARNESS_RUNNER_TOKEN=hrn_g2secretToken42 sleep 120') holds a token; a Seatbelt-confined gate child attempts (a) the environ side-channel and (b) a $HOME canary read",
+  "result": {
+    "environSideChannel": {
+      "macOS": "PROTECTED-BY-ABSENCE — 'ps eww <pid>' exposes nothing, confined or not (unconfined control also empty): macOS has no /proc equivalent for this. The Linux /proc/<runner-pid>/environ half of G2 still needs the Linux host.",
+      "verdict": "macOS half of the G2 environ leak: NOT reproducible; Linux half pending"
+    },
+    "homeCanaryRead": {
+      "observed": "G2-SSH-CANARY-DO-NOT-LEAK read in full by the confined child",
+      "verdict": "GAP-CONFIRMED on macOS: the Seatbelt read allow-list grants HOME (confinement.py:335), so a workspace-confined, network-denied child reads arbitrary $HOME files — the review's G2 'process-mode read exposure (HOME, ...)'",
+      "whyItIsAsDesigned": "HOME must be readable for tools/interpreters to run (the October fix only refuses HOME=/ granting '/'); shrinking the read list to workspace+system-roots is the owner policy decision already standing in week-02 §2 (G2, High, 'BYO host policy: dedicated credential-free uid or container-only BYO; negative drill first')"
+    }
+  },
+  "expectedByReview": "gap evidence, not a pass/fail gate"
+}

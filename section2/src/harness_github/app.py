@@ -362,7 +362,7 @@ async def commit_files(project_id: str, body: CommitBody, service: ServiceDep) -
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except MergeGuardViolation as exc:
+    except (MergeGuardViolation, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
@@ -533,3 +533,36 @@ async def pr_diff(project_id: str, pr_number: int, service: ServiceDep) -> dict:
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+class VerdictCommentBody(BaseModel):
+    runId: str = Field(min_length=1, max_length=200)
+    bodyMd: str = Field(min_length=1, max_length=65536)
+    marker: str = Field(default="", max_length=300)
+
+
+@router.post("/projects/{project_id}/pulls/{pr_number}/verdict-comment")
+async def post_verdict_comment(
+    project_id: str, pr_number: int, body: VerdictCommentBody, service: ServiceDep
+) -> dict:
+    """P-15 (I-02): post/update the advisory verdict comment on a run's PR.
+
+    The body is built by the orchestrator (section4) from recorded facts and
+    supplied here; section2 does not import section4. The team-admin write opt-in
+    and tenant scope apply. The bot only comments — a human merges.
+    """
+    svc, principal = service
+    try:
+        return await svc.postVerdictComment(
+            principal.userId, project_id, pr_number, body.bodyMd,
+            run_id=body.runId, team_id=principal.teamId, marker=body.marker or None,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except WriteInProgressError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"error": {"code": "IDEMPOTENCY_IN_PROGRESS", "message": str(exc)}},
+        ) from exc
+    except (MergeGuardViolation, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

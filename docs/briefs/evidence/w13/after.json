@@ -1,7 +1,7 @@
 {
   "label": "after",
   "tree": "/Users/user/untitled folder 2/harness",
-  "seconds": 9.1,
+  "seconds": 9.2,
   "modelCalls": 0,
   "spendUsd": 0,
   "passed": 16,
@@ -41,7 +41,7 @@
     {
       "name": "real runner process exits 0 and reports the run",
       "ok": true,
-      "detail": "executed 85125d8f-763e-4acc-9c0b-bd6435898a51"
+      "detail": "executed c062014e-2441-4e7b-b348-193e490cd747"
     },
     {
       "name": "log shows call -> result -> engine_completed, no local engine",
@@ -49,6 +49,7 @@
       "detail": [
         "plan_proposed",
         "plan_approved",
+        "execution_started",
         "execution_started",
         "tool_call",
         "tool_result",
@@ -59,7 +60,7 @@
       "name": "tool_call is the approved command attributed to the runner; result is a real passing pytest run (exit 0)",
       "ok": true,
       "detail": [
-        "{\"command\": \"pytest tests/\"}|9805cf4c-6ccc-403a-bc9e-7e4a2f52e79f",
+        "{\"command\": \"pytest tests/\"}|c8a3d236-dab2-42fc-b1c9-23f91de8bdf9",
         "true|0|true"
       ]
     },
@@ -85,8 +86,9 @@
       "name": "orchestrator replays the settle into its own view",
       "ok": true,
       "detail": {
-        "sessionId": "85125d8f-763e-4acc-9c0b-bd6435898a51",
+        "sessionId": "c062014e-2441-4e7b-b348-193e490cd747",
         "engine": "replayed",
+        "source": "event-log",
         "status": "completed",
         "finalResponse": "BYO runner customer-host executed 1 approved command(s); all exited 0"
       }
@@ -113,7 +115,7 @@
       "name": "'completed' without a passing result is settled failed",
       "ok": true,
       "detail": {
-        "runId": "fdcfdd93-986a-49ca-be26-912f41f372f5",
+        "runId": "b5de3623-2875-48b6-91a6-fc0c23c6a849",
         "state": "failed"
       }
     },
@@ -123,6 +125,7 @@
       "detail": [
         "plan_proposed",
         "plan_approved",
+        "execution_started",
         "execution_started",
         "engine_failed"
       ]

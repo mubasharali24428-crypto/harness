@@ -18,6 +18,9 @@ Two independent stops, either of which is enough:
 * ``tool_budget_exhausted`` — more calls than the run was allowed, counting
   distinct calls rather than distinct shapes, because 100 different commands is
   still a burn.
+* ``denials_repeated`` — the policy refused the model 3 times running, or 10 times in 50
+  results: it is probing the boundary, not working. Stopping lets the user decide whether to
+  widen the scope; nothing here widens it or picks another model.
 * ``loop_detected`` — the same tool with the same arguments often enough to be a
   model going round, not working.
 
@@ -28,11 +31,21 @@ worker continues would be the bug in a nicer coat.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 
 LOOP_DETECTED = "loop_detected"
 TOOL_BUDGET_EXHAUSTED = "tool_budget_exhausted"
+DENIALS_REPEATED = "denials_repeated"
+
+#: W27: the shell plugin's own refusal text (harness-shell.js). A result that carries it is a
+#: policy denial; a timeout or an ordinary failing command is not.
+DENIAL_MARKER = "Denied by the harness command policy"
+#: Codex's documented thresholds: 3 denials in a row, or 10 within the last 50 results.
+DENIAL_RUN_LIMIT = 3
+DENIAL_WINDOW = 50
+DENIAL_WINDOW_LIMIT = 10
 
 REPEAT_LIMIT_ENV = "HARNESS_LOOP_REPEAT_LIMIT"
 #: Four identical calls is a model going round, not a model working. Low enough
@@ -47,6 +60,26 @@ _WS = re.compile(r"\s+")
 #: was stopped on its 4th identical `browser` screenshot although every one came
 #: after an `edit`. Identical writes still count across resets.
 MUTATING_TOOLS = frozenset({"write", "edit"})
+
+
+_SCOPE_REQUEST = re.compile(r"\[scope-request\] (\{[^{}]*\})")
+
+
+def scope_request_of(record: dict) -> dict | None:
+    """The path a denied command asked to have added to scope, as the shell plugin printed it.
+
+    Asking grants nothing: the user still edits the run intent, which asks for approval again.
+    """
+    text = f"{record.get('error') or ''} {record.get('output') or ''}"
+    match = _SCOPE_REQUEST.search(text)
+    if not match:
+        return None
+    try:
+        found = json.loads(match.group(1))
+    except ValueError:
+        return None
+    path = found.get("path") if isinstance(found, dict) else None
+    return {"path": path, "grants": False} if isinstance(path, str) and path else None
 
 
 def loop_repeat_limit() -> int | None:
@@ -68,6 +101,33 @@ def loop_repeat_limit() -> int | None:
     return value if value > 0 else None
 
 
+def _denial_limit(raw: str | None, default: int) -> int | None:
+    """Same knob semantics as ``loop_repeat_limit``: unset or garbage means the
+    shipped default; empty/off/none/0 (or a negative) disables that one stop;
+    a positive integer replaces it."""
+    if raw is None:
+        return default
+    raw = raw.strip()
+    if not raw or raw.lower() in {"off", "none", "0"}:
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else None
+
+
+def denial_run_limit() -> int | None:
+    """HARNESS_DENIAL_RUN_LIMIT: denials in a row before ``denials_repeated``."""
+    # Literal keys (not constants): scripts/check_env_knobs.py only catalogues
+    # os.environ reads whose key is a string literal.
+    return _denial_limit(os.environ.get("HARNESS_DENIAL_RUN_LIMIT"), DENIAL_RUN_LIMIT)
+
+
+def denial_window_limit() -> int | None:
+    """HARNESS_DENIAL_WINDOW_LIMIT: denials within the last DENIAL_WINDOW results."""
+    return _denial_limit(os.environ.get("HARNESS_DENIAL_WINDOW_LIMIT"), DENIAL_WINDOW_LIMIT)
+
 
 def _shape(name: str | None, arguments: str | None) -> str:
     """The identity of a call: which tool, doing what.
@@ -83,15 +143,29 @@ def _shape(name: str | None, arguments: str | None) -> str:
 class LoopGuard:
     """Observes live tool records and names the reason a run should stop."""
 
-    def __init__(self, max_calls: int | None, repeat_limit: int | None) -> None:
-        for label, value in (("max_calls", max_calls), ("repeat_limit", repeat_limit)):
+    def __init__(
+        self,
+        max_calls: int | None,
+        repeat_limit: int | None,
+        denial_run_limit: int | None = DENIAL_RUN_LIMIT,
+        denial_window_limit: int | None = DENIAL_WINDOW_LIMIT,
+    ) -> None:
+        for label, value in (
+            ("max_calls", max_calls),
+            ("repeat_limit", repeat_limit),
+            ("denial_run_limit", denial_run_limit),
+            ("denial_window_limit", denial_window_limit),
+        ):
             if value is not None and value <= 0:
                 raise ValueError(f"{label} must be positive or None, got {value!r}")
         self._max_calls = max_calls
         self._repeat_limit = repeat_limit
+        self._denial_run_limit = denial_run_limit
+        self._denial_window_limit = denial_window_limit
         self._calls = 0
         self._shapes: dict[str, int] = {}
         self._stop: str | None = None
+        self._denials: list[bool] = []
 
     @property
     def calls_seen(self) -> int:
@@ -101,6 +175,23 @@ class LoopGuard:
     def stop_reason(self) -> str | None:
         return self._stop
 
+    def _observe_result(self, record: dict) -> str | None:
+        denied = DENIAL_MARKER in f"{record.get('error') or ''} {record.get('output') or ''}"
+        self._denials = (self._denials + [denied])[-DENIAL_WINDOW:]
+        run = 0
+        for was_denied in reversed(self._denials):
+            if not was_denied:
+                break
+            run += 1
+        if (
+            (self._denial_run_limit is not None and run >= self._denial_run_limit)
+            or (self._denial_window_limit is not None
+                and sum(self._denials) >= self._denial_window_limit)
+        ):
+            self._stop = DENIALS_REPEATED
+            return self._stop
+        return None
+
     def repeat_of(self, name: str, arguments: str | None) -> int:
         return self._shapes.get(_shape(name, arguments), 0)
 
@@ -108,6 +199,8 @@ class LoopGuard:
         """Feed one transcript record. Results are acknowledged, not counted."""
         if self._stop is not None:
             return self._stop
+        if isinstance(record, dict) and record.get("phase") == "result":
+            return self._observe_result(record)
         if not isinstance(record, dict) or record.get("phase") != "call":
             return None
 

@@ -1,0 +1,82 @@
+name: harness-rc
+
+x-rc-env: &rc-env
+  HARNESS_CORS_ORIGINS: '["http://localhost:3011"]'
+  HARNESS_FRONTEND_BASE: http://localhost:3011
+  HARNESS_GITHUB_REDIRECT_URI: http://localhost:18002/api/v1/github/oauth/callback
+  HARNESS_RUNS_VOLUME: harness_rc_runs
+  SANDBOX_EGRESS_NETWORK: harness_rc_sandbox_egress
+  HARNESS_EGRESS_PROXY_CONTAINER: harness-rc-sandbox-egress-1
+
+x-rc-browser: &rc-browser
+  NEXT_PUBLIC_IDENTITY_BASE_URL: http://localhost:18001
+  NEXT_PUBLIC_ORCHESTRATOR_BASE_URL: http://localhost:18004
+  NEXT_PUBLIC_SANDBOX_BASE_URL: http://localhost:18005
+  NEXT_PUBLIC_MEETING_URL: http://localhost:18006
+  NEXT_PUBLIC_REVIEW_URL: http://localhost:18008
+  NEXT_PUBLIC_IDENTITY_WS_URL: ws://localhost:18001
+  NEXT_PUBLIC_GITHUB_URL: http://localhost:18002
+  NEXT_PUBLIC_MODELS_BASE_URL: http://localhost:28003
+  NEXT_PUBLIC_CONTEXT_BASE_URL: http://localhost:18011
+  NEXT_PUBLIC_ONBOARDING_BASE_URL: http://localhost:18010
+
+services:
+  db:
+    ports: !reset []
+    command: !override ["postgres", "-c", "max_connections=120"]
+    volumes: !override ["pgdata:/var/lib/postgresql"]
+    environment:
+      WALG_S3_PREFIX: ""
+      WALG_FILE_PREFIX: ""
+      AWS_ACCESS_KEY_ID: ""
+      AWS_SECRET_ACCESS_KEY: ""
+      AWS_ENDPOINT: ""
+  migrate:
+    environment: *rc-env
+  identity:
+    environment: *rc-env
+    ports: !override ["127.0.0.1:18001:8001"]
+  github:
+    environment: *rc-env
+    ports: !override ["127.0.0.1:18002:8002"]
+  models:
+    environment: *rc-env
+    ports: !override ["127.0.0.1:28003:8003"]
+  orchestrator:
+    environment: *rc-env
+    ports: !override ["127.0.0.1:18004:8004"]
+  sandbox:
+    environment: *rc-env
+    ports: !override ["127.0.0.1:18005:8005"]
+  meeting:
+    environment: *rc-env
+    ports: !override ["127.0.0.1:18006:8006"]
+  review:
+    environment: *rc-env
+    ports: !override ["127.0.0.1:18008:8008"]
+  sandbox-egress:
+    environment: *rc-env
+  events-retention:
+    environment: *rc-env
+  siem-push:
+    environment: *rc-env
+  webhook-delivery:
+    environment: *rc-env
+  worker-daemon:
+    environment: *rc-env
+  frontend:
+    build:
+      args: *rc-browser
+      tags: !override ["harness-frontend:v${HARNESS_IMAGE_TAG:?Set HARNESS_IMAGE_TAG}"]
+    environment: *rc-browser
+    ports: !override ["127.0.0.1:3011:3000"]
+
+networks:
+  default:
+    name: harness_rc_default
+  sandbox_egress:
+    name: harness_rc_sandbox_egress
+
+volumes:
+  harness_runs:
+    name: harness_rc_runs

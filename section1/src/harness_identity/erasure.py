@@ -34,7 +34,7 @@ PURGE_BY_USER = (
     ("notification_unsub_tokens", "user_id"), ("participant_prefs", "user_id"),
     ("presence_records", "user_id"), ("policy_stepup", "user_id"),
     ("policy_assignments", "user_id"), ("org_members", "user_id"),
-    ("workspace_members", "user_id"),
+    ("workspace_members", "user_id"), ("project_guest_grants", "user_id"),
     # W16 slice 3: a SCIM externalId is the DIRECTORY's identifier for this
     # person. Erasure nulls team_members.user_id instead of deleting rows, so no
     # FK cascade fires and the link must be purged here — otherwise an account

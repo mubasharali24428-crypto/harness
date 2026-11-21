@@ -1,21 +1,27 @@
 # First-Run Security Checklist — read before connecting a private repository
 
-- [ ] **Sandbox scope**: agents run inside ephemeral containers. Commands are
-      allow-listed (tests, linters, builds, lockfile installs). Deletes, force-push,
-      secret reads, package publishes, and infra tools are blocked in code.
-- [ ] **Network egress**: sandbox containers may reach only pinned registries
-      (pypi.org, npmjs.com) and your repo's own git remote. Nothing else.
-- [ ] **Secrets**: your API keys are encrypted at rest and decrypted only inside the
-      model-router service. Secrets never enter model context or logs. Never paste
-      secrets into chat or commit them to the demo repo.
-- [ ] **Forbidden paths**: plans carry `forbidden_paths` (default: `.env*`, `infra/`).
-      Agents cannot touch those paths — enforced in code, not policy documents.
-- [ ] **Merges are manual**. Always. This app never merges a PR; humans merge on
-      GitHub after review. There is no auto-merge anywhere in the system.
-- [ ] **Plan gate**: no code executes until a human approves the agent's plan.
-      No exceptions, including "quick fixes".
-- [ ] **Audit trail**: plan approvals, pauses, takeovers, review decisions, and
-      merges are appended to an append-only audit log.
+**Pilot-grade software, not a production-security certification.** Read the current
+`docs/legal/SECURITY_QUESTIONNAIRE.md`, `docs/pilot-remediation/A01-DISPOSITIONS-2026-11-11.md`
+and the Week 3/4 evidence before accepting customer data. The host/boundary policy still
+requires owner, security and counsel approval; this checklist does not grant that approval.
+
+- [ ] **Execution boundary**: identify the actual backend and host. The live orchestrator
+      uses a per-run container through the worker profile; standalone shell gates use
+      Seatbelt/Landlock. Do not assume these paths provide identical guarantees.
+- [ ] **Known limits**: within-workspace read scope is not enforced by container mounts;
+      Landlock has no network boundary; the worker daemon holds the host Docker socket.
+      Review the open findings and approved mitigations before a pilot.
+- [ ] **Network egress**: verify the deployed network/proxy configuration and allow-list.
+      Do not claim that every backend is network-confined or that every remote is pinned.
+- [ ] **Secrets**: never put production secrets in a pilot workspace, model context,
+      screenshots or logs. Verify the selected provider's data handling and retention terms.
+- [ ] **Forbidden paths**: inspect the approved plan and deployed policy. Policy checks
+      are not a substitute for filesystem isolation or independent negative tests.
+- [ ] **Merges are manual**. Humans review and merge; no auto-merge.
+- [ ] **Plan gate**: no execution before human approval. The displayed plan may be a
+      template; do not describe it as model-generated unless current evidence establishes that.
+- [ ] **Evidence**: retain actual approvals, events, diffs, test output, costs and failures.
+      A completed engine call or reviewer summary alone is not proof of correct delivery.
 
 # Onboarding order
 
@@ -30,17 +36,15 @@
 > (`openssl rand -hex 32`) before a real boot; see that file for details.
 > `.env*` is gitignored — your secrets stay local.
 
-1. Open http://localhost:3000
-2. Log in (email creates your solo team; you are admin)
-3. Connect GitHub (Settings → OAuth) — **requires manual pre-setup**, see below
-4. Create a project pointing at the seeded demo repo (`demo-repo`, seeded by the
-   compose `migrate` one-shot / `deploy/seed_demo.py`) — or your own private repo
-   once you've read this checklist
-5. Invite teammates (admin → invite by email); add agent seats if wanted
-6. Start a Meeting; type `@ai turn this into a brief`; review + APPROVE the brief
-7. Follow the guided demo: brief → plan proposal → approve → sandboxed run on its
-   own branch → pause/edit → done-signal → reviewer pass → draft PR → Review Area
-8. Approve in Review Area, then merge manually on GitHub
+1. Follow `docs/TUTORIAL.md` for the current boot, authentication and plan-gate contract.
+2. Open the configured frontend URL (default http://localhost:3000).
+3. Prove email ownership; create a real project. Use synthetic/non-production code first.
+4. Connect GitHub only if needed and approved — operator OAuth setup is below.
+5. Propose a plan, inspect it, and have an authorized human approve or reject it.
+6. Start the approved run with the reviewed worker configuration; observe actual events.
+7. Inspect real changes and test output, resolve staged approvals, then record acceptance.
+8. Merge manually only after review. Invitations, meetings and PR creation are optional
+   surfaces; do not treat them as prerequisites for the first governed task.
 
 If login is blocked with an ownership error, the stack is running with
 `HARNESS_REQUIRE_OWNERSHIP=true`: use **Request login code** (email OTP)

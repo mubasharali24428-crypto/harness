@@ -337,7 +337,8 @@ class TestOrchestratorServiceStress:
         await svc.pause_agent("run-cancel")
         assert rd["cancel_requested"] is True
 
-    async def test_human_edit_then_done_signal_reviewer_pass(self):
+    async def test_human_edit_then_done_signal_reviewer_pass(self, monkeypatch):
+        monkeypatch.setenv("HARNESS_VERIFICATION_FIRST", "false")  # no recorded engine tests here
         svc = OrchestratorService()
         pid = await svc.propose_plan("run-edit")
         await svc.approve_plan("run-edit", pid, "user-1")
@@ -350,7 +351,8 @@ class TestOrchestratorServiceStress:
         assert findings.passed is True
         assert (await svc.get_status("run-edit"))["state"] == AgentState.EXECUTING
 
-    async def test_human_edit_then_done_signal_reviewer_fail(self):
+    async def test_human_edit_then_done_signal_reviewer_fail(self, monkeypatch):
+        monkeypatch.setenv("HARNESS_VERIFICATION_FIRST", "false")  # no recorded engine tests here
         svc = OrchestratorService()
         pid = await svc.propose_plan("run-fail")
         await svc.approve_plan("run-fail", pid, "user-1")

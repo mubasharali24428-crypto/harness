@@ -45,7 +45,10 @@ def test_orchestrator_implements_protocol():
         assert callable(method)
 
 
-async def test_full_orchestration_lifecycle_with_done_signal():
+async def test_full_orchestration_lifecycle_with_done_signal(monkeypatch):
+    # Golden conformance flow records no live engine tests; it pins the
+    # I-09 explicit opt-out (2026-11-14 decision; fixtures unchanged).
+    monkeypatch.setenv("HARNESS_VERIFICATION_FIRST", "false")
     events = []
     service = OrchestratorService(on_event=lambda t, p: events.append((t, p)))
 
@@ -102,7 +105,10 @@ async def test_unauthenticated_requests_are_rejected():
     assert res.status_code in (401, 403, 503)
 
 
-def test_rest_api_conformance():
+def test_rest_api_conformance(monkeypatch):
+    # Golden REST flow records no live engine tests; pin the explicit opt-out
+    # (2026-11-14 decision; fixtures unchanged).
+    monkeypatch.setenv("HARNESS_VERIFICATION_FIRST", "false")
     app = _app_with_auth()
     client = TestClient(app)
 

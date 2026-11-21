@@ -109,3 +109,58 @@ def test_migrate_must_exit_cleanly(journey):
         [{"Service": "migrate", "State": "running", "ExitCode": 0}], {"migrate"}
     )
     assert len(hung) == 1 and "one-shot" in hung[0]
+
+
+def test_compose_selection_includes_project_overrides_and_env_file(journey, monkeypatch, tmp_path):
+    env_file = tmp_path / "operator.env"
+    env_file.write_text("")
+    monkeypatch.setattr(journey, "COMPOSE_PROJECT", "harness-rc")
+    monkeypatch.setattr(journey, "COMPOSE_ENV_FILE", env_file)
+    monkeypatch.setattr(journey, "COMPOSE_FILES", ["base.yml", "rc.yml"])
+    assert journey.compose_command("ps", "-q", "identity") == [
+        "docker", "compose", "-p", "harness-rc", "--env-file", str(env_file),
+        "-f", "base.yml", "-f", "rc.yml", "ps", "-q", "identity",
+    ]
+
+
+def test_compose_selection_preserves_default_project(journey, monkeypatch, tmp_path):
+    monkeypatch.setattr(journey, "COMPOSE_PROJECT", None)
+    monkeypatch.setattr(journey, "COMPOSE_ENV_FILE", tmp_path / "absent.env")
+    monkeypatch.setattr(journey, "COMPOSE_FILES", ["base.yml"])
+    assert journey.compose_command("config", "--services") == [
+        "docker", "compose", "-f", "base.yml", "config", "--services",
+    ]
+
+
+def test_identity_logs_use_the_same_compose_selection(journey, monkeypatch):
+    commands = []
+
+    class Result:
+        returncode = 0
+        stdout = "container-id"
+        stderr = ""
+
+    def run(command, **kwargs):
+        commands.append(command)
+        return Result()
+
+    monkeypatch.setattr(journey, "COMPOSE_PROJECT", "harness-rc")
+    monkeypatch.setattr(journey, "COMPOSE_FILES", ["base.yml", "rc.yml"])
+    monkeypatch.setattr(journey.subprocess, "run", run)
+    assert journey._identity_log_text() == "container-id"
+    assert commands[0] == journey.compose_command("ps", "-q", "identity")
+    assert commands[1] == ["docker", "logs", "--tail", "2000", "container-id"]
+
+
+def test_build_only_engine_worker_may_have_no_container_but_not_a_crashed_one(journey):
+    row = {"Service": "identity", "State": "running", "Health": "healthy"}
+    enabled = {"identity", "engine-worker"}
+    assert journey._problems_from_rows([row], enabled) == []  # image-only: no container is fine
+    clean = {"Service": "engine-worker", "State": "exited", "ExitCode": 0}
+    assert journey._problems_from_rows([row, clean], enabled) == []
+    crashed = {"Service": "engine-worker", "State": "exited", "ExitCode": 3}
+    assert any("engine-worker" in p for p in journey._problems_from_rows([row, crashed], enabled))
+
+
+def test_other_missing_service_is_still_a_problem(journey):
+    assert journey._problems_from_rows([], {"identity"}) == ["identity: no container"]

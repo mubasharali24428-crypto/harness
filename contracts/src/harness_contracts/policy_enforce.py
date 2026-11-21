@@ -65,8 +65,15 @@ IDENTITY_RULES: tuple[tuple[str, str, str], ...] = (
     # the same evidence door as pulling the export, so it carries the same
     # permission rather than a new one an org policy would have to learn.
     ("POST", r"/api/v1/audit/verify", "export"),
+    # P-19 / I-03: the compliance evidence pack is an export in one response —
+    # more evidence than any single export page — so it carries the same
+    # permission and step-up door, never a new one org policy must learn.
+    ("GET", r"/api/v1/audit/pack", "export"),
     ("GET", r"/api/v1/billing/state", "read"),
     ("PUT", r"/api/v1/billing/plan", "billing"),
+    # P-17 client trust portal: a guest lists their granted projects; admins manage grants.
+    ("GET", r"/api/v1/portal/projects", "read"),
+    ("GET|PUT|DELETE", r"/api/v1/projects/[^/]+/guests(/[^/]+)?", "administer"),
     ("GET", r"/api/v1/(keys|projects|projects/[^/]+/(rules|events/replay))", "read"),
     ("POST|DELETE", r"/api/v1/keys(/[^/]+)?", "steer"),
     ("POST", r"/api/v1/projects", "steer"),

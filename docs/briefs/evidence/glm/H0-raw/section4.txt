@@ -1,0 +1,264 @@
+........ssssssssssssssssss...................................................................................... [  4%]
+................................................................................................................ [  9%]
+................................................................................................................ [ 13%]
+................................................................................................................ [ 18%]
+................................................................................................................ [ 22%]
+.....................................................................sssssssss.................................s [ 27%]
+ss.............................sssss............................................................................ [ 32%]
+...........................ss................................................................................... [ 36%]
+.......................................................ssss..................................................... [ 41%]
+............................................................ss.................................................. [ 45%]
+........................................s....................................................................... [ 50%]
+................................................................................................................ [ 55%]
+................................................................................................................ [ 59%]
+................................................................................................................ [ 64%]
+................................................................................................................ [ 68%]
+..................................................s............................................................. [ 73%]
+................................................................................................................ [ 78%]
+................................................................................................................ [ 82%]
+................................................................................................................ [ 87%]
+...............ss................................................ssssss...............ss........................ [ 91%]
+..........................................................................................................s..... [ 96%]
+.........................................................................ssss..........                          [100%]
+=================================================== warnings summary ===================================================
+.venv/lib/python3.13/site-packages/fastapi/testclient.py:1
+  /Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+tests/test_claim_batching.py: 25 warnings
+tests/test_done_signal.py: 13 warnings
+tests/test_g2_ratelimit_hooks.py: 44 warnings
+tests/test_plan_concurrency.py: 16 warnings
+tests/test_plan_gate.py: 8 warnings
+tests/test_plan_gate_project_binding.py: 3 warnings
+tests/test_projectless_start.py: 2 warnings
+tests/test_stateless_orchestrator_n1.py: 14 warnings
+tests/test_timestamptz_hygiene.py: 2 warnings
+tests/unit/test_agent_tree.py: 300 warnings
+tests/unit/test_agent_tree_races.py: 213 warnings
+tests/unit/test_artifacts.py: 230 warnings
+tests/unit/test_artifacts_review_summary.py: 23 warnings
+tests/unit/test_artifacts_vcs.py: 187 warnings
+tests/unit/test_authz_failclosed.py: 6 warnings
+tests/unit/test_budget.py: 8 warnings
+tests/unit/test_budget_warning_delivery.py: 121 warnings
+tests/unit/test_byo_dispatch.py: 4 warnings
+tests/unit/test_collab_backend.py: 504 warnings
+tests/unit/test_collab_contract.py: 969 warnings
+tests/unit/test_collab_denial_audit.py: 507 warnings
+tests/unit/test_collab_rules_s2.py: 453 warnings
+tests/unit/test_control.py: 1635 warnings
+tests/unit/test_cost_rollup.py: 10000 warnings
+tests/unit/test_delegation.py: 147 warnings
+tests/unit/test_deletion_holds.py: 108 warnings
+tests/unit/test_delivery.py: 188 warnings
+tests/unit/test_delivery_reducer.py: 1390 warnings
+tests/unit/test_demo_seed.py: 120 warnings
+tests/unit/test_deployments.py: 143 warnings
+tests/unit/test_discussion.py: 635 warnings
+tests/unit/test_discussion_flows.py: 692 warnings
+tests/unit/test_done_diff_reference.py: 2 warnings
+tests/unit/test_done_records_changes.py: 6 warnings
+tests/unit/test_edge_cases_decisions.py: 5 warnings
+tests/unit/test_engine_shell_policy.py: 24 warnings
+tests/unit/test_execution.py: 505 warnings
+tests/unit/test_execution_policy_s8.py: 5 warnings
+tests/unit/test_execution_runs.py: 417 warnings
+tests/unit/test_exports.py: 860 warnings
+tests/unit/test_exports_deletion.py: 621 warnings
+tests/unit/test_goal_image_execution.py: 5 warnings
+tests/unit/test_lifecycle_recovery.py: 4 warnings
+tests/unit/test_limit_sweeper.py: 11 warnings
+tests/unit/test_loop_guard_wiring.py: 9 warnings
+tests/unit/test_n03_context_to_executor.py: 5 warnings
+tests/unit/test_notify.py: 348 warnings
+tests/unit/test_notify_sources.py: 171 warnings
+tests/unit/test_org_execution_gate.py: 1 warning
+tests/unit/test_participation.py: 112 warnings
+tests/unit/test_pilot_flag_rollback.py: 156 warnings
+tests/unit/test_pilot_metrics.py: 315 warnings
+tests/unit/test_plan_approval_ttl.py: 1 warning
+tests/unit/test_plan_version_approval.py: 111 warnings
+tests/unit/test_plans.py: 136 warnings
+tests/unit/test_plans_edits.py: 235 warnings
+tests/unit/test_policy_gate_orchestrator.py: 2 warnings
+tests/unit/test_presence.py: 150 warnings
+tests/unit/test_retention.py: 150 warnings
+tests/unit/test_retention_holds_s8.py: 3 warnings
+tests/unit/test_routing_event.py: 3 warnings
+tests/unit/test_run_checkpoints_wiring.py: 6 warnings
+tests/unit/test_run_metering.py: 9 warnings
+tests/unit/test_run_queue.py: 1 warning
+tests/unit/test_runs_index.py: 209 warnings
+tests/unit/test_s1_r05_lifecycle_audit.py: 11 warnings
+tests/unit/test_s1_r05_resume_queue.py: 2 warnings
+tests/unit/test_search.py: 2420 warnings
+tests/unit/test_session_gate.py: 54 warnings
+tests/unit/test_shares.py: 101 warnings
+tests/unit/test_staging_e2e.py: 108 warnings
+tests/unit/test_team_budget_route.py: 5 warnings
+tests/unit/test_threat_closeouts.py: 48 warnings
+tests/unit/test_tiers.py: 2 warnings
+tests/unit/test_visuals_db.py: 54 warnings
+tests/unit/test_w3_rejected_stays_blocked.py: 2 warnings
+tests/unit/test_w3_steering_scope.py: 2 warnings
+tests/unit/test_workspace_gate.py: 43 warnings
+tests/unit/test_workspace_lifecycle_jobs.py: 11 warnings
+tests/unit/test_workspace_lifecycle_s2.py: 21 warnings
+  /Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/core.py:63: DeprecationWarning: The default datetime adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    result = function()
+
+tests/unit/test_run_get.py::test_aggregate_full_shape_cost_pr_url_steps
+  /Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/_pytest/threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-4509 (_connection_worker_thread)
+  
+  Traceback (most recent call last):
+    File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/core.py", line 66, in _connection_worker_thread
+      future.get_loop().call_soon_threadsafe(set_result, future, result)
+      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/user/1/lib/python3.13/asyncio/base_events.py", line 878, in call_soon_threadsafe
+      self._check_closed()
+      ~~~~~~~~~~~~~~~~~~^^
+    File "/Users/user/1/lib/python3.13/asyncio/base_events.py", line 556, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  During handling of the above exception, another exception occurred:
+  
+  Traceback (most recent call last):
+    File "/Users/user/1/lib/python3.13/threading.py", line 1044, in _bootstrap_inner
+      self.run()
+      ~~~~~~~~^^
+    File "/Users/user/1/lib/python3.13/threading.py", line 995, in run
+      self._target(*self._args, **self._kwargs)
+      ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/aiosqlite/core.py", line 75, in _connection_worker_thread
+      future.get_loop().call_soon_threadsafe(set_exception, future, e)
+      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/user/1/lib/python3.13/asyncio/base_events.py", line 878, in call_soon_threadsafe
+      self._check_closed()
+      ~~~~~~~~~~~~~~~~~~^^
+    File "/Users/user/1/lib/python3.13/asyncio/base_events.py", line 556, in _check_closed
+      raise RuntimeError('Event loop is closed')
+  RuntimeError: Event loop is closed
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+tests/unit/test_spec_drift.py::test_repo_specs_and_ui_calls_match_router
+tests/unit/test_spec_drift.py::test_drift_is_detected
+tests/unit/test_spec_drift.py::test_new_unspecced_ui_call_fails
+tests/unit/test_spec_drift.py::test_known_gap_that_is_now_served_must_be_removed
+  /Users/user/untitled folder 2/harness/deploy/runners/services.py:303: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+tests/unit/test_spec_drift.py: 16 warnings
+  /Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/fastapi/applications.py:4681: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+tests/unit/test_spec_drift.py::test_repo_specs_and_ui_calls_match_router
+tests/unit/test_spec_drift.py::test_drift_is_detected
+tests/unit/test_spec_drift.py::test_new_unspecced_ui_call_fails
+tests/unit/test_spec_drift.py::test_known_gap_that_is_now_served_must_be_removed
+  /Users/user/untitled folder 2/harness/deploy/runners/services.py:309: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+tests/unit/test_spec_drift.py::test_repo_specs_and_ui_calls_match_router
+tests/unit/test_spec_drift.py::test_drift_is_detected
+tests/unit/test_spec_drift.py::test_new_unspecced_ui_call_fails
+tests/unit/test_spec_drift.py::test_known_gap_that_is_now_served_must_be_removed
+  /Users/user/untitled folder 2/harness/deploy/runners/services.py:365: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+tests/unit/test_spec_drift.py::test_repo_specs_and_ui_calls_match_router
+tests/unit/test_spec_drift.py::test_drift_is_detected
+tests/unit/test_spec_drift.py::test_new_unspecced_ui_call_fails
+tests/unit/test_spec_drift.py::test_known_gap_that_is_now_served_must_be_removed
+  /Users/user/untitled folder 2/harness/deploy/runners/services.py:371: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+tests/unit/test_spec_drift.py::test_repo_specs_and_ui_calls_match_router
+tests/unit/test_spec_drift.py::test_repo_specs_and_ui_calls_match_router
+tests/unit/test_spec_drift.py::test_drift_is_detected
+tests/unit/test_spec_drift.py::test_drift_is_detected
+tests/unit/test_spec_drift.py::test_new_unspecced_ui_call_fails
+tests/unit/test_spec_drift.py::test_new_unspecced_ui_call_fails
+tests/unit/test_spec_drift.py::test_known_gap_that_is_now_served_must_be_removed
+tests/unit/test_spec_drift.py::test_known_gap_that_is_now_served_must_be_removed
+  /Users/user/untitled folder 2/harness/section4/.venv/lib/python3.13/site-packages/fastapi/openapi/utils.py:303: UserWarning: Duplicate Operation ID health_health_get for function health at /Users/user/untitled folder 2/harness/deploy/runners/services.py
+    warnings.warn(message, stacklevel=1)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=============================================== short test summary info ================================================
+SKIPPED [12] tests/integration/test_container_p0.py:58: opt-in Docker
+SKIPPED [1] tests/integration/test_container_p0.py:95: opt-in Docker
+SKIPPED [1] tests/integration/test_container_p0.py:118: opt-in Docker
+SKIPPED [1] tests/integration/test_container_p0.py:130: opt-in Docker
+SKIPPED [1] tests/integration/test_container_p0.py:171: opt-in Docker
+SKIPPED [1] tests/integration/test_container_p0.py:199: opt-in Docker
+SKIPPED [1] tests/integration/test_container_p0.py:210: opt-in real local model
+SKIPPED [3] tests/unit/test_budget_delivery_live_pg.py:131: HARNESS_TEST_PG not set; budget alert PG probe skipped
+SKIPPED [3] tests/unit/test_budget_delivery_live_pg.py:140: HARNESS_TEST_PG not set; budget alert PG probe skipped
+SKIPPED [1] tests/unit/test_budget_delivery_live_pg.py:151: HARNESS_TEST_PG not set; budget alert PG probe skipped
+SKIPPED [1] tests/unit/test_budget_delivery_live_pg.py:160: HARNESS_TEST_PG not set; budget alert PG probe skipped
+SKIPPED [1] tests/unit/test_budget_delivery_live_pg.py:167: HARNESS_TEST_PG not set; budget alert PG probe skipped
+SKIPPED [1] tests/unit/test_claim_cap_live_pg.py:28: HARNESS_TEST_PG not set; live-PG claim-cap test skipped
+SKIPPED [1] tests/unit/test_claim_cap_live_pg.py:64: HARNESS_TEST_PG not set; live-PG claim-cap test skipped
+SKIPPED [1] tests/unit/test_collab_approvals_live_pg.py:106: HARNESS_TEST_PG not set; approvals PG probe skipped
+SKIPPED [1] tests/unit/test_collab_chaos_live_pg.py:98: HARNESS_TEST_PG not set; live-PG collab chaos skipped
+SKIPPED [1] tests/unit/test_collab_chaos_live_pg.py:115: HARNESS_TEST_PG not set; live-PG collab chaos skipped
+SKIPPED [1] tests/unit/test_collab_chaos_live_pg.py:127: HARNESS_TEST_PG not set; live-PG collab chaos skipped
+SKIPPED [1] tests/unit/test_collab_chaos_live_pg.py:149: HARNESS_TEST_PG not set; live-PG collab chaos skipped
+SKIPPED [1] tests/unit/test_collab_chaos_live_pg.py:173: HARNESS_TEST_PG not set; live-PG collab chaos skipped
+SKIPPED [1] tests/unit/test_collab_race_codes_live_pg.py:109: HARNESS_TEST_PG not set; live-PG race-code tests skipped
+SKIPPED [1] tests/unit/test_collab_race_codes_live_pg.py:129: HARNESS_TEST_PG not set; live-PG race-code tests skipped
+SKIPPED [1] tests/unit/test_cost_rollup_live_pg.py:216: HARNESS_TEST_PG not set; live-PG cost-rollup proofs skipped
+SKIPPED [1] tests/unit/test_cost_rollup_live_pg.py:280: HARNESS_TEST_PG not set; live-PG cost-rollup proofs skipped
+SKIPPED [1] tests/unit/test_cost_rollup_live_pg.py:351: HARNESS_TEST_PG not set; live-PG cost-rollup proofs skipped
+SKIPPED [1] tests/unit/test_cost_rollup_live_pg.py:406: HARNESS_TEST_PG not set; live-PG cost-rollup proofs skipped
+SKIPPED [1] tests/unit/test_demo_seed_live_pg.py:113: HARNESS_TEST_PG not set; live-PG demo-seed proof skipped
+SKIPPED [1] tests/unit/test_demo_seed_live_pg.py:208: HARNESS_TEST_PG not set; live-PG demo-seed proof skipped
+SKIPPED [1] tests/unit/test_engine.py:86: opt-in OpenRouter: set HARNESS_LIVE_OPENROUTER=1 (strict, no outage skip)
+SKIPPED [1] tests/unit/test_pilot_metrics.py:246: HARNESS_TEST_PG not set
+SKIPPED [1] tests/unit/test_schedule_leader_live_pg.py:29: HARNESS_TEST_PG not set; live-PG leader election test skipped
+SKIPPED [1] tests/unit/test_schedule_leader_live_pg.py:55: HARNESS_TEST_PG not set; live-PG leader election test skipped
+SKIPPED [1] tests/unit/test_session4_live_pg.py:143: HARNESS_TEST_PG not set; live-PG session 4 tests skipped
+SKIPPED [1] tests/unit/test_session4_live_pg.py:167: HARNESS_TEST_PG not set; live-PG session 4 tests skipped
+SKIPPED [1] tests/unit/test_session4_live_pg.py:189: HARNESS_TEST_PG not set; live-PG session 4 tests skipped
+SKIPPED [1] tests/unit/test_session5_live_pg.py:140: HARNESS_TEST_PG not set; live-PG session 5 tests skipped
+SKIPPED [1] tests/unit/test_session5_live_pg.py:165: HARNESS_TEST_PG not set; live-PG session 5 tests skipped
+SKIPPED [1] tests/unit/test_session6_live_pg.py:118: HARNESS_TEST_PG not set; Session 6 PG probe skipped
+SKIPPED [1] tests/unit/test_session_purge_lease_sweep_live_pg.py:101: HARNESS_TEST_PG not set; live-PG session purge and lease sweep tests skipped
+SKIPPED [1] tests/unit/test_session_purge_lease_sweep_live_pg.py:152: HARNESS_TEST_PG not set; live-PG session purge and lease sweep tests skipped
+SKIPPED [1] tests/unit/test_verdict_post_live_pg.py:29: HARNESS_TEST_PG / HARNESS_DATABASE_URL not set; verdict PG probe skipped
+SKIPPED [1] tests/unit/test_workspace_jobs_live_pg.py:141: HARNESS_TEST_PG not set; workspace jobs PG probe skipped
+SKIPPED [1] tests/unit/test_workspace_jobs_live_pg.py:147: HARNESS_TEST_PG not set; workspace jobs PG probe skipped
+SKIPPED [1] tests/unit/test_workspace_jobs_live_pg.py:153: HARNESS_TEST_PG not set; workspace jobs PG probe skipped
+SKIPPED [1] tests/unit/test_workspace_jobs_live_pg.py:169: HARNESS_TEST_PG not set; workspace jobs PG probe skipped
+2379 passed, 60 skipped, 26234 warnings in 132.32s (0:02:12)
+RUN_META: exit=0 wall=137s

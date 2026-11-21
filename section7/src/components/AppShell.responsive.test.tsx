@@ -156,7 +156,7 @@ describe("tables get overflow-x wrappers with sticky first column", () => {
     // KeysSettingsPage is a routed page (no extracted presentational table),
     // so this is asserted at source level like the repo does elsewhere.
     const afterHeading = KEYS_PAGE_SRC.slice(KEYS_PAGE_SRC.indexOf("Team keys"));
-    expect(afterHeading).toContain('<div className="table-scroll">');
+    expect(afterHeading).toContain('<div className="table-scroll"');
   });
 
   it("cost by-day table keeps an accessible name (sr-only caption)", () => {

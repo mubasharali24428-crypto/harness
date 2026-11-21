@@ -1,0 +1,253 @@
+{
+  "date": "2026-11-05",
+  "week": "W14",
+  "task": "w14-design-heldout",
+  "leg": "live",
+  "run": "w14-design-1793882103",
+  "preRegistered": {
+    "ratioMax": 0.03,
+    "colourTolerance": 12,
+    "answerRatioTolerance": 0.005,
+    "fixtureColourTolerance": 0
+  },
+  "fixture": {
+    "token": "TUNDRA-79",
+    "bytes": 6692,
+    "sha256": "165ba55337f41344a15ddac20629e8ae1e960f0ae561958fa75fca79f86988a3",
+    "sampledColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    },
+    "expectedColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        31,
+        36,
+        51
+      ],
+      "cardB": [
+        31,
+        36,
+        51
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    }
+  },
+  "fixtureChecks": {
+    "fixtureRendersAtDeclaredSize": true,
+    "flatColoursExactAtSamplePoints": true,
+    "tokenTextIsDrawn": true,
+    "selfDiffIsZero": true,
+    "renderIsDeterministic": true
+  },
+  "drive": "HTTP only",
+  "seededFiles": [
+    "mockup.png"
+  ],
+  "design": {
+    "startStatus": 200,
+    "states": [
+      "executing",
+      "awaiting_done_signal"
+    ],
+    "state": "awaiting_done_signal",
+    "engine": "replayed",
+    "engineStatus": "completed",
+    "answer": "TOKEN: TUNDRA-79\nRATIO: 0.000\nFILES: index.html, style.css"
+  },
+  "designTrail": {
+    "toolsUsed": [
+      "browser",
+      "image",
+      "read_image",
+      "write"
+    ],
+    "imageDiffCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "toolu_01E75PP2w5WQqF6RzPmCma8e",
+        "arguments": "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imageSampleCalls": [],
+    "imagePaletteCalls": [
+      {
+        "type": "tool_call",
+        "tool": "image",
+        "callId": "toolu_017y4Dv9GD31d6Tqj22c1U6d",
+        "arguments": "{\"action\":\"palette\",\"path\":\"mockup.png\",\"maxColors\":12}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "screenshotCalls": [
+      {
+        "type": "tool_call",
+        "tool": "browser",
+        "callId": "toolu_01UjN59WLoTm8NYKyh1f2V1z",
+        "arguments": "{\"action\":\"screenshot\",\"url\":\"index.html\",\"path\":\"shots/render.png\",\"width\":960,\"height\":640}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "mockupReads": [
+      {
+        "type": "tool_call",
+        "tool": "read_image",
+        "callId": "toolu_012hqMAkk6b6guo4cEgUGbYZ",
+        "arguments": "{\"file_path\":\"mockup.png\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "dialogReads": [],
+    "writes": [
+      {
+        "type": "tool_call",
+        "tool": "write",
+        "callId": "toolu_019CaRsPDcP4TRn8q5etjohd",
+        "arguments": "{\"file_path\":\"/var/lib/harness-runs/workspace/w14-design-1793882103/index.html\",\"content\":\"<!DOCTYPE html>\\n<html>\\n<head>\\n<meta charset=\\\"utf-8\\\">\\n<link rel=\\\"stylesheet\\\" href=\\\"style.css\\\">\\n</head>\\n<body>\\n<div id=\\\"root\\\">\\n  <div class=\\\"rect sidebar\\\"></div>\\n  <div class=\\\"rect header\\\"></div>\\n  <div class=\\\"rect card\\\" style=\\\"left:260px;top:110px;width:300px;height:220px;\\\"></div>\\n  <div class=\\\"rect card\\\" style=\\\"left:600px;top:110px;width:300px;height:220px;\\\"></div>\\n  <div class=\\\"rect pill\\\" style=\\\"left:260px;top:370px;width:220px;height:44px;\\\"></div>\\n  <div class=\\\"rect bar\\\" style=\\\"left:600px;top:370px;width:300px;height:14px;\\\"></div>\\n  <div class=\\\"title\\\">TUNDRA-79</div>\\n</div>\\n</body>\\n</html>\\n\"}",
+        "ok": null,
+        "output": ""
+      },
+      {
+        "type": "tool_call",
+        "tool": "write",
+        "callId": "toolu_01GjzrYgTCqDHTWGxyUBGDfp",
+        "arguments": "{\"file_path\":\"/var/lib/harness-runs/workspace/w14-design-1793882103/style.css\",\"content\":\"html, body {\\n  margin: 0;\\n  padding: 0;\\n  width: 960px;\\n  height: 640px;\\n  overflow: hidden;\\n  background: #0b0d12;\\n}\\n#root {\\n  position: relative;\\n  width: 960px;\\n  height: 640px;\\n  overflow: hidden;\\n  background: #0b0d12;\\n}\\n.rect {\\n  position: absolute;\\n}\\n.sidebar {\\n  left: 0;\\n  top: 0;\\n  width: 220px;\\n  height: 640px;\\n  background: #141821;\\n}\\n.header {\\n  left: 220px;\\n  top: 0;\\n  width: 740px;\\n  height: 72px;\\n  background: #1b2030;\\n}\\n.card {\\n  background: #1b2030;\\n}\\n.pill {\\n  background: #2fbf71;\\n}\\n.bar {\\n  background: #f0a43c;\\n}\\n.title {\\n  position: absolute;\\n  left: 600px;\\n  top: 418px;\\n  width: 340px;\\n  height: 40px;\\n  font-family: \\\"DejaVu Sans\\\", sans-serif;\\n  font-weight: bold;\\n  font-size: 30px;\\n  line-height: 40px;\\n  color: #e8edf6;\\n  white-space: nowrap;\\n}\\n\"}",
+        "ok": null,
+        "output": ""
+      }
+    ],
+    "imageArguments": [
+      "{\"action\":\"palette\",\"path\":\"mockup.png\",\"maxColors\":12}",
+      "{\"action\":\"diff\",\"before\":\"mockup.png\",\"after\":\"shots/render.png\"}"
+    ]
+  },
+  "measurement": {
+    "mockupSize": [
+      960,
+      640
+    ],
+    "renderSize": [
+      960,
+      640
+    ],
+    "changedPixels": 0,
+    "totalPixels": 614400,
+    "ratio": 0.0,
+    "sampledColours": {
+      "canvas": [
+        11,
+        13,
+        18
+      ],
+      "sidebar": [
+        20,
+        24,
+        33
+      ],
+      "header": [
+        27,
+        32,
+        48
+      ],
+      "cardA": [
+        27,
+        32,
+        48
+      ],
+      "cardB": [
+        27,
+        32,
+        48
+      ],
+      "pill": [
+        47,
+        191,
+        113
+      ],
+      "accent": [
+        240,
+        164,
+        60
+      ]
+    }
+  },
+  "checks": {
+    "fixtureLegPassed": true,
+    "designRunSettled": true,
+    "agentOpenedTheMockup": true,
+    "agentMeasuredColours": true,
+    "agentScreenshottedItsPage": true,
+    "agentUsedTheDiff": true,
+    "agentWroteThePage": true,
+    "tokenOnlyInPixelsWasTranscribed": true,
+    "pageRendersAtMockupSize": true,
+    "independentDiffWithinThreshold": true,
+    "flatColoursSurvived": true,
+    "agentRatioAgreesWithBytes": true
+  },
+  "verdict": "PASS",
+  "failedChecks": [],
+  "designAnswer": "TOKEN: TUNDRA-79\nRATIO: 0.000\nFILES: index.html, style.css"
+}

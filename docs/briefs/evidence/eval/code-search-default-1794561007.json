@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "kind": "w2-code-search",
+  "variant": "default",
+  "takenAt": "2026-11-13T09:10:15.980066+00:00",
+  "runId": "w2-code-search-default-1794561007",
+  "goal": "This repository has a wrong value: RETRY_BACKOFF_SECONDS is set to 5 and\nmust be 7. Find the module that defines it and change only that value. Do not\nmodify any other file. Reply with exactly one line:\nFILE: <the path of the file you changed>\n",
+  "target": "pkg/billing/invoice_retry.py",
+  "model": "deepseek/deepseek-v4-flash",
+  "modelPref": {
+    "requested": "deepseek/deepseek-v4-flash",
+    "applied": "deepseek/deepseek-v4-flash",
+    "status": 200
+  },
+  "seededFiles": 100,
+  "changedFiles": [],
+  "addedFiles": [],
+  "state": "blocked",
+  "states": [
+    "executing",
+    "blocked"
+  ],
+  "durationSeconds": 8.13,
+  "toolCalls": 0,
+  "toolsUsed": [],
+  "usage": null,
+  "usageNote": "null on this transport per the M07 finding; wall clock and tool calls are recorded instead",
+  "answer": "DeepSeek Harness run failed: DeepSeek Harness run failed: pi-ai provider \"deepseek-official\" has no configured model \"deepseek/deepseek-v4-flash\"",
+  "checks": {
+    "runSettled": true,
+    "targetHasNewValue": false,
+    "onlyTargetChanged": false,
+    "answerNamesTheFile": false,
+    "noFilesDeleted": true,
+    "requestedModelApplied": true
+  },
+  "verdict": "FAIL",
+  "failedChecks": [
+    "targetHasNewValue",
+    "onlyTargetChanged",
+    "answerNamesTheFile"
+  ]
+}

@@ -305,7 +305,10 @@ def main() -> int:
             and 0 < lines < TOTAL_LINES
             and evidence["outExistsAfterRewind"] is False
         )
-        evidence["verdict"] = (
+        # `verdict` is PASS/FAIL because scripts/eval/run_eval.py reads exactly that; the sentence
+        # lives in `summary` (a descriptive verdict made every passing run read as FAIL there).
+        evidence["verdict"] = "PASS" if evidence["ok"] else "FAIL"
+        evidence["summary"] = (
             "torn write interrupted, rewind exact, resume ran a second attempt"
             if evidence["ok"] else "one or more clauses did not hold"
         )

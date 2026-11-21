@@ -8,6 +8,7 @@ from harness_orchestrator.review_summary import (
     build_review_summary,
     diff_files,
     is_test_command,
+    verification_evidence,
 )
 
 # --------------------------------------------------------------- test-command detection
@@ -31,6 +32,78 @@ def test_these_commands_run_tests(command):
 ])
 def test_these_commands_do_not(command):
     assert not is_test_command(command)
+
+
+# ------------------------------------------------- I-09 verification-first evidence
+
+
+def _call(target, exit_code, outcome="ok"):
+    return {"tool": "bash", "target": target, "outcome": outcome, "exitCode": exit_code}
+
+
+def test_verification_unknown_when_no_tool_calls_surfaced():
+    ev = verification_evidence(None)
+    assert ev["known"] is False
+    assert ev["ran_tests"] is False
+    assert ev["green"] is False  # unknown is never a pass
+
+
+def test_verification_no_test_command_ran():
+    ev = verification_evidence([_call("ls -la", 0), _call("npm install", 0)])
+    assert ev["known"] is True
+    assert ev["ran_tests"] is False
+    assert ev["green"] is False
+
+
+def test_verification_green_when_a_test_passed():
+    ev = verification_evidence([_call("pytest -q", 0)])
+    assert ev["ran_tests"] is True
+    assert ev["green"] is True
+    assert ev["failed"] is False
+    assert ev["red_to_green"] is False  # passed first try, no earlier failure
+
+
+def test_verification_red_to_green_observed():
+    ev = verification_evidence([_call("pytest -q", 1), _call("pytest -q", 0)])
+    assert ev["green"] is True
+    assert ev["red_to_green"] is True
+
+
+def test_verification_latest_failure_is_not_green():
+    ev = verification_evidence([_call("pytest -q", 0), _call("pytest -q", 1)])
+    assert ev["green"] is False
+    assert ev["failed"] is True
+    assert ev["red_to_green"] is False
+
+
+def test_verification_unknown_exit_is_not_green():
+    ev = verification_evidence([_call("pytest -q", None)])
+    assert ev["ran_tests"] is True
+    assert ev["green"] is False  # no exit status recorded ⇒ unknown, not a pass
+
+
+def test_verification_refused_test_is_not_green():
+    ev = verification_evidence([_call("pytest -q", None, outcome="error")])
+    assert ev["green"] is False
+    assert ev["failed"] is True
+
+
+def test_verification_one_green_one_red_is_not_green():
+    # A passing command must not mask a different failing command.
+    ev = verification_evidence([_call("pytest tests/a", 0), _call("pytest tests/b", 1)])
+    assert ev["green"] is False
+    assert ev["failed"] is True
+
+
+def test_verification_same_command_fail_then_pass_is_green():
+    ev = verification_evidence([_call("pytest tests/a", 1), _call("pytest tests/a", 0)])
+    assert ev["green"] is True
+    assert ev["red_to_green"] is True
+
+
+def test_verification_pass_plus_unknown_exit_is_not_green():
+    ev = verification_evidence([_call("pytest tests/a", 0), _call("pytest tests/b", None)])
+    assert ev["green"] is False
 
 
 # ------------------------------------------------------------------------------ the diff

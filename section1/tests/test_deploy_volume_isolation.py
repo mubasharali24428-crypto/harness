@@ -80,3 +80,66 @@ def test_the_scan_flags_a_teardown_that_forgets_to_scope_the_runs_volume(tmp_pat
 
 def test_every_script_that_tears_down_with_volumes_scopes_the_runs_volume():
     assert _unscoped_teardowns(REPO_ROOT) == []
+
+
+def _rc_override():
+    class OverrideLoader(yaml.SafeLoader):
+        pass
+
+    for tag in ("!override", "!reset"):
+        OverrideLoader.add_constructor(tag, OverrideLoader.construct_sequence)
+    path = REPO_ROOT / "deploy" / "docker-compose.rc.yml"
+    return yaml.load(path.read_text(), Loader=OverrideLoader)
+
+
+def test_rc_uses_separate_run_storage_and_networks():
+    rc = _rc_override()
+    assert rc["name"] == "harness-rc"
+    volume = rc["volumes"]["harness_runs"]["name"]
+    assert volume == "harness_rc_runs"
+    assert rc["networks"]["default"]["name"] == "harness_rc_default"
+    assert rc["networks"]["sandbox_egress"]["name"] == "harness_rc_sandbox_egress"
+    for service in ("orchestrator", "worker-daemon"):
+        env = rc["services"][service]["environment"]
+        assert env["HARNESS_RUNS_VOLUME"] == volume
+        assert env["HARNESS_EGRESS_PROXY_CONTAINER"] == "harness-rc-sandbox-egress-1"
+        assert env["SANDBOX_EGRESS_NETWORK"] == "harness_rc_sandbox_egress"
+
+
+def test_rc_ports_are_loopback_only_and_do_not_reuse_demo_ports():
+    services = _rc_override()["services"]
+    expected = {
+        "identity": "127.0.0.1:18001:8001",
+        "github": "127.0.0.1:18002:8002",
+        "models": "127.0.0.1:28003:8003",
+        "orchestrator": "127.0.0.1:18004:8004",
+        "sandbox": "127.0.0.1:18005:8005",
+        "meeting": "127.0.0.1:18006:8006",
+        "review": "127.0.0.1:18008:8008",
+        "frontend": "127.0.0.1:3011:3000",
+    }
+    assert services["db"]["ports"] == []
+    for service, port in expected.items():
+        assert services[service]["ports"] == [port]
+
+
+def test_rc_database_cannot_write_into_existing_backup_targets():
+    db = _rc_override()["services"]["db"]
+    assert db["volumes"] == ["pgdata:/var/lib/postgresql"]
+    assert db["command"] == ["postgres", "-c", "max_connections=120"]
+    for key in ("WALG_S3_PREFIX", "WALG_FILE_PREFIX", "AWS_ACCESS_KEY_ID",
+                "AWS_SECRET_ACCESS_KEY", "AWS_ENDPOINT"):
+        assert db["environment"][key] == ""
+
+
+def test_rc_browser_addresses_are_build_inputs_not_only_runtime_environment():
+    frontend = _rc_override()["services"]["frontend"]
+    args = frontend["build"]["args"]
+    assert args == frontend["environment"]
+    assert args["NEXT_PUBLIC_IDENTITY_BASE_URL"] == "http://localhost:18001"
+    assert args["NEXT_PUBLIC_ORCHESTRATOR_BASE_URL"] == "http://localhost:18004"
+    assert args["NEXT_PUBLIC_IDENTITY_WS_URL"] == "ws://localhost:18001"
+    dockerfile = (REPO_ROOT / "deploy" / "frontend.Dockerfile").read_text()
+    before_build = dockerfile.split("RUN npm run build", 1)[0]
+    for name in args:
+        assert re.search(rf"^ARG {re.escape(name)}=", before_build, re.M), name

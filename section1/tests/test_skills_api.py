@@ -242,7 +242,8 @@ async def test_authz_matrix_and_cross_team_no_oracle(skills_client, skills_facto
     # viewer/guest read their own team but cannot mutate
     for who in ("viewer", "guest"):
         hdrs = _bearer(env[who]["token"])
-        assert (await skills_client.get(url_a, headers=hdrs)).status_code == 200
+        expected = 200 if who == "viewer" else 403  # P-17: guests reach only the client portal
+        assert (await skills_client.get(url_a, headers=hdrs)).status_code == expected
         assert (await skills_client.post(url_a, json=_create_body(),
                                          headers=hdrs)).status_code == 403
 

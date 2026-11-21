@@ -4,6 +4,14 @@
 security review. Every "not yet" is intentional; do not delete a limitation to
 make an answer look better.
 
+**Week 4 reconciliation (2026-11-12):** this file predates the current RC evidence.
+Before sending it to a partner, reconcile it with `docs/briefs/evidence/90day/week-03.md`,
+`week-04.md`, `docs/pilot-remediation/A01-DISPOSITIONS-2026-11-11.md` and
+`W4-COUNSEL-HANDOFF.md`. In particular, do not claim that container mounts enforce
+within-workspace read scope, that every backend is network-confined, or that historical
+drills certify the current image set. Billing remains disabled; payment-rail eligibility
+is unresolved in `../decisions/2026-11-12-payment-rail-P-D2-DRAFT.md`.
+
 ## Company and certifications
 
 | Question | Answer |

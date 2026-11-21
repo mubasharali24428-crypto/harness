@@ -489,7 +489,9 @@ class RateLimitMiddleware:
         return None
 
     async def __call__(self, scope, receive, send) -> None:  # noqa: ANN001
-        if scope["type"] != "http":
+        # CORS preflights carry no credentials and do nothing; counting them halved the login
+        # budget, and a 429 here has no CORS headers, so browsers reported a CORS error instead.
+        if scope["type"] != "http" or scope.get("method") == "OPTIONS":
             await self.app(scope, receive, send)
             return
 

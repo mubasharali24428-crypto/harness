@@ -121,6 +121,7 @@ describe("deriveWorkingAreaView — tool transcript", () => {
         error: null,
         output: "a.txt",
         durationMs: 450,
+        scopeRequest: null,
       },
     ]);
   });

@@ -1,0 +1,70 @@
+{
+  "date": "2026-11-05",
+  "week": "W28",
+  "slice": "S1b-2",
+  "verdict": "PASS",
+  "steps": [
+    {
+      "step": "agent approved",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "step": "root and two siblings delegated",
+      "ok": true
+    },
+    {
+      "step": "child A approved and started",
+      "ok": true,
+      "approve": 200,
+      "start": 200
+    },
+    {
+      "step": "child A ran to a settled state",
+      "ok": true,
+      "state": "awaiting_done_signal"
+    },
+    {
+      "step": "synthesis shows A's real result",
+      "ok": true,
+      "runStatus": "completed",
+      "result": "done",
+      "spentUsd": "0.002512"
+    },
+    {
+      "step": "synthesis spend equals the run's cost_ledger total",
+      "ok": true,
+      "synthesis": "0.002512",
+      "ledger": "0.002512"
+    },
+    {
+      "step": "synthesis flags A and B as overlapping",
+      "ok": true,
+      "conflicts": [
+        {
+          "assignmentIds": [
+            "4ada437b-cd9f-480e-bce1-815158ad208c",
+            "4ca94ff2-76b9-4ace-8dbf-07e300a67b66"
+          ],
+          "paths": [
+            "src"
+          ]
+        }
+      ]
+    },
+    {
+      "step": "review required, nothing merged",
+      "ok": true
+    },
+    {
+      "step": "nothing live after the root is cancelled",
+      "ok": true,
+      "live": []
+    }
+  ],
+  "limits": [
+    "one trial, one small child",
+    "conflicts judge declared scope, not files written"
+  ],
+  "childSpendUsd": "0.002512"
+}

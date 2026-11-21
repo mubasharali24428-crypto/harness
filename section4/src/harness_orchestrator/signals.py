@@ -66,6 +66,19 @@ class EmptyDiffTextError(DoneSignalRejectedError):
     code = "EMPTY_DIFF"
 
 
+class VerificationEvidenceError(DoneSignalRejectedError):
+    """I-09 verification-first: completion needs a recorded test run going green.
+
+    Raised when verification-first is active — default on since the
+    2026-11-14 decision; an operator opts out with HARNESS_VERIFICATION_FIRST=false. The
+    evidence is read from the run's recorded engine tool calls, never asserted
+    by the caller, so a done-signal cannot fabricate a passing test suite.
+    """
+
+    http_status = 400
+    code = "VERIFICATION_REQUIRED"
+
+
 class RunNotLiveForDoneSignalError(DoneSignalRejectedError):
     """Stopped/DONE runs cannot be resurrected by a late done-signal."""
 
@@ -97,6 +110,9 @@ def validate_done_signal(
     principal: Principal,
     current_state: AgentState,
     diff_text: str,
+    *,
+    verification_required: bool = False,
+    verification: dict | None = None,
 ) -> DoneSignalDecision:
     """Gate a human done-signal before any transition or review spend happens.
 
@@ -106,6 +122,12 @@ def validate_done_signal(
          to open, whatever the payload says),
       3. evidence — 400 empty/whitespace-only diffText last, so the client
          sees the cheapest-to-fix problem once identity and timing are clean.
+      4. verification — 400 only when the operator enables verification-first
+         (I-09): the run must have recorded a test going green. ``verification``
+         is the evidence dict from review_summary.verification_evidence, read
+         server-side from recorded tool calls — never a caller-asserted string.
+         Default on since the 2026-11-14 decision; test suites that record no
+         live tests pin HARNESS_VERIFICATION_FIRST=false explicitly.
     """
     if str(principal.role) not in EXECUTOR_ROLES:
         return DoneSignalDecision(False, f"role '{principal.role}' may not signal done")
@@ -116,6 +138,12 @@ def validate_done_signal(
         )
     if not isinstance(diff_text, str) or not diff_text.strip():
         return DoneSignalDecision(False, "diffText must be non-empty")
+    if verification_required and not (verification and verification.get("green")):
+        return DoneSignalDecision(
+            False,
+            "verification evidence required: no recorded test run going green "
+            "(run the tests to green before signaling done)",
+        )
     return DoneSignalDecision(True)
 
 
@@ -128,12 +156,29 @@ def raise_for_decision(decision: DoneSignalDecision) -> None:
         raise DoneSignalRoleDenied(reason)
     if reason.startswith("run is not live"):
         raise RunNotLiveForDoneSignalError(reason)
+    if reason.startswith("verification"):
+        raise VerificationEvidenceError(reason)
     raise EmptyDiffTextError(reason)
 
 
-def gate_done_signal(principal: Principal, current_state: AgentState, diff_text: str) -> None:
+def gate_done_signal(
+    principal: Principal,
+    current_state: AgentState,
+    diff_text: str,
+    *,
+    verification_required: bool = False,
+    verification: dict | None = None,
+) -> None:
     """All-in-one guard: raises the typed rejection or returns silently."""
-    raise_for_decision(validate_done_signal(principal, current_state, diff_text))
+    raise_for_decision(
+        validate_done_signal(
+            principal,
+            current_state,
+            diff_text,
+            verification_required=verification_required,
+            verification=verification,
+        )
+    )
 
 
 __all__ = [
@@ -144,6 +189,7 @@ __all__ = [
     "DoneSignalRoleDenied",
     "EmptyDiffTextError",
     "RunNotLiveForDoneSignalError",
+    "VerificationEvidenceError",
     "gate_done_signal",
     "raise_for_decision",
     "validate_done_signal",

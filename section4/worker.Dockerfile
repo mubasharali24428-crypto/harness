@@ -61,7 +61,9 @@ FROM base AS worker
 # Playwright: the worker has no Node runtime and the tool is render-and-look.
 # fonts-dejavu-core so a text page renders glyphs instead of boxes.
 USER root
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN python -c "from pathlib import Path; p = Path('/etc/apt/sources.list.d/debian.sources'); p.write_text(p.read_text().replace('http://deb.debian.org', 'https://deb.debian.org'))" \
+    && apt-get -o Acquire::Retries=3 -o Acquire::https::Timeout=30 update \
+    && apt-get -o Acquire::Retries=3 -o Acquire::https::Timeout=30 install -y --no-install-recommends \
         chromium fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 USER 10001:10001

@@ -53,6 +53,12 @@ class ValidationError(typing.TypedDict, total=False):
     msg: str  # required
     type: str  # required
 
+class VerdictCommentBody(typing.TypedDict, total=False):
+    """VerdictCommentBody. Required keys: runId, bodyMd."""
+    bodyMd: str  # required
+    marker: str
+    runId: str  # required
+
 class WritesBody(typing.TypedDict, total=False):
     """WritesBody. Required keys: enabled."""
     enabled: bool  # required
@@ -199,6 +205,14 @@ class GithubClient:
         _path = f"/api/v1/projects/{project_id}/pulls/{pr_number}/diff"
         return self._http.request(self.base_url, "GET", _path)
 
+    def post_verdict_comment(self, project_id: str, pr_number: str, body: VerdictCommentBody) -> dict[str, typing.Any]:
+        """Post Verdict Comment
+
+        POST /api/v1/projects/{project_id}/pulls/{pr_number}/verdict-comment
+        """
+        _path = f"/api/v1/projects/{project_id}/pulls/{pr_number}/verdict-comment"
+        return self._http.request(self.base_url, "POST", _path, json_body=body)
+
     def connect_repo(self, project_id: str, body: ConnectBody) -> dict[str, typing.Any]:
         """Connect Repo
 
@@ -241,4 +255,4 @@ class GithubClient:
         return self._http.request(self.base_url, "GET", _path)
 
 
-__all__ = ["GithubClient", "CommitBody", "ConnectBody", "DraftPRBody", "HTTPValidationError", "IssueBody", "ValidationError", "WritesBody"]
+__all__ = ["GithubClient", "CommitBody", "ConnectBody", "DraftPRBody", "HTTPValidationError", "IssueBody", "ValidationError", "VerdictCommentBody", "WritesBody"]

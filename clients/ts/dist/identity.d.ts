@@ -670,6 +670,9 @@ export declare class IdentityClient {
     /** Export Audit
      *  GET /api/v1/audit/export */
     export_audit(stream?: string, after_seq?: number, limit?: number, run_id?: string, format?: string): Promise<Record<string, unknown>>;
+    /** Export Audit Pack
+     *  GET /api/v1/audit/pack */
+    export_audit_pack(max_rows?: number): Promise<Record<string, unknown>>;
     /** Verify Audit
      *  POST /api/v1/audit/verify */
     verify_audit(body: AuditVerifyRequest): Promise<Record<string, unknown>>;
@@ -868,6 +871,9 @@ export declare class IdentityClient {
     /** Put Role
      *  PUT /api/v1/policy/orgs/{org_id}/roles/{name} */
     put_role(org_id: string, name: string, body: harness_identity__policy__RoleBody): Promise<Record<string, unknown>>;
+    /** Portal Projects
+     *  GET /api/v1/portal/projects */
+    portal_projects(): Promise<Record<string, unknown>>;
     /** List Projects
      *  GET /api/v1/projects */
     list_projects(limit?: number): Promise<ProjectListResponse>;
@@ -877,6 +883,15 @@ export declare class IdentityClient {
     /** Replay Events
      *  GET /api/v1/projects/{project_id}/events/replay */
     replay_events(project_id: string, after_seq?: number, limit?: number, before_seq?: number): Promise<EventReplayResponse>;
+    /** List Guests
+     *  GET /api/v1/projects/{project_id}/guests */
+    list_guests(project_id: string): Promise<Record<string, unknown>>;
+    /** Grant Guest
+     *  PUT /api/v1/projects/{project_id}/guests/{user_id} */
+    grant_guest(project_id: string, user_id: string): Promise<Record<string, unknown>>;
+    /** Revoke Guest
+     *  DELETE /api/v1/projects/{project_id}/guests/{user_id} */
+    revoke_guest(project_id: string, user_id: string): Promise<unknown>;
     /** List Memory
      *  GET /api/v1/projects/{project_id}/memory */
     list_memory(project_id: string): Promise<Record<string, unknown>>;
@@ -1203,7 +1218,7 @@ export declare class IdentityClient {
     issue_ws_ticket(body: WsTicketRequest): Promise<WsTicketResponse>;
     /** Health
      *  GET /health */
-    health(): Promise<unknown>;
+    health(deep?: number): Promise<unknown>;
     /** Ready
      *  GET /ready */
     ready_ready_get(): Promise<unknown>;

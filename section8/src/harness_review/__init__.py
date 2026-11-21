@@ -8,20 +8,24 @@ The app itself never merges — that is always a manual GitHub action.
 
 from .models import (
     ChangedFile,
+    PreReviewDigest,
     ReviewData,
     ReviewFindings,
     ReviewStatus,
     RiskFlag,
     RiskSeverity,
 )
+from .pre_review import build_pre_review_digest
 from .service import ReviewService
 
 __all__ = [
     "ChangedFile",
+    "PreReviewDigest",
     "ReviewData",
     "ReviewFindings",
     "ReviewStatus",
     "RiskFlag",
     "RiskSeverity",
     "ReviewService",
+    "build_pre_review_digest",
 ]

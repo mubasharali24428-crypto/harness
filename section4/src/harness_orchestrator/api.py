@@ -485,6 +485,9 @@ class AggregateStepOut(BaseModel):
     type: str
     ts: datetime
     reason: str | None = None
+    # 2026-11-13 (U2 timeline): the few payload facts the run page shows, secret-scrubbed and
+    # clamped server-side, so the page no longer downloads the whole project's event replay.
+    detail: dict[str, str | int | bool] | None = None
 
 
 class BudgetDegradedOut(BaseModel):
@@ -531,6 +534,8 @@ class RunAggregateResponse(BaseModel):
     runId: str
     state: str
     costUsd: float | None = None
+    # W27 (additive): the plan's estimate, so a client can show actual against estimated
+    estimatedCostUsd: float | None = None
     prId: str | None = None
     url: str | None = None
     steps: list[AggregateStepOut] = Field(default_factory=list)
@@ -928,8 +933,9 @@ async def signal_done(
             detail={"error": {"code": e.code, "message": e.message}},
         ) from e
     except DoneSignalRejectedError as e:
+        # The status follows the error class (role denied 403, verification required 400, ...).
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=e.http_status,
             detail={"error": {"code": e.code, "message": e.message}},
         ) from e
     # The reviewer's model call runs as the person who signalled done: their token, role, budget.

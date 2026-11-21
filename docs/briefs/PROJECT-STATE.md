@@ -1,6 +1,6 @@
 # Harness Multiplayer AI: project state and resume guide
 
-Updated 2026-10-21 (path-to-9 batch 5 doc refresh after batch 4: pilot alert tests and staged rollout A8, webhook channel and backup-never-ran alert A9, notification purge and metrics A10; B3 skipped). Read this first in a new session, then
+Updated 2026-11-06 (reconciled against git, GitHub and `docker ps`; section 2 tracks Roadmap 3.0; the rest is the path-to-9 record from 2026-10-21, so the matrix counts in §3 are stale). Read this first in a new session, then
 `docs/briefs/path-to-9-plan.md`, `docs/briefs/capability-matrix.md` and `docs/briefs/path-to-9-checkpoint.md`. The repository is the
 source of truth: re-verify any number before relying on it. Nothing here claims readiness for real users (see "Not cleared").
 Per-session results, the old verification records and the local Session 11 detail (§3g) are in `docs/briefs/evidence/s11/state-history.md`.
@@ -13,35 +13,33 @@ The programme brings every part to 9/10: each directive implemented or explicitl
 `docs/briefs/evidence/`, docs that match behaviour including limits, and a `verified` matrix row. Parts that need an outside party stay
 capped at 8: 03, 37, 52, 53, 58, 61. Part 57's cap was removed because Stripe is out of scope (owner direction, 2026-10-19).
 
-Layout: section1 identity, auth, audit, event bus, orgs, policy, workspaces, integrations (migrations 0001 to 0060) · section3, 6, 8, 10
+Layout: section1 identity, auth, audit, event bus, orgs, policy, workspaces, integrations (migrations 0001 to 0075) · section3, 6, 8, 10
 auxiliary · section4 orchestrator · section5 sandbox · section7 Next.js UI and Playwright · `packages/` (A5 extensions, ops, telemetry) ·
 `integrations/connectors/` · `deploy/` compose stack, runners, observability, `deploy/pilot` smoke stack · `docs/` · `scripts/` · `clients/`.
 
-## 2. Sessions
+## 2. Where the work is now: Roadmap 3.0 (2026-11-05)
 
-Sessions 1 to 10 are built. Codex built Sessions 6 to 10; Claude re-ran their suites, fixed the regressions it found (`6b6adfb`) and
-closed part 44 (`00a1412`). Session 11 ran twice in parallel: locally (gap closure plus live-PostgreSQL evidence) and in the cloud
-(parts 12, 14, 24, 29, process parts, a real-browser check). Both are merged into `master`.
+The live plan is `docs/roadmap-3.0.md` (stages 0 to 10); the path-to-9 sessions table moved to `evidence/s11/state-history.md`.
+Done: 0 stabilize (PR #7), 1 trust and recovery (code side), 2 reliability W17 (code side), 3 daily loop W23/W24/W7, 7 W30 audit
+(`docs/decisions/2026-11-05-w30-candidate-audit.md`), 8 W31 Scheduler pilot (`docs/decisions/2026-11-04-w31-scheduler.md`).
+Partial: 4 benchmark (W25/W26 run 2026-11-05: 5 sequential runs per task on each of two models, 3 concurrent; Haiku is the stack default; the three formerly local-model tasks now pass on Haiku; the other-harness comparison is open), 6 delegation (W28 S1a delegate verb behind `HARNESS_SUBAGENTS`; S1b-1
+child runs with own approval and cancel cascade built and live-drilled; synthesis S1b-2 built (read-only; deployed as vw28s4 with live drills 12/12 and 9/9 per commits `41fc733`, `eb53563`); W13 exec leg built), 9 W32 (seam analysis only, gated on W28).
+Partial: 5 governance W27 (slice 1: gate denials carry reason, alternative and the scope to request, drilled on Haiku and deployed; slice 2: denial circuit breaker, timeout marked apart from denial, `scopeRequest` object, tested without a model, deployed on vw27s2; slice 3: the orchestrator ends a run on repeated denials, the scope request rides the tool-result event, and the run read returns `estimatedCostUsd`, deployed on vw27s3 and proved live for the stop). All 23 live eval tasks pass at n=1 on 2026-11-05. W29 capability review first pass written (`docs/capability-review-2026-11-05.md`, summary-derived facts tagged). W33 readiness pack prepared for an independent reviewer (`docs/reviews/w33-readiness-pack-2026-11-05.md`), not reviewed; candidate measurement not done. Verdict unchanged: NOT READY. Newer detail is in `STATUS.md`.
 
-| Session | Objective | State |
-|---|---|---|
-| 1 | Truth ledger, baseline | done |
-| 2 | Pilot residuals, sandbox fixes | done (parts 05 to 08, 10, 11, 22, 23, 27 verified) |
-| 3 | Orgs, permissions, workspaces (37 to 39) | done |
-| 4 | Sessions, presence, control leases, agent registry (40 to 42, 45) | done |
-| 5 | Discussion, notifications, real-time delivery, collab UI (43, 46, 47) | done |
-| 6 | Plans, artifacts, search and export (44, 48, 50) | done; 44 closed by `00a1412` |
-| 7 | Integrations, admin, billing controls (49, 51, 57) | done; partial for provider breadth, residency, in-flight spend |
-| 8 | Security, compliance, data lifecycle (31, 52, 58) | done; partial, 52 and 58 externally capped |
-| 9 | Reliability, scale, observability (53 to 55) | done; partial, 53 capped |
-| 10 | Release, accessibility, readiness (56, 59 to 61) | done; NO-GO report |
-| 11 local | Workspace gaps (39), retention holds and account erasure (31/58), budget alerts (57), approvals decision time, OTP race (T13b), identity expiry sweep, upgrade rehearsal (59), partition roll-forward (A.9) | done; detail in `evidence/s11/state-history.md` §3g |
-| 11 cloud | Parts 12, 14, 24, 29, process parts, PostgreSQL IN-list diagnosis, browser check | done; `evidence/s11/cloud-report.md` |
-| 12 | Lane A (11, 14, 29, 38, 40, 42) and lane B (48 to 50, 56 axe); 25, 28, 54, 55, 59 evidence; 52 amd64 probe | done; `evidence/s12/` |
-
-Branches: `master` holds everything (pushed through batch 3, `9680ddb`; batch 4 `0bf1f07` committed, not pushed), including `origin/cloud/path-to-9-finish` and the cloud pass
-(`origin/claude/path-to-9-finish-ax6hie`). The other lanes' uncommitted work (P0-P3 isolation, SMTP TLS, section 2 scope mode, A5
-packages, docs) was committed on 2026-10-20 after its suites passed. Not merged: `origin/codex/harness-a1` to `a5`.
+2026-11-21 update: the branch is **fully pushed** — `w28-s1-delegate` at `c286d22` on
+origin, 0 commits ahead of upstream (the 2026-11-06 note below is historical). Weeks 2–3
+of the 90-day plan executed and recorded in `docs/briefs/evidence/90day/week-02.md` /
+`week-03.md`: P-04 drills done (native-Linux PASS in CI; G1/G2 gaps live-confirmed, owner
+risk-acceptance standing), P-06 handoff executed (A-01 dispositions for both gates).
+**Live-state drift measured 2026-11-21:** the RC stack is MIXED (`vv90i13` ×10, `vv90r4`
+×2, identity + review untagged; schema 0075 vs HEAD 0076) and the deployed gate predates
+the A-01 argument checks — one redeploy from a post-`e24b830` revision + fresh manifest
+closes both (owner). §3's matrix counts remain dated 2026-10-21.
+2026-11-06 reconciliation (see the `STATUS.md` entry of that date): the work above sat as 41 local-only commits on `w28-s1-delegate` until this PR.
+The live stack runs mixed image tags (orchestrator `vw27s3`, worker-daemon `vw27s2`, other backends `vw28s6`, frontend `vw24b2`), so the
+frontend lacks the synthesis panel and scope-request editor; redeploy one tag set and run `scripts/ops/stack_tags.py` before any claim about the running system.
+hy4 batches 1 to 4 are committed (`57b466e` to `7cdd365`). Open from them: security items kept in the private hand-backs (not summarised here), and two owner rulings
+(delegating to paths that do not exist yet; what `0` means for the denial knobs). Part 52 below is therefore not closed at argument level.
 
 ## 3. Where the matrix stands
 
@@ -55,7 +53,9 @@ Readiness: **NO-GO** for broad rollout (`docs/briefs/final-deliverables.md`, sec
    replaced by `section4/.../dsh_plugins/harness-shell.js`. The plugin sends every command through Section 5's
    `shell_gate.py` (allow-list, forbidden and intent scope paths, Landlock), and it runs in the hardened worker image
    (`evidence/s12/part52.md`). The same work fixed Section 5's Landlock, which never applied on Linux before. Left: external
-   pen test (cap 8), argument-level path checks, one program per call.
+   pen test (cap 8). Argument-level `..`/`~`/`$VAR`/`--flag=path`/`-o/path` checks and one
+   program per call are in place and pinned by `section5/tests/test_shell_gate_args.py`
+   (2026-11-14).
 2. Row 26: `run_smoke.py --real` needs an OpenRouter key (not configured).
 3. Row 55: dashboard not imported into Grafana and looked at (no Grafana image; pulling one not authorised).
 4. Row 56: no screen reader; only two pages walked by the browser check; English only (contrast and target size closed 2026-10-21).
@@ -100,7 +100,7 @@ Not a gap: a paused workspace only blocks new starts, by design (`workspace_gate
 - `run_smoke.py` needs about 2 minutes between runs (port 8101 TIME_WAIT) and overwrites `docs/briefs/evidence/p1/*`.
 - FastAPI 0.141 nests included routers: walk `app.openapi()["paths"]`, not `app.routes`.
 - Dev SQLite has no `teams.org_id` (migration 0038 adds it on PostgreSQL); `require_team_stepup` tolerates that.
-- Migrations are 59 files numbered 0001 to 0060 (there is no 0014); `deploy/runners/migrate_selftest.py` checks disk against the ledger.
+- Migrations are 73 files numbered 0001 to 0075 (there is no 0014 and no 0074); `deploy/runners/migrate_selftest.py` checks disk against the ledger.
 - Owner's machine is macOS zsh (no `timeout`, BSD `sed -i ''`, repo path has a space, `--include=*.py` does not expand). The cloud
   box is Linux, root, no Docker daemon.
 - `AGENTS.md` may carry an auto-injected `<claude-mem-context>` block from a memory plugin: never commit it.
@@ -122,7 +122,7 @@ cd "/Users/user/untitled folder 2/harness"
 git fetch origin && git log --oneline -8 && git status --short | head -40
 cd section1 && .venv/bin/python -m pytest tests -q        # add the live-PG env from §5 for PostgreSQL
 cd ../section4 && .venv/bin/python -m pytest tests -q
-# Docker up: make pg-probe-s1 && make pg-probe-migrate      (expect 59 migrations, 0001 to 0060)
+# Docker up: make pg-probe-s1 && make pg-probe-migrate      (expect 73 migrations, 0001 to 0075)
 ```
 
 Per-part work: read the matrix row, audit directive by directive, add the missing invariant test, write

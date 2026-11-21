@@ -39,6 +39,11 @@ from harness_orchestrator.context_resolver import (
     resolve_context,
     seed_files_from_bundle,
 )
+from harness_orchestrator.denial_learning import (
+    append_learning,
+    collect_scope_request,
+    suggested_rule_text,
+)
 from harness_orchestrator.diffstore import resolve_diff, save_diff
 from harness_orchestrator.engine import DeepSeekHarnessWrapper
 from harness_orchestrator.engine_runtime import (
@@ -49,9 +54,17 @@ from harness_orchestrator.engine_runtime import (
 )
 from harness_orchestrator.goal_images import GoalImages, resolve_goal_images
 from harness_orchestrator.lifecycle import lifecycle_view
-from harness_orchestrator.loop_guard import LoopGuard, loop_repeat_limit
+from harness_orchestrator.loop_guard import (
+    DENIALS_REPEATED,
+    LoopGuard,
+    denial_run_limit,
+    denial_window_limit,
+    loop_repeat_limit,
+    scope_request_of,
+)
 from harness_orchestrator.planner import PlanNotApprovedError, PlanService
 from harness_orchestrator.redact import scrub_secrets
+from harness_orchestrator.review_summary import exit_code_from_summary, verification_evidence
 from harness_orchestrator.reviewer import ReviewerSubAgent, ReviewFindings
 from harness_orchestrator.rules_loader import build_rules_block, load_project_rules
 from harness_orchestrator.run_metering import record_engine_tool_calls, record_run_cost
@@ -337,6 +350,15 @@ class OrchestratorService(Orchestrator):
             return
         run_data["_guard_stopped"] = reason
         detail = f"{reason} after {guard.calls_seen} tool calls"
+        # I-08: a denial stop carries its lesson — the paths whose addition
+        # would unblock the run, phrased as a project rule the human can save
+        # through the rules API. Suggestion only; nothing auto-saves.
+        if reason == DENIALS_REPEATED:
+            suggestion = suggested_rule_text(
+                run_id, run_data.get("_denial_scope_requests") or []
+            )
+            run_data["_suggested_rule"] = suggestion
+            detail = append_learning(detail, suggestion)
         if set_shell_policy is not None and shell_policy is not None:
             set_shell_policy(run_id, {**shell_policy, "maxToolCalls": 0})
         killed = await self._kill_engine(run_id)
@@ -480,6 +502,12 @@ class OrchestratorService(Orchestrator):
                 },
             )
             return
+        # W27: a denial that names the one path whose addition would unblock it.
+        # I-08: the same request is remembered on the run, so a denial stop can
+        # offer the correction as a project rule (denial_learning).
+        scope_req = scope_request_of(record)
+        if scope_req is not None:
+            collect_scope_request(self.runs.get(run_id) or {}, record)
         self._emit(
             EventType.TOOL_RESULT,
             {
@@ -491,6 +519,7 @@ class OrchestratorService(Orchestrator):
                 "turn": record.get("turn"),
                 "step": record.get("step"),
                 "finishedAt": record.get("at"),
+                **({"scopeRequest": scope_req} if scope_req else {}),
             },
         )
 
@@ -871,7 +900,10 @@ class OrchestratorService(Orchestrator):
             if (
                 etype == EventType.PAUSED.value
                 and isinstance(payload, dict)
-                and payload.get("reason") == "user_requested_stop"
+                and (
+                    payload.get("reason") == "user_requested_stop"
+                    or payload.get("stopped") is True
+                )
             ):
                 # S1-R05c stop tombstone: the live path reached DONE in RAM
                 # (finish() is silent), so the PAUSED(reason=stop) envelope is
@@ -1632,7 +1664,12 @@ class OrchestratorService(Orchestrator):
                     # before the run, from a table `record_engine_tool_calls` only
                     # populates after it, so nothing else in the stack knows a run
                     # has gone round the same hole 30 times.
-                    guard = LoopGuard(max_calls=budget, repeat_limit=loop_repeat_limit())
+                    guard = LoopGuard(
+                        max_calls=budget,
+                        repeat_limit=loop_repeat_limit(),
+                        denial_run_limit=denial_run_limit(),
+                        denial_window_limit=denial_window_limit(),
+                    )
 
                     def _progress(record: dict[str, Any]) -> None:
                         records.put(record)
@@ -2101,7 +2138,9 @@ class OrchestratorService(Orchestrator):
         try:
             self._emit(
                 EventType.PAUSED,
-                {"runId": run_data["runId"], "reason": reason},
+                # `stopped` is the tombstone for any stop reason, so a stop with a caller-chosen
+                # reason (e.g. assignment_cancelled) replays as DONE, not as a resumable PAUSED.
+                {"runId": run_data["runId"], "reason": reason, "stopped": True},
             )
         except Exception:  # noqa: BLE001 — telemetry must never break stopping
             logger.exception("paused-event emission failed for %s", run_data.get("runId"))
@@ -2896,6 +2935,15 @@ class OrchestratorService(Orchestrator):
         sm.submit_human_edit(path=path)
         self._cancel_live_task(run_data)
 
+    @staticmethod
+    def _verification_first_enabled() -> bool:
+        """I-09: verification-first done-signals, default on since the
+        2026-11-14 decision (docs/decisions/2026-11-14-verification-first-default-on.md).
+        An operator opts out explicitly with HARNESS_VERIFICATION_FIRST=false."""
+        return os.environ.get("HARNESS_VERIFICATION_FIRST", "true").strip().lower() in {
+            "1", "true", "yes", "on",
+        }
+
     async def gate_done_signal(self, run_id: str, principal: Any, diff_text: str) -> None:
         """H-007: validate a done-signal BEFORE any transition or review spend.
 
@@ -2903,11 +2951,58 @@ class OrchestratorService(Orchestrator):
         route and any internal caller enforce identical role/evidence/liveness
         semantics. Raises the typed DoneSignalRejectedError subclasses (the
         route maps them to 403/409/400).
+
+        I-09: when HARNESS_VERIFICATION_FIRST is enabled, the gate also requires
+        a recorded test run going green, read from the run's engine tool calls.
         """
         run_data = await self._ensure_run(run_id)
         sm: AgentStateMachine = run_data["state_machine"]
-        gate_done_signal(principal, sm.state, diff_text)
+        verification_required = self._verification_first_enabled()
+        verification = (
+            await self._recorded_verification(run_id) if verification_required else None
+        )
+        gate_done_signal(
+            principal,
+            sm.state,
+            diff_text,
+            verification_required=verification_required,
+            verification=verification,
+        )
         await self._gate_staged_completion(run_id)
+
+    async def _recorded_verification(self, run_id: str) -> dict[str, Any] | None:
+        """I-09: verification evidence from the run's recorded engine tool calls.
+
+        Mirrors the review-summary source (agent_tool_calls, reported_by=engine).
+        No surfaced rows is ``None`` (unknown), never a pass. The run is already
+        ownership-checked by _ensure_run before this is called.
+        """
+        factory = self.run_queue_factory or self.session_factory
+        if factory is None:
+            return None
+        async with factory() as db:
+            rows = (
+                await db.execute(
+                    text(
+                        "SELECT tool, target, outcome, summary FROM agent_tool_calls"
+                        " WHERE run_id = :r AND reported_by = 'engine'"
+                        " ORDER BY created_at, id"
+                    ),
+                    {"r": run_id},
+                )
+            ).all()
+        if not rows:
+            return None
+        calls = [
+            {
+                "tool": r.tool,
+                "target": r.target,
+                "outcome": "ok" if r.outcome == "ok" else "error",
+                "exitCode": exit_code_from_summary(r.summary),
+            }
+            for r in rows
+        ]
+        return verification_evidence(calls)
 
     async def _gate_staged_completion(self, run_id: str) -> None:
         if self.session_factory is not None and await collab.unapplied_staged_approval(
@@ -2966,12 +3061,21 @@ class OrchestratorService(Orchestrator):
                         await deliver_budget_warning(factory, team_id)
 
         # The model call is blocking HTTP: run it off the event loop.
-        findings = await asyncio.to_thread(
-            reviewer.evaluate_changes,
-            brief_summary=run_data["goal"],
-            diff_text=diff_text,
-            budget_blocked_reason=budget_block,
-        )
+        # I-09: with verification-first enabled, the reviewer verdict reflects the
+        # run's RECORDED test evidence instead of the vacuous "passed" default.
+        review_kwargs: dict[str, Any] = {
+            "brief_summary": run_data["goal"],
+            "diff_text": diff_text,
+            "budget_blocked_reason": budget_block,
+        }
+        if self._verification_first_enabled():
+            evidence = await self._recorded_verification(run_id)
+            review_kwargs["test_results_summary"] = (
+                "passed" if evidence and evidence.get("green")
+                else "failed" if evidence and evidence.get("failed")
+                else "unknown"
+            )
+        findings = await asyncio.to_thread(reviewer.evaluate_changes, **review_kwargs)
         # M19-N2 (F9): stamp the stored reference onto the verdict payload
         # before it reaches the bus — REVIEW_* events carry WHERE the body
         # lives, never the 200KB-class body itself.
@@ -3073,7 +3177,12 @@ class OrchestratorService(Orchestrator):
                pr.pr_url AS pr_url,
                (SELECT SUM(cl.cost_usd)
                   FROM cost_ledger cl
-                 WHERE cl.run_id = r.id) AS cost_usd
+                 WHERE cl.run_id = r.id) AS cost_usd,
+               (SELECT ap.estimated_cost_usd
+                  FROM agent_plans ap
+                 WHERE ap.run_id = r.id
+                 ORDER BY ap.created_at DESC, ap.id DESC
+                 LIMIT 1) AS estimated_cost_usd
         FROM agent_runs r
         LEFT JOIN pull_requests pr ON pr.id = r.pr_id
         WHERE r.id = :r
@@ -3133,7 +3242,61 @@ class OrchestratorService(Orchestrator):
         reason = payload.get("reason") if isinstance(payload, dict) else None
         if isinstance(reason, str) and reason:
             step["reason"] = reason[:200]
+        detail = OrchestratorService._step_detail(payload)
+        if detail:
+            step["detail"] = detail
         return step
+
+    # Payload facts the run timeline may show. Text is pattern-scrubbed (redact.py) and clamped;
+    # nothing else from the payload (output bodies, diffs, env, prompts) leaves the server.
+    _DETAIL_TEXT = ("callId", "name", "url", "error")
+    _DETAIL_PATH_KEYS = ("path", "file_path", "filePath", "file", "target")
+    _DETAIL_COMMAND_KEYS = ("command", "cmd")
+
+    @staticmethod
+    def _step_detail(payload: Any) -> dict[str, Any] | None:
+        from .redact import scrub_secret_patterns
+
+        if not isinstance(payload, dict):
+            return None
+
+        def clean(value: Any, limit: int = 200) -> str | None:
+            if not isinstance(value, str) or not value.strip():
+                return None
+            first = value.strip().splitlines()[0]
+            return scrub_secret_patterns(first)[:limit]
+
+        out: dict[str, Any] = {}
+        for key in OrchestratorService._DETAIL_TEXT:
+            v = clean(payload.get(key))
+            if v:
+                out[key] = v
+        args = payload.get("arguments")
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except Exception:  # noqa: BLE001
+                args = None
+        if isinstance(args, dict):
+            for key in OrchestratorService._DETAIL_PATH_KEYS:
+                v = clean(args.get(key))
+                if v:
+                    out["path"] = v
+                    break
+            for key in OrchestratorService._DETAIL_COMMAND_KEYS:
+                v = clean(args.get(key))
+                if v:
+                    out["command"] = v
+                    break
+        if isinstance(payload.get("ok"), bool):
+            out["ok"] = payload["ok"]
+        duration = payload.get("durationMs")
+        if isinstance(duration, (int, float)) and not isinstance(duration, bool) and duration >= 0:
+            out["durationMs"] = int(duration)
+        steps = payload.get("steps")
+        if isinstance(steps, list):
+            out["stepCount"] = len(steps)
+        return out or None
 
     @staticmethod
     def _cost_wire(cost_usd: Any) -> float | None:
@@ -3190,6 +3353,8 @@ class OrchestratorService(Orchestrator):
             "prId": None,
             "url": None,
             "costUsd": None,
+            # W27: what the approved plan said it would cost, beside what was metered (costUsd)
+            "estimatedCostUsd": None,
             "steps": [],
             # W15 (additive): the durable routing decision for this run, or
             # None when it has none — explicit null per the W4-C2 law.
@@ -3270,6 +3435,7 @@ class OrchestratorService(Orchestrator):
                 if enrich_row["pr_url"]:
                     aggregate["url"] = enrich_row["pr_url"]
                 aggregate["costUsd"] = self._cost_wire(enrich_row["cost_usd"])
+                aggregate["estimatedCostUsd"] = self._cost_wire(enrich_row["estimated_cost_usd"])
             # DESC+LIMIT grabs the last N cheaply; re-reverse to wire order.
             aggregate["steps"] = [
                 self._step_wire(row) for row in reversed(step_rows)

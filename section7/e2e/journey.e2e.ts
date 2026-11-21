@@ -67,7 +67,7 @@ test.describe("H-014 hero journey (compose stack)", () => {
       // Observable truth: we are inside the app, actually signed in.
       await expect(page).toHaveURL(/:\d+\/$/);
       await expect(page.getByText(/Not signed in yet/i)).toBeHidden();
-      await expect(page.getByRole("heading", { name: /Command Center/i })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "New run" })).toBeVisible();
     });
 
     // ------------------------------------------------------ 2-3. meeting
@@ -184,7 +184,7 @@ test.describe("H-014 hero journey (compose stack)", () => {
     await test.step("runs index renders honestly", async () => {
       await page.goto("/runs");
       await expect(page.getByRole("heading", { name: "Runs", exact: true })).toBeVisible();
-      await expect(page.getByText(/Showing \d+–\d+ of \d+/)).toBeVisible();
+      await expect(page.getByText(/Showing \d+–\d+/)).toBeVisible();
     });
 
     // ---------------------------------------------------------- 8. review

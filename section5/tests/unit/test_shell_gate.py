@@ -125,3 +125,26 @@ def test_scope_roots(tmp_path):
     assert shell_gate.scope_roots(str(tmp_path), []) is None
     assert shell_gate.scope_roots(str(tmp_path), ["src", "."]) is None  # whole workspace
     assert shell_gate.scope_roots(str(tmp_path), ["src/", "missing", "away"]) == [real / "src"]
+
+
+def test_denials_carry_a_code_an_alternative_and_the_scope_to_ask_for(tmp_path):
+    """W27: every refusal says what to do instead; only a scope miss names a path to request,
+    and no alternative suggests retrying, bypassing, or another model."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "docs").mkdir()
+    miss = gate(tmp_path, "ls docs", scopePaths=["src"])
+    assert miss["code"] == "OUT_OF_SCOPE" and miss["requestScope"] == "docs"
+    assert "src" in miss["alternative"] and "add it to this run's scope" in miss["alternative"]
+    assert miss["scopeRequest"] == {"path": "docs", "grants": False}
+    cmd = gate(tmp_path, "git push")
+    assert cmd["code"] == "COMMAND_REFUSED" and cmd["alternative"] and "requestScope" not in cmd
+    for res in (miss, cmd):
+        assert not any(w in res["alternative"].lower() for w in ("retry", "try again", "model"))
+
+
+@requires_confinement
+def test_a_timeout_is_marked_and_is_not_a_denial(tmp_path):
+    """W27: a slow command says so; it carries no denial code and no scope request."""
+    res = gate(tmp_path, 'python3 -c "import time; time.sleep(5)"', timeoutSeconds=1)
+    assert res["timedOut"] is True and res["exitCode"] is None
+    assert "denied" not in res and "scopeRequest" not in res

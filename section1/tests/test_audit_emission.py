@@ -157,6 +157,20 @@ def test_registry_actions_are_allowlisted():
         assert action in APPEND_ONLY_ACTIONS, f"{action} missing from allowlist"
 
 
+def test_review_service_audit_actions_are_allowlisted():
+    """Every audit action the review service writes is accepted by write_audit.
+
+    `review.comment_added` was missing, so adding a review comment saved the row
+    and then answered 500.
+    """
+    import re
+
+    service = pathlib.Path(__file__).parents[2] / "section8/src/harness_review/service.py"
+    actions = set(re.findall(r'"(review\.[a-z_]+)"', service.read_text()))
+    assert actions, "no review audit actions found; the probe is stale"
+    assert actions <= APPEND_ONLY_ACTIONS, f"not allowlisted: {actions - APPEND_ONLY_ACTIONS}"
+
+
 def test_zero_allowlist_gaps_every_s1_action_has_call_site():
     """Grep-probe (VERIFY-CONTRACT): zero 'allowlist without call site' gaps.
 

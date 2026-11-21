@@ -166,3 +166,26 @@ them on `PYTHONPATH`; set it in the task's `driver.env`.
 Failures stay in the evidence and in the baseline summary. A later run may
 supersede a failure, but the earlier file is kept. Deferred tasks record a reason
 and an owner; deferral is not a pass.
+
+## Model routing for live tasks (owner direction, 2026-11-05)
+
+Vision tasks (`m07-vision-api`, `w10-browser-repro`, `w11-vision`, `w11-grounding`, `w14-design-heldout`)
+run on `anthropic/claude-haiku-5.5`; every other live task runs on the stack default,
+`deepseek/deepseek-v4-flash`, which has no image input. Run a vision task with
+`scripts/eval/with_model.sh anthropic/claude-haiku-5.5 python3 scripts/eval/run_eval.py --task <id> --include-live`:
+it switches `DSH_MODEL` on the orchestrator and worker-daemon for that one command and restores it on exit
+(also on failure). The corpus `model` field for these tasks still names the older `qwen/qwen3.7-flash` pin; the
+evidence file records the model actually used. Only `w11-grounding` has been run this way so far (PASS).
+
+## Concurrent launches (found 2026-11-05)
+
+`code_change_task.py` names its run `w20-<task>-<unix seconds>` and `run_eval.py` names its baseline file by
+the second. Two runner processes started in the same second therefore share a run id and a baseline file: in
+the first concurrency batch two attempts failed in under half a second and their baseline records were
+overwritten by the survivor (kept as `w25-concurrency-attempt1-same-second-collision.json`, with the stdout
+only). To measure concurrent runs, start the processes at least 1 s apart and give each its own `--out`. The
+metrics are collected afterwards with `scripts/eval/w25_metrics.py`, which reads start latency, time to first
+tool call, engine time, tool calls and cost from `agent_events` and `cost_ledger` by run id.
+
+**Update (owner decision, 2026-11-05): the stack default is now `anthropic/claude-haiku-5.5`** for every live task, text and vision, on the strength of the W25/W26 benchmark (same pass rate as DeepSeek on the two text tasks, about twice as fast, equal cost, and it has image input; see `STATUS.md`). Vision tasks therefore no longer need the wrapper. Use `scripts/eval/with_model.sh <model> <command>` only to compare another model (for example `deepseek/deepseek-v4-flash`) against it. The wrapper now reads each service's own image tag. The corpus `model` field on the vision tasks still says `qwen/qwen3.7-flash` and is stale; the evidence file records the model actually used.
+

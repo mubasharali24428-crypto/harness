@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -30,8 +31,12 @@ import urllib.request
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-IDENTITY = "http://127.0.0.1:8001"
-ORCHESTRATOR = "http://127.0.0.1:8004"
+# Default: the stack published on 8001/8004. With more than one compose stack running, set
+# E2E_IDENTITY_URL / E2E_ORCHESTRATOR_URL and E2E_COMPOSE_PROJECT (same names compose_journey.py
+# uses) so URLs and container lookups agree; otherwise the OTP is read from whichever container
+# `docker ps` lists first.
+IDENTITY = os.environ.get("E2E_IDENTITY_URL", "http://127.0.0.1:8001")
+ORCHESTRATOR = os.environ.get("E2E_ORCHESTRATOR_URL", "http://127.0.0.1:8004")
 GOAL = (
     "Use the web_fetch tool exactly twice, and no other tool.\n"
     "1) web_fetch https://api-docs.deepseek.com/ and read the page title.\n"
@@ -73,10 +78,18 @@ def sh(*argv: str, check: bool = True) -> subprocess.CompletedProcess:
     return subprocess.run(list(argv), capture_output=True, text=True, check=check)
 
 
+def service_cids(service: str) -> list[str]:
+    """Container ids of one compose service, limited to E2E_COMPOSE_PROJECT when it is set."""
+    cmd = ["docker", "ps", "-q", "--filter", f"label=com.docker.compose.service={service}"]
+    project = os.environ.get("E2E_COMPOSE_PROJECT")
+    if project:
+        cmd += ["--filter", f"label=com.docker.compose.project={project}"]
+    return sh(*cmd).stdout.split()
+
+
 def fetch_otp(email: str) -> str:
     pattern = re.compile(rf"HARNESS-OTP login code for {re.escape(email)}: (\d+)")
-    cid = sh("docker", "ps", "-q", "--filter",
-             "label=com.docker.compose.service=identity").stdout.split()
+    cid = service_cids("identity")
     if not cid:
         raise SystemExit("identity container not found")
     deadline = time.time() + 30
@@ -134,8 +147,7 @@ def audit_tool_events(run_id: str) -> list[dict]:
         "select type, payload from agent_events where run_id='%s' "
         "and type in ('tool_call','tool_result') order by seq" % run_id
     )
-    cid = sh("docker", "ps", "-q", "--filter",
-             "label=com.docker.compose.service=db").stdout.split()
+    cid = service_cids("db")
     if not cid:
         return [{"type": "error", "error": "db container not found"}]
     proc = sh("docker", "exec", cid[0], "sh", "-lc",

@@ -34,9 +34,16 @@ export type RunStatusValue = (typeof RUN_STATUSES)[number];
 
 /** Contract M10-C2 run item — camelCase per contracts/api-conventions.md. */
 export interface RunDto {
+  /** The run's newest plan: its id and goal. Null before a plan exists. */
+  planId?: string | null;
+  goal?: string | null;
   id: string;
   projectId: string;
   status: string;
+  /** True once the plan is approved; status stays awaiting_plan_approval until the run starts. */
+  planApproved?: boolean;
+  /** Why a blocked run is blocked: "question" | "engine_failed" | "review_failed". */
+  blockedBy?: string | null;
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
@@ -46,9 +53,9 @@ export interface RunDto {
  *  and drive the pager (never assume client-side totals). */
 export interface RunsPageDto {
   items: RunDto[];
-  total: number;
-  limit: number;
-  offset: number;
+  /** Opaque keyset cursor for the next page; null at the end. The server
+   *  dropped `total` and ignores `offset` (runs_index.py, M14-W4 F3a). */
+  nextCursor: string | null;
 }
 
 export interface RunsQuery {
@@ -56,7 +63,7 @@ export interface RunsQuery {
   status?: RunStatusValue | null;
   /** Contract cap: limit ≤ 100, server default 25. Clamped client-side too. */
   limit?: number;
-  offset?: number;
+  cursor?: string | null;
 }
 
 export const RUNS_DEFAULT_LIMIT = 25;
@@ -67,7 +74,7 @@ function normalizeLimit(limit: number): number {
   return Math.min(RUNS_MAX_LIMIT, Math.max(1, Math.floor(limit)));
 }
 
-/** Pure: builds the M10-C2 query string. Omits empty filters and offset=0 so
+/** Pure: builds the M10-C2 query string. Omits empty filters and cursor so
  *  the URL stays canonical; trims projectId; clamps limit to [1,100]. */
 export function buildRunsQueryString(query: RunsQuery): string {
   const params = new URLSearchParams();
@@ -77,13 +84,7 @@ export function buildRunsQueryString(query: RunsQuery): string {
   if (typeof query.limit === "number" && Number.isFinite(query.limit)) {
     params.set("limit", String(normalizeLimit(query.limit)));
   }
-  if (
-    typeof query.offset === "number" &&
-    Number.isFinite(query.offset) &&
-    query.offset > 0
-  ) {
-    params.set("offset", String(Math.floor(query.offset)));
-  }
+  if (query.cursor) params.set("cursor", query.cursor);
   return params.toString();
 }
 
@@ -123,12 +124,7 @@ export async function listRuns(
   // never as a crash on data.items.map.
   return {
     items: Array.isArray(data.items) ? data.items : [],
-    total: typeof data.total === "number" ? data.total : 0,
-    limit:
-      typeof data.limit === "number" && data.limit > 0
-        ? data.limit
-        : RUNS_DEFAULT_LIMIT,
-    offset: typeof data.offset === "number" && data.offset >= 0 ? data.offset : 0,
+    nextCursor: typeof data.nextCursor === "string" ? data.nextCursor : null,
   };
 }
 
@@ -163,6 +159,9 @@ export interface RunStepDto {
   ts: string | null;
   /** Payload reason when the server sent one: tells a stop from a pause and says why a run failed. */
   reason?: string;
+  /** Scrubbed, clamped payload facts for the timeline (callId, name, path, command, ok, error,
+   *  durationMs, url, stepCount). Absent on older servers. */
+  detail?: Record<string, string | number | boolean> | null;
 }
 
 /** W4-C2 run aggregate wire shape (camelCase per api-conventions.md). */
@@ -177,6 +176,9 @@ export interface RunAggregateDto {
   /** SUM(cost_ledger.cost_usd) for this run at NUMERIC-exact scale-6 money,
    *  or null while metering has recorded nothing — NEVER defaulted to 0. */
   costUsd: number | null;
+  /** The run's latest plan estimate, or null when there is no plan. Independent
+   *  of costUsd (metered from cost_ledger) — each null has its own words. */
+  estimatedCostUsd: number | null;
   /** agent_runs.pr_id once Section 2 binds a PR to this run; null before. */
   prId: string | null;
   /** The bound PR's url; independently nullable (prId can exist without it). */
@@ -337,6 +339,11 @@ export async function getRunAggregate(
         type: typeof rec.type === "string" ? rec.type : "unknown",
         ts: asStringOrNull(rec.ts),
         ...(typeof rec.reason === "string" && rec.reason ? { reason: rec.reason } : {}),
+        // Scrubbed per-step facts (path/command/durationMs/ok/error). The
+        // timeline builds one-line receipts from these; absent stays absent.
+        ...(rec.detail && typeof rec.detail === "object" && !Array.isArray(rec.detail)
+          ? { detail: rec.detail as Record<string, string | number | boolean> }
+          : {}),
       });
       if (steps.length >= RUN_AGGREGATE_STEPS_MAX) break;
     }
@@ -352,6 +359,10 @@ export async function getRunAggregate(
     costUsd:
       typeof data.costUsd === "number" && Number.isFinite(data.costUsd)
         ? data.costUsd
+        : null,
+    estimatedCostUsd:
+      typeof data.estimatedCostUsd === "number" && Number.isFinite(data.estimatedCostUsd)
+        ? data.estimatedCostUsd
         : null,
     prId: asStringOrNull(data.prId),
     url: asStringOrNull(data.url),

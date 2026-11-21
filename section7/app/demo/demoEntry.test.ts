@@ -8,18 +8,18 @@ describe("demo entry landing href", () => {
   it("lands on the seeded run's detail page", () => {
     expect(
       demoLandingHref({ runId: "demo-run-1", projectId: "demo-proj-1" }),
-    ).toBe("/projects/demo-proj-1/runs/demo-run-1?demo=1");
+    ).toBe("/projects/demo-proj-1/runs/demo-run-1?tab=changes&demo=1");
   });
 
   it("URL-encodes path segments (ids are server-minted, never trusted)", () => {
     expect(demoLandingHref({ runId: "a/b", projectId: "c d" })).toBe(
-      "/projects/c%20d/runs/a%2Fb?demo=1",
+      "/projects/c%20d/runs/a%2Fb?tab=changes&demo=1",
     );
   });
 
   it("carries the demo=1 honesty marker query", () => {
-    expect(DEMO_LANDING_QUERY).toBe("demo=1");
-    expect(demoLandingHref({ runId: "r", projectId: "p" }).endsWith("?demo=1")).toBe(
+    expect(DEMO_LANDING_QUERY).toBe("tab=changes&demo=1");
+    expect(demoLandingHref({ runId: "r", projectId: "p" }).endsWith("&demo=1")).toBe(
       true,
     );
   });

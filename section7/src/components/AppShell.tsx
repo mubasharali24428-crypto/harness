@@ -2,63 +2,85 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 // Classic JSX transform (vitest/esbuild) needs React in scope for the .tsx
 // extension; Next's compiler accepts this import too, so one source fits both.
 import * as React from "react";
-import type { ProjectDto } from "@/lib/api";
-import { listProjects } from "@/lib/api";
-import { clearSession, getToken, getProjectId, getRunId, setProjectId, loadSession } from "@/lib/auth";
+import { clearSession, getToken, getProjectId, getRunId, loadSession } from "@/lib/auth";
+import { formatRelativeTime, formatTimestamp } from "@/lib/format";
+import { needsYouAction, needsYouHref } from "@/lib/triage";
+import { stateLabel } from "../../app/runs/runsApi";
+import { useRunList } from "@/components/workspace/useRunList";
+import { runRowTitle } from "@/components/workspace/previewData";
 // M14-F1b (raw-03 P2): skip-link behavior + the shared main-content landmark id.
 import { MAIN_CONTENT_ID, useSkipTarget } from "@/lib/focus";
 // Part 47: unread badge as a plain link (no sound, no popup); renders nothing without a session.
 import NotificationBell from "../../app/notifications/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import CommandPalette from "@/components/CommandPalette";
+import { KeyTour } from "@/components/KeyTour";
+import { SETTINGS_PAGES } from "@/lib/commands";
 
-const AREAS = [
-  { href: "/", label: "Command Center" },
-  { href: "/onboarding", label: "Get started" }, // M12-E7 (raw-04 M2): first-run checklist reachable from the nav
-  { href: "/runs", label: "Runs" },
+// R2: the sidebar is the run list. Everything that used to be a nav
+// destination lives in this footer menu and in the command palette.
+const MENU = [
+  { href: "/runs", label: "All runs" },
   { href: "/meeting", label: "Meeting" },
-  { href: "/review", label: "Review" },
   { href: "/dashboard/cost", label: "Cost" },
   { href: "/settings", label: "Settings" },
+  { href: "/onboarding", label: "Get started" },
 ];
 
-/** The section a route belongs to, for the chrome's breadcrumb. */
-function sectionLabel(active: string): string {
-  if (active.startsWith("/projects")) return "Working";
-  const exact = AREAS.find((a) => a.href === active);
-  if (exact) return exact.label;
-  const prefix = AREAS.filter((a) => a.href !== "/").find((a) => active.startsWith(a.href));
-  return prefix?.label ?? "Harness";
-}
+const GROUPS = [
+  { key: "needsYou", label: "Needs you", empty: "Nothing is waiting on a person." },
+  { key: "working", label: "Working", empty: "No agent is working right now." },
+  { key: "done", label: "Done", empty: "No finished runs yet." },
+] as const;
+
+// False for the first page of a visit, so a fresh load keeps the browser's own focus order.
+let arrivedByNavigation = false;
 
 export default function AppShell({
   children,
   active,
+  runId = null,
 }: {
   children: React.ReactNode;
   active: string;
+  /** The run on screen, so its sidebar row reads as current. */
+  runId?: string | null;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  // After an in-app page change focus is left on <body>; move it to the main region so
+  // keyboard and screen-reader users start in the new page, not at the top of the sidebar.
+  useEffect(() => {
+    // The document was loaded at another address: this page was reached without a reload.
+    const loadedAt = (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined)?.name;
+    const clientSide = arrivedByNavigation || (loadedAt !== undefined && loadedAt !== window.location.href);
+    if (clientSide && document.activeElement === document.body) {
+      document.getElementById(MAIN_CONTENT_ID)?.focus({ preventScroll: true });
+    }
+    arrivedByNavigation = true;
+  }, []);
   // M14-F1b: skip-link behavior — href fragment + explicit focus move.
   const { skipHref, onSkipActivate } = useSkipTarget(MAIN_CONTENT_ID);
-  const [projects, setProjects] = useState<ProjectDto[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
+  const list = useRunList(runId);
+  const { projects, selectedProjectId: selected } = list;
   const [role, setRole] = useState<string>("viewer");
   const [workingHref, setWorkingHref] = useState<string | null>(null);
   // M14-F2b (raw-03 P2): ≤900px the sidebar becomes an off-canvas drawer.
   // This boolean is the ONLY new JS in the shell — everything else about the
   // responsive behavior is pure CSS media queries in app/globals.css.
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  // A real clock, not decoration: the console's status line reads like an
-  // editor's. Rendered client-side only, so SSR and hydration agree.
-  const [clock, setClock] = useState("");
-
   useEffect(() => {
     if (!getToken()) {
       router.push("/login");
+      return;
+    }
+    if (loadSession()?.principal.role === "guest") {
+      // P-17: a guest is an outside reader; the workspace routes refuse them, the portal does not.
+      router.replace("/portal");
       return;
     }
     setRole(loadSession()?.principal.role ?? "viewer");
@@ -66,17 +88,6 @@ export default function AppShell({
     const pid = getProjectId();
     const rid = getRunId();
     if (pid && rid) setWorkingHref(`/projects/${pid}/runs/${rid}`);
-    listProjects(getToken()!)
-      .then((items) => {
-        setProjects(items);
-        const saved = getProjectId();
-        const valid = items.find((i) => i.id === saved) ?? items[0];
-        if (valid) {
-          setProjectId(valid.id);
-          setSelected(valid.id);
-        }
-      })
-      .catch(() => {});
   }, [router]);
 
   // M14-F2b: lock page scroll while the drawer is open (≤900px only — the
@@ -87,16 +98,6 @@ export default function AppShell({
     return () => document.body.classList.remove("has-open-sidebar");
   }, [sidebarOpen]);
 
-  useEffect(() => {
-    const tick = () =>
-      setClock(
-        new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      );
-    tick();
-    const id = window.setInterval(tick, 30_000);
-    return () => window.clearInterval(id);
-  }, []);
-
   return (
     <div className="shell">
       {/* M14-F1b (raw-03 P2): skip link is the FIRST element of the shell so
@@ -105,25 +106,6 @@ export default function AppShell({
       <a className="skip-link" href={skipHref} onClick={onSkipActivate}>
         Skip to content
       </a>
-      {/* Desktop window chrome. Decorative (aria-hidden): every value it shows
-          is already exposed by the sidebar, so assistive tech hears it once.
-          The dots are pure chrome — no window controls are implied. */}
-      <div className="titlebar" aria-hidden="true">
-        <span className="dots">
-          <i />
-          <i />
-          <i />
-        </span>
-        <span className="tb-section">{sectionLabel(active)}</span>
-        <span className="tb-sep">/</span>
-        <span className="tb-project">
-          {projects.find((p) => p.id === selected)?.name ?? "no project selected"}
-        </span>
-        <span className="tb-right">
-          <span className="tb-env">harness</span>
-          {clock ? <span className="tb-clock">{clock}</span> : null}
-        </span>
-      </div>
       {/* M14-F2b: mobile top bar. Hidden entirely on desktop (display:none in
           globals.css); ≤900px it carries the hamburger toggle. aria-expanded
           is the machine-readable source of truth for drawer state; the label
@@ -156,29 +138,13 @@ export default function AppShell({
       <aside id="app-sidebar" className={`sidebar${sidebarOpen ? " open" : ""}`}>
         <div className="brand">HARNESS</div>
         <div className="switcher">
-          {/* M14-F1b: programmatic labels — the visual .label divs are not
-              real <label for> pairs, so screen-reader users heard "combobox"
-              with no name. */}
-          {/* M-A7: this was a <select> with one hardcoded option and no
-              onChange — it looked switchable and did nothing. A principal
-              carries exactly one teamId (contracts/ts/src/roles.ts:16), so
-              until multi-team membership exists this is a read-only value. */}
-          <div className="label" id="team-value-label">
-            TEAM
-          </div>
-          <div className="switcher-value" aria-labelledby="team-value-label">
-            My team
-          </div>
           <div className="label" id="project-select-label">
             PROJECT
           </div>
           <select
             aria-labelledby="project-select-label"
             value={selected ?? ""}
-            onChange={(e) => {
-              setProjectId(e.target.value);
-              setSelected(e.target.value);
-            }}
+            onChange={(e) => list.selectProject(e.target.value)}
           >
             {projects.length === 0 && <option value="">(no projects yet)</option>}
             {projects.map((prj) => (
@@ -188,59 +154,91 @@ export default function AppShell({
             ))}
           </select>
         </div>
-        <NotificationBell />
-        <div className="nav-group-label">Workspace</div>
-        <nav>
-          {AREAS.slice(0, 1).map((a) => (
-            <Link
-              key={a.href}
-              href={a.href}
-              className={`nav-item${active === a.href ? " active" : ""}`}
-            >
-              {a.label}
-            </Link>
-          ))}
-          {workingHref ? (
-            <Link
-              href={workingHref}
-              className={`nav-item${active.startsWith("/projects") ? " active" : ""}`}
-            >
-              Working
-            </Link>
+        <Link href="/" className={`nav-item${active === "/" ? " active" : ""}`}>
+          New run
+        </Link>
+        <div className="ws-groups" role="navigation" aria-label="Run list">
+          {list.error ? (
+            <p className="ws-group-empty" role="alert">
+              The run list didn’t load: {list.error}{" "}
+              <button type="button" className="ws-link-btn" onClick={list.retry}>
+                Try again
+              </button>
+            </p>
+          ) : !list.loaded ? (
+            <p className="ws-group-empty" role="status">
+              Loading runs…
+            </p>
           ) : (
-            // M14-F1b: an inert span with cursor:not-allowed reads as a broken
-            // control. A real disabled button is honest — keyboard users skip
-            // it natively and it can't be clicked into a dead end.
-            <button
-              type="button"
-              className="nav-item"
-              disabled
-              title="No run yet — start one from the Command Center"
-              style={{ opacity: 0.4, cursor: "not-allowed", textAlign: "left", border: "none", background: "none" }}
-            >
-              Working
-            </button>
+            GROUPS.map((g) => {
+              const items = list.groups[g.key];
+              return (
+                <section key={g.key} className="ws-group" aria-labelledby={`ws-group-${g.key}`}>
+                  <h2 id={`ws-group-${g.key}`} className="ws-group-label">
+                    {g.label}
+                    <span className="ws-group-count" aria-hidden="true">
+                      {items.length}
+                    </span>
+                  </h2>
+                  {items.length === 0 ? (
+                    <p className="ws-group-empty">{g.empty}</p>
+                  ) : (
+                    <ul className="ws-rows">
+                      {items.map((run) => {
+                        const when = run.startedAt ?? run.createdAt;
+                        const goal = list.goals[run.id] ?? null;
+                        return (
+                          <li key={run.id}>
+                            <Link
+                              href={needsYouHref(run)}
+                              className={`ws-row${run.id === runId ? " active" : ""}`}
+                              aria-current={run.id === runId ? "page" : undefined}
+                              title={goal ?? undefined}
+                            >
+                              <span className="ws-row-title">{runRowTitle(goal)}</span>
+                              <span className="ws-row-meta">
+                                <span className={`ws-dot ${run.status}`} aria-hidden="true" />
+                                {needsYouAction(run) ?? stateLabel(run.status)}
+                                <span aria-hidden="true">·</span>
+                                <time dateTime={when} title={formatTimestamp(when)}>
+                                  {formatRelativeTime(when)}
+                                </time>
+                              </span>
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </section>
+              );
+            })
           )}
-          {AREAS.slice(1).map((a) => (
-            <Link
-              key={a.href}
-              href={a.href}
-              className={`nav-item${active === a.href ? " active" : ""}`}
-            >
-              {a.label}
-            </Link>
-          ))}
-        </nav>
+        </div>
         <div className="footer">
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 8,
-              marginBottom: 8,
+          <NotificationBell />
+          <CommandPalette
+            workingHref={workingHref}
+            projects={projects}
+            selectedProject={selected}
+            onSelectProject={list.selectProject}
+            onSignOut={() => {
+              clearSession();
+              router.push("/login");
             }}
-          >
+          />
+          <KeyTour />
+          <details className="ws-menu">
+            <summary>Menu</summary>
+            <nav aria-label="More">
+              {MENU.map((a) => (
+                <Link key={a.href} href={a.href} className={`nav-item${active === a.href ? " active" : ""}`}>
+                  {a.label}
+                </Link>
+              ))}
+            </nav>
+          </details>
+          <div className="ws-foot-row">
             <div className="role-badge">{role}</div>
             <ThemeToggle compact />
           </div>
@@ -260,19 +258,18 @@ export default function AppShell({
           programmatic focus (skip link, route-change focus moves) without
           putting it in the Tab order. */}
       <main id={MAIN_CONTENT_ID} tabIndex={-1} className="content">
+        {active === "/settings" && (
+          <nav className="settings-nav" aria-label="Settings sections">
+            {[{ id: "settings", label: "Overview", href: "/settings" }, ...SETTINGS_PAGES].map((p) => (
+              <Link key={p.id} href={p.href} aria-current={pathname === p.href ? "page" : undefined}>
+                {p.label}
+              </Link>
+            ))}
+          </nav>
+        )}
         {children}
       </main>
-      {/* Status line, like a native editor's: real state only — the principal's
-          role, the project this tab is scoped to, and the section. aria-hidden
-          because the sidebar already exposes all three. */}
-      <footer className="statusbar" aria-hidden="true">
-        <span className="sb-item">
-          <span className="sb-dot" />
-          {role}
-        </span>
-        <span className="sb-item">project: {selected ?? "—"}</span>
-        <span className="sb-item sb-right">{sectionLabel(active)}</span>
-      </footer>
+
     </div>
   );
 }

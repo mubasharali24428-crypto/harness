@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "kind": "w7-bench-attempt",
+  "mode": "dry",
+  "simulation": true,
+  "taskId": "stale-edit",
+  "heldOut": true,
+  "model": "dry-fake-model",
+  "trial": 5,
+  "runId": "dry-stale-edit-5",
+  "startedAt": "2026-11-21T07:52:12.484558+00:00",
+  "finishedAt": "2026-11-21T07:52:15.034558+00:00",
+  "durationSec": 2.55,
+  "exitCode": 0,
+  "timedOut": false,
+  "verdict": "PASS",
+  "driverVerdict": "PASS",
+  "failedChecks": [],
+  "firstOutputS": 0.45,
+  "toolCalls": 4,
+  "interventions": 0,
+  "costUsd": 0.0,
+  "costSource": "dry-fake: no ledger, zero spend (not a measurement)",
+  "budget": {
+    "timeoutSeconds": 300,
+    "maxToolCalls": null,
+    "maxCostUsd": 0
+  },
+  "stdoutTail": null,
+  "stderrTail": null,
+  "trials": 5,
+  "manifestSha256": "e02dc7bc8aed9a5b095429654c34f203a108702b270b83c498f0ccb6b5da8286",
+  "git": {
+    "head": "c8f2c9a313f5687545c271f10084314b34129455",
+    "branch": "w28-s1-delegate",
+    "dirty": true
+  }
+}

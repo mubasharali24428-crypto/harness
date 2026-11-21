@@ -86,7 +86,8 @@ export default function RunsPage() {
   const [projectId, setProjectId] = useState<string>("");
   const [status, setStatus] = useState<RunStatusValue | "">("");
   const [pageSize, setPageSize] = useState<number>(RUNS_DEFAULT_LIMIT);
-  const [offset, setOffset] = useState<number>(0);
+  // Cursors that fetched each page after the first; its length is the page index.
+  const [cursors, setCursors] = useState<string[]>([]);
 
   const [page, setPage] = useState<RunsPageDto | null>(null);
   const [loading, setLoading] = useState(false);
@@ -102,7 +103,7 @@ export default function RunsPage() {
   }, []);
 
   const fetchPage = useCallback(
-    async (opts: { projectId: string; status: RunStatusValue | ""; limit: number; offset: number }) => {
+    async (opts: { projectId: string; status: RunStatusValue | ""; limit: number; cursor: string | null }) => {
       const session = loadSession();
       if (!session) {
         setError("Not signed in — log in first.");
@@ -116,7 +117,7 @@ export default function RunsPage() {
             projectId: opts.projectId || null,
             status: opts.status || null,
             limit: opts.limit,
-            offset: opts.offset,
+            cursor: opts.cursor,
           },
           session.token,
         );
@@ -141,7 +142,7 @@ export default function RunsPage() {
     listProjects(session.token)
       .then((items) => setProjects(items))
       .catch(() => setProjects([])); // filter bar degrades to free-text id
-    fetchPage({ projectId: "", status: "", limit: RUNS_DEFAULT_LIMIT, offset: 0 });
+    fetchPage({ projectId: "", status: "", limit: RUNS_DEFAULT_LIMIT, cursor: null });
   }, [fetchPage]);
 
   const applyFilters = useCallback(
@@ -152,33 +153,43 @@ export default function RunsPage() {
       if (next.projectId !== undefined) setProjectId(next.projectId);
       if (next.status !== undefined) setStatus(next.status);
       if (next.pageSize !== undefined) setPageSize(next.pageSize);
-      setOffset(0); // any filter/size change resets paging
+      setCursors([]); // any filter/size change resets paging
       void fetchPage({
         projectId: nextProjectId,
         status: nextStatus,
         limit: nextPageSize,
-        offset: 0,
+        cursor: null,
       });
     },
     [projectId, status, pageSize, fetchPage],
   );
 
-  const goOffset = useCallback(
-    (nextOffset: number) => {
-      const clamped = Math.max(0, nextOffset);
-      setOffset(clamped);
-      void fetchPage({ projectId, status, limit: pageSize, offset: clamped });
+  const goPage = useCallback(
+    (nextCursors: string[]) => {
+      setCursors(nextCursors);
+      void fetchPage({
+        projectId,
+        status,
+        limit: pageSize,
+        cursor: nextCursors[nextCursors.length - 1] ?? null,
+      });
     },
     [projectId, status, pageSize, fetchPage],
   );
+  const currentCursor = cursors[cursors.length - 1] ?? null;
 
   const runs: RunDto[] = useMemo(() => page?.items ?? [], [page]);
-  const total = page?.total ?? 0;
-  const rangeStart = total === 0 ? 0 : offset + 1;
-  const rangeEnd = Math.min(offset + runs.length, total);
+  const nextCursor = page?.nextCursor ?? null;
+  const offset = cursors.length * pageSize;
+  const rangeStart = runs.length === 0 ? 0 : offset + 1;
+  const rangeEnd = offset + runs.length;
+  const projectNames = useMemo(
+    () => Object.fromEntries(projects.map((p) => [p.id, p.name])),
+    [projects],
+  );
 
   const filtersActive = Boolean(projectId || status);
-  const noResults = !loading && !error && page !== null && runs.length === 0 && total === 0;
+  const noResults = !loading && !error && page !== null && runs.length === 0 && cursors.length === 0;
 
   return (
     <AppShell active="/runs">
@@ -251,7 +262,7 @@ export default function RunsPage() {
             type="button"
             className="btn"
             onClick={() =>
-              fetchPage({ projectId, status, limit: pageSize, offset })
+              fetchPage({ projectId, status, limit: pageSize, cursor: currentCursor })
             }
             disabled={loading}
           >
@@ -264,7 +275,7 @@ export default function RunsPage() {
         <ErrorState
           title="Runs didn’t load"
           message={error}
-          onRetry={() => fetchPage({ projectId, status, limit: pageSize, offset })}
+          onRetry={() => fetchPage({ projectId, status, limit: pageSize, cursor: currentCursor })}
         />
       )}
 
@@ -290,12 +301,7 @@ export default function RunsPage() {
 
       {!noResults && (
       <section className="card" style={cardStyle} aria-busy={loading}>
-        <RunsTable runs={runs} now={now} />
-        {!loading && runs.length === 0 && error === null && total > 0 && (
-          <p style={{ color: "var(--muted)" }}>
-            Server reported {total} runs but returned none at this offset.
-          </p>
-        )}
+        <RunsTable runs={runs} now={now} projectNames={projectNames} />
 
         <div
           style={{
@@ -307,21 +313,25 @@ export default function RunsPage() {
           }}
         >
           <span style={{ color: "var(--muted)" }} aria-live="polite">
-            Showing {rangeStart}–{rangeEnd} of {total}
+            {/* The server pages by cursor and sends no total: the count is
+                only known once the last page is on screen. */}
+            {loading || page === null
+              ? "Loading runs…"
+              : `Showing ${rangeStart}–${rangeEnd}${nextCursor ? " (more on the next page)" : ` of ${rangeEnd}`}`}
           </span>
           <button
             type="button"
             className="btn"
-            onClick={() => goOffset(offset - pageSize)}
-            disabled={loading || offset <= 0}
+            onClick={() => goPage(cursors.slice(0, -1))}
+            disabled={loading || cursors.length === 0}
           >
             ← Prev
           </button>
           <button
             type="button"
             className="btn"
-            onClick={() => goOffset(offset + pageSize)}
-            disabled={loading || offset + pageSize >= total}
+            onClick={() => nextCursor && goPage([...cursors, nextCursor])}
+            disabled={loading || !nextCursor}
           >
             Next →
           </button>

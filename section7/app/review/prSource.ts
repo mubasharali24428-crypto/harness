@@ -63,6 +63,21 @@ export function adoptEventPrId(
   return null;
 }
 
+/** The run a PR belongs to, from the newest pr_opened event that names this prId; null when the
+ *  stream holds no such link. The verdict card reads cost and approval from this run only: the
+ *  newest run on the project's stream may be a different run entirely. */
+export function runIdForPr(prId: string | null, events: readonly EventEnvelope[]): string | null {
+  if (!prId) return null;
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (e.type !== EventType.PR_OPENED) continue;
+    const payload = e.payload ?? {};
+    if (asNonEmptyString(payload.prId) !== prId) continue;
+    return asNonEmptyString(payload.runId) ?? asNonEmptyString(e.runId);
+  }
+  return null;
+}
+
 /** Combined initial resolution on mount: deep link first, then the value the
  *  session already remembers (written by THIS page via setPrId — never by
  *  hand). Null means neither source produced anything → honest empty state. */

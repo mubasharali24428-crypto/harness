@@ -94,8 +94,7 @@ def api(method: str, path: str, token: str, body: dict | None = None):
 
 
 def orchestrator_cid() -> str:
-    out = tpl.sh("docker", "ps", "-q", "--filter",
-                 "label=com.docker.compose.service=orchestrator").stdout.split()
+    out = tpl.service_cids("orchestrator")
     if not out:
         raise SystemExit("orchestrator container not found")
     return out[0]

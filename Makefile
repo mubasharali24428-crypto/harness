@@ -220,6 +220,13 @@ frontend: frontend-tsc frontend-vitest
 check-ts-dist:
 	./scripts/sdk-gen/check_ts_dist.sh
 
+# I-04: regenerate the benchmark leaderboard (markdown + self-contained HTML)
+# from the raw w7-bench attempt files. Rendering is offline and zero-spend;
+# the cells it shows are whatever evidence exists (dry corpus -> no ranked
+# rows). Rerun after each P-13 batch lands in docs/briefs/evidence/w7-bench/.
+bench-leaderboard:
+	./section1/.venv/bin/python scripts/eval/bench_leaderboard.py
+
 # ------------------------------------------------------------------------- e2e
 # Pair contract H-P2: H3b defines the target, H3a consumes it. Until H3a lands
 # section7/e2e/ + playwright.config.ts, this fails LOUDLY with exit 2 rather

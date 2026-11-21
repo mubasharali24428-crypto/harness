@@ -7,8 +7,9 @@ runtime plugin which hands every command to this script:
     python -I shell_gate.py < {"command", "cwd", "forbiddenPaths", "scopePaths", "timeoutSeconds"}
 
 It applies the same rules as Section 5's own exec path (``validate_command``: allow-list,
-no shell operators, secret files, forbidden paths), refuses paths inside the workspace
-that fall outside the run intent's ``scopePaths``, then runs the command under OS
+no shell operators, secret files, forbidden paths), refuses arguments that resolve outside the
+run intent's ``scopePaths`` (including out-of-workspace spellings: ``../..``, ``~/x``,
+``$HOME/x``, ``--flag=path``, ``-o/path``), then runs the command under OS
 confinement (Seatbelt or Landlock; none available = refused) whose only writable part of
 the workspace is that scope (M03), with a sanitized environment. It prints one JSON line:
 ``{"denied": reason}`` or ``{"exitCode", "output"}``.
@@ -22,8 +23,10 @@ import glob
 import importlib.util
 import json
 import os
+import re
 import shlex
 import signal
+import string
 import subprocess
 import sys
 import tempfile
@@ -43,26 +46,88 @@ policy = _load("policy")
 confinement = _load("confinement")
 
 
+def deny(reason: str, code: str, alternative: str, request_scope: str | None = None) -> dict:
+    """W27: a refusal says why (`denied`, unchanged), what to do instead, and what to ask for.
+
+    `requestScope` names the one path whose addition to the run's scope would unblock the
+    command. Nothing here retries, switches model or widens scope: that stays the user's call.
+    """
+    out = {"denied": reason, "code": code, "alternative": alternative}
+    if request_scope:
+        out["requestScope"] = request_scope
+        # a first-class request the relay can surface: one path, nothing granted by asking
+        out["scopeRequest"] = {"path": request_scope, "grants": False}
+    return out
+
+
 def scope_violation(command: str, cwd: str, scope_paths: list[str]) -> str | None:
     """First workspace path named by the command that lies outside every scope path."""
+    token = _scope_hit(command, cwd, scope_paths)
+    return f"path '{token}' is outside the run intent's scope paths" if token else None
+
+
+def _scope_hit(command: str, cwd: str, scope_paths: list[str]) -> str | None:
+    """First argument whose path resolves outside every scope path.
+
+    Part 52 left items: a path is checked the way ``/bin/sh`` would act on it, so
+    ``$VAR`` (against the child's sanitized env), a leading ``~``, ``..`` (via
+    realpath) and a flag's path value (``--flag=path``, ``-o/path``) are resolved
+    before the scope test. A token that resolves outside the workspace is denied
+    here too: the OS boundary stops writes out there, but reads have no boundary.
+    Symlinks are followed on purpose: a link inside scope that points out is
+    denied (stricter than "no symlink follow"). Bare words and code strings
+    (``python -c "..."``) are still skipped: code strings stay the write
+    boundary's business (M03).
+    """
     if not scope_paths:
         return None
     root = os.path.realpath(cwd)
     scopes = [os.path.realpath(os.path.join(root, s)) for s in scope_paths]
+    env = policy.sanitize_environment(os.environ)
     for token in shlex.split(command)[1:]:
-        path = os.path.join(root, token)
-        if token.startswith("-") or not (
-            os.path.lexists(path) or ("/" in token and os.path.isdir(os.path.dirname(path)))
-        ):
-            # ponytail: a path is a token that exists or whose parent does; flags, words and
-            # code strings (python -c "...") are skipped, and --flag=path is not parsed.
+        spelling = token
+        if token.startswith("-"):
+            if "=" in token:
+                spelling = token.split("=", 1)[1]  # --flag=path: the value carries the path
+            elif not token.startswith("--") and token[2:3] in ("/", ".", "~", "$"):
+                spelling = token[2:]  # -o/tmp/x: a short flag with its path stuck on
+            else:
+                continue  # a flag with no path value (-la, --verbose)
+            if not spelling:
+                continue
+        expanded = string.Template(spelling).safe_substitute(env)
+        if _UNRESOLVED_VAR.search(expanded):
+            # ponytail: sh would expand it (unset var, ${X:-...}); the gate can't know
+            # where it points, so it refuses. Ceiling: a quoted '$foo' grep pattern is
+            # refused too.
+            return spelling
+        if expanded.startswith("~"):
+            path = os.path.expanduser(expanded)
+        else:
+            path = os.path.join(root, expanded)
+        if not _is_path_candidate(path, expanded, root):
             continue
         real = os.path.realpath(path)
-        if real != root and not real.startswith(root + os.sep):
-            continue  # outside the workspace: confinement already stops writes there
         if not any(real == s or real.startswith(s + os.sep) for s in scopes):
-            return f"path '{token}' is outside the run intent's scope paths"
+            return spelling
     return None
+
+
+_UNRESOLVED_VAR = re.compile(r"\$\{?[A-Za-z_]")
+
+
+def _is_path_candidate(path: str, spelling: str, root: str) -> bool:
+    """Does sh treat this token as a path? Words, regexes and code strings are not."""
+    if spelling.startswith("~") or os.path.lexists(path):
+        return True
+    parts = spelling.split("/")
+    if ".." in parts:
+        # `../../x` reaches the target even when it does not exist; `a/../b` (a regex,
+        # a sed script) only resolves if `a` exists, and then the kernel walks it.
+        prefix = "/".join(parts[: parts.index("..")])
+        return os.path.isdir(os.path.join(root, prefix))
+    # ponytail: a path is a token that exists or whose parent does.
+    return "/" in spelling and os.path.isdir(os.path.dirname(path))
 
 
 def scope_roots(cwd: str, scope_paths: list[str]) -> list[Path] | None:
@@ -110,14 +175,25 @@ def run(req: dict) -> dict:
         if not install_ok and any(p.search(command) for p in policy.INSTALL_PATTERNS):
             # say WHY: an agent (and the human reading the transcript) should see
             # that installs are gated by the boundary, not merely forbidden
-            return {"denied": f"{exc} — installs: {install_reason}"}
-        return {"denied": str(exc)}
+            return deny(f"{exc} — installs: {install_reason}", "INSTALL_BLOCKED",
+                        "Use only what is already in the workspace, or stop and tell the user "
+                        "which package you need so they can decide.")
+        return deny(str(exc), "COMMAND_REFUSED",
+                    "Do this with the file tools (read, write, edit) instead of the shell, or "
+                    "stop and tell the user what you were trying to do.")
     open_path = unprotected_forbidden(cwd, req.get("forbiddenPaths") or [])
     if open_path:
-        return {"denied": f"forbidden path '{open_path}' is not read-only here; refusing to run"}
-    reason = scope_violation(command, cwd, req.get("scopePaths") or [])
-    if reason:
-        return {"denied": reason}
+        return deny(f"forbidden path '{open_path}' is not read-only here; refusing to run",
+                    "FORBIDDEN_PATH_EXPOSED",
+                    "Do not touch that path. Stop and tell the user; this is an environment "
+                    "problem, not something a retry fixes.")
+    scopes = req.get("scopePaths") or []
+    hit = _scope_hit(command, cwd, scopes)
+    if hit:
+        return deny(f"path '{hit}' is outside the run intent's scope paths", "OUT_OF_SCOPE",
+                    f"Stay inside: {', '.join(scopes)}. If '{hit}' is needed, stop and tell the "
+                    f"user to add it to this run's scope (an intent edit, which asks for "
+                    f"approval again); do not look for another way around.", hit)
     with tempfile.TemporaryDirectory(prefix="harness-shell-") as tmp:
         try:
             argv = confinement.confine_argv(
@@ -125,7 +201,9 @@ def run(req: dict) -> dict:
                 write_roots=scope_roots(cwd, req.get("scopePaths") or []),
             )
         except confinement.ConfinementUnavailableError as exc:
-            return {"denied": f"{exc}; refusing to run unconfined"}
+            return deny(f"{exc}; refusing to run unconfined", "CONFINEMENT_UNAVAILABLE",
+                        "No safe alternative exists in this worker. Stop and tell the user so "
+                        "the operator can fix the worker; commands are never run unconfined.")
         env = policy.sanitize_environment(os.environ)
         env.update(TMPDIR=tmp, TMP=tmp, TEMP=tmp)
         proc = subprocess.Popen(
@@ -141,7 +219,8 @@ def run(req: dict) -> dict:
         except subprocess.TimeoutExpired:
             os.killpg(proc.pid, signal.SIGKILL)
             out, _ = proc.communicate()
-            return {"exitCode": None, "output": out[-MAX_OUTPUT_CHARS:] + "\n[timed out]"}
+            return {"exitCode": None, "timedOut": True,
+                    "output": out[-MAX_OUTPUT_CHARS:] + "\n[timed out]"}
     return {"exitCode": proc.returncode, "output": out[-MAX_OUTPUT_CHARS:]}
 
 

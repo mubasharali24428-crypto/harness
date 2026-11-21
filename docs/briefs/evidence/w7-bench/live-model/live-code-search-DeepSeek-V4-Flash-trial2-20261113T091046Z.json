@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "kind": "w7-bench-attempt",
+  "mode": "live",
+  "simulation": false,
+  "taskId": "code-search",
+  "heldOut": false,
+  "model": "DeepSeek-V4-Flash",
+  "ledgerModel": "DeepSeek-V4-Flash",
+  "trial": 2,
+  "runId": "w2-code-search-default-1794561164",
+  "startedAt": "2026-11-13T09:12:44.624887+00:00",
+  "finishedAt": "2026-11-13T09:13:50.122363+00:00",
+  "durationSec": 65.04,
+  "exitCode": 0,
+  "timedOut": false,
+  "verdict": "PASS",
+  "errorReason": null,
+  "driverVerdict": "PASS",
+  "failedChecks": [],
+  "firstOutputS": 45.313,
+  "toolCalls": 3,
+  "interventions": 0,
+  "costUsd": 0.000361,
+  "costSource": "cost_ledger, corrected 2026-11-13 to the Token Lab website-calibrated rate 0.0176 USD/M tokens (was fallback 0.50/1.50)",
+  "budget": {
+    "timeoutSeconds": 900,
+    "maxToolCalls": 20,
+    "maxCostUsd": 0.05
+  },
+  "stdoutTail": "{\n  \"verdict\": \"PASS\",\n  \"failed\": [],\n  \"changed\": [\n    \"pkg/billing/invoice_retry.py\"\n  ],\n  \"added\": [],\n  \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/eval/code-search-default-1794561164.json\"\n}\n",
+  "stderrTail": "",
+  "trials": 5,
+  "manifestSha256": "e02dc7bc8aed9a5b095429654c34f203a108702b270b83c498f0ccb6b5da8286",
+  "git": {
+    "head": "deea6c6caf5cdc3296b9f7705a1363543a04214c",
+    "branch": "w28-s1-delegate",
+    "dirty": true
+  },
+  "costUsdFallbackPriced": 0.010552
+}

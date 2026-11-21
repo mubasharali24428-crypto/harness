@@ -36,6 +36,18 @@ supervisor checklist, then confirm:
   `harness-pilot` group. If the session-2 counters are not emitted yet the pilot
   alerts are silent, so the operator watches the audit log by hand
   (alerting.md section 6).
+- [ ] Verification-first is in the intended posture for this session. It is
+  default-ON since the 2026-11-14 decision
+  (`docs/decisions/2026-11-14-verification-first-default-on.md`): a human
+  done-signal is refused with 400 `VERIFICATION_REQUIRED` unless the run
+  recorded a test command going green, read server-side from the run's own
+  recorded tool calls — never a caller-asserted string. A session that
+  legitimately produces no live tests (dry-mode/demo flows, golden
+  conformance fixtures) opts out explicitly with
+  `HARNESS_VERIFICATION_FIRST=false` for that deployment, never per request.
+  If "done" starts failing with `VERIFICATION_REQUIRED` during a pilot, that
+  is the feature working: record the missing test evidence, do not flip the
+  flag off to make the run finish.
 
 ## 3. Operator-present rules
 

@@ -520,7 +520,8 @@ def test_reviewer_model_call_flows_when_under_budget(db_factory, monkeypatch):
     run(svc.propose_plan("rv-ok", project_id="proj-a"))
     findings = run(svc.signal_done("rv-ok", diff_text=GOLDEN_CLEAN_DIFF))
     assert findings.modelUsed == "gpt"
-    assert findings.summary == "model summary"
+    # H3: the model text is a note appended to the deterministic verdict sentence.
+    assert findings.summary == "Review passed cleanly. Reviewer note: model summary"
 
 
 def test_signal_done_over_budget_still_gates_pass_fail_deterministically(db_factory, monkeypatch):

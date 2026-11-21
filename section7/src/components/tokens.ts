@@ -1,13 +1,10 @@
-// tokens.ts — Mission 14 Wave 4, DS lane (Squad ALPHA). Design-token source of
-// truth for section7's UI primitives (src/components/ui/**).
+// tokens.ts — design-token source of truth for section7's UI primitives
+// (src/components/ui/** and the R1 preview workspace).
 //
-// EXTRACTION DISCIPLINE (raw-17 systemization): every value below was lifted
-// from the app's EXISTING visual language — app/globals.css `:root` vars and
-// the repeated inline styles across pages. Nothing here invents a new palette.
-// The brief's "light theme / #1F2635 header / purple accent" sketch does NOT
-// match the shipped app (dark GitHub-dark palette, blue accent); per the
-// mission ("read globals.css first and extract what EXISTS") the real system
-// wins and is captured here instead.
+// R1 (ui-master-prompt §SECTION R1): the final token set. Raw hexes live only
+// in app/globals.css (`:root` + light block); this file mirrors the SAME names
+// and adds the compile-time scales (four type sizes, 4px space, radii). The
+// comments below describe intent, not history.
 //
 // LAYERING: raw hexes live ONLY in this file. Components/pages consume
 // `cssVar(...)` or the exported CSSProperties fragments; globals.css keeps
@@ -22,36 +19,38 @@ import type { CSSProperties } from "react";
  * custom-property names so a token and its var can never drift apart.
  */
 export const colors = {
-  /** Page background (ink, #0a0b0e). */
-  bg: "#0a0b0e",
-  /** Sidebar/cards surface (#12161e). */
-  panel: "#12161e",
-  /** Elevated inputs/selects/buttons surface (#191e28). */
-  panel2: "#191e28",
-  /** Hairline borders (#272c37). */
-  border: "#272c37",
-  /** Softer card/dividing borders (#1b2029). */
-  borderSoft: "#1b2029",
-  /** Primary text (#e9edf6). */
-  text: "#e9edf6",
-  /** Secondary text (#8d96a8). */
-  muted: "#8d96a8",
-  /** Readable body-on-panel text (#b9c1d1). */
-  text2: "#b9c1d1",
-  /** Electric-blue accent (#8ba8ff). Links, focus rings, active nav. */
-  accent: "#8ba8ff",
-  /** Deep accent (#4566e8) — solid fills where white text must clear AA. */
-  accentStrong: "#4566e8",
-  /** Success/positive (#58cf8a). */
-  green: "#58cf8a",
-  /** Danger/destructive (#ff7b7b). */
+  /** Page background (near-black neutral). */
+  bg: "#0c0d0f",
+  /** Sidebar surface (darkest of the three panes). */
+  panel: "#141518",
+  /** Elevated inputs/selects/buttons surface. */
+  panel2: "#1a1c20",
+  /** Hairline borders. */
+  border: "#2a2d33",
+  /** Softer card/dividing borders. */
+  borderSoft: "#1e2126",
+  /** Primary text. */
+  text: "#ededef",
+  /** Secondary text on panel. */
+  muted: "#8f929a",
+  /** Readable body-on-panel text. */
+  text2: "#b8bac1",
+  /** The one accent (cool blue). Primary actions and focus only. */
+  accent: "#6e9bff",
+  /** Deep accent — solid fills where white text must clear AA. */
+  accentStrong: "#3b6fe0",
+  /** Success/positive. */
+  green: "#5ecf8f",
+  /** Danger/destructive. */
   red: "#ff7b7b",
-  /** Warning/caution (#e9b949). */
-  yellow: "#e9b949",
+  /** Warning/caution. */
+  yellow: "#e3b341",
+  /** Info. */
+  blue: "#6cb6ff",
   /** Ink used on accent-filled chips. */
-  onAccent: "#0a0b0e",
-  /** Soft accent ink for secondary accents (#b9c9ff). */
-  accentSoft: "#b9c9ff",
+  onAccent: "#0c0d0f",
+  /** Soft accent ink for secondary accents. */
+  accentSoft: "#b9ccff",
 } as const;
 
 /** A color role key into {@link colors}. */
@@ -60,19 +59,20 @@ export type ColorName = keyof typeof colors;
 // ─── Typography ─────────────────────────────────────────────────────────────
 
 export const font = {
-  /** globals.css body font stack (monospace terminal aesthetic). */
-  mono: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+  /** Monospace stack — code, paths, terminal output, money only. */
+  mono: 'var(--font-mono)',
 } as const;
 
+/** Four sizes. Nothing else in the UI may invent a fifth. */
 export const fontSize = {
-  /** Micro labels: card titles (11px), event timestamps, pills. */
+  /** Micro labels: card titles, event meta, pills. */
   xs: 11,
-  /** Small helper text (12–13px body). */
-  sm: 12,
-  /** Default body/table text. */
-  md: 14,
-  /** KPI numerals on dashboard cards (22px). */
-  xl: 22,
+  /** Secondary text, sidebar rows, diff code. */
+  sm: 13,
+  /** Default body text, run goal, verdict values. */
+  md: 15,
+  /** Page/section headline. */
+  xl: 20,
 } as const;
 
 export const fontWeight = {
@@ -88,44 +88,55 @@ export const letterSpacing = {
   wider: "2px",
 } as const;
 
+/** Type-size → CSS var bridge for new components (var survives a theme swap). */
+export const typeSize = {
+  xs: "var(--text-xs)",
+  sm: "var(--text-sm)",
+  md: "var(--text-md)",
+  lg: "var(--text-lg)",
+} as const;
+
 // ─── Space scale (px) — observed paddings/gaps/margins across globals.css
 //     and page inline styles. Every stop is a value the app already uses. ────
 
+/** The 4px space scale. */
 export const space = {
   /** 1px hairlines. */
   px: 1,
-  /** Tight gaps (pill rows, icon spacing). */
+  /** 4px: tight gaps, icon spacing. */
   xs: 4,
-  /** Small gaps (chip clusters). */
-  sm: 6,
-  /** Default component gap (form rows, chat bubbles). */
-  md: 8,
-  /** Roomy gaps (chat-input, bar margins, card-title bottom margin). */
-  lg: 10,
-  /** Wide gaps (page header rows, minted-token top margin). */
-  xl: 12,
-  /** .card / explainer-box inner padding (18px). */
-  cardPad: 18,
-  /** Horizontal padding inside button-like controls (14px). */
+  /** 8px: default component gap. */
+  sm: 8,
+  /** 12px: roomy gaps inside a block. */
+  md: 12,
+  /** 16px: card padding, group separation. */
+  lg: 16,
+  /** 24px: section separation. */
+  xl: 24,
+  /** 32px: page gutters. */
+  xxl: 32,
+  /** Card inner padding. */
+  cardPad: 16,
+  /** Horizontal padding inside button-like controls. */
   controlPadX: 14,
-  /** Sidebar + elevated-container padding (16px). */
+  /** Sidebar + pane padding. */
   gutter: 16,
-  /** Mid-card section separation (team page h2 marginTop). */
+  /** Legacy alias for the 24px stop. */
+  section: 24,
+  /** Legacy alias for the 32px stop. */
+  sectionX: 32,
+  /** Legacy alias for the 18px mid-card stop still used by existing pages. */
   block: 18,
-  /** .content vertical padding (20px). */
-  section: 20,
-  /** .content horizontal padding (24px). */
-  sectionX: 24,
 } as const;
 
 // ─── Radius scale — the three corner treatments the app actually uses ───────
 
 export const radius = {
-  /** Inputs, selects, buttons, nav items (6px). */
-  md: 8,
-  /** Cards, panels, explainer boxes, chat bubbles (12px). */
-  lg: 12,
-  /** Pills/chips (999px = fully rounded). */
+  /** Inputs, selects, buttons, nav items. */
+  md: 6,
+  /** Cards, panels, the diff pane. */
+  lg: 10,
+  /** Pills/chips. */
   pill: 999,
 } as const;
 

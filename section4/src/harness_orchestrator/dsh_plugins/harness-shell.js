@@ -14,6 +14,27 @@ const DESCRIPTION = `Run one command in the workspace. Every call is checked by 
 * Allowed programs: ls, cat, head, tail, find, grep, rg, pwd, echo, git (status, diff, log, show, branch, checkout, switch, add, commit, reset, clean, stash, fetch, pull, rev-parse), python, python3, pytest, npm, npx, yarn, pnpm, vitest, jest, cargo, go, ruff, flake8, mypy, black, isort, eslint, prettier, tsc.
 * A refused command returns the reason; change the command rather than repeating it.`;
 
+// W27: denials in a row mean the model is probing, not working. Codex's documented thresholds:
+// 3 consecutive, or 10 within the last 50 calls. Once tripped it stays tripped for the run.
+export function denialBreaker(consecutive = 3, windowHits = 10, windowSize = 50) {
+  const recent = [];
+  let run = 0;
+  let tripped = false;
+  return {
+    record(denied) {
+      recent.push(denied);
+      if (recent.length > windowSize) recent.shift();
+      run = denied ? run + 1 : 0;
+      if (run >= consecutive || recent.filter(Boolean).length >= windowHits) tripped = true;
+      return tripped;
+    },
+    get tripped() { return tripped; },
+  };
+}
+
+const BREAKER_MESSAGE = "this run has been stopped after repeated denials by the harness command policy; "
+  + "do not try other commands. Tell the user what you were trying to do and which scope or permission is missing.";
+
 function runGate(gate, request, signal) {
   return new Promise((resolve, reject) => {
     // The runtime's environment carries the model API key: the gate gets only what it needs.
@@ -42,7 +63,9 @@ function runGate(gate, request, signal) {
 
 export function apply(ctx, config) {
   const seen = new Set();
+  const breaker = denialBreaker();
   ctx.tools.guard((exec) => {
+    if (breaker.tripped) return BREAKER_MESSAGE;
     if (config.maxToolCalls == null) return undefined;
     seen.add(exec.callId);
     return seen.size > config.maxToolCalls
@@ -68,8 +91,20 @@ export function apply(ctx, config) {
         scopePaths: config.scopePaths ?? [],
         timeoutSeconds: config.timeoutSeconds ?? 300,
       }, exec.signal);
-      if (res.denied) throw new Error(`Denied by the harness command policy: ${res.denied}`);
-      return `${res.output}\n[exit code: ${res.exitCode ?? "timeout"}]`;
+      // A timeout is not a denial: it does not count toward the breaker and says nothing about safety.
+      breaker.record(Boolean(res.denied));
+      if (res.denied) {
+        // W27: reason, then what to do instead. Retrying or switching model is never suggested.
+        const next = res.alternative ? ` Instead: ${res.alternative}` : "";
+        const ask = res.scopeRequest ? ` [scope-request] ${JSON.stringify(res.scopeRequest)}` : "";
+        const stop = breaker.tripped ? ` ${BREAKER_MESSAGE}` : "";
+        throw new Error(`Denied by the harness command policy: ${res.denied}.${next}${ask}${stop}`);
+      }
+      if (res.timedOut) {
+        return `${res.output}\n[timed out: the command ran too long and was stopped. This is not a policy denial; `
+          + "it may just be slow. Try a narrower command or a smaller test run.]";
+      }
+      return `${res.output}\n[exit code: ${res.exitCode}]`;
     },
   });
 }

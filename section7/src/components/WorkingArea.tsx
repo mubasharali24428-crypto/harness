@@ -22,7 +22,13 @@ import { CheckpointsPanel } from "./CheckpointsPanel";
 import { CommentsNudges } from "./CommentsNudges";
 import { Controls } from "./Controls";
 
-export function WorkingArea({ projectId, runId, stagedPending = false }: { projectId: string; runId: string; stagedPending?: boolean }) {
+export function WorkingArea({ projectId, runId, stagedPending = false, onScopeRequest }: {
+  projectId: string;
+  runId: string;
+  stagedPending?: boolean;
+  /** A tool denial asked for a wider scope; the page owns the editor. */
+  onScopeRequest?: (path: string) => void;
+}) {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [authorName, setAuthorName] = useState("");
@@ -86,7 +92,7 @@ export function WorkingArea({ projectId, runId, stagedPending = false }: { proje
           <StatusPanel status={status} derived={derived} connectionState={connectionState} />
           <PlanPanel plan={plan} />
           <DiffPanel diffText={diffText} changedPaths={derived.changedPaths} />
-          <ToolActivity calls={derived.toolCalls} />
+          <ToolActivity calls={derived.toolCalls} onEditScope={onScopeRequest} />
           <TerminalPanel results={[]} lines={derived.terminalLines} />
         </div>
         <div className="working-col">

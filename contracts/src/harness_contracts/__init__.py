@@ -108,6 +108,7 @@ __all__ = [
     "ResolvedCap",
     "env_budget_default",
     "parse_env_budget_usd",
+    "to_cap_decimal",
     "resolve_cap",
     # M22-M2: behavior-bearing plan tiers + upgrade-CTA wire (additive):
     "DEFAULT_AUDIT_RETENTION_DAYS",

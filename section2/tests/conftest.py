@@ -42,6 +42,8 @@ class FakeGitHub:
         self.refs = {"heads/main": "abc123base"}
         self.prs: dict[int, dict] = {}
         self._next_pr = 1
+        self.comments: dict[int, dict] = {}
+        self._next_comment = 1
 
     def handler(self, method: str, url, request_body=None) -> Response:
         path = str(url)
@@ -125,6 +127,35 @@ class FakeGitHub:
                 json={"number": n, "title": body["title"], "state": "open",
                       "html_url": f"https://github.com/org/repo/issues/{n}"},
             )
+        # P-15 verdict comments: /issues/{n}/comments (POST/GET), /issues/comments/{id} (PATCH).
+        clean = path.split("?")[0]
+        if "/issues/" in clean and clean.endswith("/comments") and method == "POST":
+            n = int(clean.split("/issues/")[1].split("/")[0])
+            cid = self._next_comment
+            self._next_comment += 1
+            comment = {
+                "id": cid,
+                "html_url": f"https://github.com/org/repo/issues/{n}#issuecomment-{cid}",
+                "body": body.get("body", ""),
+            }
+            self.comments[cid] = {**comment, "pr": n}
+            return Response(201, json=comment)
+        if "/issues/" in clean and clean.endswith("/comments") and method == "GET":
+            n = int(clean.split("/issues/")[1].split("/")[0])
+            return Response(
+                200,
+                json=[{k: v for k, v in c.items() if k != "pr"}
+                      for c in self.comments.values() if c["pr"] == n],
+            )
+        if "/issues/comments/" in clean and method == "PATCH":
+            cid = int(clean.rstrip("/").rsplit("/", 1)[-1])
+            if cid in self.comments:
+                self.comments[cid]["body"] = body.get("body", "")
+                c = self.comments[cid]
+                return Response(
+                    200, json={"id": c["id"], "html_url": c["html_url"], "body": c["body"]}
+                )
+            return Response(404, json={"message": "no such comment"})
         return Response(404, json={"message": "not found"})
 
     def transport(self) -> MockTransport:

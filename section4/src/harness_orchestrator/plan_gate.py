@@ -117,6 +117,8 @@ class PlanOut(BaseModel):
 
 class PlanProposedResponse(BaseModel):
     planId: str
+    runId: str
+    projectId: str | None = None
     plan: PlanOut
 
 
@@ -310,7 +312,7 @@ async def _resolve_project(
     },
 )
 async def propose_plan(req: ProposePlanGateRequest, principal: RequirePrincipal) -> dict:
-    """{goal} → 201 {planId, plan}. Mints a fresh run + plan, leaves the run at
+    """{goal} → 201 {planId, runId, projectId, plan}. Mints a fresh run + plan, leaves the run at
     AWAITING_PLAN_APPROVAL via sm.plan_proposed() (state_machine vocabulary)."""
     service = _require_service()
     try:
@@ -332,7 +334,9 @@ async def propose_plan(req: ProposePlanGateRequest, principal: RequirePrincipal)
         run_data["plan_id"] = plan_id
         await service._persist_plan(run_id, plan_id, plan, status="proposed")
         sm.plan_proposed(plan_id)
-        return PlanProposedResponse(planId=plan_id, plan=PlanOut(**plan.model_dump())).model_dump()
+        return PlanProposedResponse(
+            planId=plan_id, runId=run_id, projectId=project_id, plan=PlanOut(**plan.model_dump())
+        ).model_dump()
     except InvalidStateTransitionError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

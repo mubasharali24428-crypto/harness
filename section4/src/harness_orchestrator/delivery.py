@@ -119,6 +119,16 @@ async def history_page(
                 base,
             )
         ).scalar()
+        # The engine's delivery cursor: guidance with seq <= this has been handed to the agent.
+        marker = (
+            await db.execute(
+                text(
+                    "SELECT payload FROM run_collab_events WHERE run_id = :r AND team_id = :t"
+                    " AND kind = 'guidance.delivered' ORDER BY seq DESC LIMIT 1"
+                ),
+                {"r": run_id, "t": team_id},
+            )
+        ).scalar()
     events = []
     for r in rows:
         version = int(r.schema_version or 1)
@@ -145,6 +155,7 @@ async def history_page(
         "nextCursor": events[-1]["seq"] if events else after,
         "hasMore": has_more,
         "headSeq": int(head or 0),
+        "deliveredUpTo": int(_payload(marker).get("upTo", 0)) if marker is not None else 0,
         "schemaVersion": SCHEMA_VERSION,
     }
 

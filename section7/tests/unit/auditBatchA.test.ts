@@ -70,10 +70,9 @@ describe("A6 — the takeover checkbox reveals, it does not write", () => {
 });
 
 describe("A7 — no control that does nothing", () => {
-  it("the sidebar team line is a value, not a dead select", () => {
+  it("the sidebar has no dead team select (R2 dropped the team line)", () => {
     const src = SRC("../../src/components/AppShell.tsx");
     expect(src).not.toMatch(/<select defaultValue="solo"/);
-    expect(src).toContain("switcher-value");
   });
 });
 

@@ -25,6 +25,7 @@ function fullAgg(partial: Partial<RunAggregateDto> = {}): RunAggregateDto {
     executing: partial.executing ?? false,
     engineMode: partial.engineMode ?? "live",
     costUsd: partial.costUsd !== undefined ? partial.costUsd : 12.5,
+    estimatedCostUsd: partial.estimatedCostUsd !== undefined ? partial.estimatedCostUsd : null,
     budget: partial.budget ?? { degraded: false },
     prId:
       partial.prId !== undefined ? partial.prId : "pr-777",
@@ -68,21 +69,44 @@ describe("RunDetailAggregate — all fields present", () => {
     expect(html).toContain("pr-777");
   });
 
-  it("renders the step timeline newest-first with human labels", () => {
+  // 2026-11-13: the U2 timeline (oldest first, scrubbable) replaced the compact newest-first list.
+  it("renders the step timeline oldest-first with human labels", () => {
     const execStart = html.indexOf("Execution started");
     const proposed = html.indexOf("Plan proposed");
-    expect(execStart).toBeGreaterThanOrEqual(0);
-    expect(proposed).toBeGreaterThan(execStart);
-    // raw wire type stays reachable in the title attr of unknown-ish rows
-    expect(html).toContain('title="—">'); // null ts renders as — via formatter
+    expect(proposed).toBeGreaterThanOrEqual(0);
+    expect(execStart).toBeGreaterThan(proposed);
+    expect(html).toContain(">—</span>"); // null ts renders as —, never a made-up time
   });
 });
 
 describe("RunDetailAggregate — degradation per missing field", () => {
-  it("costUsd null → NO cost line at all, never a fabricated $0", () => {
-    const html = htmlFor(fullAgg({ costUsd: null }));
+  // W28: null is now stated in words instead of hiding the line. That is a
+  // deliberate change from the old "no cost line at all" behaviour.
+  it("costUsd null → explicit 'not metered yet', never a fabricated $0", () => {
+    const html = htmlFor(fullAgg({ costUsd: null, estimatedCostUsd: null }));
+    expect(html).toContain("not metered yet");
     expect(html).not.toContain("$");
-    expect(html).not.toContain("Cost:");
+  });
+
+  it("estimatedCostUsd null → explicit 'no plan estimate'", () => {
+    const html = htmlFor(fullAgg({ estimatedCostUsd: null }));
+    expect(html).toContain("no plan estimate");
+  });
+
+  it("both costs null → both null texts, never a figure or a zero-looking dash", () => {
+    const html = htmlFor(fullAgg({ costUsd: null, estimatedCostUsd: null }));
+    expect(html).toContain("not metered yet");
+    expect(html).toContain("no plan estimate");
+    expect(html).not.toContain("$");
+    expect(html).not.toContain(">$0.000000<");
+  });
+
+  it("both costs present → two exact scale-6 figures side by side", () => {
+    const html = htmlFor(fullAgg({ costUsd: 12.5, estimatedCostUsd: 0 }));
+    expect(html).toContain("$12.500000");
+    expect(html).toContain("$0.000000"); // a genuine zero estimate is real data
+    expect(html).not.toContain("no plan estimate");
+    expect(html).not.toContain("not metered yet");
   });
 
   it("costUsd 0 (server-sent genuine zero) → honest $0.000000", () => {
@@ -122,7 +146,7 @@ describe("RunDetailAggregate — degradation per missing field", () => {
       }),
     );
     expect(html).toContain("Engine completed");
-    expect(html).toContain("title=\"—\"");
+    expect(html).toContain(">—</span>");
   });
 
   it("unknown event type humanizes instead of dropping", () => {
@@ -145,7 +169,7 @@ describe("RunDetailAggregate — degradation per missing field", () => {
 });
 
 describe("RunDetailAggregate — truncation honesty + cap", () => {
-  it("labels the timeline as latest-N-of-M when over the cap", () => {
+  it("says when only the latest steps are loaded", () => {
     const steps = Array.from({ length: 130 }, (_, i) => ({
       seq: i,
       type: "terminal_output",
@@ -153,7 +177,7 @@ describe("RunDetailAggregate — truncation honesty + cap", () => {
     }));
     const html = htmlFor(fullAgg({ steps }));
     expect(steps.length).toBeGreaterThan(RUN_AGGREGATE_STEPS_MAX);
-    expect(html).toContain(`(${RUN_AGGREGATE_STEPS_MAX} latest of 130)`);
+    expect(html).toContain(`Showing the latest ${RUN_AGGREGATE_STEPS_MAX} steps of this run`);
   });
 
   it("renders at most 100 rows even if handed more", () => {
@@ -167,9 +191,9 @@ describe("RunDetailAggregate — truncation honesty + cap", () => {
     expect(liCount).toBe(RUN_AGGREGATE_STEPS_MAX);
   });
 
-  it("shows plain counts when nothing was truncated", () => {
+  it("shows no truncation notice when nothing was truncated", () => {
     const html = htmlFor(fullAgg());
-    expect(html).toContain("(3 latest of 3)");
+    expect(html).not.toContain("Showing the latest");
   });
 });
 

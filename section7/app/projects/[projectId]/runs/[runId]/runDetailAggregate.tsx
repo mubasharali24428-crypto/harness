@@ -16,8 +16,11 @@ import {
   stateLabel,
   stepLabel,
   stepsNewestFirst,
+  RUN_AGGREGATE_STEPS_MAX,
 } from "../../../../runs/runsApi";
 import { type ConnStatus, type UserStatus, USER_STATUS_TEXT, liveStatus } from "./realtimeCore";
+import { RunTimeline } from "./runTimeline";
+import { stepsToEvents } from "@/lib/runTimeline";
 
 const USER_STATUS_PILL: Record<UserStatus, string> = {
   working: "pill yellow",
@@ -39,6 +42,7 @@ export function RunDetailAggregate({
   onPauseResume,
   controlBusy = false,
   controlNote,
+  timelineLive = false,
 }: {
   agg: RunAggregateDto;
   now: number;
@@ -49,6 +53,8 @@ export function RunDetailAggregate({
   controlBusy?: boolean;
   /** What the last pause/resume answered, or why it failed. */
   controlNote?: string | null;
+  /** True while the run can still produce events; Follow is live-only. */
+  timelineLive?: boolean;
 }) {
   const timeline = stepsNewestFirst(agg.steps);
   const status = liveStatus(agg.lifecycle?.userStatus, conn);
@@ -80,15 +86,27 @@ export function RunDetailAggregate({
         </p>
       )}
 
-      {/* Cost line ONLY when the server sent a real number. Null means "no
-          ledger rows yet" and must stay invisible — never a fake $0. A
-          server-sent 0 IS real data and renders as $0.000000. */}
-      {typeof agg.costUsd === "number" && Number.isFinite(agg.costUsd) && (
+      {/* W28: metered cost beside the latest plan estimate. Each null is stated
+          in words — never a dash that reads as a zero. A server-sent 0 IS real
+          data and renders as $0.000000 through the exact scale-6 formatter. */}
+      <div data-testid="run-costs" style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
         <p style={{ margin: "4px 0", fontSize: 14 }}>
-          <strong>Cost:</strong>{" "}
-          <span data-testid="run-cost">{formatCostUsdExact(agg.costUsd)}</span>
+          <strong>Cost (metered):</strong>{" "}
+          <span data-testid="run-cost">
+            {typeof agg.costUsd === "number" && Number.isFinite(agg.costUsd)
+              ? formatCostUsdExact(agg.costUsd)
+              : <span style={mutedStyle}>not metered yet</span>}
+          </span>
         </p>
-      )}
+        <p style={{ margin: "4px 0", fontSize: 14 }}>
+          <strong>Estimated cost:</strong>{" "}
+          <span data-testid="run-estimated-cost">
+            {typeof agg.estimatedCostUsd === "number" && Number.isFinite(agg.estimatedCostUsd)
+              ? formatCostUsdExact(agg.estimatedCostUsd)
+              : <span style={mutedStyle}>no plan estimate</span>}
+          </span>
+        </p>
+      </div>
 
       {/* M18-C2: budget-gate health, surfaced ONLY when degraded — an
           operator-visible marker that a budget decision on this run was made
@@ -138,44 +156,56 @@ export function RunDetailAggregate({
         </section>
       )}
 
-      {/* Step timeline: last ≤100 events, NEWEST FIRST. The count prefix is
-          honest about truncation ("latest N of M"). An empty list means the
-          server sent no events — rendered as an explicit empty state, never
-          as invented filler rows. Timestamps degrade to "—" via the shared
-          formatter when ts is null. */}
-      <section aria-label="Step timeline">
-        <h2 style={{ margin: "16px 0 8px 0", fontSize: 14 }}>
-          Steps{" "}
-          <span style={mutedStyle}>
-            ({timeline.length} latest of {agg.steps.length})
-          </span>
-        </h2>
-        {timeline.length === 0 ? (
-          <p style={{ ...mutedStyle, fontSize: 13 }}>
-            No events recorded for this run yet.
-          </p>
-        ) : (
-          <ol
-            style={{
-              margin: 0,
-              paddingLeft: 20,
-              display: "grid",
-              gap: 6,
-              fontSize: 13,
-            }}
-          >
-            {timeline.map((s) => (
-              <li key={`${s.seq}-${s.type}`} title={formatTimestamp(s.ts)}>
-                <code>{stepLabel(s.type, s.reason)}</code>{" "}
-                <span style={mutedStyle}>
-                  · seq {Number.isFinite(s.seq) ? s.seq : "?"} ·{" "}
-                  {formatTimestamp(s.ts)}
-                </span>
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
+      {/* Interactive timeline when the page has fetched replay events; the
+          compact last-≤100 list stays as the fallback for callers (and older
+          servers) that only have the aggregate's steps summary. */}
+      {agg.steps.length > 0 ? (
+        <>
+          {agg.steps.length >= RUN_AGGREGATE_STEPS_MAX ? (
+            <p style={{ ...mutedStyle, fontSize: 12, margin: "16px 0 0" }}>
+              Showing the latest {RUN_AGGREGATE_STEPS_MAX} steps of this run; earlier steps are not loaded.
+            </p>
+          ) : null}
+          <RunTimeline
+            events={stepsToEvents(agg.steps.slice(-RUN_AGGREGATE_STEPS_MAX))}
+            live={timelineLive}
+          />
+        </>
+      ) : (
+        <section aria-label="Step timeline">
+          <h2 style={{ margin: "16px 0 8px 0", fontSize: 14 }}>
+            Steps{" "}
+            <span style={mutedStyle}>
+              ({timeline.length} latest of {agg.steps.length})
+            </span>
+          </h2>
+          {timeline.length === 0 ? (
+            <p style={{ ...mutedStyle, fontSize: 13 }}>
+              No events recorded for this run yet.
+            </p>
+          ) : (
+            <ol
+              style={{
+                margin: 0,
+                paddingLeft: 20,
+                display: "grid",
+                gap: 6,
+                fontSize: 13,
+              }}
+            >
+              {timeline.map((s) => (
+                <li key={`${s.seq}-${s.type}`} title={formatTimestamp(s.ts)}>
+                  <code>{stepLabel(s.type, s.reason)}</code>{" "}
+                  <span style={mutedStyle}>
+                    · seq {Number.isFinite(s.seq) ? s.seq : "?"} ·{" "}
+                    {formatTimestamp(s.ts)}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      )}
 
       {/* now is consumed by the shared time formatters' contract; keeping it
           in props keeps this component pure and SSR/test-renderable. */}

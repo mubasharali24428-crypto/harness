@@ -61,8 +61,14 @@ def db(tmp_path):
                 text(
                     "CREATE TABLE agent_events ("
                     "seq INTEGER PRIMARY KEY, run_id VARCHAR(36),"
-                    " type VARCHAR(60) NOT NULL,"
+                    " type VARCHAR(60) NOT NULL, payload TEXT,"
                     " ts TIMESTAMP WITH TIME ZONE NOT NULL)"
+                )
+            )
+            await conn.execute(
+                text(
+                    "CREATE TABLE agent_plans (id VARCHAR(36) PRIMARY KEY, run_id VARCHAR(36),"
+                    " goal TEXT, created_at TIMESTAMP WITH TIME ZONE NOT NULL)"
                 )
             )
             # For make_bearer_dep lookups (auth_sessions ⋈ team_members ⋈ users).
@@ -196,6 +202,10 @@ def test_default_paging_and_shape(monkeypatch, seeded_db):
         "id",
         "projectId",
         "status",
+        "planApproved",  # 2026-11-13, additive
+        "blockedBy",  # 2026-11-13, additive
+        "planId",  # 2026-11-16, additive
+        "goal",  # 2026-11-16, additive
         "createdAt",
         "startedAt",
         "finishedAt",
@@ -451,3 +461,169 @@ def test_valid_bearer_reaches_data(seeded_db, monkeypatch):
     ids = [i["id"] for i in body["items"]]
     assert len(ids) == 3  # team-a scope applied end to end
     assert all(i["projectId"] == "proj-ours" for i in body["items"])
+
+
+# ------------------------------------------- 2026-11-13: state replayed from events
+
+
+def _add_events(factory, run_id: str, events: list[tuple[str, str | None]], seq0: int):
+    async def _go():
+        async with factory() as session:
+            for i, (etype, payload) in enumerate(events):
+                await session.execute(
+                    text(
+                        "INSERT INTO agent_events (seq, run_id, type, payload, ts)"
+                        " VALUES (:seq, :r, :t, :p, :ts)"
+                    ),
+                    {"seq": seq0 + i, "r": run_id, "t": etype, "p": payload, "ts": _NOW},
+                )
+            await session.commit()
+
+    import asyncio as _asyncio
+
+    _asyncio.run(_go())
+
+
+def test_run_waiting_for_plan_approval_is_not_reported_idle(monkeypatch, seeded_db):
+    """The column says idle (it is only written at creation); the log says the plan is waiting."""
+    _seed_run(seeded_db, "run-plan", "proj-ours", "idle", 5)
+    _add_events(seeded_db, "run-plan", [("plan_proposed", '{"planId": "p1"}')], 9000)
+    client = _client(monkeypatch, seeded_db, _principal())
+    items = {i["id"]: i for i in client.get("/api/v1/orchestrator/runs").json()["items"]}
+    assert items["run-plan"]["status"] == "awaiting_plan_approval"
+    res = client.get("/api/v1/orchestrator/runs", params={"status": "awaiting_plan_approval"})
+    assert [i["id"] for i in res.json()["items"]] == ["run-plan"]
+    res = client.get("/api/v1/orchestrator/runs", params={"status": "idle"})
+    assert "run-plan" not in [i["id"] for i in res.json()["items"]]
+
+
+def test_filtered_paging_walks_every_match_once(monkeypatch, seeded_db):
+    """With the filter applied after replay, cursors must still visit each match exactly once."""
+    for n in range(7):
+        rid = f"run-w{n}"
+        _seed_run(seeded_db, rid, "proj-ours", "idle", 50 + n)
+        _add_events(seeded_db, rid, [("plan_proposed", None)], 10000 + n * 10)
+        _seed_run(seeded_db, f"run-x{n}", "proj-ours", "idle", 60 + n)  # never proposed
+    client = _client(monkeypatch, seeded_db, _principal())
+    seen, cursor = [], None
+    while True:
+        params = {"status": "awaiting_plan_approval", "limit": 3}
+        if cursor:
+            params["cursor"] = cursor
+        body = client.get("/api/v1/orchestrator/runs", params=params).json()
+        seen += [i["id"] for i in body["items"]]
+        cursor = body["nextCursor"]
+        if not cursor:
+            break
+    assert sorted(seen) == sorted(f"run-w{n}" for n in range(7))
+    assert len(seen) == len(set(seen))
+
+
+from harness_orchestrator.runs_index import replay_state  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    ("events", "expected"),
+    [
+        ([], "idle"),
+        ([("plan_proposed", None)], "awaiting_plan_approval"),
+        ([("plan_proposed", None), ("plan.rejected", None)], "idle"),
+        ([("execution_started", None), ("engine_completed", None)], "awaiting_done_signal"),
+        # done gate opened by the engine, then review passes: finished
+        (
+            [("execution_started", None), ("engine_completed", None),
+             ("done_signal_received", None), ("review_passed", None)],
+            "done",
+        ),
+        # review passes without the gate: the legacy loop continues
+        ([("execution_started", None), ("review_passed", None)], "executing"),
+        # engine_completed only counts from executing
+        ([("engine_completed", None)], "idle"),
+        # stop tombstone is terminal; later events cannot resurrect the run
+        (
+            [("execution_started", None), ("paused", '{"reason": "user_requested_stop"}'),
+             ("resumed", None)],
+            "done",
+        ),
+        ([("execution_started", None), ("paused", '{"reason": "user_requested"}')], "paused"),
+        ([("execution_started", None), ("engine_failed", None)], "blocked"),
+        ([("execution_started", None), ("pr_opened", None)], "pr_opened"),
+        ([("paused", {"stopped": True})], "done"),
+    ],
+)
+def test_replay_state_follows_the_state_machine(events, expected):
+    assert replay_state(events, "idle") == expected
+
+
+from harness_orchestrator.runs_index import replay_run  # noqa: E402
+
+
+def test_approved_but_not_started_is_reported_separately(monkeypatch, seeded_db):
+    """approve_plan leaves the state at awaiting_plan_approval; the list must say it is approved."""
+    _seed_run(seeded_db, "run-ok", "proj-ours", "idle", 6)
+    _add_events(seeded_db, "run-ok", [("plan_proposed", None), ("plan_approved", None)], 20000)
+    _seed_run(seeded_db, "run-wait", "proj-ours", "idle", 7)
+    _add_events(seeded_db, "run-wait", [("plan_proposed", None)], 20100)
+    client = _client(monkeypatch, seeded_db, _principal())
+    items = {i["id"]: i for i in client.get("/api/v1/orchestrator/runs").json()["items"]}
+    assert items["run-ok"]["status"] == "awaiting_plan_approval"
+    assert items["run-ok"]["planApproved"] is True
+    assert items["run-wait"]["planApproved"] is False
+
+
+@pytest.mark.parametrize(
+    ("events", "expected"),
+    [
+        ([("plan_proposed", None)], ("awaiting_plan_approval", False, None)),
+        (
+            [("plan_proposed", None), ("plan_approved", None)],
+            ("awaiting_plan_approval", True, None),
+        ),
+        # a new proposal after a rejection needs approving again
+        (
+            [("plan_proposed", None), ("plan_approved", None), ("plan.rejected", None),
+             ("plan_proposed", None)],
+            ("awaiting_plan_approval", False, None),
+        ),
+        (
+            [("plan_proposed", None), ("plan_approved", None), ("execution_started", None),
+             ("engine_failed", None)],
+            ("blocked", True, "engine_failed"),
+        ),
+        ([("execution_started", None), ("blocked_awaiting_clarification", None)],
+         ("blocked", False, "question")),
+        (
+            [("execution_started", None), ("review_failed", None)],
+            ("blocked", False, "review_failed"),
+        ),
+        # resumed after a failure: no longer blocked, so no blocker is reported
+        ([("execution_started", None), ("engine_failed", None), ("resumed", None)],
+         ("executing", False, None)),
+    ],
+)
+def test_replay_run_reports_approval_and_blocker(events, expected):
+    assert replay_run(events, "idle") == expected
+
+
+def test_items_carry_the_newest_plan_id_and_goal(monkeypatch, seeded_db):
+    async def _plans():
+        async with seeded_db() as db:
+            for plan_id, goal, minutes_ago in (("p-old", "first", 9), ("p-new", "second", 1)):
+                await db.execute(
+                    text(
+                        "INSERT INTO agent_plans (id, run_id, goal, created_at)"
+                        " VALUES (:i, 'run-1', :g, :c)"
+                    ),
+                    {"i": plan_id, "g": goal,
+                     "c": datetime.now(UTC) - timedelta(minutes=minutes_ago)},
+                )
+            await db.commit()
+
+    import asyncio as _asyncio
+
+    _asyncio.run(_plans())
+    items = _client(monkeypatch, seeded_db, _principal()).get(
+        "/api/v1/orchestrator/runs").json()["items"]
+    by_id = {i["id"]: i for i in items}
+    assert (by_id["run-1"]["planId"], by_id["run-1"]["goal"]) == ("p-new", "second")
+    assert (by_id["run-2"]["planId"], by_id["run-2"]["goal"]) == (None, None)

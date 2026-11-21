@@ -1,0 +1,16 @@
+{
+  "drill": "G1-landlock-network-noop (p04-sandbox-review §7.3 item 2)",
+  "executedAt": "2026-11-21T08:20:00+05:00",
+  "host": "Docker Desktop VM, Linux kernel 6.12.76-linuxkit (arm64) — a real Linux kernel with Landlock ABI available; NOT the intended Linux pilot host (that run is still pending), but genuine Landlock behavior, not a mock",
+  "worktreeRevision": "160dd30 (w28-s1-delegate; section5 sandbox code identical to 19f5cae, which the CI drill exercised)",
+  "probe": "probes/g1_probe.py — production confine_argv(workspace, allow_network=False) wraps the child; the child runs socket.create_connection(('example.com',443),5)",
+  "landlockSupported": true,
+  "result": {
+    "exit": 0,
+    "stdout": "CONNECTED to example.com:443",
+    "verdict": "GAP-CONFIRMED: the Landlock-confined child connected out despite allow_network=False"
+  },
+  "codePosition": "confinement.py:446 — '_ = allow_network  # ABI v1 has no network hooks; egress stays policy-layer' (documented limitation, not a regression)",
+  "mitigationPerReview": "the worker path controls network at the policy layer: per-run internal docker network + DNS kill; the pilot is macOS-only (Seatbelt denies network), so the pilot is unaffected; Linux expansion is blocked until the container boundary or Landlock ABI>=4 net rules (G1, High, owner decision standing in week-02 §2)",
+  "expectedByReview": "yes — 'record whether it connects (expected: yes today)'"
+}

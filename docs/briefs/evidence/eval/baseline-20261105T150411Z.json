@@ -1,0 +1,436 @@
+{
+  "schema": 1,
+  "kind": "marathon2-baseline",
+  "corpusRevision": "m2-w8",
+  "startedAt": "2026-11-05T15:04:11.206344+00:00",
+  "finishedAt": "2026-11-05T15:06:34.244410+00:00",
+  "environment": {
+    "git": {
+      "head": "03c6b8d880ce94562f19aa8b8cf9a9272af14c3c",
+      "branch": "w28-s1-delegate",
+      "dirty": true
+    },
+    "revisionCheck": {
+      "orchestratorContainer": "harness-orchestrator-1",
+      "workerImage": "harness-engine-worker:vw28s3",
+      "workerDaemonContainer": "harness-worker-daemon-1",
+      "backend": {
+        "engine.py": {
+          "host": "1f78b9c5da14dfc11dce435f80aaa62f00999f45af57eb0f954b61383fc0f6e6",
+          "deployed": "1f78b9c5da14dfc11dce435f80aaa62f00999f45af57eb0f954b61383fc0f6e6",
+          "match": true
+        },
+        "image_gate.py": {
+          "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "match": true
+        }
+      },
+      "worker": {
+        "image_gate.py": {
+          "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "match": true
+        },
+        "engine.py": {
+          "host": "1f78b9c5da14dfc11dce435f80aaa62f00999f45af57eb0f954b61383fc0f6e6",
+          "deployed": "1f78b9c5da14dfc11dce435f80aaa62f00999f45af57eb0f954b61383fc0f6e6",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "match": true
+        }
+      },
+      "daemon": {
+        "engine.py": {
+          "host": "1f78b9c5da14dfc11dce435f80aaa62f00999f45af57eb0f954b61383fc0f6e6",
+          "deployed": "1f78b9c5da14dfc11dce435f80aaa62f00999f45af57eb0f954b61383fc0f6e6",
+          "match": true
+        },
+        "image_gate.py": {
+          "host": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "deployed": "9aced8968ec43c533a8affd4314ed270ba8da63e1572aa5f4dfac52291209a0b",
+          "match": true
+        },
+        "harness-images.js": {
+          "host": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "deployed": "14cabc6d23991e4e8bfc5f163c9141fc05d4d4062206966f7d21ef132fd3446e",
+          "match": true
+        }
+      },
+      "verified": true
+    },
+    "images": {
+      "backend": "sha256:29bd710afb127c41ba9166d5cedb37a57c5991a16e0df0ecf70360ad8c208e7b",
+      "engineWorker": "sha256:521480b3e15ca8c5539aa6b66552171d55dd7a11e62476e4b8d1235611aa765b"
+    },
+    "model": null,
+    "repeats": 1,
+    "gapSeconds": 30.0
+  },
+  "selection": {
+    "includeLive": true,
+    "costs": [],
+    "tasks": [
+      "m07-api-run",
+      "w3-rewind",
+      "w3-partial-write"
+    ],
+    "categories": []
+  },
+  "summary": {
+    "executed": 3,
+    "passed": 2,
+    "failed": 1,
+    "errors": 0,
+    "deferred": 36,
+    "corpus": 39,
+    "revisionVerified": true
+  },
+  "results": [
+    {
+      "id": "m07-api-run",
+      "category": "bug_fix",
+      "kind": "agent",
+      "cost": "live",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-11-05T15:04:15.162135+00:00",
+          "durationSec": 14.69,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": null,
+          "failedChecks": [],
+          "stdoutTail": "{\n \"date\": \"2026-11-05\",\n \"milestone\": \"M07 API-driven run\",\n \"runId\": \"m07api-1793891055\",\n \"drive\": \"HTTP only\",\n \"projectId\": \"bbcda8e1-b0c5-424d-b282-09632db8082a\",\n \"planId\": \"plan-4a71921f\",\n \"engine\": {\n  \"keys\": [\n   \"engine\",\n   \"finalResponse\",\n   \"sessionId\",\n   \"source\",\n   \"status\"\n  ],\n  \"status\": \"completed\",\n  \"usedModel\": null,\n  \"model\": null,\n  \"usage\": null,\n  \"engineField\": \"replayed\",\n  \"finalResponse\": \"DONE\",\n  \"replayLosesModelAndUsage\": true\n },\n \"statePath\": [\n  \"executing\",\n  \"awaiting_done_signal\"\n ],\n \"workersObserved\": [\n  {\n   \"name\": \"harness-7755907b111c4b78a55a70dda89f7655-relay\",\n   \"role\": \"relay\",\n   \"image\": \"harness-engine-worker:vw28s3\",\n   \"user\": \"10001:10001\",\n   \"readonlyRootfs\": true,\n   \"capDrop\": [\n    \"ALL\"\n   ],\n   \"networks\": [\n    \"bridge\",\n    \"harness-7755907b111c4b78a55a70dda89f7655-net\"\n   ],\n   \"mounts\": []\n  },\n  {\n   \"name\": \"harness-7755907b111c4b78a55a70dda89f7655\",\n   \"role\": \"worker\",\n   \"image\": \"harness-engine-worker:vw28s3\",\n   \"user\": \"999:999\",\n   \"readonlyRootfs\": true,\n   \"capDrop\": [\n    \"ALL\"\n   ],\n   \"networks\": [\n    \"harness-7755907b111c4b78a55a70dda89f7655-net\"\n   ],\n   \"mounts\": [\n    {\n     \"type\": \"bind\",\n     \"src\": \"/var/lib/docker/volumes/harness_runs/_data/workspace/m07api-1793891055\",\n     \"dst\": \"/var/lib/harness-runs/workspace/m07api-1793891055\",\n     \"readOnly\": false,\n     \"subpath\": null\n    },\n    {\n     \"type\": \"bind\",\n     \"src\": \"/var/lib/docker/volumes/harness_runs/_data/sessions/m07api-1793891055\",\n     \"dst\": \"/var/lib/harness-runs/sessions/m07api-1793891055\",\n     \"readOnly\": false,\n     \"subpath\": null\n    }\n   ]\n  }\n ],\n \"calcAfter\": \"def add(a, b):\\n    return a + b\\n\\n\",\n \"readmeUnchanged\": true,\n \"orchestratorHasNoDockerSocket\": true,\n \"ok\": true\n}\n\nevidence: /Users/user/untitled folder 2/harness/docs/briefs/evidence/pilot-prep/m07-api-run.json\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 14.69,
+      "budget": {
+        "timeoutSeconds": 900,
+        "maxToolCalls": 20,
+        "maxCostUsd": 0.05
+      },
+      "model": "the stack DSH_MODEL",
+      "fixture": {
+        "repo": "m07 fixture",
+        "revision": "m07",
+        "seed": []
+      },
+      "expected": "exit 0",
+      "driver": "scripts/e2e/m07_api_run_drill.py",
+      "verifier": "read the fixture file from disk: the fix is present; worker ran at 999:999, read-only root, no capabilities"
+    },
+    {
+      "id": "w3-rewind",
+      "category": "cancellation_recovery",
+      "kind": "agent",
+      "cost": "live",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "PASS",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-11-05T15:04:59.853597+00:00",
+          "durationSec": 17.3,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "PASS",
+          "driverVerdict": null,
+          "failedChecks": [],
+          "stdoutTail": "{\n \"date\": \"2026-11-05\",\n \"milestone\": \"W3 rewind\",\n \"runId\": \"w3rewind-1793891099\",\n \"steps\": [\n  {\n   \"step\": \"project\",\n   \"ok\": true,\n   \"status\": 201\n  },\n  {\n   \"step\": \"plan\",\n   \"ok\": true,\n   \"status\": 201\n  },\n  {\n   \"step\": \"approve\",\n   \"ok\": true,\n   \"status\": 200\n  },\n  {\n   \"step\": \"start\",\n   \"ok\": true,\n   \"status\": 200\n  },\n  {\n   \"step\": \"rewind refused while executing\",\n   \"ok\": true,\n   \"status\": 409,\n   \"code\": \"INVALID_STATE\",\n   \"body\": \"{'error': {'code': 'INVALID_STATE', 'message': 'rewind requires the run to be stopped or paused first'}, 'detail': {'error': {'code': 'INVALID_STATE', 'message': 'rewind requires the run to be stopped\"\n  },\n  {\n   \"step\": \"settled\",\n   \"ok\": true,\n   \"state\": \"awaiting_done_signal\"\n  },\n  {\n   \"step\": \"list checkpoints\",\n   \"ok\": true,\n   \"status\": 200,\n   \"count\": 2\n  },\n  {\n   \"step\": \"rewind to first checkpoint\",\n   \"ok\": true,\n   \"status\": 200\n  }\n ],\n \"calcBeforeRun\": \"def add(a, b):\\n    return a - b\\n\\n\",\n \"calcAfterAgent\": \"def add(a, b):\\n    return a + b\\n\\n\",\n \"checkpoints\": [\n  {\n   \"id\": \"0001-before-attempt-1\",\n   \"seq\": 1,\n   \"label\": \"before-attempt-1\",\n   \"at\": \"2026-11-05T15:05:00Z\",\n   \"files\": 2,\n   \"bytes\": 45\n  },\n  {\n   \"id\": \"0002-after-attempt-1\",\n   \"seq\": 2,\n   \"label\": \"after-attempt-1\",\n   \"at\": \"2026-11-05T15:05:15Z\",\n   \"files\": 2,\n   \"bytes\": 45\n  }\n ],\n \"beforeSnapshotContainsCalc\": true,\n \"rewind\": {\n  \"runId\": \"w3rewind-1793891099\",\n  \"rewoundTo\": \"0001-before-attempt-1\",\n  \"label\": \"before-attempt-1\",\n  \"restoredFiles\": 1,\n  \"removedFiles\": [],\n  \"removedCount\": 0\n },\n \"calcAfterRewind\": \"def add(a, b):\\n    return a - b\\n\\n\",\n \"fileRestored\": true,\n \"ok\": true\n}\n\nevidence: /Users/user/untitled folder 2/harness/docs/briefs/evidence/pilot-prep/w3-rewind.json\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 17.3,
+      "budget": {
+        "timeoutSeconds": 900,
+        "maxToolCalls": 16,
+        "maxCostUsd": 0.05
+      },
+      "model": "the stack DSH_MODEL",
+      "fixture": {
+        "repo": "generated fixture",
+        "revision": "w3",
+        "seed": []
+      },
+      "expected": "exit 0",
+      "driver": "scripts/e2e/w3_rewind_drill.py",
+      "verifier": "checkpoint pair listed; rewind restores the pre-edit bytes on disk"
+    },
+    {
+      "id": "w3-partial-write",
+      "category": "cancellation_recovery",
+      "kind": "agent",
+      "cost": "live",
+      "heldOut": false,
+      "status": "executed",
+      "verdict": "FAIL",
+      "attempts": [
+        {
+          "attempt": 1,
+          "startedAt": "2026-11-05T15:05:47.156138+00:00",
+          "durationSec": 47.09,
+          "exitCode": 0,
+          "timedOut": false,
+          "verdict": "FAIL",
+          "driverVerdict": "TORN WRITE INTERRUPTED, REWIND EXACT, RESUME RAN A SECOND ATTEMPT",
+          "failedChecks": [],
+          "stdoutTail": "{\n \"date\": \"2026-11-05\",\n \"milestone\": \"W3 partial write\",\n \"runId\": \"w3torn-1793891147\",\n \"totalLines\": 120,\n \"steps\": [\n  {\n   \"step\": \"project\",\n   \"ok\": true,\n   \"status\": 201\n  },\n  {\n   \"step\": \"plan\",\n   \"ok\": true,\n   \"status\": 201\n  },\n  {\n   \"step\": \"approve\",\n   \"ok\": true,\n   \"status\": 200\n  },\n  {\n   \"step\": \"start\",\n   \"ok\": true,\n   \"status\": 200\n  },\n  {\n   \"step\": \"writer observed running\",\n   \"ok\": true,\n   \"worker\": \"3cd28d59c58f\"\n  },\n  {\n   \"step\": \"pause\",\n   \"ok\": true,\n   \"status\": 200\n  },\n  {\n   \"step\": \"file is torn\",\n   \"ok\": true,\n   \"lines\": 30\n  },\n  {\n   \"step\": \"before-attempt checkpoint exists\",\n   \"ok\": true,\n   \"id\": \"0001-before-attempt-1\"\n  },\n  {\n   \"step\": \"rewind\",\n   \"ok\": true,\n   \"status\": 200\n  },\n  {\n   \"step\": \"torn file removed by rewind\",\n   \"ok\": true\n  },\n  {\n   \"step\": \"resume\",\n   \"ok\": true,\n   \"status\": 200\n  },\n  {\n   \"step\": \"resumed run settled\",\n   \"ok\": true,\n   \"state\": \"awaiting_done_signal\"\n  },\n  {\n   \"step\": \"attempt 2 checkpointed\",\n   \"ok\": true,\n   \"labels\": [\n    \"before-attempt-1\",\n    \"after-attempt-1\",\n    \"before-attempt-2\",\n    \"after-attempt-2\"\n   ]\n  }\n ],\n \"containerSamples\": [\n  {\n   \"t\": 0.1,\n   \"containers\": []\n  },\n  {\n   \"t\": 0.8,\n   \"containers\": [\n    {\n     \"name\": \"harness-c44e5cf015ae45caaa64d6a89f809785-relay\",\n     \"mounts\": []\n    }\n   ]\n  },\n  {\n   \"t\": 1.4,\n   \"containers\": [\n    {\n     \"name\": \"harness-c44e5cf015ae45caaa64d6a89f809785-relay\",\n     \"mounts\": []\n    }\n   ]\n  },\n  {\n   \"t\": 2.1,\n   \"containers\": [\n    {\n     \"name\": \"harness-c44e5cf015ae45caaa64d6a89f809785-relay\",\n     \"mounts\": []\n    }\n   ]\n  },\n  {\n   \"t\": 2.9,\n   \"containers\": [\n    {\n     \"name\": \"harness-c44e5cf015ae45caaa64d6a89f809785\",\n     \"mounts\": [\n      \"/var/lib/harness-runs/workspace/w3torn-1793891147\",\n      \"/var/lib/harness-runs/sessions/w3torn-1793891147\"\n     ]\n    },\n    {\n     \"name\": \"harness-c44e5cf015ae45caaa64d6a89f809785-relay\",\n     \"mounts\": []\n    }\n   ]\n  },\n  {\n   \"t\": 3.7,\n   \"containers\": [\n    {\n     \"name\": \"harness-c44e5cf015ae45caaa64d6a89f809785\",\n     \"mounts\": [\n      \"/var/lib/harness-runs/workspace/w3torn-1793891147\",\n      \"/var/lib/harness-runs/sessions/w3torn-1793891147\"\n     ]\n    },\n    {\n     \"name\": \"harness-c44e5cf015ae45caaa64d6a89f809785-relay\",\n     \"mounts\": []\n    }\n   ]\n  }\n ],\n \"topSamples\": [\n  {\n   \"t\": 1793891151.3,\n   \"procs\": [\n    \"17906               python -m harness_orchestrator.engine_worker\",\n    \"17987               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti\"\n   ],\n   \"rc\": 0,\n   \"err\": \"\"\n  },\n  {\n   \"t\": 1793891152.1,\n   \"procs\": [\n    \"17906               python -m harness_orchestrator.engine_worker\",\n    \"17987               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti\",\n    \"18029               python -m harness_orchestrator.mcp_stub\"\n   ],\n   \"rc\": 0,\n   \"err\": \"\"\n  },\n  {\n   \"t\": 1793891152.7,\n   \"procs\": [\n    \"17906               python -m harness_orchestrator.engine_worker\",\n    \"17987               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti\",\n    \"18029               python -m harness_orchestrator.mcp_stub\"\n   ],\n   \"rc\": 0,\n   \"err\": \"\"\n  },\n  {\n   \"t\": 1793891153.4,\n   \"procs\": [\n    \"17906               python -m harness_orchestrator.engine_worker\",\n    \"17987               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti\",\n    \"18029               python -m harness_orchestrator.mcp_stub\"\n   ],\n   \"rc\": 0,\n   \"err\": \"\"\n  },\n  {\n   \"t\": 1793891154.0,\n   \"procs\": [\n    \"17906               python -m harness_orchestrator.engine_worker\",\n    \"17987               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti\",\n    \"18029               python -m harness_orchestrator.mcp_stub\"\n   ],\n   \"rc\": 0,\n   \"err\": \"\"\n  },\n  {\n   \"t\": 1793891154.7,\n   \"procs\": [\n    \"17906               python -m harness_orchestrator.engine_worker\",\n    \"17987               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti\",\n    \"18029               python -m harness_orchestrator.mcp_stub\",\n    \"18162               /usr/local/bin/python -I /opt/harness-shell/shell_gate.py\"\n   ],\n   \"rc\": 0,\n   \"err\": \"\"\n  }\n ],\n \"writerObserved\": true,\n \"tornLines\": 30,\n \"tornContentHead\": \"line 0\\nline 1\\nline 2\",\n \"checkpointsBeforeRewind\": [\n  {\n   \"id\": \"0001-before-attempt-1\",\n   \"seq\": 1,\n   \"label\": \"before-attempt-1\",\n   \"at\": \"2026-11-05T15:05:47Z\",\n   \"files\": 1,\n   \"bytes\": 143\n  },\n  {\n   \"id\": \"0002-after-attempt-1\",\n   \"seq\": 2,\n   \"label\": \"after-attempt-1\",\n   \"at\": \"2026-11-05T15:05:59Z\",\n   \"files\": 2,\n   \"bytes\": 373\n  }\n ],\n \"rewind\": {\n  \"runId\": \"w3torn-1793891147\",\n  \"rewoundTo\": \"0001-before-attempt-1\",\n  \"label\": \"before-attempt-1\",\n  \"restoredFiles\": 0,\n  \"removedFiles\": [\n   \"out.txt\"\n  ],\n  \"removedCount\": 1\n },\n \"outExistsAfterRewind\": false,\n \"checkpointLabelsAfterResume\": [\n  \"before-attempt-1\",\n  \"after-attempt-1\",\n  \"before-attempt-2\",\n  \"after-attempt-2\"\n ],\n \"attemptTwoCheckpointed\": true,\n \"ok\": true,\n \"verdict\": \"torn write interrupted, rewind exact, resume ran a second attempt\"\n}\n\nevidence: /Users/user/untitled folder 2/harness/docs/briefs/evidence/pilot-prep/w3-partial-write.json\n",
+          "stderrTail": ""
+        }
+      ],
+      "durationSec": 47.09,
+      "budget": {
+        "timeoutSeconds": 900,
+        "maxToolCalls": 16,
+        "maxCostUsd": 0.05
+      },
+      "model": "the stack DSH_MODEL",
+      "fixture": {
+        "repo": "generated fixture",
+        "revision": "w3",
+        "seed": []
+      },
+      "expected": "exit 0",
+      "driver": "scripts/e2e/w3_partial_write_drill.py",
+      "verifier": "paused mid-write with the script provably running; rewind restores; resume adopts disk"
+    }
+  ],
+  "deferred": [
+    {
+      "id": "stack-compose-journey",
+      "category": "stack_health",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-egress-deny",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "m03-scope",
+      "category": "confinement",
+      "status": "blocked",
+      "reason": "blocked 2026-10-28: local Ollama has only nomic-embed-text, no chat model. Prerequisite: pull a local chat model or point the drill at a compatible endpoint."
+    },
+    {
+      "id": "m04-streaming",
+      "category": "streaming",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent (nomic-embed-text only)"
+    },
+    {
+      "id": "m07-daemon-topology",
+      "category": "confinement",
+      "status": "blocked",
+      "reason": "blocked: local chat model absent"
+    },
+    {
+      "id": "m07-vision-api",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-web-fetch",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-install",
+      "category": "denied_network",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-mcp-client",
+      "category": "mcp",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w4-credential-leak",
+      "category": "tenant_isolation",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-concurrency",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-crash-cleanup",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-apply-conflict",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-agent-quotas",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w8-quotas-isolation",
+      "category": "concurrency",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w9-share-deploy",
+      "category": "artifact_authz",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w10-browser-repro",
+      "category": "ui_screenshot",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w11-vision",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "cli-parity",
+      "category": "cli_parity",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "cli-diagnostics",
+      "category": "cli_parity",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "skills-governance",
+      "category": "skills",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "stale-edit",
+      "category": "stale_edit",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "code-search",
+      "category": "code_search",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "multi-file-refactor",
+      "category": "refactor",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "tests-written",
+      "category": "tests",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "tenant-isolation-api",
+      "category": "tenant_isolation",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "native-tool-confinement",
+      "category": "confinement",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "ast-lsp-confinement",
+      "category": "confinement",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "lsp-real-server",
+      "category": "confinement",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "code-search-heldout",
+      "category": "code_search",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w9-visuals",
+      "category": "artifact_authz",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w10-browser-session",
+      "category": "ui_screenshot",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w11-grounding",
+      "category": "ui_screenshot",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w12-skills-memory",
+      "category": "skills",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w13-byo-runner",
+      "category": "tenant_isolation",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    },
+    {
+      "id": "w14-design-heldout",
+      "category": "visual_interaction",
+      "status": "implemented",
+      "reason": "deferred: not selected (--task)"
+    }
+  ],
+  "limitations": [
+    "n=1 unless --repeats was raised; a single pass is an existence proof, not a rate.",
+    "A task is deferred, blocked or fixture-owed is not a pass.",
+    "Revision verification compares runtime files inside the deployed containers/images with this worktree; a mismatch makes every result stale for HEAD."
+  ]
+}

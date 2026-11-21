@@ -7,6 +7,13 @@ export interface LastReview {
   seq: number;
 }
 
+/** A shell-gate denial asking a person to widen the run's scope. `grants` is
+ *  always false: the request itself grants nothing (loop_guard.scope_request_of). */
+export interface ScopeRequestView {
+  path: string;
+  grants: false;
+}
+
 /** One tool invocation, paired from its tool_call and tool_result events.
  *  `ok` stays null while the call is still running — the UI says "running",
  *  it does not guess success. */
@@ -18,6 +25,16 @@ export interface ToolCallView {
   error: string | null;
   output: string;
   durationMs: number | null;
+  /** Present only on a tool_result carrying a scopeRequest. */
+  scopeRequest: ScopeRequestView | null;
+}
+
+function parseScopeRequest(payload: Record<string, unknown>): ScopeRequestView | null {
+  const raw = payload.scopeRequest;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const rec = raw as Record<string, unknown>;
+  if (typeof rec.path !== "string" || rec.path === "" || rec.grants !== false) return null;
+  return { path: rec.path, grants: false };
 }
 
 export interface GoalImagesView {
@@ -127,6 +144,7 @@ export function deriveWorkingAreaView(events: EventEnvelope[]): WorkingAreaDeriv
           error: null,
           output: "",
           durationMs: null,
+          scopeRequest: null,
         };
         byCallId.set(callId, call);
         toolCalls.push(call);
@@ -139,6 +157,7 @@ export function deriveWorkingAreaView(events: EventEnvelope[]): WorkingAreaDeriv
         call.ok = payload.ok === true;
         call.error = typeof payload.error === "string" ? payload.error : null;
         call.output = typeof payload.output === "string" ? payload.output : "";
+        call.scopeRequest = parseScopeRequest(payload);
         const started = toolCallStart.get(callId);
         const finished = typeof payload.finishedAt === "number" ? payload.finishedAt : null;
         call.durationMs =

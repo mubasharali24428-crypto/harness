@@ -73,6 +73,7 @@ def main() -> int:
 
     if not os.environ.get(args.key_env):
         os.environ[args.key_env] = "local"
+    os.environ["DEEPSEEK_API_KEY"] = os.environ[args.key_env]  # the engine reads this name
 
     os.environ.update(
         {

@@ -27,7 +27,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 OUT = REPO / "docs" / "briefs" / "evidence" / "eval"
 SEEDED_FILES = 100
-MODELS = "http://127.0.0.1:8003"
+MODELS = os.environ.get("E2E_MODELS_URL", "http://127.0.0.1:8003")
 
 spec = importlib.util.spec_from_file_location(
     "w11", REPO / "scripts" / "e2e" / "w11_vision_drill.py")

@@ -1,4 +1,31 @@
+import re
+
 from pydantic import BaseModel, ConfigDict, Field
+
+# H3 (plan 4.7, probe mode 3): the deterministic verdict sentence is the first sentence of
+# ``summary``. A model reply is appended as a single-line, bounded ``Reviewer note:`` — it can
+# never replace the sentence, so the text a human reads cannot contradict the recorded verdict.
+_REVIEWER_NOTE_MAX_CHARS = 500
+_REVIEWER_NOTE_PREFIX = " Reviewer note: "
+_TABS_AND_NEWLINES = re.compile(r"[\t\n\r\v\f]+")
+_OTHER_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0e-\x1f\x7f]")
+
+
+def _reviewer_note_suffix(raw: str) -> str:
+    """Clean, collapse and bound a model reply into the appended note, or '' when empty.
+
+    Tabs and line breaks become spaces, other control characters are rewritten to a space (never
+    removed outright: gluing neighbouring words could forge misleading text), whitespace is
+    collapsed, and the whole suffix (prefix included) stays within ``_REVIEWER_NOTE_MAX_CHARS``,
+    truncating with ``...``.
+    """
+    text = " ".join(_OTHER_CONTROL_CHARS.sub(" ", _TABS_AND_NEWLINES.sub(" ", raw or "")).split())
+    if not text:
+        return ""
+    budget = _REVIEWER_NOTE_MAX_CHARS - len(_REVIEWER_NOTE_PREFIX)
+    if len(text) > budget:
+        text = text[: budget - 3] + "..."
+    return f"{_REVIEWER_NOTE_PREFIX}{text}"
 
 
 class ReviewFindings(BaseModel):
@@ -48,8 +75,14 @@ class ReviewerSubAgent:
 
         if test_results_summary == "failed":
             issues.append("Automated test suite failed.")
+        elif test_results_summary != "passed":
+            # I-09 (2026-11-14 decision): unknown or absent test evidence is
+            # never a pass — only an executor-recorded green run counts.
+            issues.append(
+                "No green test evidence recorded; unknown or absent tests are not a pass."
+            )
 
-        passed = syntax_ok and not conflicts_detected and (test_results_summary != "failed")
+        passed = syntax_ok and not conflicts_detected and (test_results_summary == "passed")
 
         summary = "Review passed cleanly." if passed else f"Review failed: {', '.join(issues)}"
         model_used = None
@@ -95,7 +128,7 @@ class ReviewerSubAgent:
             except Exception as exc:  # the heuristic verdict stands; an outage must not fail done
                 issues.append(f"model_review_unavailable: {type(exc).__name__}")
             else:
-                summary = result.text.strip()
+                summary += _reviewer_note_suffix(result.text)
                 model_used = result.model
 
         return ReviewFindings(

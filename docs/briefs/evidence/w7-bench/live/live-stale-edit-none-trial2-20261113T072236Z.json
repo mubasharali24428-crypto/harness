@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "kind": "w7-bench-attempt",
+  "mode": "live",
+  "simulation": false,
+  "taskId": "stale-edit",
+  "heldOut": true,
+  "model": "none",
+  "ledgerModel": null,
+  "trial": 2,
+  "runId": null,
+  "startedAt": "2026-11-13T07:22:37.825317+00:00",
+  "finishedAt": "2026-11-13T07:22:38.628443+00:00",
+  "durationSec": 0.75,
+  "exitCode": 0,
+  "timedOut": false,
+  "verdict": "PASS",
+  "driverVerdict": "PASS",
+  "failedChecks": [],
+  "firstOutputS": null,
+  "toolCalls": null,
+  "interventions": null,
+  "costUsd": null,
+  "costSource": "none (no ledger rows found)",
+  "budget": {
+    "timeoutSeconds": 300,
+    "maxToolCalls": null,
+    "maxCostUsd": 0
+  },
+  "stdoutTail": "{\n  \"verdict\": \"PASS\",\n  \"failed\": [],\n  \"runId\": \"w3-stale-1794554557\",\n  \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/eval/w3-stale-edit-1794554557.json\"\n}\n",
+  "stderrTail": "",
+  "trials": 5,
+  "manifestSha256": "e02dc7bc8aed9a5b095429654c34f203a108702b270b83c498f0ccb6b5da8286",
+  "git": {
+    "head": "7c1acf4cdc2022b49989b87ee5c30b1cd371c2d5",
+    "branch": "w28-s1-delegate",
+    "dirty": true
+  }
+}

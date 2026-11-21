@@ -22,6 +22,9 @@ const PLANS_ROOT = "/api/v1/orchestrator/plans";
  *  (goal/expectedResult required; steps, filesLikelyToChange, tests, risks,
  *  forbiddenPaths, estimatedCostUsd optional on the TS mirror). */
 export interface ProposePlanResponse {
+  /** The run minted for this plan, and the project it was bound to (null when the team has none). */
+  runId: string;
+  projectId: string | null;
   planId: string;
   plan: AgentPlan;
 }

@@ -789,6 +789,14 @@ export class IdentityClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
   }
 
+  /** Export Audit Pack
+   *  GET /api/v1/audit/pack */
+  export_audit_pack(max_rows?: number): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/audit/pack`;
+    const params: Record<string, unknown> = {"maxRows": max_rows};
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
   /** Verify Audit
    *  POST /api/v1/audit/verify */
   verify_audit(body: AuditVerifyRequest): Promise<Record<string, unknown>> {
@@ -1255,6 +1263,13 @@ export class IdentityClient {
     return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", body);
   }
 
+  /** Portal Projects
+   *  GET /api/v1/portal/projects */
+  portal_projects(): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/portal/projects`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
   /** List Projects
    *  GET /api/v1/projects */
   list_projects(limit?: number): Promise<ProjectListResponse> {
@@ -1276,6 +1291,27 @@ export class IdentityClient {
     const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/events/replay`;
     const params: Record<string, unknown> = {"after_seq": after_seq, "limit": limit, "before_seq": before_seq};
     return this.http.request<EventReplayResponse>(this.baseUrl, _path, "GET", undefined, params);
+  }
+
+  /** List Guests
+   *  GET /api/v1/projects/{project_id}/guests */
+  list_guests(project_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/guests`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "GET", undefined);
+  }
+
+  /** Grant Guest
+   *  PUT /api/v1/projects/{project_id}/guests/{user_id} */
+  grant_guest(project_id: string, user_id: string): Promise<Record<string, unknown>> {
+    const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/guests/${encodeURIComponent(user_id)}`;
+    return this.http.request<Record<string, unknown>>(this.baseUrl, _path, "PUT", undefined);
+  }
+
+  /** Revoke Guest
+   *  DELETE /api/v1/projects/{project_id}/guests/{user_id} */
+  revoke_guest(project_id: string, user_id: string): Promise<unknown> {
+    const _path = `/api/v1/projects/${encodeURIComponent(project_id)}/guests/${encodeURIComponent(user_id)}`;
+    return this.http.request<unknown>(this.baseUrl, _path, "DELETE", undefined);
   }
 
   /** List Memory
@@ -2042,9 +2078,10 @@ export class IdentityClient {
 
   /** Health
    *  GET /health */
-  health(): Promise<unknown> {
+  health(deep?: number): Promise<unknown> {
     const _path = `/health`;
-    return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined);
+    const params: Record<string, unknown> = {"deep": deep};
+    return this.http.request<unknown>(this.baseUrl, _path, "GET", undefined, params);
   }
 
   /** Ready

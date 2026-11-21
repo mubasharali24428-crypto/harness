@@ -13,7 +13,10 @@ STORE_VOLUME=${STORE_VOLUME:-harness_harness_store}
 BACKUP_DIR=${BACKUP_DIR:-"$HOME/harness-backups/store"}
 STORE_KEEP=${STORE_KEEP:-14}
 IMAGE=${STORE_BACKUP_IMAGE:-alpine}
-log() { printf '[store-backup %s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
+# log() writes to STDERR: stdout carries exactly one line, the snapshot path
+# (nightly.sh assigns OUT=$(...), so a failure can never smuggle a log line
+# into the verifier as if it were a file name).
+log() { printf '[store-backup %s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >&2; }
 docker volume inspect "$STORE_VOLUME" >/dev/null 2>&1 || { log "ERROR: volume $STORE_VOLUME not found"; exit 1; }
 mkdir -p "$BACKUP_DIR"
 TS=$(date -u +%Y%m%dT%H%M%SZ)

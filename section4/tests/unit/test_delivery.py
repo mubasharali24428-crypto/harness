@@ -165,6 +165,8 @@ async def test_markers_and_ephemeral_kinds_are_not_in_the_durable_page_or_its_ch
     page = await delivery.history_page(factory, "t1", "r1", 0, 200)
     assert [(e["seq"], e["prevSeq"]) for e in page["events"]] == [(a, None), (b, a)]
     assert page["headSeq"] == b
+    assert page["deliveredUpTo"] == a  # the engine cursor is reported, the marker row is not
+    assert (await delivery.history_page(factory, "t1", "ghost", 0, 200))["deliveredUpTo"] == 0
 
 
 def test_heartbeats_write_nothing_to_the_durable_stream(env):

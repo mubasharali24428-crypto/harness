@@ -78,3 +78,29 @@ release evidence folder.
 The existing pilot, rollback, API versioning and contract docs describe these controls. The
 combined staged rollout and image-plus-schema PITR path is not currently verified on the live
 deployment. Consult `docs/briefs/evidence/s10/readiness-report.md` before enabling a broader rollout.
+
+## 7. Rolling back below `vw28s3` (migrations 0073 and 0075)
+
+Since 2026-11-05 the live database has migrations 0073 (`runner_jobs` keyed `(run_id, attempt)`) and
+0075 (`agent_assignments.child_run_id`). Images older than `vw28s3` declare neither, so the drift
+gate refuses them by design (migrations are forward-only, section 2). Options, in order of preference:
+
+1. **Roll forward.** Fix the problem in a new image (`vw28s5` or later). No data is lost. This is the
+   default; the gate exists to force this choice.
+2. **Restore the pre-migration dump, then run the old image.** This loses every write made since the
+   dump (runs, events, audit rows), so it needs an owner decision and a maintenance window.
+   Verified on 2026-11-05 on the scratch Postgres only (not on the live database): the dump taken
+   before 0073/0075 (`live-before-0073-0075.dump`, custom format, 3.1 MB) restored cleanly with
+   `pg_restore --no-owner --exit-on-error` into an empty database; it held 71 migrations with 0072
+   newest and 18 `runner_jobs` rows, and the `vw25b1` image's drift gate passed against it (so did
+   `vw28s5`'s, which just sees pending migrations).
+3. **Hand-revert the two migrations.** Not recommended and not tested: `ALTER TABLE agent_assignments
+   DROP COLUMN child_run_id` is trivial, but reverting 0073 means rebuilding `runner_jobs` under its
+   old single-column key, which fails if any run has more than one attempt, and it would still leave
+   0073/0075 rows in the migration ledger that the old image does not know, so the gate would
+   refuse anyway.
+
+Not verified: that `vw25b1` code runs correctly (not just boots) against the restored data, and that
+the dump file survives: it sits in a session scratchpad under `/private/tmp`, which the OS clears, and
+it holds live data, so the owner should move it to the backup location (`docs/runbooks/backup-and-pitr.md`)
+or take a fresh dump before the next risky change.

@@ -14,10 +14,9 @@ result to this scale keeps the Python-side math aligned with the DB columns
 
 from __future__ import annotations
 
+import logging
 from decimal import ROUND_HALF_EVEN, Decimal
 from typing import Union
-
-import logging
 
 from pydantic import BaseModel
 

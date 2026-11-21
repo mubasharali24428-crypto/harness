@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "kind": "w7-bench-batch",
+  "mode": "live",
+  "model": "deepseek/deepseek-v4-flash",
+  "trialsPerTask": 5,
+  "tasks": [
+    "code-search"
+  ],
+  "startedAt": "2026-11-13T09:09:29.433707+00:00",
+  "finishedAt": "2026-11-13T09:10:16.578839+00:00",
+  "manifestSha256": "e02dc7bc8aed9a5b095429654c34f203a108702b270b83c498f0ccb6b5da8286",
+  "git": {
+    "head": "deea6c6caf5cdc3296b9f7705a1363543a04214c",
+    "branch": "w28-s1-delegate",
+    "dirty": true
+  },
+  "attemptFiles": [
+    "docs/briefs/evidence/w7-bench/live-model/live-code-search-deepseek_deepseek-v4-flash-trial1-20261113T090929Z.json",
+    "docs/briefs/evidence/w7-bench/live-model/live-code-search-deepseek_deepseek-v4-flash-trial2-20261113T090929Z.json",
+    "docs/briefs/evidence/w7-bench/live-model/live-code-search-deepseek_deepseek-v4-flash-trial3-20261113T090929Z.json",
+    "docs/briefs/evidence/w7-bench/live-model/live-code-search-deepseek_deepseek-v4-flash-trial4-20261113T090929Z.json",
+    "docs/briefs/evidence/w7-bench/live-model/live-code-search-deepseek_deepseek-v4-flash-trial5-20261113T090929Z.json"
+  ],
+  "counts": {
+    "attempts": 5,
+    "pass": 0,
+    "fail": 5,
+    "timeout": 0,
+    "error": 0,
+    "denied": 0
+  },
+  "stoppedByCap": null,
+  "maxTotalUsd": 1.0,
+  "spentUsdConservative": 0.25,
+  "claimable": null,
+  "note": "Live trials; cost/interventions from cost_ledger/run_collab_events by run id; null when unreachable. Rates require N>=5 per cell (bench_stats)."
+}

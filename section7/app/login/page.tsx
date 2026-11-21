@@ -79,8 +79,10 @@ export default function Login() {
 
     // M19-N4: the demo entry sent this stranger here for a key-free identity;
     // honor the round-trip instead of dropping them in the empty dashboard.
+    // ?start=1 asks /demo to seed immediately, so the original click is the
+    // only demo click in the flow (U5: no bounce back to the same card).
     if (nextDemo && typeof window !== "undefined") {
-      router.push("/demo");
+      router.push("/demo?start=1");
       return;
     }
 
@@ -224,17 +226,27 @@ export default function Login() {
             {busy ? "Signing in…" : "Enter the harness"}
           </Button>
           {/* M19-N4 (C10): the stranger's zero-key path — bootstrap an identity,
-              then straight into the canned replay. testId pinned by tests. */}
-          <Button
-            type="button"
-            variant="secondary"
-            size="md"
-            disabled={busy}
-            onClick={() => router.push("/demo")}
-            style={{ width: "100%", marginTop: 6 }}
-          >
-            Try the demo →
-          </Button>
+              then straight into the canned replay. U5 fix: when the visitor
+              arrived FROM /demo this button used to push /demo signed-out,
+              which pushed them back here — the observed loop. Now the email
+              form is the one action, and adoptSession returns via ?start=1. */}
+          {nextDemo ? (
+            <Notice tone="info" style={{ marginTop: 8 }} testId="login-demo-note">
+              One step first: enter your email above. It creates a key-free solo
+              workspace, then the replay starts on its own.
+            </Notice>
+          ) : (
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              disabled={busy}
+              onClick={() => router.push("/demo")}
+              style={{ width: "100%", marginTop: 6 }}
+            >
+              Try the demo →
+            </Button>
+          )}
           {/* F-gap closure: SSO entry toggle — the native flow for teams
               with an IdP configured in Section 1. */}
           <Button

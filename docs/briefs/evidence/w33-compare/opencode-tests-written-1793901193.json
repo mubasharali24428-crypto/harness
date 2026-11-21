@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "harness": "opencode 1.15.0",
+  "task": "tests-written",
+  "model": "anthropic/claude-haiku-5.5",
+  "exitCode": 0,
+  "durationSeconds": 22.49,
+  "toolCalls": 8,
+  "inputTokens": 65294,
+  "outputTokens": 1740,
+  "pricedUsd": 0.007399,
+  "answer": "I don't have a shell tool, so I'll have a subagent run the test command.",
+  "checks": {
+    "testAddedOrChanged": true,
+    "failsOnOriginalSource": true,
+    "passesOnAgentSource": true,
+    "fixPassesReferenceCheck": true,
+    "sourceChanged": true,
+    "onlyTestsAndSourceChanged": true,
+    "noSeededFileDeleted": true
+  },
+  "failedChecks": [],
+  "verdict": "PASS",
+  "changed": [
+    "pager/paging.py"
+  ],
+  "diff": "--- a/pager/paging.py\n+++ b/pager/paging.py\n@@ -5,7 +5,7 @@\n     \"\"\"Number of pages needed for `total` items at `size` items per page.\"\"\"\n     if size <= 0:\n         raise ValueError(\"size must be positive\")\n-    return total // size\n+    return -(-total // size)  # ceiling division: a partial last page counts\n \n \n def page_slice(items, page, size):\n",
+  "notSameAsHarness": [
+    "tool set",
+    "system prompt",
+    "permission layer (own allow-list, no container, no tool-call cap)"
+  ]
+}

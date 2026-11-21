@@ -272,3 +272,19 @@ async def test_routes_bucketed_separately(rl_engine):
         # is FINE — the point is the limiter did not answer 429).
         resp = await c.post(otp_request, json={"email": "x@example.com"})
     assert resp.status_code != 429
+
+
+async def test_cors_preflight_is_never_counted_or_blocked(rl_engine):
+    """A browser sends OPTIONS before every cross-origin POST. Counting it halved the real budget,
+    and a 429 on the preflight carries no CORS headers, so the browser showed a CORS error
+    instead of "slow down" (seen on the RC, 2026-11-13)."""
+    app = _limited_app(_factory(rl_engine), limit=2, window_seconds=60)
+    preflight = {"origin": "http://localhost:3011", "access-control-request-method": "POST"}
+    async with await _client_for(app, "10.9.9.9") as c:
+        for _ in range(5):
+            resp = await c.options(OTP_REQUEST, headers=preflight)
+            assert resp.status_code != 429
+    # the real requests still get the whole budget, then the limit applies
+    assert (await _otp_request("10.9.9.9", app, "p1@example.com")).status_code == 200
+    assert (await _otp_request("10.9.9.9", app, "p2@example.com")).status_code == 200
+    assert (await _otp_request("10.9.9.9", app, "p3@example.com")).status_code == 429

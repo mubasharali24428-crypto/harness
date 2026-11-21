@@ -83,7 +83,7 @@ export const sendRedirect = (
   b: { kind: RedirectKind; content: string; reason?: string; requestId?: string },
 ) => post<{ seq: number | null; duplicate: boolean; invalidatedApprovals: number; queued?: boolean; instructionId?: string; takesEffect?: string }>(`${root(runId)}/redirect`, t, b);
 export const getHistory = (runId: string, t: string, after = 0) =>
-  call<{ events: CollabEvent[] }>(`${root(runId)}/collab-history?after=${after}`, t);
+  call<{ events: CollabEvent[]; deliveredUpTo?: number }>(`${root(runId)}/collab-history?after=${after}`, t);
 export const requestHandoff = (runId: string, t: string, toUserId: string) =>
   post<{ handoffId: string }>(`${root(runId)}/handoff`, t, { toUserId });
 export const decideHandoff = (runId: string, t: string, handoffId: string, accept: boolean) =>

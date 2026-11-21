@@ -33,6 +33,8 @@ x-backend-env: &backend-env
   # operator-priced model is quoted and booked at ONE price. Unset keeps the
   # built-in catalog; a model neither prices is metered at the logged fallback.
   HARNESS_RATE_CARD_JSON: ${HARNESS_RATE_CARD_JSON:-}
+  # W28: delegated subagents; empty keeps the delegate route inert (SUBAGENTS_DISABLED).
+  HARNESS_SUBAGENTS: ${HARNESS_SUBAGENTS:-}
   # W15 slice 2: per-TEAM budgets on the two spend surfaces (per minute).
   # Unset/blank keeps the shipped defaults (60 run-starts, 300 model calls).
   HARNESS_TEAM_RUN_START_LIMIT: ${HARNESS_TEAM_RUN_START_LIMIT:-}

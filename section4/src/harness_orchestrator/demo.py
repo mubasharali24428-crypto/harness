@@ -102,6 +102,11 @@ def _bind_tokens(value: Any, *, run_id: str, plan_id: str, pr_id: str) -> Any:
     return value
 
 
+def _review_seed_json(run: dict[str, Any]) -> str:
+    """The recorded diff and goal in the shape section8's review store reads."""
+    return json.dumps({"diff": run["diffText"], "brief_goal": run["goal"]})
+
+
 def _demo_id(kind: str) -> str:
     return f"{DEMO_ID_PREFIX}{kind}-{uuid.uuid4().hex[:12]}"
 
@@ -272,7 +277,9 @@ async def _seed_run_rows(db, service: OrchestratorService, spec: dict[str, Any],
             "run_id": run_id,
             "num": int(pr["number"]),
             "url": pr["url"],
-            "summary_md": pr.get("summaryMd", ""),
+            # Section 8 reads the PR's diff from this JSON (store.get_diff_from_summary).
+            # Without it the review falls through to GitHub, which a demo visitor never has.
+            "summary_md": _review_seed_json(run),
             "status": pr.get("status", "open"),
         },
     )
@@ -393,6 +400,21 @@ async def seed_demo(request: Request, principal: RequirePrincipal) -> dict[str, 
                 run_id_existing: str = await _latest_demo_run(db, project_id) or run_id
                 aggregate = await service.get_status(run_id_existing)
                 plan_id_out = aggregate.get("planId")
+                # Demos seeded before the diff was stored have an empty summary:
+                # fill it so their review loads too. Never overwrites a real one.
+                await db.execute(
+                    text(
+                        "UPDATE pull_requests SET summary_md = :s"
+                        " WHERE run_id = :r AND summary_md = ''"
+                    ),
+                    {"s": _review_seed_json(run), "r": run_id_existing},
+                )
+                pr_row = await _fetch_one(
+                    db,
+                    text("SELECT id, pr_url FROM pull_requests WHERE run_id = :r LIMIT 1"),
+                    {"r": run_id_existing},
+                )
+                await db.commit()
                 return DemoSeedResponse(
                     projectId=str(project_id),
                     projectName=proj_spec["name"],
@@ -400,8 +422,8 @@ async def seed_demo(request: Request, principal: RequirePrincipal) -> dict[str, 
                     runId=str(aggregate["runId"]),
                     state=str(aggregate["state"]),
                     planId=str(plan_id_out) if plan_id_out else "",
-                    prId="",
-                    prUrl=None,
+                    prId=str(pr_row.id) if pr_row is not None else "",
+                    prUrl=pr_row.pr_url if pr_row is not None else None,
                     costUsd=None,
                 ).model_dump()
 

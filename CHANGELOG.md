@@ -10,6 +10,48 @@ Mission 23 / Z3 polish lane (2026-08-26). Migration numbers refer to files in
 
 ## [Unreleased]
 
+### P-19 compliance evidence pack + P-23 denial-learning loop (2026-11-21)
+
+* **One-click compliance pack** (`GET /api/v1/audit/pack`): a single bounded
+  document an auditor can hold — manifest (row ranges/counts, explicit
+  truncation, retention statements), the hash-chain verdict re-derived the way
+  `/audit/verify` does it (honest `performed: false` where the chain functions
+  cannot run), the team-scoped audit trail, and the collaboration event
+  history. Same admin + step-up door as `/audit/export` (`"export"` in
+  `policy_enforce`), pack generation itself audited, rows read through the
+  shared `audit_rows` reader so a pack and a collector can never disagree.
+* **Denial-learning loop** (I-08, extends the W27 repeated-denial stop): a
+  `denials_repeated` stop now carries a deterministic, bounded SUGGESTED
+  project rule — the paths whose addition would unblock the run, phrased as
+  "include them in `scopePaths`" — in the durable `engine_failed` reason. The
+  human saves it through the existing rules API; the orchestrator proposes,
+  never writes. `repeat_denial_stops` counts the durable stops per project.
+* **section11 race fix**: the context index releases its durable lease BEFORE
+  the terminal job status is visible, so a finished index never still holds
+  its reservation (CI 44909389775 root cause).
+
+### P-17 client trust portal + I-09 verification-first default (2026-11-21)
+
+* **Per-project guest portal.** An admin grants a guest named projects
+  (`project_guest_grants`, migration 0076); the guest gate sits inside both
+  principal resolvers, is default-deny, and answers 403 `GUEST_PORTAL_ONLY`
+  before any handler runs. Guests read `/me`, `/portal/projects`, a granted
+  project's runs list/run/plan and PR review, and can POST logout. The old
+  "guests read the whole team" rule is retired; team-API guest reads are 403.
+  UI: `/portal` lists granted projects and runs; the shell sends a guest there.
+* **Verification-first done-signals are the default** (2026-11-14 decision):
+  a done-signal without a run-recorded green test is 400
+  `VERIFICATION_REQUIRED`; `HARNESS_VERIFICATION_FIRST=false` opts out
+  explicitly for dry/demo/golden flows.
+* **Reviewer integrity**: the deterministic verdict sentence is what a human
+  reads; a model reply rides as a bounded, control-char-cleansed note and can
+  never replace the verdict. Unknown/absent test evidence is an issue, not a
+  pass.
+* **Order-independence repair**: `configure_orchestrator` no longer leaks the
+  module-global service between suites.
+* Verification record: `docs/briefs/evidence/90day/p17-verification-result.md`
+  (8/8 author checks reproduced; migration selftest 0001→0076 on real PG).
+
 ### Hx milestone M8 — a program can be several files, and every one is pinned (2026-10-31)
 
 * **`use notes` brings another file's types and pure functions into this one.** A

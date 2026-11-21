@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "kind": "heldout-frozen-manifest",
+  "frozen": true,
+  "frozenAt": "2026-11-13T05:21:41.846303+00:00",
+  "corpusRevision": "m2-w8",
+  "corpusSha256": "ee69ba757b32306207769f229616d1cd122219c476f2386c3b6511d04fff2d53",
+  "rule": "Preregistered: thresholds in docs/eval/PROTOCOL.md and this held-out split may not be loosened after results are seen. Held-out tasks are reported, never optimised against. Re-freezing requires an owner decision recorded in the week ledger; results from before a change stay bound to the old hash.",
+  "caveat": "Locks the split going forward only. These held-out tasks were already exercised in earlier baselines (docs/briefs/evidence/eval/ and w33-rerun/, from 2026-10-28 on, W25/W33; 137 earlier evidence files reference at least one of them: 65 baselines, 62 driver-native/metrics, 10 w33-rerun), so this freeze does not establish that they were never seen or tuned against. Added 2026-11-13 without changing any task hash or corpusSha256. See week-07.md section 3.1.",
+  "tasks": [
+    {
+      "id": "code-search-heldout",
+      "kind": "agent",
+      "cost": "live",
+      "sha256": "9a4063d8c5a27ee592d30c6c754549c8383b64f765e7d2b5ba939978f1597d65"
+    },
+    {
+      "id": "stale-edit",
+      "kind": "boundary",
+      "cost": "infra",
+      "sha256": "097997e1be2f5c998443c3ba9fa34dae3a0bdd616606634c31590f1333ec805f"
+    },
+    {
+      "id": "tenant-isolation-api",
+      "kind": "boundary",
+      "cost": "infra",
+      "sha256": "c2d7d67db69ec4901c126e57a45aabe36a94cfbf65e27c258a242e84e01e591d"
+    },
+    {
+      "id": "w11-vision",
+      "kind": "agent",
+      "cost": "live",
+      "sha256": "edc787e83b81973079f996e02e838305c42cee1538af1d1b8f94afb44e1ccbc9"
+    },
+    {
+      "id": "w14-design-heldout",
+      "kind": "agent",
+      "cost": "live",
+      "sha256": "ffa5a20275d9f5ad48294dd9b68ff4a287d885921f4e10c2e478600cd8d1a1e3"
+    },
+    {
+      "id": "w8-crash-cleanup",
+      "kind": "infra",
+      "cost": "live",
+      "sha256": "917c4d493c345a83bd212f647c01fef66a94582d4e4d9cf540ccc84fb5bb3d16"
+    }
+  ]
+}

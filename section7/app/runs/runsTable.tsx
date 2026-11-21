@@ -14,16 +14,27 @@
 import type { RunDto } from "./runsApi";
 import { runDetailHref, shortId } from "./runsApi";
 import { formatRelativeTime, formatTimestamp } from "@/lib/format";
+import { needsYouAction } from "@/lib/triage";
 // Classic JSX transform (vitest/esbuild) needs React in scope for the .tsx
 // extension (same convention as the other component files).
 import * as React from "react";
 import { Table, cellStyle, StatusPill } from "@/components/ui";
+import { cssVar, fontSize } from "@/components/tokens";
 
 export function isRowActivateKey(key: string): boolean {
   return key === "Enter" || key === " ";
 }
 
-export function RunsTable({ runs, now }: { runs: RunDto[]; now: number }) {
+export function RunsTable({
+  runs,
+  now,
+  projectNames = {},
+}: {
+  runs: RunDto[];
+  now: number;
+  /** Project id → name. An id with no known name shows shortened, never raw. */
+  projectNames?: Record<string, string>;
+}) {
   return (
     // M14-F2b (raw-03 P2): overflow-x wrapper keeps wide tables inside their
     // card on ≤900px viewports (page never scrolls sideways); CSS pins the
@@ -79,13 +90,27 @@ export function RunsTable({ runs, now }: { runs: RunDto[]; now: number }) {
                 style={{ color: "var(--accent)", textDecoration: "underline" }}
                 onClick={(e) => e.stopPropagation()}
               >
-                {r.projectId}
+                {projectNames[r.projectId] ?? shortId(r.projectId)}
               </a>
             </td>
             <td style={cellStyle}>
               {/* DS: semantic tone map over the real AgentState vocabulary;
-                  unknown statuses degrade to the neutral blue pill. */}
+                  unknown statuses degrade to the neutral blue pill. The
+                  needs-you line names the action, so a row is readable
+                  without opening it (U1 inbox rule). */}
               <StatusPill status={r.status}>{r.status}</StatusPill>
+              {needsYouAction(r) ? (
+                <span
+                  style={{
+                    display: "block",
+                    marginTop: 4,
+                    color: cssVar("muted"),
+                    fontSize: fontSize.xs,
+                  }}
+                >
+                  {needsYouAction(r)}
+                </span>
+              ) : null}
             </td>
             <td style={cellStyle} title={r.createdAt ? formatTimestamp(r.createdAt) : undefined}>
               {formatRelativeTime(r.createdAt, now)}

@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "kind": "w7-bench-attempt",
+  "mode": "live",
+  "simulation": false,
+  "taskId": "code-search",
+  "heldOut": false,
+  "model": "deepseek/deepseek-v4-flash",
+  "ledgerModel": null,
+  "trial": 1,
+  "runId": "w2-code-search-default-1794560969",
+  "startedAt": "2026-11-13T09:09:29.495796+00:00",
+  "finishedAt": "2026-11-13T09:09:38.968773+00:00",
+  "durationSec": 8.87,
+  "exitCode": 1,
+  "timedOut": false,
+  "verdict": "FAIL",
+  "errorReason": null,
+  "driverVerdict": "FAIL",
+  "failedChecks": [
+    "targetHasNewValue",
+    "onlyTargetChanged",
+    "answerNamesTheFile"
+  ],
+  "firstOutputS": null,
+  "toolCalls": 0,
+  "interventions": 0,
+  "costUsd": null,
+  "costSource": "none (no ledger rows found)",
+  "budget": {
+    "timeoutSeconds": 900,
+    "maxToolCalls": 20,
+    "maxCostUsd": 0.05
+  },
+  "stdoutTail": "{\n  \"verdict\": \"FAIL\",\n  \"failed\": [\n    \"targetHasNewValue\",\n    \"onlyTargetChanged\",\n    \"answerNamesTheFile\"\n  ],\n  \"changed\": [],\n  \"added\": [],\n  \"evidence\": \"/Users/user/untitled folder 2/harness/docs/briefs/evidence/eval/code-search-default-1794560969.json\"\n}\n",
+  "stderrTail": "",
+  "trials": 5,
+  "manifestSha256": "e02dc7bc8aed9a5b095429654c34f203a108702b270b83c498f0ccb6b5da8286",
+  "git": {
+    "head": "deea6c6caf5cdc3296b9f7705a1363543a04214c",
+    "branch": "w28-s1-delegate",
+    "dirty": true
+  }
+}

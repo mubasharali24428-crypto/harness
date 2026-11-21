@@ -1,0 +1,160 @@
+{
+  "schema": 1,
+  "kind": "w25-metrics",
+  "label": "concurrency-3",
+  "window": [
+    "2026-11-05T14:42:00Z",
+    "2026-11-05T14:43:30Z"
+  ],
+  "generatedAt": "2026-11-05T14:46:30.261131+00:00",
+  "note": "nearest-rank percentiles over the attempts present; with n < 20 the p95 is the slowest attempt, not a stable tail estimate",
+  "summary": [
+    {
+      "task": "multi-file-refactor",
+      "model": "deepseek/deepseek-v4-flash",
+      "n": 3,
+      "passes": 1,
+      "failures": [
+        {
+          "startedAt": "2026-11-05T14:42:43.244764+00:00",
+          "verdict": "FAIL",
+          "baseline": "baseline-conc2-1.json"
+        },
+        {
+          "startedAt": "2026-11-05T14:42:48.074060+00:00",
+          "verdict": "FAIL",
+          "baseline": "baseline-conc2-3.json"
+        }
+      ],
+      "wallSeconds": {
+        "n": 3,
+        "min": 41.27,
+        "p50": 49.1,
+        "p95": 61.32,
+        "max": 61.32
+      },
+      "startLatencyS": {
+        "n": 3,
+        "min": 0.022,
+        "p50": 0.031,
+        "p95": 0.067,
+        "max": 0.067
+      },
+      "firstToolCallS": {
+        "n": 3,
+        "min": 7.344,
+        "p50": 8.154,
+        "p95": 10.085,
+        "max": 10.085
+      },
+      "engineS": {
+        "n": 3,
+        "min": 39.392,
+        "p50": 48.163,
+        "p95": 57.143,
+        "max": 57.143
+      },
+      "toolCalls": {
+        "n": 3,
+        "min": 21,
+        "p50": 25,
+        "p95": 27,
+        "max": 27
+      },
+      "ledgerRowLatencyMs": {
+        "n": 3,
+        "min": 0,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "costUsd": {
+        "knownTotal": 0.022093,
+        "knownPerAttemptMean": 0.007364,
+        "unknownAttempts": 0
+      },
+      "firstAttemptWallS": 41.27,
+      "laterAttemptsWallP50": 49.1
+    }
+  ],
+  "attempts": [
+    {
+      "task": "multi-file-refactor",
+      "startedAt": "2026-11-05T14:42:43.244764+00:00",
+      "verdict": "FAIL",
+      "wallSeconds": 41.27,
+      "runId": "w20-refactor-1793889763",
+      "startLatencyS": 0.067,
+      "firstToolCallS": 10.085,
+      "engineS": 39.392,
+      "toolCalls": 21,
+      "attribution": "run_id",
+      "models": {
+        "deepseek/deepseek-v4-flash": {
+          "calls": 1,
+          "in": 62019,
+          "out": 1728,
+          "usd": 0.005958,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "deepseek/deepseek-v4-flash",
+      "costUsd": 0.005958,
+      "baseline": "baseline-conc2-1.json"
+    },
+    {
+      "task": "multi-file-refactor",
+      "startedAt": "2026-11-05T14:42:45.733988+00:00",
+      "verdict": "PASS",
+      "wallSeconds": 61.32,
+      "runId": "w20-refactor-1793889765",
+      "startLatencyS": 0.031,
+      "firstToolCallS": 8.154,
+      "engineS": 57.143,
+      "toolCalls": 27,
+      "attribution": "run_id",
+      "models": {
+        "deepseek/deepseek-v4-flash": {
+          "calls": 1,
+          "in": 92611,
+          "out": 2791,
+          "usd": 0.008936,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "deepseek/deepseek-v4-flash",
+      "costUsd": 0.008936,
+      "baseline": "baseline-conc2-2.json"
+    },
+    {
+      "task": "multi-file-refactor",
+      "startedAt": "2026-11-05T14:42:48.074060+00:00",
+      "verdict": "FAIL",
+      "wallSeconds": 49.1,
+      "runId": "w20-refactor-1793889768",
+      "startLatencyS": 0.022,
+      "firstToolCallS": 7.344,
+      "engineS": 48.163,
+      "toolCalls": 25,
+      "attribution": "run_id",
+      "models": {
+        "deepseek/deepseek-v4-flash": {
+          "calls": 1,
+          "in": 73759,
+          "out": 2675,
+          "usd": 0.007199,
+          "latMs": [
+            0
+          ]
+        }
+      },
+      "primaryModel": "deepseek/deepseek-v4-flash",
+      "costUsd": 0.007199,
+      "baseline": "baseline-conc2-3.json"
+    }
+  ]
+}

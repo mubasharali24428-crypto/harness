@@ -202,7 +202,30 @@ def _norm_scope(b: ScopeBody) -> dict[str, list[str]]:
 
 
 def _covered(path: str, prefixes: list[str]) -> bool:
-    return any(path == q or path.startswith(q.rstrip("/") + "/") for q in prefixes)
+    def noise(value: str) -> str:
+        # Only cosmetic slash noise is equivalent: a leading ./, a trailing /
+        # and doubled /. Keep a leading /, .., internal . and symlinks
+        # significant; a bare ./ keeps its single . part so it cannot turn into
+        # the empty prefix (which the old comparison reads as absolute).
+        absolute = value.startswith("/")
+        parts = [p for p in value.split("/") if p]
+        while parts and parts[0] == "." and len(parts) > 1:
+            parts.pop(0)
+        cleaned = "/".join(parts)
+        return ("/" if absolute else "") + cleaned
+
+    path_key = noise(path)
+    in_workspace = (bool(path_key) and not path_key.startswith("/")
+                    and ".." not in path_key.split("/"))
+    for q in prefixes:
+        if path == q or path.startswith(q.rstrip("/") + "/"):
+            return True  # the batch 2 answer is never taken away
+        prefix_key = noise(q)
+        if prefix_key == "." and in_workspace:
+            return True  # a . scope is the whole workspace (scope_roots -> None)
+        if path_key == prefix_key or path_key.startswith(prefix_key.rstrip("/") + "/"):
+            return True
+    return False
 
 
 def _exceeds(scope: dict[str, list[str]], ceil: dict[str, list[str]]) -> list[str]:
@@ -315,6 +338,7 @@ def _out(r: Mapping[str, Any], calls: list[dict[str, Any]] | None = None) -> dic
     budget, reserved, spent = r["budget_microusd"], r["reserved_microusd"], r["spent_microusd"]
     return {
         "id": r["id"], "runId": r["run_id"], "parentId": r["parent_id"],
+        "childRunId": r.get("child_run_id"),  # W28 S1b; None for plain spawns / pre-0075 rows
         "agentId": r["agent_id"], "agentName": r["agent_name"],
         "agentVersion": r["agent_version"], "depth": r["depth"], "title": r["title"],
         "state": r["state"], "pauseReason": r["pause_reason"],
@@ -339,6 +363,26 @@ def _call_out(r: Mapping[str, Any]) -> dict[str, Any]:
             "fallbackTool": r["fallback_tool"], "costUsd": _usd(r["cost_microusd"]),
             "durationMs": r["duration_ms"], "reportedBy": r["reported_by"],
             "createdAt": _iso(r["created_at"])}
+
+
+async def _stop_child_runs(db: Any, root_id: str, reason: str) -> None:
+    """Stop the run of ``root_id`` and of every descendant (any state). Idempotent.
+
+    A delegated assignment owns a run (W28 S1b); cancelling the assignment must not leave that run
+    live. Called after the cancel commits and again on a repeated cancel, so a failed stop is
+    retried instead of leaving an orphan.
+    """
+    seen, queue = [], [root_id]
+    while queue:
+        cur = queue.pop()
+        row = (await db.execute(text("SELECT child_run_id FROM agent_assignments WHERE id=:i"),
+                                {"i": cur})).mappings().first()
+        if row and row["child_run_id"]:
+            seen.append(row["child_run_id"])
+        queue += [r["id"] for r in (await db.execute(
+            text("SELECT id FROM agent_assignments WHERE parent_id=:p"), {"p": cur})).mappings()]
+    for run_id in seen:
+        await _svc().stop_agent(run_id, reason=reason)
 
 
 async def _terminal(db: Any, row_id: str, new_state: str, now: Any) -> bool:
@@ -709,6 +753,7 @@ async def cancel(runId: str, assignmentId: str, p: Writer,
     async with _factory()() as db:
         row = await _assignment(db, p, runId, assignmentId)
         if row["state"] == "cancelled":
+            await _stop_child_runs(db, assignmentId, "assignment_cancelled")  # retry-safe
             return {**_out(row), "changed": False}
         if row["state"] not in LIVE:
             raise _illegal("cancel", row["state"])
@@ -730,6 +775,7 @@ async def cancel(runId: str, assignmentId: str, p: Writer,
             await db.rollback()
             raise _http(409, "CONCURRENT_SPAWN", "assignment kept gaining children; retry")
         await db.commit()
+        await _stop_child_runs(db, assignmentId, "assignment_cancelled")
         return {**_out(await _assignment(db, p, runId, assignmentId)), "changed": True}
 
 

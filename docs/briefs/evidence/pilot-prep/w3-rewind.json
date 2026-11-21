@@ -1,7 +1,7 @@
 {
- "date": "2026-10-31",
+ "date": "2026-11-05",
  "milestone": "W3 rewind",
- "runId": "w3rewind-1793433470",
+ "runId": "w3rewind-1793891099",
  "steps": [
   {
    "step": "project",
@@ -54,7 +54,7 @@
    "id": "0001-before-attempt-1",
    "seq": 1,
    "label": "before-attempt-1",
-   "at": "2026-10-31T07:57:51Z",
+   "at": "2026-11-05T15:05:00Z",
    "files": 2,
    "bytes": 45
   },
@@ -62,14 +62,14 @@
    "id": "0002-after-attempt-1",
    "seq": 2,
    "label": "after-attempt-1",
-   "at": "2026-10-31T07:58:04Z",
+   "at": "2026-11-05T15:05:15Z",
    "files": 2,
    "bytes": 45
   }
  ],
  "beforeSnapshotContainsCalc": true,
  "rewind": {
-  "runId": "w3rewind-1793433470",
+  "runId": "w3rewind-1793891099",
   "rewoundTo": "0001-before-attempt-1",
   "label": "before-attempt-1",
   "restoredFiles": 1,

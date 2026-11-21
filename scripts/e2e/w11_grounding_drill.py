@@ -203,6 +203,8 @@ def env_file() -> dict[str, str]:
         if line and not line.startswith("#") and "=" in line:
             key, value = line.split("=", 1)
             values[key] = value
+    if os.environ.get("DSH_MODEL"):  # scripts/eval/with_model.sh switches the model for one command
+        values["DSH_MODEL"] = os.environ["DSH_MODEL"]
     return values
 
 

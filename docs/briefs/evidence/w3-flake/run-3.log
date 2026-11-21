@@ -1,0 +1,230 @@
+{
+ "date": "2026-11-05",
+ "milestone": "W3 partial write",
+ "runId": "w3torn-1793896883",
+ "totalLines": 120,
+ "steps": [
+  {
+   "step": "project",
+   "ok": true,
+   "status": 201
+  },
+  {
+   "step": "plan",
+   "ok": true,
+   "status": 201
+  },
+  {
+   "step": "approve",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "start",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "writer observed running",
+   "ok": true,
+   "worker": "9534ef06d644"
+  },
+  {
+   "step": "pause",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "file is torn",
+   "ok": true,
+   "lines": 28
+  },
+  {
+   "step": "before-attempt checkpoint exists",
+   "ok": true,
+   "id": "0001-before-attempt-1"
+  },
+  {
+   "step": "rewind",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "torn file removed by rewind",
+   "ok": true
+  },
+  {
+   "step": "resume",
+   "ok": true,
+   "status": 200
+  },
+  {
+   "step": "resumed run settled",
+   "ok": true,
+   "state": "awaiting_done_signal"
+  },
+  {
+   "step": "attempt 2 checkpointed",
+   "ok": true,
+   "labels": [
+    "before-attempt-1",
+    "after-attempt-1",
+    "before-attempt-2",
+    "after-attempt-2"
+   ]
+  }
+ ],
+ "containerSamples": [
+  {
+   "t": 0.1,
+   "containers": []
+  },
+  {
+   "t": 0.8,
+   "containers": [
+    {
+     "name": "harness-a7f8983ee1c74f25ac927dc8ab450f68-relay",
+     "mounts": []
+    }
+   ]
+  },
+  {
+   "t": 1.5,
+   "containers": [
+    {
+     "name": "harness-a7f8983ee1c74f25ac927dc8ab450f68-relay",
+     "mounts": []
+    }
+   ]
+  },
+  {
+   "t": 2.2,
+   "containers": [
+    {
+     "name": "harness-a7f8983ee1c74f25ac927dc8ab450f68-relay",
+     "mounts": []
+    }
+   ]
+  },
+  {
+   "t": 2.9,
+   "containers": [
+    {
+     "name": "harness-a7f8983ee1c74f25ac927dc8ab450f68-relay",
+     "mounts": []
+    }
+   ]
+  },
+  {
+   "t": 3.8,
+   "containers": [
+    {
+     "name": "harness-a7f8983ee1c74f25ac927dc8ab450f68",
+     "mounts": [
+      "/var/lib/harness-runs/workspace/w3torn-1793896883",
+      "/var/lib/harness-runs/sessions/w3torn-1793896883"
+     ]
+    },
+    {
+     "name": "harness-a7f8983ee1c74f25ac927dc8ab450f68-relay",
+     "mounts": []
+    }
+   ]
+  }
+ ],
+ "topSamples": [
+  {
+   "t": 1793896887.8,
+   "procs": [
+    "38635               python -m harness_orchestrator.engine_worker",
+    "38660               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti"
+   ],
+   "rc": 0,
+   "err": ""
+  },
+  {
+   "t": 1793896888.6,
+   "procs": [
+    "38635               python -m harness_orchestrator.engine_worker",
+    "38660               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti",
+    "38759               python -m harness_orchestrator.mcp_stub"
+   ],
+   "rc": 0,
+   "err": ""
+  },
+  {
+   "t": 1793896889.2,
+   "procs": [
+    "38635               python -m harness_orchestrator.engine_worker",
+    "38660               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti",
+    "38759               python -m harness_orchestrator.mcp_stub"
+   ],
+   "rc": 0,
+   "err": ""
+  },
+  {
+   "t": 1793896889.9,
+   "procs": [
+    "38635               python -m harness_orchestrator.engine_worker",
+    "38660               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti",
+    "38759               python -m harness_orchestrator.mcp_stub"
+   ],
+   "rc": 0,
+   "err": ""
+  },
+  {
+   "t": 1793896890.6,
+   "procs": [
+    "38635               python -m harness_orchestrator.engine_worker",
+    "38660               /usr/local/lib/python3.12/site-packages/deepseek_harness_runtime/runti",
+    "38759               python -m harness_orchestrator.mcp_stub"
+   ],
+   "rc": 0,
+   "err": ""
+  }
+ ],
+ "writerObserved": true,
+ "tornLines": 28,
+ "tornContentHead": "line 0\nline 1\nline 2",
+ "checkpointsBeforeRewind": [
+  {
+   "id": "0001-before-attempt-1",
+   "seq": 1,
+   "label": "before-attempt-1",
+   "at": "2026-11-05T16:41:24Z",
+   "files": 1,
+   "bytes": 143
+  },
+  {
+   "id": "0002-after-attempt-1",
+   "seq": 2,
+   "label": "after-attempt-1",
+   "at": "2026-11-05T16:41:35Z",
+   "files": 2,
+   "bytes": 357
+  }
+ ],
+ "rewind": {
+  "runId": "w3torn-1793896883",
+  "rewoundTo": "0001-before-attempt-1",
+  "label": "before-attempt-1",
+  "restoredFiles": 0,
+  "removedFiles": [
+   "out.txt"
+  ],
+  "removedCount": 1
+ },
+ "outExistsAfterRewind": false,
+ "checkpointLabelsAfterResume": [
+  "before-attempt-1",
+  "after-attempt-1",
+  "before-attempt-2",
+  "after-attempt-2"
+ ],
+ "attemptTwoCheckpointed": true,
+ "ok": true,
+ "verdict": "PASS",
+ "summary": "torn write interrupted, rewind exact, resume ran a second attempt"
+}
+
+evidence: docs/briefs/evidence/w3-flake/run-3.json

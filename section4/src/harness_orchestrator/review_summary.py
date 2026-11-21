@@ -164,6 +164,43 @@ def _test_runs(calls: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     return runs
 
 
+def verification_evidence(tool_calls: Sequence[Mapping[str, Any]] | None) -> dict[str, Any]:
+    """I-09 verification-first: did this run record a test going green?
+
+    Derived only from the engine's own recorded tool calls (same source as the
+    review summary), never from a caller-asserted string. The latest run of each
+    command decides. ``green`` means at least one latest command ran and every
+    latest command passed; a fix-then-green on the same command counts as green.
+    ``red_to_green`` marks a command that failed earlier and passed later. An
+    unknown or refused latest run is never green, and neither unknown (no surfaced
+    tool calls) nor "no test ran" is treated as a pass — the done-signal gate reads
+    ``green`` to decide whether verification evidence exists.
+    """
+    if tool_calls is None:
+        return {"known": False, "ran_tests": False, "green": False,
+                "red_to_green": False, "failed": False}
+    runs = _test_runs(tool_calls)
+    if not runs:
+        return {"known": True, "ran_tests": False, "green": False,
+                "red_to_green": False, "failed": False}
+    ever_failed: set[str] = set()
+    last_by_command: dict[str, dict[str, Any]] = {}
+    for run in runs:
+        if run["result"] in {"failed", "timeout", "refused"}:
+            ever_failed.add(run["command"])
+        last_by_command[run["command"]] = run
+    latest = list(last_by_command.values())
+    return {
+        "known": True,
+        "ran_tests": True,
+        "green": bool(latest) and all(r["result"] == "passed" for r in latest),
+        "red_to_green": any(
+            r["result"] == "passed" and r["command"] in ever_failed for r in latest
+        ),
+        "failed": any(r["result"] in {"failed", "timeout", "refused"} for r in latest),
+    }
+
+
 def build_review_summary(
     *,
     files: Sequence[Mapping[str, Any]],

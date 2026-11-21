@@ -594,6 +594,7 @@ def app_orchestrator():
         agent_tree,
         artifacts,
         control,
+        delegation,
         deployments,
         discussion,
         execution,
@@ -618,7 +619,7 @@ def app_orchestrator():
     search.configure_search(service)
     exports.configure_exports(service)
     for _r in (presence.router, participation.router, control.router, agent_tree.router,
-               discussion.router, plans.router, execution.router, artifacts.router, search.router,
+               delegation.router, discussion.router, plans.router, execution.router, artifacts.router, search.router,
                exports.router, retention_holds.router, shares.router,
                deployments.router, visuals.router):
         app.include_router(_r)

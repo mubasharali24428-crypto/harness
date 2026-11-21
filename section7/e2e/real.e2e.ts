@@ -30,20 +30,18 @@ test("real OTP sign-in, then a real-model run completes", async ({ page }) => {
   await expect(otp).toBeVisible(); // the bypass is off: the server demanded inbox proof
   await otp.fill(await readOtpFromLog(log, email));
   await page.getByRole("button", { name: /Verify code/i }).click();
-  await expect(page.getByRole("heading", { name: /Command Center/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "New run" })).toBeVisible();
 
-  await page.getByPlaceholder("Describe the goal for this run…").fill(
+  // R3: the composer proposes the plan and opens the run; the pinned plan carries Approve and Start.
+  await page.getByLabel("Goal for a new run").fill(
     "Create a file named engine_ok.txt containing exactly 'engine ok'.");
   await page.getByRole("button", { name: "Propose plan" }).click();
   await page.getByRole("button", { name: "Approve plan", exact: true }).click();
-  const link = page.getByRole("link", { name: "Open shared run" });
-  await link.click();
-  await page.getByRole("tab", { name: "Team" }).click();
+  await page.getByRole("button", { name: "Advanced", exact: true }).click();
   await page.getByRole("button", { name: "Join this run" }).click();
   await page.getByRole("button", { name: "Become session leader" }).click();
-  await page.getByRole("tab", { name: "Plan & work" }).click();
   await page.getByRole("button", { name: "Start run", exact: true }).click();
-  await page.getByRole("tab", { name: "Working" }).click();
+  await page.getByRole("button", { name: "Terminal", exact: true }).click();
   await expect(page.getByTestId("run-state")).toContainText(/done|stopped/i, { timeout: 240_000 });
   expect(faults).toEqual([]);
   await page.screenshot({ path: "test-results/real-complete.png", fullPage: true });

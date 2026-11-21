@@ -18,6 +18,8 @@ function run(partial: Partial<RunDto>): RunDto {
     createdAt: partial.createdAt ?? "2026-08-23T16:00:00Z",
     startedAt: partial.startedAt ?? null,
     finishedAt: partial.finishedAt ?? null,
+    planApproved: partial.planApproved,
+    blockedBy: partial.blockedBy,
   };
 }
 
@@ -54,6 +56,34 @@ describe("RunsTable click-through rendering", () => {
     expect(html).toContain('aria-label="Open run run-1234"');
   });
 
+  it.each([
+    ["awaiting_plan_approval", "Approve or reject the plan"],
+    // without blockedBy the reason is unknown, so the row does not guess "a question"
+    ["blocked", "Decide how to unblock the run"],
+    ["pr_opened", "Review the pull request"],
+  ])("shows the home action for %s", (status, action) => {
+    const html = renderToStaticMarkup(<RunsTable runs={[run({ status })]} now={NOW} />);
+    expect(html).toContain(action.replaceAll("'", "&#x27;"));
+    expect(html).toContain(status);
+  });
+
+  it("uses the run's approval and block reason", () => {
+    const approved = renderToStaticMarkup(
+      <RunsTable runs={[run({ status: "awaiting_plan_approval", planApproved: true })]} now={NOW} />,
+    );
+    expect(approved).toContain("Start the approved run");
+    const failed = renderToStaticMarkup(
+      <RunsTable runs={[run({ status: "blocked", blockedBy: "engine_failed" })]} now={NOW} />,
+    );
+    expect(failed).toContain("The run failed: decide what to do next");
+  });
+
+  it("does not invent a pending action for an unknown status", () => {
+    const html = renderToStaticMarkup(<RunsTable runs={[run({ status: "unknown" })]} now={NOW} />);
+    expect(html).toContain("unknown");
+    expect(html).not.toContain("Approve or reject the plan");
+  });
+
   it("renders the honest empty state when there are no runs", () => {
     const html = renderToStaticMarkup(<RunsTable runs={[]} now={NOW} />);
     expect(html).toContain("No runs match the current filters.");
@@ -79,7 +109,8 @@ describe("RunsTable keyboard contract (M14-F1b)", () => {
     // Both rows tabbable at the natural DOM position (tabindex="0"), and no
     // positive tabindex exists anywhere in the emitted markup — tab order
     // must follow DOM order, never a hand-authored sequence.
-    expect(html.split('tabindex="0"').length - 1).toBe(2);
+    // Two rows plus the sideways-scrolling table region itself.
+    expect(html.split('tabindex="0"').length - 1).toBe(3);
     expect(html).not.toMatch(/tabindex="[1-9]/);
   });
 
@@ -90,5 +121,18 @@ describe("RunsTable keyboard contract (M14-F1b)", () => {
     expect(html).toContain('aria-label="Open run run-1234"');
     expect(isRowActivateKey("Enter")).toBe(true);
     expect(isRowActivateKey(" ")).toBe(true);
+  });
+});
+
+
+describe("project column (plan §8 F6)", () => {
+  it("shows the project's name when known and a shortened id otherwise, never the raw id", () => {
+    const id = "5074474e-b2a5-4181-a395-76b4f55ef6b0";
+    const named = renderToStaticMarkup(
+      <RunsTable runs={[run({ projectId: id })]} now={NOW} projectNames={{ [id]: "demo-repo" }} />,
+    );
+    expect(named).toContain(">demo-repo</a>");
+    const unnamed = renderToStaticMarkup(<RunsTable runs={[run({ projectId: id })]} now={NOW} />);
+    expect(unnamed).not.toContain(`>${id}</a>`);
   });
 });

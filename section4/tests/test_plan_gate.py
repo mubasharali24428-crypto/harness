@@ -185,7 +185,8 @@ def test_propose_returns_201_with_plandid_and_plan(service):
     res = _post(client, "/api/v1/orchestrator/plans", {"goal": "Ship feature X"})
     assert res.status_code == 201
     body = res.json()
-    assert set(body.keys()) == {"planId", "plan"}
+    assert set(body.keys()) == {"planId", "runId", "projectId", "plan"}
+    assert body["runId"].startswith("run-")
     assert isinstance(body["planId"], str) and body["planId"]
     plan = body["plan"]
     # camelCase wire mirror of AgentPlan, field-by-field

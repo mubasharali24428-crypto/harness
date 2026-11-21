@@ -638,12 +638,29 @@ export interface ReviewRiskFlag {
   reason: string;
 }
 
+export interface ReviewTestResult {
+  name: string;
+  status: string;
+  pass_count: number;
+  fail_count: number;
+  summary: string;
+}
+
 export interface ReviewDto {
   prId: string;
   pr_url: string;
-  review_status: string;
-  changed_files: ReviewChangedFile[];
+  /** Section 8 also sends camelCase; older/other surfaces used snake_case.
+   *  Both stay optional so the verdict card can tell "absent" from "empty". */
+  prUrl?: string;
+  /** Unified diff text of the PR (section8 ReviewDataResponse.diff). */
+  diff?: string;
+  changed_files?: ReviewChangedFile[];
+  changedFiles?: ReviewChangedFile[];
   risk_flags?: ReviewRiskFlag[];
+  riskFlags?: ReviewRiskFlag[];
+  testResults?: ReviewTestResult[];
+  approvedBy?: string | null;
+  review_status?: string;
   summary?: { sections: { label: string; text: string }[] };
 }
 
@@ -671,6 +688,28 @@ export function requestChanges(
   return reviewFetch(`/api/v1/reviews/${prId}/request-changes`, token, {
     method: "POST",
     body: JSON.stringify({ comments, reviewer_user_id: reviewerUserId }),
+  });
+}
+
+export interface ReviewComment {
+  id: string;
+  file_path: string | null;
+  line: number | null;
+  body: string;
+}
+
+export function listReviewComments(prId: string, token: string): Promise<ReviewComment[]> {
+  return reviewFetch(`/api/v1/reviews/${prId}/comments`, token);
+}
+
+export function addReviewComment(
+  prId: string,
+  comment: { file_path: string; line: number | null; body: string },
+  token: string,
+): Promise<ReviewComment> {
+  return reviewFetch(`/api/v1/reviews/${prId}/comments`, token, {
+    method: "POST",
+    body: JSON.stringify(comment),
   });
 }
 

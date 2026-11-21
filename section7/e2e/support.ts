@@ -83,7 +83,10 @@ export async function requestLoginCode(request: APIRequestContext, email: string
   if (process.env.E2E_OTP_CODE) return process.env.E2E_OTP_CODE;
   if (process.env.E2E_IDENTITY_LOG) return readOtpFromLog(process.env.E2E_IDENTITY_LOG, email);
 
-  const container = process.env.E2E_IDENTITY_CONTAINER ?? "harness-identity-1";
+  // Follow E2E_COMPOSE_PROJECT like the Python drivers, so a second stack (e.g. harness-rc) is not
+  // read from the demo stack's container by mistake.
+  const container =
+    process.env.E2E_IDENTITY_CONTAINER ?? `${process.env.E2E_COMPOSE_PROJECT ?? "harness"}-identity-1`;
   try {
     const { execFile } = await import("node:child_process");
     const promisify = await import("node:util");

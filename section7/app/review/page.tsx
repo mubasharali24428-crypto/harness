@@ -17,6 +17,7 @@ import {
   adoptEventPrId,
   prIdFromSearch,
   resolvePrId,
+  runIdForPr,
 } from "./prSource";
 import { PrEmptyState } from "./prEmptyState";
 // M16-X4 (raw-17): markup migrated onto the shared DS primitives — Card /
@@ -26,6 +27,8 @@ import { PrEmptyState } from "./prEmptyState";
 // verbatim.
 import { Button, Card, Pill } from "@/components/ui";
 import { Notice } from "@/components/ui/Notice";
+import { getRunAggregate, type RunAggregateDto } from "../runs/runsApi";
+import { VerdictCard, reviewVerdictFacts } from "./verdictCard";
 
 const RISKY_FILES = ["auth/", "payment/", "migrations", ".env", "secrets"];
 
@@ -109,6 +112,40 @@ export default function Review() {
 
   const prId = deepLinkPrId ?? eventPrId ?? rememberedPrId;
 
+  // U3: run status/cost for the verdict card. The review API does not carry a
+  // run id, so the run comes from a pr_opened event that names THIS prId; the
+  // newest run on the stream may be another run. No link → "not recorded".
+  const verdictRunId = useMemo(() => runIdForPr(prId, events), [prId, events]);
+  const [runAgg, setRunAgg] = useState<RunAggregateDto | null>(null);
+  useEffect(() => {
+    if (!verdictRunId) {
+      setRunAgg(null);
+      return;
+    }
+    const t = getToken();
+    if (!t) return;
+    let cancelled = false;
+    getRunAggregate(verdictRunId, t)
+      .then((a) => {
+        if (!cancelled) setRunAgg(a);
+      })
+      .catch(() => {
+        if (!cancelled) setRunAgg(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [verdictRunId]);
+
+  const verdict = useMemo(() => reviewVerdictFacts(liveReview, runAgg), [liveReview, runAgg]);
+
+
+
+  // Section 8's wire shape is camelCase; the older snake_case fields stay as a
+  // fallback so the page and the verdict card read the same risk data.
+  const changedFiles = liveReview?.changed_files ?? liveReview?.changedFiles ?? [];
+  const riskFlags = liveReview?.risk_flags ?? liveReview?.riskFlags ?? [];
+
   // Load review data whenever a prId becomes available.
   useEffect(() => {
     const t = getToken();
@@ -137,10 +174,9 @@ export default function Review() {
     };
   }, [prId, reloadKey]);
 
-  const touchesRisky =
-    liveReview?.changed_files?.some((f) =>
-      RISKY_FILES.some((r) => f.path.toLowerCase().includes(r)),
-    ) ?? false;
+  const touchesRisky = changedFiles.some((f) =>
+    RISKY_FILES.some((r) => f.path.toLowerCase().includes(r)),
+  );
 
   async function decide(kind: "approved" | "changes_requested") {
     if (!prId) {
@@ -182,15 +218,24 @@ export default function Review() {
       <h1>
         Review Area{" "}
         <Pill
-          tone={liveReview ? "green" : "yellow"}
-          className={`pill ${liveReview ? "green" : "yellow"}`}
+          tone={liveReview ? "green" : loadError ? "red" : "yellow"}
+          className={`pill ${liveReview ? "green" : loadError ? "red" : "yellow"}`}
         >
-          {liveReview ? `PR ${liveReview.prId}` : prId ? `PR ${prId} loading…` : "no PR yet"}
+          {liveReview
+            ? `PR ${liveReview.prId}`
+            : !prId || prMissing
+              ? "no PR yet"
+              : loadError
+                ? `PR ${prId} not loaded`
+                : `PR ${prId} loading…`}
         </Pill>
       </h1>
       {!prId && <PrEmptyState />}
       {liveReview && (
         <div className="grid">
+          {/* U3: the verdict card comes before the diff and the summary. */}
+          <VerdictCard facts={verdict} />
+
           {/* M16-X4: Card(as="div") keeps the .grid child semantics of the old
               div.card shells; title renders the legacy .card h2 face. */}
           <Card as="div" style={{ gridColumn: "1 / -1" }} title="AI-Written PR Summary">
@@ -205,9 +250,9 @@ export default function Review() {
             )}
           </Card>
 
-          {liveReview.changed_files?.length > 0 && (
+          {changedFiles.length > 0 && (
             <Card as="div" title="Changed Files">
-              {liveReview.changed_files.map((f) => (
+              {changedFiles.map((f) => (
                 <div className="status-line" key={f.path}>
                   <span>{f.path}</span>
                   <span>
@@ -219,9 +264,9 @@ export default function Review() {
           )}
 
           <Card as="div" title="Risk Flags">
-            {liveReview.risk_flags?.length ? (
+            {riskFlags.length ? (
               <ul className="risk-list">
-                {liveReview.risk_flags.map((f) => (
+                {riskFlags.map((f) => (
                   <li key={f.rule}>
                     {f.path} — {f.severity}: {f.reason}
                   </li>

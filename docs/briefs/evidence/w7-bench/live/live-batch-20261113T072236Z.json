@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "kind": "w7-bench-batch",
+  "mode": "live",
+  "model": "none",
+  "trialsPerTask": 5,
+  "tasks": [
+    "stale-edit"
+  ],
+  "startedAt": "2026-11-13T07:22:36.753261+00:00",
+  "finishedAt": "2026-11-13T07:22:41.199018+00:00",
+  "manifestSha256": "e02dc7bc8aed9a5b095429654c34f203a108702b270b83c498f0ccb6b5da8286",
+  "git": {
+    "head": "7c1acf4cdc2022b49989b87ee5c30b1cd371c2d5",
+    "branch": "w28-s1-delegate",
+    "dirty": true
+  },
+  "attemptFiles": [
+    "docs/briefs/evidence/w7-bench/live/live-stale-edit-none-trial1-20261113T072236Z.json",
+    "docs/briefs/evidence/w7-bench/live/live-stale-edit-none-trial2-20261113T072236Z.json",
+    "docs/briefs/evidence/w7-bench/live/live-stale-edit-none-trial3-20261113T072236Z.json",
+    "docs/briefs/evidence/w7-bench/live/live-stale-edit-none-trial4-20261113T072236Z.json",
+    "docs/briefs/evidence/w7-bench/live/live-stale-edit-none-trial5-20261113T072236Z.json"
+  ],
+  "counts": {
+    "attempts": 5,
+    "pass": 5,
+    "fail": 0,
+    "timeout": 0,
+    "error": 0,
+    "denied": 0
+  },
+  "claimable": null,
+  "note": "Live trials; cost/interventions from cost_ledger/run_collab_events by run id; null when unreachable. Rates require N>=5 per cell (bench_stats)."
+}

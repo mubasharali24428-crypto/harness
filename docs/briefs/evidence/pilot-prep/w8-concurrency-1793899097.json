@@ -1,0 +1,317 @@
+{
+  "date": "2026-11-05",
+  "week": "W8",
+  "claim": "three concurrent runs in one repo: isolated, reviewable, no clobbering or silent overwrite; a cancelled run releases its boundary and preserves neighbours",
+  "drive": "three live runs over HTTP on the compose stack (Postgres, container confinement), two of them producing the same path with different bytes; a fourth run stopped mid-flight",
+  "projectId": "0b495245-5ad0-4049-b7b8-6249abe69a6a",
+  "model": "anthropic/claude-haiku-5.5",
+  "capsInForce": {
+    "ENGINE_RUN_TIMEOUT_SECONDS": "600",
+    "HARNESS_ENGINE_CONFINEMENT": "container"
+  },
+  "runs": {
+    "a": {
+      "runId": "w8-a-1793899097",
+      "base": "http://127.0.0.1:8004/api/v1/orchestrator/runs/w8-a-1793899097",
+      "planId": "plan-6856bb1d",
+      "goal": "Create a file named w8_shared.txt in the workspace root containing exactly: alpha",
+      "startStatus": 200,
+      "finalState": "awaiting_done_signal",
+      "doneSignal": {
+        "status": 200,
+        "diffChars": 61,
+        "detail": null
+      },
+      "changeItems": [
+        {
+          "id": "3c7ae800-ee95-471e-bc46-7a2910dfed11",
+          "path": "w8_shared.txt",
+          "diffSha": "8bf6a93c117123459f70056dac997b4806d91eb157c54b9bf07f43dfff221be4",
+          "reviewState": "pending"
+        }
+      ],
+      "changes": [
+        {
+          "path": "w8_shared.txt",
+          "diffSha": "8bf6a93c1171"
+        }
+      ],
+      "changesDigest": "9c3611b9131b680a475ada9fe9973f037fbbb7e51b900dd949ab15f1f2b7d3ba",
+      "checkpointManifests": 2,
+      "checkpointPaths": [
+        "w8_shared.txt"
+      ],
+      "checkpointHashes": {
+        "w8_shared.txt": [
+          "b6a98d9ce9a2d9149288fa3df42d377c3e42737afdcdaf714e33c0a100b51060"
+        ]
+      },
+      "foreignCheckpointNames": [],
+      "ownCheckpointFileSeen": true
+    },
+    "b": {
+      "runId": "w8-b-1793899097",
+      "base": "http://127.0.0.1:8004/api/v1/orchestrator/runs/w8-b-1793899097",
+      "planId": "plan-5aa266fa",
+      "goal": "Create a file named w8_shared.txt in the workspace root containing exactly: beta",
+      "startStatus": 200,
+      "finalState": "awaiting_done_signal",
+      "doneSignal": {
+        "status": 200,
+        "diffChars": 59,
+        "detail": null
+      },
+      "changeItems": [
+        {
+          "id": "a46c3896-6ca8-4b9c-9ce8-bf78b5bbfb5a",
+          "path": "w8_shared.txt",
+          "diffSha": "0dc12bf67c43735dff6fbae6dd5d31543dfbaa995d7416e1d386ccadd7f5cddc",
+          "reviewState": "pending"
+        }
+      ],
+      "changes": [
+        {
+          "path": "w8_shared.txt",
+          "diffSha": "0dc12bf67c43"
+        }
+      ],
+      "changesDigest": "7c11b116a6401ac3ff7b325964c996fd1956b30557f753358b1d0741ec0a04ea",
+      "checkpointManifests": 2,
+      "checkpointPaths": [
+        "w8_shared.txt"
+      ],
+      "checkpointHashes": {
+        "w8_shared.txt": [
+          "f44e64e75f3948e9f73f8dfa94721c4ce8cbb4f265c4790c702b2d41cfbf2753"
+        ]
+      },
+      "foreignCheckpointNames": [],
+      "ownCheckpointFileSeen": true
+    },
+    "c": {
+      "runId": "w8-c-1793899097",
+      "base": "http://127.0.0.1:8004/api/v1/orchestrator/runs/w8-c-1793899097",
+      "planId": "plan-d6c0379b",
+      "goal": "Create a file named w8_run_c.txt in the workspace root containing exactly: gamma",
+      "startStatus": 200,
+      "finalState": "awaiting_done_signal",
+      "doneSignal": {
+        "status": 200,
+        "diffChars": 58,
+        "detail": null
+      },
+      "changeItems": [
+        {
+          "id": "8add7969-2f43-4b7d-9340-544910cea77c",
+          "path": "w8_run_c.txt",
+          "diffSha": "243be17a4da799e99bc20b8b370288b1872cd53c6dcf3698c9909c0839f4cb32",
+          "reviewState": "pending"
+        }
+      ],
+      "changes": [
+        {
+          "path": "w8_run_c.txt",
+          "diffSha": "243be17a4da7"
+        }
+      ],
+      "changesDigest": "05166b7ee4c9c94aed6f4c78c372ce02ce9c8cfb9e4358bb4f43fe3ea8e8e27a",
+      "checkpointManifests": 2,
+      "checkpointPaths": [
+        "w8_run_c.txt"
+      ],
+      "checkpointHashes": {
+        "w8_run_c.txt": [
+          "be9d587defa1f0c09ef49eb17e206983a5f8f8289e4281860bd0ee5a19592c67"
+        ]
+      },
+      "foreignCheckpointNames": [],
+      "ownCheckpointFileSeen": true
+    }
+  },
+  "cancelRun": {
+    "runId": "w8-cancel-1793899097",
+    "startStatus": 200,
+    "stopStatus": 200,
+    "stateAtStop": "executing",
+    "neighbourStatesAtStop": {
+      "a": "executing",
+      "b": "executing",
+      "c": "executing"
+    },
+    "finalState": "done",
+    "claimAfterSettle": null,
+    "networkAfterSettle": null,
+    "lifecycle": {
+      "phase": "stopped",
+      "cancelRequested": true,
+      "cancelConfirmed": true,
+      "mutationPossible": false,
+      "userStatus": "finished"
+    },
+    "confirmSeconds": 0.2,
+    "engineFinalResponse": null
+  },
+  "maxConcurrentExecuting": 4,
+  "stateTimeline": [
+    "a=executing,b=executing,c=executing,cancel=executing",
+    "a=executing,b=executing,c=executing,cancel=done",
+    "a=awaiting_done_signal,b=executing,c=executing,cancel=done",
+    "a=awaiting_done_signal,b=awaiting_done_signal,c=awaiting_done_signal,cancel=done"
+  ],
+  "workerContainers": [
+    {
+      "name": "harness-38b63ba5dc46452d968c75cb6ffb8b2f",
+      "role": "worker",
+      "networks": [
+        "harness-38b63ba5dc46452d968c75cb6ffb8b2f-net"
+      ],
+      "mounts": [
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data/workspace/w8-c-1793899097",
+          "dst": "/var/lib/harness-runs/workspace/w8-c-1793899097",
+          "type": "bind",
+          "rw": true
+        },
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data/sessions/w8-c-1793899097",
+          "dst": "/var/lib/harness-runs/sessions/w8-c-1793899097",
+          "type": "bind",
+          "rw": true
+        }
+      ],
+      "started": "2026-11-05T17:18:21.32978026Z",
+      "mountTargets": [
+        "/var/lib/harness-runs/sessions/w8-c-1793899097",
+        "/var/lib/harness-runs/workspace/w8-c-1793899097"
+      ],
+      "runDirs": [
+        "w8-c-1793899097"
+      ]
+    },
+    {
+      "name": "harness-a7a5e8f7c00c49e8afaadceba711f9af",
+      "role": "worker",
+      "networks": [
+        "harness-a7a5e8f7c00c49e8afaadceba711f9af-net"
+      ],
+      "mounts": [
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data/workspace/w8-a-1793899097",
+          "dst": "/var/lib/harness-runs/workspace/w8-a-1793899097",
+          "type": "bind",
+          "rw": true
+        },
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data/sessions/w8-a-1793899097",
+          "dst": "/var/lib/harness-runs/sessions/w8-a-1793899097",
+          "type": "bind",
+          "rw": true
+        }
+      ],
+      "started": "2026-11-05T17:18:20.83853226Z",
+      "mountTargets": [
+        "/var/lib/harness-runs/sessions/w8-a-1793899097",
+        "/var/lib/harness-runs/workspace/w8-a-1793899097"
+      ],
+      "runDirs": [
+        "w8-a-1793899097"
+      ]
+    },
+    {
+      "name": "harness-929790a17a07473eb9707cbca73f93a6",
+      "role": "worker",
+      "networks": [
+        "harness-929790a17a07473eb9707cbca73f93a6-net"
+      ],
+      "mounts": [
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data/sessions/w8-b-1793899097",
+          "dst": "/var/lib/harness-runs/sessions/w8-b-1793899097",
+          "type": "bind",
+          "rw": true
+        },
+        {
+          "src": "/var/lib/docker/volumes/harness_runs/_data/workspace/w8-b-1793899097",
+          "dst": "/var/lib/harness-runs/workspace/w8-b-1793899097",
+          "type": "bind",
+          "rw": true
+        }
+      ],
+      "started": "2026-11-05T17:18:20.811984885Z",
+      "mountTargets": [
+        "/var/lib/harness-runs/sessions/w8-b-1793899097",
+        "/var/lib/harness-runs/workspace/w8-b-1793899097"
+      ],
+      "runDirs": [
+        "w8-b-1793899097"
+      ]
+    }
+  ],
+  "distinctWorkerNetworkSets": 3,
+  "runDirsPerWorker": {
+    "harness-38b63ba5dc46452d968c75cb6ffb8b2f": [
+      "w8-c-1793899097"
+    ],
+    "harness-a7a5e8f7c00c49e8afaadceba711f9af": [
+      "w8-a-1793899097"
+    ],
+    "harness-929790a17a07473eb9707cbca73f93a6": [
+      "w8-b-1793899097"
+    ]
+  },
+  "sharedRunDirs": [],
+  "overlap": {
+    "path": "w8_shared.txt",
+    "digests": {
+      "a": "8bf6a93c117123459f70056dac997b4806d91eb157c54b9bf07f43dfff221be4",
+      "b": "0dc12bf67c43735dff6fbae6dd5d31543dfbaa995d7416e1d386ccadd7f5cddc"
+    },
+    "checkpointHashes": {
+      "a": [
+        "b6a98d9ce9a2d9149288fa3df42d377c3e42737afdcdaf714e33c0a100b51060"
+      ],
+      "b": [
+        "f44e64e75f3948e9f73f8dfa94721c4ce8cbb4f265c4790c702b2d41cfbf2753"
+      ]
+    },
+    "reviews": {
+      "crossDigest": {
+        "status": 409,
+        "code": "CHANGE_STALE"
+      },
+      "a": {
+        "status": 200,
+        "reviewState": "approved"
+      },
+      "b": {
+        "status": 200,
+        "reviewState": "approved"
+      }
+    }
+  },
+  "checks": {
+    "threeStarted": true,
+    "overlapObserved": true,
+    "threeWorkersSeen": true,
+    "networksDistinct": true,
+    "workspacesDistinct": true,
+    "eachReviewable": true,
+    "eachCheckpointed": true,
+    "ownFileInOwnCheckpoint": true,
+    "noClobbering": true,
+    "allSettled": true,
+    "sharedPathInBothRuns": true,
+    "overlapDigestsDiffer": true,
+    "overlapHashesDiffer": true,
+    "crossRunDigestRefused": true,
+    "bothOverlapReviewable": true,
+    "cancelStarted": true,
+    "cancelWasLive": true,
+    "cancelSettled": true,
+    "cancelRecordedAsStopped": true,
+    "cancelClaimReleased": true,
+    "cancelBoundaryGone": true,
+    "neighboursUnaffected": true
+  },
+  "verdict": "PASS"
+}

@@ -1,0 +1,140 @@
+{
+  "date": "2026-11-05",
+  "week": "W28",
+  "verdict": "PASS",
+  "runs": {
+    "root": "7193109c-9599-4cf1-8457-d4b43d3ba4d7",
+    "A": "7fe55ff1-500e-4f39-84b2-7a417b54d9e7",
+    "B": "43e2da5a-fff0-46a6-86cb-43a7c8a85381"
+  },
+  "steps": [
+    {
+      "step": "parent run exists",
+      "ok": true,
+      "status": 201
+    },
+    {
+      "step": "agent definition approved",
+      "ok": true,
+      "create": 201,
+      "approve": 200
+    },
+    {
+      "step": "root and two children delegated, each with its own run",
+      "ok": true,
+      "runs": {
+        "root": "7193109c-9599-4cf1-8457-d4b43d3ba4d7",
+        "A": "7fe55ff1-500e-4f39-84b2-7a417b54d9e7",
+        "B": "43e2da5a-fff0-46a6-86cb-43a7c8a85381"
+      },
+      "status": 201,
+      "response": null
+    },
+    {
+      "step": "every child run's intent is bound to its assignment paths",
+      "ok": true,
+      "bound": {
+        "root": "[\"src\"]",
+        "A": "[\"src\"]",
+        "B": "[\"src\"]"
+      }
+    },
+    {
+      "step": "a scope without paths is refused, not left unconfined",
+      "ok": true,
+      "status": 422
+    },
+    {
+      "step": "children wait for human approval",
+      "ok": true
+    },
+    {
+      "step": "child B cancelled before approval, its run stopped",
+      "ok": true,
+      "runStatus": "done"
+    },
+    {
+      "step": "child A approved by a human and started",
+      "ok": true,
+      "approve": 200,
+      "start": 200
+    },
+    {
+      "step": "child A observed",
+      "ok": true,
+      "state": "executing",
+      "midRun": true,
+      "networkBeforeCancel": "harness-c6232d388fd14e189c3e9211c1df716b-net"
+    },
+    {
+      "step": "root cancelled",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "step": "every delegated run was stopped by the cascade",
+      "ok": true,
+      "final": {
+        "root": "done",
+        "A": "done",
+        "B": "done"
+      },
+      "stopEvents": {
+        "root": true,
+        "A": true,
+        "B": true
+      }
+    },
+    {
+      "step": "no run_claims row left",
+      "ok": true,
+      "claims": {
+        "root": null,
+        "A": null,
+        "B": null
+      }
+    },
+    {
+      "step": "no worker container or network left for A",
+      "ok": true,
+      "network": null,
+      "containers": []
+    },
+    {
+      "step": "no live assignment left",
+      "ok": true,
+      "live": []
+    },
+    {
+      "step": "each stopped run has exactly one stop event (no duplicate on cascade)",
+      "ok": true,
+      "counts": {
+        "root": "1",
+        "A": "1",
+        "B": "1"
+      }
+    },
+    {
+      "step": "synthesis lists all three delegated runs for review, merging nothing",
+      "ok": true,
+      "status": 200,
+      "states": {
+        "root": "cancelled",
+        "A": "cancelled",
+        "B": "cancelled"
+      },
+      "runStatus": {
+        "root": "not_started",
+        "A": "not_started",
+        "B": "not_started"
+      },
+      "conflicts": []
+    }
+  ],
+  "drive": "HTTP + docker/psql reads",
+  "limits": [
+    "assignment scope is recorded but not yet bound to the child engine",
+    "one trial; the cancel is mid-run only where midRunCancel is true"
+  ],
+  "midRunCancel": true
+}
