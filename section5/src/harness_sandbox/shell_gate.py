@@ -224,5 +224,27 @@ def run(req: dict) -> dict:
     return {"exitCode": proc.returncode, "output": out[-MAX_OUTPUT_CHARS:]}
 
 
+def _sanitize_own_environment() -> None:
+    """G2 root fix: re-exec self with a sanitized environment ONCE.
+
+    On Linux, /proc/<gate-pid>/environ is readable by the gate's confined
+    child (the read allow-list grants /proc). Whatever the CALLER does, a gate
+    process holding the runner token or DB DSN in its environment leaks them
+    to every command it confines — demonstrated live in the worker image
+    (probe 2026-11-21, "BYPASS-LEAKED"). Re-exec strips the sensitive keys at
+    the source: after this, the environ a confined child reads is clean, and
+    the command child gets the sanitized env it always got.
+    """
+    module = _load("policy")
+    sanitized = module.sanitize_environment(os.environ)
+    if sanitized == dict(os.environ):
+        return  # nothing sensitive present; no re-exec needed
+    os.environ.clear()
+    os.environ.update(sanitized)
+    os.execve(sys.executable, [sys.executable, "-I", str(Path(__file__).resolve())],
+              sanitized)
+
+
 if __name__ == "__main__":
+    _sanitize_own_environment()
     sys.stdout.write(json.dumps(run(json.loads(sys.stdin.read()))) + "\n")
